@@ -30,6 +30,11 @@ public record EntityId(String type, String key) {
     }
   }
 
+  /** Whether the text is a valid entity type name, the form entity types use. */
+  public static boolean isValidType(String type) {
+    return type != null && TYPE.matcher(type).matches();
+  }
+
   /** Parses the {@code <type>:<key>} form. The inverse of {@link #toString()}. */
   public static EntityId parse(String value) {
     Objects.requireNonNull(value, "value");

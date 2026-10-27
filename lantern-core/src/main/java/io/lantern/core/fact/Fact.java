@@ -63,6 +63,11 @@ public record Fact(
     }
   }
 
+  /** Whether the text is a valid predicate name, the form relationship and attribute types use. */
+  public static boolean isValidPredicate(String predicate) {
+    return predicate != null && PREDICATE.matcher(predicate).matches();
+  }
+
   /** Creates a fact whose ID is derived from its content. */
   public static Fact create(
       EntityId subject,

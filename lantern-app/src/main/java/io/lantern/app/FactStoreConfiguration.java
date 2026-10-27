@@ -1,16 +1,30 @@
 package io.lantern.app;
 
 import io.lantern.core.fact.FactRepository;
+import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.vocabulary.VocabularyRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
-/** Wires the fact store to the app's database. */
+/** Wires the fact store and the vocabulary registry to the app's database. */
 @Configuration(proxyBeanMethods = false)
 class FactStoreConfiguration {
 
+  /** The vocabulary registry, with the built-in types loaded before anything can use it. */
   @Bean
-  FactRepository factRepository(JdbcClient jdbcClient) {
-    return new FactRepository(jdbcClient);
+  VocabularyRegistry vocabularyRegistry(
+      JdbcClient jdbcClient, PlatformTransactionManager transactionManager) {
+    VocabularyRegistry registry =
+        new VocabularyRegistry(jdbcClient, new TransactionTemplate(transactionManager));
+    registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
+    return registry;
+  }
+
+  @Bean
+  FactRepository factRepository(JdbcClient jdbcClient, VocabularyRegistry vocabularyRegistry) {
+    return new FactRepository(jdbcClient, vocabularyRegistry);
   }
 }
