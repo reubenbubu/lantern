@@ -77,4 +77,10 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 ## Commands
 
-To be filled in once the project skeleton exists.
+Requires JDK 21. Run from the repo root.
+
+- Build and test everything (what CI runs): `./mvnw verify`
+- Fix formatting: `./mvnw spotless:apply`
+- Check formatting only: `./mvnw spotless:check`
+- Test one module: `./mvnw verify -pl <module> -am`
+- Run the app: `./mvnw install -DskipTests && ./mvnw spring-boot:run -pl lantern-app`
