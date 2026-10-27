@@ -20,13 +20,15 @@ any code that changes the design. This file covers only how you work.
   1. Read the issue and the design sections it touches. Comment on the issue that work has
      started.
   2. Always work in a git worktree, never in the main checkout. One worktree per issue, on a
-     branch named `issue-<number>-<short-slug>`.
-  3. Build and test until everything passes.
+     branch named `<prefix>/<number>-<short-slug>`, e.g. `feature/12-maven-extractor`. The
+     prefix is `feature/`, `bugfix/` or `chore/`, chosen by the issue type.
+  3. Build and test until everything passes. Commits carry no `Co-Authored-By` trailer.
   4. Open a PR whose description says `Closes #<number>`.
   5. A separate reviewer subagent reviews the PR diff. Give it the diff and the issue, not the
      implementer's reasoning. Fix what it finds.
-  6. Squash-merge when checks and review pass. Leave a short summary on the issue and make sure
-     it is closed.
+  6. Squash-merge when CI and review pass. CI is local, not on GitHub: it means
+     `./mvnw verify` (see Commands), and it must pass on the branch before merging. Leave a
+     short summary on the issue and make sure it is closed.
   7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
      containers, temp files or test data the task created. Leave the machine as you found it.
 - Keep issues current. If scope changes, a task is blocked, or you find new work, update or
@@ -79,7 +81,7 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 Requires JDK 21. Run from the repo root.
 
-- Build and test everything (what CI runs): `./mvnw verify`
+- Build and test everything (this is CI; must pass before merging): `./mvnw verify`
 - Fix formatting: `./mvnw spotless:apply`
 - Check formatting only: `./mvnw spotless:check`
 - Test one module: `./mvnw verify -pl <module> -am`
