@@ -137,7 +137,7 @@ public record VocabularyType(
 
   private static String optionalString(JsonNode node, String field) {
     JsonNode value = node.get(field);
-    if (value == null || value.isNull()) {
+    if (value == null) {
       return null;
     }
     if (!value.isString()) {

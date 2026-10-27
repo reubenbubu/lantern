@@ -1,6 +1,7 @@
 package io.lantern.core.vocabulary;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.vocabulary.AttributeSchema.Property;
@@ -136,6 +137,36 @@ class VocabularySchemaTest {
       accepted = false;
     }
     assertThat(matches("attributeName", name)).isEqualTo(accepted);
+  }
+
+  @Test
+  void namePatternsDependOnTheKindAsInJava() throws IOException {
+    JsonNode rule = schema().get("allOf").get(0);
+
+    assertThat(rule.get("if").get("properties").get("kind").get("const").stringValue())
+        .isEqualTo(TypeKind.ENTITY.jsonName());
+    for (String field : List.of("name", "parent")) {
+      assertThat(rule.get("then").get("properties").get(field).get("$ref").stringValue())
+          .isEqualTo("#/$defs/entityTypeName");
+      assertThat(rule.get("else").get("properties").get(field).get("$ref").stringValue())
+          .isEqualTo("#/$defs/predicateName");
+    }
+  }
+
+  @Test
+  void allowedValuesAndItemsAreTiedToTheirTypesAsInJava() throws IOException {
+    JsonNode dependent = schema().get("$defs").get("property").get("dependentSchemas");
+
+    assertThat(dependent.propertyNames()).containsExactlyInAnyOrder("enum", "items");
+    assertThat(dependent.get("enum").get("properties").get("type").get("const").stringValue())
+        .isEqualTo(ValueType.STRING.jsonName());
+    assertThat(dependent.get("items").get("properties").get("type").get("const").stringValue())
+        .isEqualTo(ValueType.ARRAY.jsonName());
+    assertThatThrownBy(() -> new Property(ValueType.INTEGER, null, List.of("1"), null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(
+            () -> new Property(ValueType.STRING, null, List.of(), Property.of(ValueType.STRING)))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

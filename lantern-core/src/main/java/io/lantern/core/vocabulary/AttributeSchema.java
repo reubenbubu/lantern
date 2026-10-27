@@ -117,10 +117,13 @@ public record AttributeSchema(
       return new Property(type, null, List.of(), null);
     }
 
-    /** Whether both accept exactly the same values; descriptions are ignored. */
+    /**
+     * Whether both accept exactly the same values; descriptions and the order of allowed values are
+     * ignored.
+     */
     public boolean sameConstraints(Property other) {
       return type == other.type
-          && allowed.equals(other.allowed)
+          && Set.copyOf(allowed).equals(Set.copyOf(other.allowed))
           && (items == null
               ? other.items == null
               : other.items != null && items.sameConstraints(other.items));
@@ -274,10 +277,15 @@ public record AttributeSchema(
   }
 
   /**
-   * What would make replacing this schema with a newer one more than an additive change. A change
-   * is additive when everything this schema accepts the newer one accepts too: declared attributes
-   * stay as they are, no attribute becomes required, and undeclared attributes stay allowed if they
-   * were. Descriptions may change.
+   * What would make replacing this schema with a newer one more than an additive change. Allowed:
+   * declaring new optional attributes, dropping required ones, starting to allow undeclared
+   * attributes, and changing descriptions. Refused: removing or changing a declared attribute,
+   * making an attribute required, and starting to refuse undeclared attributes.
+   *
+   * <p>Declaring a new attribute on a schema that allows undeclared ones does constrain values it
+   * used to accept, for example a new {@code integer} attribute refuses a string that was accepted
+   * as undeclared. That is still treated as additive: declaring attributes is how the vocabulary
+   * grows.
    *
    * @return the problems, empty when the change is additive
    */

@@ -71,7 +71,8 @@ class VocabularyTypeTest {
         "{\"name\": \"a\", \"kind\": \"thing\", \"attributeSchema\": {}}",
         "{\"name\": \"a\", \"kind\": \"entity\", \"c4Level\": \"deployment\", \"attributeSchema\": {}}",
         "{\"name\": \"a\", \"kind\": \"entity\", \"colour\": \"red\", \"attributeSchema\": {}}",
-        "{\"name\": 1, \"kind\": \"entity\", \"attributeSchema\": {}}"
+        "{\"name\": 1, \"kind\": \"entity\", \"attributeSchema\": {}}",
+        "{\"name\": \"a\", \"kind\": \"entity\", \"parent\": null, \"attributeSchema\": {}}"
       })
   void rejectsInvalidJson(String json) {
     assertThatThrownBy(() -> VocabularyType.fromJson(FactJson.parse(json)))

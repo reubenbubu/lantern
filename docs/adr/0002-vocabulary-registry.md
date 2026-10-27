@@ -31,8 +31,9 @@ choices.
   not be declared differently from an ancestor.
 - **Validation on write.** `FactRepository.save` checks every fact against the latest vocabulary
   revision: the predicate must be a relationship or attribute type, and the attributes must match
-  its effective schema. Unknown predicates are refused. The subject and object entity types are not
-  checked yet.
+  its effective schema. Unknown predicates are refused. Not checked yet: the subject's and object's
+  entity types, and the object value of attribute-type facts (for example that `owner` is a
+  string).
 - **Revisions.** Revision 0 is the empty vocabulary; each change that alters anything creates the
   next revision (1, 2, 3, ...) with its source (`built-in`, a plugin, a user) and time. A revision
   stores the new definition of each type it changed, so the vocabulary as of any revision can be
@@ -40,7 +41,10 @@ choices.
   revisions have no gaps or races.
 - **Changes are additive**, as the design's versioning rules require: an existing type keeps its
   kind and parent, keeps every declared attribute unchanged, gains no required attributes and does
-  not start refusing undeclared ones. Descriptions, C4 level and presentation may change. Removing
+  not start refusing undeclared ones. It may declare new optional attributes, and descriptions, C4
+  level and presentation may change. Declaring a new attribute on a type that allows undeclared
+  ones constrains values that were accepted before (and so for its open descendants); this is
+  still treated as additive, because declaring attributes is how the vocabulary grows. Removing
   and renaming types (deprecation with an alias) are not implemented yet.
 - **Built-in types** are defined in `lantern-core/src/main/resources/vocabulary/built-in-types.json`
   and applied when the app starts, before anything can save facts; unchanged built-ins create no

@@ -199,5 +199,11 @@ class AttributeSchemaTest {
              "additionalProperties": false}
             """);
     assertThat(closed.nonAdditiveChanges(before)).isEmpty();
+    assertThat(
+            schema("{\"properties\": {\"m\": {\"type\": \"string\", \"enum\": [\"x\", \"y\"]}}}")
+                .nonAdditiveChanges(
+                    schema(
+                        "{\"properties\": {\"m\": {\"type\": \"string\", \"enum\": [\"y\", \"x\"]}}}")))
+        .isEmpty();
   }
 }
