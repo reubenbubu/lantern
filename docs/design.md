@@ -1,6 +1,3 @@
-> Copy of the master design doc: https://claude.ai/artifact/1oi2XNFvDAv4deQw7zCQRR
-> The master doc wins if the two differ.
-
 # Lantern — Design Document
 
 Oct 27, 2026
@@ -44,7 +41,20 @@ The knowledge model is the product. Documents are views of it.
 
 Seven stages run in order for each snapshot, and every stage reads from or writes to one versioned knowledge store in PostgreSQL. People add annotations and presentation rules to the same store, so the composer sees code facts and human knowledge together.
 
-_Diagram: see the "Lantern pipeline" figure in the master doc._
+```mermaid
+flowchart TD
+  repos[Local repositories<br/>repo@commit set = snapshot] --> build[Build sandbox<br/>container per JDK]
+  build --> extract[Static extractors + learned rules]
+  extract --> link[Linker and grouping]
+  link --> summarize[Summarizer - LLM]
+  summarize --> compose[Composer]
+  compose --> render[Renderers<br/>HTML, Markdown, PDF, Confluence]
+  people[People in the UI<br/>annotations, rules, approvals] -- annotations, rules --> store[(Knowledge store<br/>PostgreSQL, versioned)]
+  extract -- facts --> store
+  link -- links --> store
+  summarize -- summaries --> store
+  store -- reads --> compose
+```
 
 Only the composer decides what a document says. Renderers just format its output, which keeps new output formats cheap to add.
 

@@ -1,8 +1,8 @@
 # Lantern: instructions for the coding agent
 
 Lantern analyzes a set of Java repositories and generates architecture documents from them.
-What to build is in `docs/design.md` (a copy of the master design doc:
-https://claude.ai/artifact/1oi2XNFvDAv4deQw7zCQRR). This file covers only how you work.
+What to build is in `docs/design.md`, the only design document. Change it in the same PR as
+any code that changes the design. This file covers only how you work.
 
 ## Talking to the user
 
@@ -17,15 +17,35 @@ https://claude.ai/artifact/1oi2XNFvDAv4deQw7zCQRR). This file covers only how yo
 - The main session coordinates and stays quiet. It picks the next issue, hands it to a
   subagent, and relays a short summary. It does not do task work itself.
 - Each task runs in its own subagent, so its context is discarded when it finishes:
-  1. Read the issue and the design sections it touches.
-  2. Work on a branch named `issue-<number>-<short-slug>`.
+  1. Read the issue and the design sections it touches. Comment on the issue that work has
+     started.
+  2. Always work in a git worktree, never in the main checkout. One worktree per issue, on a
+     branch named `issue-<number>-<short-slug>`.
   3. Build and test until everything passes.
-  4. Open a PR that references the issue.
+  4. Open a PR whose description says `Closes #<number>`.
   5. A separate reviewer subagent reviews the PR diff. Give it the diff and the issue, not the
      implementer's reasoning. Fix what it finds.
-  6. Squash-merge when checks and review pass. Leave a short summary on the issue and close it.
-- Decisions that will matter later go in `docs/adr/NNNN-title.md`. Don't keep a running log
-  file; issues and PRs are the history.
+  6. Squash-merge when checks and review pass. Leave a short summary on the issue and make sure
+     it is closed.
+  7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
+     containers, temp files or test data the task created. Leave the machine as you found it.
+- Keep issues current. If scope changes, a task is blocked, or you find new work, update or
+  open an issue right away. An issue's state must always match reality.
+
+## One source of truth
+
+Every piece of information lives in exactly one place. Link to it; never copy it.
+
+| What | Where |
+| --- | --- |
+| What to build | `docs/design.md` |
+| How to work | This file |
+| Tasks, status, progress | GitHub issues and milestones |
+| Decisions made while building | `docs/adr/NNNN-title.md` |
+| Build and test commands | The Commands section below |
+
+No running logs, plan files, TODO lists or notes outside these places. If two places disagree,
+fix the wrong one in the same change.
 
 ## When to stop and ask
 
