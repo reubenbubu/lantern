@@ -79,10 +79,11 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 ## Commands
 
-Requires JDK 21. Run from the repo root.
+Requires JDK 21 and Docker (tests start PostgreSQL with Testcontainers). Run from the repo root.
 
 - Build and test everything (this is CI): `./mvnw verify`
 - Fix formatting: `./mvnw spotless:apply`
 - Check formatting only: `./mvnw spotless:check`
 - Test one module: `./mvnw verify -pl <module> -am`
-- Run the app: `./mvnw install -DskipTests && ./mvnw spring-boot:run -pl lantern-app`
+- Start the local database: `docker compose up -d` (stop with `docker compose down`)
+- Run the app (needs the local database): `./mvnw install -DskipTests && ./mvnw spring-boot:run -pl lantern-app`

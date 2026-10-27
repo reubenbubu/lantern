@@ -1,0 +1,23 @@
+# Local development database. Start with `docker compose up -d`.
+# The credentials are local-only defaults, not secrets.
+name: lantern
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: lantern
+      POSTGRES_USER: lantern
+      POSTGRES_PASSWORD: lantern
+    ports:
+      - "5432:5432"
+    volumes:
+      - lantern-postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lantern -d lantern"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  lantern-postgres:
