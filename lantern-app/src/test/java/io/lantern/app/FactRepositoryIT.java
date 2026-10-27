@@ -11,8 +11,14 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.vocabulary.AttributeSchema;
+import io.lantern.core.vocabulary.TypeKind;
+import io.lantern.core.vocabulary.VocabularyRegistry;
+import io.lantern.core.vocabulary.VocabularyType;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,12 +42,39 @@ class FactRepositoryIT {
   static final Evidence EVIDENCE =
       new Evidence("orders", COMMIT, "src/Foo.java", new Evidence.LineRange(3, 9), CONTENT_HASH);
 
+  /** The predicates these tests use. CONSUMES declares one attribute and allows others. */
+  static final List<VocabularyType> TEST_TYPES =
+      List.of(
+          new VocabularyType(
+              "CONSUMES",
+              TypeKind.RELATIONSHIP,
+              null,
+              null,
+              null,
+              null,
+              null,
+              new AttributeSchema(
+                  Map.of("group", AttributeSchema.Property.of(AttributeSchema.ValueType.STRING)),
+                  Set.of(),
+                  true)),
+          attribute("owner"),
+          attribute("coverage"),
+          attribute("lineCount"),
+          attribute("deployable"));
+
   @Autowired FactRepository facts;
+  @Autowired VocabularyRegistry vocabulary;
   @Autowired JdbcClient jdbc;
+
+  static VocabularyType attribute(String name) {
+    return new VocabularyType(
+        name, TypeKind.ATTRIBUTE, null, null, null, null, null, AttributeSchema.NONE);
+  }
 
   @BeforeEach
   void clean() {
     jdbc.sql("DELETE FROM facts").update();
+    vocabulary.apply("test", TEST_TYPES);
   }
 
   static Fact consumes(EntityId subject, Validity validity) {
@@ -148,6 +181,39 @@ class FactRepositoryIT {
     assertThat(facts.findValidAt(2)).containsExactlyInAnyOrder(billing, owner);
     assertThat(facts.findValidAt(3)).containsExactlyInAnyOrder(current, owner);
     assertThat(facts.findValidAt(0)).isEmpty();
+  }
+
+  @Test
+  void factsThatDoNotMatchTheVocabularyAreNotSaved() {
+    ObjectNode badGroup = FactJson.newObject().put("group", 42);
+    Fact wrongAttributes =
+        Fact.create(
+            ORDERS,
+            "CONSUMES",
+            FactObject.entity(TOPIC),
+            badGroup,
+            ORIGIN,
+            EVIDENCE,
+            0.9,
+            Validity.from(1));
+    Fact unknownPredicate =
+        Fact.create(
+            ORDERS,
+            "NOT_IN_VOCABULARY",
+            FactObject.entity(TOPIC),
+            FactJson.newObject(),
+            ORIGIN,
+            EVIDENCE,
+            0.9,
+            Validity.from(1));
+
+    assertThatThrownBy(() -> facts.save(wrongAttributes))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'group' must be a string");
+    assertThatThrownBy(() -> facts.save(unknownPredicate))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not in the vocabulary");
+    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isZero();
   }
 
   @Test

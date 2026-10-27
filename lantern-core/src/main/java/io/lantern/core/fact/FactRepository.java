@@ -8,7 +8,11 @@ import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.node.ObjectNode;
 
-/** Stores facts in the {@code facts} table. */
+/**
+ * Stores facts in the {@code facts} table. Every fact is checked by the {@link FactValidator}
+ * before it is written; in the app that is the vocabulary registry, which validates the fact's
+ * attributes against its predicate's type.
+ */
 public class FactRepository {
 
   private static final String COLUMNS =
@@ -19,9 +23,11 @@ public class FactRepository {
       """;
 
   private final JdbcClient jdbc;
+  private final FactValidator validator;
 
-  public FactRepository(JdbcClient jdbc) {
+  public FactRepository(JdbcClient jdbc, FactValidator validator) {
     this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
+    this.validator = Objects.requireNonNull(validator, "validator");
   }
 
   /**
@@ -31,11 +37,13 @@ public class FactRepository {
    * stored fact's validity or confidence is not supported yet.
    *
    * @return whether the fact was new
+   * @throws IllegalArgumentException if the validator rejects the fact
    * @throws IllegalStateException if a fact with the same ID but a different confidence or validity
    *     is already stored
    */
   public boolean save(Fact fact) {
     Objects.requireNonNull(fact, "fact");
+    validator.validate(fact);
     int rows =
         jdbc.sql(
                 """

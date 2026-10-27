@@ -1,0 +1,59 @@
+# 0002: Vocabulary registry details
+
+Status: accepted (#4), pending the user's review (#24)
+
+## Context
+
+`docs/design.md` (Knowledge model and schema evolution) says each vocabulary type has a parent
+type, an attribute schema, a C4 level and default presentation, that fact attributes are validated
+against the vocabulary, and that every change is versioned. It leaves the exact shape open. Issue
+#4 implements the registry, so the shape has to be fixed now. The authoritative form of a type is
+`lantern-core/src/main/resources/schema/vocabulary-type.schema.json`; this record explains the
+choices.
+
+## Decisions
+
+- **Kinds.** A type is an `entity`, `relationship` or `attribute` type, the three the design names.
+  Entity type names have the type form of an entity ID (`batch-job`); relationship and attribute
+  type names have the predicate form (`CALLS`, `owner`). All kinds share one namespace. A parent
+  must be of the same kind, and parents cannot form a cycle.
+- **C4 level** is one of `context`, `container`, `component`, `code`, or absent. **Presentation**
+  is a default `shape` and `icon`, each a lowercase token (`box`, `dashed-arrow`) whose meaning the
+  renderer defines later. C4 level, shape and icon are inherited from the nearest ancestor that
+  sets them, which is how a new `batch-job` extending `component` renders as a component at once.
+- **Attribute schema** is a small subset of JSON Schema: `type: "object"`, `properties`, `required`
+  and `additionalProperties` (true when left out, as in JSON Schema). Each property has a `type`
+  (`string`, `integer`, `number`, `boolean`, `array`, `object`) and optionally a `description`,
+  string `enum` or array `items`. Lantern checks this subset itself, so no JSON Schema validator
+  dependency is needed; unsupported keywords are rejected rather than ignored. A type's effective
+  schema is its own merged with its ancestors': declared and required attributes are combined,
+  undeclared attributes are refused if any type in the line refuses them, and an attribute may
+  not be declared differently from an ancestor.
+- **Validation on write.** `FactRepository.save` checks every fact against the latest vocabulary
+  revision: the predicate must be a relationship or attribute type, and the attributes must match
+  its effective schema. Unknown predicates are refused. Not checked yet: the subject's and object's
+  entity types, and the object value of attribute-type facts (for example that `owner` is a
+  string).
+- **Revisions.** Revision 0 is the empty vocabulary; each change that alters anything creates the
+  next revision (1, 2, 3, ...) with its source (`built-in`, a plugin, a user) and time. A revision
+  stores the new definition of each type it changed, so the vocabulary as of any revision can be
+  read back. A change that alters nothing creates no revision. Writers take a table lock, so
+  revisions have no gaps or races.
+- **Changes are additive**, as the design's versioning rules require: an existing type keeps its
+  kind and parent, keeps every declared attribute unchanged, gains no required attributes and does
+  not start refusing undeclared ones. It may declare new optional attributes, and descriptions, C4
+  level and presentation may change. Declaring a new attribute on a type that allows undeclared
+  ones constrains values that were accepted before (and so for its open descendants); this is
+  still treated as additive, because declaring attributes is how the vocabulary grows. Removing
+  and renaming types (deprecation with an alias) are not implemented yet.
+- **Built-in types** are defined in `lantern-core/src/main/resources/vocabulary/built-in-types.json`
+  and applied when the app starts, before anything can save facts; unchanged built-ins create no
+  revision. Besides the entity types the issue names (system, service, library, module, package,
+  type) they include the C4 parents `container` and `component`, so service and library extend
+  container and module and package extend component. Relationship types are `CONTAINS`,
+  `DEPENDS_ON`, `CALLS` (extends `DEPENDS_ON`), `EXTENDS` and `IMPLEMENTS`. Built-ins declare no
+  attributes and refuse undeclared ones; extractors add the attributes they need as additive
+  changes.
+- **Java types** are hand-written records in `io.lantern.core.vocabulary`, with name constants for
+  the built-in types in `BuiltInTypes`, kept in line with the schema and the built-in file by
+  tests, as for the fact envelope (0001).
