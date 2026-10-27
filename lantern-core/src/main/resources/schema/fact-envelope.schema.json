@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:lantern:schema:fact-envelope:1",
+  "title": "Fact envelope",
+  "description": "The core envelope every fact has. See docs/design.md, Knowledge model and schema evolution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "subject", "predicate", "object", "attributes", "origin", "evidence", "confidence", "validity"],
+  "properties": {
+    "id": {
+      "description": "Content-derived fact ID: SHA-256 (lowercase hex) of the canonical JSON of subject, predicate, object, attributes, origin and evidence.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "subject": { "$ref": "#/$defs/entityId" },
+    "predicate": {
+      "description": "Relationship or attribute type, e.g. CONSUMES or owner.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+    },
+    "object": { "$ref": "#/$defs/object" },
+    "attributes": {
+      "description": "Further attributes, validated against the vocabulary's definition for the predicate.",
+      "type": "object"
+    },
+    "origin": { "$ref": "#/$defs/origin" },
+    "evidence": { "$ref": "#/$defs/evidence" },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "validity": { "$ref": "#/$defs/validity" }
+  },
+  "$defs": {
+    "entityId": {
+      "description": "Stable entity ID <type>:<key>, e.g. service:orders or java:com.acme.Foo. The key is everything after the first colon.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*:[^\\u0000-\\u0020\\u007f-\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]+$"
+    },
+    "object": {
+      "description": "An entity ID or a typed value, in canonical form.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "enum": ["entity", "string", "integer", "decimal", "boolean"] },
+        "value": {}
+      },
+      "oneOf": [
+        { "properties": { "kind": { "const": "entity" }, "value": { "$ref": "#/$defs/entityId" } } },
+        { "properties": { "kind": { "const": "string" }, "value": { "type": "string" } } },
+        { "properties": { "kind": { "const": "integer" }, "value": { "type": "integer" } } },
+        {
+          "properties": {
+            "kind": { "const": "decimal" },
+            "value": {
+              "description": "Plain decimal text without trailing zeros, e.g. 1.5; zero is 0.",
+              "type": "string",
+              "pattern": "^(0|-?(0\\.[0-9]*[1-9]|[1-9][0-9]*(\\.[0-9]*[1-9])?))$"
+            }
+          }
+        },
+        { "properties": { "kind": { "const": "boolean" }, "value": { "type": "boolean" } } }
+      ]
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": { "enum": ["static", "llm", "human", "readme", "rule"] },
+        "name": {
+          "description": "The extractor, model, user or rule that produced the fact.",
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "version": {
+          "description": "Extractor, prompt or rule version, when there is one.",
+          "type": "string",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "commit"],
+      "properties": {
+        "repo": { "type": "string", "pattern": "\\S" },
+        "commit": { "type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$" },
+        "path": {
+          "description": "File path relative to the repository root. Absent for a repository-wide fact.",
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "lines": {
+          "description": "Inclusive range of 1-based line numbers.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "integer", "minimum": 1 },
+            "end": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "contentHash": {
+          "description": "SHA-256 (lowercase hex) of the file content.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "dependentRequired": {
+        "lines": ["path"],
+        "contentHash": ["path"]
+      }
+    },
+    "validity": {
+      "description": "Snapshot range in which the fact holds: from inclusive, to exclusive, no to while it still holds.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from"],
+      "properties": {
+        "from": { "type": "integer", "minimum": 0 },
+        "to": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
