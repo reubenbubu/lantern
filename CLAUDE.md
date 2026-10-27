@@ -81,7 +81,7 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 Requires JDK 21. Run from the repo root.
 
-- Build and test everything (this is CI; must pass before merging): `./mvnw verify`
+- Build and test everything (this is CI): `./mvnw verify`
 - Fix formatting: `./mvnw spotless:apply`
 - Check formatting only: `./mvnw spotless:check`
 - Test one module: `./mvnw verify -pl <module> -am`
