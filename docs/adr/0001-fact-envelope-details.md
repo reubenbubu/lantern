@@ -31,8 +31,12 @@ record explains the choices.
   keeps its ID while its validity range grows or its confidence is re-assessed. Because evidence
   includes the commit, the same claim seen at a new commit gets a new ID unless the extractor
   cache reuses the earlier fact.
-- **Storage** is one `facts` table keyed by fact ID. Saving a fact whose ID exists changes
-  nothing. Origin and evidence are `NOT NULL` with checks on their required keys, so the database
+- **Attributes** are held in canonical form (keys sorted, numbers re-parsed from canonical
+  text), so they read back from JSON and the database unchanged. A fact's ID must match its
+  content; a mismatch is rejected.
+- **Storage** is one `facts` table keyed by fact ID. Saving a fact that is already stored changes
+  nothing; saving one with the same ID but a different confidence or validity is refused until an
+  update path exists. Origin and evidence are `NOT NULL` with checks on their required keys, so the database
   also refuses facts without provenance.
 - **Java types** are hand-written records in `io.lantern.core.fact`, checked against the schema
   by tests, rather than generated (see below).

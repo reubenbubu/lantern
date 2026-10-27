@@ -8,8 +8,9 @@ import tools.jackson.databind.node.ObjectNode;
  * A fact in the core envelope. The JSON form is defined by {@code schema/fact-envelope.schema.json}
  * and written and read by {@link FactJson}.
  *
- * <p>Every fact has an origin and evidence; constructing one without either fails. Use {@link
- * #create} to build a new fact, which derives its ID from its content.
+ * <p>Every fact has an origin and evidence; constructing one without either fails. The ID must
+ * match the content, and attributes are held in canonical form (see {@link FactJson#normalize}).
+ * Use {@link #create} to build a new fact, which derives its ID from its content.
  *
  * @param id the content-derived fact ID, see {@link FactJson#factId}
  * @param subject the entity the fact is about
@@ -54,7 +55,12 @@ public record Fact(
     if (!(confidence >= 0.0 && confidence <= 1.0)) {
       throw new IllegalArgumentException("Confidence must be between 0 and 1: " + confidence);
     }
-    attributes = attributes.deepCopy();
+    attributes = FactJson.normalize(attributes);
+    String expected = FactJson.factId(subject, predicate, object, attributes, origin, evidence);
+    if (!expected.equals(id)) {
+      throw new IllegalArgumentException(
+          "Fact ID " + id + " does not match its content (expected " + expected + ")");
+    }
   }
 
   /** Creates a fact whose ID is derived from its content. */
@@ -67,9 +73,11 @@ public record Fact(
       Evidence evidence,
       double confidence,
       Validity validity) {
-    String id = FactJson.factId(subject, predicate, object, attributes, origin, evidence);
+    Objects.requireNonNull(attributes, "attributes");
+    ObjectNode normalized = FactJson.normalize(attributes);
+    String id = FactJson.factId(subject, predicate, object, normalized, origin, evidence);
     return new Fact(
-        id, subject, predicate, object, attributes, origin, evidence, confidence, validity);
+        id, subject, predicate, object, normalized, origin, evidence, confidence, validity);
   }
 
   /** A copy of the attributes, so the fact stays immutable. */

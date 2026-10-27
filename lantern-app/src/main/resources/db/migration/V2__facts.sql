@@ -17,10 +17,10 @@ CREATE TABLE facts (
         CHECK (jsonb_typeof(evidence) = 'object' AND evidence ? 'repo' AND evidence ? 'commit'),
     confidence  double precision NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
     validity    int8range        NOT NULL
-        CHECK (NOT isempty(validity) AND NOT lower_inf(validity))
+        CHECK (NOT isempty(validity) AND NOT lower_inf(validity) AND lower(validity) >= 0)
 );
 
 CREATE INDEX facts_subject_idx ON facts (subject);
 CREATE INDEX facts_predicate_idx ON facts (predicate);
-CREATE INDEX facts_object_idx ON facts (object);
+CREATE INDEX facts_object_idx ON facts (object, object_kind);
 CREATE INDEX facts_validity_idx ON facts USING gist (validity);

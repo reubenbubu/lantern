@@ -108,6 +108,57 @@ class FactTest {
   }
 
   @Test
+  void rejectsAnIdThatDoesNotMatchTheContent() {
+    Fact fact = sample();
+
+    assertThatThrownBy(
+            () ->
+                new Fact(
+                    fact.id(),
+                    EntityId.parse("service:billing"),
+                    fact.predicate(),
+                    fact.object(),
+                    fact.attributes(),
+                    fact.origin(),
+                    fact.evidence(),
+                    fact.confidence(),
+                    fact.validity()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not match");
+  }
+
+  @Test
+  void holdsAttributesInCanonicalForm() {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("b", 1.0).put("a", 2.50);
+
+    Fact fact =
+        Fact.create(
+            SUBJECT, "CONSUMES", OBJECT, attributes, ORIGIN, EVIDENCE, 1.0, Validity.from(1));
+
+    assertThat(fact.attributes()).isEqualTo(FactJson.parse("{\"a\":2.5,\"b\":1}"));
+    assertThat(fact.attributes().propertyNames()).containsExactly("a", "b");
+  }
+
+  @Test
+  void rejectsAttributesJsonCannotCarry() {
+    ObjectNode attributes = FactJson.newObject().put("x", Double.NaN);
+
+    assertThatThrownBy(
+            () ->
+                Fact.create(
+                    SUBJECT,
+                    "CONSUMES",
+                    OBJECT,
+                    attributes,
+                    ORIGIN,
+                    EVIDENCE,
+                    1.0,
+                    Validity.from(1)))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void rejectsConfidenceOutsideZeroToOne() {
     for (double confidence : new double[] {-0.1, 1.1, Double.NaN}) {
       assertThatThrownBy(

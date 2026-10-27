@@ -25,10 +25,14 @@ public class FactRepository {
   }
 
   /**
-   * Saves a fact. Facts are immutable and keyed by their content-derived ID, so saving a fact whose
-   * ID is already stored changes nothing.
+   * Saves a fact. Facts are keyed by their content-derived ID, so saving a fact that is already
+   * stored changes nothing. The ID leaves out confidence and validity, so a stored fact with the
+   * same ID can differ in those; that is refused rather than silently ignored, because changing a
+   * stored fact's validity or confidence is not supported yet.
    *
    * @return whether the fact was new
+   * @throws IllegalStateException if a fact with the same ID but a different confidence or validity
+   *     is already stored
    */
   public boolean save(Fact fact) {
     Objects.requireNonNull(fact, "fact");
@@ -54,7 +58,26 @@ public class FactRepository {
             .param("validFrom", fact.validity().from())
             .param("validTo", fact.validity().to())
             .update();
-    return rows == 1;
+    if (rows == 1) {
+      return true;
+    }
+    Fact stored =
+        findById(fact.id())
+            .orElseThrow(() -> new IllegalStateException("Fact " + fact.id() + " vanished"));
+    if (!stored.equals(fact)) {
+      throw new IllegalStateException(
+          "Fact "
+              + fact.id()
+              + " is already stored with a different confidence or validity: stored "
+              + stored.confidence()
+              + " "
+              + stored.validity()
+              + ", new "
+              + fact.confidence()
+              + " "
+              + fact.validity());
+    }
+    return false;
   }
 
   public Optional<Fact> findById(String id) {

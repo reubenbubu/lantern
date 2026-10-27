@@ -78,8 +78,14 @@ public record FactObject(Kind kind, String value) {
     return EntityId.parse(value);
   }
 
+  /** Decimals with a larger exponent than this are rejected, so their plain text stays small. */
+  private static final int MAX_SCALE = 1000;
+
   private static String canonicalDecimal(BigDecimal value) {
     BigDecimal stripped = value.stripTrailingZeros();
+    if (Math.abs(stripped.scale()) > MAX_SCALE) {
+      throw new IllegalArgumentException("Decimal exponent out of range: " + value);
+    }
     if (stripped.signum() == 0) {
       return "0";
     }

@@ -220,8 +220,13 @@ class FactJsonTest {
     ((ObjectNode) wrongValueType.get("object")).put("kind", "integer");
     ObjectNode nonCanonicalDecimal = FactJson.toJson(FactTest.sample());
     ((ObjectNode) nonCanonicalDecimal.get("object")).put("kind", "decimal").put("value", "1.50");
+    ObjectNode hugeDecimal = FactJson.toJson(FactTest.sample());
+    ((ObjectNode) hugeDecimal.get("object")).put("kind", "decimal").put("value", "1E+999999999");
+    ObjectNode tampered = FactJson.toJson(FactTest.sample());
+    tampered.put("subject", "service:billing");
 
-    for (ObjectNode node : List.of(extra, wrongValueType, nonCanonicalDecimal)) {
+    for (ObjectNode node :
+        List.of(extra, wrongValueType, nonCanonicalDecimal, hugeDecimal, tampered)) {
       assertThatThrownBy(() -> FactJson.fromJson(node))
           .isInstanceOf(IllegalArgumentException.class);
     }

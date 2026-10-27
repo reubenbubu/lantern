@@ -109,7 +109,10 @@ class FactSchemaTest {
         "orders",
         "Service:orders",
         "service:order s",
-        "service:a\u0007b"
+        "service:a\u0007b",
+        "service:a\u00a0b",
+        "service:a\ufeffb",
+        "service:caf\u00e9"
       })
   void entityIdPatternAgreesWithTheParser(String value) throws IOException {
     Pattern pattern =

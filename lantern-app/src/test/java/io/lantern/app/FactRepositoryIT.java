@@ -47,7 +47,10 @@ class FactRepositoryIT {
   static Fact consumes(EntityId subject, Validity validity) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("group", "orders-service");
-    attributes.putObject("nested").put("ratio", 1.5).putArray("tags").add("a").add(2);
+    ObjectNode nested = attributes.putObject("nested");
+    nested.put("ratio", 1.5).put("whole", 1.0).put("big", 1e20);
+    nested.putArray("tags").add("a").add(2);
+    attributes.put("a-last-but-sorts-first", true);
     return Fact.create(
         subject, "CONSUMES", FactObject.entity(TOPIC), attributes, ORIGIN, EVIDENCE, 0.9, validity);
   }
@@ -109,6 +112,14 @@ class FactRepositoryIT {
     assertThat(facts.save(fact)).isTrue();
     assertThat(facts.save(consumes(ORDERS, Validity.from(1)))).isFalse();
     assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isEqualTo(1L);
+  }
+
+  @Test
+  void savingTheSameClaimWithDifferentValidityIsRefused() {
+    facts.save(consumes(ORDERS, Validity.from(1)));
+
+    assertThatThrownBy(() -> facts.save(consumes(ORDERS, new Validity(1, 2L))))
+        .isInstanceOf(IllegalStateException.class);
   }
 
   @Test
@@ -188,7 +199,7 @@ class FactRepositoryIT {
     assertThat(indexes)
         .anyMatch(d -> d.contains("(subject)"))
         .anyMatch(d -> d.contains("(predicate)"))
-        .anyMatch(d -> d.contains("(object)"))
+        .anyMatch(d -> d.contains("(object, object_kind)"))
         .anyMatch(d -> d.contains("gist (validity)"));
   }
 }

@@ -19,7 +19,8 @@ import tools.jackson.databind.node.ObjectNode;
  * derives fact IDs.
  *
  * <p>Optional fields that are absent are left out of the JSON rather than written as {@code null},
- * so each fact has exactly one JSON form.
+ * and attributes are written in canonical form (see {@link #normalize}), so each fact has exactly
+ * one JSON form.
  */
 public final class FactJson {
 
@@ -234,6 +235,17 @@ public final class FactJson {
   }
 
   /**
+   * The canonical form of attributes: a copy whose keys are sorted and whose numbers are parsed
+   * from their canonical text. Attributes in this form read back from JSON or the database
+   * unchanged.
+   *
+   * @throws IllegalArgumentException if the attributes hold values JSON cannot carry, such as NaN
+   */
+  public static ObjectNode normalize(ObjectNode attributes) {
+    return (ObjectNode) parse(canonical(attributes));
+  }
+
+  /**
    * The canonical JSON text of a tree: object keys sorted, no whitespace, numbers in plain form
    * without trailing zeros.
    */
@@ -266,15 +278,23 @@ public final class FactJson {
       }
       out.append(']');
     } else if (node.isNumber()) {
+      if ((node.isDouble() || node.isFloat()) && !Double.isFinite(node.doubleValue())) {
+        throw new IllegalArgumentException("Non-finite number in fact: " + node.doubleValue());
+      }
       out.append(canonicalNumber(node.decimalValue()));
-    } else {
+    } else if (node.isString() || node.isBoolean() || node.isNull()) {
       out.append(MAPPER.writeValueAsString(node));
+    } else {
+      throw new IllegalArgumentException("Unsupported JSON value in fact: " + node.getNodeType());
     }
   }
 
   /** Writes numbers that are numerically equal the same way, however they were parsed. */
   private static String canonicalNumber(BigDecimal value) {
     BigDecimal stripped = value.stripTrailingZeros();
+    if (Math.abs(stripped.scale()) > 1000) {
+      throw new IllegalArgumentException("Number exponent out of range: " + value);
+    }
     return stripped.signum() == 0 ? "0" : stripped.toPlainString();
   }
 

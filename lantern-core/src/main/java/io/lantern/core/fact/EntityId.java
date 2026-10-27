@@ -9,13 +9,15 @@ import java.util.regex.Pattern;
  *
  * <p>The type is a vocabulary type name: lowercase letters, digits and hyphens, starting with a
  * letter. The key is everything after the first colon. It must not be empty and must not contain
- * whitespace or control characters; it may contain further colons.
+ * whitespace or control characters (the same set the JSON Schema excludes); it may contain further
+ * colons.
  */
 public record EntityId(String type, String key) {
 
   private static final Pattern TYPE = Pattern.compile("[a-z][a-z0-9-]*");
   private static final Pattern KEY =
-      Pattern.compile("[^\\s\\p{Cntrl}]+", Pattern.UNICODE_CHARACTER_CLASS);
+      Pattern.compile(
+          "[^\\u0000-\\u0020\\u007f-\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]+");
 
   public EntityId {
     Objects.requireNonNull(type, "type");
