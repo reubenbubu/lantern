@@ -3,7 +3,7 @@
 
 # Lantern — Design Document
 
-Oct 27, 2026 · @Jim
+Oct 27, 2026
 
 ## Overview
 
@@ -333,7 +333,7 @@ Presentation rules control how knowledge is shown without changing what is true.
 2. **Direct manipulation** in the diagram UI: drag, hide, group, recolor.
 3. **A rule editor** for exact control.
 
-**Explainability.** A "why does this look like this?" inspector, like a browser's computed-styles panel: "Hidden by rule #12 (set by Reuben, 3 Oct, scope: executive)."
+**Explainability.** A "why does this look like this?" inspector, like a browser's computed-styles panel: "Hidden by rule #12 (set by User, 3 Oct, scope: executive)."
 
 Presentation rules follow the same lifecycle as knowledge annotations: anchored to stable IDs, versioned, audited, and flagged as orphaned when their target disappears.
 
@@ -489,4 +489,4 @@ Each phase delivers something usable on real repos. The knowledge model and stab
 
   Decided: OpenWMS is the first target set. Measured from shallow clones on 27 Oct 2026: 15 repos, 958 Java files, about 57,000 non-blank lines of main code and 13,400 of test code, 14 MB on disk. There is no separate core.util repo. Four of the five service repos are thin (52–112 lines each) and mainly package their .lib artifact, so the Maven extractor must treat a service and its lib as one deployable. Host: the existing development VM (20 cores, 37 GB RAM with about 19 GB free, 106 GB free disk, Docker 29.9). That is enough for this set, with up to 4 build containers at 4 GB each.
 - [x] Re-layout threshold: how many new nodes in one diagram before automatic re-layout? Decided: 10 by default, configurable.
-- [x] Who are the first users, and which document do they need first? Decided: Jim is the first user. First outputs: C4 diagrams (context, container, component), sequence diagrams, dependency trees, and runtime environment details where the sources hold them.
+- [x] Who are the first users, and which document do they need first? Decided: User is the first user. First outputs: C4 diagrams (context, container, component), sequence diagrams, dependency trees, and runtime environment details where the sources hold them.

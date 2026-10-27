@@ -4,12 +4,12 @@ Lantern analyzes a set of Java repositories and generates architecture documents
 What to build is in `docs/design.md` (a copy of the master design doc:
 https://claude.ai/artifact/1oi2XNFvDAv4deQw7zCQRR). This file covers only how you work.
 
-## Talking to Reuben
+## Talking to the user
 
 - Short, plain English. Lead with the point. No walls of text, few tables.
 - Ask at most one or two questions at a time, each with your recommendation.
 - Report each finished task in two or three lines in chat. Nothing more unless asked.
-- Reuben does not review code. You are responsible for getting it right.
+- The user does not review code. You are responsible for getting it right.
 
 ## How work is organized
 
@@ -29,10 +29,10 @@ https://claude.ai/artifact/1oi2XNFvDAv4deQw7zCQRR). This file covers only how yo
 
 ## When to stop and ask
 
-Ask Reuben before:
+Ask the user before:
 - changing the design, or working around a part of it that looks wrong or incomplete
 - changing public interfaces, the data model or the core fact schema
-- adding a dependency
+- adding a dependency not already named in the design or the issue
 - anything that costs money, including real LLM API calls
 - anything outside this repository
 - force-pushing, rewriting history, or deleting branches you didn't create
