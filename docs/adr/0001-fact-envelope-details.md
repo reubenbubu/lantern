@@ -1,6 +1,6 @@
 # 0001: Fact envelope details
 
-Status: proposed (#3)
+Status: accepted (#3)
 
 ## Context
 
