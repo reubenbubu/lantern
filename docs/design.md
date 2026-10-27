@@ -149,7 +149,7 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 
 **Versioning rules:** additive vocabulary changes are always allowed. Renames and removals go through deprecation with an alias. Each snapshot and document records the vocabulary revision it used, so older documents stay reproducible. Plugins declare which envelope version range they support.
 
-**Typed access:** Java and TypeScript types are generated for the envelope and built-in types. Runtime-added types are accessed through a generic API.
+**Typed access:** Java types for the envelope and built-in types are hand-written and kept in line with the JSON Schema by tests; TypeScript types are generated from the schema. Runtime-added types are accessed through a generic API.
 
 **Storage:** PostgreSQL. Facts in one wide table with JSONB attributes and indexes on subject, predicate, object and snapshot range. The graph for analysis is loaded into memory per scope.
 
@@ -460,7 +460,7 @@ The backend is Java 21+ on Spring Boot because the hardest part, Java analysis, 
 | LLM access | Official Anthropic and OpenAI Java SDKs behind a capability-aware interface |
 | Build sandbox | Docker or Podman, per-JDK images |
 | Frontend | TypeScript; a single component codebase built as the hosted app and as a single-file bundle |
-| Shared schemas | JSON Schema for the fact envelope and document model, with generated Java and TypeScript types |
+| Shared schemas | JSON Schema for the fact envelope and document model; hand-written Java types checked against it by tests, generated TypeScript types |
 
 ## Phasing
 

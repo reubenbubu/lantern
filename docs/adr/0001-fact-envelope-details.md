@@ -38,11 +38,7 @@ record explains the choices.
   nothing; saving one with the same ID but a different confidence or validity is refused until an
   update path exists. Origin and evidence are `NOT NULL` with checks on their required keys, so
   the database also refuses facts without provenance.
-- **Java types** are hand-written records in `io.lantern.core.fact`, checked against the schema
-  by tests, rather than generated (see below).
-
-## Open
-
-The design says Java types are generated from the JSON Schema. Generation needs a code generator
-the design does not name, so for now the types are hand-written and a test keeps them in line with
-the schema. This needs the user's decision before merge.
+- **Java types** are hand-written records in `io.lantern.core.fact`, kept in line with the schema
+  by `FactSchemaTest`, rather than generated. Generation would need a code generator the design
+  does not name, and hand-written records can enforce invariants (provenance, ID matches content).
+  Decided by the user; `docs/design.md` says the same.
