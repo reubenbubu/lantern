@@ -20,7 +20,6 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
 
-  private static final Path COMPOSE_FILE = Path.of("..", "compose.yaml");
   private static final Pattern POSTGRES_IMAGE =
       Pattern.compile("^\\s*image:\\s*(postgres:\\S+)\\s*$", Pattern.MULTILINE);
 
@@ -31,16 +30,28 @@ public class TestcontainersConfiguration {
   }
 
   static String composePostgresImage() {
+    Path composeFile = findComposeFile();
     String compose;
     try {
-      compose = Files.readString(COMPOSE_FILE);
+      compose = Files.readString(composeFile);
     } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + COMPOSE_FILE.toAbsolutePath(), e);
+      throw new UncheckedIOException("Cannot read " + composeFile, e);
     }
     Matcher matcher = POSTGRES_IMAGE.matcher(compose);
     if (!matcher.find()) {
-      throw new IllegalStateException("No postgres image found in " + COMPOSE_FILE);
+      throw new IllegalStateException("No postgres image found in " + composeFile);
     }
     return matcher.group(1);
+  }
+
+  /** Finds compose.yaml in the working directory or the nearest parent, so any module can run. */
+  private static Path findComposeFile() {
+    for (Path dir = Path.of("").toAbsolutePath(); dir != null; dir = dir.getParent()) {
+      Path candidate = dir.resolve("compose.yaml");
+      if (Files.isRegularFile(candidate)) {
+        return candidate;
+      }
+    }
+    throw new IllegalStateException("compose.yaml not found from " + Path.of("").toAbsolutePath());
   }
 }
