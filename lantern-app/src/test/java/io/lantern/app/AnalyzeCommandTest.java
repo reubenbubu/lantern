@@ -30,14 +30,16 @@ class AnalyzeCommandTest {
   @Test
   void namesRepositoriesAfterTheirDirectoryUnlessNamed() {
     Map<String, Path> repos =
-        AnalyzeCommand.repos(List.of("/clones/org.openwms.tms.transportation/", "shop=/x/../y"));
+        AnalyzeCommand.repos(
+            List.of("/clones/org.openwms.tms.transportation/", "shop=/x/../y", "/x/a=b"));
 
     assertThat(repos)
         .containsExactly(
             Map.entry(
                 "org.openwms.tms.transportation",
                 Path.of("/clones/org.openwms.tms.transportation")),
-            Map.entry("shop", Path.of("/y")));
+            Map.entry("shop", Path.of("/y")),
+            Map.entry("a=b", Path.of("/x/a=b")));
   }
 
   @Test

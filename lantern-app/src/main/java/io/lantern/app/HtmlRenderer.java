@@ -64,9 +64,9 @@ public final class HtmlRenderer {
   }
 
   /**
-   * The document model JSON in the template. Every {@code <} is written as the JSON escape {@code
-   * <}, so the text can never close the script element or open a comment. The JSON is concatenated
-   * in, not substituted with a replace function that would read {@code $} patterns.
+   * The document model JSON in the template. Every {@code <} is written as its JSON unicode escape,
+   * so the text can never close the script element or open a comment. The JSON is concatenated in,
+   * not substituted with a replace function that would read {@code $} patterns.
    */
   String renderJson(String documentJson) {
     Objects.requireNonNull(documentJson, "documentJson");

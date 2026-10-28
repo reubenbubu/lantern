@@ -19,7 +19,6 @@ import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
-import io.lantern.sandbox.BuildStatus;
 import io.lantern.summarize.Summarizer;
 import io.lantern.summarize.SummaryStore;
 import io.lantern.summarize.SummaryTree;
@@ -226,8 +225,8 @@ public final class AnalysisRun {
 
   /**
    * Builds every repository at its snapshot commit, in parallel up to the sandbox's limit, reusing
-   * a stored successful build of the same commit. A failed build is tried again, since its cause
-   * may have been passing, such as the network.
+   * a stored build of the same commit. A failed one is reused too: rebuilding it successfully would
+   * raise the confidence of facts already stored, which cannot change yet (#23).
    */
   private Map<String, BuildResult> build(
       Map<String, Repo> repos, Snapshot snapshot, List<String> reused) {
@@ -236,11 +235,7 @@ public final class AnalysisRun {
       for (Map.Entry<String, Repo> entry : repos.entrySet()) {
         String name = entry.getKey();
         String commit = snapshot.commits().get(name);
-        BuildResult stored =
-            sandbox
-                .find(name, commit)
-                .filter(b -> b.status() == BuildStatus.SUCCEEDED)
-                .orElse(null);
+        BuildResult stored = sandbox.find(name, commit).orElse(null);
         if (stored != null) {
           reused.add(name);
           running.put(name, CompletableFuture.completedFuture(stored));
@@ -272,15 +267,17 @@ public final class AnalysisRun {
   }
 
   /**
-   * Stores the facts in one transaction. A fact already stored is kept as stored, which may hold
-   * from an earlier snapshot.
+   * Stores the facts in one transaction, each ID once. A fact already stored is kept as stored,
+   * which may hold from an earlier snapshot.
    */
   private Stored store(List<Fact> found) {
     return transaction.execute(
         status -> {
-          List<Fact> stored = new ArrayList<>(found.size());
+          List<Fact> stored = new ArrayList<>();
           int added = 0;
-          for (Fact fact : found) {
+          Map<String, Fact> unique = new LinkedHashMap<>();
+          found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
+          for (Fact fact : unique.values()) {
             if (facts.save(fact)) {
               stored.add(fact);
               added++;

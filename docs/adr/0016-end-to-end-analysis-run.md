@@ -27,8 +27,10 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
   1. registers each repository, keeping the settings of one registered before;
   2. creates a snapshot of each repository's checked-out commit (`HEAD`);
   3. builds the repositories in the sandbox, in parallel up to the sandbox's limit, reusing a
-     stored successful build of the same `repo@commit`. A stored failed build is built again,
-     because its cause may have passed (the network, a timeout). Reuse is keyed by
+     stored build of the same `repo@commit`, failed or not. A failed build gives facts of lower
+     confidence (degraded mode), and a stored fact's confidence cannot change until #23, so
+     rebuilding after a passing failure would make the run fail; to build again, delete the
+     build's directory under `builds/`. Reuse is keyed by
      `repo@commit` alone; the design's key also has the JDK image and `settings.xml` hash, which
      matter once images or settings change (#31);
   4. runs the Maven and Java extractors over all repositories and stores their facts in one
@@ -59,9 +61,10 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
   separate filesystem.
 - **Java renderer.** `HtmlRenderer` in `lantern-app` reads the template from the `lantern-web`
   jar (now a dependency of the app) and follows ADR 0013: the document JSON is concatenated into
-  the placeholder with every `<` written as `<`.
+  the placeholder with every `<` written as the JSON escape `\u003c`.
 - **Budgets.** Only the monthly budget applies (ADR 0009); run budgets and a cost estimate before
-  a run are #42. The run reports its calls, tokens and cost from the stored call log.
+  a run are #42. The run reports its calls, tokens and cost from the stored call log, counting
+  every call logged while it ran; nothing else uses the LLM yet, so these are the run's own.
 - **Proof.** `EndToEndIT` runs the pipeline twice with a fake model and real sandbox builds: always
   on the `multi-module` fixture, and on tms.transportation when the OpenWMS clones are given. It
   checks both documents are written, that the second run reuses the build, every fact and every

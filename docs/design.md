@@ -441,7 +441,7 @@ Lantern runs as a single Spring Boot service on one VM, with PostgreSQL for all 
 | PostgreSQL | Facts, vocabulary, snapshots, annotations and audit events, layouts, cached LLM results, documents |
 | Workspace storage | Repo clones, Maven cache, build outputs, rendered files |
 
-**Jobs.** Each stage is a persisted job step, so a failed or interrupted run resumes from the last completed step. Progress and estimated LLM cost are visible in the UI.
+**Jobs.** Each stage is a persisted job step, so a failed or interrupted run resumes from the last completed step. Progress and estimated LLM cost are visible in the UI. Until jobs exist, an `analyze` command runs all stages in one process (ADR 0016, #56).
 
 **Users and permissions**
 

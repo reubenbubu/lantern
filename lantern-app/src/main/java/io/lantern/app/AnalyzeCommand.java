@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -24,6 +25,9 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
 
   /** The first argument that selects this command. */
   static final String NAME = "analyze";
+
+  /** A repository name before {@code =}; anything else is part of a path. */
+  private static final Pattern NAMED = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
 
   private static final Logger LOG = LoggerFactory.getLogger(AnalyzeCommand.class);
 
@@ -59,11 +63,18 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     Map<String, Path> repos = new LinkedHashMap<>();
     for (String arg : args) {
       int equals = arg.indexOf('=');
+      if (equals >= 0 && !NAMED.matcher(arg.substring(0, equals)).matches()) {
+        equals = -1;
+      }
       Path path =
           Path.of(equals < 0 ? arg : arg.substring(equals + 1)).toAbsolutePath().normalize();
       Path fileName = path.getFileName();
-      String name =
-          equals < 0 ? (fileName == null ? "" : fileName.toString()) : arg.substring(0, equals);
+      String name;
+      if (equals >= 0) {
+        name = arg.substring(0, equals);
+      } else {
+        name = fileName == null ? "" : fileName.toString();
+      }
       if (repos.put(name, path) != null) {
         throw new IllegalArgumentException("Repository " + name + " is named twice");
       }
