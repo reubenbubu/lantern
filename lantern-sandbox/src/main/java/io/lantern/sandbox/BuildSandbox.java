@@ -430,40 +430,37 @@ public class BuildSandbox {
       docker.check(DOCKER_TIMEOUT, List.of("volume", "create", settings.mavenCacheVolume()));
       String[] user = BUILD_USER.split(":");
       List<String> handover =
-          List.of(
-              "run",
-              "--name",
-              cacheOwner,
-              "--label",
-              LABEL + "=" + id,
-              "--network",
-              "none",
-              "--user",
-              "0:0",
-              "--cap-drop",
-              "ALL",
-              "--cap-add",
-              "CHOWN",
-              "--cap-add",
-              "DAC_READ_SEARCH",
-              "--security-opt",
-              "no-new-privileges",
-              "--memory",
-              Long.toString(PROXY_MEMORY_BYTES),
-              "--pids-limit",
-              "64",
-              "--mount",
-              "type=volume,source=" + settings.mavenCacheVolume() + ",target=" + CACHE_MOUNT,
-              "--entrypoint",
-              "sh",
-              settings.proxyImage(),
-              "-c",
-              // Neither find nor chown -h follows symbolic links.
-              "find \"$1\" \\( ! -user \"$2\" -o ! -group \"$3\" \\) -exec chown -h \"$2:$3\" {} +",
-              "sh",
-              CACHE_MOUNT,
-              user[0],
-              user[1]);
+          labelled(
+              List.of("run", "--name", cacheOwner),
+              List.of(
+                  "--network",
+                  "none",
+                  "--user",
+                  "0:0",
+                  "--cap-drop",
+                  "ALL",
+                  "--cap-add",
+                  "CHOWN",
+                  "--cap-add",
+                  "DAC_READ_SEARCH",
+                  "--security-opt",
+                  "no-new-privileges",
+                  "--memory",
+                  Long.toString(PROXY_MEMORY_BYTES),
+                  "--pids-limit",
+                  "64",
+                  "--mount",
+                  "type=volume,source=" + settings.mavenCacheVolume() + ",target=" + CACHE_MOUNT,
+                  "--entrypoint",
+                  "sh",
+                  settings.proxyImage(),
+                  "-c",
+                  // Neither find nor chown -h follows symbolic links.
+                  "find \"$1\" \\( ! -user \"$2\" -o ! -group \"$3\" \\) -exec chown -h \"$2:$3\" {} +",
+                  "sh",
+                  CACHE_MOUNT,
+                  user[0],
+                  user[1]));
       try {
         Docker.Result result = docker.run(settings.timeout(), handover);
         if (!result.ok()) {
@@ -486,37 +483,33 @@ public class BuildSandbox {
     private void startMonitor() {
       docker.check(
           DOCKER_TIMEOUT,
-          List.of(
-              "run",
-              "--detach",
-              "--name",
-              monitor,
-              "--label",
-              LABEL + "=" + id,
-              "--network",
-              "none",
-              "--user",
-              BUILD_USER,
-              "--cap-drop",
-              "ALL",
-              "--security-opt",
-              "no-new-privileges",
-              "--memory",
-              Long.toString(64L * 1024 * 1024),
-              "--pids-limit",
-              "16",
-              "--log-driver",
-              "none",
-              "--mount",
-              "type=volume,source="
-                  + settings.mavenCacheVolume()
-                  + ",target="
-                  + CACHE_MOUNT
-                  + ",readonly",
-              "--entrypoint",
-              "sleep",
-              settings.proxyImage(),
-              "infinity"));
+          labelled(
+              List.of("run", "--detach", "--name", monitor),
+              List.of(
+                  "--network",
+                  "none",
+                  "--user",
+                  BUILD_USER,
+                  "--cap-drop",
+                  "ALL",
+                  "--security-opt",
+                  "no-new-privileges",
+                  "--memory",
+                  Long.toString(64L * 1024 * 1024),
+                  "--pids-limit",
+                  "16",
+                  "--log-driver",
+                  "none",
+                  "--mount",
+                  "type=volume,source="
+                      + settings.mavenCacheVolume()
+                      + ",target="
+                      + CACHE_MOUNT
+                      + ",readonly",
+                  "--entrypoint",
+                  "sleep",
+                  settings.proxyImage(),
+                  "infinity")));
       Storage storage = storage();
       if (storage == null) {
         throw new SandboxException("Cannot measure the free space of Docker's storage");
@@ -540,41 +533,37 @@ public class BuildSandbox {
       }
       permit(proxyDir, false);
       docker.check(
-          DOCKER_TIMEOUT,
-          List.of("network", "create", "--internal", "--label", LABEL + "=" + id, network));
+          DOCKER_TIMEOUT, labelled(List.of("network", "create", "--internal"), List.of(network)));
       docker.check(
           DOCKER_TIMEOUT,
-          List.of(
-              "create",
-              "--name",
-              proxy,
-              "--label",
-              LABEL + "=" + id,
-              "--network",
-              "bridge",
-              "--cpus",
-              "1",
-              "--memory",
-              Long.toString(PROXY_MEMORY_BYTES),
-              "--memory-swap",
-              Long.toString(PROXY_MEMORY_BYTES),
-              "--pids-limit",
-              "256",
-              "--cap-drop",
-              "ALL",
-              "--security-opt",
-              "no-new-privileges",
-              "--user",
-              BUILD_USER,
-              "--entrypoint",
-              "java",
-              settings.proxyImage(),
-              "-Xmx128m",
-              "-cp",
-              "/proxy",
-              PROXY_CLASS,
-              Integer.toString(PROXY_PORT),
-              String.join(",", settings.allowedHosts())));
+          labelled(
+              List.of("create", "--name", proxy),
+              List.of(
+                  "--network",
+                  "bridge",
+                  "--cpus",
+                  "1",
+                  "--memory",
+                  Long.toString(PROXY_MEMORY_BYTES),
+                  "--memory-swap",
+                  Long.toString(PROXY_MEMORY_BYTES),
+                  "--pids-limit",
+                  "256",
+                  "--cap-drop",
+                  "ALL",
+                  "--security-opt",
+                  "no-new-privileges",
+                  "--user",
+                  BUILD_USER,
+                  "--entrypoint",
+                  "java",
+                  settings.proxyImage(),
+                  "-Xmx128m",
+                  "-cp",
+                  "/proxy",
+                  PROXY_CLASS,
+                  Integer.toString(PROXY_PORT),
+                  String.join(",", settings.allowedHosts()))));
       docker.check(COPY_TIMEOUT, List.of("cp", proxyDir.toString(), proxy + ":/proxy"));
       docker.check(
           DOCKER_TIMEOUT, List.of("network", "connect", "--alias", PROXY_ALIAS, network, proxy));
@@ -620,43 +609,43 @@ public class BuildSandbox {
         throws IOException {
       List<String> args =
           new ArrayList<>(
-              List.of(
-                  "create",
-                  "--name",
-                  name,
-                  "--label",
-                  LABEL + "=" + id,
-                  "--network",
-                  network,
-                  "--cpus",
-                  java.math.BigDecimal.valueOf(settings.cpus()).toPlainString(),
-                  "--memory",
-                  Long.toString(settings.memoryBytes()),
-                  "--memory-swap",
-                  Long.toString(settings.memoryBytes()),
-                  "--pids-limit",
-                  Integer.toString(settings.pidsLimit()),
-                  "--cap-drop",
-                  "ALL",
-                  "--security-opt",
-                  "no-new-privileges",
-                  "--user",
-                  BUILD_USER,
-                  // Output is read through docker start --attach; Docker keeps no copy on disk.
-                  "--log-driver",
-                  "none",
-                  "--mount",
-                  "type=volume,source=" + settings.mavenCacheVolume() + ",target=" + CACHE_MOUNT,
-                  // The build user has no home directory in the image.
-                  "--env",
-                  "HOME=/tmp",
-                  "--env",
-                  "MAVEN_OPTS=-XX:MaxRAMPercentage=50 -Duser.home=/tmp",
-                  "--workdir",
-                  "/work",
-                  "--entrypoint",
-                  entrypoint,
-                  image));
+              labelled(
+                  List.of("create", "--name", name),
+                  List.of(
+                      "--network",
+                      network,
+                      "--cpus",
+                      java.math.BigDecimal.valueOf(settings.cpus()).toPlainString(),
+                      "--memory",
+                      Long.toString(settings.memoryBytes()),
+                      "--memory-swap",
+                      Long.toString(settings.memoryBytes()),
+                      "--pids-limit",
+                      Integer.toString(settings.pidsLimit()),
+                      "--cap-drop",
+                      "ALL",
+                      "--security-opt",
+                      "no-new-privileges",
+                      "--user",
+                      BUILD_USER,
+                      // Output is read through docker start --attach; Docker keeps no copy on disk.
+                      "--log-driver",
+                      "none",
+                      "--mount",
+                      "type=volume,source="
+                          + settings.mavenCacheVolume()
+                          + ",target="
+                          + CACHE_MOUNT,
+                      // The build user has no home directory in the image.
+                      "--env",
+                      "HOME=/tmp",
+                      "--env",
+                      "MAVEN_OPTS=-XX:MaxRAMPercentage=50 -Duser.home=/tmp",
+                      "--workdir",
+                      "/work",
+                      "--entrypoint",
+                      entrypoint,
+                      image)));
       args.addAll(command);
       docker.check(DOCKER_TIMEOUT, args);
       copyIn(name);
@@ -664,6 +653,20 @@ public class BuildSandbox {
       docker.check(COPY_TIMEOUT, List.of("cp", lantern.toString(), name + ":/lantern"));
       docker.check(
           COPY_TIMEOUT, List.of("cp", staging.resolve("empty-out").toString(), name + ":/out"));
+    }
+
+    /**
+     * The Docker arguments up to the labels, the labels of this build's containers and networks
+     * (the sandbox label, then the owner label if one is set), then the other arguments.
+     */
+    private List<String> labelled(List<String> head, List<String> rest) {
+      List<String> args = new ArrayList<>(head);
+      args.addAll(List.of("--label", LABEL + "=" + id));
+      if (settings.ownerLabel() != null) {
+        args.addAll(List.of("--label", settings.ownerLabel()));
+      }
+      args.addAll(rest);
+      return args;
     }
 
     /** Options for every Maven run in the sandbox. */

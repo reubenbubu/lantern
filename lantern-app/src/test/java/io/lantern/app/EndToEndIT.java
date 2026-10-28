@@ -16,6 +16,7 @@ import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
+import io.lantern.sandbox.SandboxSettings;
 import io.lantern.summarize.SummaryStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -45,6 +46,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -63,7 +65,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * judged before making one.
  *
  * <p>Builds run in the real sandbox with a Maven cache volume made for these tests and removed
- * after them; the workspace is a temporary directory.
+ * after them, and with an owner label of their own, so the check that nothing is left behind sees
+ * only their containers; the workspace is a temporary directory.
  */
 @SpringBootTest(
     properties = {
@@ -82,6 +85,9 @@ class EndToEndIT {
   private static final String VOLUME =
       "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
   private static final Path WORKSPACE = tempDirectory();
+  private static final String RUN_LABEL = "lantern.test.run";
+  private static final String RUN =
+      HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
   private static final String STORE_FAILED = "Storing the facts failed";
 
   @TestConfiguration(proxyBeanMethods = false)
@@ -111,6 +117,16 @@ class EndToEndIT {
     registry.add("lantern.sandbox.maven-cache-volume", () -> VOLUME);
   }
 
+  /** The sandbox of AnalysisConfiguration, with the test cache volume and the owner label. */
+  @TestBean BuildSandbox buildSandbox;
+
+  static BuildSandbox buildSandbox() {
+    return new BuildSandbox(
+        SandboxSettings.defaults(WORKSPACE.toAbsolutePath().resolve("builds"))
+            .withMavenCacheVolume(VOLUME)
+            .withOwnerLabel(RUN_LABEL, RUN));
+  }
+
   @Autowired AnalysisRun run;
   @Autowired FakeLlmProvider fake;
   @Autowired FactRepository facts;
@@ -126,7 +142,7 @@ class EndToEndIT {
         Files.delete(path);
       }
     }
-    assertThat(docker("ps", "--all", "--quiet", "--filter", "label=" + BuildSandbox.LABEL))
+    assertThat(docker("ps", "--all", "--quiet", "--filter", "label=" + RUN_LABEL + "=" + RUN))
         .as("sandbox containers left behind")
         .isEmpty();
   }
