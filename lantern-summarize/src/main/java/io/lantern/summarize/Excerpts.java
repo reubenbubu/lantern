@@ -34,8 +34,8 @@ final class Excerpts {
   /** Longer lines are cut. */
   private static final int MAX_LINE_CHARS = 200;
 
-  /** What an excerpt costs beyond its code, in characters: its reference, path and fence. */
-  private static final int OVERHEAD_CHARS = 120;
+  /** What an excerpt costs beyond its code and path, in characters: its reference and fence. */
+  private static final int OVERHEAD_CHARS = 40;
 
   /** Marks lines left out of an excerpt. */
   static final String ELIDED = "...";
@@ -88,6 +88,8 @@ final class Excerpts {
     Comparator<Candidate> inFileOrder =
         Comparator.comparing((Candidate c) -> c.fact.evidence().path())
             .thenComparingInt(c -> c.fact.evidence().lines().start())
+            // A field before the members Lombok places on its line, such as its getter.
+            .thenComparing(c -> !c.fact.object().value().startsWith(FIELD + ":"))
             .thenComparing(c -> c.fact.id());
     declarations.sort(inFileOrder);
     members.sort(inFileOrder);
@@ -157,7 +159,7 @@ final class Excerpts {
   }
 
   private static int cost(Excerpt excerpt) {
-    return excerpt.code().length() + OVERHEAD_CHARS;
+    return excerpt.code().length() + excerpt.path().length() + OVERHEAD_CHARS;
   }
 
   /** A fact whose evidence an excerpt can be taken from, with its file's lines. */
@@ -190,16 +192,55 @@ final class Excerpts {
       return Optional.of(excerpt(javadocStart(), start(), end(), false));
     }
 
-    /** The first line, from the start, that opens a body or ends a declaration. */
+    /**
+     * The first line, from the start, that opens a body or ends a declaration: a brace or semicolon
+     * outside parentheses, strings and comments, so that annotations such as
+     * {@code @GetMapping("/{id}")} or {@code @SuppressWarnings({"a", "b"})} do not count.
+     */
     private int bodyStart() {
       int limit = Math.min(end(), start() + MAX_DECLARATION_LINES - 1);
+      int depth = 0;
+      boolean inComment = false;
       for (int line = start(); line <= limit; line++) {
         String text = file.get(line - 1);
-        if (text.contains("{") || text.stripTrailing().endsWith(";")) {
-          return line;
+        for (int i = 0; i < text.length(); i++) {
+          char c = text.charAt(i);
+          if (inComment) {
+            if (c == '*' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+              inComment = false;
+              i++;
+            }
+          } else if (c == '/' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+            break;
+          } else if (c == '/' && i + 1 < text.length() && text.charAt(i + 1) == '*') {
+            inComment = true;
+            i++;
+          } else if (c == '"' || c == '\'') {
+            i = closingQuote(text, i);
+          } else if (c == '(') {
+            depth++;
+          } else if (c == ')') {
+            depth = Math.max(0, depth - 1);
+          } else if (depth == 0 && (c == '{' || c == ';')) {
+            return line;
+          }
         }
       }
       return limit;
+    }
+
+    /** The index of the quote that closes the literal opened at {@code open}, or the line's end. */
+    private static int closingQuote(String text, int open) {
+      char quote = text.charAt(open);
+      for (int i = open + 1; i < text.length(); i++) {
+        char c = text.charAt(i);
+        if (c == '\\') {
+          i++;
+        } else if (c == quote) {
+          return i;
+        }
+      }
+      return text.length();
     }
 
     /** The first line of the Javadoc right above the start, or the start if there is none. */
@@ -213,7 +254,8 @@ final class Excerpts {
         if (text.startsWith("/**")) {
           return line;
         }
-        if (line < above && (text.contains("*/") || text.startsWith("/*"))) {
+        // Another comment, or code before a comment that ends on this line, is not Javadoc.
+        if (text.contains("/*") || (line < above && text.contains("*/"))) {
           return start();
         }
       }

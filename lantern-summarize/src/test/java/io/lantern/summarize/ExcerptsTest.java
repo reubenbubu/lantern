@@ -134,7 +134,7 @@ class ExcerptsTest {
 
     List<Excerpts.Excerpt> excerpts = Excerpts.of(order(facts), e -> Optional.of(lines));
 
-    int chars = excerpts.stream().mapToInt(e -> e.code().length() + 120).sum();
+    int chars = excerpts.stream().mapToInt(e -> e.code().length() + e.path().length() + 40).sum();
     assertThat(chars).isLessThanOrEqualTo(Excerpts.MAX_TOKENS * 4);
     assertThat(excerpts.getFirst().code()).isEqualTo("public class Order {");
     // Signatures of as many members as fit, then the leftover budget shows the first ones whole.
@@ -159,5 +159,74 @@ class ExcerptsTest {
             EntityId.parse("package:g:a:p"), SummaryLevel.PACKAGE, List.of(KIND), List.of());
 
     assertThat(Excerpts.of(pkg, e -> Optional.of(LINES))).isEmpty();
+  }
+
+  @Test
+  void bracesInAnnotationsDoNotEndTheDeclaration() {
+    List<String> lines =
+        """
+        @RestController
+        @RequestMapping("/{tenant}/orders")
+        @SuppressWarnings({"a", "b"})
+        public class Order {
+          @GetMapping("/{id}") // returns {the order}
+          public String find(
+              @PathVariable String id) {
+        %s  }
+        }
+        """
+            .formatted("    step();\n".repeat(25))
+            .lines()
+            .toList();
+    Fact kind = fact("kind", FactObject.string("class"), 1, lines.size());
+    Fact find = member("method:p.Order#find(java.lang.String)", 5, 33);
+
+    List<Excerpts.Excerpt> excerpts =
+        Excerpts.of(order(List.of(kind, find)), e -> Optional.of(lines));
+
+    assertThat(excerpts)
+        .extracting(Excerpts.Excerpt::code)
+        .containsExactly(
+            """
+            @RestController
+            @RequestMapping("/{tenant}/orders")
+            @SuppressWarnings({"a", "b"})
+            public class Order {""",
+            """
+            @GetMapping("/{id}") // returns {the order}
+            public String find(
+                @PathVariable String id) {
+              ...""");
+  }
+
+  @Test
+  void anotherCommentAboveAMemberIsNotTakenForJavadoc() {
+    List<String> lines =
+        List.of(
+            "class Order {",
+            "  /** Doc a. */",
+            "  int a;",
+            "",
+            "  /* int old; */",
+            "  int b;",
+            "  int c; /* note */",
+            "  int d;",
+            "}");
+    Fact a = member("field:p.Order#a", 3, 3);
+    Fact b = member("field:p.Order#b", 6, 6);
+    Fact d = member("field:p.Order#d", 8, 8);
+
+    assertThat(Excerpts.of(order(List.of(a, b, d)), e -> Optional.of(lines)))
+        .extracting(Excerpts.Excerpt::code)
+        .containsExactly("/** Doc a. */\nint a;", "int b;", "int d;");
+  }
+
+  @Test
+  void aFieldIsShownAsItselfNotAsTheGetterLombokPlacesOnItsLine() {
+    Fact getter = member("method:p.Order#getId()", 12, 12);
+
+    assertThat(Excerpts.of(order(List.of(getter, ID)), e -> Optional.of(LINES)))
+        .extracting(Excerpts.Excerpt::fact)
+        .containsExactly(ID.id());
   }
 }

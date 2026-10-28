@@ -14,11 +14,13 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
 
 - **Only types get excerpts.** A type's prompt shows its declaration (with the Javadoc right above
   it and its annotations, up to the opening brace), then each method and field: Javadoc,
-  annotations and the declaration up to its body. While the budget allows, members of up to 20
+  annotations and the declaration up to its body (the first brace or semicolon outside
+  parentheses, strings and comments, so `@GetMapping("/{id}")` does not end it). While the budget allows, members of up to 20
   lines are then shown whole, in source order. Javadoc over 15 lines and lines over 200 characters
   are cut, and `...` marks what was left out. Packages, modules and repositories get none: they
   build on their types' summaries.
-- **Budget:** at most 2,000 tokens of excerpts per type (as `Tokens` estimates them), declarations
+- **Budget:** at most 2,000 tokens of excerpts per type (as `Tokens` estimates them, counting each
+  excerpt's code, path and an allowance for its reference and fence), declarations
   first, then every member's signature, then whole short members. An excerpt that overlaps one
   already shown is skipped, so members Lombok places on its annotation's line are not repeated.
   This adds at most 2,000 input tokens a type; OpenWMS has about 900 types, so at most about 1.8
@@ -47,8 +49,9 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
   final summary is stored; if a run fails part-way, the parts are summarized again next time. No
   facts are dropped: splitting keeps everything a unit has, at the cost of more calls.
 - **A single input larger than the budget** (one fact or child summary) still gets its own part
-  and is refused by `LlmClient`; facts are one line and child summaries are bounded by their
-  output limit, so this needs a context window of a few thousand tokens.
+  and is refused by `LlmClient`, as is a merge whose part summaries cannot be paired within the
+  budget. Facts are one line and summaries are bounded by their output limit, so this happens only
+  with context windows of a few thousand tokens.
 
 ## Not in this issue
 

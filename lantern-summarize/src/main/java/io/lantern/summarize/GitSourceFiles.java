@@ -3,10 +3,14 @@ package io.lantern.summarize;
 import io.lantern.core.repo.Git;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
@@ -45,19 +49,24 @@ public final class GitSourceFiles implements SourceFiles {
     }
     try {
       process.getOutputStream().close();
-      byte[] content;
-      try (InputStream in = process.getInputStream()) {
-        content = in.readNBytes(MAX_BYTES + 1);
-      }
+      InputStream in = process.getInputStream();
+      CompletableFuture<byte[]> read =
+          CompletableFuture.supplyAsync(
+              () -> {
+                try (in) {
+                  return in.readNBytes(MAX_BYTES + 1);
+                } catch (IOException e) {
+                  throw new UncheckedIOException(e);
+                }
+              },
+              Thread.ofVirtual()::start);
+      byte[] content = read.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
       if (content.length > MAX_BYTES || !process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
         process.destroyForcibly();
         return Optional.empty();
       }
-      if (process.exitValue() != 0) {
-        return Optional.empty();
-      }
-      return Optional.of(content);
-    } catch (IOException e) {
+      return process.exitValue() == 0 ? Optional.of(content) : Optional.empty();
+    } catch (IOException | ExecutionException | TimeoutException e) {
       process.destroyForcibly();
       return Optional.empty();
     } catch (InterruptedException e) {

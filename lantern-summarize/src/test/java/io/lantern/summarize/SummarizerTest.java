@@ -649,4 +649,42 @@ class SummarizerTest {
     assertThat(fake.sent().get(1).request().messages().get(2).text())
         .contains("it cites references that are not in the input: [F400].");
   }
+
+  @Test
+  void partsCarryTheContainedUnitsSummariesTheyAreGiven() {
+    TestFacts facts = new TestFacts();
+    List<SummaryNode> types = new ArrayList<>();
+    for (int i = 0; i < 150; i++) {
+      String type = "type:p.Type%03d".formatted(i);
+      facts.relate("r", "package:g:a:p", "CONTAINS", type);
+      types.add(
+          new SummaryNode(
+              EntityId.parse(type),
+              SummaryLevel.TYPE,
+              new TestFacts().attribute("r", type, "kind", "class").list(),
+              List.of()));
+    }
+    SummaryNode pkg =
+        new SummaryNode(EntityId.parse("package:g:a:p"), SummaryLevel.PACKAGE, facts.list(), types);
+    fake.answering(request -> citingWhatItSees(request, 0));
+
+    Summary summary =
+        new Summarizer(smallWindowClient(4_000), store)
+            .summarize(List.of(pkg))
+            .summaries()
+            .get(pkg.entity());
+
+    List<String> partPrompts =
+        fake.sent().stream()
+            .filter(s -> s.request().purpose().startsWith("summarize package package:g:a:p (part"))
+            .map(s -> s.request().messages().getFirst().text())
+            .toList();
+    assertThat(partPrompts.size()).isGreaterThan(1);
+    assertThat(partPrompts.getLast())
+        .contains("Summaries of the parts it contains:\n[S")
+        .doesNotContain("[S1] ");
+    assertThat(summary.citedSummaries())
+        .containsExactlyInAnyOrderElementsOf(summary.inputSummaries());
+    assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
+  }
 }

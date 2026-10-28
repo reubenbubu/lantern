@@ -357,7 +357,7 @@ public final class Summarizer {
     }
 
     /** A file's lines for a fact's evidence, if it can be read and is the version observed. */
-    private synchronized Optional<List<String>> lines(Evidence evidence) {
+    private Optional<List<String>> lines(Evidence evidence) {
       if (evidence.path() == null || evidence.contentHash() == null) {
         return Optional.empty();
       }
