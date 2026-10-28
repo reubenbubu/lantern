@@ -141,7 +141,7 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 - Defines entity types (`service`, `library`, `topic`, `table`, `batch-job`) and relationship types (`CALLS`, `CONSUMES`, `READS_TABLE`).
 - Each type has a **parent type**, an attribute schema, a C4 level, and default presentation (shape, icon).
 - Parent types mean a new type renders and behaves sensibly before any code knows about it. A new `batch-job` type that extends `container` appears in diagrams and documents as a container immediately.
-- C4 levels follow the definitions under Diagrams in Composition: a deployable unit (`service`, a job) is a container, a data store or queue is a container, and `library`, `module` and `package` carry no C4 level; components are found by role, not from a type (#90).
+- C4 levels follow the definitions under Diagrams in Composition: applications and jobs (deployable units, such as `service`), data stores, and queues and topics (`topic`) are containers; `library`, `module`, `package` and `table` (part of a data store) carry no C4 level; components are found by role, not from a type (#90).
 - New types can come from plugins, learned rules (through the approval flow), or administrators in the UI. Every change is versioned and in the audit log.
 
 **Do schema changes need a release?**
@@ -374,9 +374,9 @@ Every diagram and document is judged against these checks, each yes or no. The c
 
 | Document | Passes only if |
 | --- | --- |
-| Every document | It states its reader and pins its snapshot (commits) and date. Its first paragraph gives the system's purpose and the most important fact about it *(review)*. Every specific claim links to a fact or source. Unknowns are stated once, plainly (see LLM integration, Grounding). No sentence that would be true of any Spring application *(review)*. One name per concept across text, diagrams and glossary. No diagram repeated across sections |
+| Every document | It states its reader and pins its snapshot (commits) and date. Its first paragraph gives the system's purpose and the most important fact about it *(review)*. Every specific claim links to a fact or source. Unknowns are stated once, plainly (see LLM integration, Grounding) *(review)*. No sentence that would be true of any Spring application *(review)*. One name per concept across text, diagrams and glossary *(review)*. No diagram repeated across sections |
 | Architecture Explorer | An orientation section of at most 300 words followed by a "start here" list of the entry points and files to read first; the container diagram first; the main flows as sequence diagrams; a catalog of containers, components, endpoints, queues, tables and config, each linked to source; change guidance ("to add an endpoint, follow X in Y") *(review)*; observed decisions, with rationale quoted from ADRs or READMEs or marked unknown |
-| Executive Brief | Business purpose first, in one sentence. Who depends on it and what it depends on (blast radius). Technology currency: runtime and framework versions against their end of life. Risks ranked by impact, each with its consequence and confidence. Quality evidence (tests, architecture tests and coverage where present), with quality goals marked unrecorded when absent. The decisions or options the reader faces *(review)*. No implementation detail *(review)* |
+| Executive Brief | Business purpose first, in one sentence *(review)*. Who depends on it and what it depends on (blast radius). Technology currency: runtime and framework versions against their end of life. Risks ranked by impact, each with its consequence and confidence. Quality evidence (tests, architecture tests and coverage where present), with quality goals marked unrecorded when absent. The decisions or options the reader faces *(review)*. No implementation detail *(review)* |
 
 Change-history measures (activity level, hotspots of complex code that changes often) need git history beyond the snapshot and come later. Until then the Brief doesn't present static findings as ranked debt.
 
@@ -392,7 +392,7 @@ How the first composer builds per-repository documents from view definitions is 
 
 **View definitions.** A persisted spec per document: scope, audience profile, template, sections and diagrams. Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
-**Diagrams.** Lantern uses the C4 levels with c4model.com's definitions. The software system is the scope: all repos in system scope, a group in grouped scope; a per-repo document shows its repo's containers inside that system. External systems are outbound targets the linker can't resolve to a container in scope, or come from annotations. A container is a runtime unit (an application, job or data store), never a Maven module or jar; a component is a group of functionality behind an interface, never just a package. Each diagram must also pass the Quality bar. The document model gains a `sequence` diagram kind and a quality report block for these (a schema change per ADR 0011, #91).
+**Diagrams.** Lantern uses the C4 levels with c4model.com's definitions. The software system is the scope: all repos in system scope, a group in grouped scope; a per-repo document shows its repo's containers inside that system. External systems are outbound targets the linker can't resolve to a container in scope, or come from annotations. A container is a runtime unit (an application, job, data store, or queue or topic), never a Maven module or jar; a component is a group of functionality behind an interface, never just a package. Each diagram must also pass the Quality bar. The document model gains a `sequence` diagram kind for these (a schema change per ADR 0011, #91).
 
 | Diagram | Contains | Built from |
 | --- | --- | --- |
@@ -412,7 +412,7 @@ Build-time library dependencies are not container or component relationships; th
 - Traced from entry points (REST endpoints, message listeners, scheduled jobs) through the resolved call graph, keeping only steps that cross a container boundary: HTTP calls, messages, database access. Traces are stitched across containers: an HTTP call continues in the callee's endpoint, a published message in each listener bound to it.
 - Participants are all at one C4 level, containers by default, with the container diagram's names: one lifeline per container (its internals collapsed), one per queue or exchange, and actors for people and external systems.
 - Labels put intent first and protocol second ("Create order [POST /orders]"). Async messages are drawn as async and followed by a note that the rest happens later. Replies are drawn only when they carry meaning. Profile-gated steps are conditional (Quality bar); at most one level of fragments.
-- Candidate flows are ranked by the containers they touch, whether they hand off asynchronously and whether they handle failure, ties broken by stable ID. A system scope shows about three to seven, plus one or two error flows; a narrower scope shows those that start in or pass through it, under the same cap.
+- Candidate flows are ranked by the containers they touch, whether they hand off asynchronously and whether they handle failure, ties broken by stable ID. As a guide, a system scope shows three to seven, plus one or two error flows; a narrower scope shows those that start in or pass through it.
 - Each has a title naming the scenario and its trigger, and two to four sentences of prose.
 
 **Granularity through hierarchical summaries**
@@ -528,14 +528,14 @@ The backend is Java 21+ on Spring Boot because the hardest part, Java analysis, 
 
 Each phase delivers something usable on real repos. The knowledge model and stable IDs come first because everything later depends on them.
 
-**Test sets.** From Phase 2, each phase is checked on several open-source test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, and a monolith. No single test set shapes the design. Each one's repos and pins are in its own ADR (the first: 0004 and 0020); choosing more is #88.
+**Test sets.** From Phase 2, each phase is checked on several open-source test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, and a monolith. No single test set shapes the design. Each one's repos and pins are in its ADRs (the first's: 0004 and 0020); choosing more is #88.
 
 1. **Foundation** (built; remaining fixes tracked in its milestone): a single repo through to a real document.
    - Repo registry, build sandbox, Maven and Java structure extractors
    - Fact store with envelope, vocabulary registry and snapshots
    - Bottom-up LLM summaries
    - Architecture Explorer and Executive Brief templates, single-file HTML, per-repo scope
-2. **System view** (next): many repos as one system. Per-repo documents from Maven and Java facts alone can't meet the Quality bar, so this comes before anything else, including the remaining Phase 1 fixes (ADR 0026).
+2. **System view** (next, before the remaining Phase 1 fixes; see ADR 0026): many repos as one system.
    - Spring, HTTP client, messaging, persistence, config and SQL extractors, following values
    - Cross-repo linker and LLM resolver
    - Deployable units, container, component and sequence views, and Quality bar checks

@@ -54,6 +54,8 @@ OpenWMS `org.openwms.tms.transportation` shows both what is there and where the 
 
 ## Rubrics Lantern can test against
 
+The authoritative version of these checks is the Quality bar in `docs/design.md`; this section is the evidence behind it.
+
 Each check is yes or no. Most can be checked mechanically from the generated model, in the style of the official C4 review checklist ([c4model.com checklist](https://c4model.com/diagrams/checklist)).
 
 **Every diagram:** a title naming type and scope ("Container diagram for Transportation"). A legend covering every shape, colour, line style and arrowhead used. One abstraction level. Roughly 15 elements or fewer, or split. Every element has a name, a type and a responsibility sentence that does not just restate the name. Every line is one-way, labelled with a verb phrase other than "uses" or "depends on", and linked to the code fact behind it. No acronym left unexplained.

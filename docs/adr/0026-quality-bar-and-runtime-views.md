@@ -48,11 +48,12 @@ set it had been checked on.
 - Phase 1 documents keep working but do not pass the bar. Follow-up issues in the Phase 2
   milestone build it: vocabulary C4 levels (#90), document model additions (#91), runtime
   extractors (#92), deployable units (#93), the linker (#94), the new views with the bar's checks
-  (#95) and sequence flows (#96).
+  (#95), sequence flows (#96), and the Explorer sections and summarizer wording the bar
+  requires (#97).
 - The document model gains a `sequence` diagram kind and a quality report block, a schema change
   per ADR 0011 (#91).
 - The Executive Brief (ADR 0015) changes with the new views: its context and container diagrams
   are redrawn by the new definitions, and its package-cycle risk, which reads the old
   package-as-component diagrams, has to be rebased on packages directly or replaced.
-- #49 and #53, about package-level component diagrams, were closed: components are now found by
-  role, and diagrams are capped at 15 elements.
+- #49 and #53, about package-level component diagrams, no longer apply and are to be closed:
+  components are now found by role, and diagrams are capped at 15 elements.
