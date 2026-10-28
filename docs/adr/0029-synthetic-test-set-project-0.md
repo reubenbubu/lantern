@@ -1,4 +1,4 @@
-# 0028: The synthetic test set project-0, and the testsets/ format
+# 0029: The synthetic test set project-0, and the testsets/ format
 
 Status: accepted (#115), pending the user's review (#24)
 

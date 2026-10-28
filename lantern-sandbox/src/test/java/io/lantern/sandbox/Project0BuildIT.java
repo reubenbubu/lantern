@@ -21,7 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /**
- * Builds every repository of the synthetic test set project-0 (ADR 0028) in the sandbox, each on
+ * Builds every repository of the synthetic test set project-0 (ADR 0029) in the sandbox, each on
  * the JDK its POM asks for. Runs only when {@code lantern.test.project0} names the folder {@code
  * testsets/project-0/setup.sh} set the repositories up in, for example {@code ./mvnw verify -pl
  * lantern-sandbox -am -Dlantern.test.project0=$HOME/workspace/lantern-test-projects/project-0}.

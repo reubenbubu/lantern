@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sets up the project-0 test set (docs/adr/0028-synthetic-test-set-project-0.md): fetches the
+# Sets up the project-0 test set (docs/adr/0029-synthetic-test-set-project-0.md): fetches the
 # pinned commit of lantern-project-0 listed in pins.txt into a temporary folder and runs its
 # setup.sh, which makes one local git repository per made-up repository under the destination.
 #
