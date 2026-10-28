@@ -1,6 +1,6 @@
 # 0004: The pinned OpenWMS test set and the fixture Maven projects
 
-Status: accepted (#6), pending the user's review (#24)
+Status: accepted (#6), amended by ADR 0020 (#72), pending the user's review (#24)
 
 ## Context
 
@@ -18,12 +18,11 @@ commits, or where the workspace is.
   `tms.routing.lib`, `tms.routing.osip` (the thin `tms.routing` service packages this, and it
   packages `tms.routing.lib`), `core.process.execution` (used by `tms.routing.lib`) and
   `ameba-lib`, which lives at `github.com/spring-labs/ameba-lib`. All are Apache-2.0. Together they
-  are 14 MB, matching the design's measurement. `core.util` has no repository of its own and
-  comes from Maven Central.
-- **Pins** are full commit hashes, each the head of the default branch on 28 Oct 2026. They live
-  in `testsets/openwms/repos.txt`, one `<name> <clone URL> <commit>` line per repository.
-  Whether these commits build against each other is checked when the Maven extractor (#8) first builds
-  them; a pin is moved by editing that file.
+  are 14 MB, matching the design's measurement. ADR 0020 adds the umbrella repository
+  `org.openwms`, which holds `core.util`.
+- **Pins** are full commit hashes in `testsets/openwms/repos.txt`, one
+  `<name> <clone URL> <commit>` line per repository; a pin is moved by editing that file. Which
+  commit each repository is pinned to is decided in ADR 0020.
 - **Workspace folder** is `workspace/` at the top of this repository, gitignored; the test set
   goes into `workspace/openwms/<name>`. The design's workspace storage holds repo clones, so this
   is the same place Lantern's own clones can go later.

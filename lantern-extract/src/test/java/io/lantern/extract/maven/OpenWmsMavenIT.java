@@ -30,9 +30,9 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Builds the whole OpenWMS test set in the sandbox and extracts its Maven facts. Nine of the 15
- * repositories fail to build (#30) but still leave their effective POM, except one that is read
- * from its POM as written. Runs only when {@code lantern.test.openwms} names the directory {@code
+ * Builds the whole OpenWMS test set in the sandbox and extracts its Maven facts. Six of the 16
+ * repositories fail to build (#30, ADR 0020); four still leave their effective POM and two are read
+ * from their POM as written. Runs only when {@code lantern.test.openwms} names the directory {@code
  * testsets/openwms/clone.sh} cloned them into, for example {@code ./mvnw verify -pl lantern-extract
  * -am -Dlantern.test.openwms=$PWD/workspace/openwms}.
  */
@@ -62,7 +62,7 @@ class OpenWmsMavenIT {
         repos.add(new Repo(dir.getFileName().toString(), dir.toRealPath(), RepoSettings.DEFAULT));
       }
     }
-    assertThat(repos).hasSize(15);
+    assertThat(repos).hasSize(16);
     BuildSandbox sandbox =
         new BuildSandbox(
             SandboxSettings.defaults(temp.resolve("builds")).withMavenCacheVolume(volume));
