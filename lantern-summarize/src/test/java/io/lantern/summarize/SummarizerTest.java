@@ -1,0 +1,371 @@
+package io.lantern.summarize;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactObject;
+import io.lantern.llm.BudgetGuard;
+import io.lantern.llm.FakeLlmProvider;
+import io.lantern.llm.InMemoryLlmCallLog;
+import io.lantern.llm.LlmClient;
+import io.lantern.llm.LlmMessage;
+import io.lantern.llm.LlmProvider;
+import io.lantern.llm.LlmRequest;
+import io.lantern.llm.LlmResponse;
+import io.lantern.llm.ModelSettings;
+import io.lantern.llm.Role;
+import io.lantern.llm.TokenUsage;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.junit.jupiter.api.Test;
+
+class SummarizerTest {
+
+  private static final Pattern REF = Pattern.compile("^\\[([FS]\\d+)\\]", Pattern.MULTILINE);
+  private static final Pattern UNIT = Pattern.compile("Summarize the .*? (\\S+:\\S+) in at most");
+
+  private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
+  private final InMemorySummaryStore store = new InMemorySummaryStore();
+
+  /**
+   * A well-behaved model: names the unit, includes a fingerprint of its prompt so the text changes
+   * whenever the inputs do, and cites every reference it was given.
+   */
+  private static String citingAll(LlmRequest request) {
+    String prompt = request.messages().getFirst().text();
+    List<String> refs = new ArrayList<>();
+    Matcher ref = REF.matcher(prompt);
+    while (ref.find()) {
+      refs.add(ref.group(1));
+    }
+    return "Summary of %s (%08x). [%s]"
+        .formatted(unit(prompt), prompt.hashCode(), String.join(", ", refs));
+  }
+
+  private static String unit(String prompt) {
+    Matcher unit = UNIT.matcher(prompt);
+    assertThat(unit.find()).isTrue();
+    return unit.group(1);
+  }
+
+  private LlmClient client(String model, LlmProvider provider) {
+    return new LlmClient(
+        ModelSettings.single(fake.model(model)),
+        List.of(provider),
+        BudgetGuard.unlimited("test"),
+        new InMemoryLlmCallLog(),
+        Clock.systemUTC());
+  }
+
+  private Summarizer summarizer() {
+    return new Summarizer(client("model-a", fake), store);
+  }
+
+  private List<String> summarizedUnits() {
+    return fake.sent().stream().map(s -> unit(s.request().messages().getFirst().text())).toList();
+  }
+
+  @Test
+  void eachLevelIsSummarizedAfterTheLevelBelowAndFromIt() {
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(summarizedUnits())
+        .containsExactly(
+            "type:com.example.shop.Order$Line",
+            "type:com.example.shop.Order",
+            "type:com.example.shop.PriceService",
+            "package:com.example:shop-core:com.example.shop",
+            "module:com.example:shop-core",
+            "module:com.example:shop",
+            "repo:shop");
+    Summary pkg =
+        result.summaries().get(EntityId.parse("package:com.example:shop-core:com.example.shop"));
+    Summary order = result.summaries().get(EntityId.parse("type:com.example.shop.Order"));
+    Summary priceService =
+        result.summaries().get(EntityId.parse("type:com.example.shop.PriceService"));
+    assertThat(pkg.inputSummaries()).containsExactly(order.key(), priceService.key());
+    assertThat(pkg.citedSummaries()).containsExactly(order.key(), priceService.key());
+    assertThat(pkg.text()).contains("[summary:type:com.example.shop.Order]");
+    // The package's prompt shows its types' summaries without their own citations.
+    String packagePrompt = fake.sent().get(3).request().messages().getFirst().text();
+    assertThat(packagePrompt)
+        .contains("[S1] type:com.example.shop.Order: Summary of type:com.example.shop.Order")
+        .doesNotContain("[fact:");
+  }
+
+  @Test
+  void summariesCiteTheFactIdsTheyUsed() {
+    List<Fact> facts = TestFacts.shop().list();
+    Summarizer.Result result = summarizer().summarize(SummaryTree.fromFacts(facts));
+
+    Summary order = result.summaries().get(EntityId.parse("type:com.example.shop.Order"));
+    List<String> orderFacts =
+        facts.stream()
+            .filter(
+                f ->
+                    f.subject().toString().equals("type:com.example.shop.Order")
+                        || f.subject().toString().equals("method:com.example.shop.Order#total()"))
+            .map(Fact::id)
+            .sorted()
+            .toList();
+    assertThat(order.inputFacts()).isEqualTo(orderFacts);
+    assertThat(order.citedFacts()).containsExactlyInAnyOrderElementsOf(orderFacts);
+    for (String id : orderFacts) {
+      assertThat(order.text()).contains("[fact:" + id + "]");
+    }
+    assertThat(order.promptVersion()).isEqualTo(Prompt.VERSION);
+    assertThat(order.provider()).isEqualTo("fake");
+    assertThat(order.model()).isEqualTo("model-a");
+    // The repository has no facts of its own and cites its module's summary.
+    Summary repo = result.summaries().get(new EntityId("repo", "shop"));
+    assertThat(repo.citedFacts()).isEmpty();
+    assertThat(repo.citedSummaries())
+        .containsExactly(result.summaries().get(EntityId.parse("module:com.example:shop")).key());
+  }
+
+  @Test
+  void unchangedUnitsAreNotSummarizedAgain() {
+    List<SummaryNode> tree = SummaryTree.fromFacts(TestFacts.shop().list());
+    Summarizer.Result first = summarizer().summarize(tree);
+
+    Summarizer.Result second = summarizer().summarize(tree);
+
+    assertThat(fake.sent()).hasSize(7);
+    assertThat(second.generated()).isZero();
+    assertThat(second.reused()).isEqualTo(7);
+    assertThat(second.summaries()).isEqualTo(first.summaries());
+  }
+
+  @Test
+  void aChangedUnitAndItsParentsAreSummarizedAgainAndNothingElse() {
+    Summarizer.Result first =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+    int calls = fake.sent().size();
+
+    // PriceService gains a method.
+    List<Fact> changed =
+        TestFacts.shop()
+            .relate(
+                "shop",
+                "type:com.example.shop.PriceService",
+                "CONTAINS",
+                "method:com.example.shop.PriceService#discount()")
+            .list();
+    Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(changed));
+
+    assertThat(fake.sent().subList(calls, fake.sent().size()))
+        .extracting(s -> unit(s.request().messages().getFirst().text()))
+        .containsExactly(
+            "type:com.example.shop.PriceService",
+            "package:com.example:shop-core:com.example.shop",
+            "module:com.example:shop-core",
+            "module:com.example:shop",
+            "repo:shop");
+    assertThat(second.generated()).isEqualTo(5);
+    assertThat(second.reused()).isEqualTo(2);
+    EntityId order = EntityId.parse("type:com.example.shop.Order");
+    assertThat(second.summaries().get(order)).isEqualTo(first.summaries().get(order));
+    EntityId repo = new EntityId("repo", "shop");
+    assertThat(second.summaries().get(repo).key()).isNotEqualTo(first.summaries().get(repo).key());
+  }
+
+  @Test
+  void anotherModelDoesNotReuseSummaries() {
+    List<SummaryNode> tree = SummaryTree.fromFacts(TestFacts.shop().list());
+    summarizer().summarize(tree);
+
+    Summarizer.Result other = new Summarizer(client("model-b", fake), store).summarize(tree);
+
+    assertThat(other.generated()).isEqualTo(7);
+    assertThat(other.reused()).isZero();
+    assertThat(store.size()).isEqualTo(14);
+  }
+
+  @Test
+  void theCacheKeyCoversEveryInput() {
+    SummaryNode order =
+        SummaryTree.fromFacts(TestFacts.shop().list())
+            .getFirst()
+            .children()
+            .getFirst()
+            .children()
+            .getFirst()
+            .children()
+            .getFirst()
+            .children()
+            .getFirst();
+    Summary child =
+        summarizer()
+            .summarize(List.of(order.children().getFirst()))
+            .summaries()
+            .values()
+            .iterator()
+            .next();
+    String key = Summarizer.key(order, List.of(child), fake.model("m"));
+
+    assertThat(Summarizer.key(order, List.of(child), fake.model("m"))).isEqualTo(key);
+    assertThat(Summarizer.key(order, List.of(child), fake.model("n"))).isNotEqualTo(key);
+    assertThat(Summarizer.key(order, List.of(child), new FakeLlmProvider("other").model("m")))
+        .isNotEqualTo(key);
+    assertThat(Summarizer.key(order, List.of(), fake.model("m"))).isNotEqualTo(key);
+    Summary editedChild =
+        new Summary(
+            child.key(),
+            child.entity(),
+            child.level(),
+            child.text() + " More.",
+            child.citedFacts(),
+            child.citedSummaries(),
+            child.inputFacts(),
+            child.inputSummaries(),
+            child.promptVersion(),
+            child.provider(),
+            child.model());
+    assertThat(Summarizer.key(order, List.of(editedChild), fake.model("m"))).isNotEqualTo(key);
+    Summary rekeyedChild =
+        new Summary(
+            "f".repeat(64),
+            child.entity(),
+            child.level(),
+            child.text(),
+            child.citedFacts(),
+            child.citedSummaries(),
+            child.inputFacts(),
+            child.inputSummaries(),
+            child.promptVersion(),
+            child.provider(),
+            child.model());
+    assertThat(Summarizer.key(order, List.of(rekeyedChild), fake.model("m"))).isNotEqualTo(key);
+    SummaryNode fewerFacts =
+        new SummaryNode(
+            order.entity(),
+            order.level(),
+            order.facts().subList(1, order.facts().size()),
+            order.children());
+    assertThat(Summarizer.key(fewerFacts, List.of(child), fake.model("m"))).isNotEqualTo(key);
+  }
+
+  @Test
+  void uncitedAnswerIsSentBackOnceThenRejected() {
+    fake.answering("Order holds the lines of an order.");
+    SummaryNode line =
+        new SummaryNode(
+            EntityId.parse("type:p.Line"),
+            SummaryLevel.TYPE,
+            List.of(
+                TestFacts.fact(
+                    "r", "type:p.Line", "kind", FactObject.string("record"), "Line.java")),
+            List.of());
+
+    assertThatThrownBy(() -> summarizer().summarize(List.of(line)))
+        .isInstanceOf(SummaryRejectedException.class)
+        .hasMessageContaining("type:p.Line")
+        .hasMessageContaining("cites no references");
+    assertThat(fake.sent()).hasSize(2);
+    List<LlmMessage> retry = fake.sent().get(1).request().messages();
+    assertThat(retry).hasSize(3);
+    assertThat(retry.get(1)).isEqualTo(LlmMessage.assistant("Order holds the lines of an order."));
+    assertThat(retry.get(2).text())
+        .startsWith("Your summary was rejected: it cites no references.");
+    assertThat(fake.sent().get(1).request().purpose()).endsWith("(retry)");
+    assertThat(store.size()).isZero();
+  }
+
+  @Test
+  void anEmptyAnswerIsRetriedWithTheReason() {
+    AtomicInteger calls = new AtomicInteger();
+    fake.answering(request -> calls.getAndIncrement() == 0 ? " " : citingAll(request));
+
+    summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    List<LlmMessage> retry = fake.sent().get(1).request().messages();
+    assertThat(retry).hasSize(1);
+    assertThat(retry.getFirst().text()).contains("Your summary was rejected: it is empty.");
+  }
+
+  @Test
+  void resultsAreInVisitOrder() {
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(result.summaries().keySet())
+        .extracting(EntityId::toString)
+        .containsExactly(
+            "type:com.example.shop.Order$Line",
+            "type:com.example.shop.Order",
+            "type:com.example.shop.PriceService",
+            "package:com.example:shop-core:com.example.shop",
+            "module:com.example:shop-core",
+            "module:com.example:shop",
+            "repo:shop");
+  }
+
+  @Test
+  void aSummaryFixedOnRetryIsKept() {
+    AtomicInteger calls = new AtomicInteger();
+    fake.answering(
+        request -> calls.getAndIncrement() == 0 ? "It is a record [F7]." : citingAll(request));
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(result.generated()).isEqualTo(7);
+    assertThat(fake.sent().get(1).request().messages().get(2).text())
+        .contains("it cites references that are not in the input: [F7].");
+    assertThat(store.size()).isEqualTo(7);
+  }
+
+  @Test
+  void anAnswerCutOffAtTheLimitIsRejected() {
+    Function<LlmRequest, LlmResponse> cutOff =
+        request -> new LlmResponse("It is a record [F1] and it", "max_tokens", TokenUsage.NONE);
+    LlmProvider provider =
+        new LlmProvider() {
+          @Override
+          public String name() {
+            return FakeLlmProvider.NAME;
+          }
+
+          @Override
+          public LlmResponse complete(String model, LlmRequest request) {
+            return cutOff.apply(request);
+          }
+        };
+
+    assertThatThrownBy(
+            () ->
+                new Summarizer(client("model-a", provider), store)
+                    .summarize(SummaryTree.fromFacts(TestFacts.shop().list())))
+        .isInstanceOf(SummaryRejectedException.class)
+        .hasMessageContaining("cut off");
+    assertThat(store.size()).isZero();
+  }
+
+  @Test
+  void aUnitWithNothingToSummarizeHasNoSummary() {
+    SummaryNode empty =
+        new SummaryNode(new EntityId("repo", "empty"), SummaryLevel.REPO, List.of(), List.of());
+
+    Summarizer.Result result = summarizer().summarize(List.of(empty));
+
+    assertThat(result.summaries()).isEmpty();
+    assertThat(fake.sent()).isEmpty();
+  }
+
+  @Test
+  void requestsUseTheSummarizeRole() {
+    summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(fake.sent())
+        .allSatisfy(s -> assertThat(s.request().role()).isEqualTo(Role.SUMMARIZE));
+    assertThat(fake.sent().getFirst().request().system()).isEqualTo(Prompt.SYSTEM);
+  }
+}
