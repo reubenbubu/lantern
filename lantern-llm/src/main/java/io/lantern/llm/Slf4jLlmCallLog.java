@@ -10,7 +10,23 @@ public final class Slf4jLlmCallLog implements LlmCallLog {
 
   @Override
   public void record(LlmCall call) {
-    if (call.outcome() == LlmCall.Outcome.SUCCEEDED) {
+    if (call.outcome() == LlmCall.Outcome.TRUNCATED) {
+      LOG.warn(
+          "LLM call {} role={} provider={} model={} purpose=\"{}\" tokens(in={}, out={}, cacheWrite={},"
+              + " cacheRead={}) cost=${} duration={}ms error=\"{}\"",
+          call.outcome(),
+          call.role(),
+          call.provider(),
+          call.model(),
+          call.purpose(),
+          call.usage().input(),
+          call.usage().output(),
+          call.usage().cacheWrite(),
+          call.usage().cacheRead(),
+          call.costUsd().toPlainString(),
+          call.duration().toMillis(),
+          call.error());
+    } else if (call.outcome() == LlmCall.Outcome.SUCCEEDED) {
       LOG.info(
           "LLM call {} role={} provider={} model={} purpose=\"{}\" tokens(in={}, out={}, cacheWrite={},"
               + " cacheRead={}) cost=${} duration={}ms",

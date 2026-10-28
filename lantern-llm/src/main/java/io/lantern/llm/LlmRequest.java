@@ -49,6 +49,11 @@ public record LlmRequest(
         role, purpose, system, List.of(LlmMessage.user(user)), maxOutputTokens, false);
   }
 
+  /** The same request with another output limit. */
+  public LlmRequest withMaxOutputTokens(int maxOutputTokens) {
+    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, cacheSystem);
+  }
+
   /** A rough count of the input tokens, about four characters per token. */
   public long estimatedInputTokens() {
     long chars = system == null ? 0 : system.length();

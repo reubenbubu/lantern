@@ -18,6 +18,10 @@ import java.util.function.Supplier;
  * request, for example with a {@link TransientLlmException} like a rate limit, and it counts how
  * many calls were in flight at once.
  *
+ * <p>It can also {@linkplain #thinking think} before answering, like a model that thinks by
+ * default: the thinking tokens count against the request's output limit, and an answer that does
+ * not fit after them is cut off with the stop reason {@code max_tokens}, as a real model's is.
+ *
  * <p>Thread-safe if the answering function is.
  */
 public final class FakeLlmProvider implements LlmProvider {
@@ -34,6 +38,8 @@ public final class FakeLlmProvider implements LlmProvider {
   private final Map<LlmRequest, Integer> attempts = new HashMap<>();
   private final AtomicInteger inFlight = new AtomicInteger();
   private final AtomicInteger maxInFlight = new AtomicInteger();
+  private volatile int thinkingTokens;
+  private volatile boolean thinkingCanBeDisabled;
 
   public FakeLlmProvider() {
     this(NAME);
@@ -91,6 +97,24 @@ public final class FakeLlmProvider implements LlmProvider {
     return this;
   }
 
+  /**
+   * Thinks the given number of tokens before every answer, unless thinking can be disabled and the
+   * model's {@link Thinking#disabled()} is set. Thinking tokens count against the output limit and
+   * are reported as output tokens, but are never part of the answer's text.
+   *
+   * @param tokens the thinking tokens per call, zero for none
+   * @param canBeDisabled whether this fake honors a request to turn thinking off; some providers
+   *     accept the request and think anyway
+   */
+  public FakeLlmProvider thinking(int tokens, boolean canBeDisabled) {
+    if (tokens < 0) {
+      throw new IllegalArgumentException("Thinking tokens must not be negative: " + tokens);
+    }
+    this.thinkingTokens = tokens;
+    this.thinkingCanBeDisabled = canBeDisabled;
+    return this;
+  }
+
   /** The most calls that were in flight at the same time so far. */
   public int maxConcurrentCalls() {
     return maxInFlight.get();
@@ -108,6 +132,16 @@ public final class FakeLlmProvider implements LlmProvider {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
+    return complete(model, request, thinkingTokens);
+  }
+
+  @Override
+  public LlmResponse complete(ModelConfig model, LlmRequest request) {
+    boolean disabled = thinkingCanBeDisabled && model.thinking().disabled();
+    return complete(model.model(), request, disabled ? 0 : thinkingTokens);
+  }
+
+  private LlmResponse complete(String model, LlmRequest request, int thinking) {
     RuntimeException failed = null;
     synchronized (this) {
       sent.add(new Sent(model, request));
@@ -117,13 +151,13 @@ public final class FakeLlmProvider implements LlmProvider {
     }
     maxInFlight.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
     try {
-      return answer(request, failed);
+      return answer(request, failed, thinking);
     } finally {
       inFlight.decrementAndGet();
     }
   }
 
-  private LlmResponse answer(LlmRequest request, RuntimeException failed) {
+  private LlmResponse answer(LlmRequest request, RuntimeException failed, int thinking) {
     if (!latency.isZero()) {
       try {
         Thread.sleep(latency);
@@ -136,16 +170,27 @@ public final class FakeLlmProvider implements LlmProvider {
       throw failed;
     }
     String text = answer.apply(request);
+    long limit = request.maxOutputTokens();
+    long output = thinking + Tokens.estimate(text);
+    String stopReason = "end_turn";
+    if (output > limit) {
+      // Thinking comes first, so the answer gets what is left of the limit, about four characters
+      // a token.
+      long left = Math.max(0, limit - thinking);
+      text = text.substring(0, (int) Math.min(text.length(), left * 4));
+      output = limit;
+      stopReason = LlmResponse.MAX_TOKENS;
+    }
     long input = request.estimatedInputTokens();
     TokenUsage usage =
         request.cacheSystem()
             ? new TokenUsage(
                 input - Tokens.estimate(request.system()),
-                Tokens.estimate(text),
+                output,
                 Tokens.estimate(request.system()),
                 0)
-            : new TokenUsage(input, Tokens.estimate(text), 0, 0);
-    return new LlmResponse(text, "end_turn", usage);
+            : new TokenUsage(input, output, 0, 0);
+    return new LlmResponse(text, stopReason, usage);
   }
 
   /**
