@@ -145,7 +145,7 @@ public class FactRepository {
       long snapshot, Origin.Kind kind, Set<String> repos, Collection<Fact> found) {
     Objects.requireNonNull(kind, "kind");
     Objects.requireNonNull(found, "found");
-    repos = Set.copyOf(repos);
+    repos = Set.copyOf(Objects.requireNonNull(repos, "repos"));
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> byId = new LinkedHashMap<>();
     for (Fact fact : found) {

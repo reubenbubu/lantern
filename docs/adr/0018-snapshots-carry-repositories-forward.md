@@ -19,9 +19,14 @@ snapshots is a query, and the system scope is all repos in the snapshot.
   that has it. Carried-forward commits are not resolved again, so a repository whose working tree
   moved on or is gone is still described by what was analyzed. `SnapshotStore.create` still makes a
   snapshot of exactly the repositories it is given.
-- **Only the named repositories are analyzed.** The run builds, extracts, summarizes, composes and
-  renders only the repositories it is given; carried-forward ones are not touched and their
-  documents stay where an earlier run wrote them. A named repository at an unchanged commit reuses
+- **Only the named repositories are analyzed.** The run builds, summarizes, composes and renders
+  only the repositories it is given, and records only their facts; carried-forward ones keep their
+  facts and their documents stay where an earlier run wrote them. The extractors still see every
+  repository of the snapshot, each carried-forward one at its commit with its stored build if
+  there is one, because whether a dependency is internal or a call is kept depends on the other
+  repositories (ADR 0006, 0007). So `analyze A B` followed by `analyze A` finds the same facts
+  for A. A carried-forward repository whose working tree no longer has its commit is left out of
+  that context, with a warning. A named repository at an unchanged commit reuses
   its stored build and is extracted again, which finds the same facts (ADR 0016), and picks up
   extractor changes. Skipping extraction for unchanged commits is the incremental work of Phase 3.
   `analyze` prints carried-forward repositories as "carried forward, not analyzed".

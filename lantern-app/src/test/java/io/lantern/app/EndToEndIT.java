@@ -120,7 +120,7 @@ class EndToEndIT {
 
   @Test
   void runsTheFixtureTwiceAndTheSecondRunMakesNoLlmCall() throws IOException {
-    Path repo = fixtureRepo("shop");
+    Path repo = fixtureRepo("multi-module", "shop");
 
     Twice twice = runTwice("shop", repo);
 
@@ -145,50 +145,74 @@ class EndToEndIT {
 
   @Test
   void analyzingAnotherRepositoryKeepsTheFactsOfTheFirst() throws IOException {
-    Path alpha = fixtureRepo("alpha");
-    Path beta = fixtureRepo("beta");
+    // Two repositories, the service depending on the library.
+    Path lib = fixtureRepo("lib-and-service/lib", "greeting-lib");
+    Path service = fixtureRepo("lib-and-service/service", "greeting-service");
 
-    AnalysisRun.Result first = run.run(Map.of("alpha", alpha));
-    List<Fact> alphaFacts = validIn(first, "alpha");
-    assertThat(alphaFacts).hasSize(first.facts());
+    AnalysisRun.Result first = run.run(Map.of("greeting-lib", lib));
+    List<Fact> libFacts = validIn(first, "greeting-lib");
+    assertThat(libFacts).hasSize(first.facts());
 
-    // The second run analyzes only beta; alpha is carried forward and its facts keep holding.
-    AnalysisRun.Result second = run.run(Map.of("beta", beta));
-    assertThat(second.snapshot().commits())
-        .containsEntry("alpha", first.snapshot().commits().get("alpha"))
-        .containsKey("beta");
-    assertThat(second.builds()).containsOnlyKeys("beta");
-    assertThat(second.documents())
-        .extracting(d -> d.file().getFileName().toString())
-        .containsExactly("beta.html", "beta.brief.html");
-    assertThat(validIn(second, "alpha")).isEqualTo(alphaFacts);
-    List<Fact> betaFacts = validIn(second, "beta");
-    assertThat(betaFacts).hasSize(second.facts());
+    // The second run analyzes only the service; the library is carried forward, its facts keep
+    // holding, and the service's dependency on it is found as internal.
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+    command.run(new DefaultApplicationArguments("analyze", service.toString()));
+    String output = bytes.toString(StandardCharsets.UTF_8);
+    assertThat(command.getExitCode()).as(output).isZero();
+    assertThat(output)
+        .contains("greeting-lib@" + first.snapshot().commits().get("greeting-lib"))
+        .contains("carried forward, not analyzed");
+    long second = first.snapshot().number() + 1;
+    assertThat(validIn(second, "greeting-lib")).isEqualTo(libFacts);
+    List<Fact> serviceFacts = validIn(second, "greeting-service");
+    assertThat(serviceFacts)
+        .anySatisfy(
+            fact -> {
+              assertThat(fact.predicate()).isEqualTo("BUILD_DEPENDS_ON");
+              assertThat(fact.object().value())
+                  .isEqualTo("module:com.example.greeting:greeting-lib");
+            });
 
-    // Analyzing alpha again at the same commit reuses everything and starts no new fact version.
+    // Analyzing the library again at the same commit reuses everything and starts no new fact
+    // version, and the service's facts keep holding.
     int sent = fake.sent().size();
-    AnalysisRun.Result third = run.run(Map.of("alpha", alpha));
+    AnalysisRun.Result third = run.run(Map.of("greeting-lib", lib));
     assertThat(fake.sent()).as("LLM requests in the third run").hasSize(sent);
-    assertThat(third.reusedBuilds()).containsExactly("alpha");
+    assertThat(third.snapshot().number()).isEqualTo(second + 1);
+    assertThat(third.builds()).containsOnlyKeys("greeting-lib");
+    assertThat(third.reusedBuilds()).containsExactly("greeting-lib");
     assertThat(third.facts()).isEqualTo(first.facts());
     assertThat(third.newFacts()).isZero();
     assertThat(third.summariesGenerated()).isZero();
-    assertThat(third.snapshot().commits())
-        .containsEntry("alpha", first.snapshot().commits().get("alpha"))
-        .containsEntry("beta", second.snapshot().commits().get("beta"));
-    assertThat(validIn(third, "alpha")).isEqualTo(alphaFacts);
-    assertThat(validIn(third, "beta")).isEqualTo(betaFacts);
-    for (Fact fact : alphaFacts) {
+    assertThat(third.documents())
+        .extracting(d -> d.file().getFileName().toString())
+        .containsExactly("greeting-lib.html", "greeting-lib.brief.html");
+    assertThat(validIn(third, "greeting-lib")).isEqualTo(libFacts);
+    assertThat(validIn(third, "greeting-service")).isEqualTo(serviceFacts);
+    for (Fact fact : libFacts) {
       assertThat(facts.findBySubject(fact.subject()))
           .filteredOn(f -> f.id().equals(fact.id()))
           .as("versions of %s", fact.id())
           .containsExactly(fact);
     }
+
+    // Analyzed together, both find exactly the facts they found apart.
+    AnalysisRun.Result together = run.run(Map.of("greeting-lib", lib, "greeting-service", service));
+    assertThat(fake.sent()).as("LLM requests when analyzed together").hasSize(sent);
+    assertThat(together.newFacts()).isZero();
+    assertThat(validIn(together, "greeting-lib")).isEqualTo(libFacts);
+    assertThat(validIn(together, "greeting-service")).isEqualTo(serviceFacts);
   }
 
-  /** The stored facts of the repository that hold in the run's snapshot. */
   private List<Fact> validIn(AnalysisRun.Result result, String repo) {
-    return facts.findValidAt(result.snapshot().number()).stream()
+    return validIn(result.snapshot().number(), repo);
+  }
+
+  /** The stored facts of the repository that hold in the snapshot. */
+  private List<Fact> validIn(long snapshot, String repo) {
+    return facts.findValidAt(snapshot).stream()
         .filter(fact -> fact.evidence().repo().equals(repo))
         .toList();
   }
@@ -318,9 +342,9 @@ class EndToEndIT {
     System.out.print(report);
   }
 
-  /** A git repository with the {@code multi-module} fixture committed, in a directory named so. */
-  private Path fixtureRepo(String name) throws IOException {
-    Path fixture = Path.of(System.getProperty("lantern.test.fixtures"), "multi-module");
+  /** A git repository with the fixture committed, in a directory with the given name. */
+  private Path fixtureRepo(String fixtureName, String name) throws IOException {
+    Path fixture = Path.of(System.getProperty("lantern.test.fixtures"), fixtureName);
     Path repo = temp.resolve(name);
     copy(fixture, repo);
     TestGitRepo git = TestGitRepo.init(repo);

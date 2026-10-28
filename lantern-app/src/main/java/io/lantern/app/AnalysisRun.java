@@ -53,8 +53,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>The snapshot describes the whole system: every repository of an earlier snapshot that is not
  * named in this run is carried forward at its commit in the latest snapshot that has it, and its
- * facts keep holding. Only the named repositories are built, extracted, summarized and composed
- * (ADR 0018).
+ * facts keep holding. Only the named repositories are built, summarized and composed, and only
+ * their facts are recorded; the extractors see the whole snapshot (ADR 0018).
  *
  * <p>Everything that can be reused is: a stored successful build of a {@code repo@commit}, stored
  * facts, and cached summaries. A run over commits that an earlier run already analyzed therefore
@@ -194,10 +194,15 @@ public final class AnalysisRun {
       registered.forEach(
           (name, repo) ->
               repoBuilds.add(new RepoBuild(repo, snapshot.commits().get(name), builds.get(name))));
+      repoBuilds.addAll(carriedForward(snapshot, registered.keySet()));
 
+      // The extractors see the whole snapshot, so whether a dependency or call reaches another
+      // repository does not depend on which repositories this run names. Only the named
+      // repositories' facts are recorded.
       List<Fact> found =
           new ArrayList<>(new MavenExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new JavaExtractor().extract(repoBuilds, snapshot.number()));
+      found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       Stored stored = store(snapshot.number(), registered.keySet(), found);
       List<Fact> extracted = stored.facts();
       int newFacts = stored.added();
@@ -231,6 +236,38 @@ public final class AnalysisRun {
           callLog.spentSince(started),
           documents);
     }
+  }
+
+  /**
+   * The repositories the snapshot carries forward, for the extractors to see as context: each at
+   * its commit with its stored build, if any, and none built again. One whose working tree no
+   * longer has the commit is left out, with a warning.
+   */
+  private List<RepoBuild> carriedForward(Snapshot snapshot, Set<String> analyzed) {
+    List<RepoBuild> result = new ArrayList<>();
+    snapshot
+        .commits()
+        .forEach(
+            (name, commit) -> {
+              if (analyzed.contains(name)) {
+                return;
+              }
+              Repo repo = registry.find(name).orElse(null);
+              try {
+                if (repo == null || !registry.resolve(name, commit).equals(commit)) {
+                  throw new IllegalArgumentException("Commit " + commit + " not found");
+                }
+              } catch (IllegalArgumentException e) {
+                LOG.warn(
+                    "Carried forward {}@{}, but cannot read it, so the extractors do not see it: {}",
+                    name,
+                    commit,
+                    e.getMessage());
+                return;
+              }
+              result.add(new RepoBuild(repo, commit, sandbox.find(name, commit).orElse(null)));
+            });
+    return result;
   }
 
   /**
