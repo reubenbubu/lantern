@@ -46,7 +46,8 @@ VM's rootless Docker.
   failed for it.
 - **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. With
   several builds at once, the free-space guard stops them all. What a build wrote to the shared
-  cache stays there; cleaning the cache is manual. The guard assumes the cache volume is on the
+  cache stays there; cleaning the cache is manual, and until then every analysis stops at its
+  first build (#65). The guard assumes the cache volume is on the
   same filesystem as the rest of Docker's storage, as with Docker's default local volumes. The
   build timeout can be overrun by the time of one check. On a very busy host an honest build with
   very many files could be stopped because its size could not be measured in time. The egress

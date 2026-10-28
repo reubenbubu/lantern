@@ -841,9 +841,11 @@ public class BuildSandbox {
         throw new SandboxException("Interrupted while building " + repo.name(), e);
       }
       pump.join();
-      // A build may write a lot and end between two checks.
+      // A build may write a lot and end between two checks. Free space that cannot be measured
+      // here passes: the next build refuses to start if it is short.
       String low = storageProblem(storage());
       if (low != null) {
+        log.note("the container ended, but " + low);
         throw new SandboxException("Build stopped: " + low);
       }
       long written = writtenBytes(name);

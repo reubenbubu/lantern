@@ -34,9 +34,9 @@ import java.util.regex.Pattern;
  * @param diskBytes the most bytes each build container may write outside the shared Maven cache,
  *     counting the repository's files and the outputs it hands back, classpath jars included; a
  *     build that writes more is stopped and recorded as failed
- * @param minFreeDiskBytes the free space Docker's storage must keep while a build runs; a build
- *     running when it drops below this, such as one filling the shared Maven cache, is stopped and
- *     recorded as failed
+ * @param minFreeDiskBytes the free space Docker's storage must keep while a build runs; below it a
+ *     build does not start, or is stopped, with a {@link SandboxException} and nothing stored,
+ *     since which build used the space is unknown
  */
 public record SandboxSettings(
     String dockerCommand,
