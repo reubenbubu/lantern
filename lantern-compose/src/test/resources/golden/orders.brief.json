@@ -22,14 +22,15 @@
     "parent" : "repo:orders",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "com.example.orders",
       "target" : {
         "kind" : "entity",
         "id" : "package:com.example.orders:orders:com.example.orders"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -44,14 +45,15 @@
     "parent" : "module:com.example.orders:orders",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "Order",
       "target" : {
         "kind" : "entity",
         "id" : "type:com.example.orders.Order"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -65,14 +67,15 @@
     "name" : "orders",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "orders",
       "target" : {
         "kind" : "entity",
         "id" : "module:com.example.orders:orders"
-      }
+      },
+      "citation" : true
     } ],
     "facts" : [ ]
   }, {
@@ -477,14 +480,15 @@
       "id" : "overview.summary",
       "content" : [ {
         "kind" : "text",
-        "text" : "It builds on its parts. "
+        "text" : "It builds on its parts."
       }, {
         "kind" : "ref",
         "text" : "orders",
         "target" : {
           "kind" : "entity",
           "id" : "module:com.example.orders:orders"
-        }
+        },
+        "citation" : true
       } ],
       "facts" : [ ]
     }, {

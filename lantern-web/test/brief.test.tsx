@@ -46,6 +46,16 @@ describe('the Executive Brief', () => {
     }
   });
 
+  test('shows the summaries an overview cites as markers, not as names in the text', () => {
+    const overview = document.sections[0].blocks.find((b) => b.kind === 'paragraph')!;
+    const cited = overview.kind === 'paragraph' ? overview.content.filter((i) => i.kind === 'ref' && i.citation) : [];
+    expect(cited.length).toBeGreaterThan(0);
+    for (const ref of cited) {
+      expect(html).toContain(`title="Summary of ${ref.kind === 'ref' ? ref.text : ''}"`);
+    }
+    expect(html).toMatch(/<sup class="citation"><(a|span) [^>]*>\[\u2197\]<\/(a|span)><\/sup>/);
+  });
+
   test('reads deep links', () => {
     expect(hashTarget('#risks')).toBe('risks');
     expect(hashTarget('#a%20b')).toBe('a b');

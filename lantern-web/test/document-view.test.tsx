@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, test } from 'vitest';
-import { DocumentView } from '../src/DocumentView.tsx';
+import { citationLabel, DocumentView } from '../src/DocumentView.tsx';
 import { DiagramSvg } from '../src/diagram/DiagramView.tsx';
 import { layoutDiagram } from '../src/diagram/layout.ts';
 import type { Block, Section } from '../src/generated/document.ts';
@@ -35,6 +35,21 @@ describe('DocumentView', () => {
   test('renders cross-references as links and citations as fact numbers', () => {
     expect(html).toMatch(/<a href="#[^"]+">/);
     expect(html).toMatch(/<sup class="citation" title="[^"]+">\[\d+(, \d+)*\]<\/sup>/);
+  });
+
+  test('renders a reference that cites a summary as a marker that names it only in its tooltip', () => {
+    expect(html).toContain(
+      'packages its library.<sup class="citation" title="'
+    );
+    expect(html).toMatch(
+      /\]<\/sup><sup class="citation"><(a href="#[^"]+"|span) class="entity-ref" title="Summary of orders-lib" aria-label="Summary of orders-lib">\[\u2197\]<\/(a|span)><\/sup><\/p>/,
+    );
+  });
+
+  test('shows at most four fact numbers in a citation and counts the rest', () => {
+    expect(citationLabel([3])).toBe('[3]');
+    expect(citationLabel([1, 2, 5, 9])).toBe('[1, 2, 5, 9]');
+    expect(citationLabel([1, 2, 5, 9, 12, 14])).toBe('[1, 2, 5 +3]');
   });
 
   test('renders composer output', () => {

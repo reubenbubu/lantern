@@ -217,8 +217,8 @@ class ComposerTest {
         .containsExactly(
             TextRun.of("The app module."),
             new Citation(List.of(packaging.id(), contains.id())),
-            TextRun.of(" It holds the web layer. "),
-            new CrossReference("com.example.web", CrossReference.Target.entity(web)));
+            TextRun.of(" It holds the web layer."),
+            new CrossReference("com.example.web", CrossReference.Target.entity(web), true));
     assertThat(paragraph.facts()).containsExactlyInAnyOrder(packaging.id(), contains.id());
     DocumentEntity entity =
         document.entities().stream().filter(e -> e.id().equals(module)).findFirst().orElseThrow();

@@ -93,6 +93,12 @@ code {
 .citation {
   color: var(--color-muted);
   cursor: help;
+  /* A citation is one marker: it never wraps inside, which would set it apart as a block. */
+  white-space: nowrap;
+}
+
+.citation a {
+  text-decoration: none;
 }
 
 .callout {

@@ -166,6 +166,9 @@ describe('Explorer', () => {
     expect(html).toMatch(/<a href="#entity=[^"]+" class="entity-ref"/);
     expect(html).toMatch(/<button type="button" class="citation-button" title="[^"]+">\[\d+(, \d+)*\]<\/button>/);
     expect(html).toContain('<details open=""><summary>');
+    expect(html).toMatch(
+      /<sup class="citation"><a href="#entity=[^"]+" class="entity-ref" title="Summary of [^"]+" aria-label="Summary of [^"]+">\[\u2197\]<\/a><\/sup>/,
+    );
   });
 
   test('renders the schema fixture with every kind of block', () => {

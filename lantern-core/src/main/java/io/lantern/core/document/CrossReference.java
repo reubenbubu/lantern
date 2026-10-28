@@ -10,12 +10,20 @@ import java.util.Objects;
  *
  * @param text the text shown for the reference, not empty
  * @param target what the reference points to
+ * @param citation whether the target is a source of the text before the reference, as a summary's
+ *     {@code [summary:...]} marker says, so templates show it as a citation marker rather than as
+ *     words in the text
  */
-public record CrossReference(String text, Target target) implements Inline {
+public record CrossReference(String text, Target target, boolean citation) implements Inline {
 
   public CrossReference {
     Checks.nonEmpty(text, "text");
     Objects.requireNonNull(target, "target");
+  }
+
+  /** A cross-reference that is part of the text. */
+  public CrossReference(String text, Target target) {
+    this(text, target, false);
   }
 
   /**

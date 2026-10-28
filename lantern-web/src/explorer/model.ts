@@ -196,8 +196,9 @@ export interface SearchItem {
   name: string;
 }
 
+/** The words of rich text, without citations: they are markers, not part of the text. */
 function plainText(content: Inline[] | undefined): string {
-  return (content ?? []).map((i) => (i.kind === 'citation' ? '' : i.text)).join('');
+  return (content ?? []).map((i) => (i.kind === 'citation' || (i.kind === 'ref' && i.citation) ? '' : i.text)).join('');
 }
 
 function blockTitle(block: Block): string | undefined {

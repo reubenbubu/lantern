@@ -114,6 +114,14 @@
       }, {
         "kind" : "citation",
         "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      }, {
+        "kind" : "ref",
+        "text" : "orders-lib",
+        "target" : {
+          "kind" : "entity",
+          "id" : "library:orders-lib"
+        },
+        "citation" : true
       } ],
       "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
     }, {

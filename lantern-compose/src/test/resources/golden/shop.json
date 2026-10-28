@@ -27,14 +27,15 @@
     "parent" : "module:com.example.shop:shop-parent",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "com.example.shop.api",
       "target" : {
         "kind" : "entity",
         "id" : "package:com.example.shop:shop-api:com.example.shop.api"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -49,14 +50,15 @@
     "parent" : "module:com.example.shop:shop-parent",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "com.example.shop.core",
       "target" : {
         "kind" : "entity",
         "id" : "package:com.example.shop:shop-core:com.example.shop.core"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -71,14 +73,15 @@
     "parent" : "repo:shop",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "shop-api",
       "target" : {
         "kind" : "entity",
         "id" : "module:com.example.shop:shop-api"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -93,14 +96,15 @@
     "parent" : "module:com.example.shop:shop-api",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "PriceService",
       "target" : {
         "kind" : "entity",
         "id" : "type:com.example.shop.api.PriceService"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -115,14 +119,15 @@
     "parent" : "module:com.example.shop:shop-core",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "FixedPriceService",
       "target" : {
         "kind" : "entity",
         "id" : "type:com.example.shop.core.FixedPriceService"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -136,14 +141,15 @@
     "name" : "shop",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "shop-parent",
       "target" : {
         "kind" : "entity",
         "id" : "module:com.example.shop:shop-parent"
-      }
+      },
+      "citation" : true
     } ],
     "facts" : [ ]
   }, {
@@ -663,14 +669,15 @@
       "id" : "overview.summary",
       "content" : [ {
         "kind" : "text",
-        "text" : "It builds on its parts. "
+        "text" : "It builds on its parts."
       }, {
         "kind" : "ref",
         "text" : "shop-parent",
         "target" : {
           "kind" : "entity",
           "id" : "module:com.example.shop:shop-parent"
-        }
+        },
+        "citation" : true
       } ],
       "facts" : [ ]
     }, {
@@ -784,14 +791,15 @@
         "id" : "components.library:com.example.shop:shop-api.summary",
         "content" : [ {
           "kind" : "text",
-          "text" : "It builds on its parts. "
+          "text" : "It builds on its parts."
         }, {
           "kind" : "ref",
           "text" : "com.example.shop.api",
           "target" : {
             "kind" : "entity",
             "id" : "package:com.example.shop:shop-api:com.example.shop.api"
-          }
+          },
+          "citation" : true
         }, {
           "kind" : "text",
           "text" : " It is described by its facts."
@@ -831,14 +839,15 @@
         "id" : "components.library:com.example.shop:shop-core.summary",
         "content" : [ {
           "kind" : "text",
-          "text" : "It builds on its parts. "
+          "text" : "It builds on its parts."
         }, {
           "kind" : "ref",
           "text" : "com.example.shop.core",
           "target" : {
             "kind" : "entity",
             "id" : "package:com.example.shop:shop-core:com.example.shop.core"
-          }
+          },
+          "citation" : true
         }, {
           "kind" : "text",
           "text" : " It is described by its facts."

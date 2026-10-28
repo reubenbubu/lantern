@@ -1,6 +1,6 @@
 # 0011: Document model
 
-Status: accepted (#12), pending the user's review (#24)
+Status: accepted (#12), amended by ADR 0027 (#70), pending the user's review (#24)
 
 ## Context
 
@@ -39,7 +39,7 @@ live, and which tools generate and check the TypeScript types. The authoritative
 - **Rich text** is a list of inline elements: text runs (optionally strong, emphasis or code),
   cross-references and citations. A citation lists the fact IDs behind the text before it, which
   is where summaries' `[fact:...]` markers (0010) end up. A summary's `[summary:<entity>]` marker
-  becomes a cross-reference to that entity.
+  becomes a cross-reference to that entity, marked as a citation (0027).
 - **Diagrams** have a kind (`c4-context`, `c4-container`, `c4-component`, `dependency`), nodes and
   edges. A node is an entity (its ID is the entity ID, which is how layouts are keyed), with a
   label, an optional C4 technology line, an optional parent node it is drawn inside (a boundary),

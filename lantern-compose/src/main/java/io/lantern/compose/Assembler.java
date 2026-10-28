@@ -171,8 +171,8 @@ final class Assembler {
 
   /**
    * The summary as rich text: {@code [fact:...]} markers become citations (adjacent ones merged)
-   * and {@code [summary:<entity>]} markers cross-references to the entity, which is added to the
-   * document.
+   * and {@code [summary:<entity>]} markers cross-references to the entity that are marked as
+   * citations; the entity is added to the document.
    *
    * @throws IllegalArgumentException if the summary cites a fact that is not in the snapshot
    */
@@ -201,7 +201,7 @@ final class Assembler {
         out.cite(cited.id());
       } else {
         EntityId target = entity(EntityId.parse(matcher.group(2)));
-        out.reference(new CrossReference(name(target), CrossReference.Target.entity(target)));
+        out.reference(new CrossReference(name(target), CrossReference.Target.entity(target), true));
       }
     }
     out.flushCitation();
@@ -235,18 +235,13 @@ final class Assembler {
       cited.add(factId);
     }
 
-    /** Adds a cross-reference, separated by a space from what comes before. */
+    /**
+     * Cites a summary with a cross-reference marked as a citation, which follows the text before it
+     * with no space between them, as a citation of facts does.
+     */
     void reference(CrossReference reference) {
       flushCitation();
-      boolean spaced =
-          text.isEmpty()
-              ? content.isEmpty()
-                  || (content.getLast() instanceof TextRun run
-                      && Character.isWhitespace(run.text().charAt(run.text().length() - 1)))
-              : Character.isWhitespace(text.charAt(text.length() - 1));
-      if (!spaced) {
-        text.append(' ');
-      }
+      text.setLength(text.toString().stripTrailing().length());
       flushText();
       content.add(reference);
     }
