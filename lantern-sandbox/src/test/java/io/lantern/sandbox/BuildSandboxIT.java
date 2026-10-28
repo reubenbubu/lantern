@@ -143,7 +143,10 @@ class BuildSandboxIT {
     try {
       Repo repo = repo(fixtures.resolve("multi-module"), "multi-module", RepoSettings.DEFAULT);
       BuildSandbox sandbox =
-          new BuildSandbox(SandboxSettings.defaults(builds).withMavenCacheVolume(volume));
+          new BuildSandbox(
+              SandboxSettings.defaults(builds)
+                  .withMavenCacheVolume(volume)
+                  .withMinFreeDiskBytes(0));
 
       BuildResult result = sandbox.build(repo, TestRepos.head(repo));
 
@@ -270,19 +273,16 @@ class BuildSandboxIT {
   }
 
   @Test
-  void stopsABuildWhenDockerStorageRunsLow() throws IOException, URISyntaxException {
+  void refusesToBuildWhenDockerStorageIsLow() throws IOException, URISyntaxException {
     Repo repo = repo(sandboxFixture("filler"), "filler", RepoSettings.DEFAULT);
+    BuildSandbox sandbox = new BuildSandbox(settings().withMinFreeDiskBytes(Long.MAX_VALUE));
 
-    BuildResult result =
-        new BuildSandbox(
-                settings().withMinFreeDiskBytes(Long.MAX_VALUE).withTimeout(Duration.ofMinutes(10)))
-            .build(repo, TestRepos.head(repo));
-
-    assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.FAILED);
-    assertThat(result.failure())
-        .startsWith("Docker's storage has ")
-        .endsWith(" bytes free, less than the " + Long.MAX_VALUE + " it must keep");
-    assertThat(result.modules()).isEmpty();
+    // A problem of the host, not of the build: nothing is stored.
+    assertThatThrownBy(() -> sandbox.build(repo, TestRepos.head(repo)))
+        .isInstanceOf(SandboxException.class)
+        .hasMessageStartingWith("Not building: Docker's storage has ")
+        .hasMessageEndingWith(" bytes free, less than the " + Long.MAX_VALUE + " it must keep");
+    assertThat(sandbox.find("filler", TestRepos.head(repo))).isEmpty();
   }
 
   @Test

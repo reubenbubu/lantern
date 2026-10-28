@@ -30,16 +30,24 @@ VM's rootless Docker.
   JDK-detection container runs, and once after it ends, the sandbox reads how much the container
   has written to its own filesystem (`docker container inspect --size`). That covers `/work` (the
   repository's files too), `/out` (including the classpath jars copied there from the cache) and
-  `/tmp`, but not the cache volume. While the container runs it also reads the free space of
-  Docker's storage, with `df` in the egress proxy, which mounts the cache volume read only. A
-  container that has written more than 8 GiB, or that is running when Docker's storage has less
-  than 2 GiB free (which also catches a build filling the shared cache), is stopped. So is one
-  whose disk use could not be measured six checks in a row; each measurement may take 30 seconds.
-  The build is stored as `FAILED` with the reason, keeping no outputs (like a timed-out build), and
-  analysis goes to degraded mode.
-- **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. The
-  free-space guard cannot tell which build is filling the disk, so with several builds at once the
-  others can be stopped too; it assumes the cache volume is on the same filesystem as the rest of
-  Docker's storage, as with Docker's default local volumes. The build timeout can be overrun by
-  the time of one check. On a very busy host an honest build with very many files could be stopped
-  because its size could not be measured in time.
+  `/tmp`, but not the cache volume. A container that has written more than 8 GiB is stopped, as is
+  one whose disk use could not be measured six checks in a row (each measurement may take 30
+  seconds) or once more after it ended. The build is stored as `FAILED` with the reason, keeping
+  no outputs (like a timed-out build), and analysis goes to degraded mode. Build containers log
+  with Docker's `none` driver, since their output is read through `docker start --attach`, so
+  Docker keeps no unbounded copy of it on disk.
+- **Free-space guard.** The same checks read the free space and free inodes of Docker's storage
+  with `df`, in a per-build monitor container that mounts the cache volume read only, has no
+  network and so cannot be reached by the build. A build does not start, or is stopped, when
+  Docker's storage has less than 2 GiB (configurable) or 100,000 inodes free (where the
+  filesystem counts inodes). This catches a build filling the shared cache, which the size check
+  does not count. Since it cannot tell which build used the space, it is treated as a problem of
+  the host, not of the build: `SandboxException`, nothing stored, so no repository is recorded as
+  failed for it.
+- **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. With
+  several builds at once, the free-space guard stops them all. What a build wrote to the shared
+  cache stays there; cleaning the cache is manual. The guard assumes the cache volume is on the
+  same filesystem as the rest of Docker's storage, as with Docker's default local volumes. The
+  build timeout can be overrun by the time of one check. On a very busy host an honest build with
+  very many files could be stopped because its size could not be measured in time. The egress
+  proxy keeps Docker's default logging.

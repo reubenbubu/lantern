@@ -69,8 +69,8 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   `repo@commit` again replaces its outputs.
 - **Failure.** A build that fails to compile or resolve, times out, runs out of memory, uses too
   much disk (ADR 0019), produces too much output, has no `pom.xml` or has no image for its JDK is stored as `FAILED` with a
-  reason, keeping whatever outputs it left (a classpath often still resolves; a timed-out build
-  leaves none, since outputs are gathered after Maven ends), and
+  reason, keeping whatever outputs it left (a classpath often still resolves; a timed-out build,
+  or one stopped for its disk use, leaves none, since outputs are gathered after Maven ends), and
   `degraded()` tells the analysis to use degraded mode. A build whose dependencies do not resolve
   still keeps its effective POM, which Maven writes first (added in #8). Problems of the sandbox
   itself, such as Docker being unavailable, or an interrupted build, throw `SandboxException` and store nothing;

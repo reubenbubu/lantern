@@ -102,6 +102,9 @@ public class BuildSandbox {
   /** After this many disk checks in a row that could not measure, the container is stopped. */
   private static final int MAX_FAILED_DISK_CHECKS = 6;
 
+  /** The free inodes Docker's storage must keep while a build runs, where it counts inodes. */
+  private static final long MIN_FREE_INODES = 100_000;
+
   /** Where the shared Maven cache is mounted in every container that mounts it. */
   private static final String CACHE_MOUNT =
       BuildOutputs.CONTAINER_REPOSITORY.substring(
@@ -227,6 +230,7 @@ public class BuildSandbox {
     private final String container = "lantern-build-" + id;
     private final String detector = "lantern-build-jdk-" + id;
     private final String cacheOwner = "lantern-build-cache-" + id;
+    private final String monitor = "lantern-build-disk-" + id;
     private final Log log;
 
     private int jdk;
@@ -259,6 +263,7 @@ public class BuildSandbox {
         }
         try {
           prepareCache();
+          startMonitor();
           startProxy();
           Path lantern = writeLanternFiles();
           if (jdk == 0) {
@@ -284,7 +289,15 @@ public class BuildSandbox {
           appendProxyLog();
           docker.quietly(
               CLEANUP_TIMEOUT,
-              List.of("rm", "--force", "--volumes", container, detector, proxy, cacheOwner));
+              List.of(
+                  "rm",
+                  "--force",
+                  "--volumes",
+                  container,
+                  detector,
+                  proxy,
+                  cacheOwner,
+                  monitor));
           docker.quietly(CLEANUP_TIMEOUT, List.of("network", "rm", network));
           if (interrupted) {
             Thread.currentThread().interrupt();
@@ -471,6 +484,56 @@ public class BuildSandbox {
       }
     }
 
+    /**
+     * Starts the container Docker's free space is measured in while the build runs: it mounts the
+     * shared Maven cache read only and has no network, so the build cannot reach it. Refuses to
+     * build when Docker's storage is already short of space, which is a problem of the host, not of
+     * the build.
+     */
+    private void startMonitor() {
+      docker.check(
+          DOCKER_TIMEOUT,
+          List.of(
+              "run",
+              "--detach",
+              "--name",
+              monitor,
+              "--label",
+              LABEL + "=" + id,
+              "--network",
+              "none",
+              "--user",
+              BUILD_USER,
+              "--cap-drop",
+              "ALL",
+              "--security-opt",
+              "no-new-privileges",
+              "--memory",
+              Long.toString(64L * 1024 * 1024),
+              "--pids-limit",
+              "16",
+              "--log-driver",
+              "none",
+              "--mount",
+              "type=volume,source="
+                  + settings.mavenCacheVolume()
+                  + ",target="
+                  + CACHE_MOUNT
+                  + ",readonly",
+              "--entrypoint",
+              "sleep",
+              settings.proxyImage(),
+              "infinity"));
+      Storage storage = storage();
+      if (storage == null) {
+        throw new SandboxException("Cannot measure the free space of Docker's storage");
+      }
+      String problem = storageProblem(storage);
+      if (problem != null) {
+        throw new SandboxException("Not building: " + problem);
+      }
+    }
+
     private void startProxy() throws IOException {
       Path proxyDir = Files.createDirectories(staging.resolve("proxy"));
       String classFile = PROXY_CLASS.replace('.', '/') + ".class";
@@ -510,13 +573,6 @@ public class BuildSandbox {
               "no-new-privileges",
               "--user",
               BUILD_USER,
-              // Read-only, to measure the free space of Docker's storage while a build runs.
-              "--mount",
-              "type=volume,source="
-                  + settings.mavenCacheVolume()
-                  + ",target="
-                  + CACHE_MOUNT
-                  + ",readonly",
               "--entrypoint",
               "java",
               settings.proxyImage(),
@@ -592,6 +648,9 @@ public class BuildSandbox {
                   "no-new-privileges",
                   "--user",
                   BUILD_USER,
+                  // Output is read through docker start --attach; Docker keeps no copy on disk.
+                  "--log-driver",
+                  "none",
                   "--mount",
                   "type=volume,source=" + settings.mavenCacheVolume() + ",target=" + CACHE_MOUNT,
                   // The build user has no home directory in the image.
@@ -750,12 +809,19 @@ public class BuildSandbox {
             break;
           }
           long written = writtenBytes(name);
-          long free = freeBytes();
+          Storage storage = storage();
           if (Thread.interrupted()) {
             throw new InterruptedException();
           }
-          failedChecks = written < 0 || free < 0 ? failedChecks + 1 : 0;
-          String problem = diskProblem(written, free);
+          String low = storageProblem(storage);
+          if (low != null) {
+            // The host is short of space, and which build used it is unknown: store nothing.
+            log.note("stopping the container: " + low);
+            stop(name, process, pump);
+            throw new SandboxException("Build stopped: " + low);
+          }
+          failedChecks = written < 0 || storage == null ? failedChecks + 1 : 0;
+          String problem = sizeProblem(written);
           if (problem == null && failedChecks >= MAX_FAILED_DISK_CHECKS) {
             problem =
                 "The build's disk use could not be measured "
@@ -776,7 +842,16 @@ public class BuildSandbox {
       }
       pump.join();
       // A build may write a lot and end between two checks.
-      String problem = diskProblem(writtenBytes(name), -1);
+      String low = storageProblem(storage());
+      if (low != null) {
+        throw new SandboxException("Build stopped: " + low);
+      }
+      long written = writtenBytes(name);
+      if (written < 0) {
+        written = writtenBytes(name);
+      }
+      String problem =
+          written < 0 ? "The build's disk use could not be measured" : sizeProblem(written);
       if (problem != null) {
         log.note("the container ended, but " + problem);
         return new ContainerExit(false, -1, false, problem);
@@ -804,21 +879,10 @@ public class BuildSandbox {
       pump.join();
     }
 
-    /**
-     * Why the container must be stopped for its disk use, or null: it wrote more than the disk
-     * limit to its own filesystem, or Docker's storage, which also holds the shared Maven cache,
-     * has less free space than it must keep. A negative value is a measurement that failed.
-     */
-    private String diskProblem(long written, long free) {
+    /** Why the container must be stopped for what it wrote, or null; -1 is not measured. */
+    private String sizeProblem(long written) {
       if (written > settings.diskBytes()) {
         return "The build used more than " + settings.diskBytes() + " bytes of disk";
-      }
-      if (free >= 0 && free < settings.minFreeDiskBytes()) {
-        return "Docker's storage has "
-            + free
-            + " bytes free, less than the "
-            + settings.minFreeDiskBytes()
-            + " it must keep";
       }
       return null;
     }
@@ -837,23 +901,77 @@ public class BuildSandbox {
     }
 
     /**
-     * How many bytes are free on Docker's storage, measured on the shared Maven cache in the egress
-     * proxy, or -1 if unknown.
+     * The free space and inodes of Docker's storage, which also holds the shared Maven cache,
+     * measured in the monitor container, or null if they could not be measured.
      */
-    private long freeBytes() {
+    private Storage storage() {
       try {
-        // POSIX output: the last line ends with available 1024-byte blocks, capacity, mount point.
         Docker.Result df =
-            docker.run(MEASURE_TIMEOUT, List.of("exec", proxy, "df", "-P", "-k", CACHE_MOUNT));
+            docker.run(
+                MEASURE_TIMEOUT,
+                List.of(
+                    "exec",
+                    monitor,
+                    "sh",
+                    "-c",
+                    "df -P -k \"$1\" && df -P -i \"$1\"",
+                    "sh",
+                    CACHE_MOUNT));
         if (!df.ok()) {
-          return -1;
+          return null;
         }
-        String[] lines = df.out().split("\n");
-        String[] fields = lines[lines.length - 1].trim().split("\\s+");
-        return fields.length < 6 ? -1 : Long.parseLong(fields[fields.length - 3]) * 1024;
+        // POSIX output: a header and one line, for blocks of 1024 bytes and then for inodes. Each
+        // line ends with total, used, available, capacity and mount point.
+        List<String[]> lines =
+            df.out()
+                .lines()
+                .filter(line -> !line.startsWith("Filesystem"))
+                .map(line -> line.trim().split("\\s+"))
+                .toList();
+        if (lines.size() != 2 || lines.get(0).length < 6 || lines.get(1).length < 6) {
+          return null;
+        }
+        String[] blocks = lines.get(0);
+        String[] inodes = lines.get(1);
+        long freeBytes = Long.parseLong(blocks[blocks.length - 3]) * 1024;
+        // Filesystems that do not limit inodes report none.
+        long freeInodes =
+            Long.parseLong(inodes[inodes.length - 5]) == 0
+                ? -1
+                : Long.parseLong(inodes[inodes.length - 3]);
+        return new Storage(freeBytes, freeInodes);
       } catch (NumberFormatException | SandboxException e) {
-        return -1;
+        return null;
       }
+    }
+
+    /**
+     * The free space of Docker's storage.
+     *
+     * @param freeInodes -1 if the filesystem does not limit inodes
+     */
+    private record Storage(long freeBytes, long freeInodes) {}
+
+    /** Why no build may run with this little free space, or null, also if it is unknown. */
+    private String storageProblem(Storage storage) {
+      if (storage == null) {
+        return null;
+      }
+      if (storage.freeBytes() < settings.minFreeDiskBytes()) {
+        return "Docker's storage has "
+            + storage.freeBytes()
+            + " bytes free, less than the "
+            + settings.minFreeDiskBytes()
+            + " it must keep";
+      }
+      if (storage.freeInodes() >= 0 && storage.freeInodes() < MIN_FREE_INODES) {
+        return "Docker's storage has "
+            + storage.freeInodes()
+            + " inodes free, less than the "
+            + MIN_FREE_INODES
+            + " it must keep";
+      }
+      return null;
     }
 
     private void runBuild() throws IOException {
