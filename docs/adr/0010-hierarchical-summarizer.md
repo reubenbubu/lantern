@@ -1,6 +1,6 @@
 # 0010: Hierarchical summarizer
 
-Status: accepted (#11), pending the user's review (#24)
+Status: accepted (#11), amended by ADR 0021 (#44), pending the user's review (#24)
 
 ## Context
 
@@ -63,8 +63,9 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   and 200 for a repository, with output limits of 400 to 1,000 tokens to leave room for
   citations. Prompt caching is not requested: the system prompt is shorter than the providers'
   minimum cacheable length.
-- **One call at a time**, children before parents, in entity ID order, through the `SUMMARIZE`
-  role's model and the caller's budgets.
+- **Children before parents**, through the `SUMMARIZE` role's model and the caller's budgets.
+  Calls were one at a time in entity ID order; since #44 independent units run in parallel (ADR
+  0021).
 
 ## Not in this issue
 

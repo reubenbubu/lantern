@@ -23,6 +23,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Summarizes units bottom-up: a unit's summary is written from its facts and the summaries of the
@@ -39,6 +46,15 @@ import java.util.Set;
  * nothing, or cites a reference that was not in the prompt, is sent back once with the reason; if
  * the second answer is no better the unit fails with {@link SummaryRejectedException} and nothing
  * is stored for it.
+ *
+ * <p>Units that do not contain each other are summarized in parallel, each on its own virtual
+ * thread; a unit starts once the units it contains are done. At most as many units run at once as
+ * the {@code SUMMARIZE} model may have calls in flight. The results do not depend on the order
+ * calls finish in: each unit's prompt and key depend only on its own inputs, and the result lists
+ * units in the order of a sequential walk (each root's units, children first, siblings in entity ID
+ * order). If a unit fails, no further calls are made, the calls already running finish, and the
+ * failure of the first failed unit in walk order is thrown; with several failures this may differ
+ * from the one a sequential walk would have met first.
  *
  * <p>Not thread-safe; use one summarizer per run.
  */
@@ -81,13 +97,78 @@ public final class Summarizer {
    * @throws io.lantern.llm.LlmException if a call fails or is refused, for example over budget
    */
   public Result summarize(Collection<SummaryNode> roots) {
-    Run run = new Run(client.model(Role.SUMMARIZE));
+    ModelConfig model = client.model(Role.SUMMARIZE);
+    Run run = new Run(model, model.limits().maxConcurrency());
+    Map<EntityId, SummaryNode> units = new LinkedHashMap<>();
     for (SummaryNode root : roots) {
-      run.visit(root, new HashSet<>());
+      collect(root, units, new HashSet<>());
+    }
+    Map<EntityId, CompletableFuture<Optional<Summary>>> futures = new LinkedHashMap<>();
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      for (SummaryNode node : units.values()) {
+        List<CompletableFuture<Optional<Summary>>> parts =
+            node.children().stream().map(child -> futures.get(child.entity())).toList();
+        futures.put(
+            node.entity(),
+            CompletableFuture.allOf(parts.toArray(CompletableFuture[]::new))
+                .thenApplyAsync(done -> run.visit(node, parts), executor));
+      }
+      // Waits for every unit, failed or not, before the executor closes.
+      CompletableFuture.allOf(futures.values().toArray(CompletableFuture[]::new))
+          .exceptionally(failure -> null)
+          .join();
+    }
+    for (CompletableFuture<Optional<Summary>> future : futures.values()) {
+      Throwable failure = failure(future);
+      if (failure != null && !(failure instanceof Skipped)) {
+        if (failure instanceof Error error) {
+          throw error;
+        }
+        throw failure instanceof RuntimeException e ? e : new IllegalStateException(failure);
+      }
     }
     Map<EntityId, Summary> summaries = new LinkedHashMap<>();
-    run.done.forEach((entity, summary) -> summary.ifPresent(s -> summaries.put(entity, s)));
-    return new Result(summaries, run.generated, run.reused);
+    futures.forEach((entity, future) -> future.join().ifPresent(s -> summaries.put(entity, s)));
+    return new Result(summaries, run.generated.get(), run.reused.get());
+  }
+
+  /**
+   * Adds the unit and everything it contains to the units, children before parents. A unit met
+   * again keeps the node it was first met as.
+   */
+  private static void collect(
+      SummaryNode node, Map<EntityId, SummaryNode> units, Set<EntityId> visiting) {
+    if (units.containsKey(node.entity())) {
+      return;
+    }
+    if (!visiting.add(node.entity())) {
+      throw new IllegalArgumentException("Units contain each other: " + node.entity());
+    }
+    for (SummaryNode child : node.children()) {
+      collect(child, units, visiting);
+    }
+    visiting.remove(node.entity());
+    units.put(node.entity(), node);
+  }
+
+  /** Why the unit failed, as it was thrown, or {@code null} if it did not. */
+  private static Throwable failure(CompletableFuture<?> future) {
+    if (!future.isCompletedExceptionally()) {
+      return null;
+    }
+    try {
+      future.join();
+      throw new IllegalStateException("A failed unit has a result");
+    } catch (CompletionException e) {
+      return e.getCause() == null ? e : e.getCause();
+    }
+  }
+
+  /** A unit not summarized because another one failed first. */
+  private static final class Skipped extends RuntimeException {
+    Skipped() {
+      super("Not summarized: another unit failed", null, false, false);
+    }
   }
 
   /** The cache key of a unit with the given contained summaries, for the given model. */
@@ -130,45 +211,60 @@ public final class Summarizer {
 
   private final class Run {
     private final ModelConfig model;
-    private final Map<EntityId, Optional<Summary>> done = new LinkedHashMap<>();
-    private int generated;
-    private int reused;
+    private final AtomicInteger generated = new AtomicInteger();
+    private final AtomicInteger reused = new AtomicInteger();
+    private final AtomicBoolean failed = new AtomicBoolean();
+    private final Semaphore running;
 
-    Run(ModelConfig model) {
+    Run(ModelConfig model, int maxRunning) {
       this.model = model;
+      this.running = new Semaphore(maxRunning, true);
     }
 
-    Optional<Summary> visit(SummaryNode node, Set<EntityId> visiting) {
-      Optional<Summary> known = done.get(node.entity());
-      if (known != null) {
-        return known;
+    /** Summarizes a unit whose parts are done, unless another unit has failed. */
+    Optional<Summary> visit(SummaryNode node, List<CompletableFuture<Optional<Summary>>> parts) {
+      try {
+        running.acquire();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        failed.set(true);
+        throw new IllegalStateException("Interrupted while summarizing " + node.entity(), e);
       }
-      if (!visiting.add(node.entity())) {
-        throw new IllegalArgumentException("Units contain each other: " + node.entity());
+      try {
+        stopIfFailed();
+        List<Summary> children = new ArrayList<>();
+        for (CompletableFuture<Optional<Summary>> part : parts) {
+          part.join().ifPresent(children::add);
+        }
+        return node.facts().isEmpty() && children.isEmpty()
+            ? Optional.empty()
+            : Optional.of(summary(node, children));
+      } catch (Skipped e) {
+        throw e;
+      } catch (RuntimeException | Error e) {
+        failed.set(true);
+        throw e;
+      } finally {
+        running.release();
       }
-      List<Summary> children = new ArrayList<>();
-      for (SummaryNode child : node.children()) {
-        visit(child, visiting).ifPresent(children::add);
+    }
+
+    private void stopIfFailed() {
+      if (failed.get()) {
+        throw new Skipped();
       }
-      visiting.remove(node.entity());
-      Optional<Summary> summary =
-          node.facts().isEmpty() && children.isEmpty()
-              ? Optional.empty()
-              : Optional.of(summary(node, children));
-      done.put(node.entity(), summary);
-      return summary;
     }
 
     private Summary summary(SummaryNode node, List<Summary> children) {
       String key = key(node, children, model);
       Optional<Summary> cached = store.find(key);
       if (cached.isPresent()) {
-        reused++;
+        reused.incrementAndGet();
         return cached.get();
       }
       Summary summary = generate(key, node, children);
       store.save(summary);
-      generated++;
+      generated.incrementAndGet();
       return summary;
     }
 
@@ -229,6 +325,7 @@ public final class Summarizer {
     }
 
     private LlmResponse ask(String purpose, SummaryNode node, List<LlmMessage> messages) {
+      stopIfFailed();
       return client.call(
           new LlmRequest(
               Role.SUMMARIZE,

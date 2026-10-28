@@ -1,6 +1,6 @@
 # 0009: LLM configuration, stored call log and monthly budget
 
-Status: accepted (#37), pending the user's review (#24)
+Status: accepted (#37), amended by ADR 0021 (#44), pending the user's review (#24)
 
 ## Context
 
@@ -23,6 +23,7 @@ app; model identifiers, prices and keys must not be in the code.
   - `lantern.llm.anthropic.api-key` (set from `ANTHROPIC_API_KEY` by default) and
     `lantern.llm.anthropic.base-url`.
   - `lantern.llm.monthly-budget-usd`, set to 100 in `application.properties` from the design.
+  - Per-model call limits and `lantern.llm.retry.*`, which have defaults: see ADR 0021.
   No model has a default anywhere in the repository. Properties can come from any Spring source,
   such as environment variables or a file outside the repository.
 - **Unconfigured means refused, not broken.** With no tier set, or when the models in use need

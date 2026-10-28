@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.lantern.llm.CallLimits;
 import io.lantern.llm.Capability;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmProvider;
@@ -16,9 +17,11 @@ import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Pricing;
+import io.lantern.llm.RetryPolicy;
 import io.lantern.llm.Role;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -196,5 +199,50 @@ class LlmPropertiesTest {
 
     assertThatThrownBy(this::bind)
         .hasRootCauseMessage("lantern.llm.monthly-budget-usd must not be negative: -1");
+  }
+
+  @Test
+  void callLimitsAndRetriesHaveDefaultsAndCanBeSet() {
+    model("fast", "fake", "fast-model");
+    model("strong", "fake", "strong-model");
+    tiers("fast", "strong");
+    values.put("lantern.llm.models.strong.max-concurrency", "2");
+    values.put("lantern.llm.models.strong.requests-per-minute", "50");
+
+    LlmProperties properties = bind();
+    ModelSettings settings = properties.modelSettings();
+
+    assertThat(settings.forRole(Role.COMPOSE).limits()).isEqualTo(CallLimits.DEFAULT);
+    assertThat(settings.forRole(Role.RESOLVE).limits()).isEqualTo(new CallLimits(2, 50));
+    assertThat(properties.retry().toPolicy()).isEqualTo(RetryPolicy.DEFAULT);
+
+    values.put("lantern.llm.retry.max-attempts", "3");
+    values.put("lantern.llm.retry.initial-backoff", "500ms");
+    values.put("lantern.llm.retry.max-backoff", "10s");
+    assertThat(bind().retry().toPolicy())
+        .isEqualTo(new RetryPolicy(3, Duration.ofMillis(500), Duration.ofSeconds(10)));
+  }
+
+  @Test
+  void wrongCallLimitsOrRetriesStopStartup() {
+    model("fast", "fake", "fast-model");
+    tiers("fast", "fast");
+    values.put("lantern.llm.models.fast.max-concurrency", "0");
+    assertThatThrownBy(this::bindAndBuild)
+        .hasMessageContaining("lantern.llm.models.fast.max-concurrency must be positive");
+
+    values.remove("lantern.llm.models.fast.max-concurrency");
+    values.put("lantern.llm.retry.max-attempts", "0");
+    assertThatThrownBy(() -> access(List.of(new FakeLlmProvider())))
+        .hasMessageContaining("lantern.llm.retry");
+
+    // The same model under two names must not have two sets of limits.
+    values.remove("lantern.llm.retry.max-attempts");
+    model("same", "fake", "fast-model");
+    values.put("lantern.llm.models.same.max-concurrency", "3");
+    values.put("lantern.llm.roles.summarize", "same");
+    assertThatThrownBy(this::bindAndBuild)
+        .hasMessageContaining("fast-model")
+        .hasMessageContaining("different max-concurrency");
   }
 }

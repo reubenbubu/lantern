@@ -1,12 +1,16 @@
 package io.lantern.app;
 
+import io.lantern.llm.CallLimits;
 import io.lantern.llm.Capability;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Pricing;
+import io.lantern.llm.RetryPolicy;
 import io.lantern.llm.Role;
 import io.lantern.llm.Tier;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -14,8 +18,9 @@ import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * LLM settings under {@code lantern.llm}. Nothing here has a default in the code: model
- * identifiers, capabilities, prices and keys all come from configuration (see ADR 0009).
+ * LLM settings under {@code lantern.llm}. Model identifiers, capabilities, prices and keys have no
+ * default in the code and all come from configuration (see ADR 0009); call limits and retries have
+ * defaults (see ADR 0021).
  *
  * @param models the models that tiers and roles can use, by a name chosen in the configuration
  * @param tiers the model name each tier uses
@@ -23,6 +28,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param anthropic how to reach Anthropic
  * @param monthlyBudgetUsd the most US dollars all calls in a calendar month (UTC) may cost, or
  *     {@code null} for no limit
+ * @param retry how calls that failed for a passing reason are retried
  */
 @ConfigurationProperties("lantern.llm")
 public record LlmProperties(
@@ -30,13 +36,15 @@ public record LlmProperties(
     Map<Tier, String> tiers,
     Map<Role, String> roles,
     Anthropic anthropic,
-    BigDecimal monthlyBudgetUsd) {
+    BigDecimal monthlyBudgetUsd,
+    Retry retry) {
 
   public LlmProperties {
     models = models == null ? Map.of() : Map.copyOf(models);
     tiers = tiers == null ? Map.of() : Map.copyOf(tiers);
     roles = roles == null ? Map.of() : Map.copyOf(roles);
     anthropic = anthropic == null ? new Anthropic(null, null) : anthropic;
+    retry = retry == null ? new Retry(null, null, null) : retry;
     if (monthlyBudgetUsd != null && monthlyBudgetUsd.signum() < 0) {
       throw new IllegalArgumentException(
           "lantern.llm.monthly-budget-usd must not be negative: " + monthlyBudgetUsd);
@@ -69,7 +77,27 @@ public record LlmProperties(
           settings.with(
               role.getKey(), model("lantern.llm.roles." + kebab(role.getKey()), role.getValue()));
     }
+    checkLimitsAgree(settings);
     return settings;
+  }
+
+  /**
+   * Calls to one provider's model share one set of limits, so all its configurations must agree.
+   */
+  private static void checkLimitsAgree(ModelSettings settings) {
+    Map<String, ModelConfig> byModel = new HashMap<>();
+    for (Role role : Role.values()) {
+      ModelConfig model = settings.forRole(role);
+      ModelConfig other = byModel.putIfAbsent(model.provider() + "\n" + model.model(), model);
+      if (other != null && !other.limits().equals(model.limits())) {
+        throw new IllegalStateException(
+            "Model "
+                + model.model()
+                + " of provider "
+                + model.provider()
+                + " is configured twice with different max-concurrency or requests-per-minute");
+      }
+    }
   }
 
   /** The providers that the models in use refer to. */
@@ -105,13 +133,18 @@ public record LlmProperties(
    * @param capabilities the optional features it supports
    * @param contextWindow the most tokens, input plus output, one call may use
    * @param prices what it costs
+   * @param maxConcurrency the most calls to it in flight at once, {@value
+   *     CallLimits#DEFAULT_MAX_CONCURRENCY} if not set
+   * @param requestsPerMinute the most calls started per minute, or {@code null} for no rate limit
    */
   public record Model(
       String provider,
       String id,
       Set<Capability> capabilities,
       Integer contextWindow,
-      Prices prices) {
+      Prices prices,
+      Integer maxConcurrency,
+      Integer requestsPerMinute) {
 
     ModelConfig toConfig(String property) {
       require(property + ".provider", provider);
@@ -124,7 +157,22 @@ public record LlmProperties(
           id,
           supported,
           contextWindow,
-          prices.toPricing(property + ".prices", supported.contains(Capability.PROMPT_CACHING)));
+          prices.toPricing(property + ".prices", supported.contains(Capability.PROMPT_CACHING)),
+          limits(property));
+    }
+
+    private CallLimits limits(String property) {
+      if (maxConcurrency != null && maxConcurrency < 1) {
+        throw new IllegalStateException(
+            property + ".max-concurrency must be positive: " + maxConcurrency);
+      }
+      if (requestsPerMinute != null && requestsPerMinute < 1) {
+        throw new IllegalStateException(
+            property + ".requests-per-minute must be positive: " + requestsPerMinute);
+      }
+      return new CallLimits(
+          maxConcurrency == null ? CallLimits.DEFAULT_MAX_CONCURRENCY : maxConcurrency,
+          requestsPerMinute);
     }
   }
 
@@ -170,6 +218,29 @@ public record LlmProperties(
           + ", baseUrl="
           + baseUrl
           + "]";
+    }
+  }
+
+  /**
+   * How calls that failed for a passing reason (rate limit, overload, server or connection error)
+   * are retried. Unset values take {@link RetryPolicy#DEFAULT}'s.
+   *
+   * @param maxAttempts the most times one call is sent, the first included
+   * @param initialBackoff the wait before the second attempt, doubled before each later one
+   * @param maxBackoff the longest wait reached by doubling
+   */
+  public record Retry(Integer maxAttempts, Duration initialBackoff, Duration maxBackoff) {
+
+    RetryPolicy toPolicy() {
+      RetryPolicy defaults = RetryPolicy.DEFAULT;
+      try {
+        return new RetryPolicy(
+            maxAttempts == null ? defaults.maxAttempts() : maxAttempts,
+            initialBackoff == null ? defaults.initialBackoff() : initialBackoff,
+            maxBackoff == null ? defaults.maxBackoff() : maxBackoff);
+      } catch (IllegalArgumentException e) {
+        throw new IllegalStateException("lantern.llm.retry: " + e.getMessage(), e);
+      }
     }
   }
 

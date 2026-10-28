@@ -2,7 +2,9 @@ package io.lantern.llm.anthropic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
+import com.anthropic.core.http.Headers;
 import com.sun.net.httpserver.HttpServer;
 import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
@@ -10,11 +12,19 @@ import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.Role;
 import io.lantern.llm.TokenUsage;
+import io.lantern.llm.TransientLlmException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +45,8 @@ class AnthropicProviderTest {
   private final AtomicReference<String> requestPath = new AtomicReference<>();
   private volatile int status = 200;
   private volatile String responseBody;
+  private volatile Map<String, String> responseHeaders = Map.of();
+  private final AtomicInteger requests = new AtomicInteger();
 
   @BeforeEach
   void startStub() throws IOException {
@@ -42,11 +54,13 @@ class AnthropicProviderTest {
     server.createContext(
         "/",
         exchange -> {
+          requests.incrementAndGet();
           requestPath.set(exchange.getRequestURI().getPath());
           requestBody.set(
               new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
           byte[] body = responseBody.getBytes(StandardCharsets.UTF_8);
           exchange.getResponseHeaders().add("Content-Type", "application/json");
+          responseHeaders.forEach(exchange.getResponseHeaders()::add);
           exchange.sendResponseHeaders(status, body.length);
           exchange.getResponseBody().write(body);
           exchange.close();
@@ -145,6 +159,101 @@ class AnthropicProviderTest {
           .isInstanceOf(LlmException.class)
           .hasMessageContaining("bad model");
     }
+  }
+
+  private LlmException failure() {
+    try (AnthropicProvider provider = provider()) {
+      LlmRequest request = LlmRequest.of(Role.COMPOSE, "compose", null, "Hi", 10);
+      Throwable thrown = catchThrowable(() -> provider.complete("stub-model", request));
+      assertThat(thrown).isInstanceOf(LlmException.class);
+      return (LlmException) thrown;
+    }
+  }
+
+  @Test
+  void aRateLimitIsTransientWithTheWaitTheApiAskedFor() {
+    status = 429;
+    responseHeaders = Map.of("retry-after", "2");
+    responseBody =
+        """
+        {"type": "error", "error": {"type": "rate_limit_error", "message": "slow down"}}
+        """;
+
+    LlmException failure = failure();
+
+    assertThat(failure).isInstanceOf(TransientLlmException.class).hasMessageContaining("slow down");
+    assertThat(((TransientLlmException) failure).retryAfter()).contains(Duration.ofSeconds(2));
+    // The SDK does not retry on its own; the client does.
+    assertThat(requests.get()).isEqualTo(1);
+  }
+
+  @Test
+  void overloadAndServerErrorsAreTransient() {
+    responseBody =
+        """
+        {"type": "error", "error": {"type": "overloaded_error", "message": "overloaded"}}
+        """;
+    for (int code : new int[] {500, 503, 529}) {
+      status = code;
+      responseHeaders = Map.of("retry-after-ms", "1500");
+
+      LlmException failure = failure();
+
+      assertThat(failure).isInstanceOf(TransientLlmException.class);
+      assertThat(((TransientLlmException) failure).retryAfter()).contains(Duration.ofMillis(1500));
+    }
+    assertThat(requests.get()).isEqualTo(3);
+  }
+
+  @Test
+  void anUnreachableApiIsTransient() throws IOException {
+    int closedPort;
+    try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+      closedPort = socket.getLocalPort();
+    }
+    LlmRequest request = LlmRequest.of(Role.COMPOSE, "compose", null, "Hi", 10);
+
+    try (AnthropicProvider provider =
+        AnthropicProvider.create("stub-key", "http://127.0.0.1:" + closedPort)) {
+      assertThatThrownBy(() -> provider.complete("stub-model", request))
+          .isInstanceOf(TransientLlmException.class);
+    }
+  }
+
+  @Test
+  void clientErrorsAndNotImplementedAreNotTransient() {
+    responseBody =
+        """
+        {"type": "error", "error": {"type": "authentication_error", "message": "bad key"}}
+        """;
+    for (int code : new int[] {400, 401, 501}) {
+      status = code;
+
+      assertThat(failure()).isNotInstanceOf(TransientLlmException.class);
+    }
+  }
+
+  @Test
+  void readsRetryAfterInEveryForm() {
+    assertThat(AnthropicProvider.retryAfter(headers("retry-after", "1.5")))
+        .isEqualTo(Duration.ofMillis(1500));
+    assertThat(AnthropicProvider.retryAfter(headers("retry-after-ms", "250")))
+        .isEqualTo(Duration.ofMillis(250));
+    Duration fromDate =
+        AnthropicProvider.retryAfter(
+            headers(
+                "retry-after",
+                DateTimeFormatter.RFC_1123_DATE_TIME.format(
+                    ZonedDateTime.now(ZoneOffset.UTC).plusSeconds(30))));
+    assertThat(fromDate).isBetween(Duration.ofSeconds(28), Duration.ofSeconds(30));
+    assertThat(AnthropicProvider.retryAfter(headers("retry-after", "soon"))).isNull();
+    assertThat(AnthropicProvider.retryAfter(headers("retry-after", "86400")))
+        .isEqualTo(Duration.ofMinutes(10));
+    assertThat(AnthropicProvider.retryAfter(Headers.builder().build())).isNull();
+  }
+
+  private static Headers headers(String name, String value) {
+    return Headers.builder().put(name, value).build();
   }
 
   @Test
