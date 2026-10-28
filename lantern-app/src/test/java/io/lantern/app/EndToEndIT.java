@@ -10,13 +10,16 @@ import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
+import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoRegistry;
+import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
+import io.lantern.sandbox.SandboxException;
 import io.lantern.summarize.SummaryStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -221,9 +224,17 @@ class EndToEndIT {
             });
 
     // Analyzing the library again at the same commit reuses everything and starts no new fact
-    // version, and the service's facts keep holding.
+    // version, and the service's facts keep holding. The service's build fails, since the
+    // library is not in a Maven repository, but it is carried forward, so it is not built again.
+    String serviceCommit =
+        context.getBean(RepoRegistry.class).resolve("greeting-service", RepoRegistry.HEAD);
+    BuildResult serviceBuild = sandbox.find("greeting-service", serviceCommit).orElseThrow();
+    assertThat(serviceBuild.status()).isEqualTo(BuildStatus.FAILED);
     int sent = fake.sent().size();
     AnalysisRun.Result third = run.run(Map.of("greeting-lib", lib));
+    assertThat(sandbox.find("greeting-service", serviceCommit))
+        .as("the carried-forward service's stored build")
+        .contains(serviceBuild);
     assertThat(fake.sent()).as("LLM requests in the third run").hasSize(sent);
     assertThat(third.snapshot().number()).isEqualTo(second + 1);
     assertThat(third.builds()).containsOnlyKeys("greeting-lib");
@@ -247,6 +258,7 @@ class EndToEndIT {
     AnalysisRun.Result together = run.run(Map.of("greeting-lib", lib, "greeting-service", service));
     assertThat(fake.sent()).as("LLM requests when analyzed together").hasSize(sent);
     assertThat(together.newFacts()).isZero();
+    assertThat(together.reusedBuilds()).containsExactly("greeting-lib");
     assertThat(validIn(together, "greeting-lib")).isEqualTo(libFacts);
     assertThat(validIn(together, "greeting-service")).isEqualTo(serviceFacts);
 
@@ -270,8 +282,10 @@ class EndToEndIT {
   @Test
   void rebuildsAStoredFailedBuildAndReusesASuccessfulOne() throws IOException {
     Path lib = fixtureRepo("lib-and-service/lib", "flaky-lib");
-    AnalysisRun.Result first = run.run(Map.of("flaky-lib", lib));
-    BuildResult built = first.builds().get("flaky-lib");
+    Repo repo =
+        context.getBean(RepoRegistry.class).register("flaky-lib", lib, RepoSettings.DEFAULT);
+    String commit = context.getBean(RepoRegistry.class).resolve("flaky-lib", RepoRegistry.HEAD);
+    BuildResult built = sandbox.build(repo, commit);
     assertThat(built.status()).isEqualTo(BuildStatus.SUCCEEDED);
 
     // Stored as if the build had failed, for example because a download failed for a moment.
@@ -281,23 +295,63 @@ class EndToEndIT {
         file,
         json.replaceFirst("\"status\" : \"SUCCEEDED\"", "\"status\" : \"FAILED\"")
             .replaceFirst("\"failure\" : null", "\"failure\" : \"A download failed\""));
-    assertThat(sandbox.find("flaky-lib", built.commit()))
-        .hasValueSatisfying(b -> assertThat(b.status()).isEqualTo(BuildStatus.FAILED));
+    BuildResult failed = sandbox.find("flaky-lib", commit).orElseThrow();
+    assertThat(failed.status()).isEqualTo(BuildStatus.FAILED);
 
-    // The next run builds it again instead of reusing the failure, and finds the same facts.
+    // A sandbox that cannot build does not fail the run: the stored failed build is used, and
+    // the facts are found in degraded mode.
+    AnalysisRun.Result first =
+        analysisRun(transaction(), unavailableSandbox()).run(Map.of("flaky-lib", lib));
+    assertThat(first.reusedBuilds()).containsExactly("flaky-lib");
+    assertThat(first.builds().get("flaky-lib")).isEqualTo(failed);
+    List<Fact> degraded = validIn(first, "flaky-lib");
+
+    // The next run builds it again instead of reusing the failure. The build succeeds, so facts
+    // found with more confidence start a new version.
     AnalysisRun.Result second = run.run(Map.of("flaky-lib", lib));
     BuildResult rebuilt = second.builds().get("flaky-lib");
     assertThat(second.reusedBuilds()).isEmpty();
     assertThat(rebuilt.status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(rebuilt.startedAt()).isAfter(built.startedAt());
-    assertThat(sandbox.find("flaky-lib", built.commit())).contains(rebuilt);
-    assertThat(second.facts()).isEqualTo(first.facts());
-    assertThat(second.newFacts()).isZero();
+    assertThat(sandbox.find("flaky-lib", commit)).contains(rebuilt);
+    Map<String, Fact> before = new TreeMap<>();
+    degraded.forEach(fact -> before.put(fact.id(), fact));
+    List<Fact> raised =
+        validIn(second, "flaky-lib").stream()
+            .filter(
+                fact ->
+                    before.containsKey(fact.id())
+                        && fact.confidence() > before.get(fact.id()).confidence())
+            .toList();
+    assertThat(raised).isNotEmpty();
+    for (Fact fact : raised) {
+      assertThat(facts.findBySubject(fact.subject()))
+          .filteredOn(f -> f.id().equals(fact.id()))
+          .as("versions of %s", fact.id())
+          .extracting(Fact::confidence)
+          .containsExactlyInAnyOrder(before.get(fact.id()).confidence(), fact.confidence());
+    }
 
     // A successful build is reused.
     AnalysisRun.Result third = run.run(Map.of("flaky-lib", lib));
     assertThat(third.reusedBuilds()).containsExactly("flaky-lib");
     assertThat(third.builds().get("flaky-lib")).isEqualTo(rebuilt);
+  }
+
+  /** A sandbox whose builds all fail as if Docker were unavailable. */
+  private BuildSandbox unavailableSandbox() {
+    return new BuildSandbox(
+        AnalysisConfiguration.sandboxSettings(WORKSPACE, context.getBean(SandboxProperties.class))
+            .withOwnerLabel(RUN_LABEL, RUN)) {
+      @Override
+      public BuildResult build(Repo repo, String commit) {
+        throw new SandboxException("Docker is unavailable");
+      }
+    };
+  }
+
+  private TransactionTemplate transaction() {
+    return new TransactionTemplate(context.getBean(PlatformTransactionManager.class));
   }
 
   /**
@@ -316,13 +370,18 @@ class EndToEndIT {
                 });
           }
         };
+    return analysisRun(failing, sandbox);
+  }
+
+  /** An analysis run like the app's, with the given transactions and sandbox. */
+  private AnalysisRun analysisRun(TransactionTemplate transaction, BuildSandbox sandbox) {
     return new AnalysisRun(
         context.getBean(RepoRegistry.class),
         context.getBean(SnapshotStore.class),
         context.getBean(AnalysisLock.class),
-        context.getBean(BuildSandbox.class),
+        sandbox,
         facts,
-        failing,
+        transaction,
         context.getBean(LlmAccess.class),
         context.getBean(JdbcLlmCallLog.class),
         context.getBean(SummaryStore.class),

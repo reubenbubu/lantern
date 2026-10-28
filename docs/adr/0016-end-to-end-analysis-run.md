@@ -49,6 +49,8 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
 - **Zero LLM calls on a second run** follows from the above: fact IDs include the commit and
   leave out validity (ADR 0001), so unchanged commits give the same summary cache keys and every
   summary is reused, except units left without a summary, which are tried again (ADR 0010, #76).
+  This also holds when a stored failed build is built again (amendment for #58) and fails the same
+  way.
 - **Workspace storage** is `lantern.workspace` (environment `LANTERN_WORKSPACE`, default
   `workspace` in the working directory, which the repository ignores, next to the OpenWMS
   clones). Builds go to `builds/` (ADR 0005), documents to `documents/`. The shared Maven cache
@@ -90,8 +92,12 @@ estimated tokens a real run would use go to
 
 A run reuses a stored build only if it succeeded. A stored failed build is built again, once per
 run: a repository is built at most once in a run, so a build that keeps failing costs one build per
-run and no more. Repositories carried forward are not analyzed, so they are not built; the
-extractors see their stored build, failed or not.
+run and no more. A build counts as failed whatever the cause (ADR 0005): any module failing, a
+timeout, or a stop on a resource limit such as memory or disk. A build that keeps timing out
+therefore costs up to the build timeout on every run. If the sandbox itself cannot run the
+rebuild (a `SandboxException`, for example Docker being unavailable), the run logs a warning and
+uses the stored failed build, as it did before. Repositories carried forward are not analyzed, so
+they are not built; the extractors see their stored build, failed or not.
 
 When this ADR was first decided, a stored fact's confidence could not change, so a successful
 rebuild of a failed build would have made the run fail. Since ADR 0017 a confidence change starts a

@@ -186,7 +186,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 **On a new snapshot**
 
 1. Diff each repo's commit against the previous snapshot to find changed files.
-2. Rebuild only repos whose commit changed.
+2. Rebuild only repos whose commit changed, or whose stored build failed (ADR 0016).
 3. Re-run extractors only on changed files. Unchanged files reuse cached facts.
 4. Re-link the graph and find which entities changed.
 5. Invalidate summaries whose input facts changed, then walk up the hierarchy (class to package to module to service to group to system), regenerating only invalidated nodes.

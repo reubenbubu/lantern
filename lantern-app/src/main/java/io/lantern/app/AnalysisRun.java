@@ -22,6 +22,7 @@ import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
+import io.lantern.sandbox.SandboxException;
 import io.lantern.summarize.GitSourceFiles;
 import io.lantern.summarize.Summarizer;
 import io.lantern.summarize.SummaryStore;
@@ -33,6 +34,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -291,30 +293,36 @@ public final class AnalysisRun {
    * Builds every repository at its snapshot commit, in parallel up to the sandbox's limit, each at
    * most once. A stored successful build of the same commit is reused; a stored failed one is built
    * again, since its failure may have been transient or fixed by a settings change (ADR 0016, #58).
+   * If the sandbox cannot build it again, the stored failed build is used, as before #58.
    */
   private Map<String, BuildResult> build(
       Map<String, Repo> repos, Snapshot snapshot, List<String> reused) {
     Map<String, Future<BuildResult>> running = new LinkedHashMap<>();
+    Map<String, BuildResult> storedBuilds = new HashMap<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       for (Map.Entry<String, Repo> entry : repos.entrySet()) {
         String name = entry.getKey();
         String commit = snapshot.commits().get(name);
         BuildResult stored = sandbox.find(name, commit).orElse(null);
-        if (stored != null && stored.status() == BuildStatus.SUCCEEDED) {
-          reused.add(name);
+        if (stored == null) {
+          LOG.info("Building {}@{}", name, commit);
+          running.put(name, executor.submit(() -> sandbox.build(entry.getValue(), commit)));
+          continue;
+        }
+        storedBuilds.put(name, stored);
+        if (stored.status() == BuildStatus.SUCCEEDED) {
           running.put(name, CompletableFuture.completedFuture(stored));
         } else {
-          if (stored != null) {
-            LOG.info("Building {}@{} again: its stored build failed", name, commit);
-          } else {
-            LOG.info("Building {}@{}", name, commit);
-          }
-          running.put(name, executor.submit(() -> sandbox.build(entry.getValue(), commit)));
+          LOG.info("Building {}@{} again: its stored build failed", name, commit);
+          running.put(name, executor.submit(() -> rebuild(entry.getValue(), commit, stored)));
         }
       }
       Map<String, BuildResult> builds = new TreeMap<>();
       for (Map.Entry<String, Future<BuildResult>> entry : running.entrySet()) {
         BuildResult result = entry.getValue().get();
+        if (result == storedBuilds.get(entry.getKey())) {
+          reused.add(entry.getKey());
+        }
         LOG.info(
             "Build of {}: {}{}",
             entry.getKey(),
@@ -331,6 +339,24 @@ public final class AnalysisRun {
         throw runtime;
       }
       throw new IllegalStateException("A build failed", e.getCause());
+    }
+  }
+
+  /**
+   * Builds a repository whose stored build failed again, or uses the stored build if the sandbox
+   * cannot run the build: a stored result is better than none, and the run went ahead with it
+   * before #58.
+   */
+  private BuildResult rebuild(Repo repo, String commit, BuildResult failed) {
+    try {
+      return sandbox.build(repo, commit);
+    } catch (SandboxException e) {
+      LOG.warn(
+          "Could not build {}@{} again, so its stored failed build is used: {}",
+          repo.name(),
+          commit,
+          e.getMessage());
+      return failed;
     }
   }
 

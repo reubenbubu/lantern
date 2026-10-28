@@ -46,4 +46,5 @@ analyzes repository A, the next one B, and a third A again at the same commit.
 ## Not in this issue
 
 Whether the analysis run should now rebuild failed builds, since a successful rebuild no longer
-makes the run fail (ADR 0016, #58).
+makes the run fail (ADR 0016, #58). Decided in ADR 0016's amendment for #58: a failed build is
+built again.
