@@ -509,7 +509,7 @@
         "label" : "greeting-lib",
         "technology" : "Library, jar",
         "parent" : "repo:greeting-lib",
-        "facts" : [ ]
+        "facts" : [ "1a8facdc2a91220072d3ef315b593aff3e477911a690c66bf8dc8edb817e30af", "e5f774d23227db34ae9544b02ffdfd8ea2124d156010dcbb2f01de427fa6a34f" ]
       }, {
         "id" : "repo:greeting-lib",
         "label" : "greeting-lib",
@@ -591,7 +591,7 @@
           "id" : "service:com.example.greeting:greeting-service",
           "label" : "greeting-service",
           "technology" : "Service, jar",
-          "facts" : [ ]
+          "facts" : [ "589c549ee403d67bf18961685df5c77d5b43246b4f3dee2bbb2cfe09299e257d", "b65f091a0d8b84c0efcd8570e2e313d98c7509af2aea0237591efca64eef2c76" ]
         } ],
         "edges" : [ ],
         "facts" : [ ]

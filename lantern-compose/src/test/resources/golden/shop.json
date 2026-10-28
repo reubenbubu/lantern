@@ -809,7 +809,7 @@
           "id" : "library:com.example.shop:shop-api",
           "label" : "shop-api",
           "technology" : "Library, jar",
-          "facts" : [ ]
+          "facts" : [ "0126cd762b5a05c38d4cedc5d18937aa7c7faf6366e613e7cc36ad2050a8bade", "4737010947f34415adcd76784dd137b1164f8863d4930e1654572c9c9921773a" ]
         }, {
           "id" : "package:com.example.shop:shop-api:com.example.shop.api",
           "label" : "com.example.shop.api",
@@ -856,7 +856,7 @@
           "id" : "library:com.example.shop:shop-core",
           "label" : "shop-core",
           "technology" : "Library, jar",
-          "facts" : [ ]
+          "facts" : [ "2d7acfd66e629013eb91e1e77acfd3ab9045fcfdd4265010c5487257a76e64b5", "55f6eee37aa190bb1d65d429b4ee41fa9f270a0185e5b8adf3d18f70161f9911" ]
         }, {
           "id" : "package:com.example.shop:shop-core:com.example.shop.core",
           "label" : "com.example.shop.core",

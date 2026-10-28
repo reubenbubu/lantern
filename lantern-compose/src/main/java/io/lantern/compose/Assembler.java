@@ -10,8 +10,10 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.summarize.Summary;
 import io.lantern.summarize.SummaryLevel;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,9 @@ final class Assembler {
   private final Knowledge knowledge;
   private final Map<EntityId, Summary> summaries;
   private final Set<EntityId> described;
+  private final String repo;
+  private final Set<EntityId> adding = new HashSet<>();
+  private final Deque<EntityId> undescribed = new ArrayDeque<>();
   private final Map<EntityId, DocumentEntity> entities = new TreeMap<>(Knowledge.BY_ID);
   private final Set<String> factIds = new TreeSet<>();
   private final Set<String> elementIds = new HashSet<>();
@@ -42,24 +47,32 @@ final class Assembler {
    * @param knowledge the snapshot's facts
    * @param summaries the summaries, by entity
    * @param described the entities whose summaries become their descriptions: those in scope
+   * @param repo the repository the document is about, preferred as the parent of a module, service
+   *     or library observed in several repositories
    */
-  Assembler(Knowledge knowledge, Map<EntityId, Summary> summaries, Set<EntityId> described) {
+  Assembler(
+      Knowledge knowledge, Map<EntityId, Summary> summaries, Set<EntityId> described, String repo) {
     this.knowledge = knowledge;
     this.summaries = summaries;
     this.described = described;
+    this.repo = repo;
   }
 
   /** The text of a rich-text element and the facts it cites. */
   record Text(List<Inline> content, List<String> facts) {}
 
   /**
-   * Adds the entity to the document, with its parent and, if it is in scope and has a summary, its
-   * description. Its facts are its attributes, the facts placing it in its parent and, for a
-   * service or library, the facts saying which modules it builds. Returns the entity.
+   * Adds the entity to the document, with its parent; if it is in scope and has a summary, its
+   * description is added by {@link #entities()}. Its facts are its attributes, the facts placing it
+   * in its parent and, for a service or library, the facts saying which modules it builds. Returns
+   * the entity.
    */
   EntityId entity(EntityId id) {
     if (entities.containsKey(id)) {
       return id;
+    }
+    if (!adding.add(id)) {
+      throw new IllegalArgumentException("CONTAINS facts form a cycle at " + id);
     }
     EntityId parent = parent(id);
     List<Fact> facts = new ArrayList<>(knowledge.attributes(id));
@@ -72,14 +85,17 @@ final class Assembler {
       entity(parent);
       facts.addAll(knowledge.containsFacts(parent, id));
     }
-    // Registered before its description is built, which may refer back to it.
     entities.put(id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts)));
-    Summary summary = described.contains(id) ? summaries.get(id) : null;
-    if (summary != null) {
-      List<Inline> description = summary(summary).content();
-      entities.put(id, new DocumentEntity(id, name(id), parent, description, facts(facts)));
+    adding.remove(id);
+    if (described.contains(id) && summaries.containsKey(id)) {
+      undescribed.add(id);
     }
     return id;
+  }
+
+  /** Adds the entity to the document and returns its parent in the navigation tree. */
+  EntityId parentOf(EntityId id) {
+    return entities.get(entity(id)).parent();
   }
 
   /** The entity's display name. */
@@ -107,17 +123,14 @@ final class Assembler {
         if (!aggregators.isEmpty()) {
           yield aggregators.first();
         }
-        SortedSet<String> repos = knowledge.repos(id);
-        yield repos.isEmpty() ? null : repo(repos.first());
+        yield repoOf(knowledge.repos(id));
       }
       case BuiltInTypes.SERVICE, BuiltInTypes.LIBRARY -> {
+        SortedSet<String> repos = new TreeSet<>();
         for (EntityId module : knowledge.parts(id, BuiltInTypes.MODULE)) {
-          SortedSet<String> repos = knowledge.repos(module);
-          if (!repos.isEmpty()) {
-            yield repo(repos.first());
-          }
+          repos.addAll(knowledge.repos(module));
         }
-        yield null;
+        yield repoOf(repos);
       }
       case BuiltInTypes.TYPE -> {
         SortedSet<EntityId> wholes = knowledge.wholes(id, BuiltInTypes.PACKAGE);
@@ -132,6 +145,14 @@ final class Assembler {
         yield wholes.isEmpty() ? null : wholes.first();
       }
     };
+  }
+
+  /** The document's repository if it is one of these, else the first, or {@code null}. */
+  private EntityId repoOf(SortedSet<String> repos) {
+    if (repos.contains(repo)) {
+      return repo(repo);
+    }
+    return repos.isEmpty() ? null : repo(repos.first());
   }
 
   static EntityId repo(String name) {
@@ -250,17 +271,16 @@ final class Assembler {
    * {@code -}, and a suffix keeps the ID unique within the document.
    */
   String id(String... parts) {
-    String base = NOT_ID_CHAR.matcher(String.join(".", parts)).replaceAll("-");
-    String id = base;
-    for (int n = 2; !elementIds.add(id); n++) {
-      id = base + "-" + n;
-    }
-    return id;
+    return unique(elementIds, String.join(".", parts));
   }
 
   /** An edge ID unique within one diagram. */
   static String edgeId(Set<String> used, EntityId from, String relationship, EntityId to) {
-    String base = NOT_ID_CHAR.matcher(from + "--" + relationship + "--" + to).replaceAll("-");
+    return unique(used, from + "--" + relationship + "--" + to);
+  }
+
+  private static String unique(Set<String> used, String text) {
+    String base = NOT_ID_CHAR.matcher(text).replaceAll("-");
     String id = base;
     for (int n = 2; !used.add(id); n++) {
       id = base + "-" + n;
@@ -268,11 +288,25 @@ final class Assembler {
     return id;
   }
 
+  /**
+   * The document's entities, with descriptions. Descriptions are built last, since a summary's
+   * cross-references may add entities, whose own descriptions are then built in turn.
+   */
   List<DocumentEntity> entities() {
+    while (!undescribed.isEmpty()) {
+      DocumentEntity entity = entities.get(undescribed.removeFirst());
+      List<Inline> description = summary(summaries.get(entity.id())).content();
+      entities.put(
+          entity.id(),
+          new DocumentEntity(
+              entity.id(), entity.name(), entity.parent(), description, entity.facts()));
+    }
     return List.copyOf(entities.values());
   }
 
+  /** The facts the document refers to, including those its entities' descriptions cite. */
   List<Fact> documentFacts() {
+    entities();
     return factIds.stream().map(knowledge::fact).toList();
   }
 }

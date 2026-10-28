@@ -55,7 +55,12 @@ record FixtureSnapshot(Snapshot snapshot, List<Fact> facts, Map<EntityId, Summar
           "greeting-service", "lib-and-service/service");
 
   static FixtureSnapshot create(Path temp) throws IOException {
-    Path fixtures = Path.of(System.getProperty("lantern.test.fixtures"));
+    String location = System.getProperty("lantern.test.fixtures");
+    if (location == null) {
+      throw new IllegalStateException(
+          "Set lantern.test.fixtures to lantern-extract/src/test/resources/fixtures (Maven does)");
+    }
+    Path fixtures = Path.of(location);
     List<RepoBuild> repos = new ArrayList<>();
     Map<String, String> commits = new TreeMap<>();
     for (Map.Entry<String, String> entry : new TreeMap<>(REPOS).entrySet()) {
@@ -135,6 +140,9 @@ record FixtureSnapshot(Snapshot snapshot, List<Fact> facts, Map<EntityId, Summar
   private static String git(Path dir, String... args) throws IOException {
     ProcessBuilder builder = Git.command(dir, args).redirectErrorStream(true);
     Map<String, String> env = builder.environment();
+    // Only the fixed settings below, so the commit hash cannot depend on the machine's git config.
+    env.put("GIT_CONFIG_GLOBAL", "/dev/null");
+    env.put("GIT_CONFIG_NOSYSTEM", "1");
     for (String who : List.of("AUTHOR", "COMMITTER")) {
       env.put("GIT_" + who + "_NAME", "Lantern Test");
       env.put("GIT_" + who + "_EMAIL", "test@lantern.invalid");

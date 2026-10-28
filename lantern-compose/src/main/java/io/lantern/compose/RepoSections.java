@@ -68,7 +68,7 @@ final class RepoSections {
       }
     }
     inScope.addAll(containers);
-    this.assembler = new Assembler(knowledge, summaries, inScope);
+    this.assembler = new Assembler(knowledge, summaries, inScope, repo);
     inScope.forEach(assembler::entity);
   }
 
@@ -226,19 +226,13 @@ final class RepoSections {
     if (nodes.containsKey(container)) {
       return;
     }
-    EntityId boundary = null;
-    for (EntityId module : knowledge.parts(container, BuiltInTypes.MODULE)) {
-      SortedSet<String> repos = knowledge.repos(module);
-      if (!repos.isEmpty()) {
-        boundary = Assembler.repo(repos.first());
-        break;
-      }
-    }
+    EntityId boundary = assembler.parentOf(container);
     if (boundary != null) {
       EntityId outer = boundary;
       nodes.computeIfAbsent(outer, b -> node(outer, null, null, List.of()));
     }
-    nodes.put(container, node(container, technology(container), boundary, List.of()));
+    nodes.put(
+        container, node(container, technology(container), boundary, containerFacts(container)));
   }
 
   /** What a container is and how it is packaged, such as {@code Service, jar}. */
@@ -293,7 +287,7 @@ final class RepoSections {
       }
     }
     if (!nodes.isEmpty()) {
-      nodes.put(container, node(container, technology(container), null, List.of()));
+      nodes.put(container, node(container, technology(container), null, containerFacts(container)));
       Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(Knowledge.BY_ID);
       packagesOfType.forEach(
           (type, from) -> {
@@ -401,9 +395,13 @@ final class RepoSections {
       }
       EntityId target = Knowledge.object(fact);
       String version = attribute(fact, "version", null);
+      String classifier = attribute(fact, "classifier", null);
+      String type = attribute(fact, "artifactType", null);
       String label =
           target.key()
               + (version == null ? "" : ":" + version)
+              + (classifier == null ? "" : ":" + classifier)
+              + (type == null || type.equals("jar") ? "" : " (" + type + ")")
               + (scope.equals("compile") ? "" : " (" + scope + ")")
               + (optional ? " (optional)" : "");
       List<Tree.Node> children =

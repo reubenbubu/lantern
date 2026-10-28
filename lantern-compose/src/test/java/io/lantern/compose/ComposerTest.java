@@ -263,6 +263,111 @@ class ComposerTest {
         .hasMessageContaining("other");
   }
 
+  @Test
+  void prefersTheDocumentsRepositoryForAModuleObservedInSeveral() {
+    List<Fact> all = new ArrayList<>(facts.list());
+    all.add(
+        TestFacts.fact(
+            "base",
+            "module:com.example:app",
+            "packaging",
+            FactObject.string("jar"),
+            FactJson.newObject(),
+            Validity.from(1)));
+
+    Document document = compose(all, Map.of());
+
+    assertThat(entity(document, "module:com.example:app").parent())
+        .isEqualTo(EntityId.parse("repo:shop"));
+    assertThat(entity(document, "service:com.example:app").parent())
+        .isEqualTo(EntityId.parse("repo:shop"));
+  }
+
+  @Test
+  void namesAndPlacesNestedTypesAndTypesInTheUnnamedPackage() {
+    List<Fact> all = new ArrayList<>(facts.list());
+    TestFacts more =
+        new TestFacts()
+            .relate("shop", "module:com.example:app", "CONTAINS", "type:Main")
+            .relate(
+                "shop",
+                "type:com.example.web.Controller",
+                "CONTAINS",
+                "type:com.example.web.Controller$Page");
+    all.addAll(more.list());
+
+    Document document = compose(all, Map.of());
+
+    DocumentEntity main = entity(document, "type:Main");
+    assertThat(main.name()).isEqualTo("Main");
+    assertThat(main.parent()).isEqualTo(EntityId.parse("module:com.example:app"));
+    DocumentEntity page = entity(document, "type:com.example.web.Controller$Page");
+    assertThat(page.name()).isEqualTo("Controller.Page");
+    assertThat(page.parent()).isEqualTo(EntityId.parse("type:com.example.web.Controller"));
+    assertThat(page.facts())
+        .containsExactly(more.find("type:com.example.web.Controller", "CONTAINS").id());
+  }
+
+  @Test
+  void dependencyLabelsShowClassifierAndArtifactType() {
+    tools.jackson.databind.node.ObjectNode attributes = FactJson.newObject();
+    attributes.put("scope", "test");
+    attributes.put("version", "1.0");
+    attributes.put("classifier", "tests");
+    attributes.put("artifactType", "test-jar");
+    List<Fact> all = new ArrayList<>(facts.list());
+    all.add(
+        TestFacts.fact(
+            "shop",
+            "module:com.example:app",
+            "BUILD_DEPENDS_ON",
+            FactObject.entity(EntityId.parse("module:com.example:common")),
+            attributes,
+            Validity.from(1)));
+
+    Tree tree = block(section(compose(all, Map.of()), "dependencies"), Tree.class);
+
+    assertThat(labels(tree.roots(), ""))
+        .contains("  com.example:common:1.0:tests (test-jar) (test)");
+  }
+
+  @Test
+  void composesARepositoryWithoutFacts() {
+    Snapshot snapshot =
+        new Snapshot(2, Map.of("empty", TestFacts.COMMIT), 5, "0.1.0", Instant.EPOCH);
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.perRepo("e", "empty", TEMPLATE), snapshot, facts.list(), Map.of());
+
+    assertThat(document.entities())
+        .extracting(e -> e.id().toString())
+        .containsExactly("repo:empty");
+    assertThat(document.sections()).hasSize(SectionKind.values().length);
+  }
+
+  @Test
+  void refusesContainsFactsThatFormACycle() {
+    List<Fact> all = new ArrayList<>(facts.list());
+    all.addAll(
+        new TestFacts()
+            .relate("shop", "module:com.example:app", "CONTAINS", "module:com.example:other")
+            .relate("shop", "module:com.example:other", "CONTAINS", "module:com.example:app")
+            .list());
+
+    assertThatThrownBy(() -> compose(all, Map.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("cycle");
+  }
+
+  private static DocumentEntity entity(Document document, String id) {
+    return document.entities().stream()
+        .filter(e -> e.id().toString().equals(id))
+        .findFirst()
+        .orElseThrow();
+  }
+
   private static Summary summary(EntityId entity, String text, List<String> cited) {
     return new Summary(
         "0".repeat(64),

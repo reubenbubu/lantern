@@ -448,7 +448,7 @@
           "id" : "library:com.example.greeting:greeting-lib",
           "label" : "greeting-lib",
           "technology" : "Library, jar",
-          "facts" : [ ]
+          "facts" : [ "1a8facdc2a91220072d3ef315b593aff3e477911a690c66bf8dc8edb817e30af", "e5f774d23227db34ae9544b02ffdfd8ea2124d156010dcbb2f01de427fa6a34f" ]
         }, {
           "id" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib",
           "label" : "com.example.greeting.lib",

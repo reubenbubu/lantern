@@ -41,7 +41,9 @@ exist yet and are not used.
   `CONTAINS` facts naming its modules.
 - **Navigation tree parents**: a repository has none; a module's parent is the aggregator module
   that lists it, else its repository; a service or library sits under its repository; a package
-  under its module; a type under its package or outer type. When there are several, the first by
+  under its module; a type under its package or outer type (a type in the unnamed package under its
+  module). A module, service or library observed in several repositories sits under the document's
+  own repository if it is one of them. Otherwise, when there are several candidates, the first by
   ID wins.
 - **Repositories as systems.** Repositories are not entities in the fact store; documents use the
   summarizer's `repo:<name>` IDs (0010) for them.
@@ -59,11 +61,16 @@ exist yet and are not used.
     methods to types to packages). Edges to packages of other containers are left out for now.
   - Test-scoped dependencies are left out of the context and container diagrams, since they are
     not architecture; the dependency tree shows them.
+  - Diagram nodes for services and libraries carry the facts that they build their modules and
+    how those are packaged, package nodes the fact placing them in their module, and edges the facts
+    they aggregate. Repository nodes carry none (repositories have no facts), and diagrams as a whole
+    carry none beyond their elements'.
   - Edge IDs are `<from>--<relationship>--<to>`, with characters the model does not allow in IDs
     replaced by `-`; node and edge styles and positions are left empty until presentation rules
     and stored layouts exist.
 - **Dependency tree.** One root per module of the repository that has dependencies, showing every
-  direct dependency (label: coordinates, version, and scope when not `compile`). An internal
+  direct dependency (label: coordinates, version and classifier, then the artifact type when not
+  `jar`, the scope when not `compile`, and whether it is optional). An internal
   module below it is expanded with the dependencies Maven passes on (compile or runtime scope, not
   optional), and each internal module is expanded only the first time it appears under a root,
   as `mvn dependency:tree` does, so cycles end and trees stay small. Third-party dependencies are

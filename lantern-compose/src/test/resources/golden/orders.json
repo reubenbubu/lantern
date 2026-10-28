@@ -601,7 +601,7 @@
           "id" : "library:com.example.orders:orders",
           "label" : "orders",
           "technology" : "Library, jar",
-          "facts" : [ ]
+          "facts" : [ "4596a96e915ecc6c5803f48681eb904aead69af66512234e25506b9502fffc11", "8b62d23dabe3e56123765d08934a56d5fb9f9c370b0debddc2ac8e8744b917f4" ]
         }, {
           "id" : "package:com.example.orders:orders:com.example.orders",
           "label" : "com.example.orders",
