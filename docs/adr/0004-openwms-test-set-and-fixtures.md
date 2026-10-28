@@ -22,7 +22,7 @@ commits, or where the workspace is.
   comes from Maven Central.
 - **Pins** are full commit hashes, each the head of the default branch on 28 Oct 2026. They live
   in `testsets/openwms/repos.txt`, one `<name> <clone URL> <commit>` line per repository.
-  Whether these commits build against each other is checked when the Maven extractor first builds
+  Whether these commits build against each other is checked when the Maven extractor (#8) first builds
   them; a pin is moved by editing that file.
 - **Workspace folder** is `workspace/` at the top of this repository, gitignored; the test set
   goes into `workspace/openwms/<name>`. The design's workspace storage holds repo clones, so this
