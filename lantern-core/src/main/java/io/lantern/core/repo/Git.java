@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /** Runs the {@code git} command line tool on a local repository. */
-final class Git {
+public final class Git {
 
   private static final long TIMEOUT_SECONDS = 30;
 
@@ -33,15 +33,18 @@ final class Git {
   private Git() {}
 
   /** The result of a git command: its exit code and trimmed standard output and error. */
-  record Result(int exitCode, String out, String err) {
+  public record Result(int exitCode, String out, String err) {
 
-    boolean ok() {
+    public boolean ok() {
       return exitCode == 0;
     }
   }
 
-  /** Runs {@code git -C dir args...}, without prompting for credentials. */
-  static Result run(Path dir, String... args) {
+  /**
+   * A process builder for {@code git -C dir args...} that never prompts for credentials, for
+   * callers that need to stream the output themselves.
+   */
+  public static ProcessBuilder command(Path dir, String... args) {
     List<String> command = new ArrayList<>(List.of("git", "-C", dir.toString()));
     command.addAll(List.of(args));
     ProcessBuilder builder = new ProcessBuilder(command);
@@ -49,6 +52,13 @@ final class Git {
     REPOSITORY_VARIABLES.forEach(builder.environment()::remove);
     builder.environment().put("GIT_TERMINAL_PROMPT", "0");
     builder.environment().put("LC_ALL", "C");
+    return builder;
+  }
+
+  /** Runs {@code git -C dir args...}, without prompting for credentials. */
+  public static Result run(Path dir, String... args) {
+    ProcessBuilder builder = command(dir, args);
+    List<String> command = builder.command();
     Process process;
     try {
       process = builder.start();

@@ -78,7 +78,7 @@ Repos are cloned onto the service host, and each analysis builds them for real i
 - Resource limits (CPU, memory, timeout) per container, and a concurrency limit for the VM.
 - **Fallback:** if a build fails, analysis continues in degraded mode (source parsing with whatever classpath resolves), and the affected facts are marked lower-confidence.
 
-**What leaves the sandbox:** classpath, generated sources, class files and build metadata (effective POM, dependency tree, module graph). No network access from the build except to the artifact repository.
+**What leaves the sandbox:** classpath, generated sources, class files and build metadata (effective POM, dependency tree, module graph). No network access from the build except to the artifact repository. How the sandbox enforces this, chooses the JDK and stores outputs is in ADR 0005.
 
 ## Static analysis and extractors
 
