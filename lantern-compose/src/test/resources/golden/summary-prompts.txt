@@ -5,7 +5,7 @@ Begin with one sentence that says plainly what the unit is for: what it does for
 Work out what the unit is for from its names, annotations (such as @RestController, @Entity or @KafkaListener), Javadoc and code, or from the summaries of its parts, and state it directly. If the input does not make its purpose clear, begin instead with what the unit is and what it contains. Never write that the input does not show something or that a purpose cannot be determined; leave out what you cannot tell.
 Call things by their plain names, such as the class Order, the package com.example.orders or the module shop-core, never by the identifiers the facts use, which start with a kind and a colon.
 Do not restate the summaries of the parts sentence by sentence; say what the unit as a whole is for, drawing on them.
-Say only what the input shows or what follows from it. End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a sentence about purpose cites the facts, source files or summaries it is inferred from. Cite only references from the input.
+Say only what the input shows or what follows from it. End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a sentence about purpose cites the facts, source files or summaries it is inferred from. Cite only references from the input, each one on its own, such as [F1, F2, F3], never a range such as [F1-F3].
 Write plain prose without headings, lists or a title.
 
 ##### summarize type type:com.example.greeting.lib.Greeter

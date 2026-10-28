@@ -12,14 +12,26 @@ import java.util.regex.Pattern;
  * Checks the references a model's answer cites and rewrites them to stable IDs. References are
  * {@code F<n>} for the n-th fact, {@code E<n>} for the n-th source excerpt and {@code S<n>} for the
  * n-th contained summary in the prompt, cited in square brackets, alone or several separated by
- * commas ({@code [F1, E2, S2]}). An excerpt is cited as the fact whose evidence it was taken from.
+ * commas ({@code [F1, E2, S2]}). A range of one kind, such as {@code [F1-F3]} or {@code [F1–F3]},
+ * cites every reference in it. An excerpt is cited as the fact whose evidence it was taken from.
  */
 final class Citations {
 
+  /** A reference, or a range of them separated by a hyphen, en dash or em dash. */
+  private static final String REF = "[FES]\\d+(?:\\s*[-\u2013\u2014]\\s*[FES]?\\d+)?";
+
   private static final Pattern GROUP =
-      Pattern.compile("\\[\\s*([FES]\\d+(?:\\s*,\\s*[FES]\\d+)*)\\s*\\]");
+      Pattern.compile("\\[\\s*(" + REF + "(?:\\s*,\\s*" + REF + ")*)\\s*\\]");
+  private static final Pattern RANGE =
+      Pattern.compile("([FES])(\\d+)\\s*[-\u2013\u2014]\\s*([FES]?)(\\d+)");
   private static final Pattern MARKER = Pattern.compile("\\[(?:fact|summary):");
   private static final Pattern SPLIT = Pattern.compile("\\s*,\\s*");
+
+  /** The most references a range may span to be expanded; no prompt gives this many. */
+  private static final int MAX_RANGE = 10_000;
+
+  /** The most references a rejection lists. */
+  private static final int MAX_LISTED = 10;
 
   private Citations() {}
 
@@ -72,11 +84,32 @@ final class Citations {
     Set<String> citedFacts = new LinkedHashSet<>();
     Set<String> citedSummaries = new LinkedHashSet<>();
     Set<String> unknown = new TreeSet<>();
+    Set<String> unreadable = new TreeSet<>();
+    Set<String> beyond = new TreeSet<>();
     StringBuilder out = new StringBuilder();
     Matcher matcher = GROUP.matcher(text);
     while (matcher.find()) {
       StringBuilder markers = new StringBuilder();
-      for (String ref : SPLIT.split(matcher.group(1))) {
+      List<String> refs = new ArrayList<>();
+      for (String token : SPLIT.split(matcher.group(1))) {
+        Range range = Range.of(token);
+        if (range == null) {
+          refs.add(token);
+        } else if (!range.readable()) {
+          unreadable.add(range.written());
+        } else if (range.first() < 1
+            || range.last()
+                > switch (range.kind()) {
+                  case 'F' -> facts.size();
+                  case 'E' -> excerpts.size();
+                  default -> children.size();
+                }) {
+          beyond.add(range.written());
+        } else {
+          refs.addAll(range.refs());
+        }
+      }
+      for (String ref : refs) {
         int index = parseIndex(ref.substring(1));
         if (allowed != null && !allowed.contains(ref)) {
           unknown.add(ref);
@@ -99,8 +132,22 @@ final class Citations {
       matcher.appendReplacement(out, Matcher.quoteReplacement(markers.toString()));
     }
     matcher.appendTail(out);
+    List<String> problems = new ArrayList<>();
+    if (!unreadable.isEmpty()) {
+      problems.add(
+          "it cites ranges that are not of one kind in ascending order, or are too long: "
+              + listed(unreadable)
+              + "; cite each reference on its own");
+    }
+    if (!beyond.isEmpty()) {
+      problems.add(
+          "it cites ranges that reach past the references in the input: " + listed(beyond));
+    }
     if (!unknown.isEmpty()) {
-      throw new Rejected("it cites references that are not in the input: " + unknown + ".");
+      problems.add("it cites references that are not in the input: " + listed(unknown));
+    }
+    if (!problems.isEmpty()) {
+      throw new Rejected(String.join("; ", problems) + ".");
     }
     if (citedFacts.isEmpty() && citedSummaries.isEmpty()) {
       throw new Rejected("it cites no references.");
@@ -109,14 +156,83 @@ final class Citations {
         out.toString(), new ArrayList<>(citedFacts), new ArrayList<>(citedSummaries));
   }
 
-  /** The references a text cites, such as {@code F3} and {@code S1}, in order of first citation. */
+  /**
+   * The references a text cites, such as {@code F3} and {@code S1}, in order of first citation,
+   * with a range listed as every reference in it. A range that cannot be expanded is listed as
+   * written, without spaces, so it matches no reference.
+   */
   static Set<String> references(String text) {
     Set<String> refs = new LinkedHashSet<>();
     Matcher matcher = GROUP.matcher(text);
     while (matcher.find()) {
-      refs.addAll(List.of(SPLIT.split(matcher.group(1))));
+      for (String token : SPLIT.split(matcher.group(1))) {
+        Range range = Range.of(token);
+        if (range == null) {
+          refs.add(token);
+        } else if (range.readable() && range.first() >= 1) {
+          refs.addAll(range.refs());
+        } else {
+          refs.add(range.written());
+        }
+      }
     }
     return refs;
+  }
+
+  /** The first {@link #MAX_LISTED} of some references, and how many more there are. */
+  private static String listed(Set<String> refs) {
+    if (refs.size() <= MAX_LISTED) {
+      return refs.toString();
+    }
+    return refs.stream().limit(MAX_LISTED).toList()
+        + " and "
+        + (refs.size() - MAX_LISTED)
+        + " more";
+  }
+
+  /**
+   * A range of references as cited, such as {@code F1-F3}.
+   *
+   * @param kind the first reference's kind, {@code F}, {@code E} or {@code S}
+   * @param first the first index, or -1 if it is too large to read
+   * @param last the last index, or -1 if it is too large to read
+   * @param readable whether both indexes could be read and it is of one kind, in ascending order
+   *     and spans at most {@link #MAX_RANGE} references, so it can be expanded
+   * @param written the range as cited, without spaces
+   */
+  private record Range(char kind, long first, long last, boolean readable, String written) {
+
+    /** The range a token cites, or {@code null} if it is a single reference. */
+    static Range of(String token) {
+      Matcher matcher = RANGE.matcher(token);
+      if (!matcher.matches()) {
+        return null;
+      }
+      char kind = matcher.group(1).charAt(0);
+      long first = parseLong(matcher.group(2));
+      long last = parseLong(matcher.group(4));
+      boolean sameKind = matcher.group(3).isEmpty() || matcher.group(3).charAt(0) == kind;
+      boolean parsed = first >= 0 && last >= 0;
+      boolean readable = sameKind && parsed && first <= last && last - first < MAX_RANGE;
+      return new Range(kind, first, last, readable, token.replaceAll("\\s+", ""));
+    }
+
+    /** Every reference in the range, which must be readable. */
+    List<String> refs() {
+      List<String> refs = new ArrayList<>();
+      for (long offset = 0; offset <= last - first; offset++) {
+        refs.add(kind + Long.toString(first + offset));
+      }
+      return refs;
+    }
+  }
+
+  private static long parseLong(String digits) {
+    try {
+      return Long.parseLong(digits);
+    } catch (NumberFormatException e) {
+      return -1;
+    }
   }
 
   private static int parseIndex(String digits) {
