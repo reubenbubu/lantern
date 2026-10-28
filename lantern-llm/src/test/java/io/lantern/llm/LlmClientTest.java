@@ -339,10 +339,10 @@ class LlmClientTest {
     assertThat(whole.usage().output()).isEqualTo(410);
     assertThat(log.calls().getLast().outcome()).isEqualTo(LlmCall.Outcome.SUCCEEDED);
   }
+
   @Test
   void thinkingHeadroomMustNotBeNegativeAndAContextWindowStopIsACutOff() {
-    assertThatThrownBy(() -> new Thinking(false, -1))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new Thinking(false, -1)).isInstanceOf(IllegalArgumentException.class);
     assertThat(new LlmResponse("x", LlmResponse.CONTEXT_WINDOW_EXCEEDED, TokenUsage.NONE).cutOff())
         .isTrue();
     assertThat(new LlmResponse("x", "end_turn", TokenUsage.NONE).cutOff()).isFalse();
