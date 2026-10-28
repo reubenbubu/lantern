@@ -20,7 +20,6 @@ import io.lantern.llm.TokenUsage;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,7 +37,7 @@ class SummarizerTest {
    * A well-behaved model: names the unit, includes a fingerprint of its prompt so the text changes
    * whenever the inputs do, and cites every reference it was given.
    */
-  private static String citingAll(LlmRequest request) {
+  static String citingAll(LlmRequest request) {
     String prompt = request.messages().getFirst().text();
     List<String> refs = new ArrayList<>();
     Matcher ref = REF.matcher(prompt);
@@ -77,8 +76,9 @@ class SummarizerTest {
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
-    assertThat(summarizedUnits())
-        .containsExactly(
+    List<String> units = summarizedUnits();
+    assertThat(units)
+        .containsExactlyInAnyOrder(
             "type:com.example.shop.Order$Line",
             "type:com.example.shop.Order",
             "type:com.example.shop.PriceService",
@@ -86,6 +86,18 @@ class SummarizerTest {
             "module:com.example:shop-core",
             "module:com.example:shop",
             "repo:shop");
+    // Siblings may run in any order, but every unit comes after the units it contains.
+    assertThat(units.indexOf("type:com.example.shop.Order$Line"))
+        .isLessThan(units.indexOf("type:com.example.shop.Order"));
+    assertThat(units.indexOf("type:com.example.shop.Order"))
+        .isLessThan(units.indexOf("package:com.example:shop-core:com.example.shop"));
+    assertThat(units.indexOf("type:com.example.shop.PriceService"))
+        .isLessThan(units.indexOf("package:com.example:shop-core:com.example.shop"));
+    assertThat(units.indexOf("package:com.example:shop-core:com.example.shop"))
+        .isLessThan(units.indexOf("module:com.example:shop-core"));
+    assertThat(units.indexOf("module:com.example:shop-core"))
+        .isLessThan(units.indexOf("module:com.example:shop"));
+    assertThat(units.indexOf("module:com.example:shop")).isLessThan(units.indexOf("repo:shop"));
     Summary pkg =
         result.summaries().get(EntityId.parse("package:com.example:shop-core:com.example.shop"));
     Summary order = result.summaries().get(EntityId.parse("type:com.example.shop.Order"));
@@ -95,7 +107,13 @@ class SummarizerTest {
     assertThat(pkg.citedSummaries()).containsExactly(order.key(), priceService.key());
     assertThat(pkg.text()).contains("[summary:type:com.example.shop.Order]");
     // The package's prompt shows its types' summaries without their own citations.
-    String packagePrompt = fake.sent().get(3).request().messages().getFirst().text();
+    String packagePrompt =
+        fake.sent()
+            .get(units.indexOf("package:com.example:shop-core:com.example.shop"))
+            .request()
+            .messages()
+            .getFirst()
+            .text();
     assertThat(packagePrompt)
         .contains("[S1] type:com.example.shop.Order: Summary of type:com.example.shop.Order")
         .doesNotContain("[fact:");
@@ -279,14 +297,33 @@ class SummarizerTest {
     assertThat(store.size()).isZero();
   }
 
+  /** Answers the first prompt for {@code Order$Line} with the given text, and others well. */
+  private void firstLineAnswer(String text) {
+    fake.answering(
+        request ->
+            request.purpose().endsWith("type:com.example.shop.Order$Line")
+                ? text
+                : citingAll(request));
+  }
+
+  /** The one request sent again with the reason its answer was rejected. */
+  private LlmRequest retried() {
+    List<LlmRequest> retries =
+        fake.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(request -> request.purpose().endsWith("(retry)"))
+            .toList();
+    assertThat(retries).hasSize(1);
+    return retries.getFirst();
+  }
+
   @Test
   void anEmptyAnswerIsRetriedWithTheReason() {
-    AtomicInteger calls = new AtomicInteger();
-    fake.answering(request -> calls.getAndIncrement() == 0 ? " " : citingAll(request));
+    firstLineAnswer(" ");
 
     summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
-    List<LlmMessage> retry = fake.sent().get(1).request().messages();
+    List<LlmMessage> retry = retried().messages();
     assertThat(retry).hasSize(1);
     assertThat(retry.getFirst().text()).contains("Your summary was rejected: it is empty.");
   }
@@ -310,15 +347,13 @@ class SummarizerTest {
 
   @Test
   void aSummaryFixedOnRetryIsKept() {
-    AtomicInteger calls = new AtomicInteger();
-    fake.answering(
-        request -> calls.getAndIncrement() == 0 ? "It is a record [F7]." : citingAll(request));
+    firstLineAnswer("It is a record [F7].");
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     assertThat(result.generated()).isEqualTo(7);
-    assertThat(fake.sent().get(1).request().messages().get(2).text())
+    assertThat(retried().messages().get(2).text())
         .contains("it cites references that are not in the input: [F7].");
     assertThat(store.size()).isEqualTo(7);
   }

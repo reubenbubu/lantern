@@ -44,7 +44,8 @@ where model settings come from.
   line per call on the `io.lantern.llm.calls` logger, and an in-memory list. Persisting the log
   and a monthly budget across runs are left to #37.
 - **Anthropic through the official SDK** (`com.anthropic:anthropic-java` 3.3.0, the latest
-  release), with its OkHttp client and default retries. SDK errors become `LlmException`. Tests
+  release), with its OkHttp client. (Its default retries were turned off in favour of
+  `LlmClient`'s own, see ADR 0021.) SDK errors become `LlmException`. Tests
   point the SDK at a stub HTTP server on the loopback interface with a dummy key, so they check
   the real request and response JSON without touching the network.
 - **The real-provider test** (`AnthropicProviderRealTest`) runs only when

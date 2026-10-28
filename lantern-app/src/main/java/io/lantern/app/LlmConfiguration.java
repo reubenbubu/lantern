@@ -95,7 +95,13 @@ class LlmConfiguration {
     try {
       LlmAccess access =
           LlmAccess.configured(
-              settings, providers, stored, log, properties.monthlyBudgetUsd(), clock);
+              settings,
+              providers,
+              stored,
+              log,
+              properties.monthlyBudgetUsd(),
+              clock,
+              properties.retry().toPolicy());
       return anthropic == null ? access : access.owning(anthropic);
     } catch (RuntimeException e) {
       if (anthropic != null) {

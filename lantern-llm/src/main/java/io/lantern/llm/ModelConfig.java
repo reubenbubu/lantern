@@ -12,13 +12,15 @@ import java.util.Set;
  * @param capabilities the optional features the model supports
  * @param contextWindow the most tokens, input plus output, one call may use
  * @param pricing what the model costs
+ * @param limits how many calls to the model may be in flight at once and how often they may start
  */
 public record ModelConfig(
     String provider,
     String model,
     Set<Capability> capabilities,
     int contextWindow,
-    Pricing pricing) {
+    Pricing pricing,
+    CallLimits limits) {
 
   public ModelConfig {
     provider = nonBlank("Provider", provider);
@@ -31,6 +33,22 @@ public record ModelConfig(
       throw new IllegalArgumentException("Context window must be positive: " + contextWindow);
     }
     Objects.requireNonNull(pricing, "pricing");
+    Objects.requireNonNull(limits, "limits");
+  }
+
+  /** A model with the {@linkplain CallLimits#DEFAULT default limits}. */
+  public ModelConfig(
+      String provider,
+      String model,
+      Set<Capability> capabilities,
+      int contextWindow,
+      Pricing pricing) {
+    this(provider, model, capabilities, contextWindow, pricing, CallLimits.DEFAULT);
+  }
+
+  /** The same model with other limits. */
+  public ModelConfig withLimits(CallLimits limits) {
+    return new ModelConfig(provider, model, capabilities, contextWindow, pricing, limits);
   }
 
   /** Whether the model supports the given feature. */

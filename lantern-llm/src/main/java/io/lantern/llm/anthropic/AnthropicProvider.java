@@ -2,7 +2,11 @@ package io.lantern.llm.anthropic;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.core.http.Headers;
 import com.anthropic.errors.AnthropicException;
+import com.anthropic.errors.AnthropicIoException;
+import com.anthropic.errors.AnthropicRetryableException;
+import com.anthropic.errors.AnthropicServiceException;
 import com.anthropic.models.messages.CacheControlEphemeral;
 import com.anthropic.models.messages.ContentBlock;
 import com.anthropic.models.messages.Message;
@@ -17,14 +21,28 @@ import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.TokenUsage;
+import io.lantern.llm.TransientLlmException;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
 
-/** Calls Anthropic's Messages API through the official Java SDK. */
+/**
+ * Calls Anthropic's Messages API through the official Java SDK. Rate limits (HTTP 429), timeouts
+ * (408), overload and server errors (5xx) and connection failures become a {@link
+ * TransientLlmException} with the wait the API asked for, so {@link io.lantern.llm.LlmClient}
+ * retries them; a provider made by {@link #create} leaves retrying to it and does not retry itself.
+ */
 public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 
   /** The provider name model settings use for Anthropic. */
   public static final String NAME = "anthropic";
+
+  /** The longest wait taken from a retry-after header, so a bad value cannot stall a run. */
+  private static final double MAX_RETRY_AFTER_MS = 10 * 60 * 1000;
 
   private final AnthropicClient client;
   private final boolean ownsClient;
@@ -49,7 +67,8 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     if (apiKey == null || apiKey.isBlank()) {
       throw new IllegalArgumentException("Anthropic API key must not be blank");
     }
-    AnthropicOkHttpClient.Builder builder = AnthropicOkHttpClient.builder().apiKey(apiKey);
+    AnthropicOkHttpClient.Builder builder =
+        AnthropicOkHttpClient.builder().apiKey(apiKey).maxRetries(0);
     if (baseUrl != null) {
       builder.baseUrl(baseUrl);
     }
@@ -74,9 +93,66 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     try {
       message = client.messages().create(params(model, request));
     } catch (AnthropicException e) {
-      throw new LlmException("Anthropic call failed: " + e.getMessage(), e);
+      throw error(e);
     }
     return response(message);
+  }
+
+  static LlmException error(AnthropicException e) {
+    String message = "Anthropic call failed: " + e.getMessage();
+    if (e instanceof AnthropicServiceException service) {
+      int status = service.statusCode();
+      if (status == 408 || status == 429 || status >= 500) {
+        return new TransientLlmException(message, retryAfter(service.headers()), e);
+      }
+      return new LlmException(message, e);
+    }
+    if (e instanceof AnthropicIoException || e instanceof AnthropicRetryableException) {
+      return new TransientLlmException(message, null, e);
+    }
+    return new LlmException(message, e);
+  }
+
+  /**
+   * The wait the API asked for: {@code retry-after-ms} in milliseconds, or {@code retry-after} in
+   * seconds or as an HTTP date; {@code null} if neither is there or readable.
+   */
+  static Duration retryAfter(Headers headers) {
+    for (String value : headers.values("retry-after-ms")) {
+      try {
+        double millis = Double.parseDouble(value.trim());
+        if (millis >= 0 && Double.isFinite(millis)) {
+          return Duration.ofNanos((long) (Math.min(millis, MAX_RETRY_AFTER_MS) * 1_000_000));
+        }
+      } catch (NumberFormatException ignored) {
+        // Try the next header.
+      }
+    }
+    for (String value : headers.values("retry-after")) {
+      try {
+        double seconds = Double.parseDouble(value.trim());
+        if (seconds >= 0 && Double.isFinite(seconds)) {
+          return Duration.ofNanos(
+              (long) (Math.min(seconds * 1000, MAX_RETRY_AFTER_MS) * 1_000_000));
+        }
+      } catch (NumberFormatException notSeconds) {
+        try {
+          Instant at =
+              ZonedDateTime.parse(value.trim(), DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
+          Duration wait = Duration.between(Instant.now(), at);
+          return wait.isNegative()
+              ? Duration.ZERO
+              : min(wait, Duration.ofMillis((long) MAX_RETRY_AFTER_MS));
+        } catch (DateTimeParseException ignored) {
+          // Try the next header.
+        }
+      }
+    }
+    return null;
+  }
+
+  private static Duration min(Duration a, Duration b) {
+    return a.compareTo(b) <= 0 ? a : b;
   }
 
   static MessageCreateParams params(String model, LlmRequest request) {

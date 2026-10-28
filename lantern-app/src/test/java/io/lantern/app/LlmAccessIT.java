@@ -9,6 +9,7 @@ import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Pricing;
+import io.lantern.llm.RetryPolicy;
 import io.lantern.llm.Role;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -145,6 +146,7 @@ class LlmAccessIT {
         stored,
         stored,
         new BigDecimal("0.9"),
-        clock);
+        clock,
+        RetryPolicy.DEFAULT);
   }
 }

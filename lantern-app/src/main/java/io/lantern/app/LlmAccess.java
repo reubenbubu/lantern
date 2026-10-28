@@ -1,10 +1,12 @@
 package io.lantern.app;
 
 import io.lantern.llm.BudgetGuard;
+import io.lantern.llm.CallLimiter;
 import io.lantern.llm.LlmCallLog;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.ModelSettings;
+import io.lantern.llm.RetryPolicy;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.YearMonth;
@@ -22,6 +24,9 @@ import java.util.Objects;
  * log when the month's budget is first needed, so it holds across runs and restarts. Callers add
  * run and scope budgets with {@link LlmClient#withBudget}.
  *
+ * <p>All clients share one {@link CallLimiter}, so each model's concurrency and rate limits hold
+ * for the whole process.
+ *
  * <p>Thread-safe.
  */
 public final class LlmAccess implements AutoCloseable {
@@ -33,6 +38,7 @@ public final class LlmAccess implements AutoCloseable {
   private final LlmCallLog log;
   private final BigDecimal monthlyBudgetUsd;
   private final Clock clock;
+  private final CallLimiter limiter;
 
   private final List<AutoCloseable> owned = new ArrayList<>();
 
@@ -46,7 +52,8 @@ public final class LlmAccess implements AutoCloseable {
       JdbcLlmCallLog storedLog,
       LlmCallLog log,
       BigDecimal monthlyBudgetUsd,
-      Clock clock) {
+      Clock clock,
+      CallLimiter limiter) {
     this.settings = settings;
     this.notConfigured = notConfigured;
     this.providers = providers;
@@ -54,6 +61,7 @@ public final class LlmAccess implements AutoCloseable {
     this.log = log;
     this.monthlyBudgetUsd = monthlyBudgetUsd;
     this.clock = clock;
+    this.limiter = limiter;
   }
 
   /**
@@ -66,6 +74,7 @@ public final class LlmAccess implements AutoCloseable {
    * @param monthlyBudgetUsd the most a calendar month's calls may cost, or {@code null} for no
    *     limit
    * @param clock for call times and the current month
+   * @param retryPolicy how calls that failed for a passing reason are retried
    * @throws IllegalArgumentException if a role's model refers to a provider not given
    */
   public static LlmAccess configured(
@@ -74,7 +83,8 @@ public final class LlmAccess implements AutoCloseable {
       JdbcLlmCallLog storedLog,
       LlmCallLog log,
       BigDecimal monthlyBudgetUsd,
-      Clock clock) {
+      Clock clock,
+      RetryPolicy retryPolicy) {
     LlmAccess access =
         new LlmAccess(
             Objects.requireNonNull(settings, "settings"),
@@ -83,7 +93,8 @@ public final class LlmAccess implements AutoCloseable {
             Objects.requireNonNull(storedLog, "storedLog"),
             Objects.requireNonNull(log, "log"),
             monthlyBudgetUsd,
-            Objects.requireNonNull(clock, "clock"));
+            Objects.requireNonNull(clock, "clock"),
+            new CallLimiter(Objects.requireNonNull(retryPolicy, "retryPolicy")));
     // Checks now, at startup, that every role's provider is there.
     new LlmClient(settings, access.providers, BudgetGuard.unlimited("check"), log, clock);
     return access;
@@ -92,7 +103,7 @@ public final class LlmAccess implements AutoCloseable {
   /** Access that refuses every request, saying why. */
   public static LlmAccess notConfigured(String reason) {
     return new LlmAccess(
-        null, Objects.requireNonNull(reason, "reason"), List.of(), null, null, null, null);
+        null, Objects.requireNonNull(reason, "reason"), List.of(), null, null, null, null, null);
   }
 
   /** Closes the given resource, for example a provider made for this access, on {@link #close}. */
@@ -136,7 +147,7 @@ public final class LlmAccess implements AutoCloseable {
     if (settings == null) {
       throw new LlmNotConfiguredException(notConfigured);
     }
-    return new LlmClient(settings, providers, monthBudget(), log, clock);
+    return new LlmClient(settings, providers, monthBudget(), log, clock, limiter);
   }
 
   /** The current month's budget, with what earlier calls this month spent. */

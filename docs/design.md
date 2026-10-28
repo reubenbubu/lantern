@@ -260,7 +260,7 @@ The LLM handles understanding that static analysis can't provide, always working
 - Per-run and per-scope budgets in tokens and dollars, with an estimate shown before a run starts.
 - Every call is logged with its role, purpose, model, tokens and cost.
 - Tests never call a real provider: they use a fake or recorded responses (see ADR 0008).
-- Calls run in parallel on virtual threads, with rate limiting and retry with backoff per provider.
+- Calls run in parallel on virtual threads, with concurrency and rate limits per model and retry with backoff (see ADR 0021).
 
 ## Learned rules (self-improving extractors)
 
