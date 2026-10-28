@@ -30,6 +30,7 @@
   <properties>
     <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <anthropic-java.version>3.3.0</anthropic-java.version>
     <archunit.version>1.5.1</archunit.version>
     <javaparser.version>3.28.2</javaparser.version>
     <spotless.version>3.10.4</spotless.version>
@@ -68,6 +69,11 @@
         <groupId>io.lantern</groupId>
         <artifactId>lantern-app</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.anthropic</groupId>
+        <artifactId>anthropic-java</artifactId>
+        <version>${anthropic-java.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.javaparser</groupId>
