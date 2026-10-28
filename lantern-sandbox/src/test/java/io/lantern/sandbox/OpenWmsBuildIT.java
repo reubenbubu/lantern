@@ -6,11 +6,13 @@ import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -20,11 +22,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * Builds the OpenWMS repositories of the test set that build on their own in the sandbox; the
- * others need an unpublished snapshot, a host the sandbox does not reach, or have a broken parent
- * reference (#30). Runs only when {@code lantern.test.openwms} names the directory {@code
- * testsets/openwms/clone.sh} cloned them into, for example {@code ./mvnw verify -pl lantern-sandbox
- * -am -Dlantern.test.openwms=$PWD/workspace/openwms}.
+ * Builds the OpenWMS repositories of the test set that build on their own in the sandbox, with the
+ * Maven repositories of the test set's {@code lantern.properties}; the other two need an
+ * unpublished snapshot or have a broken parent reference (#30, ADR 0020). Runs only when {@code
+ * lantern.test.openwms} names the directory {@code testsets/openwms/clone.sh} cloned them into, for
+ * example {@code ./mvnw verify -pl lantern-sandbox -am
+ * -Dlantern.test.openwms=$PWD/workspace/openwms}.
  */
 @EnabledIfSystemProperty(named = "lantern.test.openwms", matches = ".+")
 class OpenWmsBuildIT {
@@ -42,6 +45,16 @@ class OpenWmsBuildIT {
     DOCKER.check(TIMEOUT, List.of("volume", "create", volume));
   }
 
+  /** The Maven repositories of the test set's {@code lantern.properties}. */
+  static List<MavenRepository> testSetRepositories() throws IOException {
+    Properties properties = new Properties();
+    try (InputStream in =
+        Files.newInputStream(Path.of(System.getProperty("lantern.test.openwms.settings")))) {
+      properties.load(in);
+    }
+    return MavenRepository.listFrom(properties);
+  }
+
   @AfterAll
   static void removeVolume() {
     DOCKER.quietly(TIMEOUT, List.of("volume", "rm", "--force", volume));
@@ -54,10 +67,14 @@ class OpenWmsBuildIT {
         "org.openwms.parent",
         "org.openwms.common.service",
         "org.openwms.common.service.lib",
+        "org.openwms.core.process.execution",
         "org.openwms.core.test.arch",
         "org.openwms.core.uaa",
         "org.openwms.core.uaa.lib",
         "org.openwms.core.units",
+        "org.openwms.tms.routing",
+        "org.openwms.tms.routing.lib",
+        "org.openwms.tms.routing.osip",
         "org.openwms.tms.transportation",
         "org.openwms.wms.receiving.lib"
       })
@@ -66,7 +83,9 @@ class OpenWmsBuildIT {
     Repo repo = new Repo(name, path, RepoSettings.DEFAULT);
     String commit = Git.run(path, "rev-parse", "HEAD").out();
     SandboxSettings settings =
-        SandboxSettings.defaults(temp.resolve("builds")).withMavenCacheVolume(volume);
+        SandboxSettings.defaults(temp.resolve("builds"))
+            .withMavenCacheVolume(volume)
+            .withMavenRepositories(testSetRepositories());
 
     BuildResult result = new BuildSandbox(settings).build(repo, commit);
 

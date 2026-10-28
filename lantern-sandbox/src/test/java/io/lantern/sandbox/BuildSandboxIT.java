@@ -8,6 +8,7 @@ import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,6 +34,13 @@ class BuildSandboxIT {
 
   private static final Docker DOCKER = new Docker("docker");
   private static final Duration TIMEOUT = Duration.ofMinutes(2);
+
+  /** The Alfresco repository Activiti releases come from; it is not on Maven Central. */
+  private static final MavenRepository ACTIVITI =
+      new MavenRepository(
+          "activiti",
+          URI.create(
+              "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases"));
 
   private static String volume;
   private static Path fixtures;
@@ -455,6 +463,8 @@ class BuildSandboxIT {
     assertThat(probe.getProperty("gateway")).isIn("none", "blocked");
     assertThat(probe.getProperty("proxy.allowed")).isEqualTo("200");
     assertThat(probe.getProperty("proxy.denied")).isEqualTo("403");
+    // By default only Maven Central.
+    assertThat(probe.getProperty("proxy.extra")).isEqualTo("403");
     assertThat(probe.getProperty("proxy.plain")).isEqualTo("405");
     // Limits as the build sees them.
     assertThat(probe.getProperty("memory.max")).isEqualTo(Long.toString(settings.memoryBytes()));
@@ -467,6 +477,55 @@ class BuildSandboxIT {
     assertThat(probe.getProperty("git")).isEqualTo("false");
     assertThat(probe.getProperty("docker.socket")).isEqualTo("false");
     assertThat(Files.readString(result.log())).contains("denied CONNECT example.com:443");
+  }
+
+  @Test
+  void reachesAConfiguredRepositoryAndStillNoOtherHost() throws IOException, URISyntaxException {
+    Repo repo = repo(sandboxFixture("probe"), "probe", RepoSettings.DEFAULT);
+    SandboxSettings settings =
+        settings().withMavenRepositories(List.of(MavenRepository.CENTRAL, ACTIVITI));
+
+    BuildResult result = new BuildSandbox(settings).build(repo, TestRepos.head(repo));
+
+    assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
+    Properties probe = new Properties();
+    try (InputStream in =
+        Files.newInputStream(
+            result.resolve(result.modules().getFirst().classes()).resolve("probe.properties"))) {
+      probe.load(in);
+    }
+    assertThat(probe.getProperty("proxy.allowed")).isEqualTo("200");
+    assertThat(probe.getProperty("proxy.extra")).isEqualTo("200");
+    // A host no repository names is still blocked, and so is everything around the proxy.
+    assertThat(probe.getProperty("proxy.denied")).isEqualTo("403");
+    assertThat(probe.getProperty("proxy.plain")).isEqualTo("405");
+    assertThat(probe.getProperty("direct.name")).isEqualTo("blocked");
+    assertThat(probe.getProperty("dns")).isEqualTo("failed");
+    assertThat(Files.readString(result.log())).contains("denied CONNECT example.com:443");
+  }
+
+  @Test
+  void downloadsFromAConfiguredRepositoryOnlyWhenConfigured()
+      throws IOException, URISyntaxException {
+    Repo repo = repo(sandboxFixture("activiti"), "activiti", RepoSettings.DEFAULT);
+    String commit = TestRepos.head(repo);
+    String jar =
+        "lib/org/activiti/activiti-api-runtime-shared/8.8.0-alpha.7/"
+            + "activiti-api-runtime-shared-8.8.0-alpha.7.jar";
+
+    BuildResult central = new BuildSandbox(settings()).build(repo, commit);
+
+    assertThat(central.status()).isEqualTo(BuildStatus.FAILED);
+    assertThat(Files.readString(central.log())).contains("activiti-api-runtime-shared");
+
+    BuildResult configured =
+        new BuildSandbox(
+                settings().withMavenRepositories(List.of(MavenRepository.CENTRAL, ACTIVITI)))
+            .build(repo, commit);
+
+    assertThat(configured.status()).as(log(configured)).isEqualTo(BuildStatus.SUCCEEDED);
+    assertThat(configured.modules().getFirst().classpath()).contains(jar);
+    assertThat(configured.resolve(jar)).isRegularFile();
   }
 
   /** Installs a fixture project into the shared Maven cache, as if it came from the repository. */

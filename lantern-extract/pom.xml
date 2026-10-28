@@ -62,6 +62,8 @@
             <!-- ...reading, but never writing, the local repository of the outer build. -->
             <lantern.test.localRepository>${settings.localRepository}</lantern.test.localRepository>
             <lantern.test.openwms>${lantern.test.openwms}</lantern.test.openwms>
+            <!-- The OpenWMS test set's Lantern settings: the Maven repositories its builds use. -->
+            <lantern.test.openwms.settings>${maven.multiModuleProjectDirectory}/testsets/openwms/lantern.properties</lantern.test.openwms.settings>
           </systemPropertyVariables>
         </configuration>
       </plugin>

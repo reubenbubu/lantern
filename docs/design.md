@@ -73,12 +73,13 @@ Repos are cloned onto the service host, and each analysis builds them for real i
 - One container per repo build, run with Docker or Podman on the single VM.
 - Images per JDK (8, 11, 17, 21, 25). The JDK is detected from `maven.compiler.release` / `source` / toolchains, with a per-repo override.
 - A mounted `settings.xml` gives access to the internal Nexus or Artifactory.
+- The Maven repositories builds may download from are configured per analysis (`lantern.sandbox.maven-repositories`, an id and URL each, exact locations, no wildcards); Maven Central alone by default. Test sets name extra ones in their own settings, as OpenWMS does for Alfresco's Activiti repository. Downloads are only used to compile; third-party code is never analyzed.
 - A shared, persistent local Maven repository cache across builds, for speed.
 - The build runs to `compile` (which includes `generate-sources` and annotation processing), with tests skipped. The outputs the analyzer needs are the resolved classpath, generated sources and compiled classes.
 - Resource limits (CPU, memory, disk, timeout) per container, builds run as a non-root user, and a concurrency limit for the VM.
 - **Fallback:** if a build fails, analysis continues in degraded mode (source parsing with whatever classpath resolves), and the affected facts are marked lower-confidence.
 
-**What leaves the sandbox:** classpath, generated sources, class files and build metadata (effective POM, dependency tree, module graph). No network access from the build except to the artifact repository. How the sandbox enforces this, chooses the JDK and stores outputs is in ADR 0005; the build user and disk limit are in ADR 0019.
+**What leaves the sandbox:** classpath, generated sources, class files and build metadata (effective POM, dependency tree, module graph). No network access from the build except to the configured artifact repositories. How the sandbox enforces this, chooses the JDK and stores outputs is in ADR 0005; the build user and disk limit are in ADR 0019; the configured repositories are in ADR 0023.
 
 ## Static analysis and extractors
 
@@ -453,7 +454,7 @@ Lantern runs as a single Spring Boot service on one VM, with PostgreSQL for all 
 **Security**
 
 - LLM API keys and git credentials are stored encrypted, outside the fact tables.
-- Build containers have network access only to the artifact repository.
+- Build containers have network access only to the configured artifact repositories.
 - Code sent to the LLM is limited to what each task needs, and every call is logged with its purpose.
 
 **Scaling path.** A single VM is enough to start. Workers and build runners are separate within the codebase, so they can move to their own machines later without redesign.

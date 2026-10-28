@@ -29,7 +29,8 @@ test set to released code rather than build a snapshot's repositories in depende
     the umbrella POM is `4.0.0`, so Maven cannot read the project.
   - `core.process.execution`, and through it `tms.routing.lib`, `tms.routing.osip` and
     `tms.routing`: they need Activiti `8.8.0-alpha.7`, which is only on `artifacts.alfresco.com`,
-    a host the sandbox's default allowlist does not reach.
+    a host the sandbox's default allowlist does not reach. Amended by ADR 0023: the test set now
+    configures that repository, and these four build, making 14 of 16.
   - `wms.receiving`: it has no release and needs `wms.receiving.lib:1.0.0-SNAPSHOT`, which is not
     published.
 

@@ -54,7 +54,8 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
 - **Workspace storage** is `lantern.workspace` (environment `LANTERN_WORKSPACE`, default
   `workspace` in the working directory, which the repository ignores, next to the OpenWMS
   clones). Builds go to `builds/` (ADR 0005), documents to `documents/`. The shared Maven cache
-  volume is `lantern.sandbox.maven-cache-volume` (default `lantern-maven-cache`); other sandbox
+  volume is `lantern.sandbox.maven-cache-volume` (default `lantern-maven-cache`), and the Maven
+  repositories builds may use are `lantern.sandbox.maven-repositories` (ADR 0023); other sandbox
   limits keep their defaults.
 - **The sandbox stages outputs next to the builds directory** instead of the system temporary
   directory, because moving a directory across filesystems fails (#35); `/tmp` is often a

@@ -23,6 +23,7 @@ public class Probe {
     results.setProperty("gateway", gateway());
     results.setProperty("proxy.allowed", viaProxy("CONNECT repo.maven.apache.org:443 HTTP/1.1"));
     results.setProperty("proxy.denied", viaProxy("CONNECT example.com:443 HTTP/1.1"));
+    results.setProperty("proxy.extra", viaProxy("CONNECT artifacts.alfresco.com:443 HTTP/1.1"));
     results.setProperty("proxy.plain", viaProxy("GET http://example.com/ HTTP/1.1"));
     results.setProperty("memory.max", read("/sys/fs/cgroup/memory.max"));
     results.setProperty("memory.swap.max", read("/sys/fs/cgroup/memory.swap.max"));

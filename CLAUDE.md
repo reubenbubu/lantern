@@ -96,7 +96,7 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 ## Commands
 
-Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start PostgreSQL with Testcontainers, create temporary git repositories and run real build containers, which pull the Maven images and download from Maven Central). The build also downloads Node into `lantern-web/target` and npm packages from the npm registry, so no local Node install is needed. Run from the repo root.
+Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start PostgreSQL with Testcontainers, create temporary git repositories and run real build containers, which pull the Maven images and download from Maven Central and, for one test, `artifacts.alfresco.com`). The build also downloads Node into `lantern-web/target` and npm packages from the npm registry, so no local Node install is needed. Run from the repo root.
 
 - Build and test everything (this is CI): `./mvnw verify`
 - Fix formatting: `./mvnw spotless:apply`
@@ -106,7 +106,8 @@ Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start
 - With Node 24 installed, build the single-file HTML template and write a document model into it: `npm --prefix lantern-web run build && node lantern-web/scripts/render.mjs <document.json> <out.html>`
 - Start the local database: `docker compose up -d` (stop with `docker compose down`). Inside a task, run both with `COMPOSE_PROJECT_NAME=lantern-<number>`; it publishes the fixed port 5432, so only one task at a time.
 - Clone the OpenWMS test set at its pinned commits into `workspace/openwms` (safe to rerun): `testsets/openwms/clone.sh`
-- Also build the OpenWMS repos in the sandbox and extract their Maven facts (after cloning): `./mvnw verify -pl lantern-extract -am -Dlantern.test.openwms=$PWD/workspace/openwms` (this also runs the sandbox-only OpenWMS build test, so the repos are built twice)
+- Also build the OpenWMS repos in the sandbox and extract their Maven facts (after cloning): `./mvnw verify -pl lantern-extract -am -Dlantern.test.openwms=$PWD/workspace/openwms` (this also runs the sandbox-only OpenWMS build test, so the repos are built twice). The builds use the Maven repositories in `testsets/openwms/lantern.properties`.
+- Sandbox builds download only from the Maven repositories in `lantern.sandbox.maven-repositories` (Maven Central by default; see `docs/adr/0023-configurable-maven-repositories.md`). To analyze OpenWMS, add its settings to the app's: `--spring.config.additional-location=file:testsets/openwms/lantern.properties,file:<llm.properties>`.
 - Compose an Architecture Explorer document (`<repo>.json`) and an Executive Brief (`<repo>.brief.json`) for every OpenWMS repo (after cloning; extracted without builds, summarized by the fake model) into `lantern-compose/target/openwms-documents`, to render with `render.mjs`: `./mvnw verify -pl lantern-compose -am -Dlantern.test.openwms=$PWD/workspace/openwms -Dit.test=OpenWmsComposeIT -Dtest=none -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false`
 - Run the real-provider LLM test (costs money; only with the user's go-ahead), with `ANTHROPIC_API_KEY` already exported: `LANTERN_LLM_REAL_TEST=true LANTERN_LLM_REAL_TEST_MODEL=<model> ./mvnw verify -pl lantern-llm -am`
 - Run the app (needs the local database): `./mvnw install -DskipTests && ./mvnw spring-boot:run -pl lantern-app`

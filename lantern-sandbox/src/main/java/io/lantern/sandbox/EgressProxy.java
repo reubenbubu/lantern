@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 /**
  * The only way out of a build container's network: an HTTP proxy that tunnels {@code CONNECT}
- * requests to an allowed list of {@code host:port} targets (the artifact repository) and refuses
+ * requests to an allowed list of {@code host:port} targets (the Maven repositories) and refuses
  * everything else.
  *
  * <p>It runs in its own container, attached to the build's internal network and to a network with

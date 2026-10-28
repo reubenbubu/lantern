@@ -11,12 +11,16 @@ import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.TestDocker;
 import io.lantern.sandbox.BuildSandbox;
+import io.lantern.sandbox.MavenRepository;
 import io.lantern.sandbox.SandboxSettings;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,11 +34,11 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Builds the whole OpenWMS test set in the sandbox and extracts its Maven facts. Six of the 16
- * repositories fail to build (#30, ADR 0020); four still leave their effective POM and two are read
- * from their POM as written. Runs only when {@code lantern.test.openwms} names the directory {@code
- * testsets/openwms/clone.sh} cloned them into, for example {@code ./mvnw verify -pl lantern-extract
- * -am -Dlantern.test.openwms=$PWD/workspace/openwms}.
+ * Builds the whole OpenWMS test set in the sandbox, with the Maven repositories of its {@code
+ * lantern.properties}, and extracts its Maven facts. Two of the 16 repositories fail to build and
+ * are read in degraded mode (#30, ADR 0020). Runs only when {@code lantern.test.openwms} names the
+ * directory {@code testsets/openwms/clone.sh} cloned them into, for example {@code ./mvnw verify
+ * -pl lantern-extract -am -Dlantern.test.openwms=$PWD/workspace/openwms}.
  */
 @EnabledIfSystemProperty(named = "lantern.test.openwms", matches = ".+")
 class OpenWmsMavenIT {
@@ -53,6 +57,16 @@ class OpenWmsMavenIT {
     TestDocker.removeVolume(volume);
   }
 
+  /** The Maven repositories of the test set's {@code lantern.properties}. */
+  private static List<MavenRepository> testSetRepositories() throws IOException {
+    Properties properties = new Properties();
+    try (InputStream in =
+        Files.newInputStream(Path.of(System.getProperty("lantern.test.openwms.settings")))) {
+      properties.load(in);
+    }
+    return MavenRepository.listFrom(properties);
+  }
+
   @Test
   void findsTheFiveServicesEachLinkedToItsLibrary() throws Exception {
     Path root = Path.of(System.getProperty("lantern.test.openwms"));
@@ -65,7 +79,9 @@ class OpenWmsMavenIT {
     assertThat(repos).hasSize(16);
     BuildSandbox sandbox =
         new BuildSandbox(
-            SandboxSettings.defaults(temp.resolve("builds")).withMavenCacheVolume(volume));
+            SandboxSettings.defaults(temp.resolve("builds"))
+                .withMavenCacheVolume(volume)
+                .withMavenRepositories(testSetRepositories()));
     List<RepoBuild> inputs = new ArrayList<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       List<Future<RepoBuild>> builds = new ArrayList<>();

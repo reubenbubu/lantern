@@ -3,6 +3,7 @@ package io.lantern.sandbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -14,7 +15,10 @@ class SandboxSettingsTest {
   private static final Path BUILDS = Path.of("/var/lantern/builds");
 
   private static SandboxSettings with(
-      Map<Integer, String> images, int defaultJdk, List<String> hosts, Path builds) {
+      Map<Integer, String> images,
+      int defaultJdk,
+      List<MavenRepository> repositories,
+      Path builds) {
     SandboxSettings d = SandboxSettings.defaults(BUILDS);
     return new SandboxSettings(
         d.dockerCommand(),
@@ -26,7 +30,7 @@ class SandboxSettingsTest {
         d.timeout(),
         d.maxConcurrentBuilds(),
         d.mavenCacheVolume(),
-        hosts,
+        repositories,
         builds,
         d.maxOutputBytes(),
         d.maxLogBytes(),
@@ -40,6 +44,7 @@ class SandboxSettingsTest {
 
     assertThat(settings.images().keySet()).containsExactly(17, 21, 25);
     assertThat(settings.defaultJdk()).isEqualTo(21);
+    assertThat(settings.mavenRepositories()).containsExactly(MavenRepository.CENTRAL);
     assertThat(settings.allowedHosts()).containsExactly("repo.maven.apache.org:443");
     assertThat(settings.proxyImage()).isEqualTo("maven:3.9.16-eclipse-temurin-25");
     assertThat(settings.withTimeout(Duration.ofMinutes(1)).timeout()).hasMinutes(1);
@@ -49,17 +54,48 @@ class SandboxSettingsTest {
   }
 
   @Test
+  void allowsTheHostOfEachConfiguredRepositoryOnce() {
+    MavenRepository activiti =
+        new MavenRepository(
+            "activiti",
+            URI.create(
+                "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases"));
+    MavenRepository other =
+        new MavenRepository(
+            "other", URI.create("https://artifacts.alfresco.com:8443/nexus/content/groups/public"));
+    MavenRepository sameHost =
+        new MavenRepository(
+            "same-host", URI.create("https://artifacts.alfresco.com/nexus/content/groups/public"));
+
+    SandboxSettings settings =
+        SandboxSettings.defaults(BUILDS)
+            .withMavenRepositories(List.of(MavenRepository.CENTRAL, activiti, other, sameHost));
+
+    assertThat(settings.allowedHosts())
+        .containsExactly(
+            "repo.maven.apache.org:443",
+            "artifacts.alfresco.com:443",
+            "artifacts.alfresco.com:8443");
+  }
+
+  @Test
   void rejectsInconsistentSettings() {
-    List<String> central = List.of(SandboxSettings.MAVEN_CENTRAL);
+    List<MavenRepository> central = List.of(MavenRepository.CENTRAL);
     assertThatThrownBy(() -> with(SandboxSettings.DEFAULT_IMAGES, 11, central, BUILDS))
         .hasMessageContaining("default JDK");
     assertThatThrownBy(() -> with(Map.of(17, "maven:17"), 17, central, BUILDS))
         .hasMessageContaining("egress proxy");
     assertThatThrownBy(() -> with(Map.of(21, "--privileged"), 21, central, BUILDS))
         .hasMessageContaining("Invalid image");
+    assertThatThrownBy(() -> with(SandboxSettings.DEFAULT_IMAGES, 21, List.of(), BUILDS))
+        .hasMessageContaining("At least one Maven repository");
+    MavenRepository otherCentral =
+        new MavenRepository("central", URI.create("https://repo1.maven.org/maven2"));
     assertThatThrownBy(
-            () -> with(SandboxSettings.DEFAULT_IMAGES, 21, List.of("example.com"), BUILDS))
-        .hasMessageContaining("host:port");
+            () ->
+                SandboxSettings.defaults(BUILDS)
+                    .withMavenRepositories(List.of(MavenRepository.CENTRAL, otherCentral)))
+        .hasMessageContaining("distinct");
     assertThatThrownBy(() -> with(SandboxSettings.DEFAULT_IMAGES, 21, central, Path.of("relative")))
         .hasMessageContaining("absolute");
     assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withMavenCacheVolume("../x"))

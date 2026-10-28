@@ -47,11 +47,11 @@ import java.util.stream.Stream;
  * result in {@code build.json} and the log in {@code build.log}.
  *
  * <p>Each build gets its own container and its own internal Docker network, which has no route out.
- * The only other container on that network is an egress proxy that tunnels to the allowed hosts
- * (the artifact repository) and nothing else. The build container gets the repository's files at
- * the commit (no {@code .git}), no host directories, no capabilities, a user that is not root, and
- * limited CPU, memory, disk, processes and time. All builds share one Docker volume as their local
- * Maven repository.
+ * The only other container on that network is an egress proxy that tunnels to the hosts of the
+ * configured Maven repositories and nothing else. The build container gets the repository's files
+ * at the commit (no {@code .git}), no host directories, no capabilities, a user that is not root,
+ * and limited CPU, memory, disk, processes and time. All builds share one Docker volume as their
+ * local Maven repository.
  *
  * <p>A build that fails, times out or runs out of memory is stored as {@link BuildStatus#FAILED},
  * keeping whatever outputs it left, so the repository can be analyzed in degraded mode. Problems of
@@ -601,11 +601,12 @@ public class BuildSandbox {
      */
     private Path writeLanternFiles() throws IOException {
       Path lantern = Files.createDirectories(staging.resolve("lantern"));
-      for (String resource : List.of("build.sh", "settings.xml")) {
-        try (InputStream in = BuildSandbox.class.getResourceAsStream(resource)) {
-          Files.copy(Objects.requireNonNull(in, resource), lantern.resolve(resource));
-        }
+      try (InputStream in = BuildSandbox.class.getResourceAsStream("build.sh")) {
+        Files.copy(Objects.requireNonNull(in, "build.sh"), lantern.resolve("build.sh"));
       }
+      Files.writeString(
+          lantern.resolve("settings.xml"),
+          MavenSettings.xml(CACHE_MOUNT, PROXY_ALIAS, PROXY_PORT, settings.mavenRepositories()));
       permit(Files.createDirectories(staging.resolve("empty-out")), true);
       return lantern;
     }
