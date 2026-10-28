@@ -58,7 +58,7 @@ class OpenWmsComposeIT {
         commits.put(name, commit);
       }
     }
-    assertThat(repos).hasSize(15);
+    assertThat(repos).hasSize(16);
 
     List<Fact> facts = new ArrayList<>(new MavenExtractor().extract(repos, 1));
     facts.addAll(new JavaExtractor().extract(repos, 1));

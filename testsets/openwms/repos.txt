@@ -1,21 +1,39 @@
-# The OpenWMS test set (docs/design.md, Open questions): 15 repositories pinned to exact commits.
-# Each was the head of its default branch on 28 Oct 2026. All are Apache-2.0 licensed.
+# The OpenWMS test set (docs/design.md, Open questions): 16 repositories pinned to exact commits,
+# chosen as docs/adr/0020-openwms-release-pins.md describes. The comment above each line names its
+# release tag. All are Apache-2.0 licensed.
 # Format: <name> <clone URL> <full commit hash>. Change a commit here to move the pin.
 #
 # Services
-org.openwms.common.service https://github.com/openwms/org.openwms.common.service.git fc7edd4ffbe16de65d482b3a2d462d4d896b1998
-org.openwms.tms.transportation https://github.com/openwms/org.openwms.tms.transportation.git bf224eb54b54c40343671d04e61d08ed42e8c260
-org.openwms.tms.routing https://github.com/openwms/org.openwms.tms.routing.git 11251f3db81061afbb7042a53bfc86cf213675f5
+# tag 3.0.0
+org.openwms.common.service https://github.com/openwms/org.openwms.common.service.git a000063f4c422b40cb4f8ed7fff3be4a32e2f53e
+# tag 2.0.0
+org.openwms.tms.transportation https://github.com/openwms/org.openwms.tms.transportation.git 204e6e733352657e3e5b11ac99791291ef43438a
+# tag 2.0.0
+org.openwms.tms.routing https://github.com/openwms/org.openwms.tms.routing.git 8e073cececd52c5efb5418fe20b3c6371316740d
+# no release tag: head of the default branch on 28 Oct 2026
 org.openwms.wms.receiving https://github.com/openwms/org.openwms.wms.receiving.git 00d5b971007330c36f786a6bea7528fc99caf2ac
-org.openwms.core.uaa https://github.com/openwms/org.openwms.core.uaa.git 483d34729158f1c581477f367060012570990e8c
-# Libraries and the shared parent POM
-org.openwms.parent https://github.com/openwms/org.openwms.parent.git 52a88298cc37200298e3725ff7aa713fbf635d66
-org.openwms.common.service.lib https://github.com/openwms/org.openwms.common.service.lib.git a6566d7a90364f8cb0e82ec013720b644926dffe
-org.openwms.core.units https://github.com/openwms/org.openwms.core.units.git ec59468ff32d62d330ad2528d5d681808774db56
-org.openwms.core.test.arch https://github.com/openwms/org.openwms.core.test.arch.git 5b73b689360ad74dc598cef8ed4be441eec22db0
-org.openwms.core.process.execution https://github.com/openwms/org.openwms.core.process.execution.git 1b9528513dba3aff8aea1ace0c39bf94c9c5b32d
-org.openwms.core.uaa.lib https://github.com/openwms/org.openwms.core.uaa.lib.git ccb3a36f91d777301ca0135b7cadeba437c8760d
-org.openwms.tms.routing.lib https://github.com/openwms/org.openwms.tms.routing.lib.git 2110773225836d1c8082d0d5877afd5331875e8b
-org.openwms.tms.routing.osip https://github.com/openwms/org.openwms.tms.routing.osip.git d1b19c82dbeba7a02bd10137b7d4968481879a2d
+# tag 2.0.0
+org.openwms.core.uaa https://github.com/openwms/org.openwms.core.uaa.git 88f4dbaa85946eca6ca8153c2ae8e18e9e86175b
+# Libraries, the shared parent POM and the umbrella repository
+# tag 4.0.0; the umbrella repository, which holds org.openwms.core.util
+org.openwms https://github.com/openwms/org.openwms.git fd5dbd9d2841758b34a7a4492ab4e79c38e47337
+# tag 28.0
+org.openwms.parent https://github.com/openwms/org.openwms.parent.git 0baa1ead98644c8db845a6f0d4b9b3cc09fb8901
+# tag 3.0.0
+org.openwms.common.service.lib https://github.com/openwms/org.openwms.common.service.lib.git 5b001a024d6596c1dc4700ab3b0435d7bae6161f
+# tag 0.7.0
+org.openwms.core.units https://github.com/openwms/org.openwms.core.units.git 4c8950cfc706754b073e9c698584abcef095114f
+# tag 1.0.2
+org.openwms.core.test.arch https://github.com/openwms/org.openwms.core.test.arch.git 2a63b2b80c66e7668c5f9aec6d91605484cd687c
+# tag 0.1.0
+org.openwms.core.process.execution https://github.com/openwms/org.openwms.core.process.execution.git 9f20a70ee66e562986c08e11630d5cffdd974109
+# tag 2.0.0
+org.openwms.core.uaa.lib https://github.com/openwms/org.openwms.core.uaa.lib.git 665a10bad7dc1da48875841fa84016cdb3a971ad
+# tag 2.0.0
+org.openwms.tms.routing.lib https://github.com/openwms/org.openwms.tms.routing.lib.git 1c631b2d3ff64fdcfb500c4125bee2e708f4d200
+# tag 1.0.0
+org.openwms.tms.routing.osip https://github.com/openwms/org.openwms.tms.routing.osip.git 5cb68236a5ee49669782802b63cbd60069530782
+# no release tag: head of the default branch on 28 Oct 2026
 org.openwms.wms.receiving.lib https://github.com/openwms/org.openwms.wms.receiving.lib.git 1951f357ca3286e26d65e2c3dbf86c0e906cb170
-ameba-lib https://github.com/spring-labs/ameba-lib.git e450325579d71e3008ebc2fcc2b3564b694fedee
+# tag 4.3.0
+ameba-lib https://github.com/spring-labs/ameba-lib.git 1365d53f20f5b1d6c8f0ef986a6a0fccedfda027

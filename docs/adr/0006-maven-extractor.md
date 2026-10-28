@@ -42,7 +42,7 @@ how these are named and modelled, what "internal" means, and how a service's lib
   repository in the snapshot builds a module with those coordinates, whatever the version (OpenWMS
   services depend on released versions of libraries whose repositories are at the next snapshot).
   An internal dependency points at the `module:` entity, a third-party one at `artifact:`. An
-  OpenWMS artifact without a repository in the test set (`core.util`) is third-party.
+  OpenWMS artifact without a repository in the snapshot is third-party.
 - **Deployable vs. library.** A module is deployable if its packaging is `war` or `ear`, or its
   build runs Spring Boot's `repackage` goal (not skipped with `<skip>` or the
   `spring-boot.repackage.skip` property). In an effective POM the goal must be
@@ -80,7 +80,8 @@ how these are named and modelled, what "internal" means, and how a service's lib
   are linked to their libraries: `common.service` to `common.service.lib`, `core.uaa` to
   `core.uaa.lib`, `wms.receiving` to `wms.receiving.lib`, and `tms.routing` to
   `tms.routing.osip` (which in turn depends on `tms.routing.lib`). `tms.transportation` has its
-  code in its own module and no separate library, so it has no `PACKAGES` link. Fourteen of the 15
-  repositories have an effective POM; `core.process.execution` is read as written because its
-  Activiti BOM is on a host the sandbox does not reach (#30). `OpenWmsMavenIT` checks this when the
-  clones are present.
+  code in its own module and no separate library, so it has no `PACKAGES` link. Fourteen of the 16
+  repositories have an effective POM; two are read as written because Maven cannot read them
+  (ADR 0020): `core.process.execution`, whose Activiti BOM is on a host the sandbox does not reach,
+  and `org.openwms`, whose `core.util` module names a parent version that does not exist.
+  `OpenWmsMavenIT` checks this when the clones are present.

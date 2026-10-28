@@ -21,10 +21,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Builds the OpenWMS repositories of the test set that build on their own in the sandbox; the
- * others need unpublished snapshots of each other (#30). Runs only when {@code
- * lantern.test.openwms} names the directory {@code testsets/openwms/clone.sh} cloned them into, for
- * example {@code ./mvnw verify -pl lantern-sandbox -am
- * -Dlantern.test.openwms=$PWD/workspace/openwms}.
+ * others need an unpublished snapshot, a host the sandbox does not reach, or have a broken parent
+ * reference (#30). Runs only when {@code lantern.test.openwms} names the directory {@code
+ * testsets/openwms/clone.sh} cloned them into, for example {@code ./mvnw verify -pl lantern-sandbox
+ * -am -Dlantern.test.openwms=$PWD/workspace/openwms}.
  */
 @EnabledIfSystemProperty(named = "lantern.test.openwms", matches = ".+")
 class OpenWmsBuildIT {
@@ -52,10 +52,14 @@ class OpenWmsBuildIT {
       strings = {
         "ameba-lib",
         "org.openwms.parent",
-        "org.openwms.core.units",
+        "org.openwms.common.service",
+        "org.openwms.common.service.lib",
         "org.openwms.core.test.arch",
-        "org.openwms.wms.receiving.lib",
-        "org.openwms.tms.transportation"
+        "org.openwms.core.uaa",
+        "org.openwms.core.uaa.lib",
+        "org.openwms.core.units",
+        "org.openwms.tms.transportation",
+        "org.openwms.wms.receiving.lib"
       })
   void builds(String name) throws IOException {
     Path path = Path.of(System.getProperty("lantern.test.openwms")).resolve(name).toRealPath();

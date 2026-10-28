@@ -78,9 +78,7 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
 - **No git metadata.** Builds get no `.git`, so plugins that read it fail. The
   `git-commit-id-maven-plugin`, used by the OpenWMS parent POM, is skipped
   (`-Dmaven.gitcommitid.skip=true`); the build information it records is not needed for analysis.
-- **OpenWMS.** Six of the 15 pinned repos build (`ameba-lib`, `org.openwms.parent`, `core.units`,
-  `core.test.arch`, `wms.receiving.lib`, `tms.transportation`); `OpenWmsBuildIT` builds them when
-  the clones are present. The other nine depend on unpublished `-SNAPSHOT` versions of other repos
-  and fail into degraded mode (#30).
+- **OpenWMS.** Which of the pinned repos build, and why the others fail into degraded mode, is in
+  ADR 0020; `OpenWmsBuildIT` builds the ones that do when the clones are present.
 - **Not covered yet:** the mounted `settings.xml` for an internal artifact repository (#31),
   and images for JDK 8 and 11.
