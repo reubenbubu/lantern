@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -41,16 +42,47 @@ class SummarizerConcurrencyTest {
 
   private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
   private final InMemoryLlmCallLog log = new InMemoryLlmCallLog();
+  private final CallLimiter limiter = limiterAllowing(64);
+  private final AtomicBoolean joinTimedOut = new AtomicBoolean();
 
   private LlmClient client(int maxConcurrency, BudgetGuard budget) {
+    return client(fake, maxConcurrency, budget, log, limiter);
+  }
+
+  private static LlmClient client(
+      FakeLlmProvider provider,
+      int maxConcurrency,
+      BudgetGuard budget,
+      InMemoryLlmCallLog log,
+      CallLimiter limiter) {
     return new LlmClient(
         ModelSettings.single(
-            fake.model("model-a").withLimits(new CallLimits(maxConcurrency, null))),
-        List.of(fake),
+            provider.model("model-a").withLimits(new CallLimits(maxConcurrency, null))),
+        List.of(provider),
         budget,
         log,
         Clock.systemUTC(),
-        new CallLimiter(FAST));
+        limiter);
+  }
+
+  /**
+   * A limiter whose lane for {@code model-a} allows the given number of calls at once, more than
+   * the summarizers under test run, so that only the summarizer's own limit bounds them. A lane
+   * takes its limits from the first configuration it is asked for, so one call through another fake
+   * of the same name sets it.
+   */
+  private static CallLimiter limiterAllowing(int calls) {
+    CallLimiter limiter = new CallLimiter(FAST);
+    FakeLlmProvider warmUp = new FakeLlmProvider().answering(SummarizerTest::citingAll);
+    String type = "type:com.example.WarmUp";
+    new Summarizer(
+            client(
+                warmUp, calls, BudgetGuard.unlimited("warm-up"), new InMemoryLlmCallLog(), limiter),
+            new InMemorySummaryStore())
+        .summarize(
+            List.of(
+                node(type, SummaryLevel.TYPE, List.of(fact(type, "kind", "class")), List.of())));
+    return limiter;
   }
 
   private Summarizer summarizer(int maxConcurrency) {
@@ -103,7 +135,7 @@ class SummarizerConcurrencyTest {
     fake.answering(
         request -> {
           eightInFlight.countDown();
-          await(eightInFlight);
+          awaitEightInFlight(eightInFlight);
           return SummarizerTest.citingAll(request);
         });
     Summarizer.Result parallel = summarizer(8).summarize(tree);
@@ -115,7 +147,7 @@ class SummarizerConcurrencyTest {
     assertThat(fake.maxConcurrentCalls()).isEqualTo(8);
   }
 
-  private static void await(CountDownLatch latch) {
+  private static void awaitEightInFlight(CountDownLatch latch) {
     try {
       if (!latch.await(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
         throw new AssertionError("Fewer than eight calls were ever in flight at once");
@@ -206,11 +238,14 @@ class SummarizerConcurrencyTest {
     // Besides the failed call, at most the seven units that may run with it make theirs; no unit
     // starts after the run has failed.
     assertThat(calls).hasSizeLessThanOrEqualTo(8);
+    // A held call that gave up waiting would fail its own unit, which the run may not report.
+    assertThat(joinTimedOut).as("a held call timed out").isFalse();
   }
 
-  private static void join(Thread thread) {
+  private void join(Thread thread) {
     try {
       if (!thread.join(TIMEOUT)) {
+        joinTimedOut.set(true);
         throw new AssertionError("The failed unit's thread did not end");
       }
     } catch (InterruptedException e) {
