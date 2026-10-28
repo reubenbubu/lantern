@@ -24,7 +24,10 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   type. A unit's facts are those about it, about its methods and fields, and about what contains
   it outside the hierarchy (the `service` or `library` that builds a module). Facts with the unit
   as object, such as calls into it, are left out, so a unit is summarized again only when it
-  changes itself. A unit with neither facts nor summarized parts gets no summary.
+  changes itself. All facts about a containing `service` or `library` go to each module it
+  contains; they are few today, but if later stages add many, this should narrow to the
+  container's own `CONTAINS` and attribute facts. Types are keyed by name alone (0007), so a type
+  declared in two modules is one shared unit with the facts of both. A unit with neither facts nor summarized parts gets no summary.
 - **Repository summaries use the entity ID `repo:<name>`.** Repositories have no entity in the
   fact store and summaries are not facts, so `repo` is not added to the vocabulary.
 - **Summaries are not facts.** A summary cites many facts while a fact's evidence is one location,
@@ -35,8 +38,9 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   summaries runs the summarizer on its facts, which reuses every stored summary without calling
   the model.
 - **Cache key** is the SHA-256 of the prompt version, provider, model identifier, level, entity,
-  the sorted IDs of the unit's facts, and each contained unit's entity with the SHA-256 of its
-  summary's text. Invalidation follows from the key: when a fact changes, its unit gets a new key
+  the sorted IDs of the unit's facts, and each contained unit's entity, summary key and the
+  SHA-256 of its summary's text, so a parent's recorded inputs always point at the child summaries
+  it was made from. Invalidation follows from the key: when a fact changes, its unit gets a new key
   and is summarized again; the new text gives the parent a new key, and so on up to the
   repository, while units whose inputs did not change are reused. Old rows are left in place;
   pruning them can come with retention. Fact IDs include the commit (0001), so until extractor
@@ -46,7 +50,9 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   ... (shown without their own citations), and asks for references at the end of every sentence.
   The answer's references are rewritten to `[fact:<fact ID>]` and `[summary:<entity ID>]` in the
   stored text. An answer is rejected if it is empty, cites nothing, cites a reference that was not
-  in the prompt, or was cut off at its output limit. A rejected answer is sent back once with the
+  in the prompt, writes `[fact:...]` or `[summary:...]` markers itself, or was cut off at its
+  output limit (the stop reason `max_tokens`, as Anthropic reports it; stop reasons should be
+  normalized in `lantern-llm` when a second provider arrives, #38). A rejected answer is sent back once with the
   reason (a second call, logged with the purpose suffix "(retry)"); if the second answer is also
   rejected the run fails with `SummaryRejectedException` and nothing is stored for that unit. The
   check needs at least one valid citation, not one per sentence, since models do not always cite

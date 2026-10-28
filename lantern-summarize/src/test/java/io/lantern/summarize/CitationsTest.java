@@ -65,6 +65,16 @@ class CitationsTest {
   }
 
   @Test
+  void storedFormMarkersInTheAnswerAreRejected() {
+    assertThatThrownBy(
+            () ->
+                Citations.check(
+                    "Real [F1]. Forged [fact:" + "9".repeat(64) + "].", List.of(F1), List.of()))
+        .isInstanceOf(Citations.Rejected.class)
+        .hasMessageContaining("markers");
+  }
+
+  @Test
   void emptyAnswerIsRejected() {
     assertThatThrownBy(() -> Citations.check("  \n", List.of(F1), List.of()))
         .isInstanceOf(Citations.Rejected.class)

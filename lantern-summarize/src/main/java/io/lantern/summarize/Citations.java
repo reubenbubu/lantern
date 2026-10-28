@@ -17,6 +17,7 @@ final class Citations {
 
   private static final Pattern GROUP =
       Pattern.compile("\\[\\s*([FS]\\d+(?:\\s*,\\s*[FS]\\d+)*)\\s*\\]");
+  private static final Pattern MARKER = Pattern.compile("\\[(?:fact|summary):");
   private static final Pattern SPLIT = Pattern.compile("\\s*,\\s*");
 
   private Citations() {}
@@ -36,12 +37,18 @@ final class Citations {
    *
    * @param facts the facts' IDs, {@code F1} first
    * @param children the contained summaries, {@code S1} first
-   * @throws Rejected if the answer is empty, cites nothing or cites a reference that was not given
+   * @throws Rejected if the answer is empty, cites nothing, cites a reference that was not given or
+   *     writes stored-form markers itself
    */
   static Checked check(String answer, List<String> facts, List<Summary> children) {
     String text = answer == null ? "" : answer.strip();
     if (text.isEmpty()) {
       throw new Rejected("it is empty.");
+    }
+    if (MARKER.matcher(text).find()) {
+      throw new Rejected(
+          "it contains [fact:...] or [summary:...] markers; cite only with the references given,"
+              + " such as [F1] or [S1].");
     }
     Set<String> citedFacts = new LinkedHashSet<>();
     Set<String> citedSummaries = new LinkedHashSet<>();

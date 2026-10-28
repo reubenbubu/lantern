@@ -230,6 +230,20 @@ class SummarizerTest {
             child.provider(),
             child.model());
     assertThat(Summarizer.key(order, List.of(editedChild), fake.model("m"))).isNotEqualTo(key);
+    Summary rekeyedChild =
+        new Summary(
+            "f".repeat(64),
+            child.entity(),
+            child.level(),
+            child.text(),
+            child.citedFacts(),
+            child.citedSummaries(),
+            child.inputFacts(),
+            child.inputSummaries(),
+            child.promptVersion(),
+            child.provider(),
+            child.model());
+    assertThat(Summarizer.key(order, List.of(rekeyedChild), fake.model("m"))).isNotEqualTo(key);
     SummaryNode fewerFacts =
         new SummaryNode(
             order.entity(),
@@ -263,6 +277,35 @@ class SummarizerTest {
         .startsWith("Your summary was rejected: it cites no references.");
     assertThat(fake.sent().get(1).request().purpose()).endsWith("(retry)");
     assertThat(store.size()).isZero();
+  }
+
+  @Test
+  void anEmptyAnswerIsRetriedWithTheReason() {
+    AtomicInteger calls = new AtomicInteger();
+    fake.answering(request -> calls.getAndIncrement() == 0 ? " " : citingAll(request));
+
+    summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    List<LlmMessage> retry = fake.sent().get(1).request().messages();
+    assertThat(retry).hasSize(1);
+    assertThat(retry.getFirst().text()).contains("Your summary was rejected: it is empty.");
+  }
+
+  @Test
+  void resultsAreInVisitOrder() {
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(result.summaries().keySet())
+        .extracting(EntityId::toString)
+        .containsExactly(
+            "type:com.example.shop.Order$Line",
+            "type:com.example.shop.Order",
+            "type:com.example.shop.PriceService",
+            "package:com.example:shop-core:com.example.shop",
+            "module:com.example:shop-core",
+            "module:com.example:shop",
+            "repo:shop");
   }
 
   @Test

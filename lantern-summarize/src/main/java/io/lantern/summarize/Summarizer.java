@@ -13,7 +13,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -30,9 +30,10 @@ import java.util.Set;
  *
  * <p>Every summary is cached under a key that hashes its entity and level, the IDs of its input
  * facts, the text of its contained units' summaries, the prompt version and the model (provider and
- * identifier). A unit whose key is already in the store is not sent to the model again. When a
- * unit's facts change its key changes, so it is summarized again; its new text then changes its
- * parent's key, and so on up to the repository. Units whose inputs did not change are reused.
+ * identifier). A contained unit's summary counts with both its key and its text. A unit whose key
+ * is already in the store is not sent to the model again. When a unit's facts change its key
+ * changes, so it is summarized again; its new text then changes its parent's key, and so on up to
+ * the repository. Units whose inputs did not change are reused.
  *
  * <p>Every summary must cite the facts or contained summaries it used. An answer that cites
  * nothing, or cites a reference that was not in the prompt, is sent back once with the reason; if
@@ -43,7 +44,7 @@ import java.util.Set;
  */
 public final class Summarizer {
 
-  /** The stop reason of an answer cut off at its output limit. */
+  /** The stop reason of an answer cut off at its output limit, as Anthropic reports it. */
   private static final String MAX_TOKENS = "max_tokens";
 
   private final LlmClient client;
@@ -68,7 +69,7 @@ public final class Summarizer {
    */
   public record Result(Map<EntityId, Summary> summaries, int generated, int reused) {
     public Result {
-      summaries = Map.copyOf(summaries);
+      summaries = Collections.unmodifiableMap(new LinkedHashMap<>(summaries));
     }
   }
 
@@ -105,6 +106,8 @@ public final class Summarizer {
       text.append("child ")
           .append(child.entity())
           .append(' ')
+          .append(child.key())
+          .append(' ')
           .append(sha256(child.text()))
           .append('\n');
     }
@@ -127,7 +130,7 @@ public final class Summarizer {
 
   private final class Run {
     private final ModelConfig model;
-    private final Map<EntityId, Optional<Summary>> done = new HashMap<>();
+    private final Map<EntityId, Optional<Summary>> done = new LinkedHashMap<>();
     private int generated;
     private int reused;
 
@@ -180,7 +183,15 @@ public final class Summarizer {
       try {
         checked = check(first, factIds, children);
       } catch (Citations.Rejected rejected) {
-        if (!first.text().isBlank()) {
+        if (first.text().isBlank()) {
+          // A conversation cannot hold an empty turn, so the reason goes with the prompt again.
+          messages.set(
+              0,
+              LlmMessage.user(
+                  messages.getFirst().text()
+                      + "\n"
+                      + Prompt.RETRY.formatted(rejected.getMessage())));
+        } else {
           messages.add(LlmMessage.assistant(first.text()));
           messages.add(LlmMessage.user(Prompt.RETRY.formatted(rejected.getMessage())));
         }

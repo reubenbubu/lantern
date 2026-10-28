@@ -83,7 +83,12 @@ class SummaryStoreIT {
             List.of(
                 fact(repo, module, "CONTAINS", FactObject.entity(EntityId.parse(pkg))),
                 fact(repo, pkg, "CONTAINS", FactObject.entity(EntityId.parse(type))),
-                fact(repo, type, "kind", FactObject.string("class"))));
+                fact(repo, type, "kind", FactObject.string("class")),
+                fact(
+                    repo,
+                    type,
+                    "CONTAINS",
+                    FactObject.entity(EntityId.parse("method:" + type.substring(5) + "#run()")))));
 
     Summarizer.Result first = summarizer().summarize(tree);
     Summarizer.Result second = summarizer().summarize(tree);
