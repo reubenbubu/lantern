@@ -50,8 +50,7 @@ class MavenSettingsTest {
     assertThat(values(settings, "//repositories/repository/id")).containsExactly("central");
     assertThat(values(settings, "//repositories/repository/url"))
         .containsExactly("https://repo.maven.apache.org/maven2");
-    assertThat(values(settings, "//pluginRepositories/pluginRepository/url"))
-        .containsExactly("https://repo.maven.apache.org/maven2");
+    assertThat(values(settings, "//pluginRepositories")).isEmpty();
     assertThat(values(settings, "/settings/activeProfiles/activeProfile"))
         .containsExactly("lantern-repositories");
     assertThat(values(settings, "/settings/profiles/profile/id"))
@@ -79,7 +78,8 @@ class MavenSettingsTest {
 
     assertThat(values(settings, "//repositories/repository/id"))
         .containsExactly("central", "activiti");
-    assertThat(values(settings, "//pluginRepositories/pluginRepository/url"))
+    assertThat(values(settings, "//pluginRepositories")).isEmpty();
+    assertThat(values(settings, "//repositories/repository/url"))
         .containsExactly(
             "https://repo.maven.apache.org/maven2",
             "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases");

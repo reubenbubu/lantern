@@ -4,7 +4,8 @@ import java.util.List;
 
 /**
  * Writes the Maven settings of builds in the sandbox: all downloads go through the egress proxy,
- * and the configured Maven repositories are added to every build, releases only (ADR 0023).
+ * and the configured Maven repositories are added to every build as dependency repositories,
+ * releases only (ADR 0023).
  */
 final class MavenSettings {
 
@@ -56,27 +57,21 @@ final class MavenSettings {
     xml.append("  <profiles>\n");
     xml.append("    <profile>\n");
     xml.append("      <id>lantern-repositories</id>\n");
-    for (String kind : List.of("repositories", "pluginRepositories")) {
-      String element = kind.equals("repositories") ? "repository" : "pluginRepository";
-      xml.append("      <").append(kind).append(">\n");
-      for (MavenRepository repository : repositories) {
-        xml.append("        <")
-            .append(element)
-            .append(">\n")
-            .append("          <id>")
-            .append(escape(repository.id()))
-            .append("</id>\n")
-            .append("          <url>")
-            .append(escape(repository.url().toString()))
-            .append("</url>\n")
-            .append("          <releases><enabled>true</enabled></releases>\n")
-            .append("          <snapshots><enabled>false</enabled></snapshots>\n")
-            .append("        </")
-            .append(element)
-            .append(">\n");
-      }
-      xml.append("      </").append(kind).append(">\n");
+    // Dependency repositories only: plugins come from Maven Central, as Maven's defaults have it.
+    xml.append("      <repositories>\n");
+    for (MavenRepository repository : repositories) {
+      xml.append("        <repository>\n")
+          .append("          <id>")
+          .append(escape(repository.id()))
+          .append("</id>\n")
+          .append("          <url>")
+          .append(escape(repository.url().toString()))
+          .append("</url>\n")
+          .append("          <releases><enabled>true</enabled></releases>\n")
+          .append("          <snapshots><enabled>false</enabled></snapshots>\n")
+          .append("        </repository>\n");
     }
+    xml.append("      </repositories>\n");
     xml.append("    </profile>\n");
     xml.append("  </profiles>\n");
     xml.append("  <activeProfiles>\n");

@@ -26,8 +26,9 @@ more are configured, and that downloaded code is used only to compile, never ana
   allowed host, but no other host (#81).
 - **Maven settings are generated per build** instead of copied from a fixed file. Besides the
   proxy settings of ADR 0005 they hold an always-active profile, `lantern-repositories`, listing
-  every configured repository, in order, as a repository and a plugin repository, releases only
-  (snapshots off). Repositories a POM names itself are still tried; they work only if their host
+  every configured repository, in order, as a dependency repository, releases only (snapshots
+  off). They are not plugin repositories: plugins still come from Maven Central only, since the
+  user allowed extra repositories for build dependencies, not for build plugins. Repositories a POM names itself are still tried; they work only if their host
   is allowed. No mirrors and no server credentials; an internal repository with credentials is
   #31.
 - **Third-party code is never analyzed.** Downloaded artifacts only go on the classpath, like
@@ -43,4 +44,9 @@ more are configured, and that downloaded code is used only to compile, never ana
 - With it, 14 of the 16 OpenWMS repositories build. `org.openwms` still has a broken parent
   reference and `wms.receiving` still needs an unpublished snapshot (ADR 0020, #30).
 - The test suite reaches `artifacts.alfresco.com` for one small Activiti jar, in the test that a
-  configured repository works.
+  configured repository works, so an outage of that host fails `./mvnw verify`.
+- A stored build is reused for the same `repo@commit` whatever the repositories were when it ran
+  (ADR 0016). Builds that failed before a repository was added stay failed until their directory
+  under `builds/` is deleted; whether to rebuild stored failed builds is #58.
+- Host names must have a dot and may not be IP addresses, so `localhost` and addresses such as
+  the cloud metadata service cannot be configured.

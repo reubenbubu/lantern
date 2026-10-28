@@ -10,9 +10,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A Maven repository builds may download from. Builds see it as a repository (and plugin
- * repository) in their Maven settings, and the egress proxy lets them reach its host and port and
- * nothing else (ADR 0023). Only release artifacts are downloaded from it.
+ * A Maven repository builds may download from. Builds see it as a dependency repository in their
+ * Maven settings, and the egress proxy lets them reach its host and port and nothing else (ADR
+ * 0023). Only release artifacts are downloaded from it.
  *
  * @param id the repository ID Maven knows it by, such as {@code central}
  * @param url the repository's base URL: {@code https}, an exact host name (no wildcards), no user
@@ -21,8 +21,11 @@ import java.util.regex.Pattern;
 public record MavenRepository(String id, URI url) {
 
   private static final Pattern ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
+  // A DNS name with at least two labels whose last label is not all digits: no single-label
+  // names such as localhost, and no IP addresses.
   private static final Pattern HOST =
-      Pattern.compile("[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*");
+      Pattern.compile(
+          "([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+(?=[a-z0-9-]*[a-z])[a-z0-9]([a-z0-9-]*[a-z0-9])?");
   private static final Pattern PATH = Pattern.compile("(/[A-Za-z0-9._~-]+)*/?");
   private static final Pattern ENTRY = Pattern.compile("\\[([0-9]{1,4})]\\.(id|url)");
 
@@ -57,8 +60,8 @@ public record MavenRepository(String id, URI url) {
       throw new IllegalArgumentException(
           "Maven repository "
               + id
-              + " needs an https URL with an exact host and a plain path, and no user, query or"
-              + " fragment: "
+              + " needs an https URL with an exact host name (no IP address or wildcard) and"
+              + " a plain path, and no user, query or fragment: "
               + url);
     }
     if (path.endsWith("/")) {
