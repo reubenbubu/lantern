@@ -1,6 +1,7 @@
 package io.lantern.summarize;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -15,6 +16,7 @@ import io.lantern.llm.Capability;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmClient;
+import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
@@ -391,6 +393,86 @@ class SummarizerTest {
                     .contains("it cites no references.")
                     .contains("The answer: Line is a line of an order."));
     assertThat(rejections.get(1)).contains("(retry)");
+
+    // A rerun tries the unit again, and summarizes again what its new summary changes.
+    fake.answering(SummarizerTest::citingAll);
+    int before = fake.sent().size();
+    Summarizer.Result rerun =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(rerun.rejected()).isEmpty();
+    assertThat(rerun.summaries()).hasSize(7);
+    assertThat(fake.sent().subList(before, fake.sent().size()))
+        .extracting(s -> unit(s.request()))
+        .containsExactly(
+            "type:com.example.shop.Order$Line",
+            "type:com.example.shop.Order",
+            "package:com.example:shop-core:com.example.shop",
+            "module:com.example:shop-core",
+            "module:com.example:shop",
+            "repo:shop");
+    assertThat(rerun.reused()).isEqualTo(1);
+  }
+
+  /** A type with one fact and the given member types. */
+  private static SummaryNode type(String name, List<SummaryNode> members) {
+    return new SummaryNode(
+        EntityId.parse("type:p." + name),
+        SummaryLevel.TYPE,
+        List.of(
+            TestFacts.fact(
+                "r", "type:p." + name, "kind", FactObject.string("class"), name + ".java")),
+        members);
+  }
+
+  @Test
+  void theRunFailsIfItsFirstUnitsAreAllRejected() {
+    fake.answering("It is a class.");
+    List<SummaryNode> types = new ArrayList<>();
+    for (int i = 0; i < Summarizer.EARLY_STOP; i++) {
+      types.add(type("T" + i, List.of()));
+    }
+
+    assertThatThrownBy(() -> summarizer().summarize(types))
+        .isInstanceOf(SummaryRejectedException.class)
+        .hasMessageStartingWith("The first " + Summarizer.EARLY_STOP + " units were all rejected.")
+        .hasMessageContaining("cites no references");
+    assertThat(store.size()).isZero();
+  }
+
+  @Test
+  void unitsRejectedAfterOneWasSummarizedDoNotStopTheRun() {
+    fake.answering(
+        request ->
+            request.purpose().endsWith("type:p.Good") ? citingAll(request) : "It is a class.");
+    // Each type contains the good one, so the good one is done before any of them starts.
+    SummaryNode good = type("Good", List.of());
+    List<SummaryNode> types = new ArrayList<>();
+    for (int i = 0; i <= Summarizer.EARLY_STOP; i++) {
+      types.add(type("T" + i, List.of(good)));
+    }
+
+    Summarizer.Result result = summarizer().summarize(types);
+
+    assertThat(result.summaries()).containsOnlyKeys(good.entity());
+    assertThat(result.rejected()).hasSize(Summarizer.EARLY_STOP + 1);
+  }
+
+  @Test
+  void aProviderErrorStillFailsTheRunWhenAnotherUnitIsRejected() {
+    fake.answering(
+        request -> {
+          if (request.purpose().endsWith("type:com.example.shop.PriceService")) {
+            throw new LlmException("HTTP 400 bad request");
+          }
+          return request.purpose().contains("type:com.example.shop.Order$Line")
+              ? "Line is a line of an order."
+              : citingAll(request);
+        });
+
+    assertThatThrownBy(() -> summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list())))
+        .isInstanceOf(LlmException.class)
+        .hasMessage("HTTP 400 bad request");
   }
 
   @Test
@@ -687,6 +769,23 @@ class SummarizerTest {
     assertThat(summary.citedFacts())
         .contains(summary.inputFacts().getFirst(), summary.inputFacts().getLast());
     assertThat(store.find(summary.key())).contains(summary);
+  }
+
+  @Test
+  void aSplitUnitWhosePartIsRejectedTwiceHasNoSummary() {
+    SummaryNode big = largeType(400);
+    fake.answering(
+        request ->
+            request.purpose().contains("(part 1 of ")
+                ? "It has many methods."
+                : citingWhatItSees(request, 0));
+
+    Summarizer.Result result =
+        new Summarizer(smallWindowClient(4_000), store).summarize(List.of(big));
+
+    assertThat(result.summaries()).isEmpty();
+    assertThat(result.rejected()).containsExactly(big.entity());
+    assertThat(store.size()).isZero();
   }
 
   @Test

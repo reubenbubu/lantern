@@ -138,9 +138,9 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
             + " reused");
     if (!result.summariesRejected().isEmpty()) {
       out.println(
-          "Without a summary, the LLM's answer rejected twice ("
+          "Units without a summary, the LLM's answer rejected twice ("
               + result.summariesRejected().size()
-              + "; rerun to try them again):");
+              + "); rerun to try them again:");
       result.summariesRejected().forEach(unit -> out.println("  " + unit));
     }
     out.println(

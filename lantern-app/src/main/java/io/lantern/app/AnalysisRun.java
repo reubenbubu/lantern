@@ -226,9 +226,8 @@ public final class AnalysisRun {
           summarized.reused());
       if (!summarized.rejected().isEmpty()) {
         LOG.warn(
-            "{} units have no summary, their answers rejected twice: {}",
-            summarized.rejected().size(),
-            summarized.rejected());
+            "Units without a summary, their answer rejected twice: {}",
+            summarized.rejected().size());
       }
 
       List<Rendered> documents = new ArrayList<>();

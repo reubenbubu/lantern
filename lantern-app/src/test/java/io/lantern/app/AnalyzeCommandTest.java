@@ -107,7 +107,7 @@ class AnalyzeCommandTest {
     assertThat(command.getExitCode()).isZero();
     assertThat(bytes.toString(StandardCharsets.UTF_8))
         .contains(
-            "Without a summary, the LLM's answer rejected twice (1; rerun to try them again):\n"
+            "Units without a summary, the LLM's answer rejected twice (1); rerun to try them again:\n"
                 + "  type:com.example.Order\n");
   }
 }

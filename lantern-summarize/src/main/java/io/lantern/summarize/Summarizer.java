@@ -59,7 +59,9 @@ import org.slf4j.LoggerFactory;
  * the second answer is no better the unit gets no summary and nothing is stored for it. Both
  * rejections are logged with their reason and the rejected answer. The run goes on: the unit's
  * parent is summarized without it, as if the unit had nothing to summarize, and the result lists
- * the units rejected this way.
+ * the units rejected this way. Only if the first {@value #EARLY_STOP} units to finish are all
+ * rejected, and none got a summary, does the run fail with {@link SummaryRejectedException}, since
+ * then the model or its settings are likely wrong.
  *
  * <p>Units that do not contain each other are summarized in parallel, each on its own virtual
  * thread; a unit starts once the units it contains are done. At most as many units run at once as
@@ -75,6 +77,9 @@ import org.slf4j.LoggerFactory;
 public final class Summarizer {
 
   private static final Logger LOG = LoggerFactory.getLogger(Summarizer.class);
+
+  /** How many units rejected in a row from the start of a run make it fail. */
+  static final int EARLY_STOP = 10;
 
   /** How much of a rejected answer is logged. */
   private static final int LOGGED_ANSWER = 1000;
@@ -129,6 +134,8 @@ public final class Summarizer {
    * Summarizes the given units and everything they contain, for example the trees from {@link
    * SummaryTree#fromFacts}.
    *
+   * @throws SummaryRejectedException if the first {@value #EARLY_STOP} units to finish are all
+   *     rejected twice
    * @throws io.lantern.llm.LlmException if a call fails or is refused, for example over budget
    */
   public Result summarize(Collection<SummaryNode> roots) {
@@ -306,6 +313,7 @@ public final class Summarizer {
     private final AtomicInteger reused = new AtomicInteger();
     private final AtomicBoolean failed = new AtomicBoolean();
     private final Set<EntityId> rejected = ConcurrentHashMap.newKeySet();
+    private final AtomicBoolean accepted = new AtomicBoolean();
     private final Semaphore running;
     private final Map<String, Optional<String>> files =
         new LinkedHashMap<>(16, 0.75f, true) {
@@ -342,10 +350,15 @@ public final class Summarizer {
           return Optional.empty();
         }
         try {
-          return Optional.of(summary(node, children));
+          Optional<Summary> summary = Optional.of(summary(node, children));
+          accepted.set(true);
+          return summary;
         } catch (SummaryRejectedException e) {
-          LOG.warn("{} has no summary: {}", node.entity(), e.getMessage());
           rejected.add(node.entity());
+          if (!accepted.get() && rejected.size() >= EARLY_STOP) {
+            throw new SummaryRejectedException(
+                "The first " + EARLY_STOP + " units were all rejected. " + e.getMessage());
+          }
           return Optional.empty();
         }
       } catch (Skipped e) {
@@ -532,7 +545,11 @@ public final class Summarizer {
       if (text.length() > LOGGED_ANSWER) {
         text = text.substring(0, LOGGED_ANSWER) + "... (" + text.length() + " characters)";
       }
-      LOG.warn("Rejected the answer to {}: {} The answer: {}", purpose, reason.getMessage(), text);
+      LOG.warn(
+          "Rejected the answer to {}: {} The answer: {}",
+          purpose,
+          reason.getMessage(),
+          text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n"));
     }
 
     private Citations.Checked check(LlmResponse response, Inputs inputs, Set<String> allowed) {

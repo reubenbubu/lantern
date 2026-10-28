@@ -104,12 +104,16 @@ passed, so the rejection was a chance bad answer, not a property of the unit.
   the way a unit with nothing to summarize is left out: the parent's prompt does not show it and
   its key does not include it. A unit summarized in parts or merges counts as rejected when any
   of its answers is rejected twice. `Summarizer.Result.rejected` lists such units; the
-  `analyze` command prints them and logs them as a warning. A rerun tries them again, since
+  `analyze` command prints them and `AnalysisRun` logs how many there are as a warning. A rerun tries them again, since
   nothing is cached for them, and then summarizes their parents again, whose keys change.
 - **Both rejections are logged**, as warnings with the purpose of the call, the reason and the
-  rejected answer, cut to its first 1,000 characters.
-- **No threshold.** Every unit may be rejected and the run still succeeds, for example with a
-  model whose answers are always cut off; the printed list and the warnings show it, and the
-  run's budgets bound what it costs. A threshold can be added if this turns out to matter.
+  rejected answer on one line, cut to its first 1,000 characters.
+- **An early stop instead of a threshold.** If the first 10 units to finish are all rejected
+  twice and none got a summary, the run fails with `SummaryRejectedException` as before: the
+  model or its settings are likely wrong (for example answers always cut off), and going on
+  would spend two calls on every unit. There is no setting for it. After a unit has been
+  summarized, any number of later units may be rejected and the run still succeeds; the printed
+  list and the warnings show it. Only the monthly budget (ADR 0009) bounds what such a run
+  costs; run budgets are #42.
 - **Documents need no change.** The composer already leaves out the summary paragraph and the
   description of a unit without a summary.
