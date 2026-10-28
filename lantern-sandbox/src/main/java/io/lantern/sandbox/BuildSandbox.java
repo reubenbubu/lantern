@@ -96,8 +96,11 @@ public class BuildSandbox {
    */
   static final String BUILD_USER = "10001:10001";
 
-  /** The file in the shared Maven cache that says it has been handed to {@link #BUILD_USER}. */
-  private static final String CACHE_OWNER_MARKER = ".lantern-owner-10001";
+  /** How long one measurement of a container's disk use may take. */
+  private static final Duration MEASURE_TIMEOUT = Duration.ofSeconds(30);
+
+  /** After this many disk checks in a row that could not measure, the container is stopped. */
+  private static final int MAX_FAILED_DISK_CHECKS = 6;
 
   /** Where the shared Maven cache is mounted in every container that mounts it. */
   private static final String CACHE_MOUNT =
@@ -410,15 +413,17 @@ public class BuildSandbox {
     }
 
     /**
-     * Creates the shared Maven cache if it does not exist and hands it to the build user. A cache
-     * filled by builds that ran as root is handed over once, by a container that runs only this
-     * command as root with no network and no capabilities but changing owners and writing the
-     * marker. The container is removed with the build's other containers.
+     * Creates the shared Maven cache if it does not exist and gives the build user whatever in it
+     * belongs to someone else: the cache's top directory when it is new, and the files of builds
+     * that ran as root before builds ran as the build user. A container runs only this command, as
+     * root, with no network and no capabilities but changing owners and reading every directory; it
+     * is removed with the build's other containers. If it fails, the build goes ahead and fails on
+     * what it cannot write.
      */
     private void prepareCache() {
       docker.check(DOCKER_TIMEOUT, List.of("volume", "create", settings.mavenCacheVolume()));
-      docker.check(
-          DOCKER_TIMEOUT,
+      String[] user = BUILD_USER.split(":");
+      List<String> handover =
           List.of(
               "run",
               "--name",
@@ -433,9 +438,8 @@ public class BuildSandbox {
               "ALL",
               "--cap-add",
               "CHOWN",
-              // To write the marker once the cache belongs to the build user.
               "--cap-add",
-              "DAC_OVERRIDE",
+              "DAC_READ_SEARCH",
               "--security-opt",
               "no-new-privileges",
               "--memory",
@@ -448,11 +452,23 @@ public class BuildSandbox {
               "sh",
               settings.proxyImage(),
               "-c",
-              "[ -e \"$1/$2\" ] || { chown -R \"$3\" \"$1\" && touch \"$1/$2\"; }",
+              // Neither find nor chown -h follows symbolic links.
+              "find \"$1\" \\( ! -user \"$2\" -o ! -group \"$3\" \\) -exec chown -h \"$2:$3\" {} +",
               "sh",
               CACHE_MOUNT,
-              CACHE_OWNER_MARKER,
-              BUILD_USER));
+              user[0],
+              user[1]);
+      try {
+        Docker.Result result = docker.run(settings.timeout(), handover);
+        if (!result.ok()) {
+          log.note("could not give the Maven cache to the build user: " + result.err());
+        }
+      } catch (SandboxException e) {
+        if (Thread.currentThread().isInterrupted()) {
+          throw e;
+        }
+        log.note("could not give the Maven cache to the build user: " + e.getMessage());
+      }
     }
 
     private void startProxy() throws IOException {
@@ -722,6 +738,7 @@ public class BuildSandbox {
               () -> log.copy(process.getInputStream()), Thread.ofVirtual()::start);
       try {
         long deadline = System.nanoTime() + settings.timeout().toNanos();
+        int failedChecks = 0;
         while (true) {
           long left = deadline - System.nanoTime();
           if (left <= 0) {
@@ -732,9 +749,18 @@ public class BuildSandbox {
               Math.min(left, DISK_CHECK_INTERVAL.toNanos()), TimeUnit.NANOSECONDS)) {
             break;
           }
-          String problem = diskProblem(name);
+          long written = writtenBytes(name);
+          long free = freeBytes();
           if (Thread.interrupted()) {
             throw new InterruptedException();
+          }
+          failedChecks = written < 0 || free < 0 ? failedChecks + 1 : 0;
+          String problem = diskProblem(written, free);
+          if (problem == null && failedChecks >= MAX_FAILED_DISK_CHECKS) {
+            problem =
+                "The build's disk use could not be measured "
+                    + MAX_FAILED_DISK_CHECKS
+                    + " times in a row";
           }
           if (problem != null) {
             log.note("stopping the container: " + problem);
@@ -749,6 +775,12 @@ public class BuildSandbox {
         throw new SandboxException("Interrupted while building " + repo.name(), e);
       }
       pump.join();
+      // A build may write a lot and end between two checks.
+      String problem = diskProblem(writtenBytes(name), -1);
+      if (problem != null) {
+        log.note("the container ended, but " + problem);
+        return new ContainerExit(false, -1, false, problem);
+      }
       Docker.Result state =
           docker.check(
               DOCKER_TIMEOUT,
@@ -775,37 +807,53 @@ public class BuildSandbox {
     /**
      * Why the container must be stopped for its disk use, or null: it wrote more than the disk
      * limit to its own filesystem, or Docker's storage, which also holds the shared Maven cache,
-     * has less free space than it must keep. A measurement that fails is skipped.
+     * has less free space than it must keep. A negative value is a measurement that failed.
      */
-    private String diskProblem(String name) {
+    private String diskProblem(long written, long free) {
+      if (written > settings.diskBytes()) {
+        return "The build used more than " + settings.diskBytes() + " bytes of disk";
+      }
+      if (free >= 0 && free < settings.minFreeDiskBytes()) {
+        return "Docker's storage has "
+            + free
+            + " bytes free, less than the "
+            + settings.minFreeDiskBytes()
+            + " it must keep";
+      }
+      return null;
+    }
+
+    /** How many bytes the container has written to its own filesystem, or -1 if unknown. */
+    private long writtenBytes(String name) {
       try {
         Docker.Result size =
             docker.run(
-                DOCKER_TIMEOUT,
+                MEASURE_TIMEOUT,
                 List.of("container", "inspect", "--size", "--format", "{{.SizeRw}}", name));
-        if (size.ok() && Long.parseLong(size.out()) > settings.diskBytes()) {
-          return "The build used more than " + settings.diskBytes() + " bytes of disk";
-        }
+        return size.ok() ? Long.parseLong(size.out()) : -1;
+      } catch (NumberFormatException | SandboxException e) {
+        return -1;
+      }
+    }
+
+    /**
+     * How many bytes are free on Docker's storage, measured on the shared Maven cache in the egress
+     * proxy, or -1 if unknown.
+     */
+    private long freeBytes() {
+      try {
         // POSIX output: the last line ends with available 1024-byte blocks, capacity, mount point.
         Docker.Result df =
-            docker.run(DOCKER_TIMEOUT, List.of("exec", proxy, "df", "-P", "-k", CACHE_MOUNT));
-        if (df.ok()) {
-          String[] lines = df.out().split("\n");
-          String[] fields = lines[lines.length - 1].trim().split("\\s+");
-          long free =
-              fields.length < 6 ? Long.MAX_VALUE : Long.parseLong(fields[fields.length - 3]) * 1024;
-          if (free < settings.minFreeDiskBytes()) {
-            return "Docker's storage has "
-                + free
-                + " bytes free, less than the "
-                + settings.minFreeDiskBytes()
-                + " it must keep";
-          }
+            docker.run(MEASURE_TIMEOUT, List.of("exec", proxy, "df", "-P", "-k", CACHE_MOUNT));
+        if (!df.ok()) {
+          return -1;
         }
-      } catch (NumberFormatException | ArrayIndexOutOfBoundsException | SandboxException e) {
-        // Skipped; an interrupt is handled by the caller.
+        String[] lines = df.out().split("\n");
+        String[] fields = lines[lines.length - 1].trim().split("\\s+");
+        return fields.length < 6 ? -1 : Long.parseLong(fields[fields.length - 3]) * 1024;
+      } catch (NumberFormatException | SandboxException e) {
+        return -1;
       }
-      return null;
     }
 
     private void runBuild() throws IOException {

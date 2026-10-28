@@ -31,7 +31,8 @@ import java.util.regex.Pattern;
  * @param maxOutputBytes the most bytes of output a build may hand back; a larger output fails the
  *     build
  * @param maxLogBytes the most bytes of build log kept; the rest is dropped
- * @param diskBytes the most bytes each build container may write outside the shared Maven cache; a
+ * @param diskBytes the most bytes each build container may write outside the shared Maven cache,
+ *     counting the repository's files and the outputs it hands back, classpath jars included; a
  *     build that writes more is stopped and recorded as failed
  * @param minFreeDiskBytes the free space Docker's storage must keep while a build runs; a build
  *     running when it drops below this, such as one filling the shared Maven cache, is stopped and

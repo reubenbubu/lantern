@@ -76,8 +76,11 @@ class BuildSandboxIT {
         .isEmpty();
   }
 
+  /** The default settings, with the test cache and no free space required on Docker's storage. */
   private SandboxSettings settings() {
-    return SandboxSettings.defaults(temp.resolve("builds")).withMavenCacheVolume(volume);
+    return SandboxSettings.defaults(temp.resolve("builds"))
+        .withMavenCacheVolume(volume)
+        .withMinFreeDiskBytes(0);
   }
 
   private Repo repo(Path source, String name, RepoSettings settings) throws IOException {
@@ -253,7 +256,8 @@ class BuildSandboxIT {
     Repo repo = repo(sandboxFixture("filler"), "filler", RepoSettings.DEFAULT);
 
     BuildResult result =
-        new BuildSandbox(settings().withDiskBytes(256L * 1024 * 1024))
+        new BuildSandbox(
+                settings().withDiskBytes(256L * 1024 * 1024).withTimeout(Duration.ofMinutes(2)))
             .build(repo, TestRepos.head(repo));
 
     assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.FAILED);
@@ -270,7 +274,8 @@ class BuildSandboxIT {
     Repo repo = repo(sandboxFixture("filler"), "filler", RepoSettings.DEFAULT);
 
     BuildResult result =
-        new BuildSandbox(settings().withMinFreeDiskBytes(Long.MAX_VALUE))
+        new BuildSandbox(
+                settings().withMinFreeDiskBytes(Long.MAX_VALUE).withTimeout(Duration.ofMinutes(2)))
             .build(repo, TestRepos.head(repo));
 
     assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.FAILED);
@@ -278,6 +283,59 @@ class BuildSandboxIT {
         .startsWith("Docker's storage has ")
         .endsWith(" bytes free, less than the " + Long.MAX_VALUE + " it must keep");
     assertThat(result.modules()).isEmpty();
+  }
+
+  @Test
+  void givesACacheFilledByRootToTheBuildUser() throws IOException {
+    String cache =
+        "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
+    String mount = "type=volume,source=" + cache + ",target=/m2";
+    String image = SandboxSettings.DEFAULT_IMAGES.get(21);
+    DOCKER.check(TIMEOUT, List.of("volume", "create", cache));
+    try {
+      // As an older Lantern that built as root left it.
+      DOCKER.check(
+          TIMEOUT,
+          List.of(
+              "run",
+              "--rm",
+              "--user",
+              "0:0",
+              "--mount",
+              mount,
+              "--entrypoint",
+              "sh",
+              image,
+              "-c",
+              "mkdir -p /m2/old && touch /m2/old/artifact.jar"));
+      Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+
+      BuildResult result =
+          new BuildSandbox(settings().withMavenCacheVolume(cache))
+              .build(repo, TestRepos.head(repo));
+
+      assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
+      Docker.Result owners =
+          DOCKER.check(
+              TIMEOUT,
+              List.of(
+                  "run",
+                  "--rm",
+                  "--mount",
+                  mount,
+                  "--entrypoint",
+                  "stat",
+                  image,
+                  "-c",
+                  "%u:%g",
+                  "/m2",
+                  "/m2/old",
+                  "/m2/old/artifact.jar",
+                  "/m2/org/projectlombok"));
+      assertThat(owners.out().lines()).hasSize(4).containsOnly(BuildSandbox.BUILD_USER);
+    } finally {
+      DOCKER.quietly(TIMEOUT, List.of("volume", "rm", "--force", cache));
+    }
   }
 
   @Test

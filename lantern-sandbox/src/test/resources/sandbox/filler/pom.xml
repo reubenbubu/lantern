@@ -6,7 +6,7 @@
 
   <!--
     Sandbox test fixture: a build that fills the disk at compile time, as a hostile build
-    can. Filler writes up to 1 GiB into target, slowly enough for the sandbox to stop it.
+    can. Filler writes into target until the sandbox stops it.
   -->
   <groupId>com.example.filler</groupId>
   <artifactId>filler</artifactId>
