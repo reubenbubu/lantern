@@ -95,6 +95,18 @@ class ComposerGoldenTest {
       request.messages().forEach(message -> prompts.append(message.text()));
     }
     assertMatchesGolden(prompts.toString(), "summary-prompts.txt");
+    // Entity IDs reach the model only in fact lines (and in the code of source files).
+    boolean inCode = false;
+    for (String line : prompts.toString().lines().toList()) {
+      if (line.startsWith("```")) {
+        inCode = !inCode;
+      } else if (!inCode && !line.startsWith("[F") && !line.startsWith("##### ")) {
+        assertThat(line)
+            .as("a prompt line outside facts")
+            .doesNotContainPattern(
+                "\\b(type|package|module|repo|service|library|artifact|method|field):\\S");
+      }
+    }
   }
 
   private static void assertMatchesGolden(Document document, String name) throws IOException {

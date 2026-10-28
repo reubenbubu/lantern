@@ -1,5 +1,6 @@
 package io.lantern.summarize;
 
+import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import java.util.ArrayList;
@@ -23,19 +24,32 @@ import tools.jackson.databind.node.ObjectNode;
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "2";
+  static final String VERSION = "3";
 
   static final String SYSTEM =
       """
-      You write short summaries of parts of a Java code base for architecture documentation.
+      You write short summaries of parts of a Java code base for architecture documentation. \
+      Readers include managers and other people who do not read code.
       You are given facts that static analysis extracted from the code, each with a reference \
       such as [F1], source files, each with a reference such as [E1], and summaries of the \
       parts the unit contains, each with a reference such as [S1].
-      Say what the unit is for and what it does, and name its most important dependencies.
-      Use only the facts, source files and summaries given. Where they do not show what something is \
-      for, say what it contains rather than guessing.
-      End every sentence with the references it is based on, in square brackets, for example \
-      [F1] or [F2, E1, S1]. Cite only references from the input.
+      Begin with one sentence that says plainly what the unit is for: what it does for the \
+      system or its users, in words a non-engineer understands. Then say how it does that, and \
+      name only the dependencies that matter for understanding it.
+      Work out what the unit is for from its names, annotations (such as @RestController, \
+      @Entity or @KafkaListener), Javadoc and code, or from the summaries of its parts, and \
+      state it directly. If the input does not make its purpose clear, begin instead with what \
+      the unit is and what it contains. Never write that the input does not show something or \
+      that a purpose cannot be determined; leave out what you cannot tell.
+      Call things by their plain names, such as the class Order, the package \
+      com.example.orders or the module shop-core, never by the identifiers the facts use, \
+      which start with a kind and a colon.
+      Do not restate the summaries of the parts sentence by sentence; say what the unit as a \
+      whole is for, drawing on them.
+      Say only what the input shows or what follows from it. End every sentence with the \
+      references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a \
+      sentence about purpose cites the facts, source files or summaries it is inferred from. \
+      Cite only references from the input.
       Write plain prose without headings, lists or a title.""";
 
   static final String RETRY =
@@ -43,6 +57,12 @@ final class Prompt {
       Your summary was rejected: %s
       Write it again. End every sentence with the references it is based on, in square brackets, \
       and cite only references from the input.""";
+
+  /** What a repository's prompt adds about its reader. */
+  private static final String BUSINESS_READER =
+      "Write for a reader who wants to know what this repository does for the system or the"
+          + " business: lead with its role and main capabilities, and mention frameworks and"
+          + " libraries briefly, if at all.\n";
 
   private static final Pattern MARKER = Pattern.compile("\\s*\\[(?:fact|summary):[^\\]\\s]+\\]");
 
@@ -104,7 +124,10 @@ final class Prompt {
     List<Item> items = new ArrayList<>();
     for (int i = 0; i < children.size(); i++) {
       Summary child = children.get(i);
-      items.add(new Item("S" + (i + 1), child.entity() + ": " + withoutMarkers(child.text())));
+      items.add(
+          new Item(
+              "S" + (i + 1),
+              describe(child.level(), child.entity()) + ": " + withoutMarkers(child.text())));
     }
     return items;
   }
@@ -127,18 +150,26 @@ final class Prompt {
       SummaryNode node, List<Item> facts, List<Item> excerpts, List<Item> children, Part part) {
     StringBuilder text = new StringBuilder();
     if (part == null) {
-      text.append("Summarize the ")
-          .append(node.level().noun())
-          .append(' ')
-          .append(node.entity())
-          .append(" in at most ")
-          .append(node.level().maxWords())
-          .append(" words.\n");
+      text.append("Summarize the ").append(describe(node.level(), node.entity())).append(' ');
+      if (hasOnePart(node, children)) {
+        // A unit with one part would only restate it at full length.
+        text.append(length(SummaryLevel.ONE_PART_SENTENCES, SummaryLevel.ONE_PART_WORDS))
+            .append(", covering what the ")
+            .append(node.level().noun())
+            .append(" as a whole is for and what it adds to its only part, such as its")
+            .append(" dependencies. Do not restate the summary of that part [S1].\n");
+      } else {
+        text.append(length(node.level()))
+            .append(", covering ")
+            .append(node.level().content())
+            .append(".\n");
+      }
+      if (node.level() == SummaryLevel.REPO) {
+        text.append(BUSINESS_READER);
+      }
     } else {
       text.append("What is known about the ")
-          .append(node.level().noun())
-          .append(' ')
-          .append(node.entity())
+          .append(describe(node.level(), node.entity()))
           .append(" is too long for one request, so it comes in ")
           .append(part.of())
           .append(" parts. This is part ")
@@ -154,6 +185,31 @@ final class Prompt {
   }
 
   /**
+   * How long a summary of the level should be, such as "in 2 to 4 sentences and at most 80 words".
+   */
+  static String length(SummaryLevel level) {
+    return "in "
+        + level.minSentences()
+        + " to "
+        + level.maxSentences()
+        + " sentences and at most "
+        + level.maxWords()
+        + " words";
+  }
+
+  private static String length(String sentences, int words) {
+    return "in " + sentences + " sentences and at most " + words + " words";
+  }
+
+  /**
+   * Whether a package, module or repository has a single part and nothing else to summarize but its
+   * facts: its prompt then asks for a short summary that does not restate that part.
+   */
+  private static boolean hasOnePart(SummaryNode node, List<Item> children) {
+    return children.size() == 1 && node.level() != SummaryLevel.TYPE;
+  }
+
+  /**
    * The user turn that merges summaries of parts of a unit's inputs into one.
    *
    * @param parts the parts' summaries, with the references they cite
@@ -161,13 +217,16 @@ final class Prompt {
   static String merge(SummaryNode node, List<String> parts) {
     StringBuilder text = new StringBuilder();
     text.append("What is known about the ")
-        .append(node.level().noun())
-        .append(' ')
-        .append(node.entity())
+        .append(describe(node.level(), node.entity()))
         .append(" was too long for one request, so it was summarized in parts. Merge the ")
-        .append("summaries of the parts below into one summary of at most ")
-        .append(node.level().maxWords())
-        .append(" words. Cite the references the parts cite for what you take from them.\n");
+        .append("summaries of the parts below into one summary ")
+        .append(length(node.level()))
+        .append(", covering ")
+        .append(node.level().content())
+        .append(". Cite the references the parts cite for what you take from them.\n");
+    if (node.level() == SummaryLevel.REPO) {
+      text.append(BUSINESS_READER);
+    }
     text.append("\nSummaries of the parts:\n");
     for (int i = 0; i < parts.size(); i++) {
       text.append("Part ")
@@ -177,6 +236,27 @@ final class Prompt {
           .append('\n');
     }
     return text.toString();
+  }
+
+  /**
+   * A unit as the prompt names it: its kind and plain name, without the entity ID, which models
+   * would otherwise copy into the text. A type is named with its package, such as {@code type
+   * Order.Line in package com.example.shop}; a package by its Java name, a module by its artifact
+   * ID and a repository by its name.
+   */
+  static String describe(SummaryLevel level, EntityId entity) {
+    String id = entity.key();
+    String name =
+        switch (level) {
+          case TYPE -> {
+            int dot = id.lastIndexOf('.');
+            String simple = id.substring(dot + 1).replace('$', '.');
+            yield dot < 0 ? simple : simple + " in package " + id.substring(0, dot);
+          }
+          case PACKAGE, MODULE -> id.substring(id.lastIndexOf(':') + 1);
+          case REPO -> id;
+        };
+    return level.noun() + " " + name;
   }
 
   private static void section(StringBuilder text, String heading, List<Item> items) {
