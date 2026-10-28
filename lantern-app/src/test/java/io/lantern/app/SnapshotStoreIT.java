@@ -83,10 +83,11 @@ class SnapshotStoreIT {
     TestGitRepo orders = TestGitRepo.init(Files.createDirectory(temp.resolve(ordersName)));
     String first = orders.commit("a.txt", "one");
     repos.register(ordersName, orders.dir(), RepoSettings.DEFAULT);
-    snapshots.create(Map.of(ordersName, RepoRegistry.HEAD));
+    analyzed(snapshots.create(Map.of(ordersName, RepoRegistry.HEAD)), ordersName);
     String billing = register("billing");
-    String billingHead =
-        snapshots.create(Map.of(billing, RepoRegistry.HEAD)).commits().get(billing);
+    Snapshot billingOnly = snapshots.create(Map.of(billing, RepoRegistry.HEAD));
+    analyzed(billingOnly, billing);
+    String billingHead = billingOnly.commits().get(billing);
     String second = orders.commit("a.txt", "two");
 
     // orders moved on, but is not named: it stays at the commit it was last analyzed at.
@@ -94,15 +95,63 @@ class SnapshotStoreIT {
     assertThat(withBilling.commits())
         .containsEntry(ordersName, first)
         .containsEntry(billing, billingHead);
+    analyzed(withBilling, billing);
 
     Snapshot withOrders = snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD));
     assertThat(withOrders.commits())
         .containsEntry(ordersName, second)
         .containsEntry(billing, billingHead);
     assertThat(snapshots.find(withOrders.number())).contains(withOrders);
+    analyzed(withOrders, ordersName);
     // create names only what it is given.
     assertThat(snapshots.create(Map.of(billing, RepoRegistry.HEAD)).commits())
         .containsOnlyKeys(billing);
+  }
+
+  @Test
+  void carriesForwardOnlyCommitsMarkedAnalyzed() throws Exception {
+    String ordersName = "orders-" + UUID.randomUUID().toString().substring(0, 8);
+    TestGitRepo orders = TestGitRepo.init(Files.createDirectory(temp.resolve(ordersName)));
+    String first = orders.commit("a.txt", "one");
+    repos.register(ordersName, orders.dir(), RepoSettings.DEFAULT);
+    analyzed(snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD)), ordersName);
+    String billing = register("billing");
+
+    // A run at a new commit of orders stops before its facts are stored, so it marks nothing.
+    String second = orders.commit("a.txt", "two");
+    Snapshot failed = snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD));
+    assertThat(failed.commits()).containsEntry(ordersName, second);
+
+    // The next run carries orders forward at the commit last analyzed, not the failed run's.
+    Snapshot withBilling = snapshots.createCarryingForward(Map.of(billing, RepoRegistry.HEAD));
+    assertThat(withBilling.commits()).containsEntry(ordersName, first).containsKey(billing);
+
+    // A repository no run analyzed is not carried forward; billing was not marked either.
+    String never = register("never");
+    snapshots.createCarryingForward(Map.of(never, RepoRegistry.HEAD));
+    assertThat(snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD)).commits())
+        .containsEntry(ordersName, second)
+        .doesNotContainKeys(never, billing);
+
+    // Marking a repository the snapshot does not have is refused and marks nothing.
+    analyzed(withBilling, billing);
+    String missing = "zz-missing";
+    assertThatThrownBy(() -> snapshots.markAnalyzed(failed.number(), List.of(ordersName, missing)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(missing);
+    assertThat(snapshots.createCarryingForward(Map.of(never, RepoRegistry.HEAD)).commits())
+        .containsEntry(ordersName, first)
+        .containsEntry(billing, withBilling.commits().get(billing));
+
+    // Once marked (marking again changes nothing), the commit is carried forward.
+    analyzed(failed, ordersName, ordersName);
+    assertThat(snapshots.createCarryingForward(Map.of(never, RepoRegistry.HEAD)).commits())
+        .containsEntry(ordersName, second);
+  }
+
+  /** Marks the repositories analyzed in the snapshot, as a run does once their facts are stored. */
+  private void analyzed(Snapshot snapshot, String... names) {
+    snapshots.markAnalyzed(snapshot.number(), List.of(names));
   }
 
   @Test

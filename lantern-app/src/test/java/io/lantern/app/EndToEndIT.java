@@ -1,16 +1,22 @@
 package io.lantern.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.lantern.compose.ViewDefinitionStore;
+import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
+import io.lantern.core.repo.RepoRegistry;
+import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
+import io.lantern.summarize.SummaryStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -34,16 +40,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Runs the whole pipeline (register, snapshot, build, extract, summarize, compose, render) twice
  * over the same commits, with a fake LLM, and checks that both templates are produced and that the
  * second run reuses every build, fact and summary and makes no LLM call. Also checks that analyzing
- * one repository keeps the facts of another analyzed before (ADR 0018).
+ * one repository keeps the facts of another analyzed before, and that a run that fails before
+ * storing its facts leaves its commit out of later snapshots (ADR 0018).
  *
  * <p>Always runs on the {@code multi-module} fixture. Also runs on OpenWMS tms.transportation when
  * {@code lantern.test.openwms} names the directory {@code testsets/openwms/clone.sh} cloned the
@@ -71,6 +82,7 @@ class EndToEndIT {
   private static final String VOLUME =
       "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
   private static final Path WORKSPACE = tempDirectory();
+  private static final String STORE_FAILED = "Storing the facts failed";
 
   @TestConfiguration(proxyBeanMethods = false)
   static class Fake {
@@ -102,6 +114,7 @@ class EndToEndIT {
   @Autowired AnalysisRun run;
   @Autowired FakeLlmProvider fake;
   @Autowired FactRepository facts;
+  @Autowired ApplicationContext context;
 
   @TempDir Path temp;
 
@@ -204,6 +217,54 @@ class EndToEndIT {
     assertThat(together.newFacts()).isZero();
     assertThat(validIn(together, "greeting-lib")).isEqualTo(libFacts);
     assertThat(validIn(together, "greeting-service")).isEqualTo(serviceFacts);
+
+    // A run at a new commit of the library that fails while storing its facts stores neither the
+    // facts nor the mark that the library was analyzed, so the next run carries the library
+    // forward at the commit its facts come from, not at the failed run's commit (#61).
+    String analyzedLib = first.snapshot().commits().get("greeting-lib");
+    String failedLib = TestGitRepo.init(lib).commit("NOTES.txt", "A change never analyzed.");
+    assertThatThrownBy(() -> failingToStoreFacts().run(Map.of("greeting-lib", lib)))
+        .hasMessage(STORE_FAILED);
+    AnalysisRun.Result afterFailure = run.run(Map.of("greeting-service", service));
+    assertThat(afterFailure.snapshot().number()).isEqualTo(together.snapshot().number() + 2);
+    assertThat(afterFailure.snapshot().commits())
+        .containsEntry("greeting-lib", analyzedLib)
+        .doesNotContainValue(failedLib);
+    assertThat(fake.sent()).as("LLM requests after the failed run").hasSize(sent);
+    assertThat(validIn(afterFailure, "greeting-lib")).isEqualTo(libFacts);
+    assertThat(validIn(afterFailure, "greeting-service")).isEqualTo(serviceFacts);
+  }
+
+  /**
+   * An analysis run like the app's, but whose fact-storing transaction runs and is then rolled back
+   * with an exception, as if storing the facts had failed.
+   */
+  private AnalysisRun failingToStoreFacts() {
+    TransactionTemplate failing =
+        new TransactionTemplate(context.getBean(PlatformTransactionManager.class)) {
+          @Override
+          public <T> T execute(TransactionCallback<T> action) {
+            return super.execute(
+                status -> {
+                  action.doInTransaction(status);
+                  throw new IllegalStateException(STORE_FAILED);
+                });
+          }
+        };
+    return new AnalysisRun(
+        context.getBean(RepoRegistry.class),
+        context.getBean(SnapshotStore.class),
+        context.getBean(AnalysisLock.class),
+        context.getBean(BuildSandbox.class),
+        facts,
+        failing,
+        context.getBean(LlmAccess.class),
+        context.getBean(JdbcLlmCallLog.class),
+        context.getBean(SummaryStore.class),
+        context.getBean(ViewDefinitionStore.class),
+        context.getBean(HtmlRenderer.class),
+        context.getEnvironment().getRequiredProperty("lantern.version"),
+        WORKSPACE.resolve("documents"));
   }
 
   private List<Fact> validIn(AnalysisRun.Result result, String repo) {

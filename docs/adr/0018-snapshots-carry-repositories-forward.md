@@ -1,6 +1,6 @@
 # 0018: Snapshots carry repositories forward
 
-Status: accepted (#60), pending the user's review (#24)
+Status: accepted (#60), amended (#61), pending the user's review (#24)
 
 ## Context
 
@@ -15,10 +15,10 @@ snapshots is a query, and the system scope is all repos in the snapshot.
 
 - **A snapshot describes the whole system.** The analysis run creates its snapshot with
   `SnapshotStore.createCarryingForward`: the repositories it is given at their checked-out commits,
-  and every other repository that an earlier snapshot has at its commit in the latest snapshot
-  that has it. Carried-forward commits are not resolved again, so a repository whose working tree
-  moved on or is gone is still described by what was analyzed. `SnapshotStore.create` still makes a
-  snapshot of exactly the repositories it is given.
+  and every other repository that an earlier snapshot analyzed, at its commit in the latest
+  snapshot that analyzed it (see the amendment below). Carried-forward commits are not resolved
+  again, so a repository whose working tree moved on or is gone is still described by what was
+  analyzed. `SnapshotStore.create` still makes a snapshot of exactly the repositories it is given.
 - **Only the named repositories are analyzed.** The run builds, summarizes, composes and renders
   only the repositories it is given, and records only their facts; carried-forward ones keep their
   facts and their documents stay where an earlier run wrote them. The extractors still see every
@@ -39,10 +39,26 @@ snapshots is a query, and the system scope is all repos in the snapshot.
 
 ## Consequences
 
-A repository stays in every later snapshot once it has been in one. Removing a repository from
+A repository stays in every later snapshot once a run has analyzed it. Removing a repository from
 the system is not supported yet; nothing unregisters one today.
 
 The snapshot is stored before its builds and extraction run, so a run that fails after creating it
-leaves its commits behind, and later runs carry a repository forward at that commit even though
-its facts are still those of the commit analyzed before. Carrying forward only commits whose
-analysis completed needs a marker in the snapshot tables, a schema change left to #61.
+leaves its commits behind. Until the amendment below, later runs carried a repository forward at
+such a commit even though its facts were still those of the commit analyzed before (#61).
+
+## Amendment (#61): carry forward only analyzed commits
+
+- **A snapshot marks the repositories it analyzed.** `snapshot_repositories` has an `analyzed`
+  column (migration V9). A snapshot's rows start as not analyzed; the run marks its named
+  repositories with `SnapshotStore.markAnalyzed` in the transaction that records their facts, so
+  the mark and the facts are stored together or not at all. Carried-forward rows stay unmarked:
+  they were not analyzed in that snapshot.
+- **Only analyzed commits are carried forward.** `createCarryingForward` takes each other
+  repository at its commit in the latest snapshot that analyzed it. After a failed run, later runs
+  carry the repository forward at the commit its facts come from, and a repository that no run
+  ever analyzed successfully is not carried forward at all. A run that fails after storing its
+  facts (summarizing, composing or rendering) has analyzed its repositories, so their commits are
+  carried forward.
+- **Existing rows count as analyzed.** Rows stored before the migration cannot be told apart, so
+  they keep the behavior they had. A failed run's own snapshot still lists the commits it did not
+  analyze; resuming or discarding such a snapshot is left to resumable jobs (#56).
