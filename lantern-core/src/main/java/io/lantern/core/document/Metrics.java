@@ -27,7 +27,7 @@ public record Metrics(String id, List<Item> items, List<String> facts) implement
    * A headline number.
    *
    * @param label what is counted or measured
-   * @param value the number
+   * @param value the number, held without trailing zeros
    * @param unit the unit, or {@code null}
    * @param entity the entity the number is about, or {@code null}
    * @param facts the IDs of the facts the number came from
@@ -38,6 +38,8 @@ public record Metrics(String id, List<Item> items, List<String> facts) implement
     public Item {
       Checks.text(label, "metric label");
       Objects.requireNonNull(value, "value");
+      // One form per number, so 1, 1.0 and 1E+0 compare equal.
+      value = new BigDecimal(value.stripTrailingZeros().toPlainString());
       Checks.optionalText(unit, "metric unit");
       facts = Checks.factIds(facts, "metric facts");
     }

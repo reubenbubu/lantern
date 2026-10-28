@@ -69,9 +69,9 @@ public final class DocumentJson {
         "entities",
         "facts",
         "sections");
-    JsonNode version = in.required("schemaVersion");
-    if (!version.isIntegralNumber() || version.asLong() != Document.SCHEMA_VERSION) {
-      throw new IllegalArgumentException("Unsupported document schemaVersion: " + version);
+    if (in.integer("schemaVersion") != Document.SCHEMA_VERSION) {
+      throw new IllegalArgumentException(
+          "Unsupported document schemaVersion: " + in.required("schemaVersion"));
     }
     Reader template = in.object("template", "name", "version");
     Reader source = in.object("source", "snapshot", "vocabularyRevision", "toolVersion");
@@ -107,7 +107,9 @@ public final class DocumentJson {
         in.entityId("id"),
         in.string("name"),
         in.optionalEntityId("parent"),
-        in.has("description") ? in.content("description") : List.of(),
+        in.has("description")
+            ? Checks.content(in.content("description"), "entity description")
+            : List.of(),
         in.facts());
   }
 
@@ -533,12 +535,18 @@ public final class DocumentJson {
       return has(field) ? entityId(field) : null;
     }
 
+    /** An integer; as in JSON Schema, a number with a zero fraction such as 3.0 counts. */
     long integer(String field) {
       JsonNode value = required(field);
-      if (!value.isIntegralNumber() || !value.canConvertToLong()) {
-        throw new IllegalArgumentException("Field '" + field + "' must be an integer");
+      if (value.isNumber()
+          && !(value.isFloatingPointNumber() && !Double.isFinite(value.doubleValue()))) {
+        try {
+          return value.decimalValue().longValueExact();
+        } catch (ArithmeticException e) {
+          // not integral or out of range
+        }
       }
-      return value.longValue();
+      throw new IllegalArgumentException("Field '" + field + "' must be an integer");
     }
 
     boolean bool(String field) {

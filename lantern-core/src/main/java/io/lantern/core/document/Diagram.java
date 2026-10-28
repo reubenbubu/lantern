@@ -173,7 +173,17 @@ public record Diagram(
    * @param y the vertical position
    * @param pinned whether a user placed the node; pinned nodes never move
    */
-  public record Position(long x, long y, boolean pinned) {}
+  public record Position(long x, long y, boolean pinned) {
+
+    /** The largest coordinate a JavaScript number holds exactly, as the schema allows. */
+    public static final long MAX = (1L << 53) - 1;
+
+    public Position {
+      if (Math.abs(x) > MAX || Math.abs(y) > MAX) {
+        throw new IllegalArgumentException("Position out of range: " + x + ", " + y);
+      }
+    }
+  }
 
   /**
    * A diagram edge between two nodes.

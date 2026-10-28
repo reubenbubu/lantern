@@ -11,6 +11,12 @@ import java.util.regex.Pattern;
 final class Checks {
 
   private static final Pattern ELEMENT_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]*");
+
+  /** A character that is not whitespace in the sense of JSON Schema's {@code \S} (ECMAScript). */
+  private static final Pattern NON_BLANK =
+      Pattern.compile(
+          "[^\\t\\n\\u000b\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]");
+
   private static final Pattern FACT_ID = Pattern.compile("[0-9a-f]{64}");
 
   private Checks() {}
@@ -18,10 +24,15 @@ final class Checks {
   /** Text that must be present and not blank. */
   static String text(String value, String what) {
     Objects.requireNonNull(value, what);
-    if (value.isBlank()) {
+    if (!isNonBlank(value)) {
       throw new IllegalArgumentException(what + " must not be blank");
     }
     return value;
+  }
+
+  /** Whether the text has a character other than whitespace, by the schema's rule. */
+  static boolean isNonBlank(String value) {
+    return NON_BLANK.matcher(value).find();
   }
 
   /** Text that may be absent ({@code null}) but not blank. */

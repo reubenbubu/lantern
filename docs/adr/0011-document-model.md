@@ -52,19 +52,24 @@ live, and which tools generate and check the TypeScript types. The authoritative
   composer and the app use it. `DocumentSchemaTest` keeps schema and Java in line (fields,
   required fields, enums, patterns), as `FactSchemaTest` does for facts. The schema is versioned by
   a `schemaVersion` field, now 1.
-- **TypeScript types are generated** at build time by `json-schema-to-typescript` 16.0.0, the most
-  widely used generator, into `lantern-web/src/generated/document.ts` (not committed). References
-  to the fact envelope schema resolve locally by `$id`. They are checked by compiling a typed
-  sample document with TypeScript 7.0.2.
-- **Schema validation tests** use Ajv 8.20.0, the standard JSON Schema validator for JavaScript,
+- **TypeScript types are generated** at build time by `json-schema-to-typescript`, the most widely
+  used generator, into `lantern-web/src/generated/document.ts` (not committed). References
+  to the fact envelope schema resolve locally by `$id`. They are checked by compiling with TypeScript a
+  typed sample document and lines marked `@ts-expect-error` that the types must refuse.
+- **Schema validation tests** use Ajv, the standard JSON Schema validator for JavaScript,
   in `lantern-web`: the fixture `lantern-core/src/test/resources/schema/document/valid-document.json`
   and the typed sample must pass, and each case in `invalid-cases.json` (one change to the fixture
   each) must fail. The Java tests write exactly that fixture and refuse the same invalid cases, so
   the schema, the Java types and the TypeScript types are tested against the same documents. No
   Java JSON Schema validator is added.
 - **`lantern-web` is created now**, with only type generation and these tests, so the frontend
-  (#14) starts from it. It is a Maven module that uses `frontend-maven-plugin` 2.0.2 to download
-  Node v24.21.0 (the current LTS line) into `lantern-web/target` and run `npm ci`, `npm run
+  (#14) starts from it. It is a Maven module that uses `frontend-maven-plugin` to download Node
+  (the current LTS line) into `lantern-web/target` and run `npm ci`, `npm run
   generate` and `npm test`, so `./mvnw verify` stays the only CI and needs no Node install. The
   plugin caches the Node download in the local Maven repository. `-DskipTests` skips the npm
   tests.
+  Versions are pinned in `lantern-web/package.json` and the root `pom.xml`.
+- **Java reads as the schema does.** Non-blank text follows JSON Schema's (ECMAScript's) `\S`, and
+  an integer written with a zero fraction (`3.0`) is accepted. Metric values are held without
+  trailing zeros so equal numbers compare equal, and node positions stay within what a JavaScript
+  number holds exactly.

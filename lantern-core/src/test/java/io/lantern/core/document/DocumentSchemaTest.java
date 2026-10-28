@@ -156,6 +156,22 @@ class DocumentSchemaTest {
   }
 
   @ParameterizedTest
+  @ValueSource(
+      strings = {"a", " a ", " ", "\u00a0", "\ufeff", "\u2028", "\t\n", "\u001c", "\u0085", ""})
+  void nonBlankPatternAgreesWithJava(String value) {
+    Pattern pattern =
+        Pattern.compile(ecmaScript(defs().get("nonBlankText").get("pattern").stringValue()));
+
+    assertThat(pattern.matcher(value).find()).isEqualTo(Checks.isNonBlank(value));
+  }
+
+  /** Java's {@code \S} differs from ECMAScript's; this spells out ECMAScript's for the schema. */
+  private static String ecmaScript(String pattern) {
+    assertThat(pattern).isEqualTo("\\S");
+    return "[^\\t\\n\\u000b\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]";
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"#1f77b4", "#1F77B4", "1f77b4", "#1f77b", "red"})
   void colorPatternAgreesWithJava(String value) {
     Pattern pattern =

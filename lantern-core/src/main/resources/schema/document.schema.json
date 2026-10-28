@@ -43,7 +43,7 @@
       "pattern": "\\S"
     },
     "elementId": {
-      "description": "ID of a document, section, block or diagram edge. Stable across regenerations, used for deep links and cross-references.",
+      "description": "ID of a document, section, block or diagram edge. Stable across regenerations. Section and block IDs are unique in the document and are what deep links and cross-references use; edge IDs are unique within their diagram.",
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
     },
@@ -321,8 +321,8 @@
       "additionalProperties": false,
       "required": ["x", "y", "pinned"],
       "properties": {
-        "x": { "type": "integer" },
-        "y": { "type": "integer" },
+        "x": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "y": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
         "pinned": { "type": "boolean" }
       }
     },

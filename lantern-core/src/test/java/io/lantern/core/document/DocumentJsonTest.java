@@ -225,6 +225,27 @@ class DocumentJsonTest {
   }
 
   @Test
+  void holdsMetricValuesInOneForm() {
+    Metrics.Item a = new Metrics.Item("n", new java.math.BigDecimal("10.0"), null, null, List.of());
+    Metrics.Item b = new Metrics.Item("n", new java.math.BigDecimal("1E+1"), null, null, List.of());
+
+    assertThat(a).isEqualTo(b);
+    assertThat(a.value().toString()).isEqualTo("10");
+  }
+
+  @Test
+  void readsIntegersWrittenWithAZeroFractionAsTheSchemaDoes() {
+    ObjectNode json = (ObjectNode) FactJson.parse(SampleDocument.fixture());
+    json.put("schemaVersion", 1.0);
+    ((ObjectNode) json.get("source")).put("snapshot", 3.0);
+
+    assertThat(DocumentJson.fromJson(json)).isEqualTo(SampleDocument.create());
+    ((ObjectNode) json.get("source")).put("snapshot", 3.5);
+    assertThatThrownBy(() -> DocumentJson.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
   void keepsLevelsInOrderAndLeavesThemOutWhenAllApply() {
     Document document = SampleDocument.create();
     JsonNode json = DocumentJson.toJson(document);

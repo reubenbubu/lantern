@@ -30,5 +30,8 @@
   {"description": "fractional position", "pointer": "/sections/0/sections/0/blocks/0/nodes/2/position/x", "value": 1.5},
   {"description": "relationship with a space", "pointer": "/sections/0/sections/0/blocks/0/edges/0/relationship", "value": "reads table"},
   {"description": "table without columns", "pointer": "/sections/0/sections/0/blocks/1/columns", "value": []},
-  {"description": "tree node without children", "pointer": "/sections/0/sections/0/blocks/2/roots/0/children", "remove": true}
+  {"description": "tree node without children", "pointer": "/sections/0/sections/0/blocks/2/roots/0/children", "remove": true},
+  {"description": "title of only a no-break space", "pointer": "/title", "value": "\u00a0"},
+  {"description": "empty entity description", "pointer": "/entities/2/description", "value": []},
+  {"description": "position beyond what JavaScript numbers hold exactly", "pointer": "/sections/0/sections/0/blocks/0/nodes/2/position/x", "value": 9007199254740992}
 ]

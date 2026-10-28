@@ -121,3 +121,26 @@ export const sample: Document = {
   facts: [fact],
   sections: [section],
 };
+
+// The generated types must also refuse what the schema refuses.
+export const refused: Block[] = [
+  // @ts-expect-error unknown block kind
+  { kind: 'chart', id: 'c', facts: [] },
+  // @ts-expect-error a paragraph without facts
+  { kind: 'paragraph', id: 'p', content: [{ kind: 'text', text: 'x' }] },
+  // @ts-expect-error unknown callout variant
+  { kind: 'callout', id: 'c', variant: 'tip', content: [{ kind: 'text', text: 'x' }], facts: [] },
+  // @ts-expect-error empty rich text
+  { kind: 'paragraph', id: 'p', content: [], facts: [] },
+  {
+    kind: 'diagram',
+    id: 'd',
+    diagramKind: 'dependency',
+    // @ts-expect-error misspelled node property
+    nodes: [{ id: 'service:orders', label: 'orders', facts: [], colour: '#000000' }],
+    edges: [],
+    facts: [],
+  },
+];
+// @ts-expect-error an inline of unknown kind
+export const refusedInline: Inline = { kind: 'image', text: 'x' };
