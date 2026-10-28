@@ -90,3 +90,4 @@ Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start
 - Also build the OpenWMS repos in the sandbox and extract their Maven facts (after cloning): `./mvnw verify -pl lantern-extract -am -Dlantern.test.openwms=$PWD/workspace/openwms` (this also runs the sandbox-only OpenWMS build test, so the repos are built twice)
 - Run the real-provider LLM test (costs money; only with the user's go-ahead), with `ANTHROPIC_API_KEY` already exported: `LANTERN_LLM_REAL_TEST=true LANTERN_LLM_REAL_TEST_MODEL=<model> ./mvnw verify -pl lantern-llm -am`
 - Run the app (needs the local database): `./mvnw install -DskipTests && ./mvnw spring-boot:run -pl lantern-app`
+- Under rootless Docker, Testcontainers needs `TESTCONTAINERS_HOST_OVERRIDE=localhost` and `TESTCONTAINERS_RYUK_DISABLED=true` exported before running tests.
