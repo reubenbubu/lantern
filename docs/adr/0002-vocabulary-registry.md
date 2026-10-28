@@ -1,6 +1,6 @@
 # 0002: Vocabulary registry details
 
-Status: accepted (#4), amended by ADR 0026 (#86), pending the user's review (#24)
+Status: accepted (#4), amended by ADR 0026 (#86) and by #90, pending the user's review (#24)
 
 ## Context
 
@@ -39,18 +39,26 @@ choices.
   stores the new definition of each type it changed, so the vocabulary as of any revision can be
   read back. A change that alters nothing creates no revision. Writers take a table lock, so
   revisions have no gaps or races.
-- **Changes are additive**, as the design's versioning rules require: an existing type keeps its
-  kind and parent, keeps every declared attribute unchanged, gains no required attributes and does
-  not start refusing undeclared ones. It may declare new optional attributes, and descriptions, C4
-  level and presentation may change. Declaring a new attribute on a type that allows undeclared
-  ones constrains values that were accepted before (and so for its open descendants); this is
-  still treated as additive, because declaring attributes is how the vocabulary grows. Removing
-  and renaming types (deprecation with an alias) are not implemented yet.
+- **Changes are additive, except that the parent may change.** The design's versioning rules
+  allow additive changes: an existing type keeps its kind, keeps every declared attribute
+  unchanged, gains no required attributes and does not start refusing undeclared ones. It may
+  declare new optional attributes, and descriptions, C4 level and presentation may change.
+  Declaring a new attribute on a type that allows undeclared ones constrains values that were
+  accepted before (and so for its open descendants); this is still treated as additive, because
+  declaring attributes is how the vocabulary grows. Since #90 an existing type may also get another
+  parent, or none, as a normal new revision (it was refused before). The type keeps its name, so no
+  alias is needed. The new parent must exist, be of the same kind and not create a cycle, and no
+  type, the ones below it included, may accept less than before through the new parents, so stored
+  facts stay valid. Older revisions still read back with the old parent. Removing and renaming
+  types (deprecation with an alias) are not implemented yet.
 - **Built-in types** are defined in `lantern-core/src/main/resources/vocabulary/built-in-types.json`
   and applied when the app starts, before anything can save facts; unchanged built-ins create no
   revision. Besides the entity types the issue names (system, service, library, module, package,
-  type) they include the C4 parents `container` and `component`, so service and library extend
-  container and module and package extend component. Relationship types are `CONTAINS`,
+  type) they include the C4 parents `container` and `component`. Only `service` extends
+  `container`. Since #90 `library`, `module` and `package` have no parent and so no C4 level, as in
+  the design (a library is not a container, a module or package is not a component); they set
+  their own shape. A database that holds the earlier built-ins gets the change as one new revision
+  at startup. Relationship types are `CONTAINS`,
   `DEPENDS_ON`, `CALLS` (extends `DEPENDS_ON`), `EXTENDS` and `IMPLEMENTS`. Built-ins declare no
   attributes and refuse undeclared ones; extractors add the attributes they need as additive
   changes.

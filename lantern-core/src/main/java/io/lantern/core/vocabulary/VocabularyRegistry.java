@@ -17,7 +17,8 @@ import org.springframework.transaction.support.TransactionOperations;
  *
  * <p>Every change creates a new revision, numbered 1, 2, 3 and so on; revision 0 is the empty
  * vocabulary. A revision stores the new definition of each type it changed, so the vocabulary as of
- * any revision can be read back. Changes are additive (see {@link Vocabulary#changes}).
+ * any revision can be read back. Changes must keep earlier facts valid (see {@link
+ * Vocabulary#changes}); a type may change its parent.
  *
  * <p>As a {@link FactValidator} it checks facts against the latest revision.
  */
@@ -64,8 +65,8 @@ public class VocabularyRegistry implements FactValidator {
    * @param source who or what made the change, for example {@code built-in}, a plugin or a user
    * @param definitions the new definitions
    * @return the revision that holds the definitions: the new one, or the latest if nothing changed
-   * @throws IllegalArgumentException if a change is not additive or would leave the vocabulary
-   *     inconsistent; nothing is stored then
+   * @throws IllegalArgumentException if a change makes a type accept less than before, changes a
+   *     type's kind or would leave the vocabulary inconsistent; nothing is stored then
    */
   public long apply(String source, Collection<VocabularyType> definitions) {
     Objects.requireNonNull(source, "source");

@@ -33,23 +33,22 @@
   {
     "name": "library",
     "kind": "entity",
-    "parent": "container",
-    "description": "A library artifact that other code depends on but that is not deployed on its own.",
+    "shape": "box",
+    "description": "A library artifact that other code depends on but that is not deployed on its own. It has no C4 level: a library is not a container, and a thin service and its library are drawn as one container.",
     "attributeSchema": { "additionalProperties": false }
   },
   {
     "name": "module",
     "kind": "entity",
-    "parent": "component",
-    "description": "A build module, such as a Maven module.",
+    "shape": "box",
+    "description": "A build module, such as a Maven module. It has no C4 level: a module is a unit of the build, not a container or component.",
     "attributeSchema": { "additionalProperties": false }
   },
   {
     "name": "package",
     "kind": "entity",
-    "parent": "component",
     "shape": "folder",
-    "description": "A Java package.",
+    "description": "A Java package. It has no C4 level: a package is a way to group code, not a component.",
     "attributeSchema": { "additionalProperties": false }
   },
   {

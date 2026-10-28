@@ -186,9 +186,15 @@ public final class Vocabulary {
    * The definitions among {@code definitions} that would change this vocabulary: new types, and
    * existing types whose definition differs. Unchanged definitions are left out.
    *
-   * @throws IllegalArgumentException if a name is listed twice, or a change to an existing type is
-   *     not additive: it changes the kind or parent, or its attribute schema accepts less than
-   *     before (see {@link AttributeSchema#nonAdditiveChanges})
+   * <p>An existing type may get a different parent, or none. That is an ordinary change, not a
+   * rename or removal, so it needs no alias. It changes what the type inherits (C4 level, shape,
+   * icon and attributes), so the facts already stored must stay valid: no type may accept less than
+   * before once the parents are applied.
+   *
+   * @throws IllegalArgumentException if a name is listed twice; a change to an existing type
+   *     changes its kind, or its attribute schema accepts less than before (see {@link
+   *     AttributeSchema#nonAdditiveChanges}), including through a new parent; or the result is not
+   *     consistent (a missing parent, a parent of another kind, a cycle of parents)
    */
   public List<VocabularyType> changes(Collection<VocabularyType> definitions) {
     List<VocabularyType> result = new ArrayList<>();
@@ -206,9 +212,6 @@ public final class Vocabulary {
         if (existing.kind() != definition.kind()) {
           problems.add("changes the kind");
         }
-        if (!Objects.equals(existing.parent(), definition.parent())) {
-          problems.add("changes the parent type");
-        }
         problems.addAll(
             existing.attributeSchema().nonAdditiveChanges(definition.attributeSchema()));
         if (!problems.isEmpty()) {
@@ -221,7 +224,34 @@ public final class Vocabulary {
       }
       result.add(definition);
     }
+    if (result.stream().anyMatch(t -> isParentChange(types.get(t.name()), t))) {
+      checkParentChanges(result);
+    }
     return result;
+  }
+
+  private static boolean isParentChange(VocabularyType existing, VocabularyType definition) {
+    return existing != null && !Objects.equals(existing.parent(), definition.parent());
+  }
+
+  /**
+   * Applies the changes to a copy and checks that the result is consistent and that no existing
+   * type, the ones under a new parent included, accepts less than before.
+   */
+  private void checkParentChanges(List<VocabularyType> changes) {
+    Map<String, VocabularyType> merged = new TreeMap<>(types);
+    changes.forEach(t -> merged.put(t.name(), t));
+    Vocabulary after = new Vocabulary(revision + 1, merged.values());
+    for (String name : types.keySet()) {
+      List<String> problems = schemas.get(name).nonAdditiveChanges(after.schemas.get(name));
+      if (!problems.isEmpty()) {
+        throw new IllegalArgumentException(
+            "Change to type '"
+                + name
+                + "' is not additive: with the new parent types it "
+                + String.join(", ", problems));
+      }
+    }
   }
 
   private <T> Optional<T> inherited(String name, Function<VocabularyType, T> field) {

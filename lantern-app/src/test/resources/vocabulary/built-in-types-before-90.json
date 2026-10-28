@@ -1,0 +1,99 @@
+[
+  {
+    "name": "system",
+    "kind": "entity",
+    "c4Level": "context",
+    "shape": "box",
+    "description": "A software system, as shown on a C4 system context diagram.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "container",
+    "kind": "entity",
+    "c4Level": "container",
+    "shape": "box",
+    "description": "A separately runnable or deployable unit, or a data store, within a system.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "component",
+    "kind": "entity",
+    "c4Level": "component",
+    "shape": "box",
+    "description": "A grouping of related code within a container.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "service",
+    "kind": "entity",
+    "parent": "container",
+    "description": "A deployable service.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "library",
+    "kind": "entity",
+    "parent": "container",
+    "description": "A library artifact that other code depends on but that is not deployed on its own.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "module",
+    "kind": "entity",
+    "parent": "component",
+    "description": "A build module, such as a Maven module.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "package",
+    "kind": "entity",
+    "parent": "component",
+    "shape": "folder",
+    "description": "A Java package.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "type",
+    "kind": "entity",
+    "c4Level": "code",
+    "shape": "class",
+    "description": "A Java class, interface, enum, record or annotation.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "CONTAINS",
+    "kind": "relationship",
+    "shape": "nested",
+    "description": "The subject contains the object, for example a module contains a package.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "DEPENDS_ON",
+    "kind": "relationship",
+    "shape": "dashed-arrow",
+    "description": "The subject needs the object to build or run.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "CALLS",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "shape": "arrow",
+    "description": "The subject invokes the object at runtime.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "EXTENDS",
+    "kind": "relationship",
+    "shape": "hollow-arrow",
+    "description": "The subject type extends the object type.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "IMPLEMENTS",
+    "kind": "relationship",
+    "shape": "dashed-hollow-arrow",
+    "description": "The subject type implements the object interface.",
+    "attributeSchema": { "additionalProperties": false }
+  }
+]

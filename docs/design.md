@@ -150,12 +150,13 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 | --- | --- |
 | New entity, relationship or attribute type | No, it's a vocabulary entry |
 | New learned rule producing new types | No, it goes through approval |
+| Giving a type another parent, or none | No, it is a new vocabulary revision; older revisions keep the old parent |
 | Deprecating or renaming a type | No, an alias maps old to new; existing facts are migrated in the background |
 | A template component that renders a new type specially | Yes for the component, but the type works with its parent's rendering until then |
 | A new built-in extractor | Yes, unless it's an out-of-process plugin |
 | Changing the core envelope | Yes, with a Flyway database migration |
 
-**Versioning rules:** additive vocabulary changes are always allowed. Renames and removals go through deprecation with an alias. Each snapshot and document records the vocabulary revision it used, so older documents stay reproducible. Plugins declare which envelope version range they support.
+**Versioning rules:** additive vocabulary changes are always allowed, and so is giving a type another parent (or none), as a new revision that keeps stored facts valid. Renames and removals go through deprecation with an alias. Each snapshot and document records the vocabulary revision it used, so older documents stay reproducible. Plugins declare which envelope version range they support.
 
 **Typed access:** Java types for the envelope and built-in types are hand-written and kept in line with the JSON Schema by tests; TypeScript types are generated from the schema. Runtime-added types are accessed through a generic API.
 
