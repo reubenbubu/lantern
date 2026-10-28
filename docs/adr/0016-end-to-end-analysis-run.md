@@ -1,6 +1,6 @@
 # 0016: End-to-end analysis run
 
-Status: accepted (#17), amended (#100), pending the user's review (#24)
+Status: accepted (#17), amended (#100, #58), pending the user's review (#24)
 
 ## Context
 
@@ -28,10 +28,8 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
   2. creates a snapshot of each repository's checked-out commit (`HEAD`), carrying every other
      repository an earlier snapshot analyzed forward at its last analyzed commit (ADR 0018);
   3. builds the repositories in the sandbox, in parallel up to the sandbox's limit, reusing a
-     stored build of the same `repo@commit`, failed or not. A failed build gives facts of lower
-     confidence (degraded mode); when this was decided a stored fact's confidence could not change,
-     so a successful rebuild would have made the run fail. Since ADR 0017 it would not, and whether
-     to rebuild failed builds is #58. To build again, delete the build's directory under `builds/`.
+     stored successful build of the same `repo@commit` and building a failed one again (see the
+     amendment for #58). To rebuild a successful build, delete its directory under `builds/`.
      Reuse is keyed by
      `repo@commit` alone; the design's key also has the JDK image and `settings.xml` hash, which
      matter once images or settings change (#31);
@@ -87,3 +85,18 @@ instead of on OpenWMS tms.transportation. A relative path is rejected. The repos
 registered as `given-<directory>`, so its name cannot clash with a fixture's, and the calls and
 estimated tokens a real run would use go to
 `lantern-app/target/end-to-end/given-<directory>-llm-calls.txt`. The new test sets (#88) provide its input.
+
+## Amendment (#58): a stored failed build is built again
+
+A run reuses a stored build only if it succeeded. A stored failed build is built again, once per
+run: a repository is built at most once in a run, so a build that keeps failing costs one build per
+run and no more. Repositories carried forward are not analyzed, so they are not built; the
+extractors see their stored build, failed or not.
+
+When this ADR was first decided, a stored fact's confidence could not change, so a successful
+rebuild of a failed build would have made the run fail. Since ADR 0017 a confidence change starts a
+new fact version, so rebuilding is safe. A failure may be transient (a download that failed) or
+fixed by a change the build key does not cover, such as the Maven repositories of ADR 0023 (#30),
+and reusing it would keep the repository in degraded mode until its directory under `builds/` was
+deleted by hand. A failure that comes from broken code fails again, at the cost of a build per run;
+no setting turns rebuilding off, since none was needed yet.

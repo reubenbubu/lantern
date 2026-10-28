@@ -14,6 +14,7 @@ import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
+import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
 import io.lantern.summarize.SummaryStore;
@@ -57,7 +58,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * over the same commits, with a fake LLM, and checks that both templates are produced and that the
  * second run reuses every build, fact and summary and makes no LLM call. Also checks that analyzing
  * one repository keeps the facts of another analyzed before, and that a run that fails before
- * storing its facts leaves its commit out of later snapshots (ADR 0018).
+ * storing its facts leaves its commit out of later snapshots (ADR 0018), and that a stored failed
+ * build is built again while a successful one is reused (#58).
  *
  * <p>Always runs on the {@code multi-module} fixture. Also runs on the Maven repository that {@code
  * lantern.test.repo} names, as an absolute path, if set. It registers that repository as {@code
@@ -143,6 +145,7 @@ class EndToEndIT {
   @Autowired AnalysisRun run;
   @Autowired FakeLlmProvider fake;
   @Autowired FactRepository facts;
+  @Autowired BuildSandbox sandbox;
   @Autowired ApplicationContext context;
 
   @TempDir Path temp;
@@ -262,6 +265,39 @@ class EndToEndIT {
     assertThat(fake.sent()).as("LLM requests after the failed run").hasSize(sent);
     assertThat(validIn(afterFailure, "greeting-lib")).isEqualTo(libFacts);
     assertThat(validIn(afterFailure, "greeting-service")).isEqualTo(serviceFacts);
+  }
+
+  @Test
+  void rebuildsAStoredFailedBuildAndReusesASuccessfulOne() throws IOException {
+    Path lib = fixtureRepo("lib-and-service/lib", "flaky-lib");
+    AnalysisRun.Result first = run.run(Map.of("flaky-lib", lib));
+    BuildResult built = first.builds().get("flaky-lib");
+    assertThat(built.status()).isEqualTo(BuildStatus.SUCCEEDED);
+
+    // Stored as if the build had failed, for example because a download failed for a moment.
+    Path file = built.directory().resolve(BuildSandbox.RESULT_FILE);
+    String json = Files.readString(file);
+    Files.writeString(
+        file,
+        json.replaceFirst("\"status\" : \"SUCCEEDED\"", "\"status\" : \"FAILED\"")
+            .replaceFirst("\"failure\" : null", "\"failure\" : \"A download failed\""));
+    assertThat(sandbox.find("flaky-lib", built.commit()))
+        .hasValueSatisfying(b -> assertThat(b.status()).isEqualTo(BuildStatus.FAILED));
+
+    // The next run builds it again instead of reusing the failure, and finds the same facts.
+    AnalysisRun.Result second = run.run(Map.of("flaky-lib", lib));
+    BuildResult rebuilt = second.builds().get("flaky-lib");
+    assertThat(second.reusedBuilds()).isEmpty();
+    assertThat(rebuilt.status()).isEqualTo(BuildStatus.SUCCEEDED);
+    assertThat(rebuilt.startedAt()).isAfter(built.startedAt());
+    assertThat(sandbox.find("flaky-lib", built.commit())).contains(rebuilt);
+    assertThat(second.facts()).isEqualTo(first.facts());
+    assertThat(second.newFacts()).isZero();
+
+    // A successful build is reused.
+    AnalysisRun.Result third = run.run(Map.of("flaky-lib", lib));
+    assertThat(third.reusedBuilds()).containsExactly("flaky-lib");
+    assertThat(third.builds().get("flaky-lib")).isEqualTo(rebuilt);
   }
 
   /**

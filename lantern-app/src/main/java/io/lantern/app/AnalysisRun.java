@@ -21,6 +21,7 @@ import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
+import io.lantern.sandbox.BuildStatus;
 import io.lantern.summarize.GitSourceFiles;
 import io.lantern.summarize.Summarizer;
 import io.lantern.summarize.SummaryStore;
@@ -287,8 +288,9 @@ public final class AnalysisRun {
   }
 
   /**
-   * Builds every repository at its snapshot commit, in parallel up to the sandbox's limit, reusing
-   * a stored build of the same commit, failed or not (ADR 0016).
+   * Builds every repository at its snapshot commit, in parallel up to the sandbox's limit, each at
+   * most once. A stored successful build of the same commit is reused; a stored failed one is built
+   * again, since its failure may have been transient or fixed by a settings change (ADR 0016, #58).
    */
   private Map<String, BuildResult> build(
       Map<String, Repo> repos, Snapshot snapshot, List<String> reused) {
@@ -298,11 +300,15 @@ public final class AnalysisRun {
         String name = entry.getKey();
         String commit = snapshot.commits().get(name);
         BuildResult stored = sandbox.find(name, commit).orElse(null);
-        if (stored != null) {
+        if (stored != null && stored.status() == BuildStatus.SUCCEEDED) {
           reused.add(name);
           running.put(name, CompletableFuture.completedFuture(stored));
         } else {
-          LOG.info("Building {}@{}", name, commit);
+          if (stored != null) {
+            LOG.info("Building {}@{} again: its stored build failed", name, commit);
+          } else {
+            LOG.info("Building {}@{}", name, commit);
+          }
           running.put(name, executor.submit(() -> sandbox.build(entry.getValue(), commit)));
         }
       }
