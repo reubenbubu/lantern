@@ -1,5 +1,5 @@
 // Renders a document model: its sections and every kind of block, in document order.
-import { createContext, type MouseEvent, type ReactNode, useContext, useMemo } from 'react';
+import { createContext, memo, type MouseEvent, type ReactNode, useContext, useMemo } from 'react';
 import type {
   Block,
   Callout,
@@ -33,7 +33,6 @@ export const LookupContext = createContext<Lookup | undefined>(undefined);
 export interface Interaction {
   selectEntity(id: string): void;
   selectFacts(ids: string[]): void;
-  selectedEntity?: string;
   /** Called each time a diagram has been laid out, which changes the page's height. */
   diagramLaidOut(): void;
 }
@@ -43,6 +42,12 @@ export const InteractionContext = createContext<Interaction | undefined>(undefin
 export function useInteraction(): Interaction | undefined {
   return useContext(InteractionContext);
 }
+
+/**
+ * The selected entity, apart from the interaction so that a new selection re-renders only what
+ * highlights it (diagram nodes), not the whole document.
+ */
+export const SelectedEntityContext = createContext<string | undefined>(undefined);
 
 export function useLookup(): Lookup {
   const lookup = useContext(LookupContext);
@@ -70,8 +75,10 @@ export function buildLookup(document: LanternDocument): Lookup {
   };
 }
 
-export function DocumentView({ document }: { document: LanternDocument }) {
-  const lookup = useMemo(() => buildLookup(document), [document]);
+/** Renders the document; reuses the lookup of a template that already provides one for it. */
+export const DocumentView = memo(function DocumentView({ document }: { document: LanternDocument }) {
+  const outer = useContext(LookupContext);
+  const lookup = useMemo(() => outer ?? buildLookup(document), [outer, document]);
   return (
     <LookupContext.Provider value={lookup}>
       <article className="document">
@@ -88,7 +95,7 @@ export function DocumentView({ document }: { document: LanternDocument }) {
       </article>
     </LookupContext.Provider>
   );
-}
+});
 
 function SectionView({ section, depth }: { section: Section; depth: number }) {
   const Heading = (['h2', 'h3', 'h4', 'h5', 'h6'] as const)[Math.min(depth, 4)];

@@ -1,6 +1,6 @@
 // Draws a diagram block as SVG once elkjs has laid it out.
-import { type KeyboardEvent, useEffect, useState } from 'react';
-import { useInteraction } from '../DocumentView.tsx';
+import { type KeyboardEvent, useContext, useEffect, useState } from 'react';
+import { SelectedEntityContext, useInteraction } from '../DocumentView.tsx';
 import type { Diagram } from '../generated/document.ts';
 import { type DiagramLayout, layoutDiagram } from './layout.ts';
 import { ZoomPan } from './ZoomPan.tsx';
@@ -62,6 +62,7 @@ function textOn(color: string): string {
 
 export function DiagramSvg({ diagram, layout }: { diagram: Diagram; layout: DiagramLayout }) {
   const interaction = useInteraction();
+  const selected = useContext(SelectedEntityContext);
   // In an interactive template a node selects its entity, by click or by Enter or Space once focused.
   const select = (id: string) =>
     interaction
@@ -78,7 +79,7 @@ export function DiagramSvg({ diagram, layout }: { diagram: Diagram; layout: Diag
         }
       : {};
   const nodeClass = (base: string, id: string) =>
-    interaction?.selectedEntity === id ? `${base} diagram-selected` : base;
+    interaction && selected === id ? `${base} diagram-selected` : base;
   const marker = `arrow-${diagram.id.replace(/[^A-Za-z0-9_-]/g, '_')}`;
   const width = layout.width + 2 * MARGIN;
   const height = layout.height + 2 * MARGIN;
@@ -88,7 +89,8 @@ export function DiagramSvg({ diagram, layout }: { diagram: Diagram; layout: Diag
       viewBox={`${-MARGIN} ${-MARGIN} ${width} ${height}`}
       width={width}
       height={height}
-      role="img"
+      // A picture on a plain page; in an interactive one its nodes are buttons, which "img" would hide.
+      role={interaction ? 'group' : 'img'}
       aria-label={diagram.title ?? diagram.diagramKind}
     >
       <defs>

@@ -36,7 +36,13 @@ export function ZoomPan({ content, label, children }: { content: Size; label: st
   const press = useRef<{ start: Pointer; dragging: boolean } | undefined>(undefined);
   const suppressClick = useRef(false);
 
-  const maxHeight = typeof window === 'undefined' ? 600 : Math.max(MIN_HEIGHT, window.innerHeight * MAX_HEIGHT_SHARE);
+  const [windowHeight, setWindowHeight] = useState(() => (typeof window === 'undefined' ? 860 : window.innerHeight));
+  useEffect(() => {
+    const onResize = () => setWindowHeight(window.innerHeight);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const maxHeight = Math.max(MIN_HEIGHT, windowHeight * MAX_HEIGHT_SHARE);
   const height = Math.round(
     Math.min(maxHeight, Math.max(MIN_HEIGHT, content.height * initialScale(content, width || content.width))),
   );

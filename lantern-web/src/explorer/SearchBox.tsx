@@ -34,7 +34,7 @@ export function SearchBox({ index, onPick }: { index: SearchItem[]; onPick(targe
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setOpen(true);
-      setActive((a) => Math.min(a + 1, results.length - 1));
+      setActive((a) => Math.max(0, Math.min(a + 1, results.length - 1)));
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       setActive((a) => Math.max(a - 1, 0));
@@ -70,9 +70,13 @@ export function SearchBox({ index, onPick }: { index: SearchItem[]; onPick(targe
         onBlur={() => setOpen(false)}
         onKeyDown={onKeyDown}
       />
-      {showResults && (
+      {showResults && results.length === 0 && (
+        <p className="search-results search-empty" role="status">
+          Nothing matches.
+        </p>
+      )}
+      {showResults && results.length > 0 && (
         <ul className="search-results" id={listId} role="listbox">
-          {results.length === 0 && <li className="search-empty">Nothing matches.</li>}
           {results.map((item, i) => (
             <li
               key={`${item.target.kind}:${item.target.id}`}

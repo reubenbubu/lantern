@@ -10,6 +10,7 @@ import {
   type Interaction,
   InteractionContext,
   LookupContext,
+  SelectedEntityContext,
 } from '../DocumentView.tsx';
 import type { Document as LanternDocument } from '../generated/document.ts';
 import { ContextPanel, type Selection } from './ContextPanel.tsx';
@@ -48,6 +49,13 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
   const [theme, setTheme] = useState<Theme | undefined>(() =>
     typeof window === 'undefined' ? undefined : storedTheme(),
   );
+  const [system, setSystem] = useState<Theme>(() => (typeof window === 'undefined' ? 'light' : systemTheme()));
+  useEffect(() => {
+    const query = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const onChange = () => setSystem(systemTheme());
+    query?.addEventListener('change', onChange);
+    return () => query?.removeEventListener('change', onChange);
+  }, []);
   const content = useRef<HTMLElement>(null);
   const contextPane = useRef<HTMLElement>(null);
   /**
@@ -84,16 +92,44 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
     return () => events.forEach((e) => pane?.removeEventListener(e, stop));
   }, [lookup]);
 
-  // Back and forward, and links to other parts of the page, move the selection with the address.
+  // Back and forward, and links to other parts of the page, move the selection with the address
+  // (popstate fires for both).
   useEffect(() => {
-    const sync = () => setSelection(selectionFromHash(window.location.hash));
-    window.addEventListener('hashchange', sync);
-    window.addEventListener('popstate', sync);
-    return () => {
-      window.removeEventListener('hashchange', sync);
-      window.removeEventListener('popstate', sync);
+    const sync = () => {
+      pendingScroll.current = undefined;
+      setSelection(selectionFromHash(window.location.hash));
+      const link = parseHash(window.location.hash);
+      if (link.kind === 'element') {
+        scrollToElement(link.id);
+      }
     };
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
   }, []);
+
+  // Keyboard users land in a drawer when it opens and back where they were when it closes.
+  const opener = useRef<HTMLElement | null>(null);
+  const navPane = useRef<HTMLElement>(null);
+  const previousDrawer = useRef<Drawer>(drawer);
+  useEffect(() => {
+    const previous = previousDrawer.current;
+    previousDrawer.current = drawer;
+    if (drawer === previous) {
+      return;
+    }
+    const pane = drawer === 'nav' ? navPane.current : drawer === 'context' ? contextPane.current : null;
+    const close = pane?.querySelector<HTMLElement>('.pane-close');
+    // The close button shows only where the pane is a drawer.
+    if (close && close.offsetParent !== null) {
+      if (previous === 'none') {
+        opener.current = document.activeElement as HTMLElement | null;
+      }
+      close.focus();
+    } else if (drawer === 'none' && opener.current?.isConnected) {
+      opener.current.focus();
+      opener.current = null;
+    }
+  }, [drawer]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -128,21 +164,22 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
         setSelection({ kind: 'facts', ids });
         setDrawer('context');
       },
-      selectedEntity: selection.kind === 'entity' ? selection.id : undefined,
       diagramLaidOut,
     }),
-    [selectEntity, selection, diagramLaidOut],
+    [selectEntity, diagramLaidOut],
   );
 
   const goToElement = (id: string) => {
     pendingScroll.current = undefined;
     setDrawer('none');
-    window.history.pushState(null, '', `#${id}`);
+    if (window.location.hash !== `#${id}`) {
+      window.history.pushState(null, '', `#${id}`);
+    }
     setSelection({ kind: 'none' });
     scrollToElement(id, 'smooth');
   };
 
-  const effectiveTheme = theme ?? (typeof window === 'undefined' ? 'light' : systemTheme());
+  const effectiveTheme = theme ?? system;
   const toggleTheme = () => {
     const next: Theme = effectiveTheme === 'dark' ? 'light' : 'dark';
     applyTheme(next, true);
@@ -152,6 +189,7 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
   return (
     <LookupContext.Provider value={lookup}>
       <InteractionContext.Provider value={interaction}>
+        <SelectedEntityContext.Provider value={selection.kind === 'entity' ? selection.id : undefined}>
         <div className="explorer-root">
           <div className={`explorer drawer-${drawer}`}>
             <header className="explorer-header">
@@ -192,7 +230,7 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
                 ⓘ
               </button>
             </header>
-            <nav className="explorer-nav pane" aria-label="Navigation">
+            <nav className="explorer-nav pane" aria-label="Navigation" ref={navPane}>
               <NavPane
                 document={doc}
                 tree={tree}
@@ -218,6 +256,7 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
             <div className="scrim" aria-hidden="true" onClick={() => setDrawer('none')} />
           </div>
         </div>
+        </SelectedEntityContext.Provider>
       </InteractionContext.Provider>
     </LookupContext.Provider>
   );

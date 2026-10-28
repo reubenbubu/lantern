@@ -103,6 +103,10 @@
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
 }
 
+.search-empty {
+  padding: 0.5rem 0.75rem;
+}
+
 .search-results li {
   display: flex;
   flex-direction: column;
@@ -171,6 +175,10 @@
 .drawer-context .explorer-context {
   transform: none;
   visibility: visible;
+  /* Visible at once when opening, so focus can move in; closing keeps it until the slide ends. */
+  transition:
+    transform 0.2s ease,
+    visibility 0s;
   box-shadow: 0 0 24px rgb(0 0 0 / 0.25);
 }
 
@@ -188,7 +196,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pane {
+  .pane,
+  .drawer-nav .explorer-nav,
+  .drawer-context .explorer-context {
     transition: none;
   }
 }
@@ -538,7 +548,8 @@
 
 .zoom-viewport {
   position: relative;
-  overflow: hidden;
+  /* Clip, not hidden: a hidden overflow could still be scrolled by focus and shift the view. */
+  overflow: clip;
   border: var(--pane-border);
   border-radius: 6px;
   background: var(--color-bg);
