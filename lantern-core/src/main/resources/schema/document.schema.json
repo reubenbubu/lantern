@@ -1,0 +1,487 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:lantern:schema:document:1",
+  "title": "Document",
+  "description": "A format-neutral document: sections, diagrams, tables, callouts and cross-references, each linked to the fact IDs it came from. The composer writes it and renderers format it. See docs/design.md, Composition, layout stability and prose stability, and docs/adr/0011-document-model.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "title", "template", "source", "entities", "facts", "sections"],
+  "properties": {
+    "schemaVersion": {
+      "description": "Version of this schema. Changes when the document model changes incompatibly.",
+      "const": 1
+    },
+    "id": {
+      "description": "Document ID, stable across regenerations of the same view.",
+      "$ref": "#/$defs/elementId"
+    },
+    "title": { "$ref": "#/$defs/nonBlankText" },
+    "audience": {
+      "description": "Name of the audience profile the document was composed for.",
+      "$ref": "#/$defs/nonBlankText"
+    },
+    "template": { "$ref": "#/$defs/templateRef" },
+    "source": { "$ref": "#/$defs/documentSource" },
+    "entities": {
+      "description": "The entities the document refers to, sorted by ID. The navigation tree follows their parents.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/entity" }
+    },
+    "facts": {
+      "description": "The facts the document refers to, sorted by ID, so evidence, origin and confidence can be shown without the service.",
+      "type": "array",
+      "items": { "$ref": "urn:lantern:schema:fact-envelope:1" }
+    },
+    "sections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/section" }
+    }
+  },
+  "$defs": {
+    "nonBlankText": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "elementId": {
+      "description": "ID of a document, section, block or diagram edge. Stable across regenerations. Section and block IDs are unique in the document and are what deep links and cross-references use; edge IDs are unique within their diagram.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "entityId": {
+      "description": "Stable entity ID, as in the fact envelope.",
+      "$ref": "urn:lantern:schema:fact-envelope:1#/$defs/entityId"
+    },
+    "factId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "factIds": {
+      "description": "IDs of the facts an element came from. Each must be in the document's facts.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/factId" }
+    },
+    "level": {
+      "description": "Granularity level: L0 executive, L1 architect, L2 engineer, L3 deep dive.",
+      "enum": ["L0", "L1", "L2", "L3"]
+    },
+    "templateRef": {
+      "title": "TemplateRef",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonBlankText" },
+        "version": { "$ref": "#/$defs/nonBlankText" }
+      }
+    },
+    "documentSource": {
+      "title": "DocumentSource",
+      "description": "What the document was composed from, so it can be reproduced.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot", "vocabularyRevision", "toolVersion"],
+      "properties": {
+        "snapshot": { "type": "integer", "minimum": 1 },
+        "vocabularyRevision": { "type": "integer", "minimum": 0 },
+        "toolVersion": { "$ref": "#/$defs/nonBlankText" }
+      }
+    },
+    "entity": {
+      "title": "DocumentEntity",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "facts"],
+      "properties": {
+        "id": { "$ref": "#/$defs/entityId" },
+        "name": { "$ref": "#/$defs/nonBlankText" },
+        "parent": {
+          "description": "The entity this one belongs to in the navigation tree. Must be in the document's entities.",
+          "$ref": "#/$defs/entityId"
+        },
+        "description": { "$ref": "#/$defs/content" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "section": {
+      "title": "Section",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "facts", "blocks", "sections"],
+      "properties": {
+        "id": { "$ref": "#/$defs/elementId" },
+        "title": { "$ref": "#/$defs/nonBlankText" },
+        "levels": {
+          "description": "The granularity levels at which the section is shown. Absent means all levels.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/level" }
+        },
+        "entity": {
+          "description": "The entity the section is about, if any.",
+          "$ref": "#/$defs/entityId"
+        },
+        "facts": { "$ref": "#/$defs/factIds" },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/block" }
+        },
+        "sections": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/section" }
+        }
+      }
+    },
+    "block": {
+      "oneOf": [
+        { "$ref": "#/$defs/paragraph" },
+        { "$ref": "#/$defs/list" },
+        { "$ref": "#/$defs/callout" },
+        { "$ref": "#/$defs/table" },
+        { "$ref": "#/$defs/diagram" },
+        { "$ref": "#/$defs/tree" },
+        { "$ref": "#/$defs/metrics" }
+      ]
+    },
+    "content": {
+      "description": "Rich text: a run of inline elements.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/inline" }
+    },
+    "paragraph": {
+      "title": "Paragraph",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "content", "facts"],
+      "properties": {
+        "kind": { "const": "paragraph" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "content": { "$ref": "#/$defs/content" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "list": {
+      "title": "ListBlock",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "ordered", "items", "facts"],
+      "properties": {
+        "kind": { "const": "list" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "ordered": { "type": "boolean" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/listItem" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "listItem": {
+      "title": "ListItem",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content", "facts"],
+      "properties": {
+        "content": { "$ref": "#/$defs/content" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "callout": {
+      "title": "Callout",
+      "description": "Text set apart from the flow: a note, a warning or a risk.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "variant", "content", "facts"],
+      "properties": {
+        "kind": { "const": "callout" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "variant": { "enum": ["note", "warning", "risk"] },
+        "title": { "$ref": "#/$defs/nonBlankText" },
+        "content": { "$ref": "#/$defs/content" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "table": {
+      "title": "Table",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "columns", "rows", "facts"],
+      "properties": {
+        "kind": { "const": "table" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "title": { "$ref": "#/$defs/nonBlankText" },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/tableColumn" }
+        },
+        "rows": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/tableRow" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "tableColumn": {
+      "title": "TableColumn",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "properties": {
+        "label": { "$ref": "#/$defs/nonBlankText" }
+      }
+    },
+    "tableRow": {
+      "title": "TableRow",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cells", "facts"],
+      "properties": {
+        "entity": {
+          "description": "The entity the row is about, if any.",
+          "$ref": "#/$defs/entityId"
+        },
+        "cells": {
+          "description": "One cell per column, in column order. An empty cell is an empty array.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/inline" }
+          }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "diagram": {
+      "title": "Diagram",
+      "description": "A graph of entities. Renderers lay it out, keeping any stored positions.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "diagramKind", "nodes", "edges", "facts"],
+      "properties": {
+        "kind": { "const": "diagram" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "diagramKind": { "enum": ["c4-context", "c4-container", "c4-component", "dependency"] },
+        "title": { "$ref": "#/$defs/nonBlankText" },
+        "nodes": {
+          "description": "The nodes, sorted by ID.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagramNode" }
+        },
+        "edges": {
+          "description": "The edges, sorted by ID.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagramEdge" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "diagramNode": {
+      "title": "DiagramNode",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "facts"],
+      "properties": {
+        "id": {
+          "description": "The entity the node shows. Must be in the document's entities.",
+          "$ref": "#/$defs/entityId"
+        },
+        "label": { "$ref": "#/$defs/nonBlankText" },
+        "technology": {
+          "description": "Technology line under the label, as in C4 diagrams.",
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "parent": {
+          "description": "Another node of the same diagram that this node is drawn inside, as a boundary.",
+          "$ref": "#/$defs/entityId"
+        },
+        "style": { "$ref": "#/$defs/nodeStyle" },
+        "position": { "$ref": "#/$defs/nodePosition" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "nodeStyle": {
+      "title": "NodeStyle",
+      "description": "Resolved presentation; absent properties use the renderer's defaults.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shape": { "$ref": "#/$defs/nonBlankText" },
+        "icon": { "$ref": "#/$defs/nonBlankText" },
+        "color": { "type": "string", "pattern": "^#[0-9a-f]{6}$" }
+      }
+    },
+    "nodePosition": {
+      "title": "NodePosition",
+      "description": "Stored top-left position in layout units. Pinned positions were set by a user and never move.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "pinned"],
+      "properties": {
+        "x": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "y": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+        "pinned": { "type": "boolean" }
+      }
+    },
+    "diagramEdge": {
+      "title": "DiagramEdge",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "from", "to", "facts"],
+      "properties": {
+        "id": {
+          "description": "Unique within the diagram.",
+          "$ref": "#/$defs/elementId"
+        },
+        "from": {
+          "description": "A node of the same diagram.",
+          "$ref": "#/$defs/entityId"
+        },
+        "to": {
+          "description": "A node of the same diagram.",
+          "$ref": "#/$defs/entityId"
+        },
+        "label": { "$ref": "#/$defs/nonBlankText" },
+        "relationship": {
+          "description": "The relationship type the edge shows, e.g. CALLS.",
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "tree": {
+      "title": "Tree",
+      "description": "A hierarchy, such as a dependency tree or module and package structure.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "roots", "facts"],
+      "properties": {
+        "kind": { "const": "tree" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "title": { "$ref": "#/$defs/nonBlankText" },
+        "roots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/treeNode" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "treeNode": {
+      "title": "TreeNode",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "facts", "children"],
+      "properties": {
+        "label": { "$ref": "#/$defs/nonBlankText" },
+        "entity": { "$ref": "#/$defs/entityId" },
+        "facts": { "$ref": "#/$defs/factIds" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/treeNode" }
+        }
+      }
+    },
+    "metrics": {
+      "title": "Metrics",
+      "description": "Headline numbers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "items", "facts"],
+      "properties": {
+        "kind": { "const": "metrics" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/metric" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "metric": {
+      "title": "Metric",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "value", "facts"],
+      "properties": {
+        "label": { "$ref": "#/$defs/nonBlankText" },
+        "value": { "type": "number" },
+        "unit": { "$ref": "#/$defs/nonBlankText" },
+        "entity": { "$ref": "#/$defs/entityId" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "inline": {
+      "oneOf": [
+        { "$ref": "#/$defs/textRun" },
+        { "$ref": "#/$defs/ref" },
+        { "$ref": "#/$defs/citation" }
+      ]
+    },
+    "textRun": {
+      "title": "TextRun",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text"],
+      "properties": {
+        "kind": { "const": "text" },
+        "text": { "type": "string", "minLength": 1 },
+        "style": { "enum": ["strong", "emphasis", "code"] }
+      }
+    },
+    "ref": {
+      "title": "CrossReference",
+      "description": "A cross-reference to a section, block or entity of the same document.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text", "target"],
+      "properties": {
+        "kind": { "const": "ref" },
+        "text": { "type": "string", "minLength": 1 },
+        "target": {
+          "oneOf": [{ "$ref": "#/$defs/elementTarget" }, { "$ref": "#/$defs/entityTarget" }]
+        }
+      }
+    },
+    "elementTarget": {
+      "title": "ElementTarget",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["section", "block"] },
+        "id": { "$ref": "#/$defs/elementId" }
+      }
+    },
+    "entityTarget": {
+      "title": "EntityTarget",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "const": "entity" },
+        "id": { "$ref": "#/$defs/entityId" }
+      }
+    },
+    "citation": {
+      "title": "Citation",
+      "description": "The facts the preceding text is based on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "facts"],
+      "properties": {
+        "kind": { "const": "citation" },
+        "facts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/factId" }
+        }
+      }
+    }
+  }
+}

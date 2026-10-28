@@ -79,12 +79,13 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 ## Commands
 
-Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start PostgreSQL with Testcontainers, create temporary git repositories and run real build containers, which pull the Maven images and download from Maven Central). Run from the repo root.
+Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start PostgreSQL with Testcontainers, create temporary git repositories and run real build containers, which pull the Maven images and download from Maven Central). The build also downloads Node into `lantern-web/target` and npm packages from the npm registry, so no local Node install is needed. Run from the repo root.
 
 - Build and test everything (this is CI): `./mvnw verify`
 - Fix formatting: `./mvnw spotless:apply`
 - Check formatting only: `./mvnw spotless:check`
 - Test one module: `./mvnw verify -pl <module> -am`
+- With Node 24 installed, regenerate the TypeScript types and run the frontend tests alone: `npm --prefix lantern-web ci && npm --prefix lantern-web test`
 - Start the local database: `docker compose up -d` (stop with `docker compose down`)
 - Clone the OpenWMS test set at its pinned commits into `workspace/openwms` (safe to rerun): `testsets/openwms/clone.sh`
 - Also build the OpenWMS repos in the sandbox and extract their Maven facts (after cloning): `./mvnw verify -pl lantern-extract -am -Dlantern.test.openwms=$PWD/workspace/openwms` (this also runs the sandbox-only OpenWMS build test, so the repos are built twice)

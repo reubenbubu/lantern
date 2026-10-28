@@ -360,6 +360,8 @@ Composition decides what a document says and shows; rendering only formats it. C
 
 **Composer inputs:** knowledge in scope (at the snapshot), the view definition, presentation rules, and the previous rendition (layout state, prior prose, color assignments). **Output:** a format-neutral document model of sections, diagrams, tables, callouts and cross-references, each element linked to the fact IDs it came from.
 
+What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011.
+
 **View definitions.** A persisted spec per document: scope, audience profile, template, sections and diagrams. Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
 **Granularity through hierarchical summaries**

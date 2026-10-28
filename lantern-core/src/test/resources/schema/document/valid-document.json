@@ -1,0 +1,345 @@
+{
+  "schemaVersion" : 1,
+  "id" : "orders-explorer",
+  "title" : "orders",
+  "audience" : "architect",
+  "template" : {
+    "name" : "architecture-explorer",
+    "version" : "1"
+  },
+  "source" : {
+    "snapshot" : 3,
+    "vocabularyRevision" : 2,
+    "toolVersion" : "0.1.0-SNAPSHOT"
+  },
+  "entities" : [ {
+    "id" : "database:orders-db",
+    "name" : "orders-db",
+    "facts" : [ ]
+  }, {
+    "id" : "library:orders-lib",
+    "name" : "orders-lib",
+    "parent" : "service:orders",
+    "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed", "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+  }, {
+    "id" : "service:orders",
+    "name" : "orders",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Takes orders."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+    } ],
+    "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+  } ],
+  "facts" : [ {
+    "id" : "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed",
+    "subject" : "library:orders-lib",
+    "predicate" : "READS_TABLE",
+    "object" : {
+      "kind" : "entity",
+      "value" : "database:orders-db"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "llm",
+      "name" : "resolver"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "0123456789abcdef0123456789abcdef01234567"
+    },
+    "confidence" : 0.75,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6",
+    "subject" : "service:orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "library:orders-lib"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "0123456789abcdef0123456789abcdef01234567",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 10,
+        "end" : 14
+      },
+      "contentHash" : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  } ],
+  "sections" : [ {
+    "id" : "overview",
+    "title" : "Overview",
+    "levels" : [ "L0", "L1" ],
+    "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ],
+    "blocks" : [ {
+      "kind" : "paragraph",
+      "id" : "overview-intro",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The "
+      }, {
+        "kind" : "text",
+        "text" : "orders",
+        "style" : "strong"
+      }, {
+        "kind" : "text",
+        "text" : " service "
+      }, {
+        "kind" : "ref",
+        "text" : "orders",
+        "target" : {
+          "kind" : "entity",
+          "id" : "service:orders"
+        }
+      }, {
+        "kind" : "text",
+        "text" : " packages its library."
+      }, {
+        "kind" : "citation",
+        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      } ],
+      "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+    }, {
+      "kind" : "metrics",
+      "id" : "headline",
+      "items" : [ {
+        "label" : "Services",
+        "value" : 1,
+        "facts" : [ ]
+      }, {
+        "label" : "Coverage",
+        "value" : 72.5,
+        "unit" : "%",
+        "entity" : "service:orders",
+        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "risk-db",
+      "variant" : "risk",
+      "title" : "Shared database",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "orders-db",
+        "style" : "code"
+      }, {
+        "kind" : "text",
+        "text" : " is shared."
+      } ],
+      "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+    }, {
+      "kind" : "list",
+      "id" : "highlights",
+      "ordered" : false,
+      "items" : [ {
+        "content" : [ {
+          "kind" : "text",
+          "text" : "One deployable."
+        } ],
+        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      }, {
+        "content" : [ {
+          "kind" : "text",
+          "text" : "Reads one database.",
+          "style" : "emphasis"
+        } ],
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ {
+      "id" : "structure",
+      "title" : "Structure",
+      "entity" : "service:orders",
+      "facts" : [ ],
+      "blocks" : [ {
+        "kind" : "diagram",
+        "id" : "containers",
+        "diagramKind" : "c4-container",
+        "title" : "Containers",
+        "nodes" : [ {
+          "id" : "database:orders-db",
+          "label" : "orders-db",
+          "style" : {
+            "icon" : "database",
+            "color" : "#ff7f0e"
+          },
+          "facts" : [ ]
+        }, {
+          "id" : "library:orders-lib",
+          "label" : "orders-lib",
+          "technology" : "Java, Spring Boot",
+          "parent" : "service:orders",
+          "style" : {
+            "shape" : "box"
+          },
+          "position" : {
+            "x" : 20,
+            "y" : 10,
+            "pinned" : false
+          },
+          "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        }, {
+          "id" : "service:orders",
+          "label" : "orders",
+          "style" : {
+            "shape" : "box",
+            "icon" : "server",
+            "color" : "#1f77b4"
+          },
+          "position" : {
+            "x" : 0,
+            "y" : -40,
+            "pinned" : true
+          },
+          "facts" : [ ]
+        } ],
+        "edges" : [ {
+          "id" : "orders-lib-reads-db",
+          "from" : "library:orders-lib",
+          "to" : "database:orders-db",
+          "label" : "reads",
+          "relationship" : "READS_TABLE",
+          "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+        }, {
+          "id" : "orders-to-db",
+          "from" : "service:orders",
+          "to" : "database:orders-db",
+          "facts" : [ ]
+        } ],
+        "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed", "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      }, {
+        "kind" : "table",
+        "id" : "dependencies",
+        "title" : "Dependencies",
+        "columns" : [ {
+          "label" : "From"
+        }, {
+          "label" : "To"
+        } ],
+        "rows" : [ {
+          "entity" : "library:orders-lib",
+          "cells" : [ [ {
+            "kind" : "ref",
+            "text" : "orders-lib",
+            "target" : {
+              "kind" : "entity",
+              "id" : "library:orders-lib"
+            }
+          } ], [ {
+            "kind" : "text",
+            "text" : "orders-db"
+          } ] ],
+          "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+        }, {
+          "cells" : [ [ {
+            "kind" : "text",
+            "text" : "orders"
+          } ], [ ] ],
+          "facts" : [ ]
+        } ],
+        "facts" : [ ]
+      }, {
+        "kind" : "tree",
+        "id" : "modules",
+        "title" : "Modules",
+        "roots" : [ {
+          "label" : "orders",
+          "entity" : "service:orders",
+          "facts" : [ ],
+          "children" : [ {
+            "label" : "orders-lib",
+            "entity" : "library:orders-lib",
+            "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ],
+            "children" : [ ]
+          }, {
+            "label" : "README.md",
+            "facts" : [ ],
+            "children" : [ ]
+          } ]
+        } ],
+        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      }, {
+        "kind" : "tree",
+        "id" : "no-modules",
+        "roots" : [ ],
+        "facts" : [ ]
+      }, {
+        "kind" : "paragraph",
+        "id" : "see-also",
+        "content" : [ {
+          "kind" : "text",
+          "text" : "See "
+        }, {
+          "kind" : "ref",
+          "text" : "the overview",
+          "target" : {
+            "kind" : "section",
+            "id" : "overview"
+          }
+        }, {
+          "kind" : "text",
+          "text" : " and "
+        }, {
+          "kind" : "ref",
+          "text" : "the diagram",
+          "target" : {
+            "kind" : "block",
+            "id" : "containers"
+          }
+        }, {
+          "kind" : "text",
+          "text" : "."
+        } ],
+        "facts" : [ ]
+      }, {
+        "kind" : "callout",
+        "id" : "note-1",
+        "variant" : "note",
+        "content" : [ {
+          "kind" : "text",
+          "text" : "Draft."
+        } ],
+        "facts" : [ ]
+      }, {
+        "kind" : "table",
+        "id" : "no-rows",
+        "columns" : [ {
+          "label" : "Name"
+        } ],
+        "rows" : [ ],
+        "facts" : [ ]
+      }, {
+        "kind" : "diagram",
+        "id" : "db-only",
+        "diagramKind" : "dependency",
+        "nodes" : [ {
+          "id" : "database:orders-db",
+          "label" : "orders-db",
+          "facts" : [ ]
+        } ],
+        "edges" : [ ],
+        "facts" : [ ]
+      } ],
+      "sections" : [ ]
+    } ]
+  } ]
+}

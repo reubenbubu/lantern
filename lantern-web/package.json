@@ -1,0 +1,16 @@
+{
+  "name": "lantern-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-types.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run generate && npm run typecheck && node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "json-schema-to-typescript": "16.0.0",
+    "typescript": "7.0.2"
+  }
+}
