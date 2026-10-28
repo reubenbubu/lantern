@@ -1,6 +1,6 @@
 # 0010: Hierarchical summarizer
 
-Status: accepted (#11), amended by ADR 0021 (#44), pending the user's review (#24)
+Status: accepted (#11), amended by ADR 0021 (#44) and below (#78), pending the user's review (#24)
 
 ## Context
 
@@ -80,9 +80,15 @@ above the repository (service, group, system), which come with the linker and gr
   A range of one kind, written with a hyphen, en dash or em dash (`F1-F3`, `F1–F3`, `F1-3`), is
   read as citing each reference in it, so its facts are recorded as cited and it is stored as one
   marker per reference; no range text is stored or shown.
-- **Ranges are checked like single references.** A range that reaches past the references given,
-  or past those a merge prompt showed (ADR 0024), is rejected naming the references it lacks; a
-  range of mixed kinds or in reverse order (`F1-S2`, `F3-F1`) is rejected as written. Rejection
-  and retry are as above.
-- **The prompt asks for single references** (`[F1, F2, F3]`, never `[F1-F3]`), so ranges should
-  be rare; accepting them avoids a retry when one appears. The prompt version was raised to 4.
+- **Ranges are checked like single references.** A range that reaches past the references given
+  (`F0-F2`, or `F1-F60` with 50 facts) is rejected with the range as written. A range of mixed
+  kinds, in reverse order, with an index too large to read or spanning more than 10,000
+  references (`F1-S2`, `F3-F1`) is rejected with its own reason, asking for single references.
+  A range within the references given but past those a merge prompt showed (ADR 0024) is
+  rejected naming the references it lacks. A rejection lists at most 10 references, then how
+  many more. Rejection and retry are as above.
+- **The prompt asks for single references** (`[F1, F2, F3]`, never `[F1-F3]`), in the system
+  prompt and the retry, so ranges should be rare; accepting them avoids a retry when one appears.
+- **The prompt version was raised to 4.** Every cached summary is made again on the next run,
+  since the version is part of its cache key. That also replaces the cached summaries of prompt 3
+  that still hold raw range text.

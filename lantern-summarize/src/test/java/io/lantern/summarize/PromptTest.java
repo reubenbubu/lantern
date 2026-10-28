@@ -21,7 +21,7 @@ class PromptTest {
   private static final String VERSION = "4";
 
   private static final String FINGERPRINT =
-      "75b091a90d3ec83b6a9b7300e0c3bf46bb1dda785c1a3c2480b8c277348b5406";
+      "d47296d8b0579daecfbacccba60bb96f40c40ad5b701dab36ca59d9ec451446e";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {

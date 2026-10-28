@@ -622,6 +622,42 @@ class SummarizerTest {
   }
 
   @Test
+  void partsAndTheMergeMayCiteRanges() {
+    SummaryNode big = largeType(400);
+    Pattern range = Pattern.compile("\\[(F\\d+-F\\d+)\\]");
+    fake.answering(
+        request -> {
+          String prompt = request.messages().getFirst().text();
+          if (prompt.contains("Summaries of the parts:")) {
+            List<String> ranges = new ArrayList<>();
+            Matcher matcher = range.matcher(prompt);
+            while (matcher.find()) {
+              ranges.add(matcher.group(1));
+            }
+            return "All of it. [" + String.join(", ", ranges) + "]";
+          }
+          List<String> refs = new ArrayList<>();
+          Matcher ref = REF.matcher(prompt);
+          while (ref.find()) {
+            refs.add(ref.group(1));
+          }
+          return "Part of it. [" + refs.getFirst() + "-" + refs.getLast() + "]";
+        });
+
+    Summary summary =
+        new Summarizer(smallWindowClient(4_000), store)
+            .summarize(List.of(big))
+            .summaries()
+            .get(big.entity());
+
+    assertThat(fake.sent()).noneMatch(s -> s.request().purpose().endsWith("(retry)"));
+    assertThat(fake.sent().getLast().request().purpose())
+        .isEqualTo("summarize type type:p.Big (merge)");
+    assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
+    assertThat(summary.text()).startsWith("All of it. [fact:").doesNotContain("-F");
+  }
+
+  @Test
   void aPartCitingAReferenceItWasNotShownIsSentBack() {
     SummaryNode big = largeType(400);
     AtomicInteger calls = new AtomicInteger();

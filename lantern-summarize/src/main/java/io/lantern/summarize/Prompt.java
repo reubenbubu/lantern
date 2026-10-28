@@ -57,7 +57,7 @@ final class Prompt {
       """
       Your summary was rejected: %s
       Write it again. End every sentence with the references it is based on, in square brackets, \
-      and cite only references from the input.""";
+      and cite only references from the input, each one on its own, never a range.""";
 
   /** What a repository's prompt adds about its reader. */
   private static final String BUSINESS_READER =
