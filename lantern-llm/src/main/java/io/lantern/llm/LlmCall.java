@@ -15,9 +15,9 @@ import java.util.Objects;
  * @param provider the provider name
  * @param model the model identifier
  * @param outcome how it ended
- * @param usage the tokens it used ({@link TokenUsage#NONE} unless it succeeded)
- * @param costUsd what it cost in US dollars (zero unless it succeeded)
- * @param error why it failed or was refused, or {@code null} if it succeeded
+ * @param usage the tokens it used ({@link TokenUsage#NONE} unless it succeeded or was truncated)
+ * @param costUsd what it cost in US dollars (zero unless it succeeded or was truncated)
+ * @param error why it failed, was refused or was truncated, or {@code null} if it succeeded
  */
 public record LlmCall(
     Instant startedAt,
@@ -35,6 +35,11 @@ public record LlmCall(
   public enum Outcome {
     /** The model answered. */
     SUCCEEDED,
+    /**
+     * The model answered but stopped at the output limit, so the answer is cut off; it was billed
+     * like a successful call.
+     */
+    TRUNCATED,
     /** The provider failed; the call may have been billed. */
     FAILED,
     /** Not sent: over budget, or the model lacks a needed capability. */

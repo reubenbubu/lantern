@@ -7,6 +7,7 @@ import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Pricing;
 import io.lantern.llm.RetryPolicy;
 import io.lantern.llm.Role;
+import io.lantern.llm.Thinking;
 import io.lantern.llm.Tier;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -20,7 +21,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * LLM settings under {@code lantern.llm}. Model identifiers, capabilities, prices and keys have no
  * default in the code and all come from configuration (see ADR 0009); call limits and retries have
- * defaults (see ADR 0021).
+ * defaults (see ADR 0021), and thinking settings default to leaving thinking as the provider has it
+ * (see ADR 0022).
  *
  * @param models the models that tiers and roles can use, by a name chosen in the configuration
  * @param tiers the model name each tier uses
@@ -136,6 +138,10 @@ public record LlmProperties(
    * @param maxConcurrency the most calls to it in flight at once, {@value
    *     CallLimits#DEFAULT_MAX_CONCURRENCY} if not set
    * @param requestsPerMinute the most calls started per minute, or {@code null} for no rate limit
+   * @param disableThinking whether to ask the provider to turn the model's thinking off; off if not
+   *     set
+   * @param thinkingHeadroomTokens extra output tokens added to every call's output limit, for a
+   *     model that thinks anyway; none if not set
    */
   public record Model(
       String provider,
@@ -144,7 +150,9 @@ public record LlmProperties(
       Integer contextWindow,
       Prices prices,
       Integer maxConcurrency,
-      Integer requestsPerMinute) {
+      Integer requestsPerMinute,
+      Boolean disableThinking,
+      Integer thinkingHeadroomTokens) {
 
     ModelConfig toConfig(String property) {
       require(property + ".provider", provider);
@@ -158,7 +166,18 @@ public record LlmProperties(
           supported,
           contextWindow,
           prices.toPricing(property + ".prices", supported.contains(Capability.PROMPT_CACHING)),
-          limits(property));
+          limits(property),
+          thinking(property));
+    }
+
+    private Thinking thinking(String property) {
+      if (thinkingHeadroomTokens != null && thinkingHeadroomTokens < 0) {
+        throw new IllegalStateException(
+            property + ".thinking-headroom-tokens must not be negative: " + thinkingHeadroomTokens);
+      }
+      return new Thinking(
+          Boolean.TRUE.equals(disableThinking),
+          thinkingHeadroomTokens == null ? 0 : thinkingHeadroomTokens);
     }
 
     private CallLimits limits(String property) {

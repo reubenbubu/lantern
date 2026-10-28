@@ -17,6 +17,11 @@ import java.util.concurrent.TimeUnit;
  * reserves the call's worst case against every budget, sends it through the model's provider, and
  * logs it with its purpose, whatever the outcome.
  *
+ * <p>The output limit sent to the model is the request's plus the model's {@linkplain
+ * Thinking#headroomTokens() thinking headroom}, and the budget and the context window are checked
+ * against that. An answer that stopped at the output limit is returned, so the caller can decide
+ * what to do with it, but logged as {@link LlmCall.Outcome#TRUNCATED} rather than as a success.
+ *
  * <p>A call that fails with a {@link TransientLlmException} is sent again by the limiter's {@link
  * RetryPolicy}, keeping its slot and its reservation; every attempt is logged. Calls from many
  * threads run in parallel up to each model's {@link CallLimits}, and the budget is reserved only
@@ -159,7 +164,7 @@ public final class LlmClient {
       throw refused;
     }
     try {
-      return send(lane, model, request);
+      return send(lane, model, request.withMaxOutputTokens(model.outputLimit(request)));
     } finally {
       lane.release();
     }
@@ -200,7 +205,7 @@ public final class LlmClient {
         }
         LlmResponse response;
         try {
-          response = provider(model).complete(model.model(), request);
+          response = provider(model).complete(model, request);
         } catch (RuntimeException e) {
           if (!(e instanceof TransientLlmException transientFailure)) {
             closed = true;
@@ -255,7 +260,26 @@ public final class LlmClient {
         for (BudgetGuard.Reservation reservation : reservations) {
           reservation.settle(response.usage().total(), cost);
         }
-        log(attemptStart, request, model, LlmCall.Outcome.SUCCEEDED, response.usage(), cost, null);
+        if (response.cutOff()) {
+          logMessage(
+              attemptStart,
+              request,
+              model,
+              LlmCall.Outcome.TRUNCATED,
+              response.usage(),
+              cost,
+              "Cut off at the output limit of %d tokens or the context window (stop reason %s)"
+                  .formatted(request.maxOutputTokens(), response.stopReason()));
+        } else {
+          log(
+              attemptStart,
+              request,
+              model,
+              LlmCall.Outcome.SUCCEEDED,
+              response.usage(),
+              cost,
+              null);
+        }
         return response;
       }
     } finally {
@@ -289,10 +313,13 @@ public final class LlmClient {
       throw new UnsupportedCapabilityException(
           "Model " + model.model() + " does not support prompt caching");
     }
-    long worstCase = request.estimatedInputTokens() + request.maxOutputTokens();
+    long worstCase =
+        request.estimatedInputTokens()
+            + request.maxOutputTokens()
+            + model.thinking().headroomTokens();
     if (worstCase > model.contextWindow()) {
       throw new UnsupportedCapabilityException(
-          "Request of about %d tokens (input estimate plus max output) exceeds the context window of %s (%d)"
+          "Request of about %d tokens (input estimate plus max output and thinking headroom) exceeds the context window of %s (%d)"
               .formatted(worstCase, model.model(), model.contextWindow()));
     }
   }

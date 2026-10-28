@@ -45,7 +45,8 @@ the same whatever order calls finish in, and budgets must hold when calls race.
   turned off for providers Lantern creates, so retries are counted and logged in one place. 501
   (not implemented) is not retried.
 - **Every attempt is logged.** A retried attempt is logged as `FAILED` with its error and "attempt
-  N of M, retrying in T ms"; no new outcome value, so the call log's table is unchanged. Counts of
+  N of M, retrying in T ms"; no new outcome value, so the call log's table is unchanged (ADR 0022 later added `TRUNCATED` for
+  cut-off answers). Counts of
   calls from the log, such as the "LLM calls" line after an analysis, therefore include retried
   attempts. An attempt that was never sent because the thread was interrupted is logged as
   `REFUSED`. The logged start and duration of an attempt leave out the time spent waiting for a

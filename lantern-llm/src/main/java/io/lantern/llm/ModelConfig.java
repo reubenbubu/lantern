@@ -13,6 +13,8 @@ import java.util.Set;
  * @param contextWindow the most tokens, input plus output, one call may use
  * @param pricing what the model costs
  * @param limits how many calls to the model may be in flight at once and how often they may start
+ * @param thinking whether to turn the model's thinking off and how many extra output tokens to give
+ *     it for thinking
  */
 public record ModelConfig(
     String provider,
@@ -20,7 +22,8 @@ public record ModelConfig(
     Set<Capability> capabilities,
     int contextWindow,
     Pricing pricing,
-    CallLimits limits) {
+    CallLimits limits,
+    Thinking thinking) {
 
   public ModelConfig {
     provider = nonBlank("Provider", provider);
@@ -34,9 +37,24 @@ public record ModelConfig(
     }
     Objects.requireNonNull(pricing, "pricing");
     Objects.requireNonNull(limits, "limits");
+    Objects.requireNonNull(thinking, "thinking");
   }
 
-  /** A model with the {@linkplain CallLimits#DEFAULT default limits}. */
+  /** A model with thinking left as the provider has it. */
+  public ModelConfig(
+      String provider,
+      String model,
+      Set<Capability> capabilities,
+      int contextWindow,
+      Pricing pricing,
+      CallLimits limits) {
+    this(provider, model, capabilities, contextWindow, pricing, limits, Thinking.DEFAULT);
+  }
+
+  /**
+   * A model with the {@linkplain CallLimits#DEFAULT default limits} and thinking left as the
+   * provider has it.
+   */
   public ModelConfig(
       String provider,
       String model,
@@ -48,7 +66,20 @@ public record ModelConfig(
 
   /** The same model with other limits. */
   public ModelConfig withLimits(CallLimits limits) {
-    return new ModelConfig(provider, model, capabilities, contextWindow, pricing, limits);
+    return new ModelConfig(provider, model, capabilities, contextWindow, pricing, limits, thinking);
+  }
+
+  /** The same model with other thinking settings. */
+  public ModelConfig withThinking(Thinking thinking) {
+    return new ModelConfig(provider, model, capabilities, contextWindow, pricing, limits, thinking);
+  }
+
+  /**
+   * The output limit sent to the model for a request: the request's own limit plus the model's
+   * {@linkplain Thinking#headroomTokens() thinking headroom}.
+   */
+  public int outputLimit(LlmRequest request) {
+    return Math.addExact(request.maxOutputTokens(), thinking.headroomTokens());
   }
 
   /** Whether the model supports the given feature. */

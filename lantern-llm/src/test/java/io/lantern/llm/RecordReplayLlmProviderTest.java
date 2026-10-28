@@ -104,4 +104,27 @@ class RecordReplayLlmProviderTest {
     assertThat(client.call(request).text()).isEqualTo("Hi");
     assertThat(log.calls()).hasSize(1);
   }
+
+  @Test
+  void turningThinkingOffIsPartOfTheKeyOnlyWhenSet() throws IOException {
+    FakeLlmProvider real = new FakeLlmProvider("anthropic").answering("An order.");
+    RecordReplayLlmProvider recorder = RecordReplayLlmProvider.recording(real, recordings);
+    ModelConfig plain = real.model("big");
+
+    // A model without thinking settings uses the same recording as before they existed.
+    recorder.complete("big", request);
+    recorder.complete(plain, request);
+    assertThat(real.sent()).hasSize(1);
+
+    recorder.complete(plain.withThinking(new Thinking(true, 0)), request);
+    assertThat(real.sent()).hasSize(2);
+    try (var files = Files.list(recordings)) {
+      assertThat(files).hasSize(2);
+    }
+    assertThat(
+            RecordReplayLlmProvider.replaying("anthropic", recordings)
+                .complete(plain.withThinking(new Thinking(true, 0)), request))
+        .extracting(LlmResponse::text)
+        .isEqualTo("An order.");
+  }
 }

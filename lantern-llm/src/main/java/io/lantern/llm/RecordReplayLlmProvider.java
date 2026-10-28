@@ -10,6 +10,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
+import java.util.function.Supplier;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -21,8 +22,9 @@ import tools.jackson.databind.node.ObjectNode;
  * calling the model.
  *
  * <p>Each response is a JSON file in a directory, named by a hash of what is sent to the model: the
- * provider, model, system prompt, prompt-caching flag, messages and output limit. The role and
- * purpose are not sent and so are not part of the key.
+ * provider, model, system prompt, prompt-caching flag, messages, output limit (with any thinking
+ * headroom) and, only when set, the request to turn thinking off. The role and purpose are not sent
+ * and so are not part of the key.
  *
  * <p>A {@linkplain #replaying replaying} provider only reads files and fails on a request it has no
  * recording for. A {@linkplain #recording recording} provider sends every request to the real
@@ -65,13 +67,27 @@ public final class RecordReplayLlmProvider implements LlmProvider {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
-    ObjectNode key = key(model, request);
+    return complete(model, request, false, () -> recordFrom.complete(model, request));
+  }
+
+  @Override
+  public LlmResponse complete(ModelConfig model, LlmRequest request) {
+    return complete(
+        model.model(),
+        request,
+        model.thinking().disabled(),
+        () -> recordFrom.complete(model, request));
+  }
+
+  private LlmResponse complete(
+      String model, LlmRequest request, boolean thinkingDisabled, Supplier<LlmResponse> record) {
+    ObjectNode key = key(model, request, thinkingDisabled);
     Path file = directory.resolve(hash(key) + ".json");
     if (Files.isRegularFile(file)) {
       return read(file);
     }
     if (recordFrom != null) {
-      LlmResponse response = recordFrom.complete(model, request);
+      LlmResponse response = record.get();
       write(file, key, response);
       return response;
     }
@@ -84,7 +100,7 @@ public final class RecordReplayLlmProvider implements LlmProvider {
   }
 
   /** What identifies a request: everything sent to the model, in a fixed order. */
-  private ObjectNode key(String model, LlmRequest request) {
+  private ObjectNode key(String model, LlmRequest request, boolean thinkingDisabled) {
     ObjectNode key = COMPACT.createObjectNode();
     key.put("provider", name);
     key.put("model", model);
@@ -99,6 +115,10 @@ public final class RecordReplayLlmProvider implements LlmProvider {
       messages.addObject().put("author", message.author().name()).put("text", message.text());
     }
     key.put("maxOutputTokens", request.maxOutputTokens());
+    if (thinkingDisabled) {
+      // Only when set, so that recordings made before this setting existed keep their names.
+      key.put("thinkingDisabled", true);
+    }
     return key;
   }
 

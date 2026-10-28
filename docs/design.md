@@ -261,6 +261,7 @@ The LLM handles understanding that static analysis can't provide, always working
 - Every call is logged with its role, purpose, model, tokens and cost.
 - Tests never call a real provider: they use a fake or recorded responses (see ADR 0008).
 - Calls run in parallel on virtual threads, with concurrency and rate limits per model and retry with backoff (see ADR 0021).
+- Models that think by default can have thinking turned off or extra output room per model, and an answer cut off at its output limit is logged as such (see ADR 0022).
 
 ## Learned rules (self-improving extractors)
 

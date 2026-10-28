@@ -19,6 +19,7 @@ import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Pricing;
 import io.lantern.llm.RetryPolicy;
 import io.lantern.llm.Role;
+import io.lantern.llm.Thinking;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -244,5 +245,24 @@ class LlmPropertiesTest {
     assertThatThrownBy(this::bindAndBuild)
         .hasMessageContaining("fast-model")
         .hasMessageContaining("different max-concurrency");
+  }
+
+  @Test
+  void thinkingIsLeftAloneUnlessSet() {
+    model("fast", "fake", "fast-model");
+    model("glm", "fake", "glm-model");
+    tiers("fast", "glm");
+    values.put("lantern.llm.models.glm.disable-thinking", "true");
+    values.put("lantern.llm.models.glm.thinking-headroom-tokens", "2000");
+
+    ModelSettings settings = bind().modelSettings();
+
+    assertThat(settings.forRole(Role.COMPOSE).thinking()).isEqualTo(Thinking.DEFAULT);
+    assertThat(settings.forRole(Role.RESOLVE).thinking()).isEqualTo(new Thinking(true, 2000));
+
+    values.put("lantern.llm.models.glm.thinking-headroom-tokens", "-1");
+    assertThatThrownBy(this::bindAndBuild)
+        .hasMessageContaining(
+            "lantern.llm.models.glm.thinking-headroom-tokens must not be negative");
   }
 }

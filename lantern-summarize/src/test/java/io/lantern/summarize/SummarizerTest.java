@@ -16,6 +16,7 @@ import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Role;
+import io.lantern.llm.Thinking;
 import io.lantern.llm.TokenUsage;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -382,6 +383,30 @@ class SummarizerTest {
         .isInstanceOf(SummaryRejectedException.class)
         .hasMessageContaining("cut off");
     assertThat(store.size()).isZero();
+  }
+
+  @Test
+  void aModelThatThinksIsCutOffUnlessItHasHeadroom() {
+    fake.thinking(1000, false);
+
+    assertThatThrownBy(() -> summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list())))
+        .isInstanceOf(SummaryRejectedException.class)
+        .hasMessageContaining("cut off");
+    assertThat(store.size()).isZero();
+
+    LlmClient roomy =
+        new LlmClient(
+            ModelSettings.single(fake.model("model-a").withThinking(new Thinking(false, 1000))),
+            List.of(fake),
+            BudgetGuard.unlimited("test"),
+            new InMemoryLlmCallLog(),
+            Clock.systemUTC());
+    Summarizer.Result result =
+        new Summarizer(roomy, store).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(result.generated()).isEqualTo(7);
+    assertThat(result.summaries().values())
+        .allSatisfy(summary -> assertThat(summary.text()).startsWith("Summary of "));
   }
 
   @Test
