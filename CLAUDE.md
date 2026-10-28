@@ -63,6 +63,7 @@ Every piece of information lives in exactly one place. Link to it; never copy it
 | Tasks, status, progress | GitHub issues and milestones |
 | Decisions made while building | `docs/adr/NNNN-title.md` |
 | Research and evidence behind the design | `docs/research/` |
+| Document templates and specifications | `report-specs/` (one folder per document: template, schema, sample data) |
 | Build and test commands | The Commands section below |
 
 No running logs, plan files, TODO lists or notes outside these places. If two places disagree,
