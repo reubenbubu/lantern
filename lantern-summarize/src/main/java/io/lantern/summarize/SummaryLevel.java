@@ -19,16 +19,24 @@ public enum SummaryLevel {
       6,
       150,
       800,
-      "first what the module is for, in plain words for a non-engineer, then its main parts and"
-          + " the dependencies that matter"),
+      "what the module is for, then its main parts and the dependencies that matter"),
   REPO(
       "repository",
       3,
       6,
       150,
       800,
-      "first what the repository is for, in plain words for a non-engineer, then its main parts"
-          + " and the dependencies that matter");
+      "what the repository is for, then its main capabilities and the other modules or services"
+          + " it depends on");
+
+  /**
+   * How many sentences a package, module or repository with a single part is asked for, instead of
+   * its level's, so that it does not restate that part.
+   */
+  static final String ONE_PART_SENTENCES = "1 to 3";
+
+  /** The most words a package, module or repository with a single part is asked for. */
+  static final int ONE_PART_WORDS = 60;
 
   /** The entity type of repository summaries, which have no entity in the fact store. */
   public static final String REPO_ENTITY_TYPE = "repo";
@@ -60,7 +68,7 @@ public enum SummaryLevel {
     return minSentences;
   }
 
-  /** The most sentences the prompt asks for; with about 25 words each, within {@link #maxWords}. */
+  /** The most sentences the prompt asks for; with about 20 words each, within {@link #maxWords}. */
   int maxSentences() {
     return maxSentences;
   }

@@ -21,7 +21,7 @@ class PromptTest {
   private static final String VERSION = "3";
 
   private static final String FINGERPRINT =
-      "3a9ff0dbb568c5c2ea3f37a4d097fa8b7ea60d9f6eb990ac1af1ca3bee53f181";
+      "00b7eb25389b9b6185c46fff1e7ec4eb96c2160cfe690b0fed559a020e8a3920";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -46,6 +46,7 @@ class PromptTest {
           .append(level.maxOutputTokens())
           .append(level.content());
     }
+    all.append(SummaryLevel.ONE_PART_SENTENCES).append(SummaryLevel.ONE_PART_WORDS);
     Summary child =
         new Summary(
             "c".repeat(64),
@@ -209,11 +210,9 @@ class PromptTest {
     assertThat(Prompt.user(singleModule(repo), List.of(), List.of(module)))
         .isEqualTo(
             """
-            Summarize the repository shop in 3 to 6 sentences and at most 150 words, covering \
-            first what the repository is for, in plain words for a non-engineer, then its main \
-            parts and the dependencies that matter.
-            It contains only one part, summarized in [S1]. Do not restate that summary: instead, \
-            in two or three sentences, say what the repository as a whole is for.
+            Summarize the repository shop in 1 to 3 sentences and at most 60 words, covering \
+            what the repository as a whole is for and what it adds to its only part, such as its \
+            dependencies. Do not restate the summary of that part [S1].
             Write for a reader who wants to know what this repository does for the system or the \
             business: lead with its role and main capabilities, and mention frameworks and \
             libraries briefly, if at all.
@@ -230,7 +229,7 @@ class PromptTest {
   }
 
   @Test
-  void aRepositoryWhoseOnlyModuleHoldsModulesIsSummarizedAsUsual() {
+  void aRepositoryWhoseOnlyModuleHoldsModulesIsAlsoAskedNotToRestateIt() {
     SummaryNode repo = SummaryTree.fromFacts(TestFacts.shop().list()).getFirst();
     Summary parent =
         new Summary(
@@ -246,8 +245,9 @@ class PromptTest {
             "fake",
             "m");
 
+    // The repository's prompt shows nothing but its module's summary.
     assertThat(Prompt.user(repo, List.of(), List.of(parent)))
-        .doesNotContain("only one part")
+        .contains("in 1 to 3 sentences and at most 60 words")
         .contains("Write for a reader who wants to know what this repository does");
     assertThat(Prompt.merge(repo, List.of("One [S1]."))).contains("lead with its role");
   }
@@ -271,19 +271,22 @@ class PromptTest {
             "m");
 
     assertThat(Prompt.user(core, List.of(), List.of(pkg)))
-        .contains(
-            "\nIt contains only one part, summarized in [S1]. Do not restate that summary: say"
-                + " what the module as a whole is for and what its facts add, such as its"
-                + " dependencies.\n")
+        .startsWith(
+            "Summarize the Maven module shop-core in 1 to 3 sentences and at most 60 words,"
+                + " covering what the Maven module as a whole is for and what it adds to its only"
+                + " part, such as its dependencies. Do not restate the summary of that part [S1].\n")
         .doesNotContain("Write for a reader");
+    SummaryNode pkgNode = core.children().getFirst();
+    assertThat(Prompt.user(pkgNode, List.of(), List.of(pkg)))
+        .startsWith("Summarize the package com.example.shop in 1 to 3 sentences");
   }
 
   @Test
   void eachLevelAsksForASentenceCountThatFitsItsWordLimit() {
     for (SummaryLevel level : SummaryLevel.values()) {
       assertThat(level.minSentences()).isPositive().isLessThanOrEqualTo(level.maxSentences());
-      // About 25 words a sentence.
-      assertThat(level.maxSentences() * 25).isLessThanOrEqualTo(level.maxWords() + 25);
+      // About 20 words a sentence.
+      assertThat(level.maxSentences() * 20).isLessThanOrEqualTo(level.maxWords());
       assertThat(Prompt.length(level))
           .isEqualTo(
               "in %d to %d sentences and at most %d words"

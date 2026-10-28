@@ -48,8 +48,8 @@ final class Prompt {
       whole is for, drawing on them.
       Say only what the input shows or what follows from it. End every sentence with the \
       references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a \
-      sentence about purpose cites the names, annotations or code it is inferred from. Cite \
-      only references from the input.
+      sentence about purpose cites the facts, source files or summaries it is inferred from. \
+      Cite only references from the input.
       Write plain prose without headings, lists or a title.""";
 
   static final String RETRY =
@@ -150,21 +150,19 @@ final class Prompt {
       SummaryNode node, List<Item> facts, List<Item> excerpts, List<Item> children, Part part) {
     StringBuilder text = new StringBuilder();
     if (part == null) {
-      text.append("Summarize the ")
-          .append(describe(node.level(), node.entity()))
-          .append(' ')
-          .append(length(node.level()))
-          .append(", covering ")
-          .append(node.level().content())
-          .append(".\n");
+      text.append("Summarize the ").append(describe(node.level(), node.entity())).append(' ');
       if (hasOnePart(node, children)) {
-        text.append("It contains only one part, summarized in [S1]. Do not restate that summary:")
-            .append(
-                node.level() == SummaryLevel.REPO
-                    ? " instead, in two or three sentences, say what the repository as a whole is"
-                        + " for.\n"
-                    : " say what the module as a whole is for and what its facts add, such as its"
-                        + " dependencies.\n");
+        // A unit with one part would only restate it at full length.
+        text.append(length(SummaryLevel.ONE_PART_SENTENCES, SummaryLevel.ONE_PART_WORDS))
+            .append(", covering what the ")
+            .append(node.level().noun())
+            .append(" as a whole is for and what it adds to its only part, such as its")
+            .append(" dependencies. Do not restate the summary of that part [S1].\n");
+      } else {
+        text.append(length(node.level()))
+            .append(", covering ")
+            .append(node.level().content())
+            .append(".\n");
       }
       if (node.level() == SummaryLevel.REPO) {
         text.append(BUSINESS_READER);
@@ -199,19 +197,16 @@ final class Prompt {
         + " words";
   }
 
+  private static String length(String sentences, int words) {
+    return "in " + sentences + " sentences and at most " + words + " words";
+  }
+
   /**
-   * Whether a module or repository holds a single part whose summary it would only restate: one
-   * contained unit, which is not itself an aggregator of modules (a repository whose parent POM
-   * holds several modules is summarized as usual).
+   * Whether a package, module or repository has a single part and nothing else to summarize but its
+   * facts: its prompt then asks for a short summary that does not restate that part.
    */
   private static boolean hasOnePart(SummaryNode node, List<Item> children) {
-    if (children.size() != 1
-        || node.children().size() != 1
-        || (node.level() != SummaryLevel.MODULE && node.level() != SummaryLevel.REPO)) {
-      return false;
-    }
-    return node.children().getFirst().children().stream()
-        .noneMatch(child -> child.level() == SummaryLevel.MODULE);
+    return children.size() == 1 && node.level() != SummaryLevel.TYPE;
   }
 
   /**

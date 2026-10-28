@@ -27,7 +27,8 @@ asks for audiences up to executives (Composition, granularity table) and keeps e
   out. Where the purpose is not clear, the first sentence says what the unit is and contains
   instead, so the model is not pushed to invent one.
 - **Citation rules are unchanged.** The prompt still asks for references at the end of every
-  sentence, and now also asks a sentence about purpose to cite what it is inferred from. As in ADR
+  sentence, and now also asks a sentence about purpose to cite the facts, source files or
+  summaries it is inferred from. As in ADR
   0010, the check enforces at least one valid citation per summary and no unknown references; a
   citation per sentence is requested, not enforced (#77).
 - **Plain names, no IDs in the instructions.** The prompt names the unit and the contained units by
@@ -36,27 +37,27 @@ asks for audiences up to executives (Composition, granularity table) and keeps e
   names and describes IDs (a kind and a colon) as what not to write, without examples to copy.
   Fact lines keep their entity IDs, since they identify the other end of a relationship; this is
   the one place the model still sees IDs.
-- **No restating a single part.** A module or repository with exactly one contained unit is told not
-  to restate that summary. A repository then gets two or three sentences on what it is for; a
-  module is asked what it adds, such as its dependencies. A repository whose only module is a
-  parent POM holding other modules is summarized as usual, since that module is not all there is
-  to say. Packages with a single type get only the general rule: the system prompt asks every unit
-  not to restate its parts' summaries sentence by sentence.
+- **No restating a single part.** A package, module or repository whose prompt shows a single
+  contained unit's summary is asked for 1 to 3 sentences and at most 60 words on what it is for as
+  a whole and what it adds, such as its dependencies, and told not to restate that summary. This
+  includes a repository whose only module is a parent POM: its prompt shows nothing else. The
+  system prompt also asks every unit not to restate its parts' summaries sentence by sentence.
 - **Repository summaries are written for the business reader**: role and main capabilities first,
   frameworks and libraries briefly if at all, also when its summary is merged from parts (ADR
   0024).
-- **Each level says how much to write and what to cover**, in the user turn, with numbers kept in
-  `SummaryLevel` next to the word limits (about 25 words a sentence, which a test checks):
+- **Each level says how much to write and what to cover**, in the user turn, with the numbers
+  kept in `SummaryLevel` next to the word limits (about 20 words a sentence, which a test checks).
+  The system prompt's first-sentence rule applies at every level.
 
   | Level | Sentences | Words | Covers |
   | --- | --- | --- | --- |
   | Type | 2-4 | 80 | its purpose, main responsibilities and the types it works with most |
   | Package | 3-5 | 120 | what it is for and its main parts |
-  | Module | 3-6 | 150 | first its purpose in plain words for a non-engineer, then its main parts and the dependencies that matter |
-  | Repository | 3-6 | 150 | the same as a module |
+  | Module | 3-6 | 150 | what it is for, then its main parts and the dependencies that matter |
+  | Repository | 3-6 | 150 | what it is for, then its main capabilities and the other modules or services it depends on |
+  | One part only | 1-3 | 60 | see above |
 
-  The repository limit drops from 200 to 150 words (output limit 1,000 to 800 tokens), so six
-  sentences fit it; a single-part repository is asked for two or three sentences instead.
+  The repository limit drops from 200 to 150 words (output limit 1,000 to 800 tokens).
 - **`Prompt.VERSION` is 3**, so every cached summary is written again on the next run.
 
 ## Not verified

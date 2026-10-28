@@ -5,7 +5,7 @@ Begin with one sentence that says plainly what the unit is for: what it does for
 Work out what the unit is for from its names, annotations (such as @RestController, @Entity or @KafkaListener), Javadoc and code, or from the summaries of its parts, and state it directly. If the input does not make its purpose clear, begin instead with what the unit is and what it contains. Never write that the input does not show something or that a purpose cannot be determined; leave out what you cannot tell.
 Call things by their plain names, such as the class Order, the package com.example.orders or the module shop-core, never by the identifiers the facts use, which start with a kind and a colon.
 Do not restate the summaries of the parts sentence by sentence; say what the unit as a whole is for, drawing on them.
-Say only what the input shows or what follows from it. End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a sentence about purpose cites the names, annotations or code it is inferred from. Cite only references from the input.
+Say only what the input shows or what follows from it. End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a sentence about purpose cites the facts, source files or summaries it is inferred from. Cite only references from the input.
 Write plain prose without headings, lists or a title.
 
 ##### summarize type type:com.example.greeting.lib.Greeter
@@ -31,7 +31,7 @@ public class Greeter {
 ```
 
 ##### summarize package package:com.example.greeting:greeting-lib:com.example.greeting.lib
-Summarize the package com.example.greeting.lib in 3 to 5 sentences and at most 120 words, covering what the package is for and its main parts.
+Summarize the package com.example.greeting.lib in 1 to 3 sentences and at most 60 words, covering what the package as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] package:com.example.greeting:greeting-lib:com.example.greeting.lib CONTAINS type:com.example.greeting.lib.Greeter
@@ -40,8 +40,7 @@ Summaries of the parts it contains:
 [S1] type Greeter in package com.example.greeting.lib: It is described by its facts.
 
 ##### summarize module module:com.example.greeting:greeting-lib
-Summarize the Maven module greeting-lib in 3 to 6 sentences and at most 150 words, covering first what the module is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
-It contains only one part, summarized in [S1]. Do not restate that summary: say what the module as a whole is for and what its facts add, such as its dependencies.
+Summarize the Maven module greeting-lib in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] library:com.example.greeting:greeting-lib CONTAINS module:com.example.greeting:greeting-lib
@@ -53,8 +52,7 @@ Summaries of the parts it contains:
 [S1] package com.example.greeting.lib: It builds on its parts. It is described by its facts.
 
 ##### summarize repo repo:greeting-lib
-Summarize the repository greeting-lib in 3 to 6 sentences and at most 150 words, covering first what the repository is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
-It contains only one part, summarized in [S1]. Do not restate that summary: instead, in two or three sentences, say what the repository as a whole is for.
+Summarize the repository greeting-lib in 1 to 3 sentences and at most 60 words, covering what the repository as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 Write for a reader who wants to know what this repository does for the system or the business: lead with its role and main capabilities, and mention frameworks and libraries briefly, if at all.
 
 Summaries of the parts it contains:
@@ -89,7 +87,7 @@ public final class GreetingServiceMain {
 ```
 
 ##### summarize package package:com.example.greeting:greeting-service:com.example.greeting.service
-Summarize the package com.example.greeting.service in 3 to 5 sentences and at most 120 words, covering what the package is for and its main parts.
+Summarize the package com.example.greeting.service in 1 to 3 sentences and at most 60 words, covering what the package as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] package:com.example.greeting:greeting-service:com.example.greeting.service CONTAINS type:com.example.greeting.service.GreetingServiceMain
@@ -98,8 +96,7 @@ Summaries of the parts it contains:
 [S1] type GreetingServiceMain in package com.example.greeting.service: It is described by its facts.
 
 ##### summarize module module:com.example.greeting:greeting-service
-Summarize the Maven module greeting-service in 3 to 6 sentences and at most 150 words, covering first what the module is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
-It contains only one part, summarized in [S1]. Do not restate that summary: say what the module as a whole is for and what its facts add, such as its dependencies.
+Summarize the Maven module greeting-service in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] module:com.example.greeting:greeting-service CONTAINS package:com.example.greeting:greeting-service:com.example.greeting.service
@@ -113,8 +110,7 @@ Summaries of the parts it contains:
 [S1] package com.example.greeting.service: It builds on its parts. It is described by its facts.
 
 ##### summarize repo repo:greeting-service
-Summarize the repository greeting-service in 3 to 6 sentences and at most 150 words, covering first what the repository is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
-It contains only one part, summarized in [S1]. Do not restate that summary: instead, in two or three sentences, say what the repository as a whole is for.
+Summarize the repository greeting-service in 1 to 3 sentences and at most 60 words, covering what the repository as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 Write for a reader who wants to know what this repository does for the system or the business: lead with its role and main capabilities, and mention frameworks and libraries briefly, if at all.
 
 Summaries of the parts it contains:
@@ -230,8 +226,7 @@ Summaries of the parts it contains:
 [S3] type OrderService in package com.example.orders: It is described by its facts.
 
 ##### summarize module module:com.example.orders:orders
-Summarize the Maven module orders in 3 to 6 sentences and at most 150 words, covering first what the module is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
-It contains only one part, summarized in [S1]. Do not restate that summary: say what the module as a whole is for and what its facts add, such as its dependencies.
+Summarize the Maven module orders in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] module:com.example.orders:orders version "1.0.0"
@@ -244,8 +239,7 @@ Summaries of the parts it contains:
 [S1] package com.example.orders: It builds on its parts. It is described by its facts.
 
 ##### summarize repo repo:orders
-Summarize the repository orders in 3 to 6 sentences and at most 150 words, covering first what the repository is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
-It contains only one part, summarized in [S1]. Do not restate that summary: instead, in two or three sentences, say what the repository as a whole is for.
+Summarize the repository orders in 1 to 3 sentences and at most 60 words, covering what the repository as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 Write for a reader who wants to know what this repository does for the system or the business: lead with its role and main capabilities, and mention frameworks and libraries briefly, if at all.
 
 Summaries of the parts it contains:
@@ -271,7 +265,7 @@ public interface PriceService {
 ```
 
 ##### summarize package package:com.example.shop:shop-api:com.example.shop.api
-Summarize the package com.example.shop.api in 3 to 5 sentences and at most 120 words, covering what the package is for and its main parts.
+Summarize the package com.example.shop.api in 1 to 3 sentences and at most 60 words, covering what the package as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] package:com.example.shop:shop-api:com.example.shop.api CONTAINS type:com.example.shop.api.PriceService
@@ -280,8 +274,7 @@ Summaries of the parts it contains:
 [S1] type PriceService in package com.example.shop.api: It is described by its facts.
 
 ##### summarize module module:com.example.shop:shop-api
-Summarize the Maven module shop-api in 3 to 6 sentences and at most 150 words, covering first what the module is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
-It contains only one part, summarized in [S1]. Do not restate that summary: say what the module as a whole is for and what its facts add, such as its dependencies.
+Summarize the Maven module shop-api in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] module:com.example.shop:shop-api packaging "jar"
@@ -326,7 +319,7 @@ public class FixedPriceService implements PriceService {
 ```
 
 ##### summarize package package:com.example.shop:shop-core:com.example.shop.core
-Summarize the package com.example.shop.core in 3 to 5 sentences and at most 120 words, covering what the package is for and its main parts.
+Summarize the package com.example.shop.core in 1 to 3 sentences and at most 60 words, covering what the package as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] package:com.example.shop:shop-core:com.example.shop.core CONTAINS type:com.example.shop.core.FixedPriceService
@@ -335,8 +328,7 @@ Summaries of the parts it contains:
 [S1] type FixedPriceService in package com.example.shop.core: It is described by its facts.
 
 ##### summarize module module:com.example.shop:shop-core
-Summarize the Maven module shop-core in 3 to 6 sentences and at most 150 words, covering first what the module is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
-It contains only one part, summarized in [S1]. Do not restate that summary: say what the module as a whole is for and what its facts add, such as its dependencies.
+Summarize the Maven module shop-core in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
 [F1] library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core
@@ -349,7 +341,7 @@ Summaries of the parts it contains:
 [S1] package com.example.shop.core: It builds on its parts. It is described by its facts.
 
 ##### summarize module module:com.example.shop:shop-parent
-Summarize the Maven module shop-parent in 3 to 6 sentences and at most 150 words, covering first what the module is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
+Summarize the Maven module shop-parent in 3 to 6 sentences and at most 150 words, covering what the module is for, then its main parts and the dependencies that matter.
 
 Facts:
 [F1] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-core
@@ -362,7 +354,7 @@ Summaries of the parts it contains:
 [S2] Maven module shop-core: It builds on its parts. It is described by its facts.
 
 ##### summarize repo repo:shop
-Summarize the repository shop in 3 to 6 sentences and at most 150 words, covering first what the repository is for, in plain words for a non-engineer, then its main parts and the dependencies that matter.
+Summarize the repository shop in 1 to 3 sentences and at most 60 words, covering what the repository as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 Write for a reader who wants to know what this repository does for the system or the business: lead with its role and main capabilities, and mention frameworks and libraries briefly, if at all.
 
 Summaries of the parts it contains:
