@@ -1,0 +1,3542 @@
+{
+  "$schema": "./architecture-data.schema.json",
+  "document": {
+    "id": "ARC-0042",
+    "title": "Meridian Commerce Platform",
+    "subtitle": "Solution architecture for the Meridian online store and its fulfilment operation — documented with the C4 model from system context down to components, plus dynamic views of the most important runtime flows.",
+    "version": "2.5.0",
+    "status": "Approved",
+    "owner": "Platform Architecture",
+    "updated": "2026-10-28",
+    "classification": "Internal",
+    "revisions": [
+      {
+        "version": "2.5.0",
+        "date": "2026-10-28",
+        "author": "R. Abela",
+        "summary": "Added the **Fulfilment Platform**, split container views by area and documented five more services at component level.",
+        "status": "Approved"
+      },
+      {
+        "version": "2.4.0",
+        "date": "2026-10-28",
+        "author": "A. Camilleri",
+        "summary": "Added Payment Service component view and retry flow.",
+        "status": "Approved"
+      },
+      {
+        "version": "2.3.1",
+        "date": "2026-09-14",
+        "author": "J. Borg",
+        "summary": "Migrated services to Spring Boot 4; updated container technologies.",
+        "status": "Approved"
+      },
+      {
+        "version": "2.3.0",
+        "date": "2026-07-02",
+        "author": "M. Vella",
+        "summary": "Introduced transactional outbox for order events (ADR-021).",
+        "status": "Approved"
+      },
+      {
+        "version": "2.2.0",
+        "date": "2026-04-19",
+        "author": "A. Camilleri",
+        "summary": "Initial C4 documentation set.",
+        "status": "Superseded"
+      }
+    ]
+  },
+  "elements": {
+    "customer": {
+      "kind": "person",
+      "name": "Customer",
+      "description": "Browses the catalogue, places orders and tracks deliveries.",
+      "properties": {
+        "channel": "Web, mobile web",
+        "volume": "~180k MAU"
+      }
+    },
+    "support": {
+      "kind": "person",
+      "name": "Support Agent",
+      "description": "Answers customer queries, looks up orders and issues refunds.",
+      "properties": {
+        "channel": "Admin console",
+        "volume": "~25 staff"
+      }
+    },
+    "operator": {
+      "kind": "person",
+      "name": "Store Operator",
+      "description": "Manages catalogue, pricing, refunds and disputes.",
+      "properties": {
+        "channel": "Admin console",
+        "volume": "~40 staff"
+      }
+    },
+    "meridian": {
+      "kind": "system",
+      "name": "Meridian Commerce Platform",
+      "description": "Lets customers browse products, check out and pay, and gives operators the tools to run the store end-to-end."
+    },
+    "auth0": {
+      "kind": "external",
+      "name": "Identity Provider",
+      "technology": "Auth0 · OIDC",
+      "description": "Hosted login, MFA and token issuance.",
+      "properties": {
+        "interface": "OIDC / OAuth 2.1 + PKCE",
+        "owner": "Okta (vendor)",
+        "criticality": "High"
+      }
+    },
+    "stripe": {
+      "kind": "external",
+      "name": "Payment Gateway",
+      "technology": "Stripe · REST",
+      "description": "Card authorisation, capture and refunds.",
+      "properties": {
+        "interface": "REST · PaymentIntents API",
+        "owner": "Stripe (vendor)",
+        "criticality": "High"
+      }
+    },
+    "sendgrid": {
+      "kind": "external",
+      "name": "Email Delivery",
+      "technology": "SendGrid · API",
+      "description": "Transactional email delivery.",
+      "properties": {
+        "interface": "HTTPS · v3 Mail Send",
+        "owner": "Twilio (vendor)",
+        "criticality": "Medium"
+      }
+    },
+    "storefront": {
+      "kind": "container",
+      "name": "Web Storefront",
+      "parent": "meridian",
+      "tag": "Web App",
+      "technology": "Next.js 15 · TS",
+      "description": "Server-rendered shopping experience.",
+      "properties": {
+        "owner": "Team Storefront",
+        "criticality": "High"
+      }
+    },
+    "admin": {
+      "kind": "container",
+      "name": "Admin Console",
+      "parent": "meridian",
+      "tag": "Web App",
+      "technology": "React 19 · Vite",
+      "description": "Back-office SPA for operators.",
+      "properties": {
+        "owner": "Team Ops Tools",
+        "criticality": "Medium"
+      }
+    },
+    "gateway": {
+      "kind": "container",
+      "name": "API Gateway",
+      "parent": "meridian",
+      "technology": "Kong 3.8",
+      "description": "Single entry point: auth, rate-limiting, routing and observability.",
+      "properties": {
+        "owner": "Team Platform",
+        "criticality": "High"
+      }
+    },
+    "catalog": {
+      "kind": "container",
+      "name": "Catalog Service",
+      "parent": "meridian",
+      "technology": "Spring Boot 4 · J21",
+      "description": "Products, pricing and stock levels.",
+      "properties": {
+        "owner": "Team Catalog",
+        "criticality": "High"
+      }
+    },
+    "payment-svc": {
+      "kind": "container",
+      "name": "Payment Service",
+      "parent": "meridian",
+      "technology": "Spring Boot 4 · J21",
+      "description": "Authorises and captures payments.",
+      "properties": {
+        "owner": "Team Payments",
+        "criticality": "High"
+      }
+    },
+    "order-svc": {
+      "kind": "container",
+      "name": "Order Service",
+      "parent": "meridian",
+      "technology": "Spring Boot 4 · J21",
+      "description": "Checkout and order lifecycle.",
+      "properties": {
+        "owner": "Team Orders",
+        "criticality": "High"
+      }
+    },
+    "catalog-db": {
+      "kind": "database",
+      "name": "Catalog DB",
+      "parent": "meridian",
+      "technology": "PostgreSQL 17",
+      "description": "Products and inventory.",
+      "properties": {
+        "owner": "Team Catalog",
+        "criticality": "High",
+        "retention": "Indefinite",
+        "backup": "PITR · 7 days"
+      }
+    },
+    "orders-db": {
+      "kind": "database",
+      "name": "Orders DB",
+      "parent": "meridian",
+      "technology": "PostgreSQL 17",
+      "description": "Orders and line items.",
+      "properties": {
+        "owner": "Team Orders",
+        "criticality": "High",
+        "retention": "7 years",
+        "backup": "PITR · 35 days"
+      }
+    },
+    "kafka": {
+      "kind": "queue",
+      "name": "Event Bus",
+      "parent": "meridian",
+      "technology": "Apache Kafka 3.9",
+      "description": "Domain event streams.",
+      "properties": {
+        "owner": "Team Platform",
+        "criticality": "High",
+        "retention": "7 days",
+        "backup": "MirrorMaker 2"
+      }
+    },
+    "notifier": {
+      "kind": "container",
+      "name": "Notification Worker",
+      "parent": "meridian",
+      "tag": "Worker",
+      "technology": "Spring Boot 4",
+      "description": "Turns events into emails.",
+      "properties": {
+        "owner": "Team Engagement",
+        "criticality": "Low"
+      }
+    },
+    "order-ctrl": {
+      "kind": "component",
+      "name": "Order Controller",
+      "parent": "order-svc",
+      "technology": "Spring MVC @RestController",
+      "description": "REST endpoints for creating and querying orders.",
+      "properties": {
+        "package": "com.meridian.order.api"
+      }
+    },
+    "checkout": {
+      "kind": "component",
+      "name": "Checkout Service",
+      "parent": "order-svc",
+      "technology": "Spring @Service",
+      "description": "Orchestrates the checkout use case: pricing, payment, persistence and events.",
+      "properties": {
+        "package": "com.meridian.order.checkout"
+      }
+    },
+    "pricing": {
+      "kind": "component",
+      "name": "Pricing Engine",
+      "parent": "order-svc",
+      "technology": "Plain Java",
+      "description": "Applies promotions, tax and shipping.",
+      "properties": {
+        "package": "com.meridian.order.pricing"
+      }
+    },
+    "pay-client": {
+      "kind": "component",
+      "name": "Payment Client",
+      "parent": "order-svc",
+      "technology": "gRPC stub · Resilience4j",
+      "description": "Calls Payment Service with retries.",
+      "properties": {
+        "package": "com.meridian.order.payment"
+      }
+    },
+    "order-repo": {
+      "kind": "component",
+      "name": "Order Repository",
+      "parent": "order-svc",
+      "technology": "Spring Data JPA",
+      "description": "Persists orders and line items.",
+      "properties": {
+        "package": "com.meridian.order.persistence"
+      }
+    },
+    "publisher": {
+      "kind": "component",
+      "name": "Order Event Publisher",
+      "parent": "order-svc",
+      "technology": "Transactional outbox",
+      "description": "Publishes order.* events reliably.",
+      "properties": {
+        "package": "com.meridian.order.events"
+      }
+    },
+    "grpc-ep": {
+      "kind": "component",
+      "name": "gRPC Endpoint",
+      "parent": "payment-svc",
+      "technology": "grpc-spring",
+      "description": "Internal authorise / capture API.",
+      "properties": {
+        "package": "com.meridian.payment.grpc"
+      }
+    },
+    "methods-ctrl": {
+      "kind": "component",
+      "name": "Methods Controller",
+      "parent": "payment-svc",
+      "technology": "Spring MVC",
+      "description": "Saved cards and wallets.",
+      "properties": {
+        "package": "com.meridian.payment.api"
+      }
+    },
+    "orchestrator": {
+      "kind": "component",
+      "name": "Payment Orchestrator",
+      "parent": "payment-svc",
+      "technology": "Spring @Service",
+      "description": "Runs the payment state machine with idempotency keys.",
+      "properties": {
+        "package": "com.meridian.payment.core"
+      }
+    },
+    "fraud": {
+      "kind": "component",
+      "name": "Fraud Scorer",
+      "parent": "payment-svc",
+      "technology": "Rules + ONNX model",
+      "description": "Scores transaction risk.",
+      "properties": {
+        "package": "com.meridian.payment.risk"
+      }
+    },
+    "stripe-adapter": {
+      "kind": "component",
+      "name": "Stripe Adapter",
+      "parent": "payment-svc",
+      "technology": "stripe-java 28",
+      "description": "Anti-corruption layer for Stripe.",
+      "properties": {
+        "package": "com.meridian.payment.stripe"
+      }
+    },
+    "retry": {
+      "kind": "component",
+      "name": "Retry Scheduler",
+      "parent": "payment-svc",
+      "technology": "Spring @Scheduled",
+      "description": "Retries soft declines.",
+      "properties": {
+        "package": "com.meridian.payment.retry"
+      }
+    },
+    "search-api": {
+      "kind": "container",
+      "parent": "meridian",
+      "name": "Search API",
+      "technology": "Spring Boot 4 · J21",
+      "description": "Full-text product search, suggestions and facets.",
+      "properties": {
+        "owner": "Team Discovery",
+        "criticality": "High"
+      }
+    },
+    "search-indexer": {
+      "kind": "container",
+      "parent": "meridian",
+      "tag": "Worker",
+      "name": "Search Indexer",
+      "technology": "Spring Boot 4",
+      "description": "Keeps the search index in sync with catalogue events.",
+      "properties": {
+        "owner": "Team Discovery",
+        "criticality": "Medium"
+      }
+    },
+    "opensearch": {
+      "kind": "database",
+      "parent": "meridian",
+      "name": "Search Index",
+      "technology": "OpenSearch 2.17",
+      "description": "Denormalised product documents.",
+      "properties": {
+        "owner": "Team Discovery",
+        "criticality": "High",
+        "retention": "Rebuildable",
+        "backup": "Snapshots · daily"
+      }
+    },
+    "reporting-svc": {
+      "kind": "container",
+      "parent": "meridian",
+      "name": "Reporting Service",
+      "technology": "Spring Boot 4 · J21",
+      "description": "Operational dashboards and exports for operators.",
+      "properties": {
+        "owner": "Team Insights",
+        "criticality": "Medium"
+      }
+    },
+    "warehouse-db": {
+      "kind": "database",
+      "parent": "meridian",
+      "name": "Analytics Warehouse",
+      "technology": "ClickHouse 24",
+      "description": "Order and catalogue facts for reporting.",
+      "properties": {
+        "owner": "Team Insights",
+        "criticality": "Low",
+        "retention": "3 years",
+        "backup": "S3 backups · daily"
+      }
+    },
+    "fulfil": {
+      "kind": "system",
+      "name": "Meridian Fulfilment Platform",
+      "description": "Turns paid orders into picked, packed and shipped parcels, and keeps customers informed while they travel."
+    },
+    "warehouse-staff": {
+      "kind": "person",
+      "name": "Warehouse Associate",
+      "description": "Picks, packs and dispatches parcels using handheld scanners.",
+      "properties": {
+        "channel": "Handheld scanner",
+        "volume": "~120 per shift"
+      }
+    },
+    "logistics": {
+      "kind": "person",
+      "name": "Logistics Coordinator",
+      "description": "Plans carrier capacity, resolves delivery exceptions and manages returns.",
+      "properties": {
+        "channel": "Ops dashboard",
+        "volume": "~12 staff"
+      }
+    },
+    "carrier": {
+      "kind": "external",
+      "name": "Carrier Network",
+      "technology": "DHL · DPD · REST",
+      "description": "Collects parcels, issues shipping labels and reports tracking events.",
+      "properties": {
+        "interface": "REST · webhooks",
+        "owner": "DHL, DPD (vendors)",
+        "criticality": "High"
+      }
+    },
+    "erp": {
+      "kind": "external",
+      "name": "ERP",
+      "technology": "SAP S/4HANA · OData",
+      "description": "Financial postings and stock valuation.",
+      "properties": {
+        "interface": "OData v4",
+        "owner": "Finance IT",
+        "criticality": "Medium"
+      }
+    },
+    "scanner-app": {
+      "parent": "fulfil",
+      "kind": "container",
+      "tag": "Mobile App",
+      "name": "Scanner App",
+      "technology": "Kotlin · Android",
+      "description": "Guides associates through pick, pack and dispatch.",
+      "properties": {
+        "owner": "Team Warehouse",
+        "criticality": "High"
+      }
+    },
+    "ops-console": {
+      "parent": "fulfil",
+      "kind": "container",
+      "tag": "Web App",
+      "name": "Ops Dashboard",
+      "technology": "React 19 · Vite",
+      "description": "Wave planning, stock adjustments and delivery exceptions.",
+      "properties": {
+        "owner": "Team Logistics",
+        "criticality": "Medium"
+      }
+    },
+    "order-intake": {
+      "parent": "fulfil",
+      "kind": "container",
+      "tag": "Worker",
+      "name": "Order Intake",
+      "technology": "Spring Boot 4",
+      "description": "Turns order.placed events into fulfilment orders.",
+      "properties": {
+        "owner": "Team Warehouse",
+        "criticality": "High"
+      }
+    },
+    "wms-svc": {
+      "parent": "fulfil",
+      "kind": "container",
+      "name": "Warehouse Service",
+      "technology": "Spring Boot 4 · J21",
+      "description": "Waves, pick lists, packing and dispatch.",
+      "properties": {
+        "owner": "Team Warehouse",
+        "criticality": "High"
+      }
+    },
+    "inventory-svc": {
+      "parent": "fulfil",
+      "kind": "container",
+      "name": "Inventory Service",
+      "technology": "Spring Boot 4 · J21",
+      "description": "Stock by location, reservations and adjustments.",
+      "properties": {
+        "owner": "Team Warehouse",
+        "criticality": "High"
+      }
+    },
+    "erp-connector": {
+      "parent": "fulfil",
+      "kind": "container",
+      "tag": "Worker",
+      "name": "ERP Connector",
+      "technology": "Apache Camel 4",
+      "description": "Posts goods movements to the ERP.",
+      "properties": {
+        "owner": "Team Finance Tech",
+        "criticality": "Medium"
+      }
+    },
+    "shipping-svc": {
+      "parent": "fulfil",
+      "kind": "container",
+      "name": "Shipping Service",
+      "technology": "Spring Boot 4 · J21",
+      "description": "Rates, labels and carrier bookings.",
+      "properties": {
+        "owner": "Team Logistics",
+        "criticality": "High"
+      }
+    },
+    "carrier-gw": {
+      "parent": "fulfil",
+      "kind": "container",
+      "name": "Carrier Gateway",
+      "technology": "Go 1.23",
+      "description": "One adapter per carrier; normalises labels and tracking events.",
+      "properties": {
+        "owner": "Team Logistics",
+        "criticality": "High"
+      }
+    },
+    "tracking-svc": {
+      "parent": "fulfil",
+      "kind": "container",
+      "name": "Tracking Service",
+      "technology": "Node.js 22 · Fastify",
+      "description": "Public parcel tracking and status notifications.",
+      "properties": {
+        "owner": "Team Logistics",
+        "criticality": "Medium"
+      }
+    },
+    "wms-db": {
+      "parent": "fulfil",
+      "kind": "database",
+      "name": "Warehouse DB",
+      "technology": "PostgreSQL 17",
+      "description": "Waves, tasks and packed parcels.",
+      "properties": {
+        "owner": "Team Warehouse",
+        "retention": "2 years",
+        "backup": "PITR · 14 days"
+      }
+    },
+    "inventory-db": {
+      "parent": "fulfil",
+      "kind": "database",
+      "name": "Inventory DB",
+      "technology": "PostgreSQL 17",
+      "description": "Stock ledger by bin and SKU.",
+      "properties": {
+        "owner": "Team Warehouse",
+        "retention": "Indefinite",
+        "backup": "PITR · 14 days"
+      }
+    },
+    "shipping-db": {
+      "parent": "fulfil",
+      "kind": "database",
+      "name": "Shipping DB",
+      "technology": "PostgreSQL 17",
+      "description": "Shipments, labels and carrier bookings.",
+      "properties": {
+        "owner": "Team Logistics",
+        "retention": "7 years",
+        "backup": "PITR · 35 days"
+      }
+    },
+    "tracking-cache": {
+      "parent": "fulfil",
+      "kind": "database",
+      "name": "Tracking Cache",
+      "technology": "Redis 7",
+      "description": "Latest status per parcel.",
+      "properties": {
+        "owner": "Team Logistics",
+        "retention": "30 days",
+        "backup": "Rebuildable"
+      }
+    },
+    "fulfil-bus": {
+      "parent": "fulfil",
+      "kind": "queue",
+      "name": "Fulfilment Bus",
+      "technology": "RabbitMQ 4.0",
+      "description": "Commands and events between warehouse services.",
+      "properties": {
+        "owner": "Team Warehouse",
+        "retention": "3 days",
+        "backup": "Quorum queues"
+      }
+    },
+    "catalog-api": {
+      "kind": "component",
+      "parent": "catalog",
+      "name": "Catalog API",
+      "technology": "Spring MVC",
+      "description": "Product, price and stock endpoints for the gateway.",
+      "properties": {
+        "package": "com.meridian.catalog.api"
+      }
+    },
+    "product-mgr": {
+      "kind": "component",
+      "parent": "catalog",
+      "name": "Product Manager",
+      "technology": "Spring @Service",
+      "description": "Validates and versions product changes.",
+      "properties": {
+        "package": "com.meridian.catalog.product"
+      }
+    },
+    "price-book": {
+      "kind": "component",
+      "parent": "catalog",
+      "name": "Price Book",
+      "technology": "Plain Java",
+      "description": "Resolves list, sale and channel prices.",
+      "properties": {
+        "package": "com.meridian.catalog.pricing"
+      }
+    },
+    "stock-view": {
+      "kind": "component",
+      "parent": "catalog",
+      "name": "Stock Projection",
+      "technology": "Spring @Service",
+      "description": "Read model of available stock fed by inventory events.",
+      "properties": {
+        "package": "com.meridian.catalog.stock"
+      }
+    },
+    "catalog-repo": {
+      "kind": "component",
+      "parent": "catalog",
+      "name": "Catalog Repository",
+      "technology": "Spring Data JPA",
+      "description": "Persists products and price books.",
+      "properties": {
+        "package": "com.meridian.catalog.persistence"
+      }
+    },
+    "catalog-pub": {
+      "kind": "component",
+      "parent": "catalog",
+      "name": "Catalog Event Publisher",
+      "technology": "Transactional outbox",
+      "description": "Publishes catalog.* events.",
+      "properties": {
+        "package": "com.meridian.catalog.events"
+      }
+    },
+    "search-ctrl": {
+      "kind": "component",
+      "parent": "search-api",
+      "name": "Search Controller",
+      "technology": "Spring WebFlux",
+      "description": "Query and suggest endpoints.",
+      "properties": {
+        "package": "com.meridian.search.api"
+      }
+    },
+    "query-builder": {
+      "kind": "component",
+      "parent": "search-api",
+      "name": "Query Builder",
+      "technology": "Plain Java",
+      "description": "Turns user queries into OpenSearch DSL with synonyms.",
+      "properties": {
+        "package": "com.meridian.search.query"
+      }
+    },
+    "ranking": {
+      "kind": "component",
+      "parent": "search-api",
+      "name": "Ranking Rules",
+      "technology": "Rules engine",
+      "description": "Merchandising boosts and pinned products.",
+      "properties": {
+        "package": "com.meridian.search.ranking"
+      }
+    },
+    "facets": {
+      "kind": "component",
+      "parent": "search-api",
+      "name": "Facet Aggregator",
+      "technology": "Spring @Service",
+      "description": "Builds filter facets and counts.",
+      "properties": {
+        "package": "com.meridian.search.facets"
+      }
+    },
+    "os-client": {
+      "kind": "component",
+      "parent": "search-api",
+      "name": "Index Client",
+      "technology": "opensearch-java 2",
+      "description": "Executes queries with timeouts and circuit breaking.",
+      "properties": {
+        "package": "com.meridian.search.index"
+      }
+    },
+    "wms-api": {
+      "kind": "component",
+      "parent": "wms-svc",
+      "name": "Task API",
+      "technology": "Spring MVC",
+      "description": "Endpoints for scanners and the ops dashboard.",
+      "properties": {
+        "package": "com.meridian.wms.api"
+      }
+    },
+    "wave-planner": {
+      "kind": "component",
+      "parent": "wms-svc",
+      "name": "Wave Planner",
+      "technology": "Spring @Service",
+      "description": "Groups orders into waves by cut-off and carrier.",
+      "properties": {
+        "package": "com.meridian.wms.waves"
+      }
+    },
+    "pick-router": {
+      "kind": "component",
+      "parent": "wms-svc",
+      "name": "Pick Path Optimiser",
+      "technology": "OR-Tools 9",
+      "description": "Orders pick tasks to minimise walking distance.",
+      "properties": {
+        "package": "com.meridian.wms.picking"
+      }
+    },
+    "pack-station": {
+      "kind": "component",
+      "parent": "wms-svc",
+      "name": "Pack & Dispatch",
+      "technology": "Spring @Service",
+      "description": "Cartonisation, weights and dispatch confirmation.",
+      "properties": {
+        "package": "com.meridian.wms.packing"
+      }
+    },
+    "inv-client": {
+      "kind": "component",
+      "parent": "wms-svc",
+      "name": "Inventory Client",
+      "technology": "gRPC stub",
+      "description": "Reserves and releases stock.",
+      "properties": {
+        "package": "com.meridian.wms.inventory"
+      }
+    },
+    "wms-repo": {
+      "kind": "component",
+      "parent": "wms-svc",
+      "name": "Warehouse Repository",
+      "technology": "Spring Data JPA",
+      "description": "Persists waves, tasks and parcels.",
+      "properties": {
+        "package": "com.meridian.wms.persistence"
+      }
+    },
+    "wms-pub": {
+      "kind": "component",
+      "parent": "wms-svc",
+      "name": "Parcel Event Publisher",
+      "technology": "Spring AMQP",
+      "description": "Publishes parcel.* events.",
+      "properties": {
+        "package": "com.meridian.wms.events"
+      }
+    },
+    "inv-grpc": {
+      "kind": "component",
+      "parent": "inventory-svc",
+      "name": "Stock API",
+      "technology": "grpc-spring",
+      "description": "Reserve, release and query stock.",
+      "properties": {
+        "package": "com.meridian.inventory.grpc"
+      }
+    },
+    "adjust-api": {
+      "kind": "component",
+      "parent": "inventory-svc",
+      "name": "Adjustments API",
+      "technology": "Spring MVC",
+      "description": "Cycle counts, damages and goods receipts.",
+      "properties": {
+        "package": "com.meridian.inventory.api"
+      }
+    },
+    "reservation": {
+      "kind": "component",
+      "parent": "inventory-svc",
+      "name": "Reservation Manager",
+      "technology": "Spring @Service",
+      "description": "Holds stock against orders with expiry.",
+      "properties": {
+        "package": "com.meridian.inventory.reservation"
+      }
+    },
+    "ledger": {
+      "kind": "component",
+      "parent": "inventory-svc",
+      "name": "Stock Ledger",
+      "technology": "Event-sourced aggregate",
+      "description": "Append-only movements per SKU and bin.",
+      "properties": {
+        "package": "com.meridian.inventory.ledger"
+      }
+    },
+    "inv-repo": {
+      "kind": "component",
+      "parent": "inventory-svc",
+      "name": "Inventory Repository",
+      "technology": "Spring Data JDBC",
+      "description": "Snapshots and ledger entries.",
+      "properties": {
+        "package": "com.meridian.inventory.persistence"
+      }
+    },
+    "inv-pub": {
+      "kind": "component",
+      "parent": "inventory-svc",
+      "name": "Stock Event Publisher",
+      "technology": "Spring AMQP",
+      "description": "Publishes stock.* events.",
+      "properties": {
+        "package": "com.meridian.inventory.events"
+      }
+    },
+    "packed-listener": {
+      "kind": "component",
+      "parent": "shipping-svc",
+      "name": "Packed Listener",
+      "technology": "Spring AMQP",
+      "description": "Consumes parcel.packed events.",
+      "properties": {
+        "package": "com.meridian.shipping.intake"
+      }
+    },
+    "ship-api": {
+      "kind": "component",
+      "parent": "shipping-svc",
+      "name": "Shipping API",
+      "technology": "Spring MVC",
+      "description": "Exception handling and manual bookings.",
+      "properties": {
+        "package": "com.meridian.shipping.api"
+      }
+    },
+    "booking": {
+      "kind": "component",
+      "parent": "shipping-svc",
+      "name": "Booking Manager",
+      "technology": "Spring @Service",
+      "description": "Books collections and tracks booking state.",
+      "properties": {
+        "package": "com.meridian.shipping.booking"
+      }
+    },
+    "rate-shop": {
+      "kind": "component",
+      "parent": "shipping-svc",
+      "name": "Rate Shopper",
+      "technology": "Plain Java",
+      "description": "Picks the cheapest carrier that meets the promise date.",
+      "properties": {
+        "package": "com.meridian.shipping.rates"
+      }
+    },
+    "label-svc": {
+      "kind": "component",
+      "parent": "shipping-svc",
+      "name": "Label Service",
+      "technology": "Spring @Service",
+      "description": "Requests labels and stores the PDFs.",
+      "properties": {
+        "package": "com.meridian.shipping.labels"
+      }
+    },
+    "carrier-client": {
+      "kind": "component",
+      "parent": "shipping-svc",
+      "name": "Carrier Client",
+      "technology": "gRPC stub · Resilience4j",
+      "description": "Calls the carrier gateway with retries.",
+      "properties": {
+        "package": "com.meridian.shipping.carrier"
+      }
+    },
+    "ship-repo": {
+      "kind": "component",
+      "parent": "shipping-svc",
+      "name": "Shipment Repository",
+      "technology": "Spring Data JPA",
+      "description": "Persists shipments and labels.",
+      "properties": {
+        "package": "com.meridian.shipping.persistence"
+      }
+    }
+  },
+  "pages": [
+    {
+      "id": "ctx-meridian",
+      "level": "context",
+      "title": "Meridian Commerce Platform",
+      "summary": "The big picture: the Meridian Commerce Platform shown as a single box, surrounded by the people who use it and the external systems it relies on.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "Meridian is a direct-to-consumer commerce platform serving the EU market. It is owned and operated by the Platform Engineering group; identity, payments and email delivery are delegated to managed SaaS providers."
+        },
+        {
+          "type": "stats",
+          "id": "key-facts",
+          "items": [
+            {
+              "label": "User roles",
+              "value": "3",
+              "note": "Customer, Store Operator, Support Agent"
+            },
+            {
+              "label": "Connected systems",
+              "value": "4",
+              "note": "3 SaaS providers + Fulfilment"
+            },
+            {
+              "label": "Availability",
+              "value": "99.95%",
+              "note": "Monthly SLO, storefront"
+            },
+            {
+              "label": "Region",
+              "value": "eu-west-1",
+              "note": "Active / warm standby"
+            }
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "System Context Diagram",
+          "relationships": [
+            {
+              "from": "support",
+              "to": "meridian",
+              "label": "Resolves tickets",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "customer",
+              "to": "meridian",
+              "label": "Browses & orders",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "operator",
+              "to": "meridian",
+              "label": "Runs the store",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "meridian",
+              "to": "auth0",
+              "label": "Authenticates users",
+              "technology": "OIDC"
+            },
+            {
+              "from": "meridian",
+              "to": "stripe",
+              "label": "Takes payments",
+              "technology": "REST/JSON"
+            },
+            {
+              "from": "meridian",
+              "to": "sendgrid",
+              "label": "Sends email",
+              "technology": "HTTPS API"
+            },
+            {
+              "from": "meridian",
+              "to": "fulfil",
+              "label": "Hands over paid orders",
+              "technology": "Kafka · order.placed"
+            }
+          ],
+          "layout": {
+            "rules": [
+              {
+                "a": "support",
+                "rel": "above",
+                "b": "meridian"
+              }
+            ]
+          },
+          "focus": "meridian"
+        },
+        {
+          "type": "callout",
+          "id": "diagram-tip",
+          "body": "Click the **Meridian Commerce Platform** box to zoom into the container view, or any surrounding element to jump to its description below."
+        },
+        {
+          "type": "elements",
+          "id": "people",
+          "eyebrow": "Actors",
+          "title": "People",
+          "select": {
+            "ids": [
+              "customer",
+              "operator",
+              "support"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Role"
+            },
+            "description",
+            {
+              "key": "properties.channel",
+              "label": "Channel",
+              "mono": true
+            },
+            {
+              "key": "properties.volume",
+              "label": "Volume",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "external",
+          "eyebrow": "Dependencies",
+          "title": "External Systems",
+          "select": {
+            "ids": [
+              "auth0",
+              "stripe",
+              "sendgrid"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "System"
+            },
+            {
+              "key": "description",
+              "label": "Purpose"
+            },
+            {
+              "key": "properties.interface",
+              "label": "Interface",
+              "mono": true
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.criticality",
+              "label": "Criticality"
+            }
+          ]
+        },
+        {
+          "type": "stats",
+          "id": "quality",
+          "eyebrow": "Non-functional",
+          "title": "Quality Attributes",
+          "columns": 3,
+          "variant": "compact",
+          "items": [
+            {
+              "label": "Performance",
+              "value": "p95 < 300 ms",
+              "note": "API latency at 1,500 req/s sustained"
+            },
+            {
+              "label": "Recoverability",
+              "value": "RPO 5 min · RTO 30 min",
+              "note": "Cross-AZ replicas, PITR backups"
+            },
+            {
+              "label": "Security",
+              "value": "PCI DSS SAQ A",
+              "note": "Card data never touches our systems"
+            },
+            {
+              "label": "Scalability",
+              "value": "10× Black Friday",
+              "note": "Horizontal pod autoscaling on all services"
+            },
+            {
+              "label": "Observability",
+              "value": "OpenTelemetry",
+              "note": "Traces, metrics and logs to Grafana stack"
+            },
+            {
+              "label": "Privacy",
+              "value": "GDPR",
+              "note": "Data residency in the EU; 30-day erasure SLA"
+            }
+          ]
+        }
+      ],
+      "element": "meridian"
+    },
+    {
+      "id": "ctx-fulfil",
+      "level": "context",
+      "title": "Meridian Fulfilment Platform",
+      "element": "fulfil",
+      "summary": "Everything that happens after payment: warehouse operations, carrier bookings and parcel tracking, shown as a single box with the people and systems around it.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "The Fulfilment Platform runs the Malta distribution centre. It receives paid orders from the **Commerce Platform** as events, so the two systems can be released and scaled independently. Carrier integrations and financial postings are its only synchronous external dependencies."
+        },
+        {
+          "type": "stats",
+          "id": "key-facts",
+          "items": [
+            {
+              "label": "User roles",
+              "value": "3",
+              "note": "Associates, coordinators, customers"
+            },
+            {
+              "label": "Parcels / day",
+              "value": "~9,500",
+              "note": "Peak 31,000 in November"
+            },
+            {
+              "label": "Dispatch SLA",
+              "value": "Same day",
+              "note": "Orders paid before 15:00"
+            },
+            {
+              "label": "Sites",
+              "value": "1",
+              "note": "Malta DC · second site planned 2027"
+            }
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "System Context Diagram",
+          "focus": "fulfil",
+          "relationships": [
+            {
+              "from": "warehouse-staff",
+              "to": "fulfil",
+              "label": "Picks, packs & dispatches",
+              "technology": "Scanner app"
+            },
+            {
+              "from": "logistics",
+              "to": "fulfil",
+              "label": "Plans & resolves exceptions",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "customer",
+              "to": "fulfil",
+              "label": "Tracks parcels",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "meridian",
+              "to": "fulfil",
+              "label": "Hands over paid orders",
+              "technology": "Kafka · order.placed"
+            },
+            {
+              "from": "fulfil",
+              "to": "carrier",
+              "label": "Books collections & labels",
+              "technology": "REST"
+            },
+            {
+              "from": "fulfil",
+              "to": "erp",
+              "label": "Posts goods movements",
+              "technology": "OData"
+            },
+            {
+              "from": "fulfil",
+              "to": "sendgrid",
+              "label": "Sends delivery updates",
+              "technology": "HTTPS API"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "people",
+          "eyebrow": "Actors",
+          "title": "People",
+          "select": {
+            "ids": [
+              "warehouse-staff",
+              "logistics"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Role"
+            },
+            "description",
+            {
+              "key": "properties.channel",
+              "label": "Channel",
+              "mono": true
+            },
+            {
+              "key": "properties.volume",
+              "label": "Volume",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "external",
+          "eyebrow": "Dependencies",
+          "title": "External Systems",
+          "select": {
+            "ids": [
+              "carrier",
+              "erp"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "System"
+            },
+            {
+              "key": "description",
+              "label": "Purpose"
+            },
+            {
+              "key": "properties.interface",
+              "label": "Interface",
+              "mono": true
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.criticality",
+              "label": "Criticality"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "customer-note",
+          "body": "**Customer** and **Email Delivery** also appear here; they are described on the [Commerce Platform context page](#/ctx-meridian)."
+        }
+      ]
+    },
+    {
+      "id": "cnt-meridian",
+      "level": "containers",
+      "title": "Commerce Core",
+      "summary": "The customer journey from browsing to payment: web front-ends, the gateway, the core domain services and their data stores.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "The platform follows a service-per-bounded-context style. All synchronous traffic enters through the **API Gateway**; cross-service side effects are propagated asynchronously over Kafka. Each service owns its database — no shared schemas."
+        },
+        {
+          "type": "list",
+          "id": "overview-points",
+          "items": [
+            "Two web front-ends, one gateway, three domain services and one worker.",
+            "Runtime: Kubernetes (EKS 1.31) with Istio mTLS between pods.",
+            "Search and reporting live in a separate container view: **Search & Insights**."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "meridian",
+          "relationships": [
+            {
+              "from": "customer",
+              "to": "storefront",
+              "label": "Browses",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "operator",
+              "to": "admin",
+              "label": "Manages",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "support",
+              "to": "admin",
+              "label": "Looks up orders",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "storefront",
+              "to": "gateway",
+              "label": "API calls",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "admin",
+              "to": "gateway",
+              "label": "API calls",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "gateway",
+              "to": "auth0",
+              "label": "Validates tokens",
+              "technology": "OIDC · JWKS"
+            },
+            {
+              "from": "gateway",
+              "to": "catalog",
+              "label": "Routes",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "payment-svc",
+              "label": "Routes",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "order-svc",
+              "label": "Routes",
+              "technology": "HTTP"
+            },
+            {
+              "from": "catalog",
+              "to": "catalog-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "order-svc",
+              "to": "orders-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "order-svc",
+              "to": "payment-svc",
+              "label": "Authorises",
+              "technology": "gRPC"
+            },
+            {
+              "from": "payment-svc",
+              "to": "stripe",
+              "label": "Charges cards",
+              "technology": "REST"
+            },
+            {
+              "from": "order-svc",
+              "to": "kafka",
+              "label": "Publishes",
+              "technology": "order.*"
+            },
+            {
+              "from": "kafka",
+              "to": "notifier",
+              "label": "Consumes",
+              "technology": "order.*"
+            },
+            {
+              "from": "notifier",
+              "to": "sendgrid",
+              "label": "Sends email",
+              "technology": "HTTPS"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "containers",
+          "eyebrow": "Catalogue",
+          "title": "Container Catalogue",
+          "select": {
+            "ids": [
+              "storefront",
+              "admin",
+              "gateway",
+              "catalog",
+              "order-svc",
+              "payment-svc",
+              "notifier"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Container"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            "technology",
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.criticality",
+              "label": "Criticality"
+            },
+            "zoom"
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "data",
+          "eyebrow": "Persistence",
+          "title": "Data Stores",
+          "select": {
+            "ids": [
+              "catalog-db",
+              "orders-db",
+              "kafka"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Store"
+            },
+            {
+              "key": "description",
+              "label": "Holds"
+            },
+            {
+              "key": "technology",
+              "label": "Engine"
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.retention",
+              "label": "Retention",
+              "mono": true
+            },
+            {
+              "key": "properties.backup",
+              "label": "Backup / DR",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Architecture decisions",
+          "title": "Key Decisions",
+          "items": [
+            {
+              "id": "ADR-012",
+              "title": "Kafka as the domain event backbone",
+              "body": "Decouples notifications, analytics and fulfilment from the checkout path.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-015",
+              "title": "Kong as the single API gateway",
+              "body": "Centralises JWT validation, rate limiting and request logging at the edge.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-019",
+              "title": "Database per service",
+              "body": "Services own their schema; integration only via APIs and events.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-021",
+              "title": "Transactional outbox for events",
+              "body": "Guarantees at-least-once publication without distributed transactions.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-024",
+              "title": "gRPC between Order and Payment",
+              "body": "Strongly-typed contract with deadlines on the hot path.",
+              "status": "Proposed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-meridian-insights",
+      "level": "containers",
+      "title": "Search & Insights",
+      "summary": "How customers find products and how operators see what is happening: the search stack and the reporting pipeline, both fed by domain events.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "Search and reporting are **read models**: neither owns business data. Both are rebuilt from Kafka events, so a full re-index or reload is always possible without touching the core services."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "meridian",
+          "relationships": [
+            {
+              "from": "customer",
+              "to": "storefront",
+              "label": "Searches",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "operator",
+              "to": "admin",
+              "label": "Views reports",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "storefront",
+              "to": "gateway",
+              "label": "API calls",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "admin",
+              "to": "gateway",
+              "label": "API calls",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "gateway",
+              "to": "search-api",
+              "label": "Routes",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "reporting-svc",
+              "label": "Routes",
+              "technology": "HTTP"
+            },
+            {
+              "from": "search-api",
+              "to": "opensearch",
+              "label": "Queries",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "catalog",
+              "to": "kafka",
+              "label": "Publishes",
+              "technology": "catalog.*"
+            },
+            {
+              "from": "kafka",
+              "to": "search-indexer",
+              "label": "Consumes",
+              "technology": "catalog.*"
+            },
+            {
+              "from": "search-indexer",
+              "to": "opensearch",
+              "label": "Indexes",
+              "technology": "Bulk API"
+            },
+            {
+              "from": "kafka",
+              "to": "reporting-svc",
+              "label": "Consumes",
+              "technology": "order.* · catalog.*"
+            },
+            {
+              "from": "reporting-svc",
+              "to": "warehouse-db",
+              "label": "Loads & queries",
+              "technology": "JDBC"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "containers",
+          "eyebrow": "Catalogue",
+          "title": "Container Catalogue",
+          "select": {
+            "ids": [
+              "search-api",
+              "search-indexer",
+              "reporting-svc"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Container"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            "technology",
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.criticality",
+              "label": "Criticality"
+            },
+            "zoom"
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "data",
+          "eyebrow": "Persistence",
+          "title": "Data Stores",
+          "select": {
+            "ids": [
+              "opensearch",
+              "warehouse-db"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Store"
+            },
+            {
+              "key": "description",
+              "label": "Holds"
+            },
+            {
+              "key": "technology",
+              "label": "Engine"
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.retention",
+              "label": "Retention",
+              "mono": true
+            },
+            {
+              "key": "properties.backup",
+              "label": "Backup / DR",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Architecture decisions",
+          "title": "Key Decisions",
+          "items": [
+            {
+              "id": "ADR-027",
+              "title": "OpenSearch for product search",
+              "body": "Managed service, good facet performance, no licence lock-in.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-029",
+              "title": "ClickHouse for operational reporting",
+              "body": "Column store keeps dashboard queries under a second at current volumes.",
+              "status": "Accepted"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-fulfil-warehouse",
+      "level": "containers",
+      "title": "Warehouse Operations",
+      "summary": "From paid order to packed parcel: order intake, wave planning, picking and stock control inside the distribution centre.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "Orders arrive from the Commerce Platform on Kafka and are turned into fulfilment orders. Inside the platform, services talk over **RabbitMQ**; stock movements are posted to the ERP asynchronously so a slow ERP never blocks the warehouse floor."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "fulfil",
+          "relationships": [
+            {
+              "from": "kafka",
+              "to": "order-intake",
+              "label": "Delivers",
+              "technology": "order.placed"
+            },
+            {
+              "from": "order-intake",
+              "to": "wms-svc",
+              "label": "Creates fulfilment orders",
+              "technology": "REST"
+            },
+            {
+              "from": "warehouse-staff",
+              "to": "scanner-app",
+              "label": "Picks & packs"
+            },
+            {
+              "from": "scanner-app",
+              "to": "wms-svc",
+              "label": "Task updates",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "logistics",
+              "to": "ops-console",
+              "label": "Plans waves"
+            },
+            {
+              "from": "ops-console",
+              "to": "wms-svc",
+              "label": "API calls",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "ops-console",
+              "to": "inventory-svc",
+              "label": "Records adjustments",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "wms-svc",
+              "to": "inventory-svc",
+              "label": "Reserves stock",
+              "technology": "gRPC"
+            },
+            {
+              "from": "wms-svc",
+              "to": "wms-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "inventory-svc",
+              "to": "inventory-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "inventory-svc",
+              "to": "fulfil-bus",
+              "label": "Publishes",
+              "technology": "stock.*"
+            },
+            {
+              "from": "fulfil-bus",
+              "to": "erp-connector",
+              "label": "Consumes",
+              "technology": "stock.*"
+            },
+            {
+              "from": "erp-connector",
+              "to": "erp",
+              "label": "Posts movements",
+              "technology": "OData"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "containers",
+          "eyebrow": "Catalogue",
+          "title": "Container Catalogue",
+          "select": {
+            "ids": [
+              "scanner-app",
+              "ops-console",
+              "order-intake",
+              "wms-svc",
+              "inventory-svc",
+              "erp-connector"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Container"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            "technology",
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.criticality",
+              "label": "Criticality"
+            },
+            "zoom"
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "data",
+          "eyebrow": "Persistence",
+          "title": "Data Stores",
+          "select": {
+            "ids": [
+              "wms-db",
+              "inventory-db",
+              "fulfil-bus"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Store"
+            },
+            {
+              "key": "description",
+              "label": "Holds"
+            },
+            {
+              "key": "technology",
+              "label": "Engine"
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.retention",
+              "label": "Retention",
+              "mono": true
+            },
+            {
+              "key": "properties.backup",
+              "label": "Backup / DR",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Architecture decisions",
+          "title": "Key Decisions",
+          "items": [
+            {
+              "id": "ADR-031",
+              "title": "RabbitMQ inside the fulfilment platform",
+              "body": "Work-queue semantics and per-message acknowledgement suit warehouse tasks better than a log.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-033",
+              "title": "Event-sourced stock ledger",
+              "body": "Every movement is auditable; snapshots keep reads fast.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-036",
+              "title": "Offline mode for the scanner app",
+              "body": "Associates keep working through Wi-Fi drops; tasks sync when back online.",
+              "status": "Proposed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-fulfil-shipping",
+      "level": "containers",
+      "title": "Shipping & Tracking",
+      "summary": "From packed parcel to doorstep: carrier selection, labels and collections, and keeping customers up to date.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "Every carrier sits behind the **Carrier Gateway**, so adding a carrier means adding one adapter. Tracking events flow back through the same gateway and are pushed to customers by email and the public tracking page."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "fulfil",
+          "relationships": [
+            {
+              "from": "fulfil-bus",
+              "to": "shipping-svc",
+              "label": "Delivers",
+              "technology": "parcel.packed"
+            },
+            {
+              "from": "logistics",
+              "to": "ops-console",
+              "label": "Manages exceptions"
+            },
+            {
+              "from": "ops-console",
+              "to": "shipping-svc",
+              "label": "API calls",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "shipping-svc",
+              "to": "carrier-gw",
+              "label": "Books & labels",
+              "technology": "gRPC"
+            },
+            {
+              "from": "shipping-svc",
+              "to": "shipping-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "carrier-gw",
+              "to": "carrier",
+              "label": "Calls carrier APIs",
+              "technology": "REST"
+            },
+            {
+              "from": "carrier",
+              "to": "carrier-gw",
+              "label": "Tracking webhooks",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "carrier-gw",
+              "to": "fulfil-bus",
+              "label": "Publishes",
+              "technology": "tracking.*"
+            },
+            {
+              "from": "fulfil-bus",
+              "to": "tracking-svc",
+              "label": "Delivers",
+              "technology": "tracking.*"
+            },
+            {
+              "from": "tracking-svc",
+              "to": "tracking-cache",
+              "label": "Reads/writes",
+              "technology": "RESP"
+            },
+            {
+              "from": "customer",
+              "to": "tracking-svc",
+              "label": "Tracks parcel",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "tracking-svc",
+              "to": "sendgrid",
+              "label": "Delivery emails",
+              "technology": "HTTPS"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "containers",
+          "eyebrow": "Catalogue",
+          "title": "Container Catalogue",
+          "select": {
+            "ids": [
+              "shipping-svc",
+              "carrier-gw",
+              "tracking-svc"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Container"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            "technology",
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.criticality",
+              "label": "Criticality"
+            },
+            "zoom"
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "data",
+          "eyebrow": "Persistence",
+          "title": "Data Stores",
+          "select": {
+            "ids": [
+              "shipping-db",
+              "tracking-cache"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Store"
+            },
+            {
+              "key": "description",
+              "label": "Holds"
+            },
+            {
+              "key": "technology",
+              "label": "Engine"
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            },
+            {
+              "key": "properties.retention",
+              "label": "Retention",
+              "mono": true
+            },
+            {
+              "key": "properties.backup",
+              "label": "Backup / DR",
+              "mono": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-order-svc",
+      "level": "components",
+      "title": "Order Service",
+      "element": "order-svc",
+      "summary": "Order Service owns the checkout use case and the lifecycle of an order from PLACED to FULFILLED.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Hexagonal layout: controllers and adapters at the edges, domain logic in the centre.",
+            "**Checkout Service** is the single orchestrator; it holds no state between requests.",
+            "Events are written to an outbox table in the same transaction as the order."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "order-svc",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "order-ctrl",
+              "label": "Routes",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "order-ctrl",
+              "to": "checkout",
+              "label": "Places order"
+            },
+            {
+              "from": "checkout",
+              "to": "pricing",
+              "label": "Prices cart"
+            },
+            {
+              "from": "checkout",
+              "to": "pay-client",
+              "label": "Requests auth"
+            },
+            {
+              "from": "checkout",
+              "to": "order-repo",
+              "label": "Persists"
+            },
+            {
+              "from": "checkout",
+              "to": "publisher",
+              "label": "Emits events"
+            },
+            {
+              "from": "pay-client",
+              "to": "payment-svc",
+              "label": "Authorise",
+              "technology": "gRPC"
+            },
+            {
+              "from": "order-repo",
+              "to": "orders-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "publisher",
+              "to": "kafka",
+              "label": "Publishes",
+              "technology": "Avro"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "order-svc"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.package",
+              "label": "Package",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-payment-svc",
+      "level": "components",
+      "title": "Payment Service",
+      "element": "payment-svc",
+      "summary": "Payment Service wraps Stripe behind an internal contract, adding idempotency, risk scoring and soft-decline retries.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Every authorisation is keyed by an idempotency key supplied by the caller.",
+            "Fraud scoring runs before any external call — high-risk payments never reach Stripe.",
+            "Stripe types never leak past the adapter (anti-corruption layer)."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "payment-svc",
+          "relationships": [
+            {
+              "from": "order-svc",
+              "to": "grpc-ep",
+              "label": "Authorise",
+              "technology": "gRPC"
+            },
+            {
+              "from": "gateway",
+              "to": "methods-ctrl",
+              "label": "Routes",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "grpc-ep",
+              "to": "orchestrator",
+              "label": "Delegates"
+            },
+            {
+              "from": "methods-ctrl",
+              "to": "orchestrator",
+              "label": "Saves methods"
+            },
+            {
+              "from": "orchestrator",
+              "to": "fraud",
+              "label": "Scores risk"
+            },
+            {
+              "from": "orchestrator",
+              "to": "stripe-adapter",
+              "label": "Charges"
+            },
+            {
+              "from": "orchestrator",
+              "to": "retry",
+              "label": "Schedules retry"
+            },
+            {
+              "from": "retry",
+              "to": "stripe-adapter",
+              "label": "Retries"
+            },
+            {
+              "from": "stripe-adapter",
+              "to": "stripe",
+              "label": "Calls API",
+              "technology": "REST"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "payment-svc"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.package",
+              "label": "Package",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-catalog",
+      "level": "components",
+      "title": "Catalog Service",
+      "element": "catalog",
+      "summary": "Catalog Service owns products, price books and the customer-facing view of stock.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Writes go through **Product Manager**, which versions every change.",
+            "Available stock is a projection of inventory events — the catalogue never calls the warehouse.",
+            "Changes are published through an outbox, like Order Service."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "catalog",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "catalog-api",
+              "label": "Routes",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "catalog-api",
+              "to": "product-mgr",
+              "label": "Updates products"
+            },
+            {
+              "from": "catalog-api",
+              "to": "price-book",
+              "label": "Resolves prices"
+            },
+            {
+              "from": "catalog-api",
+              "to": "stock-view",
+              "label": "Reads availability"
+            },
+            {
+              "from": "product-mgr",
+              "to": "catalog-repo",
+              "label": "Persists"
+            },
+            {
+              "from": "price-book",
+              "to": "catalog-repo",
+              "label": "Loads price books"
+            },
+            {
+              "from": "product-mgr",
+              "to": "catalog-pub",
+              "label": "Emits changes"
+            },
+            {
+              "from": "catalog-repo",
+              "to": "catalog-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "catalog-pub",
+              "to": "kafka",
+              "label": "Publishes",
+              "technology": "catalog.*"
+            },
+            {
+              "from": "kafka",
+              "to": "stock-view",
+              "label": "Delivers",
+              "technology": "stock.available"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "catalog"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.package",
+              "label": "Package",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-search-api",
+      "level": "components",
+      "title": "Search API",
+      "element": "search-api",
+      "summary": "Search API answers product queries in under 100 ms at p95, applying merchandising rules on the way.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Stateless; scales horizontally behind the gateway.",
+            "Ranking rules are data, edited by merchandisers in the Admin Console.",
+            "The index client fails fast and falls back to cached top results."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "search-api",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "search-ctrl",
+              "label": "Routes",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "search-ctrl",
+              "to": "query-builder",
+              "label": "Builds query"
+            },
+            {
+              "from": "search-ctrl",
+              "to": "facets",
+              "label": "Requests facets"
+            },
+            {
+              "from": "query-builder",
+              "to": "ranking",
+              "label": "Applies boosts"
+            },
+            {
+              "from": "query-builder",
+              "to": "os-client",
+              "label": "Executes"
+            },
+            {
+              "from": "facets",
+              "to": "os-client",
+              "label": "Aggregates"
+            },
+            {
+              "from": "os-client",
+              "to": "opensearch",
+              "label": "Queries",
+              "technology": "HTTPS"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "search-api"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.package",
+              "label": "Package",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-wms-svc",
+      "level": "components",
+      "title": "Warehouse Service",
+      "element": "wms-svc",
+      "summary": "Warehouse Service turns fulfilment orders into waves and pick tasks, and confirms dispatch.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Waves are planned per carrier cut-off.",
+            "Pick paths are optimised per wave, not per order.",
+            "Packing confirmation is the trigger for shipping."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "wms-svc",
+          "relationships": [
+            {
+              "from": "scanner-app",
+              "to": "wms-api",
+              "label": "Task updates",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "ops-console",
+              "to": "wms-api",
+              "label": "Plans waves",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "wms-api",
+              "to": "wave-planner",
+              "label": "Plans"
+            },
+            {
+              "from": "wms-api",
+              "to": "pack-station",
+              "label": "Confirms packing"
+            },
+            {
+              "from": "wave-planner",
+              "to": "pick-router",
+              "label": "Optimises paths"
+            },
+            {
+              "from": "wave-planner",
+              "to": "inv-client",
+              "label": "Reserves stock"
+            },
+            {
+              "from": "wave-planner",
+              "to": "wms-repo",
+              "label": "Persists"
+            },
+            {
+              "from": "pack-station",
+              "to": "wms-repo",
+              "label": "Persists"
+            },
+            {
+              "from": "pack-station",
+              "to": "wms-pub",
+              "label": "Emits parcel.packed"
+            },
+            {
+              "from": "inv-client",
+              "to": "inventory-svc",
+              "label": "Reserve",
+              "technology": "gRPC"
+            },
+            {
+              "from": "wms-repo",
+              "to": "wms-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "wms-pub",
+              "to": "fulfil-bus",
+              "label": "Publishes",
+              "technology": "AMQP"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "wms-svc"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.package",
+              "label": "Package",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-inventory-svc",
+      "level": "components",
+      "title": "Inventory Service",
+      "element": "inventory-svc",
+      "summary": "Inventory Service keeps an auditable stock ledger and handles reservations with expiry.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Every change is a ledger entry; current stock is derived.",
+            "Reservations expire automatically if an order is cancelled.",
+            "Adjustments require a reason code for the audit trail."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "inventory-svc",
+          "relationships": [
+            {
+              "from": "wms-svc",
+              "to": "inv-grpc",
+              "label": "Reserves stock",
+              "technology": "gRPC"
+            },
+            {
+              "from": "ops-console",
+              "to": "adjust-api",
+              "label": "Records adjustments",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "inv-grpc",
+              "to": "reservation",
+              "label": "Reserves"
+            },
+            {
+              "from": "reservation",
+              "to": "ledger",
+              "label": "Appends movements"
+            },
+            {
+              "from": "adjust-api",
+              "to": "ledger",
+              "label": "Appends movements"
+            },
+            {
+              "from": "ledger",
+              "to": "inv-repo",
+              "label": "Persists"
+            },
+            {
+              "from": "ledger",
+              "to": "inv-pub",
+              "label": "Emits movements"
+            },
+            {
+              "from": "inv-repo",
+              "to": "inventory-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "inv-pub",
+              "to": "fulfil-bus",
+              "label": "Publishes",
+              "technology": "stock.*"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "inventory-svc"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.package",
+              "label": "Package",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-shipping-svc",
+      "level": "components",
+      "title": "Shipping Service",
+      "element": "shipping-svc",
+      "summary": "Shipping Service chooses a carrier for each parcel, buys the label and books the collection.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Rate shopping balances price against the delivery promise.",
+            "Labels are stored for 7 years for customs and disputes.",
+            "Carrier calls go through the gateway — no carrier SDKs here."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "shipping-svc",
+          "relationships": [
+            {
+              "from": "fulfil-bus",
+              "to": "packed-listener",
+              "label": "Delivers",
+              "technology": "parcel.packed"
+            },
+            {
+              "from": "ops-console",
+              "to": "ship-api",
+              "label": "Manual bookings",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "packed-listener",
+              "to": "booking",
+              "label": "Books shipment"
+            },
+            {
+              "from": "ship-api",
+              "to": "booking",
+              "label": "Rebooks"
+            },
+            {
+              "from": "booking",
+              "to": "rate-shop",
+              "label": "Chooses carrier"
+            },
+            {
+              "from": "booking",
+              "to": "label-svc",
+              "label": "Requests label"
+            },
+            {
+              "from": "booking",
+              "to": "carrier-client",
+              "label": "Books collection"
+            },
+            {
+              "from": "label-svc",
+              "to": "carrier-client",
+              "label": "Buys label"
+            },
+            {
+              "from": "booking",
+              "to": "ship-repo",
+              "label": "Persists"
+            },
+            {
+              "from": "label-svc",
+              "to": "ship-repo",
+              "label": "Stores PDF"
+            },
+            {
+              "from": "carrier-client",
+              "to": "carrier-gw",
+              "label": "Calls",
+              "technology": "gRPC"
+            },
+            {
+              "from": "ship-repo",
+              "to": "shipping-db",
+              "label": "Reads/writes",
+              "technology": "JDBC"
+            }
+          ],
+          "layout": {
+            "rules": []
+          }
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "shipping-svc"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.package",
+              "label": "Package",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seq-checkout",
+      "level": "sequence",
+      "title": "Checkout & Place Order",
+      "summary": "A signed-in customer submits their cart. The order is priced, payment is authorised synchronously and an order.placed event is published.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Customer clicks “Place order”"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Customer is authenticated; cart is non-empty"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Order persisted as PLACED; event published"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "customer",
+            "storefront",
+            "gateway",
+            "order-svc",
+            "payment-svc",
+            "kafka"
+          ],
+          "steps": [
+            {
+              "from": "customer",
+              "to": "storefront",
+              "message": "Click “Place order”"
+            },
+            {
+              "from": "storefront",
+              "to": "gateway",
+              "message": "Submit order",
+              "code": "POST /v1/orders"
+            },
+            {
+              "from": "gateway",
+              "to": "gateway",
+              "message": "Validate JWT & rate-limit"
+            },
+            {
+              "from": "gateway",
+              "to": "order-svc",
+              "message": "Forward request"
+            },
+            {
+              "from": "order-svc",
+              "to": "order-svc",
+              "message": "Price cart & reserve stock"
+            },
+            {
+              "from": "order-svc",
+              "to": "payment-svc",
+              "message": "Authorise payment",
+              "code": "Authorise()"
+            },
+            {
+              "from": "payment-svc",
+              "to": "order-svc",
+              "message": "AUTHORISED",
+              "type": "return",
+              "info": "See the Payment Authorisation sequence for the internals."
+            },
+            {
+              "frame": "alt",
+              "label": "payment authorised"
+            },
+            {
+              "from": "order-svc",
+              "to": "kafka",
+              "message": "Publish",
+              "code": "order.placed",
+              "type": "async"
+            },
+            {
+              "from": "order-svc",
+              "to": "gateway",
+              "message": "201 Created",
+              "type": "return",
+              "deactivate": false
+            },
+            {
+              "else": "payment declined"
+            },
+            {
+              "from": "order-svc",
+              "to": "gateway",
+              "message": "402 Payment Required",
+              "type": "return"
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "gateway",
+              "to": "storefront",
+              "message": "Order response",
+              "type": "return"
+            },
+            {
+              "from": "storefront",
+              "to": "customer",
+              "message": "Show confirmation",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-payment",
+      "level": "sequence",
+      "title": "Payment Authorisation",
+      "summary": "Inside Payment Service: the request is de-duplicated, risk-scored and, if acceptable, authorised with Stripe via a PaymentIntent.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Order Service calls Authorise()"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Order priced; idempotency key supplied"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "PaymentIntent in requires_capture, or a local decline"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "pay-client",
+            "grpc-ep",
+            "orchestrator",
+            "fraud",
+            "stripe-adapter",
+            "stripe"
+          ],
+          "steps": [
+            {
+              "from": "pay-client",
+              "to": "grpc-ep",
+              "message": "Authorise",
+              "code": "(orderId, amount)"
+            },
+            {
+              "from": "grpc-ep",
+              "to": "orchestrator",
+              "message": "authorise(cmd)"
+            },
+            {
+              "from": "orchestrator",
+              "to": "orchestrator",
+              "message": "Check idempotency key"
+            },
+            {
+              "from": "orchestrator",
+              "to": "fraud",
+              "message": "score(payment)"
+            },
+            {
+              "from": "fraud",
+              "to": "orchestrator",
+              "message": "riskScore = 0.12",
+              "type": "return"
+            },
+            {
+              "frame": "alt",
+              "label": "risk < 0.80"
+            },
+            {
+              "from": "orchestrator",
+              "to": "stripe-adapter",
+              "message": "createIntent()"
+            },
+            {
+              "from": "stripe-adapter",
+              "to": "stripe",
+              "message": "Create intent",
+              "code": "POST /v1/payment_intents"
+            },
+            {
+              "from": "stripe",
+              "to": "stripe-adapter",
+              "message": "requires_capture",
+              "type": "return"
+            },
+            {
+              "from": "stripe-adapter",
+              "to": "orchestrator",
+              "message": "AUTHORISED",
+              "type": "return"
+            },
+            {
+              "else": "risk ≥ 0.80"
+            },
+            {
+              "note": "Declined locally — Stripe is never called",
+              "over": [
+                "orchestrator",
+                "fraud"
+              ]
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "orchestrator",
+              "to": "grpc-ep",
+              "message": "AuthResult",
+              "type": "return"
+            },
+            {
+              "from": "grpc-ep",
+              "to": "pay-client",
+              "message": "AuthResponse",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-dispatch",
+      "level": "sequence",
+      "title": "Order to Dispatch",
+      "summary": "A paid order crosses from the Commerce Platform to the Fulfilment Platform, stock is reserved and the parcel is packed — or the order is back-ordered.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "order.placed published by Order Service"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Payment authorised; SKUs exist in the warehouse"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "parcel.packed or order.backordered published"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "order-svc",
+            "kafka",
+            "order-intake",
+            "wms-svc",
+            "inventory-svc",
+            "fulfil-bus"
+          ],
+          "steps": [
+            {
+              "from": "order-svc",
+              "to": "kafka",
+              "message": "Publish",
+              "code": "order.placed",
+              "type": "async"
+            },
+            {
+              "from": "kafka",
+              "to": "order-intake",
+              "message": "Deliver record",
+              "type": "async",
+              "activate": true
+            },
+            {
+              "from": "order-intake",
+              "to": "wms-svc",
+              "message": "Create fulfilment order",
+              "code": "POST /fulfilment-orders"
+            },
+            {
+              "from": "wms-svc",
+              "to": "inventory-svc",
+              "message": "Reserve stock",
+              "code": "Reserve()"
+            },
+            {
+              "from": "inventory-svc",
+              "to": "wms-svc",
+              "message": "Reservation result",
+              "type": "return"
+            },
+            {
+              "frame": "alt",
+              "label": "all lines reserved"
+            },
+            {
+              "note": "Order joins the next wave before carrier cut-off",
+              "over": [
+                "wms-svc",
+                "inventory-svc"
+              ]
+            },
+            {
+              "from": "wms-svc",
+              "to": "fulfil-bus",
+              "message": "Publish",
+              "code": "parcel.packed",
+              "type": "async"
+            },
+            {
+              "else": "short on stock"
+            },
+            {
+              "from": "wms-svc",
+              "to": "fulfil-bus",
+              "message": "Publish",
+              "code": "order.backordered",
+              "type": "async"
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "wms-svc",
+              "to": "order-intake",
+              "message": "201 Created",
+              "type": "return"
+            },
+            {
+              "from": "order-intake",
+              "to": "kafka",
+              "message": "Commit offset",
+              "type": "async"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-signin",
+      "level": "sequence",
+      "title": "Customer Sign-in",
+      "summary": "OIDC Authorization Code flow with PKCE, followed by the first authenticated API call that loads the account page.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Customer clicks “Sign in”"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Customer has an account with the IdP"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Session established; account page rendered"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "customer",
+            "storefront",
+            "auth0",
+            "gateway",
+            "order-svc"
+          ],
+          "steps": [
+            {
+              "from": "customer",
+              "to": "storefront",
+              "message": "Click “Sign in”"
+            },
+            {
+              "from": "storefront",
+              "to": "auth0",
+              "message": "Authorize",
+              "code": "/authorize · PKCE"
+            },
+            {
+              "from": "auth0",
+              "to": "auth0",
+              "message": "Login + MFA challenge"
+            },
+            {
+              "from": "auth0",
+              "to": "storefront",
+              "message": "Authorization code",
+              "type": "return"
+            },
+            {
+              "from": "storefront",
+              "to": "auth0",
+              "message": "Exchange code",
+              "code": "POST /oauth/token"
+            },
+            {
+              "from": "auth0",
+              "to": "storefront",
+              "message": "ID + access token",
+              "type": "return"
+            },
+            {
+              "from": "storefront",
+              "to": "gateway",
+              "message": "Load account",
+              "code": "GET /v1/me"
+            },
+            {
+              "from": "gateway",
+              "to": "gateway",
+              "message": "Verify JWT (cached JWKS)"
+            },
+            {
+              "from": "gateway",
+              "to": "order-svc",
+              "message": "Recent orders",
+              "code": "GET /orders?limit=5"
+            },
+            {
+              "from": "order-svc",
+              "to": "gateway",
+              "message": "200 OK",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "storefront",
+              "message": "Profile + orders",
+              "type": "return"
+            },
+            {
+              "from": "storefront",
+              "to": "customer",
+              "message": "Render account page",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-notify",
+      "level": "sequence",
+      "title": "Order Confirmation Email",
+      "summary": "An order.placed event is consumed by the Notification Worker, rendered and delivered through SendGrid with bounded retries.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "order.placed event published"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Customer has a verified email address"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Email accepted by SendGrid; offset committed"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "order-svc",
+            "kafka",
+            "notifier",
+            "sendgrid",
+            "customer"
+          ],
+          "steps": [
+            {
+              "from": "order-svc",
+              "to": "kafka",
+              "message": "Publish",
+              "code": "order.placed",
+              "type": "async"
+            },
+            {
+              "from": "kafka",
+              "to": "notifier",
+              "message": "Deliver record",
+              "code": "p3 · offset 88412",
+              "type": "async",
+              "activate": true
+            },
+            {
+              "from": "notifier",
+              "to": "notifier",
+              "message": "Render template"
+            },
+            {
+              "frame": "loop",
+              "label": "max 3 attempts · exp. backoff"
+            },
+            {
+              "from": "notifier",
+              "to": "sendgrid",
+              "message": "Send email",
+              "code": "POST /v3/mail/send"
+            },
+            {
+              "from": "sendgrid",
+              "to": "notifier",
+              "message": "202 Accepted",
+              "type": "return"
+            },
+            {
+              "end": true
+            },
+            {
+              "note": "After 3 failures the record goes to notifications.DLQ",
+              "over": [
+                "notifier",
+                "sendgrid"
+              ]
+            },
+            {
+              "from": "notifier",
+              "to": "kafka",
+              "message": "Commit offset",
+              "type": "async"
+            },
+            {
+              "from": "sendgrid",
+              "to": "customer",
+              "message": "Deliver email",
+              "type": "async"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    }
+  ]
+}

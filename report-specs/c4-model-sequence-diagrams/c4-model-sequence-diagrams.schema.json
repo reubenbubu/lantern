@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/architecture-document.schema.json",
+  "title": "Architecture Document",
+  "description": "Content model for the C4 architecture template. The whole document — elements, pages, diagrams and their layout rules — is one object embedded in the HTML as <script type=\"application/json\" id=\"arc-data\">.",
+  "$comment": "Cross-reference rules JSON Schema cannot express are checked by the page on load and reported in the browser console: every element id used anywhere must exist in `elements`; page ids are unique; section ids are unique within their page; a `parent` must be of a compatible kind (container → system; database/queue → system or container; component → container); a diagram's boundary must be the parent of at least one element in that diagram; sequence steps may only use declared participants; `steps.of` must name a sequence section on the same page.",
+  "type": "object",
+  "required": ["document", "elements", "pages"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string", "description": "Optional pointer to this schema, for editor support." },
+    "document": { "$ref": "#/$defs/document" },
+    "elements": {
+      "type": "object",
+      "description": "Every element in the model exactly once, keyed by id. Diagrams, tables and sequences refer to elements by these ids.",
+      "propertyNames": { "$ref": "#/$defs/id" },
+      "additionalProperties": { "$ref": "#/$defs/element" }
+    },
+    "pages": {
+      "type": "array",
+      "description": "Pages in reading order. The sidebar groups them by level; a level with one page shows as a single link, several pages as a collapsible group. Levels with no pages are hidden.",
+      "items": { "$ref": "#/$defs/page" }
+    }
+  },
+
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Lowercase kebab-case identifier."
+    },
+    "markdown": {
+      "type": "string",
+      "description": "Markdown-lite: **bold**, *italic*, `code`, [text](https://… | #/page/section | mailto:…). Blank lines separate paragraphs; lines starting with \"- \" form a list (block fields only)."
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "ISO date, YYYY-MM-DD."
+    },
+
+    "document": {
+      "type": "object",
+      "description": "Document identity and control. Drives the index hero, sidebar header, top bar and footer.",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Document reference, e.g. ARC-0042." },
+        "title": { "type": "string", "description": "Document title. The last word is highlighted on the index page." },
+        "subtitle": { "$ref": "#/$defs/markdown", "description": "Intro shown under the title on the index page." },
+        "version": { "type": "string", "examples": ["2.5.0"] },
+        "status": { "type": "string", "examples": ["Draft", "In review", "Approved"] },
+        "owner": { "type": "string" },
+        "updated": { "$ref": "#/$defs/date" },
+        "classification": { "type": "string", "examples": ["Public", "Internal", "Confidential"] },
+        "revisions": {
+          "type": "array",
+          "description": "Revision history, newest first. Omit or leave empty to hide the section.",
+          "items": {
+            "type": "object",
+            "required": ["version", "date", "summary"],
+            "additionalProperties": false,
+            "properties": {
+              "version": { "type": "string" },
+              "date": { "$ref": "#/$defs/date" },
+              "author": { "type": "string" },
+              "summary": { "$ref": "#/$defs/markdown" },
+              "status": { "type": "string", "description": "Approved / Accepted / Active render green; Rejected / Deprecated red; anything else neutral." }
+            }
+          }
+        }
+      }
+    },
+
+    "element": {
+      "type": "object",
+      "description": "A C4 element. Its kind sets its shape and colour everywhere it appears.",
+      "required": ["kind", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["person", "system", "external", "container", "database", "queue", "component"],
+          "description": "person · system (in scope) · external (third-party system) · container (deployable app/service/worker) · database · queue (message broker) · component."
+        },
+        "name": { "type": "string" },
+        "parent": {
+          "$ref": "#/$defs/id",
+          "description": "The C4 hierarchy: containers, databases and queues name their system (databases/queues may also sit in a container); components name their container. Drives diagram boundaries and zoom-in links."
+        },
+        "tag": { "type": "string", "description": "Overrides the type label on the element, e.g. \"Web App\", \"Worker\", \"Mobile App\"." },
+        "technology": { "type": "string", "examples": ["Spring Boot 4 · J21", "PostgreSQL 17"] },
+        "description": { "type": "string", "description": "Plain text in diagrams (wrapped and truncated to fit); Markdown-lite in tables." },
+        "properties": {
+          "type": "object",
+          "description": "Free-form facts shown in catalogue tables via columns like \"properties.owner\". A key named criticality, priority or severity renders as a coloured badge (High / Medium / Low).",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        }
+      }
+    },
+
+    "page": {
+      "type": "object",
+      "required": ["id", "level", "title", "sections"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id", "description": "Used in URLs: #/<page id>/<section id>." },
+        "level": {
+          "enum": ["context", "containers", "components", "sequence"],
+          "description": "C4 level the page belongs to (L1, L2, L3) or a sequence page."
+        },
+        "title": { "type": "string" },
+        "summary": { "$ref": "#/$defs/markdown", "description": "Lead paragraph under the page title." },
+        "element": { "$ref": "#/$defs/id", "description": "The element this page is about. Adds its technology, owner and a link to its catalogue row under the title." },
+        "sections": {
+          "type": "array",
+          "description": "Any section types, in any order, any number. Sections with a title become tabs in the top bar; untitled sections attach to the one above.",
+          "items": { "$ref": "#/$defs/section" }
+        }
+      }
+    },
+
+    "sectionBase": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "$ref": "#/$defs/id", "description": "Unique within the page. Becomes the URL anchor and the top-bar tab." },
+        "title": { "type": "string", "description": "Heading and tab label. Omit for a section without its own heading." },
+        "eyebrow": { "type": "string", "description": "Small label above the heading, e.g. \"Catalogue\"." }
+      }
+    },
+
+    "section": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["text", "callout", "list", "stats", "diagram", "sequence", "steps", "elements", "decisions", "table"] }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "text" } } },      "then": { "$ref": "#/$defs/textSection" } },
+        { "if": { "properties": { "type": { "const": "callout" } } },   "then": { "$ref": "#/$defs/calloutSection" } },
+        { "if": { "properties": { "type": { "const": "list" } } },      "then": { "$ref": "#/$defs/listSection" } },
+        { "if": { "properties": { "type": { "const": "stats" } } },     "then": { "$ref": "#/$defs/statsSection" } },
+        { "if": { "properties": { "type": { "const": "diagram" } } },   "then": { "$ref": "#/$defs/diagramSection" } },
+        { "if": { "properties": { "type": { "const": "sequence" } } },  "then": { "$ref": "#/$defs/sequenceSection" } },
+        { "if": { "properties": { "type": { "const": "steps" } } },     "then": { "$ref": "#/$defs/stepsSection" } },
+        { "if": { "properties": { "type": { "const": "elements" } } },  "then": { "$ref": "#/$defs/elementsSection" } },
+        { "if": { "properties": { "type": { "const": "decisions" } } }, "then": { "$ref": "#/$defs/decisionsSection" } },
+        { "if": { "properties": { "type": { "const": "table" } } },     "then": { "$ref": "#/$defs/tableSection" } }
+      ]
+    },
+
+    "textSection": {
+      "description": "Prose.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["body"],
+      "properties": { "type": { "const": "text" }, "id": true, "title": true, "eyebrow": true, "body": { "$ref": "#/$defs/markdown" } },
+      "unevaluatedProperties": false
+    },
+    "calloutSection": {
+      "description": "Highlighted note.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["body"],
+      "properties": {
+        "type": { "const": "callout" }, "id": true, "title": true, "eyebrow": true,
+        "body": { "$ref": "#/$defs/markdown" },
+        "tone": { "enum": ["info", "warning", "success"], "default": "info" }
+      },
+      "unevaluatedProperties": false
+    },
+    "listSection": {
+      "description": "Bullet points.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["items"],
+      "properties": {
+        "type": { "const": "list" }, "id": true, "title": true, "eyebrow": true,
+        "items": { "type": "array", "items": { "$ref": "#/$defs/markdown" } }
+      },
+      "unevaluatedProperties": false
+    },
+    "statsSection": {
+      "description": "Tiles: a label, a value and an optional note.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["items"],
+      "properties": {
+        "type": { "const": "stats" }, "id": true, "title": true, "eyebrow": true,
+        "columns": { "type": "integer", "minimum": 1, "maximum": 6, "description": "Tiles per row. Defaults to the number of items, up to 4." },
+        "variant": { "enum": ["default", "compact", "text"], "default": "default", "description": "default: large figures · compact: medium figures · text: sentence-length values." },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "value"],
+            "additionalProperties": false,
+            "properties": {
+              "label": { "type": "string" },
+              "value": { "$ref": "#/$defs/markdown" },
+              "note": { "$ref": "#/$defs/markdown" }
+            }
+          }
+        }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "diagramSection": {
+      "description": "A C4 diagram, laid out automatically from its relationships. Everything here belongs to this diagram only — nothing carries over to other diagrams.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["relationships"],
+      "properties": {
+        "type": { "const": "diagram" }, "id": true, "title": true, "eyebrow": true,
+        "caption": { "type": "string", "description": "Diagram card title. Defaults to the level's name, e.g. \"Container diagram\"." },
+        "boundary": { "$ref": "#/$defs/id", "description": "Draws a frame for this element (a system for container diagrams, a container for component diagrams) around the diagram's elements whose parent it is." },
+        "focus": { "$ref": "#/$defs/id", "description": "Context diagrams: the system the diagram is about, drawn as the large central box. Defaults to the only system in the diagram." },
+        "elements": { "type": "array", "items": { "$ref": "#/$defs/id" }, "description": "Extra elements to show that have no relationship in this diagram. Elements used in relationships are included automatically." },
+        "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } },
+        "layout": { "$ref": "#/$defs/layout" }
+      },
+      "unevaluatedProperties": false
+    },
+    "relationship": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "$ref": "#/$defs/id" },
+        "to": { "$ref": "#/$defs/id" },
+        "label": { "type": "string", "description": "What happens, e.g. \"Reads/writes\"." },
+        "technology": { "type": "string", "description": "How, e.g. \"JDBC\" or \"Kafka · order.placed\"." }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "description": "Layout guidance for the automatic layout engine. Edit mode (Alt+E) edits these rules; \"Copy layout\" exports them in this shape.",
+      "additionalProperties": false,
+      "properties": {
+        "rules": { "type": "array", "items": { "$ref": "#/$defs/layoutRule" } },
+        "groupByKind": { "type": "boolean", "default": true, "description": "Gently pull elements of the same kind next to each other. Lower priority than any rule." },
+        "frozen": { "type": "null", "description": "Reserved for frozen layouts (stable positions as the architecture grows)." }
+      }
+    },
+    "layoutRule": {
+      "type": "object",
+      "description": "\"a must be <rel> b\". For boundary placements (at…), b is the diagram's boundary id and a must sit inside it.",
+      "required": ["a", "rel", "b"],
+      "additionalProperties": false,
+      "properties": {
+        "a": { "$ref": "#/$defs/id" },
+        "rel": {
+          "enum": ["above", "below", "leftOf", "rightOf", "alignRow", "alignCol", "near", "higherThan", "lowerThan",
+                   "atTopEdge", "atBottomEdge", "atLeftEdge", "atRightEdge", "atTopLeft", "atTopRight", "atBottomLeft", "atBottomRight"],
+          "description": "above/below: same column · leftOf/rightOf: overlapping rows · alignRow/alignCol: share a row/column · near: adjacent cell · higherThan/lowerThan: anywhere above/below · at…: edge or corner of the boundary."
+        },
+        "b": { "$ref": "#/$defs/id" },
+        "strict": { "type": "boolean", "default": true, "description": "true: must hold (reported if it can't). false: a preference the engine may give up for a tidier layout." }
+      }
+    },
+
+    "sequenceSection": {
+      "description": "A sequence diagram. Participants are drawn left to right in the order given.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["participants", "steps"],
+      "properties": {
+        "type": { "const": "sequence" }, "id": true, "title": true, "eyebrow": true,
+        "participants": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/id" } },
+        "steps": {
+          "type": "array",
+          "description": "Messages, frames, notes. Frames open with {frame}, are split with {else} and close with {end}; they may nest.",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/seqMessage" },
+              { "$ref": "#/$defs/seqFrame" },
+              { "$ref": "#/$defs/seqElse" },
+              { "$ref": "#/$defs/seqEnd" },
+              { "$ref": "#/$defs/seqNote" }
+            ]
+          }
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "seqMessage": {
+      "type": "object",
+      "description": "A message. from = to draws a self-call.",
+      "required": ["from", "to", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "$ref": "#/$defs/id" },
+        "to": { "$ref": "#/$defs/id" },
+        "message": { "type": "string" },
+        "code": { "type": "string", "description": "Shown in monospace after the message, e.g. \"POST /v1/orders\"." },
+        "type": { "enum": ["sync", "async", "return"], "default": "sync", "description": "sync: solid line, filled arrow · async: solid line, open arrow · return: dashed line." },
+        "activate": { "type": "boolean", "description": "Start an activation bar on the receiver. Default: true for sync, false otherwise." },
+        "deactivate": { "type": "boolean", "description": "End the sender's activation bar. Default: true for return, false otherwise." },
+        "info": { "$ref": "#/$defs/markdown", "description": "Extra explanation shown in the Steps table only." }
+      }
+    },
+    "seqFrame": {
+      "type": "object",
+      "required": ["frame"],
+      "additionalProperties": false,
+      "properties": {
+        "frame": { "enum": ["alt", "opt", "loop", "par", "break", "critical"] },
+        "label": { "type": "string", "description": "Guard or condition, e.g. \"payment authorised\"." }
+      }
+    },
+    "seqElse": {
+      "type": "object",
+      "required": ["else"],
+      "additionalProperties": false,
+      "properties": { "else": { "type": "string", "description": "Guard for the next branch of the open frame." } }
+    },
+    "seqEnd": {
+      "type": "object",
+      "required": ["end"],
+      "additionalProperties": false,
+      "properties": { "end": { "const": true, "description": "Closes the innermost open frame." } }
+    },
+    "seqNote": {
+      "type": "object",
+      "required": ["note", "over"],
+      "additionalProperties": false,
+      "properties": {
+        "note": { "type": "string" },
+        "over": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" }, "description": "Participants the note spans." }
+      }
+    },
+    "stepsSection": {
+      "description": "Walkthrough table generated from a sequence section on the same page.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["of"],
+      "properties": {
+        "type": { "const": "steps" }, "id": true, "title": true, "eyebrow": true,
+        "of": { "$ref": "#/$defs/id", "description": "Id of the sequence section to tabulate." }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "elementsSection": {
+      "description": "Catalogue table of elements. The first such table (in page order) that lists an element becomes where that element's links point.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["select"],
+      "properties": {
+        "type": { "const": "elements" }, "id": true, "title": true, "eyebrow": true,
+        "select": {
+          "description": "Which elements to list: explicit ids (in that order), or a filter where every given field must match.",
+          "oneOf": [
+            {
+              "type": "object", "required": ["ids"], "additionalProperties": false,
+              "properties": { "ids": { "type": "array", "items": { "$ref": "#/$defs/id" } } }
+            },
+            {
+              "type": "object", "minProperties": 1, "additionalProperties": false,
+              "properties": {
+                "kind": { "$ref": "#/$defs/oneOrMany", "description": "Element kind(s)." },
+                "parent": { "$ref": "#/$defs/oneOrMany", "description": "Parent element id(s)." },
+                "tag": { "$ref": "#/$defs/oneOrMany", "description": "Tag(s)." }
+              }
+            }
+          ]
+        },
+        "columns": {
+          "type": "array",
+          "default": ["name", "description", "technology"],
+          "items": { "oneOf": [{ "$ref": "#/$defs/columnKey" }, { "$ref": "#/$defs/column" }] }
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "oneOrMany": {
+      "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" }, "minItems": 1 }]
+    },
+    "columnKey": {
+      "type": "string",
+      "pattern": "^(name|description|technology|kind|zoom|properties\\.[A-Za-z0-9_-]+)$",
+      "description": "name: element with its type · description · technology · kind · zoom: link to the element's deeper diagram, if any · properties.<key>: a free property."
+    },
+    "column": {
+      "type": "object",
+      "required": ["key"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "$ref": "#/$defs/columnKey" },
+        "label": { "type": "string", "description": "Column heading. Defaults from the key." },
+        "mono": { "type": "boolean", "description": "Monospace cell text. Default: true for technology." },
+        "format": { "enum": ["code", "badge"], "description": "code: inline code chip · badge: coloured level badge (default for criticality/priority/severity)." }
+      }
+    },
+
+    "decisionsSection": {
+      "description": "Architecture decisions (ADRs).",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["items"],
+      "properties": {
+        "type": { "const": "decisions" }, "id": true, "title": true, "eyebrow": true,
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["title"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "examples": ["ADR-012"] },
+              "title": { "$ref": "#/$defs/markdown" },
+              "body": { "$ref": "#/$defs/markdown" },
+              "status": { "type": "string", "examples": ["Proposed", "Accepted", "Deprecated", "Superseded"] }
+            }
+          }
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "tableSection": {
+      "description": "Free-form table for anything else.",
+      "allOf": [{ "$ref": "#/$defs/sectionBase" }],
+      "required": ["rows"],
+      "properties": {
+        "type": { "const": "table" }, "id": true, "title": true, "eyebrow": true,
+        "columns": { "type": "array", "items": { "type": "string" } },
+        "rows": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/markdown" } } }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}
