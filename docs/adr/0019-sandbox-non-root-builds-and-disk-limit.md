@@ -19,27 +19,38 @@ VM's rootless Docker.
   the same user. The repository is streamed in with `git archive` under `tar.umask=0`, so `/work`
   is writable by everyone, and `/out` is copied in as an empty directory writable by everyone.
   The user is a constant, not a setting.
-- **The shared Maven cache belongs to the build user.** Before each build a short container runs
-  as root, with no network and only the `CHOWN` and `DAC_READ_SEARCH` capabilities, and gives the
-  build user everything in the cache volume that belongs to someone else (`find ... -exec chown
-  -h`, following no links): the top directory of a new volume, and caches filled by earlier root
-  builds. Once handed over this only walks the cache. Only Lantern's own command runs in it, never
-  build code. If it fails or takes longer than the build timeout, the build goes ahead and fails on
-  what it cannot write.
+- **The shared Maven cache belongs to the build user, in the group of the user running
+  Lantern.** The cache is a host folder (ADR 0005, #108). Before and after each build a short
+  container runs as root, with no network and only the `CHOWN`, `DAC_READ_SEARCH` and `FOWNER`
+  capabilities. It reads which group the user running Lantern has as the container sees it, from
+  a directory Lantern created and mounts read only (under rootless Docker that is group 0; if the
+  group is not mapped, the build user's group is used). It gives the build user, in that group,
+  everything in the cache that belongs to someone else (`find ... -exec chown -h`, following no
+  links): the top directory of a new folder, and files left by earlier root builds or by hand. It
+  makes every directory group-writable with the set-group-ID bit (`chmod g+rwxs`), so new files
+  and directories stay in that group. Builds and JDK detection run with umask `0002`, so the
+  directories Maven adds are group-writable as they are made. Under rootless Docker the build
+  user is a subordinate user of the host, not the user running Lantern, so this is what lets that
+  user delete the cache (`rm -rf`) without root; the run after each build undoes whatever modes a
+  build set. Once handed over this only walks the cache. It only adds to what the build user and
+  the group may do, so it is safe while other builds use the cache. Only Lantern's own command
+  runs in it, never build code. If it fails or takes longer than the build timeout, the build goes
+  ahead and fails on what it cannot write.
 - **Disk limit by a watchdog** (both values configurable): every 5 seconds while a build or
   JDK-detection container runs, and once after it ends, the sandbox reads how much the container
   has written to its own filesystem (`docker container inspect --size`). That covers `/work` (the
   repository's files too), `/out` (including the classpath jars copied there from the cache) and
-  `/tmp`, but not the cache volume. A container that has written more than 8 GiB is stopped, as is
+  `/tmp`, but not the cache folder. A container that has written more than 8 GiB is stopped, as is
   one whose disk use could not be measured six checks in a row (each measurement may take 30
   seconds) or once more after it ended. The build is stored as `FAILED` with the reason, keeping
   no outputs (like a timed-out build), and analysis goes to degraded mode. Build containers log
   with Docker's `none` driver, since their output is read through `docker start --attach`, so
   Docker keeps no unbounded copy of it on disk.
 - **Free-space guard.** The same checks read the free space and free inodes of Docker's storage
-  with `df`, in a per-build monitor container that mounts the cache volume read only, has no
-  network and so cannot be reached by the build. A build does not start, or is stopped, when
-  Docker's storage has less than 2 GiB (configurable) or 100,000 inodes free (where the
+  with `df`, in a per-build monitor container that mounts the cache folder read only, has no
+  network and so cannot be reached by the build. It measures both Docker's storage (its own
+  filesystem) and the cache folder's filesystem, which may differ. A build does not start, or is
+  stopped, when either has less than 2 GiB (configurable) or 100,000 inodes free (where the
   filesystem counts inodes). This catches a build filling the shared cache, which the size check
   does not count. Since it cannot tell which build used the space, it is treated as a problem of
   the host, not of the build: `SandboxException`, nothing stored, so no repository is recorded as
@@ -47,8 +58,8 @@ VM's rootless Docker.
 - **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. With
   several builds at once, the free-space guard stops them all. What a build wrote to the shared
   cache stays there; cleaning the cache is manual, and until then every analysis stops at its
-  first build (#65). The guard assumes the cache volume is on the
-  same filesystem as the rest of Docker's storage, as with Docker's default local volumes. The
+  first build (#65). A build can fill the cache folder's filesystem,
+  which may also hold the user's other files, down to the free-space floor. The
   build timeout can be overrun by the time of one check. On a very busy host an honest build with
   very many files could be stopped because its size could not be measured in time. The egress
   proxy keeps Docker's default logging.

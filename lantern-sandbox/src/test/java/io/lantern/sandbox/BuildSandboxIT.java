@@ -12,6 +12,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -20,7 +21,6 @@ import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -28,7 +28,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Builds the fixture projects in real build containers. Needs Docker and network access to Maven
- * Central. All builds share one Maven cache volume, created for these tests and removed after them.
+ * Central. Builds use the default shared Maven cache directory, which keeps downloads between runs;
+ * the tests of the cache itself use caches of their own in their temporary directory, and delete
+ * them as the user running the tests can.
  */
 class BuildSandboxIT {
 
@@ -52,26 +54,18 @@ class BuildSandboxIT {
   private static final String RUN =
       HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
 
-  private static String volume;
   private static Path fixtures;
 
   @TempDir Path temp;
 
   @BeforeAll
-  static void createVolume() {
-    volume = "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
-    DOCKER.check(TIMEOUT, List.of("volume", "create", volume));
+  static void findFixtures() {
     String path = System.getProperty("lantern.test.fixtures");
     if (path == null || path.isBlank()) {
       throw new IllegalStateException(
           "lantern.test.fixtures is not set; run this test through Maven");
     }
     fixtures = Path.of(path);
-  }
-
-  @AfterAll
-  static void removeVolume() {
-    DOCKER.quietly(TIMEOUT, List.of("volume", "rm", "--force", volume));
   }
 
   @AfterEach
@@ -94,18 +88,24 @@ class BuildSandboxIT {
   }
 
   /**
-   * The default settings, with the test cache, this test class's owner label and no free space
-   * required on Docker's storage.
+   * The default settings, with this test class's owner label and no free space required on Docker's
+   * storage.
    */
   private SandboxSettings settings() {
     return SandboxSettings.defaults(temp.resolve("builds"))
-        .withMavenCacheVolume(volume)
         .withOwnerLabel(RUN_LABEL, RUN)
         .withMinFreeDiskBytes(0);
   }
 
   private Repo repo(Path source, String name, RepoSettings settings) throws IOException {
     return TestRepos.create(source, temp.resolve("repos").resolve(name), name, settings);
+  }
+
+  /** Deletes a directory the test created, if it is there. */
+  private static void deleteIfExists(Path dir) throws IOException {
+    if (Files.exists(dir)) {
+      deleteRecursively(dir);
+    }
   }
 
   private static void deleteRecursively(Path dir) throws IOException {
@@ -166,7 +166,6 @@ class BuildSandboxIT {
       BuildSandbox sandbox =
           new BuildSandbox(
               SandboxSettings.defaults(builds)
-                  .withMavenCacheVolume(volume)
                   .withOwnerLabel(RUN_LABEL, RUN)
                   .withMinFreeDiskBytes(0));
 
@@ -203,28 +202,34 @@ class BuildSandboxIT {
     Path source = fixtures.resolve("lib-and-service");
     Repo lib = repo(source.resolve("lib"), "greeting-lib", RepoSettings.DEFAULT);
     Repo service = repo(source.resolve("service"), "greeting-service", RepoSettings.DEFAULT);
-    BuildSandbox sandbox = new BuildSandbox(settings());
+    // A cache of its own, which the library is installed into, so it is in no other cache.
+    Path cache = temp.resolve("lib-cache");
+    try {
+      BuildSandbox sandbox = new BuildSandbox(settings().withMavenCacheDirectory(cache));
 
-    BuildResult libResult = sandbox.build(lib, TestRepos.head(lib));
-    assertThat(libResult.status()).as(log(libResult)).isEqualTo(BuildStatus.SUCCEEDED);
+      BuildResult libResult = sandbox.build(lib, TestRepos.head(lib));
+      assertThat(libResult.status()).as(log(libResult)).isEqualTo(BuildStatus.SUCCEEDED);
 
-    // The sandbox only compiles, so the library is not installed anywhere: the service fails...
-    BuildResult missing = sandbox.build(service, TestRepos.head(service));
-    assertThat(missing.status()).isEqualTo(BuildStatus.FAILED);
-    assertThat(missing.degraded()).isTrue();
-    assertThat(Files.readString(missing.log())).contains("greeting-lib");
-    // Its dependencies did not resolve, but Maven still wrote the effective POM.
-    assertThat(missing.modules()).isEmpty();
-    assertThat(Files.readString(missing.resolve(missing.effectivePom())))
-        .contains("<artifactId>greeting-service</artifactId>");
+      // The sandbox only compiles, so the library is not installed anywhere: the service fails...
+      BuildResult missing = sandbox.build(service, TestRepos.head(service));
+      assertThat(missing.status()).isEqualTo(BuildStatus.FAILED);
+      assertThat(missing.degraded()).isTrue();
+      assertThat(Files.readString(missing.log())).contains("greeting-lib");
+      // Its dependencies did not resolve, but Maven still wrote the effective POM.
+      assertThat(missing.modules()).isEmpty();
+      assertThat(Files.readString(missing.resolve(missing.effectivePom())))
+          .contains("<artifactId>greeting-service</artifactId>");
 
-    // ...until the library is in the artifact repository, here the shared Maven cache.
-    installIntoCache(source.resolve("lib"));
-    BuildResult built = sandbox.build(service, TestRepos.head(service));
-    assertThat(built.status()).as(log(built)).isEqualTo(BuildStatus.SUCCEEDED);
-    assertThat(built.modules().getFirst().classpath())
-        .contains("lib/com/example/greeting/greeting-lib/1.0.0/greeting-lib-1.0.0.jar");
-    assertThat(sandbox.find("greeting-service", built.commit())).contains(built);
+      // ...until the library is in the artifact repository, here the Maven cache.
+      installIntoCache(cache, source.resolve("lib"));
+      BuildResult built = sandbox.build(service, TestRepos.head(service));
+      assertThat(built.status()).as(log(built)).isEqualTo(BuildStatus.SUCCEEDED);
+      assertThat(built.modules().getFirst().classpath())
+          .contains("lib/com/example/greeting/greeting-lib/1.0.0/greeting-lib-1.0.0.jar");
+      assertThat(sandbox.find("greeting-service", built.commit())).contains(built);
+    } finally {
+      deleteIfExists(cache);
+    }
   }
 
   @Test
@@ -308,14 +313,18 @@ class BuildSandboxIT {
   }
 
   @Test
-  void givesACacheFilledByRootToTheBuildUser() throws IOException {
-    String cache =
-        "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
-    String mount = "type=volume,source=" + cache + ",target=/m2";
+  void givesTheCacheToTheBuildUserAndKeepsItDeletable() throws IOException {
+    // A cache of its own, which does not exist yet: the sandbox creates it.
+    Path cache = temp.resolve("own-cache");
+    String mount = "type=bind,source=" + cache + ",target=/m2";
     String image = SandboxSettings.DEFAULT_IMAGES.get(21);
-    DOCKER.check(TIMEOUT, List.of("volume", "create", cache));
     try {
-      // As an older Lantern that built as root left it.
+      Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+      BuildSandbox sandbox = new BuildSandbox(settings().withMavenCacheDirectory(cache));
+      BuildResult first = sandbox.build(repo, TestRepos.head(repo));
+      assertThat(first.status()).as(log(first)).isEqualTo(BuildStatus.SUCCEEDED);
+      // As root in a container, as an older Lantern that built as root left a cache, and in modes
+      // that would keep the user running Lantern from deleting it.
       DOCKER.check(
           TIMEOUT,
           List.of(
@@ -329,14 +338,12 @@ class BuildSandboxIT {
               "sh",
               image,
               "-c",
-              "mkdir -p /m2/old && touch /m2/old/artifact.jar"));
-      Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+              "mkdir -p /m2/old && touch /m2/old/artifact.jar && chmod 700 /m2/old"
+                  + " && chmod 700 /m2/org/projectlombok"));
 
-      BuildResult result =
-          new BuildSandbox(settings().withMavenCacheVolume(cache))
-              .build(repo, TestRepos.head(repo));
+      BuildResult second = sandbox.build(repo, TestRepos.head(repo));
 
-      assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
+      assertThat(second.status()).as(log(second)).isEqualTo(BuildStatus.SUCCEEDED);
       Docker.Result owners =
           DOCKER.check(
               TIMEOUT,
@@ -349,14 +356,33 @@ class BuildSandboxIT {
                   "stat",
                   image,
                   "-c",
-                  "%u:%g",
+                  "%u",
                   "/m2",
                   "/m2/old",
                   "/m2/old/artifact.jar",
                   "/m2/org/projectlombok"));
-      assertThat(owners.out().lines()).hasSize(4).containsOnly(BuildSandbox.BUILD_USER);
+      assertThat(owners.out().lines())
+          .hasSize(4)
+          .containsOnly(BuildSandbox.BUILD_USER.split(":")[0]);
+      // Every directory is in the group of the user running the tests, who may write to it.
+      Object group = Files.getAttribute(temp, "unix:gid");
+      try (Stream<Path> paths = Files.walk(cache)) {
+        for (Path directory : paths.filter(Files::isDirectory).toList()) {
+          assertThat(Files.getAttribute(directory, "unix:gid"))
+              .as("%s", directory)
+              .isEqualTo(group);
+          assertThat(Files.getPosixFilePermissions(directory))
+              .as("%s", directory)
+              .contains(
+                  PosixFilePermission.GROUP_READ,
+                  PosixFilePermission.GROUP_WRITE,
+                  PosixFilePermission.GROUP_EXECUTE);
+        }
+      }
+      deleteRecursively(cache);
+      assertThat(cache).doesNotExist();
     } finally {
-      DOCKER.quietly(TIMEOUT, List.of("volume", "rm", "--force", cache));
+      deleteIfExists(cache);
     }
   }
 
@@ -521,14 +547,12 @@ class BuildSandboxIT {
   @Test
   void downloadsDependenciesFromAConfiguredRepository() throws IOException {
     // A cache of its own, so the dependency is not there yet and must be downloaded.
-    String cache =
-        "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
-    DOCKER.check(TIMEOUT, List.of("volume", "create", cache));
+    Path cache = temp.resolve("extra-cache");
     try {
       Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
       SandboxSettings settings =
           settings()
-              .withMavenCacheVolume(cache)
+              .withMavenCacheDirectory(cache)
               .withMavenRepositories(List.of(EXTRA, MavenRepository.CENTRAL));
 
       BuildResult result = new BuildSandbox(settings).build(repo, TestRepos.head(repo));
@@ -536,27 +560,26 @@ class BuildSandboxIT {
       assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
       // Maven records in the cache which repository each downloaded file came from. Builds log
       // no transfers (--no-transfer-progress), so this is where the download shows.
-      Docker.Result origins =
-          DOCKER.check(
-              TIMEOUT,
-              List.of(
-                  "run",
-                  "--rm",
-                  "--mount",
-                  "type=volume,source=" + cache + ",target=/m2",
-                  "--entrypoint",
-                  "sh",
-                  SandboxSettings.DEFAULT_IMAGES.get(21),
-                  "-c",
-                  "cat /m2/org/projectlombok/lombok/*/_remote.repositories"));
-      assertThat(origins.out()).containsPattern("lombok-[^>]+\\.jar>" + EXTRA.id() + "=");
+      StringBuilder origins = new StringBuilder();
+      try (Stream<Path> versions = Files.list(cache.resolve("org/projectlombok/lombok"))) {
+        for (Path version : versions.toList()) {
+          Path file = version.resolve("_remote.repositories");
+          if (Files.isRegularFile(file)) {
+            origins.append(Files.readString(file));
+          }
+        }
+      }
+      assertThat(origins).containsPattern("lombok-[^>]+\\.jar>" + EXTRA.id() + "=");
     } finally {
-      DOCKER.quietly(TIMEOUT, List.of("volume", "rm", "--force", cache));
+      deleteIfExists(cache);
     }
   }
 
-  /** Installs a fixture project into the shared Maven cache, as if it came from the repository. */
-  private void installIntoCache(Path project) {
+  /**
+   * Installs a fixture project into a Maven cache, as if it came from the repository. Runs as the
+   * image's root user; the next build hands what it wrote to the build user.
+   */
+  private void installIntoCache(Path cache, Path project) {
     String name =
         "lantern-test-install-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
     try {
@@ -567,7 +590,7 @@ class BuildSandboxIT {
               "--name",
               name,
               "--mount",
-              "type=volume,source=" + volume + ",target=/var/lantern/m2",
+              "type=bind,source=" + cache + ",target=/var/lantern/m2",
               "--workdir",
               "/project",
               "--entrypoint",

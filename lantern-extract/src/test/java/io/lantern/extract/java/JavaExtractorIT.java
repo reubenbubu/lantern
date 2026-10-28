@@ -6,7 +6,6 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
-import io.lantern.extract.TestDocker;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.SandboxSettings;
@@ -14,38 +13,23 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Golden-fact tests on the fixtures built in the sandbox, so modules whose build succeeded are read
  * through javac with the build's classpath and Lombok. Needs Docker and network access to Maven
- * Central. The builds share a Maven cache volume created for these tests and removed after them.
+ * Central. The builds use the default shared Maven cache directory, which keeps downloads between
+ * runs.
  */
 class JavaExtractorIT {
 
   private static final long SNAPSHOT = 9;
 
-  private static String volume;
-
   @TempDir Path temp;
 
-  @BeforeAll
-  static void createVolume() {
-    volume = TestDocker.createVolume();
-  }
-
-  @AfterAll
-  static void removeVolume() {
-    TestDocker.removeVolume(volume);
-  }
-
   private List<RepoBuild> build(List<Repo> repos) {
-    BuildSandbox sandbox =
-        new BuildSandbox(
-            SandboxSettings.defaults(temp.resolve("builds")).withMavenCacheVolume(volume));
+    BuildSandbox sandbox = new BuildSandbox(SandboxSettings.defaults(temp.resolve("builds")));
     List<RepoBuild> inputs = new ArrayList<>();
     for (Repo repo : repos) {
       String commit = Fixtures.head(repo);

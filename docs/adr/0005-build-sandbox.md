@@ -38,21 +38,31 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   networks; older versions would leak DNS lookups). The proxy is also reachable from other
   containers on the default bridge network, which can use it to reach the same allowed hosts.
   Plain-HTTP repositories are not supported yet.
-- **No host files in the container.** The repo's files at the commit are streamed in with
-  `git archive` (no `.git`, no uncommitted changes, no build output on the host) and `docker cp`.
-  Nothing is bind-mounted, and the Docker socket is not available. Outputs come back as a tar
+- **No host files in the container** but the shared Maven cache. The repo's files at the commit
+  are streamed in with `git archive` (no `.git`, no uncommitted changes, no build output on the
+  host) and `docker cp`. Only the Maven cache folder is bind-mounted, and the Docker socket is not
+  available. Outputs come back as a tar
   stream from `docker cp`, parsed by Lantern's own extractor: only regular files and directories,
   every path confined to the target, symbolic and hard links skipped, at most 4 GiB and 2 million
   entries. A larger output fails the build. Only `work/`, `lib/` and Maven's exit code are taken
-  from it, so the build cannot overwrite Lantern's log or result. This also means Lantern can itself run in a container.
+  from it, so the build cannot overwrite Lantern's log or result. This also means Lantern can itself run in a container, as long as the Maven cache folder has
+  the same path for Lantern and for Docker.
 - **Container limits** (all configurable): 2 CPUs, 4 GiB memory with swap off, 4096 processes,
   30 minutes per container (JDK detection and the build each get that), all capabilities dropped, `no-new-privileges`, and at most 4 builds at once (the
   design's sizing for the development VM). Builds run as a non-root user and have a disk limit;
   see ADR 0019.
-- **Shared Maven cache** is one Docker volume, `lantern-maven-cache`, mounted as the local
-  repository of every build, with Maven's file locking for concurrent builds. Trade-off: a
-  malicious build can plant artifacts in the cache that later builds use. The design accepts a
-  shared cache for speed; per-snapshot caches can be added if that matters.
+- **Shared Maven cache** is one folder on the host, `lantern.sandbox.maven-cache-dir` (default
+  `~/workspace/lantern-maven-cache`, created if missing), bind-mounted as the local repository of
+  every build, with Maven's file locking (`file-lock`, `file-gav`) for concurrent builds, which
+  works across containers since they share the host's filesystem. It replaced the Docker volume
+  `lantern-maven-cache` (#108), so the cache survives Docker clean-ups, can be inspected and
+  deleted on the host, and tests reuse the same folder instead of downloading everything again
+  each run, which got Maven Central to answer 429 Too Many Requests. Only tests of the cache
+  itself use a folder of their own, in their temporary directory. How the build user writes to it
+  and the user running Lantern can still delete it is in ADR 0019. Trade-off: a malicious build
+  can plant artifacts in the cache that later builds use. The design accepts a shared cache for
+  speed; per-snapshot caches can be added if that matters. Moving to the folder starts with an
+  empty cache; the old volume can be removed by hand.
 - **The Maven run** is one invocation with `--fail-at-end`: `help:effective-pom` (all modules in
   one file), `dependency:tree`, `dependency:build-classpath` (compile scope, which includes
   `provided`) and `compile`, with `-DskipTests` and the repo's profiles and skipped modules. A

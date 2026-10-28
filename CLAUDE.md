@@ -43,7 +43,8 @@ any code that changes the design. This file covers only how you work.
     `COMPOSE_PROJECT_NAME=lantern-<number>`; cleanup removes only resources with that label or
     project, never by name pattern or an unfiltered `prune`. Containers that tests or the
     sandbox start clean up after themselves; report leftovers on the issue instead of removing
-    them. Never remove the shared `lantern-maven-cache` volume.
+    them. Never delete the shared Maven cache folder `~/workspace/lantern-maven-cache`, which
+    builds and tests reuse between runs.
   - no fixed host ports; publish to a random host port (`-p 127.0.0.1::5432`) and read it back
     with `docker port`. The local database (Commands) is the exception: its port is fixed, so
     only one task at a time may run it.

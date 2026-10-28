@@ -49,9 +49,9 @@ import java.util.stream.Stream;
  * <p>Each build gets its own container and its own internal Docker network, which has no route out.
  * The only other container on that network is an egress proxy that tunnels to the hosts of the
  * configured Maven repositories and nothing else. The build container gets the repository's files
- * at the commit (no {@code .git}), no host directories, no capabilities, a user that is not root,
- * and limited CPU, memory, disk, processes and time. All builds share one Docker volume as their
- * local Maven repository.
+ * at the commit (no {@code .git}), no host directory but the shared Maven cache, no capabilities, a
+ * user that is not root, and limited CPU, memory, disk, processes and time. All builds share one
+ * host directory, bind-mounted, as their local Maven repository.
  *
  * <p>A build that fails, times out or runs out of memory is stored as {@link BuildStatus#FAILED},
  * keeping whatever outputs it left, so the repository can be analyzed in degraded mode. Problems of
@@ -92,7 +92,7 @@ public class BuildSandbox {
 
   /**
    * The user and group builds and the egress proxy run as: not root, and not a user the images
-   * define. The shared Maven cache belongs to this user.
+   * define. The shared Maven cache belongs to this user, in the group of the user running Lantern.
    */
   static final String BUILD_USER = "10001:10001";
 
@@ -104,6 +104,13 @@ public class BuildSandbox {
 
   /** The free inodes Docker's storage must keep while a build runs, where it counts inodes. */
   private static final long MIN_FREE_INODES = 100_000;
+
+  /**
+   * The mask builds and JDK detection run under, so the directories they add to the shared Maven
+   * cache are writable by its group, the group of the user running Lantern, who can then delete
+   * them.
+   */
+  private static final String UMASK = "0002";
 
   /** Where the shared Maven cache is mounted in every container that mounts it. */
   private static final String CACHE_MOUNT =
@@ -243,6 +250,7 @@ public class BuildSandbox {
     private String outputProblem;
     private String diskProblem;
     private String failure;
+    private boolean cacheHandedOver;
     private List<BuildModule> modules = List.of();
     private String effectivePom;
 
@@ -263,6 +271,7 @@ public class BuildSandbox {
         }
         try {
           prepareCache();
+          cacheHandedOver = true;
           startMonitor();
           startProxy();
           Path lantern = writeLanternFiles();
@@ -292,6 +301,10 @@ public class BuildSandbox {
               List.of(
                   "rm", "--force", "--volumes", container, detector, proxy, cacheOwner, monitor));
           docker.quietly(CLEANUP_TIMEOUT, List.of("network", "rm", network));
+          if (!interrupted && cacheHandedOver) {
+            // What the build wrote to the cache, in whatever modes, stays deletable by the user.
+            handOverCache();
+          }
           if (interrupted) {
             Thread.currentThread().interrupt();
           }
@@ -375,8 +388,9 @@ public class BuildSandbox {
       command.add("--non-recursive");
       command.add(HELP_PLUGIN + ":effective-pom");
       command.add("-Doutput=target/lantern/jdk-effective-pom.xml");
+      command.addAll(0, List.of("-c", "umask " + UMASK + " && exec mvn \"$@\"", "sh"));
       createContainer(
-          detector, settings.images().get(settings.defaultJdk()), "mvn", command, lantern);
+          detector, settings.images().get(settings.defaultJdk()), "sh", command, lantern);
       ContainerExit exit = runContainer(detector);
       if (exit.timedOut()) {
         timedOut = true;
@@ -419,16 +433,37 @@ public class BuildSandbox {
     }
 
     /**
-     * Creates the shared Maven cache if it does not exist and gives the build user whatever in it
-     * belongs to someone else: the cache's top directory when it is new, and the files of builds
-     * that ran as root before builds ran as the build user. A container runs only this command, as
-     * root, with no network and no capabilities but changing owners and reading every directory; it
-     * is removed with the build's other containers. If it fails, the build goes ahead and fails on
-     * what it cannot write.
+     * Creates the shared Maven cache directory if it does not exist and hands it to the build user.
      */
     private void prepareCache() {
-      docker.check(DOCKER_TIMEOUT, List.of("volume", "create", settings.mavenCacheVolume()));
+      Path cache = settings.mavenCacheDirectory();
+      try {
+        Files.createDirectories(cache);
+      } catch (IOException e) {
+        throw new SandboxException("Cannot create the Maven cache directory " + cache, e);
+      }
+      handOverCache();
+    }
+
+    /**
+     * Gives the build user whatever in the shared Maven cache belongs to someone else, in the group
+     * of the user running Lantern, and makes every directory in it writable by that group, so that
+     * user can delete what builds wrote (under rootless Docker the build user is not a user of the
+     * host). The group is read from a directory Lantern created, as the container sees it. Runs
+     * before and after each build. A container runs only this command, as root, with no network and
+     * no capabilities but changing owners and modes and reading every directory, and is removed
+     * afterwards. If it fails, the build goes ahead and fails on what it cannot write. It only adds
+     * to what the build user and the group may do, so it is safe while other builds use the cache.
+     */
+    private void handOverCache() {
       String[] user = BUILD_USER.split(":");
+      Path owner;
+      try {
+        owner = Files.createDirectories(staging.resolve("owner"));
+      } catch (IOException e) {
+        log.note("could not hand the Maven cache to the build user: " + e.getMessage());
+        return;
+      }
       List<String> handover =
           labelled(
               List.of("run", "--name", cacheOwner),
@@ -443,6 +478,8 @@ public class BuildSandbox {
                   "CHOWN",
                   "--cap-add",
                   "DAC_READ_SEARCH",
+                  "--cap-add",
+                  "FOWNER",
                   "--security-opt",
                   "no-new-privileges",
                   "--memory",
@@ -450,13 +487,21 @@ public class BuildSandbox {
                   "--pids-limit",
                   "64",
                   "--mount",
-                  "type=volume,source=" + settings.mavenCacheVolume() + ",target=" + CACHE_MOUNT,
+                  cacheMount(false),
+                  "--mount",
+                  "type=bind,source=" + owner + ",target=/lantern-owner,readonly",
                   "--entrypoint",
                   "sh",
                   settings.proxyImage(),
                   "-c",
-                  // Neither find nor chown -h follows symbolic links.
-                  "find \"$1\" \\( ! -user \"$2\" -o ! -group \"$3\" \\) -exec chown -h \"$2:$3\" {} +",
+                  // The group of the user running Lantern; a group this user namespace does not
+                  // map shows as the overflow group, and then the build user's group is used.
+                  "g=$(stat -c %g /lantern-owner) && { [ \"$g\" != 65534 ] || g=$3; }"
+                      // Neither find nor chown -h follows symbolic links; chmod is only given
+                      // directories.
+                      + " && find \"$1\" \\( ! -user \"$2\" -o ! -group \"$g\" \\)"
+                      + " -exec chown -h \"$2:$g\" {} +"
+                      + " && find \"$1\" -type d ! -perm -2070 -exec chmod g+rwxs {} +",
                   "sh",
                   CACHE_MOUNT,
                   user[0],
@@ -464,21 +509,36 @@ public class BuildSandbox {
       try {
         Docker.Result result = docker.run(settings.timeout(), handover);
         if (!result.ok()) {
-          log.note("could not give the Maven cache to the build user: " + result.err());
+          log.note("could not hand the Maven cache to the build user: " + result.err());
         }
       } catch (SandboxException e) {
         if (Thread.currentThread().isInterrupted()) {
           throw e;
         }
-        log.note("could not give the Maven cache to the build user: " + e.getMessage());
+        log.note("could not hand the Maven cache to the build user: " + e.getMessage());
+      } finally {
+        boolean interrupted = Thread.interrupted();
+        docker.quietly(CLEANUP_TIMEOUT, List.of("rm", "--force", cacheOwner));
+        if (interrupted) {
+          Thread.currentThread().interrupt();
+        }
       }
     }
 
+    /** The {@code --mount} value of the shared Maven cache directory. */
+    private String cacheMount(boolean readOnly) {
+      return "type=bind,source="
+          + settings.mavenCacheDirectory()
+          + ",target="
+          + CACHE_MOUNT
+          + (readOnly ? ",readonly" : "");
+    }
+
     /**
-     * Starts the container Docker's free space is measured in while the build runs: it mounts the
-     * shared Maven cache read only and has no network, so the build cannot reach it. Refuses to
-     * build when Docker's storage is already short of space, which is a problem of the host, not of
-     * the build.
+     * Starts the container the free space of Docker's storage and of the shared Maven cache is
+     * measured in while the build runs: it mounts the cache read only and has no network, so the
+     * build cannot reach it. Refuses to build when either is already short of space, which is a
+     * problem of the host, not of the build.
      */
     private void startMonitor() {
       docker.check(
@@ -501,18 +561,15 @@ public class BuildSandbox {
                   "--log-driver",
                   "none",
                   "--mount",
-                  "type=volume,source="
-                      + settings.mavenCacheVolume()
-                      + ",target="
-                      + CACHE_MOUNT
-                      + ",readonly",
+                  cacheMount(true),
                   "--entrypoint",
                   "sleep",
                   settings.proxyImage(),
                   "infinity")));
-      Storage storage = storage();
+      List<Storage> storage = storage();
       if (storage == null) {
-        throw new SandboxException("Cannot measure the free space of Docker's storage");
+        throw new SandboxException(
+            "Cannot measure the free space of Docker's storage and the Maven cache");
       }
       String problem = storageProblem(storage);
       if (problem != null) {
@@ -632,10 +689,7 @@ public class BuildSandbox {
                       "--log-driver",
                       "none",
                       "--mount",
-                      "type=volume,source="
-                          + settings.mavenCacheVolume()
-                          + ",target="
-                          + CACHE_MOUNT,
+                      cacheMount(false),
                       // The build user has no home directory in the image.
                       "--env",
                       "HOME=/tmp",
@@ -806,7 +860,7 @@ public class BuildSandbox {
             break;
           }
           long written = writtenBytes(name);
-          Storage storage = storage();
+          List<Storage> storage = storage();
           if (Thread.interrupted()) {
             throw new InterruptedException();
           }
@@ -900,10 +954,11 @@ public class BuildSandbox {
     }
 
     /**
-     * The free space and inodes of Docker's storage, which also holds the shared Maven cache,
-     * measured in the monitor container, or null if they could not be measured.
+     * The free space and inodes of Docker's storage (the monitor's own filesystem) and of the
+     * filesystem holding the shared Maven cache, in that order, measured in the monitor container,
+     * or null if they could not be measured.
      */
-    private Storage storage() {
+    private List<Storage> storage() {
       try {
         Docker.Result df =
             docker.run(
@@ -913,62 +968,75 @@ public class BuildSandbox {
                     monitor,
                     "sh",
                     "-c",
-                    "df -P -k \"$1\" && df -P -i \"$1\"",
+                    "df -P -k / \"$1\" && df -P -i / \"$1\"",
                     "sh",
                     CACHE_MOUNT));
         if (!df.ok()) {
           return null;
         }
-        // POSIX output: a header and one line, for blocks of 1024 bytes and then for inodes. Each
-        // line ends with total, used, available, capacity and mount point.
+        // POSIX output: a header and a line per path, for blocks of 1024 bytes and then for
+        // inodes. Each line ends with total, used, available, capacity and mount point.
         List<String[]> lines =
             df.out()
                 .lines()
                 .filter(line -> !line.startsWith("Filesystem"))
                 .map(line -> line.trim().split("\\s+"))
                 .toList();
-        if (lines.size() != 2 || lines.get(0).length < 6 || lines.get(1).length < 6) {
+        if (lines.size() != 4 || lines.stream().anyMatch(line -> line.length < 6)) {
           return null;
         }
-        String[] blocks = lines.get(0);
-        String[] inodes = lines.get(1);
-        long freeBytes = Long.parseLong(blocks[blocks.length - 3]) * 1024;
-        // Filesystems that do not limit inodes report none.
-        long freeInodes =
-            Long.parseLong(inodes[inodes.length - 5]) == 0
-                ? -1
-                : Long.parseLong(inodes[inodes.length - 3]);
-        return new Storage(freeBytes, freeInodes);
+        List<Storage> storage = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+          String[] blocks = lines.get(i);
+          String[] inodes = lines.get(i + 2);
+          long freeBytes = Long.parseLong(blocks[blocks.length - 3]) * 1024;
+          // Filesystems that do not limit inodes report none.
+          long freeInodes =
+              Long.parseLong(inodes[inodes.length - 5]) == 0
+                  ? -1
+                  : Long.parseLong(inodes[inodes.length - 3]);
+          storage.add(
+              new Storage(
+                  i == 0 ? "Docker's storage" : "the Maven cache's filesystem",
+                  freeBytes,
+                  freeInodes));
+        }
+        return storage;
       } catch (NumberFormatException | SandboxException e) {
         return null;
       }
     }
 
     /**
-     * The free space of Docker's storage.
+     * The free space of a filesystem builds write to.
      *
+     * @param name what the filesystem holds, for messages
      * @param freeInodes -1 if the filesystem does not limit inodes
      */
-    private record Storage(long freeBytes, long freeInodes) {}
+    private record Storage(String name, long freeBytes, long freeInodes) {}
 
     /** Why no build may run with this little free space, or null, also if it is unknown. */
-    private String storageProblem(Storage storage) {
+    private String storageProblem(List<Storage> storage) {
       if (storage == null) {
         return null;
       }
-      if (storage.freeBytes() < settings.minFreeDiskBytes()) {
-        return "Docker's storage has "
-            + storage.freeBytes()
-            + " bytes free, less than the "
-            + settings.minFreeDiskBytes()
-            + " it must keep";
-      }
-      if (storage.freeInodes() >= 0 && storage.freeInodes() < MIN_FREE_INODES) {
-        return "Docker's storage has "
-            + storage.freeInodes()
-            + " inodes free, less than the "
-            + MIN_FREE_INODES
-            + " it must keep";
+      for (Storage one : storage) {
+        if (one.freeBytes() < settings.minFreeDiskBytes()) {
+          return one.name()
+              + " has "
+              + one.freeBytes()
+              + " bytes free, less than the "
+              + settings.minFreeDiskBytes()
+              + " it must keep";
+        }
+        if (one.freeInodes() >= 0 && one.freeInodes() < MIN_FREE_INODES) {
+          return one.name()
+              + " has "
+              + one.freeInodes()
+              + " inodes free, less than the "
+              + MIN_FREE_INODES
+              + " it must keep";
+        }
       }
       return null;
     }

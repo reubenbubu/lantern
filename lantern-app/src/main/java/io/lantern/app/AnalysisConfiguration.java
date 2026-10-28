@@ -34,7 +34,7 @@ class AnalysisConfiguration {
   /** The sandbox settings: the defaults, with builds in the workspace and the configured ones. */
   static SandboxSettings sandboxSettings(Path workspace, SandboxProperties sandbox) {
     return SandboxSettings.defaults(absolute(workspace).resolve("builds"))
-        .withMavenCacheVolume(sandbox.mavenCacheVolume())
+        .withMavenCacheDirectory(mavenCacheDirectory(sandbox.mavenCacheDir()))
         .withMavenRepositories(sandbox.mavenRepositories());
   }
 
@@ -81,5 +81,23 @@ class AnalysisConfiguration {
 
   private static Path absolute(Path path) {
     return path.toAbsolutePath().normalize();
+  }
+
+  /**
+   * The Maven cache directory a setting names: a leading {@code ~} is the user's home directory,
+   * and a relative path is resolved against the working directory. The default if not set.
+   */
+  static Path mavenCacheDirectory(String setting) {
+    if (setting == null || setting.isBlank()) {
+      return SandboxSettings.defaultMavenCacheDirectory();
+    }
+    String home = System.getProperty("user.home");
+    if (setting.equals("~")) {
+      return absolute(Path.of(home));
+    }
+    if (setting.startsWith("~/")) {
+      return absolute(Path.of(home, setting.substring(2)));
+    }
+    return absolute(Path.of(setting));
   }
 }

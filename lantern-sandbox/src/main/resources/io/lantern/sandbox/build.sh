@@ -6,6 +6,8 @@
 set -u
 repository=/var/lantern/m2
 out=/out
+# Directories added to the shared Maven cache stay writable by its group (ADR 0019).
+umask 0002
 mkdir -p "$out/lib" "$out/work"
 
 mvn --version
