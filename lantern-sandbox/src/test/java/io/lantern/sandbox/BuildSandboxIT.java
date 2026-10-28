@@ -101,10 +101,17 @@ class BuildSandboxIT {
     return TestRepos.create(source, temp.resolve("repos").resolve(name), name, settings);
   }
 
-  /** Deletes a directory the test created, if it is there. */
-  private static void deleteIfExists(Path dir) throws IOException {
-    if (Files.exists(dir)) {
-      deleteRecursively(dir);
+  /**
+   * Deletes a cache a test created, if it is there, in a {@code finally} block: a failure to delete
+   * is printed, not thrown, so it does not hide why the test failed.
+   */
+  private static void deleteIfExists(Path dir) {
+    try {
+      if (Files.exists(dir)) {
+        deleteRecursively(dir);
+      }
+    } catch (IOException e) {
+      System.err.println("Cannot delete " + dir + ": " + e);
     }
   }
 

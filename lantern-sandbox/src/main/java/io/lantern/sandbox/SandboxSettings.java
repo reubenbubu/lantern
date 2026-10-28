@@ -123,8 +123,12 @@ public record SandboxSettings(
       throw new IllegalArgumentException(
           "Maven repository IDs must be distinct: " + mavenRepositories);
     }
-    if (!buildsDirectory.isAbsolute()) {
-      throw new IllegalArgumentException("Builds directory must be absolute: " + buildsDirectory);
+    // A directory under it is bind-mounted read only into the container that hands the cache over.
+    if (!buildsDirectory.isAbsolute()
+        || !MOUNT_SOURCE.matcher(buildsDirectory.toString()).matches()) {
+      throw new IllegalArgumentException(
+          "Builds directory must be absolute, without commas, quotes or control characters: "
+              + buildsDirectory);
     }
     if (maxOutputBytes < 1 || maxLogBytes < 1) {
       throw new IllegalArgumentException("Output and log limits must be positive");

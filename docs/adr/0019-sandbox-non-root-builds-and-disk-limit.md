@@ -20,20 +20,22 @@ VM's rootless Docker.
   is writable by everyone, and `/out` is copied in as an empty directory writable by everyone.
   The user is a constant, not a setting.
 - **The shared Maven cache belongs to the build user, in the group of the user running
-  Lantern.** The cache is a host folder (ADR 0005, #108). Before and after each build a short
-  container runs as root, with no network and only the `CHOWN`, `DAC_READ_SEARCH` and `FOWNER`
+  Lantern.** The cache is a host folder (ADR 0005, #108). Before each build, and after each
+  build that was not interrupted, a short container runs as root, with no network and only the `CHOWN`, `DAC_READ_SEARCH` and `FOWNER`
   capabilities. It reads which group the user running Lantern has as the container sees it, from
   a directory Lantern created and mounts read only (under rootless Docker that is group 0; if the
   group is not mapped, the build user's group is used). It gives the build user, in that group,
   everything in the cache that belongs to someone else (`find ... -exec chown -h`, following no
-  links): the top directory of a new folder, and files left by earlier root builds or by hand. It
-  makes every directory group-writable with the set-group-ID bit (`chmod g+rwxs`), so new files
-  and directories stay in that group. Builds and JDK detection run with umask `0002`, so the
-  directories Maven adds are group-writable as they are made. Under rootless Docker the build
-  user is a subordinate user of the host, not the user running Lantern, so this is what lets that
-  user delete the cache (`rm -rf`) without root; the run after each build undoes whatever modes a
-  build set. Once handed over this only walks the cache. It only adds to what the build user and
-  the group may do, so it is safe while other builds use the cache. Only Lantern's own command
+  links): the top directory of a new folder, files left by earlier root builds or by hand, and
+  what builds added in the build user's own group. It makes every directory group-writable
+  (`chmod g+rwx`, no set-ID bits, so a directory a concurrent build swaps for a link to one of its
+  files gains nothing). Builds and JDK detection run with umask `0002`, so the directories Maven
+  adds are group-writable as they are made. Under rootless Docker the build user is a subordinate
+  user of the host, not the user running Lantern, so this is what lets that user delete the cache
+  (`rm -rf`) without root; the run after each build undoes whatever owners and modes a build set.
+  Files that other builds remove during the walk are no error. It only adds to what the build user
+  and the group may do, so it is safe while other builds use the cache. It walks the whole cache
+  twice per build, which takes longer as the cache grows. Only Lantern's own command
   runs in it, never build code. If it fails or takes longer than the build timeout, the build goes
   ahead and fails on what it cannot write.
 - **Disk limit by a watchdog** (both values configurable): every 5 seconds while a build or

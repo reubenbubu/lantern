@@ -107,8 +107,8 @@ public class BuildSandbox {
 
   /**
    * The mask builds and JDK detection run under, so the directories they add to the shared Maven
-   * cache are writable by its group, the group of the user running Lantern, who can then delete
-   * them.
+   * cache are writable by their group, which the hand-over after the build sets to the group of the
+   * user running Lantern, who can then delete them.
    */
   private static final String UMASK = "0002";
 
@@ -450,10 +450,11 @@ public class BuildSandbox {
      * of the user running Lantern, and makes every directory in it writable by that group, so that
      * user can delete what builds wrote (under rootless Docker the build user is not a user of the
      * host). The group is read from a directory Lantern created, as the container sees it. Runs
-     * before and after each build. A container runs only this command, as root, with no network and
-     * no capabilities but changing owners and modes and reading every directory, and is removed
-     * afterwards. If it fails, the build goes ahead and fails on what it cannot write. It only adds
-     * to what the build user and the group may do, so it is safe while other builds use the cache.
+     * before each build and after each build that was not interrupted. A container runs only this
+     * command, as root, with no network and no capabilities but changing owners and modes and
+     * reading every directory, and is removed afterwards. If it fails, the build goes ahead and
+     * fails on what it cannot write. It only adds to what the build user and the group may do, so
+     * it is safe while other builds use the cache.
      */
     private void handOverCache() {
       String[] user = BUILD_USER.split(":");
@@ -496,19 +497,21 @@ public class BuildSandbox {
                   "-c",
                   // The group of the user running Lantern; a group this user namespace does not
                   // map shows as the overflow group, and then the build user's group is used.
-                  "g=$(stat -c %g /lantern-owner) && { [ \"$g\" != 65534 ] || g=$3; }"
-                      // Neither find nor chown -h follows symbolic links; chmod is only given
-                      // directories.
-                      + " && find \"$1\" \\( ! -user \"$2\" -o ! -group \"$g\" \\)"
-                      + " -exec chown -h \"$2:$g\" {} +"
-                      + " && find \"$1\" -type d ! -perm -2070 -exec chmod g+rwxs {} +",
+                  "g=$(stat -c %g /lantern-owner) || exit 1; [ \"$g\" != 65534 ] || g=$3;"
+                      // Neither find nor chown -h follows symbolic links. chmod is only given
+                      // directories, and gives no set-ID bits, so one a build swaps for a link
+                      // gains nothing. Files that other builds remove meanwhile are no error.
+                      + " { find \"$1\" \\( ! -user \"$2\" -o ! -group \"$g\" \\)"
+                      + " -exec chown -h \"$2:$g\" {} +;"
+                      + " find \"$1\" -type d ! -perm -070 -exec chmod g+rwx {} +; } 2>&1"
+                      + " | grep -v 'No such file or directory' >&2; exit 0",
                   "sh",
                   CACHE_MOUNT,
                   user[0],
                   user[1]));
       try {
         Docker.Result result = docker.run(settings.timeout(), handover);
-        if (!result.ok()) {
+        if (!result.ok() || !result.err().isBlank()) {
           log.note("could not hand the Maven cache to the build user: " + result.err());
         }
       } catch (SandboxException e) {

@@ -45,8 +45,10 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   stream from `docker cp`, parsed by Lantern's own extractor: only regular files and directories,
   every path confined to the target, symbolic and hard links skipped, at most 4 GiB and 2 million
   entries. A larger output fails the build. Only `work/`, `lib/` and Maven's exit code are taken
-  from it, so the build cannot overwrite Lantern's log or result. This also means Lantern can itself run in a container, as long as the Maven cache folder has
-  the same path for Lantern and for Docker.
+  from it, so the build cannot overwrite Lantern's log or result. This also means Lantern can itself run in a container, as long as the Maven cache folder and
+  the builds directory have the same paths for Lantern and for Docker (a directory Lantern creates
+  under the builds directory is mounted read only into the container that hands the cache over,
+  ADR 0019).
 - **Container limits** (all configurable): 2 CPUs, 4 GiB memory with swap off, 4096 processes,
   30 minutes per container (JDK detection and the build each get that), all capabilities dropped, `no-new-privileges`, and at most 4 builds at once (the
   design's sizing for the development VM). Builds run as a non-root user and have a disk limit;
