@@ -96,8 +96,15 @@ const flow: SequenceDiagram = {
       kind: 'frame',
       operator: 'alt',
       operands: [
-        { guard: 'in stock', steps: [{ kind: 'message', from: 'library:orders-lib', to: 'library:orders-lib', facts: [] }] },
-        { steps: [{ kind: 'note', over: ['library:orders-lib'], content: [{ kind: 'text', text: 'Rejected.' }], facts: [] }] },
+        {
+          guard: 'in stock',
+          steps: [{ kind: 'message', from: 'library:orders-lib', to: 'library:orders-lib', facts: [] }],
+          facts: [factId],
+        },
+        {
+          steps: [{ kind: 'note', over: ['library:orders-lib'], content: [{ kind: 'text', text: 'Rejected.' }], facts: [] }],
+          facts: [],
+        },
       ],
       facts: [],
     },

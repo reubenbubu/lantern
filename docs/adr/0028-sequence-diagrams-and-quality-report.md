@@ -27,11 +27,13 @@ what it does not know or says plainly that it is unknown, and templates render w
     self-call), `label` (the intent), `code` (the protocol detail, such as `POST /orders`),
     `messageKind` (`sync`, `async` or `return`; absent: sync), `activate` and `deactivate` (absent:
     the usual default, as in the report spec), `profiles` (the Spring profiles under which alone it
-    is sent; absent: always) and `info` (rich text for a walkthrough).
+    is sent; absent: always) and `info` (rich text for a walkthrough). Profiles are per message,
+    since the Quality bar marks lines as conditional; a frame whose messages all hold under one
+    profile marks each of them.
   - A frame has an operator (`alt`, `opt`, `loop`, `par`, `break`, `critical`) and one or more
-    operands, each an optional guard and its steps. Frames hold their steps instead of the report
-    spec's flat open, `else` and `end` markers, so a frame can't be left unclosed; a renderer
-    flattens them. Frames may nest: the design's "at most one level of fragments" is a Quality bar
+    operands, each an optional guard, its steps and its own fact IDs. Frames hold their steps
+    instead of the report spec's flat open, `else` and `end` markers, so a frame can't be left
+    unclosed; a renderer flattens them. Frames may nest: the design's "at most one level of fragments" is a Quality bar
     check, which the composer reports, not something the model forbids.
   - A note has rich text and optionally the participants it spans (absent: all).
   Messages and notes may name only participants of the diagram.

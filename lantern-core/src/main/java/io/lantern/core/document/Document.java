@@ -194,7 +194,13 @@ public record Document(
       switch (step) {
         case SequenceDiagram.Message m -> content(m.info());
         case SequenceDiagram.Note n -> content(n.content());
-        case SequenceDiagram.Frame f -> f.operands().forEach(o -> o.steps().forEach(this::step));
+        case SequenceDiagram.Frame f ->
+            f.operands()
+                .forEach(
+                    o -> {
+                      facts(o.facts());
+                      o.steps().forEach(this::step);
+                    });
       }
     }
 

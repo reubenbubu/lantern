@@ -217,14 +217,16 @@ final class SampleDocument {
                             "in stock",
                             List.of(
                                 message(LIB, LIB, "Check stock", null),
-                                message(LIB, DB, "Save order", "INSERT orders"))),
+                                message(LIB, DB, "Save order", "INSERT orders")),
+                            facts(READS)),
                         new SequenceDiagram.Operand(
                             null,
                             List.of(
                                 new SequenceDiagram.Note(
                                     List.of(LIB, DB),
                                     List.of(TextRun.of("Nothing is saved.")),
-                                    facts(READS))))),
+                                    facts(READS))),
+                            List.of())),
                     facts(READS)),
                 new SequenceDiagram.Message(
                     LIB,

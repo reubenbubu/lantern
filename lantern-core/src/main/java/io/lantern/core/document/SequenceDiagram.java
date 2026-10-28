@@ -8,9 +8,9 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * A runtime flow: messages between participants in time order. Templates draw it; any detail but
- * the participants' entities and a frame's operator may be missing, and templates draw what is
- * there.
+ * A runtime flow: messages between participants in time order. Templates draw it. Only what gives
+ * an element its identity is required: a participant's entity, a frame's operator and operands and
+ * a note's text; any other detail may be missing, and templates draw what is there.
  *
  * <p>Participants are held in the order given, left to right, each entity once. Messages and notes
  * name only participants of the diagram.
@@ -208,12 +208,14 @@ public record SequenceDiagram(
    *
    * @param guard the condition under which the steps happen, or {@code null}
    * @param steps the steps
+   * @param facts the IDs of the facts the operand, such as its guard, came from
    */
-  public record Operand(String guard, List<Step> steps) {
+  public record Operand(String guard, List<Step> steps, List<String> facts) {
 
     public Operand {
       Checks.optionalText(guard, "guard");
       steps = Checks.list(steps, "operand steps");
+      facts = Checks.factIds(facts, "operand facts");
     }
   }
 

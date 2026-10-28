@@ -254,7 +254,7 @@ class DocumentJsonTest {
     SequenceDiagram.Frame frame =
         new SequenceDiagram.Frame(
             SequenceDiagram.Operator.OPT,
-            List.of(new SequenceDiagram.Operand(null, List.of(note))),
+            List.of(new SequenceDiagram.Operand(null, List.of(note), List.of())),
             List.of());
     assertThatThrownBy(() -> sequence(List.of(orders), List.of(frame)))
         .isInstanceOf(IllegalArgumentException.class)
@@ -304,7 +304,7 @@ class DocumentJsonTest {
     SequenceDiagram.Frame frame =
         new SequenceDiagram.Frame(
             SequenceDiagram.Operator.LOOP,
-            List.of(new SequenceDiagram.Operand(null, List.of(note))),
+            List.of(new SequenceDiagram.Operand(null, List.of(note), List.of())),
             List.of());
     assertThatThrownBy(() -> document(List.of(), section(sequence(List.of(), List.of(frame)))))
         .isInstanceOf(IllegalArgumentException.class)

@@ -423,6 +423,7 @@ public final class DocumentJson {
           putOptional(operandNode, "guard", operand.guard());
           ArrayNode steps = operandNode.putArray("steps");
           operand.steps().forEach(s -> steps.add(toJson(s)));
+          putFacts(operandNode, operand.facts());
         }
       }
       case SequenceDiagram.Note n -> {
@@ -484,9 +485,11 @@ public final class DocumentJson {
             in.array(
                 "operands",
                 operand -> {
-                  Reader o = Reader.of(operand, "operand", "guard", "steps");
+                  Reader o = Reader.of(operand, "operand", "guard", "steps", "facts");
                   return new SequenceDiagram.Operand(
-                      o.optionalString("guard"), o.array("steps", DocumentJson::stepFromJson));
+                      o.optionalString("guard"),
+                      o.array("steps", DocumentJson::stepFromJson),
+                      o.facts());
                 }),
             in.facts());
       }

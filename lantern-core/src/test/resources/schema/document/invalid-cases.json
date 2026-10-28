@@ -51,6 +51,8 @@
   {"description": "operand without steps", "pointer": "/sections/1/blocks/0/steps/1/operands/1/steps", "remove": true},
   {"description": "invalid entity ID in a nested message", "pointer": "/sections/1/blocks/0/steps/1/operands/0/steps/0/from", "value": "Bad"},
   {"description": "note over no participants", "pointer": "/sections/1/blocks/0/steps/1/operands/1/steps/0/over", "value": []},
+  {"description": "note over the same participant twice", "pointer": "/sections/1/blocks/0/steps/1/operands/1/steps/0/over", "value": ["library:orders-lib", "library:orders-lib"]},
+  {"description": "operand without facts", "pointer": "/sections/1/blocks/0/steps/1/operands/0/facts", "remove": true},
   {"description": "note without content", "pointer": "/sections/1/blocks/0/steps/1/operands/1/steps/0/content", "remove": true},
   {"description": "quality report without failures", "pointer": "/sections/1/blocks/2/failures", "remove": true},
   {"description": "quality failure without a check", "pointer": "/sections/1/blocks/2/failures/0/check", "remove": true},

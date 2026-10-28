@@ -481,7 +481,7 @@
       "description": "One part of a frame: for alt, one branch.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["steps"],
+      "required": ["steps", "facts"],
       "properties": {
         "guard": {
           "description": "The condition under which the steps happen, e.g. payment authorised.",
@@ -490,7 +490,8 @@
         "steps": {
           "type": "array",
           "items": { "$ref": "#/$defs/sequenceStep" }
-        }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
       }
     },
     "sequenceNote": {

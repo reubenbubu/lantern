@@ -413,7 +413,8 @@
             "label" : "Save order",
             "code" : "INSERT orders",
             "facts" : [ ]
-          } ]
+          } ],
+          "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
         }, {
           "steps" : [ {
             "kind" : "note",
@@ -423,7 +424,8 @@
               "text" : "Nothing is saved."
             } ],
             "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
-          } ]
+          } ],
+          "facts" : [ ]
         } ],
         "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
       }, {
