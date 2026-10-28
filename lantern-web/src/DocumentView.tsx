@@ -1,5 +1,5 @@
 // Renders a document model: its sections and every kind of block, in document order.
-import { createContext, type ReactNode, useContext, useMemo } from 'react';
+import { createContext, type MouseEvent, type ReactNode, useContext, useMemo } from 'react';
 import type {
   Block,
   Callout,
@@ -15,7 +15,7 @@ import type {
 } from './generated/document.ts';
 import { DiagramView } from './diagram/DiagramView.tsx';
 
-interface Lookup {
+export interface Lookup {
   entities: Map<string, DocumentEntity>;
   /** Each fact with its 1-based position in the document's facts, which is its citation number. */
   facts: Map<string, { fact: FactEnvelope; number: number }>;
@@ -23,9 +23,28 @@ interface Lookup {
   sectionByEntity: Map<string, string>;
 }
 
-const LookupContext = createContext<Lookup | undefined>(undefined);
+export const LookupContext = createContext<Lookup | undefined>(undefined);
 
-function useLookup(): Lookup {
+/**
+ * What an interactive template (the Architecture Explorer) does when the reader picks an entity or
+ * a citation. Without it the document renders as a plain page: entity references link to their
+ * section and diagrams are static pictures.
+ */
+export interface Interaction {
+  selectEntity(id: string): void;
+  selectFacts(ids: string[]): void;
+  selectedEntity?: string;
+  /** Called each time a diagram has been laid out, which changes the page's height. */
+  diagramLaidOut(): void;
+}
+
+export const InteractionContext = createContext<Interaction | undefined>(undefined);
+
+export function useInteraction(): Interaction | undefined {
+  return useContext(InteractionContext);
+}
+
+export function useLookup(): Lookup {
   const lookup = useContext(LookupContext);
   if (!lookup) {
     throw new Error('DocumentView must be rendered around this component');
@@ -33,7 +52,7 @@ function useLookup(): Lookup {
   return lookup;
 }
 
-function buildLookup(document: LanternDocument): Lookup {
+export function buildLookup(document: LanternDocument): Lookup {
   const sectionByEntity = new Map<string, string>();
   const visit = (sections: Section[]) => {
     for (const section of sections) {
@@ -170,23 +189,39 @@ function TreeView({ tree }: { tree: Tree }) {
   return (
     <figure id={tree.id} className="tree">
       {tree.title && <figcaption>{tree.title}</figcaption>}
-      <TreeNodes nodes={tree.roots} />
+      <TreeNodes nodes={tree.roots} depth={0} />
     </figure>
   );
 }
 
-function TreeNodes({ nodes }: { nodes: TreeNode[] }) {
+function TreeNodes({ nodes, depth }: { nodes: TreeNode[]; depth: number }) {
+  const interactive = useInteraction() !== undefined;
   if (nodes.length === 0) {
     return null;
   }
   return (
     <ul>
-      {nodes.map((node, i) => (
-        <li key={i}>
-          {node.entity !== undefined ? <EntityLink id={node.entity}>{node.label}</EntityLink> : node.label}
-          <TreeNodes nodes={node.children} />
-        </li>
-      ))}
+      {nodes.map((node, i) => {
+        const label =
+          node.entity !== undefined ? <EntityLink id={node.entity}>{node.label}</EntityLink> : node.label;
+        // Interactive pages fold subtrees below the roots; each <details> keeps its own state, so
+        // tree nodes need no IDs (docs/adr/0014).
+        return (
+          <li key={i}>
+            {interactive && node.children.length > 0 ? (
+              <details open={depth === 0}>
+                <summary>{label}</summary>
+                <TreeNodes nodes={node.children} depth={depth + 1} />
+              </details>
+            ) : (
+              <>
+                {label}
+                <TreeNodes nodes={node.children} depth={depth + 1} />
+              </>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -241,11 +276,41 @@ function InlineView({ inline }: { inline: Inline }) {
   }
 }
 
-/** Links to the section about the entity when there is one; otherwise names it. */
-function EntityLink({ id, children }: { id: string; children: ReactNode }) {
+/**
+ * Whether a click on a link is a plain one the page should handle itself; with a modifier key or
+ * another button the browser opens the link, for example in a new tab.
+ */
+export function isPlainClick(event: MouseEvent): boolean {
+  return event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;
+}
+
+/** The deep link that selects an entity in an interactive template. */
+export function entityHash(id: string): string {
+  return `#entity=${encodeURIComponent(id)}`;
+}
+
+/**
+ * Links to the section about the entity when there is one; otherwise names it. In an interactive
+ * template it selects the entity instead.
+ */
+export function EntityLink({ id, children }: { id: string; children: ReactNode }) {
   const { entities, sectionByEntity } = useLookup();
+  const interaction = useInteraction();
   const section = sectionByEntity.get(id);
   const title = entities.get(id)?.name ?? id;
+  if (interaction) {
+    const select = (event: MouseEvent) => {
+      if (isPlainClick(event)) {
+        event.preventDefault();
+        interaction.selectEntity(id);
+      }
+    };
+    return (
+      <a href={entityHash(id)} className="entity-ref" title={title} onClick={select}>
+        {children}
+      </a>
+    );
+  }
   return section !== undefined ? (
     <a href={`#${section}`} className="entity-ref" title={title}>
       {children}
@@ -266,6 +331,7 @@ function describeFact(fact: FactEnvelope): string {
 
 function CitationView({ facts }: { facts: string[] }) {
   const lookup = useLookup();
+  const interaction = useInteraction();
   const cited = facts.flatMap((id) => {
     const entry = lookup.facts.get(id);
     return entry ? [entry] : [];
@@ -273,9 +339,20 @@ function CitationView({ facts }: { facts: string[] }) {
   if (cited.length === 0) {
     return null;
   }
+  const numbers = `[${cited.map((c) => c.number).join(', ')}]`;
+  const title = cited.map((c) => describeFact(c.fact)).join('\n');
+  if (interaction) {
+    return (
+      <sup className="citation">
+        <button type="button" className="citation-button" title={title} onClick={() => interaction.selectFacts(facts)}>
+          {numbers}
+        </button>
+      </sup>
+    );
+  }
   return (
-    <sup className="citation" title={cited.map((c) => describeFact(c.fact)).join('\n')}>
-      [{cited.map((c) => c.number).join(', ')}]
+    <sup className="citation" title={title}>
+      {numbers}
     </sup>
   );
 }

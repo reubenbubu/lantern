@@ -1,0 +1,621 @@
+/* The Architecture Explorer's app shell. The layout follows the width of the page through a
+   container query: one pane with slide-out drawers below 1024px, the navigation pane beside the
+   content from 1024px, and the context panel as well from 1500px (docs/adr/0014). */
+.explorer-root {
+  container: explorer / inline-size;
+  /* Closed drawers sit outside the page; clipping keeps them from making it scroll sideways. */
+  overflow: clip;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.explorer {
+  --pane-border: 1px solid var(--color-border);
+  --highlight: color-mix(in srgb, var(--color-link) 16%, transparent);
+  position: relative;
+  height: 100%;
+  overflow: clip;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: 'header' 'content';
+  font-size: 0.9375rem;
+}
+
+/* Header: menu, title, search, theme and details buttons. */
+.explorer-header {
+  position: relative;
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: var(--pane-border);
+  background: var(--color-surface);
+}
+
+.explorer-title {
+  display: none;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.icon-button {
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: var(--pane-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--highlight);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-link);
+  outline-offset: 1px;
+}
+
+/* Search. */
+/* On narrow pages the results span the whole header; from 600px they hang below the box. */
+.search {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 34rem;
+  margin-left: auto;
+}
+
+.search input {
+  width: 100%;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border: var(--pane-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: min(28rem, 70vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: var(--color-bg);
+  border: var(--pane-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+}
+
+.search-results li {
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.search-results li[aria-selected='true'] {
+  background: var(--highlight);
+}
+
+.search-label {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.search-detail,
+.search-empty {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+/* Content. */
+.explorer-content {
+  grid-area: content;
+  overflow: auto;
+  min-width: 0;
+}
+
+.explorer-content [id] {
+  scroll-margin-top: var(--space);
+}
+
+.explorer-content :is(h1, h2, h3, h4, h5, h6, figcaption) {
+  overflow-wrap: anywhere;
+}
+
+/* Side panes: drawers that slide in until there is room to show them beside the content. */
+.pane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  width: min(24rem, 88%);
+  overflow-y: auto;
+  background: var(--color-bg);
+  visibility: hidden;
+  transition:
+    transform 0.2s ease,
+    visibility 0.2s;
+}
+
+.explorer-nav {
+  left: 0;
+  transform: translateX(-100%);
+  border-right: var(--pane-border);
+}
+
+.explorer-context {
+  right: 0;
+  transform: translateX(100%);
+  border-left: var(--pane-border);
+}
+
+.drawer-nav .explorer-nav,
+.drawer-context .explorer-context {
+  transform: none;
+  visibility: visible;
+  box-shadow: 0 0 24px rgb(0 0 0 / 0.25);
+}
+
+.scrim {
+  display: none;
+}
+
+.drawer-nav .scrim,
+.drawer-context .scrim {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgb(0 0 0 / 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane {
+    transition: none;
+  }
+}
+
+.pane-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg);
+  border-bottom: var(--pane-border);
+}
+
+.pane h2,
+.context-panel h4 {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+@container explorer (min-width: 600px) {
+  .explorer-title {
+    display: block;
+    flex: 0 1 auto;
+  }
+
+  .search {
+    position: relative;
+  }
+}
+
+@container explorer (min-width: 1024px) {
+  .explorer {
+    grid-template-columns: 18rem minmax(0, 1fr);
+    grid-template-areas: 'header header' 'nav content';
+  }
+
+  .explorer-nav {
+    position: static;
+    grid-area: nav;
+    width: auto;
+    transform: none;
+    visibility: visible;
+    transition: none;
+  }
+
+  .drawer-nav .explorer-nav {
+    box-shadow: none;
+  }
+
+  .menu-button,
+  .explorer-nav .pane-close,
+  .drawer-nav .scrim {
+    display: none;
+  }
+}
+
+@container explorer (min-width: 1500px) {
+  .explorer {
+    grid-template-columns: 18rem minmax(0, 1fr) 24rem;
+    grid-template-areas: 'header header header' 'nav content context';
+  }
+
+  .explorer-context {
+    position: static;
+    grid-area: context;
+    width: auto;
+    transform: none;
+    visibility: visible;
+    transition: none;
+  }
+
+  .drawer-context .explorer-context {
+    box-shadow: none;
+  }
+
+  .details-button,
+  .explorer-context .pane-close,
+  .drawer-context .scrim {
+    display: none;
+  }
+}
+
+/* Navigation pane. */
+.nav-pane ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-pane .nav-sections {
+  padding: 0.5rem 0.75rem 0.75rem;
+  border-bottom: var(--pane-border);
+}
+
+.nav-pane .nav-sections ul,
+.nav-pane .nav-sections a {
+  display: block;
+  padding: 0.15rem 0;
+  color: var(--color-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.nav-sections a:hover,
+.nav-entity:hover {
+  color: var(--color-link);
+}
+
+.nav-group {
+  padding: 0.5rem 0.5rem 0;
+}
+
+.nav-group-toggle {
+  width: 100%;
+  padding: 0.25rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-count {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+.nav-row {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.nav-toggle {
+  flex: none;
+  width: 1.4rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.nav-entity {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.nav-entity[aria-current='true'] {
+  background: var(--highlight);
+  font-weight: 600;
+}
+
+.nav-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.type-badge {
+  flex: none;
+  display: inline-block;
+  min-width: 2.4rem;
+  padding: 0 0.2rem;
+  border: var(--pane-border);
+  border-radius: 4px;
+  color: var(--color-muted);
+  font-family: var(--font-code);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* Context panel. */
+.context-panel > :not(.pane-header) {
+  margin-left: 0.75rem;
+  margin-right: 0.75rem;
+}
+
+.context-panel h4 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+}
+
+.detail-list dt {
+  color: var(--color-muted);
+}
+
+.detail-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.entity-type {
+  margin: 0.75rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.entity-name {
+  margin: 0.15rem 0 0;
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.entity-id {
+  margin: 0.15rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.breadcrumb {
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plain-list li {
+  padding: 0.1rem 0;
+  overflow-wrap: anywhere;
+}
+
+.fact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fact {
+  padding: 0.5rem 0;
+  border-top: var(--pane-border);
+  font-size: 0.8125rem;
+}
+
+.fact p {
+  margin: 0.15rem 0;
+  overflow-wrap: anywhere;
+}
+
+.fact-number {
+  color: var(--color-muted);
+}
+
+.fact-predicate {
+  font-family: var(--font-code);
+  font-weight: 600;
+}
+
+.fact-evidence,
+.fact-attributes {
+  color: var(--color-muted);
+}
+
+.badge {
+  display: inline-block;
+  margin: 0.1rem 0;
+  padding: 0 0.45rem;
+  border: var(--pane-border);
+  border-radius: 999px;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.origin-llm {
+  border-color: var(--color-warning);
+}
+
+/* Content refinements for the interactive page. */
+.citation-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.explorer .tree ul {
+  list-style: none;
+}
+
+.explorer .tree li {
+  position: relative;
+  overflow-wrap: anywhere;
+}
+
+/* Leaves get a dash and folders their disclosure marker, both left of the label. */
+.explorer .tree li:not(:has(> details))::before {
+  content: '–';
+  position: absolute;
+  left: -1em;
+  color: var(--color-muted);
+}
+
+.explorer .tree summary {
+  margin-left: -1em;
+  cursor: pointer;
+}
+
+/* Trees are mostly references; showing each as a link would drown the structure. */
+.explorer .tree .entity-ref {
+  color: inherit;
+  text-decoration: underline dotted var(--color-muted);
+  text-underline-offset: 0.2em;
+}
+
+.explorer .tree .entity-ref:hover {
+  color: var(--color-link);
+}
+
+.zoom-viewport {
+  position: relative;
+  overflow: hidden;
+  border: var(--pane-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  touch-action: pan-y;
+  cursor: grab;
+  user-select: none;
+}
+
+.zoom-viewport:active {
+  cursor: grabbing;
+}
+
+.zoom-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.zoom-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  margin: 0.25rem 0;
+}
+
+.zoom-hint {
+  margin-right: auto;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+
+.zoom-hint-coarse {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .zoom-hint-fine {
+    display: none;
+  }
+
+  .zoom-hint-coarse {
+    display: inline;
+  }
+}
+
+.zoom-toolbar button {
+  min-width: 2rem;
+  height: 2rem;
+  border: var(--pane-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.diagram-interactive .diagram-node,
+.diagram-interactive .diagram-boundary text {
+  cursor: pointer;
+}
+
+.diagram-interactive .diagram-node:hover rect,
+.diagram-interactive .diagram-node:focus-visible rect {
+  stroke-width: 2;
+}
+
+.diagram-interactive g:focus-visible {
+  outline: none;
+}
+
+.diagram-interactive g:focus-visible rect {
+  stroke: var(--color-link);
+}
+
+.diagram-selected rect {
+  stroke: var(--color-link);
+  stroke-width: 3;
+}
