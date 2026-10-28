@@ -33,13 +33,15 @@ public class FactRepository {
   /**
    * Saves a fact. Facts are keyed by their content-derived ID, so saving a fact that is already
    * stored changes nothing. The ID leaves out confidence and validity, so a stored fact with the
-   * same ID can differ in those; that is refused rather than silently ignored, because changing a
-   * stored fact's validity or confidence is not supported yet.
+   * same ID can differ in those. A fact observed again in a later snapshot, while the stored one
+   * still holds (its validity is open and starts no later), is already covered and changes nothing.
+   * Any other difference is refused rather than silently ignored, because changing a stored fact's
+   * validity or confidence is not supported yet (#23).
    *
    * @return whether the fact was new
    * @throws IllegalArgumentException if the validator rejects the fact
-   * @throws IllegalStateException if a fact with the same ID but a different confidence or validity
-   *     is already stored
+   * @throws IllegalStateException if a fact with the same ID but a different confidence, or a
+   *     validity the stored one does not cover, is already stored
    */
   public boolean save(Fact fact) {
     Objects.requireNonNull(fact, "fact");
@@ -72,7 +74,7 @@ public class FactRepository {
     Fact stored =
         findById(fact.id())
             .orElseThrow(() -> new IllegalStateException("Fact " + fact.id() + " vanished"));
-    if (!stored.equals(fact)) {
+    if (!stored.equals(fact) && !stillHolds(stored, fact)) {
       throw new IllegalStateException(
           "Fact "
               + fact.id()
@@ -86,6 +88,17 @@ public class FactRepository {
               + fact.validity());
     }
     return false;
+  }
+
+  /**
+   * Whether the stored fact is the same claim with the same confidence, still holding from an
+   * earlier (or the same) snapshot onwards, so it covers the fact observed again.
+   */
+  private static boolean stillHolds(Fact stored, Fact observed) {
+    return stored.confidence() == observed.confidence()
+        && observed.validity().to() == null
+        && stored.validity().to() == null
+        && stored.validity().from() <= observed.validity().from();
   }
 
   public Optional<Fact> findById(String id) {

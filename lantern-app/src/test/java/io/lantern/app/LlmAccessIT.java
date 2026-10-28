@@ -128,6 +128,9 @@ class LlmAccessIT {
                 .query(String.class)
                 .list())
         .containsExactly("SUCCEEDED", "REFUSED");
+    JdbcLlmCallLog.Spending spent = stored.spentSince(Instant.parse(year + "-10-01T00:00:00Z"));
+    assertThat(spent.calls()).isEqualTo(2);
+    assertThat(spent.costUsd()).isEqualByComparingTo("0.5");
 
     // The next month starts from nothing.
     LlmAccess nextMonth = run(model, oneToken, november);

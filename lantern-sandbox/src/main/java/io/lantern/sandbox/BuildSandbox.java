@@ -173,7 +173,9 @@ public class BuildSandbox {
     try {
       Files.createDirectories(directory.getParent());
       partial = Files.createTempDirectory(directory.getParent(), "." + commit + ".partial-");
-      staging = Files.createTempDirectory("lantern-sandbox-");
+      // Next to the stored outputs, not in the system temporary directory: outputs are moved from
+      // here, and a directory move fails across filesystems.
+      staging = Files.createTempDirectory(directory.getParent(), "." + commit + ".staging-");
       Run run = new Run(repo, commit, partial, staging);
       run.execute();
       BuildResult result = run.result(started, directory);

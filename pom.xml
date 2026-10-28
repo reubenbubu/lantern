@@ -80,6 +80,11 @@
         <version>${project.version}</version>
       </dependency>
       <dependency>
+        <groupId>io.lantern</groupId>
+        <artifactId>lantern-web</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
         <groupId>com.anthropic</groupId>
         <artifactId>anthropic-java</artifactId>
         <version>${anthropic-java.version}</version>
