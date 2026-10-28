@@ -1,0 +1,100 @@
+package io.lantern.compose;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import io.lantern.core.document.TemplateRef;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+class ViewDefinitionTest {
+
+  private static final TemplateRef TEMPLATE = new TemplateRef("executive-brief", "1");
+
+  @Test
+  void roundTripsThroughJson() {
+    ViewDefinition view =
+        new ViewDefinition(
+            "shop.brief",
+            "Shop",
+            Scope.repo("shop"),
+            "executive",
+            TEMPLATE,
+            List.of(SectionKind.OVERVIEW, SectionKind.CONTEXT));
+
+    String json = ViewDefinitionJson.write(view);
+
+    assertThat(json)
+        .isEqualTo(
+            "{\"id\":\"shop.brief\",\"title\":\"Shop\",\"scope\":{\"kind\":\"repo\",\"repo\":\"shop\"},"
+                + "\"audience\":\"executive\",\"template\":{\"name\":\"executive-brief\",\"version\":\"1\"},"
+                + "\"sections\":[\"overview\",\"context\"]}");
+    assertThat(ViewDefinitionJson.read(json)).isEqualTo(view);
+    ViewDefinition perRepo = ViewDefinition.perRepo("shop", "shop", TEMPLATE);
+    assertThat(ViewDefinitionJson.read(ViewDefinitionJson.write(perRepo))).isEqualTo(perRepo);
+    assertThat(perRepo.sections()).containsExactly(SectionKind.values());
+  }
+
+  @Test
+  void refusesInvalidJson() {
+    String valid =
+        "{\"id\":\"v\",\"title\":\"T\",\"scope\":{\"kind\":\"repo\",\"repo\":\"shop\"},"
+            + "\"template\":{\"name\":\"t\",\"version\":\"1\"},\"sections\":[\"overview\"]}";
+    assertThat(ViewDefinitionJson.read(valid).audience()).isNull();
+    for (String invalid :
+        List.of(
+            valid.replace("\"title\":\"T\",", "\"title\":\"T\",\"extra\":1,"),
+            valid.replace("\"overview\"", "\"glossary\""),
+            valid.replace("\"repo\",\"repo\"", "\"system\",\"repo\""),
+            valid.replace("\"title\":\"T\",", ""),
+            valid.replace("[\"overview\"]", "\"overview\""),
+            valid.replace("\"1\"", "1"))) {
+      assertThatThrownBy(() -> ViewDefinitionJson.read(invalid))
+          .as(invalid)
+          .isInstanceOf(IllegalArgumentException.class);
+    }
+  }
+
+  @Test
+  void refusesInvalidDefinitions() {
+    Scope scope = Scope.repo("shop");
+    List<SectionKind> sections = List.of(SectionKind.OVERVIEW);
+    assertThatThrownBy(() -> new ViewDefinition("bad id", "T", scope, null, TEMPLATE, sections))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new ViewDefinition("v", " ", scope, null, TEMPLATE, sections))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new ViewDefinition("v", "T", scope, " ", TEMPLATE, sections))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new ViewDefinition("v", "T", scope, null, TEMPLATE, List.of()))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(
+            () ->
+                new ViewDefinition(
+                    "v",
+                    "T",
+                    scope,
+                    null,
+                    TEMPLATE,
+                    List.of(SectionKind.OVERVIEW, SectionKind.OVERVIEW)))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Scope.repo("../etc")).isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void inMemoryStoreKeepsOneDefinitionPerId() {
+    InMemoryViewDefinitionStore store = new InMemoryViewDefinitionStore();
+    ViewDefinition first = ViewDefinition.perRepo("b", "shop", TEMPLATE);
+    ViewDefinition second = ViewDefinition.perRepo("a", "shop", TEMPLATE);
+    ViewDefinition replaced =
+        new ViewDefinition(
+            "b", "New", Scope.repo("base"), null, TEMPLATE, List.of(SectionKind.STRUCTURE));
+
+    store.save(first);
+    store.save(second);
+    store.save(replaced);
+
+    assertThat(store.find("b")).contains(replaced);
+    assertThat(store.find("c")).isEmpty();
+    assertThat(store.list()).containsExactly(second, replaced);
+  }
+}

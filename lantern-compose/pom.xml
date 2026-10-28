@@ -18,5 +18,35 @@
       <groupId>io.lantern</groupId>
       <artifactId>lantern-core</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.lantern</groupId>
+      <artifactId>lantern-summarize</artifactId>
+    </dependency>
+    <dependency>
+      <!-- The golden tests extract the fixture projects' facts with the real extractors. -->
+      <groupId>io.lantern</groupId>
+      <artifactId>lantern-extract</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- The fixture projects live with the extractors that were their first user. -->
+            <lantern.test.fixtures>${maven.multiModuleProjectDirectory}/lantern-extract/src/test/resources/fixtures</lantern.test.fixtures>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

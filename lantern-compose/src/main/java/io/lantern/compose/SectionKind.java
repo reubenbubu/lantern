@@ -1,0 +1,59 @@
+package io.lantern.compose;
+
+import io.lantern.core.document.Level;
+import java.util.EnumSet;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ * The sections a view definition can ask for. Each produces one top-level section of the document,
+ * with a fixed ID, title and granularity levels.
+ */
+public enum SectionKind {
+  /** The repository's summary and what it builds. Shown at every level. */
+  OVERVIEW("Overview", EnumSet.noneOf(Level.class)),
+  /** C4 system context: the repository and the repositories it depends on or is used by. */
+  CONTEXT("System context", EnumSet.of(Level.L0, Level.L1)),
+  /** C4 containers: the services and libraries the repository builds and what they depend on. */
+  CONTAINERS("Containers", EnumSet.of(Level.L1, Level.L2)),
+  /** C4 components: for each service or library, its summary and its packages. */
+  COMPONENTS("Components", EnumSet.of(Level.L2, Level.L3)),
+  /** The Maven dependency tree of each module. */
+  DEPENDENCIES("Dependencies", EnumSet.of(Level.L2, Level.L3)),
+  /** The modules and packages, as a tree. */
+  STRUCTURE("Modules and packages", EnumSet.of(Level.L3));
+
+  private final String title;
+  private final EnumSet<Level> levels;
+
+  SectionKind(String title, EnumSet<Level> levels) {
+    this.title = title;
+    this.levels = levels;
+  }
+
+  /** The section's title. */
+  public String title() {
+    return title;
+  }
+
+  /** The levels the section is shown at; empty means every level. */
+  public Set<Level> levels() {
+    return levels.clone();
+  }
+
+  /** The name used in JSON, which is also the section's ID in the document. */
+  public String jsonName() {
+    return name().toLowerCase(Locale.ROOT);
+  }
+
+  public static SectionKind fromJsonName(String name) {
+    Objects.requireNonNull(name, "section");
+    for (SectionKind kind : values()) {
+      if (kind.jsonName().equals(name)) {
+        return kind;
+      }
+    }
+    throw new IllegalArgumentException("Unknown section: '" + name + "'");
+  }
+}
