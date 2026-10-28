@@ -47,7 +47,7 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
 - **Container limits** (all configurable): 2 CPUs, 4 GiB memory with swap off, 4096 processes,
   30 minutes per container (JDK detection and the build each get that), all capabilities dropped, `no-new-privileges`, and at most 4 builds at once (the
   design's sizing for the development VM). Builds run as a non-root user and have a disk limit;
-  see ADR 0018.
+  see ADR 0019.
 - **Shared Maven cache** is one Docker volume, `lantern-maven-cache`, mounted as the local
   repository of every build, with Maven's file locking for concurrent builds. Trade-off: a
   malicious build can plant artifacts in the cache that later builds use. The design accepts a
@@ -68,7 +68,7 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   dependencies on other modules of the build, taken from the dependency trees. Building a
   `repo@commit` again replaces its outputs.
 - **Failure.** A build that fails to compile or resolve, times out, runs out of memory, uses too
-  much disk (ADR 0018), produces too much output, has no `pom.xml` or has no image for its JDK is stored as `FAILED` with a
+  much disk (ADR 0019), produces too much output, has no `pom.xml` or has no image for its JDK is stored as `FAILED` with a
   reason, keeping whatever outputs it left (a classpath often still resolves; a timed-out build
   leaves none, since outputs are gathered after Maven ends), and
   `degraded()` tells the analysis to use degraded mode. A build whose dependencies do not resolve
