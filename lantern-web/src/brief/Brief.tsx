@@ -71,7 +71,7 @@ export function Brief({ document: doc }: { document: LanternDocument }) {
     <LookupContext.Provider value={lookup}>
       <div className="brief-page" ref={page}>
         <header className="brief-bar">
-          <a className="brief-bar-title" href="#top" title={doc.title}>
+          <a className="brief-bar-title" href="#brief-top" title={doc.title}>
             {doc.title}
           </a>
           <nav className="brief-nav" aria-label="Sections">
@@ -84,7 +84,7 @@ export function Brief({ document: doc }: { document: LanternDocument }) {
           <ThemeButton theme={theme} onToggle={toggle} />
         </header>
         <main className="brief">
-          <header className="brief-hero" id="top">
+          <header className="brief-hero" id="brief-top">
             <p className="brief-kicker">Executive brief</p>
             <h1>
               <Breakable text={doc.title} />

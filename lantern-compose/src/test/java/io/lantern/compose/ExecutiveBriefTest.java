@@ -212,7 +212,7 @@ class ExecutiveBriefTest {
     assertThat(risks.get(0).facts()).hasSize(2);
     assertThat(text(risks.get(1).content()))
         .isEqualTo(
-            "Modules of shop use different versions of 2 dependencies, which can lead to"
+            "shop uses different versions of 2 dependencies, which can lead to"
                 + " conflicts when they run together: jackson (1.0, 2.0) and common (1.0,"
                 + " 2.0-SNAPSHOT).");
     assertThat(risks.get(1).facts()).hasSize(4);
@@ -245,6 +245,16 @@ class ExecutiveBriefTest {
             "snap1 (1-SNAPSHOT), snap2 (1-SNAPSHOT), snap3 (1-SNAPSHOT), snap4 (1-SNAPSHOT),"
                 + " snap5 (1-SNAPSHOT), and 2 more.");
     assertThat(risk.facts()).hasSize(7);
+  }
+
+  @Test
+  void speaksOfOneUnreleasedVersionInTheSingular() {
+    List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
+    facts.add(dependency(APP, "artifact:org.example:snap", "1-SNAPSHOT"));
+    Callout risk = (Callout) section(compose(facts), "risks").blocks().getFirst();
+
+    assertThat(text(risk.content()))
+        .startsWith("shop is built against 1 dependency on an unreleased (snapshot) version, so");
   }
 
   @Test

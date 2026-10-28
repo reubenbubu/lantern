@@ -20,6 +20,7 @@
 }
 
 .brief-bar-title {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -32,7 +33,6 @@
 .brief-nav {
   display: none;
   gap: 1.25rem;
-  margin-left: auto;
   font-size: 0.9375rem;
 }
 
@@ -44,14 +44,6 @@
 
 .brief-nav a:hover {
   color: var(--color-link);
-}
-
-.brief-bar .icon-button {
-  margin-left: auto;
-}
-
-.brief-nav + .icon-button {
-  margin-left: 0;
 }
 
 @container brief (min-width: 760px) {

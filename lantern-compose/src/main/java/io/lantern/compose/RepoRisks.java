@@ -76,7 +76,8 @@ final class RepoRisks {
       cycles(section, container, risks);
     }
     // Stable: risks of the same severity keep the order of the checks.
-    risks.sort(Comparator.comparing(Callout::severity));
+    risks.sort(
+        Comparator.comparing(Callout::severity, Comparator.nullsLast(Comparator.naturalOrder())));
     if (risks.isEmpty()) {
       return List.of(
           new Callout(
@@ -145,8 +146,10 @@ final class RepoRisks {
         TextRun.of(
             repo
                 + " is built against "
-                + count(named.size(), "dependency", "dependencies")
-                + " on unreleased (snapshot) versions, so a release of it cannot be rebuilt"
+                + (named.size() == 1
+                    ? "1 dependency on an unreleased (snapshot) version"
+                    : named.size() + " dependencies on unreleased (snapshot) versions")
+                + ", so a release of it cannot be rebuilt"
                 + " exactly and may change without notice: "));
     content.addAll(names(named));
     risks.add(
@@ -183,9 +186,8 @@ final class RepoRisks {
     List<Inline> content = new ArrayList<>();
     content.add(
         TextRun.of(
-            "Modules of "
-                + repo
-                + " use different versions of "
+            repo
+                + " uses different versions of "
                 + count(named.size(), "dependency", "dependencies")
                 + ", which can lead to conflicts when they run together: "));
     content.addAll(names(named));
