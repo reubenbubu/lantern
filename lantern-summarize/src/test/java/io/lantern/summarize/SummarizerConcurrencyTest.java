@@ -22,28 +22,67 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-/** Summarizing units in parallel gives the same summaries as one at a time, only sooner. */
+/**
+ * Summarizing units in parallel gives the same summaries as one at a time. The tests wait on
+ * latches and threads, not on the clock; the timeout is only there so that a broken summarizer
+ * fails the test instead of hanging it.
+ */
 class SummarizerConcurrencyTest {
 
-  private static final Duration LATENCY = Duration.ofMillis(20);
+  private static final Duration TIMEOUT = Duration.ofSeconds(30);
   private static final RetryPolicy FAST =
       new RetryPolicy(3, Duration.ofMillis(1), Duration.ofMillis(5));
 
-  private final FakeLlmProvider fake =
-      new FakeLlmProvider().answering(SummarizerTest::citingAll).withLatency(LATENCY);
+  private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
   private final InMemoryLlmCallLog log = new InMemoryLlmCallLog();
+  private final CallLimiter limiter = limiterAllowing(64);
+  private final AtomicBoolean joinTimedOut = new AtomicBoolean();
 
   private LlmClient client(int maxConcurrency, BudgetGuard budget) {
+    return client(fake, maxConcurrency, budget, log, limiter);
+  }
+
+  private static LlmClient client(
+      FakeLlmProvider provider,
+      int maxConcurrency,
+      BudgetGuard budget,
+      InMemoryLlmCallLog log,
+      CallLimiter limiter) {
     return new LlmClient(
         ModelSettings.single(
-            fake.model("model-a").withLimits(new CallLimits(maxConcurrency, null))),
-        List.of(fake),
+            provider.model("model-a").withLimits(new CallLimits(maxConcurrency, null))),
+        List.of(provider),
         budget,
         log,
         Clock.systemUTC(),
-        new CallLimiter(FAST));
+        limiter);
+  }
+
+  /**
+   * A limiter whose lane for {@code model-a} allows the given number of calls at once, more than
+   * the summarizers under test run, so that only the summarizer's own limit bounds them. A lane
+   * takes its limits from the first configuration it is asked for, so one call through another fake
+   * of the same name sets it.
+   */
+  private static CallLimiter limiterAllowing(int calls) {
+    CallLimiter limiter = new CallLimiter(FAST);
+    FakeLlmProvider warmUp = new FakeLlmProvider().answering(SummarizerTest::citingAll);
+    String type = "type:com.example.WarmUp";
+    new Summarizer(
+            client(
+                warmUp, calls, BudgetGuard.unlimited("warm-up"), new InMemoryLlmCallLog(), limiter),
+            new InMemorySummaryStore())
+        .summarize(
+            List.of(
+                node(type, SummaryLevel.TYPE, List.of(fact(type, "kind", "class")), List.of())));
+    return limiter;
   }
 
   private Summarizer summarizer(int maxConcurrency) {
@@ -84,33 +123,39 @@ class SummarizerConcurrencyTest {
     return TestFacts.fact("wide", subject, predicate, FactObject.string(value), "pom.xml");
   }
 
-  private static long millis(Runnable work) {
-    long start = System.nanoTime();
-    work.run();
-    return (System.nanoTime() - start) / 1_000_000;
+  @Test
+  void parallelSummariesAreTheSameAsSequentialOnesAndRunEightAtOnce() {
+    List<SummaryNode> tree = wideRepo();
+    Summarizer.Result sequential = summarizer(1).summarize(tree);
+    assertThat(fake.maxConcurrentCalls()).isOne();
+
+    // The first eight calls answer only once all eight are in flight, which they can only be if the
+    // summarizer runs eight units at once.
+    CountDownLatch eightInFlight = new CountDownLatch(8);
+    fake.answering(
+        request -> {
+          eightInFlight.countDown();
+          awaitEightInFlight(eightInFlight);
+          return SummarizerTest.citingAll(request);
+        });
+    Summarizer.Result parallel = summarizer(8).summarize(tree);
+
+    assertThat(sequential.generated()).isEqualTo(57);
+    assertThat(parallel.generated()).isEqualTo(57);
+    // Same texts, keys and citations, in the same order.
+    assertThat(parallel.summaries()).containsExactlyEntriesOf(sequential.summaries());
+    assertThat(fake.maxConcurrentCalls()).isEqualTo(8);
   }
 
-  @Test
-  void parallelSummariesAreTheSameAsSequentialOnesAndComeSooner() {
-    List<SummaryNode> tree = wideRepo();
-    Summarizer.Result[] results = new Summarizer.Result[2];
-
-    long sequential = millis(() -> results[0] = summarizer(1).summarize(tree));
-    assertThat(fake.maxConcurrentCalls()).isOne();
-    long parallel = millis(() -> results[1] = summarizer(8).summarize(tree));
-
-    assertThat(results[0].generated()).isEqualTo(57);
-    assertThat(results[1].generated()).isEqualTo(57);
-    // Same texts, keys and citations, in the same order.
-    assertThat(results[1].summaries()).containsExactlyEntriesOf(results[0].summaries());
-    // 57 calls of 20 ms one at a time take at least 1,140 ms; eight at a time, the 48 types take
-    // six rounds and the packages, modules and repository one each, about 180 ms.
-    assertThat(sequential).isGreaterThanOrEqualTo(1_140);
-    assertThat(parallel).isLessThan(sequential / 2);
-    assertThat(fake.maxConcurrentCalls()).isLessThanOrEqualTo(8).isGreaterThan(1);
-    System.out.printf(
-        "Summarizing 57 units at 20 ms a call: %d ms one at a time, %d ms eight at a time (%.1fx)%n",
-        sequential, parallel, (double) sequential / parallel);
+  private static void awaitEightInFlight(CountDownLatch latch) {
+    try {
+      if (!latch.await(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+        throw new AssertionError("Fewer than eight calls were ever in flight at once");
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new AssertionError("Interrupted", e);
+    }
   }
 
   @Test
@@ -155,11 +200,24 @@ class SummarizerConcurrencyTest {
 
   @Test
   void aFailedUnitStopsTheRunAndIsWhatIsThrown() {
+    // The first call fails, whichever type it is for, so the run must stop with most units unsent.
+    List<String> calls = new ArrayList<>();
+    Thread[] failingThread = new Thread[1];
     fake.answering(
         request -> {
-          if (request.purpose().endsWith("type:com.example.m0.p1.T3")) {
-            throw new LlmException("HTTP 400 bad request");
+          Thread failing;
+          synchronized (calls) {
+            calls.add(request.purpose());
+            if (failingThread[0] == null) {
+              failingThread[0] = Thread.currentThread();
+              throw new LlmException("HTTP 400 bad request");
+            }
+            failing = failingThread[0];
           }
+          // Every later call is held until the failed unit is done, which it only is once the run
+          // knows it failed: each unit runs on its own virtual thread, which then ends. So no call
+          // frees its place for another unit before the run has failed.
+          join(failing);
           return SummarizerTest.citingAll(request);
         });
 
@@ -167,12 +225,33 @@ class SummarizerConcurrencyTest {
         .isInstanceOf(LlmException.class)
         .hasMessage("HTTP 400 bad request");
 
+    Matcher failed =
+        Pattern.compile("summarize type type:com\\.example\\.(m\\d)\\.(p\\d)\\.T\\d")
+            .matcher(calls.getFirst());
+    assertThat(failed.matches()).as(calls.getFirst()).isTrue();
+    String failedPackage =
+        "package:com.example:" + failed.group(1) + ":com.example." + failed.group(2);
     assertThat(fake.sent().stream().map(s -> s.request().purpose()))
-        .noneMatch(purpose -> purpose.contains("package:com.example:m0:com.example.p1"))
+        .hasSize(calls.size())
+        .noneMatch(purpose -> purpose.endsWith(failedPackage))
         .noneMatch(purpose -> purpose.contains("repo:wide"));
-    // T3 is the 12th type in walk order; after it fails, at most the units already running finish,
-    // so far fewer than all 48 types are sent.
-    assertThat(fake.sent().size()).isLessThanOrEqualTo(12 + 2 * 8);
+    // Besides the failed call, at most the seven units that may run with it make theirs; no unit
+    // starts after the run has failed.
+    assertThat(calls).hasSizeLessThanOrEqualTo(8);
+    // A held call that gave up waiting would fail its own unit, which the run may not report.
+    assertThat(joinTimedOut).as("a held call timed out").isFalse();
+  }
+
+  private void join(Thread thread) {
+    try {
+      if (!thread.join(TIMEOUT)) {
+        joinTimedOut.set(true);
+        throw new AssertionError("The failed unit's thread did not end");
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new AssertionError("Interrupted", e);
+    }
   }
 
   @Test
