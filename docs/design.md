@@ -531,7 +531,7 @@ The backend is Java 21+ on Spring Boot because the hardest part, Java analysis, 
 
 Each phase delivers something usable on real repos. The knowledge model and stable IDs come first because everything later depends on them.
 
-**Test sets.** From Phase 2, each phase is checked on several open-source test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, and a monolith. No single test set shapes the design. Each one's repos and pins are in its ADRs. No test set is chosen yet: OpenWMS, the first, was dropped in #100, and choosing them is #88.
+**Test sets.** From Phase 2, each phase is checked on several open-source test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, and a monolith. No single test set shapes the design. Each one's repos are in its ADR and its pins in `testsets/<set>/` (ADR 0029). No open-source test set is chosen yet: OpenWMS, the first, was dropped in #100, and choosing them is #88. Alongside them, the made-up set project-0 (ADR 0029) covers the cases the open-source sets miss.
 
 1. **Foundation** (built; remaining fixes tracked in its milestone): a single repo through to a real document.
    - Repo registry, build sandbox, Maven and Java structure extractors

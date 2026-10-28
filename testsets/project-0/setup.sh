@@ -16,17 +16,17 @@ fail() {
   exit 1
 }
 
-pin="$(grep -v -e '^#' -e '^[[:space:]]*$' "$here/pins.txt")"
-[[ "$(wc -l <<< "$pin")" -eq 1 ]] || fail "pins.txt must list exactly one repository"
+pin="$(grep -v -e '^#' -e '^[[:space:]]*$' "$here/pins.txt" || true)"
+[[ -n "$pin" && "$(wc -l <<< "$pin")" -eq 1 ]] || fail "pins.txt must list exactly one repository"
 read -r name url commit extra <<< "$pin"
 [[ -n "$url" && -z "${extra:-}" ]] || fail "bad line in pins.txt: $pin"
 [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || fail "$name: commit must be a full 40-character hash: $commit"
 
-source="$(mktemp -d)"
-trap 'rm -rf "$source"' EXIT
-git init --quiet "$source"
-git -C "$source" remote add origin "$url"
-git -C "$source" fetch --quiet --depth 1 origin "$commit"
-git -C "$source" -c advice.detachedHead=false checkout --quiet --detach "$commit"
+checkout="$(mktemp -d)"
+trap 'rm -rf "$checkout"' EXIT
+git init --quiet "$checkout"
+git -C "$checkout" remote add origin "$url"
+git -C "$checkout" fetch --quiet --depth 1 origin "$commit"
+git -C "$checkout" -c advice.detachedHead=false checkout --quiet --detach "$commit"
 echo "$name @ ${commit:0:12}"
-"$source/setup.sh" "$@"
+bash "$checkout/setup.sh" "$@"

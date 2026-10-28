@@ -63,12 +63,29 @@ class Project0BuildIT {
         .isEmpty();
   }
 
+  /** Each repository with the commit setup.sh makes from the pinned source, and its JDK. */
   @ParameterizedTest
-  @CsvSource({"catalog, 21", "fulfilment, 21", "payments, 17", "storefront, 21"})
-  void builds(String name, int jdk) throws IOException {
-    Path path = Path.of(System.getProperty("lantern.test.project0")).resolve(name).toRealPath();
+  @CsvSource({
+    "catalog, 8637326f638af796f242548b68216c8729e1a5f7, 21",
+    "fulfilment, d7a159078e44f5de32d3b3f4aa5fa0ef9cb24921, 21",
+    "payments, 871bf725e98d45d11ea093749943bb555b65bae8, 17",
+    "storefront, fa592e452e659d26597defe3519ba0ec3bfc5014, 21"
+  })
+  void builds(String name, String commit, int jdk) throws IOException {
+    String setUp = System.getProperty("lantern.test.project0");
+    assertThat(Path.of(setUp).isAbsolute())
+        .as("lantern.test.project0 must be an absolute path: " + setUp)
+        .isTrue();
+    Path path = Path.of(setUp).resolve(name).toRealPath();
+    Git.Result head = Git.run(path, "rev-parse", "HEAD");
+    assertThat(head.ok()).as("%s: git rev-parse HEAD: %s", name, head.err()).isTrue();
+    assertThat(head.out())
+        .as("%s is not at the pinned commit; run testsets/project-0/setup.sh again", name)
+        .isEqualTo(commit);
+    Git.Result status = Git.run(path, "status", "--porcelain");
+    assertThat(status.ok()).as("%s: git status: %s", name, status.err()).isTrue();
+    assertThat(status.out()).as("%s has local changes", name).isEmpty();
     Repo repo = new Repo(name, path, RepoSettings.DEFAULT);
-    String commit = Git.run(path, "rev-parse", "HEAD").out();
     SandboxSettings settings =
         SandboxSettings.defaults(temp.resolve("builds"))
             .withMavenCacheVolume(volume)
@@ -78,10 +95,18 @@ class Project0BuildIT {
     BuildResult result = new BuildSandbox(settings).build(repo, commit);
 
     assertThat(result.status())
-        .as("%s: %s%n%s", name, result.failure(), Files.readString(result.log()))
+        .as(() -> name + ": " + log(result))
         .isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(result.jdk()).isEqualTo(jdk);
     assertThat(result.modules()).isNotEmpty();
     assertThat(result.effectivePom()).isNotNull();
+  }
+
+  private static String log(BuildResult result) {
+    try {
+      return "build failed: " + result.failure() + "\n" + Files.readString(result.log());
+    } catch (IOException e) {
+      return "build failed: " + result.failure();
+    }
   }
 }
