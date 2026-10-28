@@ -10,6 +10,7 @@ import io.lantern.sandbox.SandboxSettings;
 import io.lantern.summarize.SummaryStore;
 import java.nio.file.Path;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -21,15 +22,16 @@ import org.springframework.transaction.support.TransactionTemplate;
  * lantern.workspace} (ADR 0016).
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(SandboxProperties.class)
 class AnalysisConfiguration {
 
   @Bean
   BuildSandbox buildSandbox(
-      @Value("${lantern.workspace}") Path workspace,
-      @Value("${lantern.sandbox.maven-cache-volume}") String mavenCacheVolume) {
+      @Value("${lantern.workspace}") Path workspace, SandboxProperties sandbox) {
     return new BuildSandbox(
         SandboxSettings.defaults(absolute(workspace).resolve("builds"))
-            .withMavenCacheVolume(mavenCacheVolume));
+            .withMavenCacheVolume(sandbox.mavenCacheVolume())
+            .withMavenRepositories(sandbox.mavenRepositories()));
   }
 
   @Bean

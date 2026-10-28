@@ -21,7 +21,9 @@ test set to released code rather than build a snapshot's repositories in depende
   on 28 Oct 2026, and say so in their comment: `wms.receiving` and `wms.receiving.lib`.
 - **The umbrella repository** `org.openwms` joins the set at tag `4.0.0`, making 16 repositories.
   It is the parent of `org.openwms.core.util`, its only module.
-- **What builds.** Ten of the 16 build in the sandbox: `ameba-lib`, `org.openwms.parent`,
+- **What builds.** (Amended by ADR 0023: with Alfresco's repository configured for the test set,
+  the four Activiti repositories below build too, making 14 of 16; `OpenWmsBuildIT` builds those.)
+  Ten of the 16 build in the sandbox: `ameba-lib`, `org.openwms.parent`,
   `common.service`, `common.service.lib`, `core.test.arch`, `core.uaa`, `core.uaa.lib`,
   `core.units`, `tms.transportation` and `wms.receiving.lib`; `OpenWmsBuildIT` builds them when
   the clones are present. The other six fail into degraded mode:

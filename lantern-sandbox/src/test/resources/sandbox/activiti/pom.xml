@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    Sandbox test fixture: depends on an artifact that is only in the Alfresco repository, not on
+    Maven Central, and names no repository itself. It builds only when the sandbox is configured
+    with that repository.
+  -->
+  <groupId>com.example.activiti</groupId>
+  <artifactId>activiti</artifactId>
+  <version>1.0.0</version>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.activiti</groupId>
+      <artifactId>activiti-api-runtime-shared</artifactId>
+      <version>8.8.0-alpha.7</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.15.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.5.0</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>

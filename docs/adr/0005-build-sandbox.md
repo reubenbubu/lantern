@@ -31,7 +31,8 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   has no route out. The only other container on it is an egress proxy: a small Java class of
   Lantern's (`EgressProxy`, JDK classes only) run in its own limited container that is also on the
   default bridge network. It tunnels `CONNECT host:port` to an allowed list (by default only
-  `repo.maven.apache.org:443`) and answers everything else with 403 or 405. Maven settings point
+  `repo.maven.apache.org:443`; the list comes from the configured Maven repositories, ADR 0023)
+  and answers everything else with 403 or 405. Maven settings point
   both `http` and `https` at it. Code in the build that ignores the proxy settings has no route at
   all, and external names do not resolve (Docker 26 and later do not forward DNS from internal
   networks; older versions would leak DNS lookups). The proxy is also reachable from other

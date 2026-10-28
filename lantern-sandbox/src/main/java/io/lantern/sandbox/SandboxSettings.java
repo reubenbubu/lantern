@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
  * @param maxConcurrentBuilds the most builds that run at once on this host
  * @param mavenCacheVolume the Docker volume holding the local Maven repository that all builds
  *     share
- * @param allowedHosts the {@code host:port} targets builds may reach, through the egress proxy: the
- *     artifact repository
+ * @param mavenRepositories the Maven repositories builds download from, in this order: the only
+ *     hosts they reach, through the egress proxy (ADR 0023); at least one, with distinct IDs
  * @param buildsDirectory the directory build outputs are stored in, one directory per {@code
  *     repo@commit}
  * @param maxOutputBytes the most bytes of output a build may hand back; a larger output fails the
@@ -48,7 +48,7 @@ public record SandboxSettings(
     Duration timeout,
     int maxConcurrentBuilds,
     String mavenCacheVolume,
-    List<String> allowedHosts,
+    List<MavenRepository> mavenRepositories,
     Path buildsDirectory,
     long maxOutputBytes,
     long maxLogBytes,
@@ -62,13 +62,9 @@ public record SandboxSettings(
           21, "maven:3.9.16-eclipse-temurin-21",
           25, "maven:3.9.16-eclipse-temurin-25");
 
-  /** Maven Central, the artifact repository builds reach unless configured otherwise. */
-  public static final String MAVEN_CENTRAL = "repo.maven.apache.org:443";
-
   /** The egress proxy is compiled for this JDK, so it needs an image with this JDK or newer. */
   static final int PROXY_MIN_JDK = 21;
 
-  private static final Pattern HOST_PORT = Pattern.compile("[A-Za-z0-9.-]+:[0-9]{1,5}");
   private static final Pattern VOLUME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*");
 
   public SandboxSettings {
@@ -76,7 +72,7 @@ public record SandboxSettings(
     Objects.requireNonNull(timeout, "timeout");
     Objects.requireNonNull(buildsDirectory, "buildsDirectory");
     images = Collections.unmodifiableMap(new TreeMap<>(Objects.requireNonNull(images, "images")));
-    allowedHosts = List.copyOf(Objects.requireNonNull(allowedHosts, "allowedHosts"));
+    mavenRepositories = List.copyOf(Objects.requireNonNull(mavenRepositories, "mavenRepositories"));
     if (dockerCommand.isBlank()) {
       throw new IllegalArgumentException("Docker command must not be blank");
     }
@@ -106,11 +102,13 @@ public record SandboxSettings(
     if (mavenCacheVolume == null || !VOLUME.matcher(mavenCacheVolume).matches()) {
       throw new IllegalArgumentException("Invalid Maven cache volume name: " + mavenCacheVolume);
     }
-    for (String host : allowedHosts) {
-      if (!HOST_PORT.matcher(host).matches()
-          || Integer.parseInt(host.substring(host.lastIndexOf(':') + 1)) > 65535) {
-        throw new IllegalArgumentException("Allowed host must be host:port: " + host);
-      }
+    if (mavenRepositories.isEmpty()) {
+      throw new IllegalArgumentException("At least one Maven repository is needed");
+    }
+    if (mavenRepositories.stream().map(MavenRepository::id).distinct().count()
+        != mavenRepositories.size()) {
+      throw new IllegalArgumentException(
+          "Maven repository IDs must be distinct: " + mavenRepositories);
     }
     if (!buildsDirectory.isAbsolute()) {
       throw new IllegalArgumentException("Builds directory must be absolute: " + buildsDirectory);
@@ -127,7 +125,7 @@ public record SandboxSettings(
   /**
    * The default settings: JDK 17, 21 and 25 images with 21 as the default, 2 CPUs, 4 GiB of memory,
    * 8 GiB of disk and 30 minutes per build, 4 builds at once, at least 2 GiB left free on Docker's
-   * storage, and Maven Central as the only reachable host.
+   * storage, and Maven Central as the only Maven repository.
    *
    * @param buildsDirectory where build outputs are stored
    */
@@ -142,7 +140,7 @@ public record SandboxSettings(
         Duration.ofMinutes(30),
         4,
         "lantern-maven-cache",
-        List.of(MAVEN_CENTRAL),
+        List.of(MavenRepository.CENTRAL),
         buildsDirectory,
         4L * 1024 * 1024 * 1024,
         16L * 1024 * 1024,
@@ -162,7 +160,7 @@ public record SandboxSettings(
         timeout,
         maxConcurrentBuilds,
         mavenCacheVolume,
-        allowedHosts,
+        mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -182,7 +180,7 @@ public record SandboxSettings(
         timeout,
         maxConcurrentBuilds,
         mavenCacheVolume,
-        allowedHosts,
+        mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -202,7 +200,27 @@ public record SandboxSettings(
         timeout,
         maxConcurrentBuilds,
         mavenCacheVolume,
-        allowedHosts,
+        mavenRepositories,
+        buildsDirectory,
+        maxOutputBytes,
+        maxLogBytes,
+        diskBytes,
+        minFreeDiskBytes);
+  }
+
+  /** These settings with other Maven repositories. */
+  public SandboxSettings withMavenRepositories(List<MavenRepository> mavenRepositories) {
+    return new SandboxSettings(
+        dockerCommand,
+        images,
+        defaultJdk,
+        cpus,
+        memoryBytes,
+        pidsLimit,
+        timeout,
+        maxConcurrentBuilds,
+        mavenCacheVolume,
+        mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -222,7 +240,7 @@ public record SandboxSettings(
         timeout,
         maxConcurrentBuilds,
         mavenCacheVolume,
-        allowedHosts,
+        mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -242,12 +260,20 @@ public record SandboxSettings(
         timeout,
         maxConcurrentBuilds,
         mavenCacheVolume,
-        allowedHosts,
+        mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
         diskBytes,
         minFreeDiskBytes);
+  }
+
+  /**
+   * The {@code host:port} targets the egress proxy lets builds reach: those of the Maven
+   * repositories, each once.
+   */
+  public List<String> allowedHosts() {
+    return mavenRepositories.stream().map(MavenRepository::hostAndPort).distinct().toList();
   }
 
   /** The image the egress proxy runs in: the one with the newest JDK. */

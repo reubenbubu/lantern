@@ -45,6 +45,8 @@
             <!-- The fixture Maven projects of lantern-extract, which the sandbox tests build. -->
             <lantern.test.fixtures>${maven.multiModuleProjectDirectory}/lantern-extract/src/test/resources/fixtures</lantern.test.fixtures>
             <lantern.test.openwms>${lantern.test.openwms}</lantern.test.openwms>
+            <!-- The OpenWMS test set's Lantern settings: the Maven repositories its builds use. -->
+            <lantern.test.openwms.settings>${maven.multiModuleProjectDirectory}/testsets/openwms/lantern.properties</lantern.test.openwms.settings>
           </systemPropertyVariables>
         </configuration>
       </plugin>
