@@ -59,3 +59,17 @@ describe('DiagramSvg', () => {
     }
   });
 });
+
+describe('DiagramSvg colors', () => {
+  test('uses a #rrggbb color and ignores anything else', async () => {
+    const [diagram] = diagrams(composerOutput());
+    const colored = (color: string) => ({
+      ...diagram,
+      nodes: diagram.nodes.map((n) => ({ ...n, style: { color } })),
+    });
+    const render = async (color: string) =>
+      renderToStaticMarkup(<DiagramSvg diagram={colored(color)} layout={await layoutDiagram(colored(color))} />);
+    expect(await render('#ff8000')).toContain('fill:#ff8000');
+    expect(await render('url(https://example.com/x)')).not.toContain('example.com');
+  });
+});

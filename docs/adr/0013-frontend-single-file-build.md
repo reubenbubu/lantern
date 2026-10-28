@@ -24,8 +24,10 @@ themes, search and zoom are the templates' work (#15, #16).
   `index.html` into `target/classes/io/lantern/web/`, so the `lantern-web` jar (now `jar`
   packaging instead of `pom`) carries it for the Java renderer. The page holds the placeholder
   `<script id="lantern-document" type="application/json"></script>` exactly once; a renderer
-  writes the document model JSON between its tags, with every `<` escaped as `<` so the text
-  cannot close the element. `scripts/render.mjs` does this for tests and by hand; the Java side
+  writes the document model JSON between its tags, with every `<` escaped as the JSON escape `\u003c` so the text
+  cannot close the element. The JSON is inserted as is; a replace function that reads `$`
+  patterns (JavaScript's `String.replace`, Java's `Matcher.replaceAll`) would corrupt text such as
+  `Foo$$EnhancerBySpringCGLIB`. `scripts/render.mjs` does this for tests and by hand; the Java side
   must follow the same contract. One template serves every document, so the frontend is built
   once per release, not per document. The build output is byte-for-byte reproducible.
 - **Rendering.** The page reads the embedded JSON, refuses a schema version other than 1 with a
@@ -39,8 +41,9 @@ themes, search and zoom are the templates' work (#15, #16).
   (`INCLUDE_CHILDREN`) and coordinates relative to the diagram. Nodes and edges are sorted by ID
   before layout and ELK's seed is fixed, so the same diagram gets the same layout whatever the
   input order. Node sizes are estimated from label length. A node whose parent is not in the
-  diagram, or is in a parent cycle, is drawn at the top level; edges to unknown nodes are left
-  out. Diagrams are drawn as SVG once laid out. Stored node positions are not used yet: nothing
+  diagram is drawn at the top level, and a parent cycle is broken at its lowest ID; edges to unknown nodes are left
+  out. Diagrams are drawn as SVG once laid out; a node color is used only
+  if it has the schema's `#rrggbb` form, so a document cannot make the page load anything. Stored node positions are not used yet: nothing
   produces them, and keeping them needs incremental layout (#50).
 - **Tests** run with Vitest, Vite's own test runner, in Node; the Ajv schema tests from 0011
   moved to it from `node --test` because Node cannot run JSX. They render the schema fixture

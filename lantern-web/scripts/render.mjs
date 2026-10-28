@@ -12,7 +12,7 @@ export const defaultTemplate = fileURLToPath(
 
 /**
  * Returns the template with the document written into its placeholder. Every `<` in the JSON is
- * escaped as <, so the text can never close the script element or open a comment.
+ * escaped as the JSON escape \u003c, so the text can never close the script element or open a comment.
  */
 export function embedDocument(template, documentJson) {
   const parts = template.split(PLACEHOLDER);
@@ -20,7 +20,8 @@ export function embedDocument(template, documentJson) {
     throw new Error(`The template must hold the placeholder exactly once, found ${parts.length - 1}`);
   }
   const json = JSON.stringify(JSON.parse(documentJson)).replaceAll('<', '\\u003c');
-  return parts[0] + PLACEHOLDER.replace('></script>', `>${json}</script>`) + parts[1];
+  // Concatenated, not String.replace, which would read `$` patterns in the JSON.
+  return `${parts[0]}${PLACEHOLDER.slice(0, -'</script>'.length)}${json}</script>${parts[1]}`;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

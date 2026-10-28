@@ -64,6 +64,14 @@ describe('embedDocument', () => {
     });
   });
 
+  test('keeps dollar signs as they are', () => {
+    const title = 'Foo$$EnhancerBySpringCGLIB$$1 $& $` $\' $1';
+    const html: string = embedDocument(`a${PLACEHOLDER}b`, JSON.stringify({ title }));
+    expect(html.startsWith('a<script id="lantern-document" type="application/json">{')).toBe(true);
+    expect(html.endsWith('}</script>b')).toBe(true);
+    expect(JSON.parse(html.slice(PLACEHOLDER.indexOf('></script>') + 2, -'</script>b'.length))).toEqual({ title });
+  });
+
   test('refuses a template without exactly one placeholder', () => {
     expect(() => embedDocument('<html></html>', '{}')).toThrow(/exactly once/);
     expect(() => embedDocument(PLACEHOLDER + PLACEHOLDER, '{}')).toThrow(/exactly once/);

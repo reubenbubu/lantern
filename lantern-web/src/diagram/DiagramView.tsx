@@ -4,6 +4,8 @@ import type { Diagram } from '../generated/document.ts';
 import { type DiagramLayout, layoutDiagram } from './layout.ts';
 
 const MARGIN = 8;
+/** The schema's color form; anything else (such as a url()) is ignored. */
+const COLOR = /^#[0-9a-f]{6}$/;
 
 type State =
   | { kind: 'pending' }
@@ -81,6 +83,7 @@ export function DiagramSvg({ diagram, layout }: { diagram: Diagram; layout: Diag
       ))}
       {layout.nodes
         .filter((n) => !n.container)
+        .map((n) => ({ ...n, color: n.color !== undefined && COLOR.test(n.color) ? n.color : undefined }))
         .map((n) => (
           <g key={n.id} className="diagram-node" data-entity={n.id}>
             <rect
