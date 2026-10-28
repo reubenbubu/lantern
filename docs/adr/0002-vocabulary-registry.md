@@ -58,10 +58,9 @@ choices.
   `container`. Since #90 `library`, `module` and `package` have no parent and so no C4 level, as in
   the design (a library is not a container, a module or package is not a component); they set
   their own shape. A database that holds the earlier built-ins gets the change as one new revision
-  at startup. Relationship types are `CONTAINS`,
-  `DEPENDS_ON`, `CALLS` (extends `DEPENDS_ON`), `EXTENDS` and `IMPLEMENTS`. Built-ins declare no
-  attributes and refuse undeclared ones; extractors add the attributes they need as additive
-  changes.
+  at startup. Relationship types are `CONTAINS`, `DEPENDS_ON`, `CALLS` (extends `DEPENDS_ON`),
+  `EXTENDS` and `IMPLEMENTS`. Built-ins declare no attributes and refuse undeclared ones;
+  extractors add the attributes they need as additive changes.
 - **Java types** are hand-written records in `io.lantern.core.vocabulary`, with name constants for
   the built-in types in `BuiltInTypes`, kept in line with the schema and the built-in file by
   tests, as for the fact envelope (0001).

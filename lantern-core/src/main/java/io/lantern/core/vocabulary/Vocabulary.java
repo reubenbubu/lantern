@@ -193,8 +193,9 @@ public final class Vocabulary {
    *
    * @throws IllegalArgumentException if a name is listed twice; a change to an existing type
    *     changes its kind, or its attribute schema accepts less than before (see {@link
-   *     AttributeSchema#nonAdditiveChanges}), including through a new parent; or the result is not
-   *     consistent (a missing parent, a parent of another kind, a cycle of parents)
+   *     AttributeSchema#nonAdditiveChanges}), including through a new parent; or, when a parent
+   *     changes, the result is not consistent (a missing parent, a parent of another kind, a cycle
+   *     of parents). {@link VocabularyRegistry#apply} checks the consistency of every change.
    */
   public List<VocabularyType> changes(Collection<VocabularyType> definitions) {
     List<VocabularyType> result = new ArrayList<>();
@@ -246,9 +247,9 @@ public final class Vocabulary {
       List<String> problems = schemas.get(name).nonAdditiveChanges(after.schemas.get(name));
       if (!problems.isEmpty()) {
         throw new IllegalArgumentException(
-            "Change to type '"
+            "Type '"
                 + name
-                + "' is not additive: with the new parent types it "
+                + "' would accept less than before with the new parent types: it "
                 + String.join(", ", problems));
       }
     }

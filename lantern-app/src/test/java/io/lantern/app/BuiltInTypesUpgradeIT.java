@@ -53,12 +53,6 @@ class BuiltInTypesUpgradeIT {
     }
   }
 
-  static void startUp(VocabularyRegistry registry) {
-    registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
-    registry.apply(MavenExtractor.VOCABULARY_SOURCE, MavenExtractor.vocabulary());
-    registry.apply(JavaExtractor.VOCABULARY_SOURCE, JavaExtractor.vocabulary());
-  }
-
   @Test
   void startingTheAppOnADatabaseWithTheOldBuiltInTypesAddsOneRevision() throws IOException {
     try (PostgreSQLContainer postgres =
@@ -87,7 +81,7 @@ class BuiltInTypesUpgradeIT {
       assertThat(registry.current().c4Level(BuiltInTypes.PACKAGE)).contains(C4Level.COMPONENT);
 
       // Starting the app again: the built-ins change, the extractors' types do not.
-      startUp(registry);
+      FactStoreConfiguration.loadVocabulary(registry);
 
       assertThat(registry.current().revision()).isEqualTo(before + 1);
       assertThat(
@@ -116,7 +110,7 @@ class BuiltInTypesUpgradeIT {
       assertThat(facts.save(another)).isTrue();
 
       // A third start changes nothing.
-      startUp(registry);
+      FactStoreConfiguration.loadVocabulary(registry);
       assertThat(registry.current().revision()).isEqualTo(before + 1);
     }
   }

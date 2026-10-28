@@ -303,7 +303,7 @@ class VocabularyTest {
             () ->
                 vocabulary.changes(
                     List.of(predicate("Child", TypeKind.RELATIONSHIP, null, AttributeSchema.NONE))))
-        .hasMessageContaining("Change to type 'Child' is not additive")
+        .hasMessageContaining("Type 'Child' would accept less than before")
         .hasMessageContaining("removes attribute 'a'");
     assertThat(
             vocabulary.changes(
