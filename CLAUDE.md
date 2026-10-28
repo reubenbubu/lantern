@@ -79,7 +79,7 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 ## Commands
 
-Requires JDK 21, git and Docker (tests start PostgreSQL with Testcontainers and create temporary git repositories). Run from the repo root.
+Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start PostgreSQL with Testcontainers, create temporary git repositories and run real build containers, which pull the Maven images and download from Maven Central). Run from the repo root.
 
 - Build and test everything (this is CI): `./mvnw verify`
 - Fix formatting: `./mvnw spotless:apply`
@@ -87,4 +87,5 @@ Requires JDK 21, git and Docker (tests start PostgreSQL with Testcontainers and 
 - Test one module: `./mvnw verify -pl <module> -am`
 - Start the local database: `docker compose up -d` (stop with `docker compose down`)
 - Clone the OpenWMS test set at its pinned commits into `workspace/openwms` (safe to rerun): `testsets/openwms/clone.sh`
+- Also build OpenWMS repos in the sandbox (after cloning): `./mvnw verify -pl lantern-sandbox -am -Dlantern.test.openwms=$PWD/workspace/openwms`
 - Run the app (needs the local database): `./mvnw install -DskipTests && ./mvnw spring-boot:run -pl lantern-app`

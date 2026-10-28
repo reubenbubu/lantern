@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maven settings for builds in the sandbox: all downloads go through the egress proxy. -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
+  <localRepository>/var/lantern/m2</localRepository>
+  <interactiveMode>false</interactiveMode>
+  <proxies>
+    <proxy>
+      <id>lantern-egress-https</id>
+      <active>true</active>
+      <protocol>https</protocol>
+      <host>lantern-proxy</host>
+      <port>3128</port>
+    </proxy>
+    <proxy>
+      <id>lantern-egress-http</id>
+      <active>true</active>
+      <protocol>http</protocol>
+      <host>lantern-proxy</host>
+      <port>3128</port>
+    </proxy>
+  </proxies>
+</settings>
