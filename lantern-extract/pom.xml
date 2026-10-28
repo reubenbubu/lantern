@@ -18,5 +18,28 @@
       <groupId>io.lantern</groupId>
       <artifactId>lantern-core</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <!-- Runs *IT integration tests during verify. Executions come from the Spring Boot parent. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- FixtureBuildIT builds the fixtures with this project's Maven wrapper... -->
+            <lantern.test.mvnw>${maven.multiModuleProjectDirectory}/mvnw</lantern.test.mvnw>
+            <!-- ...reading, but never writing, the local repository of the outer build. -->
+            <lantern.test.localRepository>${settings.localRepository}</lantern.test.localRepository>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
