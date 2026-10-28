@@ -178,6 +178,9 @@ public final class DocumentJson {
         node.put("kind", "callout");
         node.put("id", c.id());
         node.put("variant", c.variant().jsonName());
+        if (c.severity() != null) {
+          node.put("severity", c.severity().jsonName());
+        }
         putOptional(node, "title", c.title());
         node.set("content", contentToJson(c.content()));
       }
@@ -253,10 +256,13 @@ public final class DocumentJson {
       }
       case "callout" -> {
         Reader in =
-            Reader.of(node, "callout", "kind", "id", "variant", "title", "content", "facts");
+            Reader.of(
+                node, "callout", "kind", "id", "variant", "severity", "title", "content", "facts");
+        String severity = in.optionalString("severity");
         yield new Callout(
             in.string("id"),
             Callout.Variant.fromJsonName(in.string("variant")),
+            severity == null ? null : Callout.Severity.fromJsonName(severity),
             in.optionalString("title"),
             in.content("content"),
             in.facts());

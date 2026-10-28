@@ -56,9 +56,42 @@ public record ViewDefinition(
     }
   }
 
-  /** A view of one repository with every section, in the catalog's order. */
+  /**
+   * A view of one repository with the sections of the Architecture Explorer: overview, context,
+   * containers, components, dependencies and structure.
+   */
   public static ViewDefinition perRepo(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
-        id, repo, Scope.repo(repo), null, template, List.of(SectionKind.values()));
+        id,
+        repo,
+        Scope.repo(repo),
+        null,
+        template,
+        List.of(
+            SectionKind.OVERVIEW,
+            SectionKind.CONTEXT,
+            SectionKind.CONTAINERS,
+            SectionKind.COMPONENTS,
+            SectionKind.DEPENDENCIES,
+            SectionKind.STRUCTURE));
+  }
+
+  /**
+   * A view of one repository with the sections of the Executive Brief: overview, headline numbers,
+   * risks, and the context and container diagrams.
+   */
+  public static ViewDefinition executiveBrief(String id, String repo, TemplateRef template) {
+    return new ViewDefinition(
+        id,
+        repo,
+        Scope.repo(repo),
+        null,
+        template,
+        List.of(
+            SectionKind.OVERVIEW,
+            SectionKind.HEADLINES,
+            SectionKind.RISKS,
+            SectionKind.CONTEXT,
+            SectionKind.CONTAINERS));
   }
 }

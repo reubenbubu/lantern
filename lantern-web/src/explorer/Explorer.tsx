@@ -17,7 +17,7 @@ import { ContextPanel, type Selection } from './ContextPanel.tsx';
 import { buildEntityTree, buildSearchIndex, entityPlacements, parseHash } from './model.ts';
 import { NavPane } from './NavPane.tsx';
 import { SearchBox } from './SearchBox.tsx';
-import { applyTheme, storedTheme, systemTheme, type Theme } from './theme.ts';
+import { ThemeButton, useTheme } from '../theme.tsx';
 import './explorer.css';
 
 type Drawer = 'none' | 'nav' | 'context';
@@ -46,16 +46,7 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
   );
   // A deep link to an entity opens with its details showing, also where they are a drawer.
   const [drawer, setDrawer] = useState<Drawer>(() => (selection.kind === 'entity' ? 'context' : 'none'));
-  const [theme, setTheme] = useState<Theme | undefined>(() =>
-    typeof window === 'undefined' ? undefined : storedTheme(),
-  );
-  const [system, setSystem] = useState<Theme>(() => (typeof window === 'undefined' ? 'light' : systemTheme()));
-  useEffect(() => {
-    const query = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const onChange = () => setSystem(systemTheme());
-    query?.addEventListener('change', onChange);
-    return () => query?.removeEventListener('change', onChange);
-  }, []);
+  const { theme, toggle: toggleTheme } = useTheme();
   const content = useRef<HTMLElement>(null);
   const contextPane = useRef<HTMLElement>(null);
   /**
@@ -69,12 +60,6 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
   useEffect(() => {
     contextPane.current?.scrollTo?.({ top: 0 });
   }, [selection]);
-
-  useEffect(() => {
-    if (theme !== undefined) {
-      applyTheme(theme, false);
-    }
-  }, [theme]);
 
   // Deep link on opening the page.
   useEffect(() => {
@@ -179,13 +164,6 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
     scrollToElement(id, 'smooth');
   };
 
-  const effectiveTheme = theme ?? system;
-  const toggleTheme = () => {
-    const next: Theme = effectiveTheme === 'dark' ? 'light' : 'dark';
-    applyTheme(next, true);
-    setTheme(next);
-  };
-
   return (
     <LookupContext.Provider value={lookup}>
       <InteractionContext.Provider value={interaction}>
@@ -211,15 +189,7 @@ export function Explorer({ document: doc }: { document: LanternDocument }) {
                   target.kind === 'entity' ? selectEntity(target.id, { scroll: true }) : goToElement(target.id)
                 }
               />
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Switch to ${effectiveTheme === 'dark' ? 'light' : 'dark'} theme`}
-                title={`Switch to ${effectiveTheme === 'dark' ? 'light' : 'dark'} theme`}
-                onClick={toggleTheme}
-              >
-                {effectiveTheme === 'dark' ? '☀' : '☾'}
-              </button>
+              <ThemeButton theme={theme} onToggle={toggleTheme} />
               <button
                 type="button"
                 className="icon-button details-button"

@@ -1,5 +1,5 @@
 // Draws a diagram block as SVG once elkjs has laid it out.
-import { type KeyboardEvent, useContext, useEffect, useState } from 'react';
+import { type CSSProperties, type KeyboardEvent, useContext, useEffect, useState } from 'react';
 import { SelectedEntityContext, useInteraction } from '../DocumentView.tsx';
 import type { Diagram } from '../generated/document.ts';
 import { type DiagramLayout, layoutDiagram } from './layout.ts';
@@ -89,6 +89,8 @@ export function DiagramSvg({ diagram, layout }: { diagram: Diagram; layout: Diag
       viewBox={`${-MARGIN} ${-MARGIN} ${width} ${height}`}
       width={width}
       height={height}
+      // Its natural width, for templates that scale the drawing to fit.
+      style={{ '--diagram-width': `${width}px` } as CSSProperties}
       // A picture on a plain page; in an interactive one its nodes are buttons, which "img" would hide.
       role={interaction ? 'group' : 'img'}
       aria-label={diagram.title ?? diagram.diagramKind}

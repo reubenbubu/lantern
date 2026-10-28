@@ -344,7 +344,7 @@ class ComposerTest {
     assertThat(document.entities())
         .extracting(e -> e.id().toString())
         .containsExactly("repo:empty");
-    assertThat(document.sections()).hasSize(SectionKind.values().length);
+    assertThat(document.sections()).hasSize(6);
   }
 
   @Test

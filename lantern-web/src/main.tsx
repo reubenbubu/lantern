@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DocumentView } from './DocumentView.tsx';
 import { readEmbeddedDocument } from './embedded.ts';
+import { Brief } from './brief/Brief.tsx';
 import { Explorer } from './explorer/Explorer.tsx';
 import './styles.css';
 
@@ -18,6 +19,8 @@ createRoot(document.getElementById('root')!).render(
       // shows any other as a plain page (docs/adr/0014).
       embedded.document.template.name === 'architecture-explorer' ? (
         <Explorer document={embedded.document} />
+      ) : embedded.document.template.name === 'executive-brief' ? (
+        <Brief document={embedded.document} />
       ) : (
         <DocumentView document={embedded.document} />
       )

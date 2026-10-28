@@ -31,17 +31,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 /**
- * Composes an Architecture Explorer document for every repository of the OpenWMS test set,
- * extracted without builds and summarized by the fake model, and writes them to {@code
- * target/openwms-documents/<repo>.json} so the frontend can be checked against real composer
- * output. Runs only when {@code lantern.test.openwms} names the directory {@code
- * testsets/openwms/clone.sh} cloned them into, for example {@code ./mvnw verify -pl lantern-compose
- * -am -Dlantern.test.openwms=$PWD/workspace/openwms}.
+ * Composes an Architecture Explorer document and an Executive Brief for every repository of the
+ * OpenWMS test set, extracted without builds and summarized by the fake model, and writes them to
+ * {@code target/openwms-documents/<repo>.json} and {@code <repo>.brief.json} so the frontend can be
+ * checked against real composer output. Runs only when {@code lantern.test.openwms} names the
+ * directory {@code testsets/openwms/clone.sh} cloned them into, for example {@code ./mvnw verify
+ * -pl lantern-compose -am -Dlantern.test.openwms=$PWD/workspace/openwms}.
  */
 @EnabledIfSystemProperty(named = "lantern.test.openwms", matches = ".+")
 class OpenWmsComposeIT {
 
   private static final TemplateRef TEMPLATE = new TemplateRef("architecture-explorer", "1");
+  private static final TemplateRef BRIEF = new TemplateRef("executive-brief", "1");
 
   @Test
   void composesADocumentForEveryRepository() throws Exception {
@@ -80,6 +81,20 @@ class OpenWmsComposeIT {
       String json = DocumentJson.write(document);
       assertThat(DocumentJson.read(json)).isEqualTo(document);
       Files.writeString(out.resolve(repo + ".json"), json);
+
+      Document brief =
+          new Composer("0.1.0-test")
+              .compose(
+                  ViewDefinition.executiveBrief(repo + ".brief", repo, BRIEF),
+                  snapshot,
+                  facts,
+                  summaries);
+      assertThat(brief.sections().stream().map(Section::id))
+          .as("sections of the brief of %s", repo)
+          .containsExactly("overview", "headlines", "risks", "context", "containers");
+      String briefJson = DocumentJson.write(brief);
+      assertThat(DocumentJson.read(briefJson)).isEqualTo(brief);
+      Files.writeString(out.resolve(repo + ".brief.json"), briefJson);
     }
   }
 }

@@ -43,29 +43,6 @@
   min-width: 0;
 }
 
-.icon-button {
-  flex: none;
-  width: 2.25rem;
-  height: 2.25rem;
-  border: var(--pane-border);
-  border-radius: 6px;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font: inherit;
-  font-size: 1.05rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.icon-button:hover {
-  background: var(--highlight);
-}
-
-:focus-visible {
-  outline: 2px solid var(--color-link);
-  outline-offset: 1px;
-}
-
 /* Search. */
 /* On narrow pages the results span the whole header; from 600px they hang below the box. */
 .search {

@@ -6,6 +6,7 @@ import io.lantern.core.document.Diagram;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.ListBlock;
+import io.lantern.core.document.Metrics;
 import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
 import io.lantern.core.document.TextRun;
@@ -14,6 +15,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.summarize.Summary;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -37,9 +39,10 @@ final class RepoSections {
 
   private static final String METHOD = "method";
   private static final String FIELD = "field";
-  private static final String BUILD_DEPENDS_ON = "BUILD_DEPENDS_ON";
+  static final String BUILD_DEPENDS_ON = "BUILD_DEPENDS_ON";
   private static final String PACKAGES = "PACKAGES";
   private static final String PACKAGING = "packaging";
+  private static final String ARTIFACT = "artifact";
   private static final Set<String> TRANSITIVE_SCOPES = Set.of("compile", "runtime");
 
   private final Knowledge knowledge;
@@ -91,6 +94,11 @@ final class RepoSections {
       case COMPONENTS -> containers.forEach(c -> subsections.add(components(id, c)));
       case DEPENDENCIES -> dependencies(id, blocks);
       case STRUCTURE -> structure(id, blocks);
+      case HEADLINES -> blocks.add(headlines(id));
+      case RISKS ->
+          blocks.addAll(
+              new RepoRisks(knowledge, assembler, repo, modules, containers, this::packageEdges)
+                  .callouts(id));
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
   }
@@ -127,24 +135,7 @@ final class RepoSections {
   // System context: the repository and the repositories it depends on or that depend on it.
 
   private Diagram context(String section) {
-    Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(BUILD_DEPENDS_ON)) {
-      if (!Knowledge.isEntity(fact)
-          || !fact.subject().type().equals(BuiltInTypes.MODULE)
-          || isTestScope(fact)) {
-        continue;
-      }
-      for (String from : knowledge.repos(fact.subject())) {
-        for (String to : knowledge.repos(Knowledge.object(fact))) {
-          if (!from.equals(to) && (from.equals(repo) || to.equals(repo))) {
-            edges
-                .computeIfAbsent(Assembler.repo(from), f -> new TreeMap<>(Knowledge.BY_ID))
-                .computeIfAbsent(Assembler.repo(to), t -> new ArrayList<>())
-                .add(fact);
-          }
-        }
-      }
-    }
+    Map<EntityId, Map<EntityId, List<Fact>>> edges = repoEdges();
     Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
     nodes.put(repoId, node(repoId, null, null, List.of()));
     List<Diagram.Edge> diagramEdges = new ArrayList<>();
@@ -165,6 +156,32 @@ final class RepoSections {
         List.copyOf(nodes.values()),
         diagramEdges,
         List.of());
+  }
+
+  /**
+   * The build dependencies, outside test scope, between the repository and other repositories of
+   * the snapshot, in either direction: from repository to repository to the facts.
+   */
+  private Map<EntityId, Map<EntityId, List<Fact>>> repoEdges() {
+    Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(Knowledge.BY_ID);
+    for (Fact fact : knowledge.withPredicate(BUILD_DEPENDS_ON)) {
+      if (!Knowledge.isEntity(fact)
+          || !fact.subject().type().equals(BuiltInTypes.MODULE)
+          || isTestScope(fact)) {
+        continue;
+      }
+      for (String from : knowledge.repos(fact.subject())) {
+        for (String to : knowledge.repos(Knowledge.object(fact))) {
+          if (!from.equals(to) && (from.equals(repo) || to.equals(repo))) {
+            edges
+                .computeIfAbsent(Assembler.repo(from), f -> new TreeMap<>(Knowledge.BY_ID))
+                .computeIfAbsent(Assembler.repo(to), t -> new ArrayList<>())
+                .add(fact);
+          }
+        }
+      }
+    }
+    return edges;
   }
 
   // Containers: the services and libraries the repository builds and what they depend on.
@@ -277,34 +294,14 @@ final class RepoSections {
       paragraph(id, module).ifPresent(blocks::add);
     }
     Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
-    Map<EntityId, SortedSet<EntityId>> packagesOfType = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId module : containerModules) {
       for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
         nodes.put(pkg, node(pkg, null, container, knowledge.containsFacts(module, pkg)));
-        for (EntityId type : knowledge.typesWithin(pkg)) {
-          packagesOfType.computeIfAbsent(type, t -> new TreeSet<>(Knowledge.BY_ID)).add(pkg);
-        }
       }
     }
     if (!nodes.isEmpty()) {
       nodes.put(container, node(container, technology(container), null, containerFacts(container)));
-      Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(Knowledge.BY_ID);
-      packagesOfType.forEach(
-          (type, from) -> {
-            for (Fact fact : dependencies(type)) {
-              EntityId target = ownerType(Knowledge.object(fact));
-              for (EntityId to : packagesOfType.getOrDefault(target, new TreeSet<>())) {
-                for (EntityId pkg : from) {
-                  if (!pkg.equals(to)) {
-                    edges
-                        .computeIfAbsent(pkg, p -> new TreeMap<>(Knowledge.BY_ID))
-                        .computeIfAbsent(to, t -> new ArrayList<>())
-                        .add(fact);
-                  }
-                }
-              }
-            }
-          });
+      Map<EntityId, Map<EntityId, List<Fact>>> edges = packageEdges(container);
       List<Diagram.Edge> diagramEdges = new ArrayList<>();
       Set<String> edgeIds = new HashSet<>();
       edges.forEach(
@@ -332,6 +329,39 @@ final class RepoSections {
         List.of());
   }
 
+  /**
+   * The dependencies between the container's packages: package to package to the facts, where a
+   * type in the first calls, extends or implements a type in the second.
+   */
+  Map<EntityId, Map<EntityId, List<Fact>>> packageEdges(EntityId container) {
+    Map<EntityId, SortedSet<EntityId>> packagesOfType = new TreeMap<>(Knowledge.BY_ID);
+    for (EntityId module : knowledge.parts(container, BuiltInTypes.MODULE)) {
+      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+        for (EntityId type : knowledge.typesWithin(pkg)) {
+          packagesOfType.computeIfAbsent(type, t -> new TreeSet<>(Knowledge.BY_ID)).add(pkg);
+        }
+      }
+    }
+    Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(Knowledge.BY_ID);
+    packagesOfType.forEach(
+        (type, from) -> {
+          for (Fact fact : dependencies(type)) {
+            EntityId target = ownerType(Knowledge.object(fact));
+            for (EntityId to : packagesOfType.getOrDefault(target, new TreeSet<>())) {
+              for (EntityId pkg : from) {
+                if (!pkg.equals(to)) {
+                  edges
+                      .computeIfAbsent(pkg, p -> new TreeMap<>(Knowledge.BY_ID))
+                      .computeIfAbsent(to, t -> new ArrayList<>())
+                      .add(fact);
+                }
+              }
+            }
+          }
+        });
+    return edges;
+  }
+
   /** What a type depends on: its supertypes and the calls it and its members make. */
   private List<Fact> dependencies(EntityId type) {
     List<Fact> facts = new ArrayList<>();
@@ -351,6 +381,80 @@ final class RepoSections {
       return owners.isEmpty() ? entity : owners.first();
     }
     return entity;
+  }
+
+  // Headlines: what the repository builds, how big it is and how connected.
+
+  private Metrics headlines(String section) {
+    List<Fact> services = new ArrayList<>();
+    List<Fact> libraries = new ArrayList<>();
+    int serviceCount = 0;
+    int libraryCount = 0;
+    for (EntityId container : containers) {
+      if (container.type().equals(BuiltInTypes.SERVICE)) {
+        serviceCount++;
+        services.addAll(containerFacts(container));
+      } else {
+        libraryCount++;
+        libraries.addAll(containerFacts(container));
+      }
+    }
+    List<Fact> moduleFacts = new ArrayList<>();
+    SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
+    SortedSet<EntityId> thirdParty = new TreeSet<>(Knowledge.BY_ID);
+    List<Fact> thirdPartyFacts = new ArrayList<>();
+    for (EntityId module : modules) {
+      knowledge.attributes(module).stream()
+          .filter(f -> f.predicate().equals(PACKAGING))
+          .forEach(moduleFacts::add);
+      types.addAll(knowledge.typesWithin(module));
+      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+        types.addAll(knowledge.typesWithin(pkg));
+      }
+      for (Fact fact : knowledge.relations(module, BUILD_DEPENDS_ON)) {
+        if (!isTestScope(fact) && Knowledge.object(fact).type().equals(ARTIFACT)) {
+          thirdParty.add(Knowledge.object(fact));
+          thirdPartyFacts.add(fact);
+        }
+      }
+    }
+    List<Fact> typeFacts = new ArrayList<>();
+    for (EntityId type : types) {
+      for (EntityId whole : knowledge.wholes(type)) {
+        typeFacts.addAll(knowledge.containsFacts(whole, type));
+      }
+    }
+    SortedSet<EntityId> uses = new TreeSet<>(Knowledge.BY_ID);
+    SortedSet<EntityId> usedBy = new TreeSet<>(Knowledge.BY_ID);
+    List<Fact> usesFacts = new ArrayList<>();
+    List<Fact> usedByFacts = new ArrayList<>();
+    repoEdges()
+        .forEach(
+            (from, targets) ->
+                targets.forEach(
+                    (to, facts) -> {
+                      if (from.equals(repoId)) {
+                        uses.add(to);
+                        usesFacts.addAll(facts);
+                      } else {
+                        usedBy.add(from);
+                        usedByFacts.addAll(facts);
+                      }
+                    }));
+    List<Metrics.Item> items =
+        List.of(
+            metric("Services", serviceCount, services),
+            metric("Libraries", libraryCount, libraries),
+            metric("Modules", modules.size(), moduleFacts),
+            metric("Java types", types.size(), typeFacts),
+            metric("Third-party libraries", thirdParty.size(), thirdPartyFacts),
+            metric("Repositories it uses", uses.size(), usesFacts),
+            metric("Repositories using it", usedBy.size(), usedByFacts));
+    return new Metrics(assembler.id(section, "metrics"), items, List.of());
+  }
+
+  private Metrics.Item metric(String label, int value, List<Fact> facts) {
+    return new Metrics.Item(label, BigDecimal.valueOf(value), null, null, assembler.facts(facts));
   }
 
   // Dependencies: each module's Maven dependencies, with internal modules' expanded.
@@ -414,12 +518,12 @@ final class RepoSections {
     return nodes;
   }
 
-  private static String attribute(Fact fact, String name, String otherwise) {
+  static String attribute(Fact fact, String name, String otherwise) {
     JsonNode value = fact.attributes().get(name);
     return value == null || value.isNull() ? otherwise : value.asString();
   }
 
-  private static boolean isTestScope(Fact fact) {
+  static boolean isTestScope(Fact fact) {
     return attribute(fact, "scope", "compile").equals("test");
   }
 

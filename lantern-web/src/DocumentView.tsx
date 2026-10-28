@@ -97,7 +97,7 @@ export const DocumentView = memo(function DocumentView({ document }: { document:
   );
 });
 
-function SectionView({ section, depth }: { section: Section; depth: number }) {
+export function SectionView({ section, depth }: { section: Section; depth: number }) {
   const Heading = (['h2', 'h3', 'h4', 'h5', 'h6'] as const)[Math.min(depth, 4)];
   return (
     <section id={section.id} className="section">
@@ -151,10 +151,21 @@ const CALLOUT_TITLES: Record<Callout['variant'], string> = {
   risk: 'Risk',
 };
 
+const SEVERITIES: Record<NonNullable<Callout['severity']>, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
+
 function CalloutView({ callout }: { callout: Callout }) {
+  const severity = callout.severity;
+  const className = `callout callout-${callout.variant}${severity ? ` callout-severity-${severity}` : ''}`;
   return (
-    <aside id={callout.id} className={`callout callout-${callout.variant}`}>
-      <p className="callout-title">{callout.title ?? CALLOUT_TITLES[callout.variant]}</p>
+    <aside id={callout.id} className={className}>
+      <p className="callout-title">
+        {severity && <span className={`severity severity-${severity}`}>{SEVERITIES[severity]}</span>}
+        {callout.title ?? CALLOUT_TITLES[callout.variant]}
+      </p>
       <p>
         <Content content={callout.content} />
       </p>

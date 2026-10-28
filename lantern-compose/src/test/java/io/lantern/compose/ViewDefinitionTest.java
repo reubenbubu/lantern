@@ -32,7 +32,23 @@ class ViewDefinitionTest {
     assertThat(ViewDefinitionJson.read(json)).isEqualTo(view);
     ViewDefinition perRepo = ViewDefinition.perRepo("shop", "shop", TEMPLATE);
     assertThat(ViewDefinitionJson.read(ViewDefinitionJson.write(perRepo))).isEqualTo(perRepo);
-    assertThat(perRepo.sections()).containsExactly(SectionKind.values());
+    assertThat(perRepo.sections())
+        .containsExactly(
+            SectionKind.OVERVIEW,
+            SectionKind.CONTEXT,
+            SectionKind.CONTAINERS,
+            SectionKind.COMPONENTS,
+            SectionKind.DEPENDENCIES,
+            SectionKind.STRUCTURE);
+    ViewDefinition brief = ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE);
+    assertThat(ViewDefinitionJson.read(ViewDefinitionJson.write(brief))).isEqualTo(brief);
+    assertThat(brief.sections())
+        .containsExactly(
+            SectionKind.OVERVIEW,
+            SectionKind.HEADLINES,
+            SectionKind.RISKS,
+            SectionKind.CONTEXT,
+            SectionKind.CONTAINERS);
   }
 
   @Test

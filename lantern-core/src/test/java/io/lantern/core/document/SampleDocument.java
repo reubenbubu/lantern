@@ -81,6 +81,7 @@ final class SampleDocument {
         new Callout(
             "risk-db",
             Callout.Variant.RISK,
+            Callout.Severity.HIGH,
             "Shared database",
             List.of(new TextRun("orders-db", TextRun.Style.CODE), TextRun.of(" is shared.")),
             facts(READS));
@@ -180,7 +181,8 @@ final class SampleDocument {
                 TextRun.of(".")),
             List.of());
     Callout note =
-        new Callout("note-1", Callout.Variant.NOTE, null, List.of(TextRun.of("Draft.")), List.of());
+        new Callout(
+            "note-1", Callout.Variant.NOTE, null, null, List.of(TextRun.of("Draft.")), List.of());
 
     Section structure =
         new Section(

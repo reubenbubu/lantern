@@ -22,6 +22,8 @@
   {"description": "empty citation", "pointer": "/sections/0/blocks/0/content/5/facts", "value": []},
   {"description": "metric value as a string", "pointer": "/sections/0/blocks/1/items/1/value", "value": "72.5"},
   {"description": "unknown callout variant", "pointer": "/sections/0/blocks/2/variant", "value": "tip"},
+  {"description": "unknown risk severity", "pointer": "/sections/0/blocks/2/severity", "value": "critical"},
+  {"description": "severity on a callout that is not a risk", "pointer": "/sections/0/blocks/2/variant", "value": "note"},
   {"description": "list without items", "pointer": "/sections/0/blocks/3/items", "value": []},
   {"description": "unknown diagram kind", "pointer": "/sections/0/sections/0/blocks/0/diagramKind", "value": "sequence"},
   {"description": "unknown field in a diagram node", "pointer": "/sections/0/sections/0/blocks/0/nodes/0/size", "value": 3},

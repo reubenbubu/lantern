@@ -423,6 +423,8 @@ Renderers turn the document model into a format and make no content decisions. S
 | Service Datasheet | Anyone | One page per repo or service: APIs, dependencies, data, config, owners |
 | Change Report | Reviewers | Snapshot-to-snapshot diff with the change overlay |
 
+What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015.
+
 Templates are versioned. Upgrading a template doesn't change a published document's look until the owner opts in. Prototypes will be built against a realistic fictional dataset and refined from there, starting with Architecture Explorer and Executive Brief.
 
 ## Hosted service
