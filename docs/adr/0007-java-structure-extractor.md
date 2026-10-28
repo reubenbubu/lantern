@@ -18,15 +18,18 @@ where, which calls are kept and how the fallback relates to the compiler.
   extractor cache must key call facts on that set as well as on the files.
 - **Which sources.** Modules are found as the Maven extractor finds them (following `<modules>`
   from the top `pom.xml`); each module's `src/main/java` at the commit is read from git (never the
-  working tree), plus the generated sources its sandbox build left. Test sources and
-  `module-info.java` are not read. The sources and the repository's `lombok.config` files are
-  copied to a temporary directory for the run and deleted afterwards. A module's ID comes from its
+  working tree), plus the generated sources its sandbox build left. Test sources,
+  `module-info.java`, symbolic links and submodules are not read. The sources, the generated
+  sources and the repository's `lombok.config` files are copied to a temporary directory for the
+  run (with a `lombok.config` above them that stops Lombok looking further up) and deleted
+  afterwards. A module's ID comes from its
   build when the build has it, else from its POM as written, so it matches the Maven extractor's.
 - **Compiler path.** A module whose repository built successfully is compiled in Lantern's own
   process with javac (`JavacTask`, parse and analyze only, no class files written) against the
   module's classpath from the build, with `--release` set to the build's JDK when Lantern's JDK
-  can compile for it. Facts have confidence 1.0. If javac reports any error, the module falls back
-  to parsing.
+  can compile for it; if that gives errors it is tried once more without `--release`, since
+  `--release` hides JDK-internal APIs the build may use. Facts have confidence 1.0. If javac
+  still reports an error, or fails outright, the module falls back to parsing.
 - **Annotation processing.** Only Lombok runs, and it is Lantern's own Lombok (the version Spring
   Boot manages), not the copy on the build's classpath. Builds are untrusted (0005): any jar on a
   build's classpath could declare an annotation processor, and the shared Maven cache can be
@@ -42,8 +45,10 @@ where, which calls are kept and how the fallback relates to the compiler.
   snapshot (its own first) and whatever classpath jars the failed build left for the module.
   Facts have confidence 0.7. Lombok's members are missing, calls that do not resolve are left out,
   and a parameter or supertype that does not resolve is named from a single-type import, or else
-  as if it were in the same package. A class with a Lombok annotation gets no implicit default
-  constructor, since Lombok may add others.
+  as if it were in the same package; a type variable is named as its first bound, or
+  `java.lang.Object`. A class with a Lombok annotation that adds constructors (`@Value`, `@Data`,
+  `@Builder`, `@SuperBuilder`, `@AllArgsConstructor`, `@RequiredArgsConstructor`) gets no implicit
+  default constructor. A file the parser cannot handle is left out.
 - **Same IDs both ways.** The fallback adds the members javac declares implicitly (default
   constructors; a record's fields, accessors, canonical constructor, `equals`, `hashCode` and
   `toString`), and both leave out an enum's implicit `values()` and `valueOf(String)` and the

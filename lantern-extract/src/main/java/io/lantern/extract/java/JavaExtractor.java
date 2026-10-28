@@ -134,13 +134,16 @@ public final class JavaExtractor {
           analyze(repo, module, sources, facts);
         }
       }
-      return facts.result();
+      List<Fact> result = facts.result();
+      delete(work);
+      return result;
     } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read the Java sources", e);
-    } finally {
-      if (work != null) {
-        delete(work);
-      }
+      UncheckedIOException failure = new UncheckedIOException("Cannot read the Java sources", e);
+      deleteAfterFailure(work, failure);
+      throw failure;
+    } catch (RuntimeException | Error e) {
+      deleteAfterFailure(work, e);
+      throw e;
     }
   }
 
@@ -203,6 +206,18 @@ public final class JavaExtractor {
         .filter(e -> e.endsWith(".jar"))
         .map(build::resolve)
         .toList();
+  }
+
+  /** Deletes the working directory without hiding the failure that ended the extraction. */
+  private static void deleteAfterFailure(Path work, Throwable failure) {
+    if (work == null) {
+      return;
+    }
+    try {
+      delete(work);
+    } catch (RuntimeException e) {
+      failure.addSuppressed(e);
+    }
   }
 
   private static void delete(Path root) {

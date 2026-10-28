@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -80,6 +81,16 @@ final class JavaParserAnalyzer {
       ParserConfiguration.LanguageLevel.JAVA_25;
 
   private static final String LOMBOK = "lombok.";
+
+  /** Lombok annotations that add constructors, so a class with one has no default constructor. */
+  private static final Set<String> LOMBOK_CONSTRUCTORS =
+      Set.of(
+          "Value",
+          "Data",
+          "Builder",
+          "SuperBuilder",
+          "AllArgsConstructor",
+          "RequiredArgsConstructor");
 
   private final JavaParser parser;
 
@@ -116,10 +127,19 @@ final class JavaParserAnalyzer {
   ModuleStructure analyze(List<SourceFile> files) throws IOException {
     ModuleStructure structure = new ModuleStructure();
     for (SourceFile file : files) {
-      ParseResult<CompilationUnit> result = parser.parse(file.file());
-      if (result.isSuccessful() && result.getResult().isPresent()) {
-        new Reader(structure, result.getResult().get(), file).read();
+      // Each file is read on its own, so one the parser cannot handle adds nothing.
+      ModuleStructure one = new ModuleStructure();
+      try {
+        ParseResult<CompilationUnit> result = parser.parse(file.file());
+        if (!result.isSuccessful() || result.getResult().isEmpty()) {
+          continue;
+        }
+        new Reader(one, result.getResult().get(), file).read();
+      } catch (RuntimeException | StackOverflowError e) {
+        continue;
       }
+      structure.types.addAll(one.types);
+      structure.calls.addAll(one.calls);
     }
     return structure;
   }
@@ -174,7 +194,7 @@ final class JavaParserAnalyzer {
       List<Supertype> supertypes = new ArrayList<>();
       List<Member> members = new ArrayList<>();
       String kind;
-      // A class Lombok annotates may get constructors from Lombok, so its default one is unknown.
+      // A class Lombok gives constructors has no default one, though parsing cannot see them.
       boolean hasConstructor =
           usesLombok(type)
               || type.getMembers().stream()
@@ -307,17 +327,24 @@ final class JavaParserAnalyzer {
       }
     }
 
-    /** Whether a Lombok annotation is on the type. */
+    /** Whether the type has a Lombok annotation that generates constructors. */
     private boolean usesLombok(TypeDeclaration<?> type) {
       for (AnnotationExpr annotation : type.getAnnotations()) {
         String name = annotation.getNameAsString();
+        String simple = name.substring(name.lastIndexOf('.') + 1);
+        if (!LOMBOK_CONSTRUCTORS.contains(simple)) {
+          continue;
+        }
         if (name.startsWith(LOMBOK)) {
           return true;
         }
         for (ImportDeclaration i : unit.getImports()) {
+          String imported = i.getNameAsString();
           if (!i.isStatic()
-              && i.getNameAsString().startsWith(LOMBOK)
-              && (i.isAsterisk() || i.getName().getIdentifier().equals(name))) {
+              && (i.isAsterisk()
+                  ? imported.equals("lombok") || imported.equals("lombok.experimental")
+                  : imported.equals("lombok." + name)
+                      || imported.equals("lombok.experimental." + name))) {
             return true;
           }
         }
@@ -466,8 +493,14 @@ final class JavaParserAnalyzer {
       int dot = name.indexOf('.');
       String first = dot < 0 ? name : name.substring(0, dot);
       String rest = dot < 0 ? "" : name.substring(dot).replace('.', '$');
-      if (dot < 0 && typeVariables(context).contains(name)) {
-        return "java.lang.Object";
+      if (dot < 0) {
+        TypeParameter variable = typeVariables(context).get(name);
+        if (variable != null) {
+          // Erased to its first bound, as javac erases it.
+          return variable.getTypeBound().isEmpty()
+              ? "java.lang.Object"
+              : describe(variable.getTypeBound().getFirst().get(), variable);
+        }
       }
       for (ImportDeclaration i : unit.getImports()) {
         if (!i.isStatic() && !i.isAsterisk() && i.getName().getIdentifier().equals(first)) {
@@ -480,17 +513,17 @@ final class JavaParserAnalyzer {
       return packageName.isEmpty() ? name : packageName + "." + name;
     }
 
-    /** The names of the type variables in scope at a node. */
-    private static Set<String> typeVariables(Node context) {
-      Set<String> names = new HashSet<>();
+    /** The type variables in scope at a node, by name, the innermost winning. */
+    private static Map<String, TypeParameter> typeVariables(Node context) {
+      Map<String, TypeParameter> variables = new HashMap<>();
       for (Optional<Node> n = Optional.of(context); n.isPresent(); n = n.get().getParentNode()) {
         if (n.get() instanceof NodeWithTypeParameters<?> generic) {
           for (TypeParameter p : generic.getTypeParameters()) {
-            names.add(p.getNameAsString());
+            variables.putIfAbsent(p.getNameAsString(), p);
           }
         }
       }
-      return names;
+      return variables;
     }
 
     private Location location(Node node) {

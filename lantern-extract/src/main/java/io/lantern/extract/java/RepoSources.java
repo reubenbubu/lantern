@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -101,6 +100,9 @@ final class RepoSources {
     }
     Files.createDirectories(target);
     Map<String, String> hashes = copy(repo, wanted, target);
+    // Generated sources are copied next to the repository's, so Lombok's search for lombok.config
+    // files stays inside the working directory.
+    Path generatedCopies = target.resolveSibling(target.getFileName() + "-generated");
 
     List<ModuleSources> modules = new ArrayList<>();
     for (Map.Entry<String, EntityId> entry : directories.entrySet()) {
@@ -108,7 +110,11 @@ final class RepoSources {
       BuildModule build = built.get(directory);
       EntityId id = entry.getValue();
       if (build != null) {
-        id = new EntityId(BuiltInTypes.MODULE, build.groupId() + ":" + build.artifactId());
+        try {
+          id = new EntityId(BuiltInTypes.MODULE, build.groupId() + ":" + build.artifactId());
+        } catch (IllegalArgumentException e) {
+          // Keep the ID from the POM as written.
+        }
       }
       List<SourceFile> files = new ArrayList<>();
       for (String path : sources.get(directory)) {
@@ -119,7 +125,7 @@ final class RepoSources {
       }
       List<Path> generatedRoots = new ArrayList<>();
       if (build != null && build.generatedSources() != null) {
-        generated(repo, build.generatedSources(), generatedRoots, files);
+        generated(repo, build.generatedSources(), generatedCopies, generatedRoots, files);
       }
       if (!files.isEmpty()) {
         String prefix = (directory.isEmpty() ? "" : directory + "/") + MAIN_JAVA;
@@ -138,7 +144,7 @@ final class RepoSources {
 
   /** The generated sources of a module: each directory under generated-sources is a root. */
   private static void generated(
-      RepoBuild repo, String relative, List<Path> roots, List<SourceFile> files)
+      RepoBuild repo, String relative, Path copies, List<Path> roots, List<SourceFile> files)
       throws IOException {
     Path build = repo.build().directory().toAbsolutePath().normalize();
     Path work = build.resolve("work");
@@ -152,7 +158,7 @@ final class RepoSources {
           children.filter(p -> Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)).sorted().toList();
     }
     for (Path root : found) {
-      roots.add(root);
+      roots.add(copies.resolve(work.relativize(root).toString()));
       List<Path> javaFiles;
       try (Stream<Path> walk = Files.walk(root)) {
         javaFiles =
@@ -164,7 +170,11 @@ final class RepoSources {
       }
       for (Path file : javaFiles) {
         String path = work.relativize(file).toString().replace('\\', '/');
-        files.add(new SourceFile(path, file, sha256(Files.readAllBytes(file))));
+        byte[] content = Files.readAllBytes(file);
+        Path copy = copies.resolve(path);
+        Files.createDirectories(copy.getParent());
+        Files.write(copy, content);
+        files.add(new SourceFile(path, copy, sha256(content)));
       }
     }
   }
@@ -172,16 +182,25 @@ final class RepoSources {
   /** Every file path at the commit. */
   private static List<String> list(RepoBuild repo) {
     Git.Result result =
-        Git.run(
-            repo.repo().path(), "ls-tree", "-r", "-z", "--full-tree", "--name-only", repo.commit());
+        Git.run(repo.repo().path(), "ls-tree", "-r", "-z", "--full-tree", repo.commit());
     if (!result.ok()) {
       throw new IllegalStateException(
           "Cannot list the files of " + repo.repo().name() + ": " + result.err());
     }
-    return Arrays.stream(result.out().split("\0"))
-        .filter(p -> !p.isEmpty() && p.indexOf('\n') < 0)
-        .sorted()
-        .toList();
+    // Each entry is "<mode> <type> <object>\t<path>". Only regular files are kept: a symbolic
+    // link's blob is its target, and a submodule is not in this repository.
+    List<String> paths = new ArrayList<>();
+    for (String entry : result.out().split("\0")) {
+      int tab = entry.indexOf('\t');
+      if (tab < 0 || !(entry.startsWith("100644 ") || entry.startsWith("100755 "))) {
+        continue;
+      }
+      String path = entry.substring(tab + 1);
+      if (!path.isEmpty() && path.indexOf('\n') < 0) {
+        paths.add(path);
+      }
+    }
+    return paths.stream().sorted().toList();
   }
 
   /**
@@ -195,6 +214,14 @@ final class RepoSources {
       return hashes;
     }
     Process process = Git.command(repo.repo().path(), "cat-file", "--batch").start();
+    // Stops a stalled git, so reading its output ends instead of waiting forever.
+    CompletableFuture<Process> watchdog =
+        process.onExit().orTimeout(GIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    watchdog.exceptionally(
+        e -> {
+          process.destroyForcibly();
+          return process;
+        });
     try {
       CompletableFuture<Void> requests =
           CompletableFuture.runAsync(

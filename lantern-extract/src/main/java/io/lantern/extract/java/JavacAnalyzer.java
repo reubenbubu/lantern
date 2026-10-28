@@ -84,6 +84,16 @@ final class JavacAnalyzer {
    */
   static ModuleStructure analyze(List<SourceFile> files, List<Path> classpath, int release)
       throws IOException {
+    ModuleStructure structure = compile(files, classpath, release);
+    if (structure == null && release > 0) {
+      // --release hides JDK-internal APIs (sun.misc and the like) that the build may have used.
+      structure = compile(files, classpath, 0);
+    }
+    return structure;
+  }
+
+  private static ModuleStructure compile(List<SourceFile> files, List<Path> classpath, int release)
+      throws IOException {
     JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
     if (compiler == null) {
       throw new IllegalStateException("No Java compiler: Lantern must run on a JDK, not a JRE");
@@ -118,15 +128,15 @@ final class JavacAnalyzer {
       try {
         task.parse().forEach(units::add);
         task.analyze();
-      } catch (RuntimeException e) {
-        // javac or a processor failed outright; parsing still gives facts.
+        if (diagnostics.getDiagnostics().stream()
+            .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR)) {
+          return null;
+        }
+        return new Reader(task).read(units, byPath);
+      } catch (RuntimeException | StackOverflowError | AssertionError | LinkageError e) {
+        // javac or Lombok failed outright on this code; parsing still gives facts.
         return null;
       }
-      if (diagnostics.getDiagnostics().stream()
-          .anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR)) {
-        return null;
-      }
-      return new Reader(task).read(units, byPath);
     }
   }
 

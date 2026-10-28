@@ -273,6 +273,52 @@ class JavaExtractorTest {
   }
 
   @Test
+  void parsingNamesWhatDoesNotResolveAsTheCompilerWould() throws IOException {
+    Path dir = temp.resolve("guess");
+    Files.createDirectories(dir.resolve("src/main/java/com/example/g"));
+    // A symbolic link is not a source file, even if its name says so.
+    Files.createSymbolicLink(
+        dir.resolve("src/main/java/com/example/g/Link.java"), Path.of("Holder.java"));
+    Repo repo =
+        Fixtures.repo(
+            dir,
+            "guess",
+            Map.of(
+                "pom.xml",
+                """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>g</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """,
+                "src/main/java/com/example/g/Holder.java",
+                """
+                package com.example.g;
+
+                import lombok.extern.slf4j.Slf4j;
+                import org.acme.Thing;
+
+                @Slf4j
+                public class Holder<T extends Thing> {
+                  void keep(T thing, Other other) {}
+                }
+                """));
+
+    Set<String> triples = triples(extract(List.of(unbuilt(repo))));
+
+    assertThat(triples)
+        .contains(
+            // @Slf4j adds no constructor, so the default one is there.
+            "type:com.example.g.Holder CONTAINS method:com.example.g.Holder#<init>()",
+            // T erases to its bound, named from the import; Other is taken as in the package.
+            "type:com.example.g.Holder CONTAINS"
+                + " method:com.example.g.Holder#keep(org.acme.Thing,com.example.g.Other)");
+    assertThat(triples).noneMatch(t -> t.contains("Link"));
+  }
+
+  @Test
   void runningTwiceGivesTheSameFacts() throws IOException, URISyntaxException {
     Repo repo = Fixtures.repo("lombok", temp.resolve("orders"), "orders");
     Path lombok =
