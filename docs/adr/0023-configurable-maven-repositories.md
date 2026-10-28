@@ -45,9 +45,9 @@ more are configured, and that downloaded code is used only to compile, never ana
   reference and `wms.receiving` still needs an unpublished snapshot (ADR 0020, #30).
 - The test suite reaches `artifacts.alfresco.com` for one small Activiti jar, in the test that a
   configured repository works, so an outage of that host fails `./mvnw verify`.
-- A stored build is reused for the same `repo@commit` whatever the repositories were when it ran
-  (ADR 0016). Builds that failed before a repository was added stay failed until their directory
-  under `builds/` is deleted; whether to rebuild stored failed builds is #58.
+- A stored successful build is reused for the same `repo@commit` whatever the repositories were
+  when it ran (ADR 0016). A stored failed build is built again on the next run (ADR 0016,
+  amendment for #58), so adding a repository fixes builds that failed for lack of it.
 - Host names must have a dot and may not be IP addresses, so `localhost` and addresses such as
   the cloud metadata service cannot be configured.
 
