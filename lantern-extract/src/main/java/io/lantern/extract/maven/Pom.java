@@ -132,23 +132,24 @@ record Pom(
 
   /**
    * Whether the project's build makes something deployable: a war or ear, or an executable jar
-   * repackaged by Spring Boot's Maven plugin.
+   * repackaged by Spring Boot's Maven plugin. A repackage skipped with {@code <skip>} or the {@code
+   * spring-boot.repackage.skip} property does not count.
    *
+   * @param properties the project's resolved properties, for {@code ${...}} references
    * @param bareBootPluginCounts whether a Spring Boot plugin declared without a {@code repackage}
    *     goal counts. In an effective POM every execution is spelled out, so it does not; in a POM
    *     as written the parent may bind the goal, so it does.
    */
-  boolean deployable(String packaging, boolean bareBootPluginCounts) {
+  boolean deployable(
+      String packaging, Map<String, String> properties, boolean bareBootPluginCounts) {
     if (packaging.equals("war") || packaging.equals("ear")) {
       return true;
     }
+    if ("true".equals(interpolate(properties.get("spring-boot.repackage.skip"), properties))) {
+      return false;
+    }
     for (XmlElement plugin : plugins) {
-      String group = plugin.text("groupId");
-      if (!SPRING_BOOT_PLUGIN.equals(plugin.text("artifactId"))
-          || !SPRING_BOOT_GROUP.equals(group)) {
-        continue;
-      }
-      if (skipped(plugin)) {
+      if (!isBootPlugin(plugin) || skipped(plugin, properties)) {
         continue;
       }
       List<XmlElement> executions = plugin.list("executions", "execution");
@@ -158,7 +159,7 @@ record Pom(
       for (XmlElement execution : executions) {
         boolean repackage =
             execution.list("goals", "goal").stream().anyMatch(g -> g.text().equals("repackage"));
-        if (repackage && !skipped(execution)) {
+        if (repackage && !skipped(execution, properties)) {
           return true;
         }
       }
@@ -166,8 +167,25 @@ record Pom(
     return false;
   }
 
-  private static boolean skipped(XmlElement element) {
-    return element.child("configuration").map(c -> "true".equals(c.text("skip"))).orElse(false);
+  /** Whether the plugin element is Spring Boot's Maven plugin. */
+  static boolean isBootPlugin(XmlElement plugin) {
+    return SPRING_BOOT_PLUGIN.equals(plugin.text("artifactId"))
+        && SPRING_BOOT_GROUP.equals(plugin.text("groupId"));
+  }
+
+  /** A plugin's key, {@code groupId:artifactId}, with Maven's default group. */
+  static String pluginKey(XmlElement plugin) {
+    String group = plugin.text("groupId");
+    return (group == null || group.isEmpty() ? "org.apache.maven.plugins" : group)
+        + ":"
+        + plugin.text("artifactId");
+  }
+
+  private static boolean skipped(XmlElement element, Map<String, String> properties) {
+    return element
+        .child("configuration")
+        .map(c -> "true".equals(interpolate(c.text("skip"), properties)))
+        .orElse(false);
   }
 
   /**

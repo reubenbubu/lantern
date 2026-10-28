@@ -21,6 +21,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
@@ -121,14 +122,23 @@ public final class MavenExtractor {
    * @param repos the repositories of the snapshot, each at its commit with its build, if any
    * @param snapshot the snapshot number the facts hold from
    * @return the facts, without duplicates, ordered by subject, predicate, object and ID
-   * @throws UncheckedIOException if git or a stored build output cannot be read
+   * @throws UncheckedIOException if git cannot be run
+   * @throws IllegalStateException if git fails or times out
    */
   public List<Fact> extract(List<RepoBuild> repos, long snapshot) {
     Objects.requireNonNull(repos, "repos");
     Validity validity = Validity.from(snapshot);
+    // Sorted, so that when two repositories build the same coordinates the same one wins.
+    List<RepoBuild> sorted =
+        repos.stream()
+            .sorted(
+                Comparator.comparing((RepoBuild r) -> r.repo().name())
+                    .thenComparing(RepoBuild::commit))
+            .toList();
+    Map<Module, Integer> sourceCounts = new IdentityHashMap<>();
     List<Written> written = new ArrayList<>();
     Map<RepoBuild, Map<String, Pom>> effective = new HashMap<>();
-    for (RepoBuild repo : repos) {
+    for (RepoBuild repo : sorted) {
       written.addAll(discover(repo));
       effective.put(repo, effectiveProjects(repo));
     }
@@ -218,7 +228,7 @@ public final class MavenExtractor {
             m.confidence(),
             validity);
       }
-      Dep packaged = packagedLibrary(m, internal);
+      Dep packaged = packagedLibrary(m, internal, sourceCounts);
       if (packaged != null) {
         add(
             facts,
@@ -507,7 +517,7 @@ public final class MavenExtractor {
         pom.artifactId(),
         Pom.interpolate(pom.effectiveVersion(), properties),
         packaging,
-        pom.deployable(packaging, false),
+        pom.deployable(packaging, properties, false),
         deps,
         writtenProperties(w, properties),
         EFFECTIVE_CONFIDENCE);
@@ -537,12 +547,13 @@ public final class MavenExtractor {
     Map<String, String> properties = new HashMap<>();
     Map<String, Pom.Dependency> declared = new LinkedHashMap<>();
     Map<String, Pom.Dependency> managed = new HashMap<>();
-    List<XmlElement> plugins = new ArrayList<>();
+    // Merged by key, so a module's declaration of a plugin replaces its parent's.
+    Map<String, XmlElement> plugins = new LinkedHashMap<>();
     for (Pom pom : lineage.reversed()) {
       properties.putAll(pom.properties());
       pom.dependencies().forEach(d -> declared.put(d.managementKey(), d));
       pom.managedDependencies().forEach(d -> managed.put(d.managementKey(), d));
-      plugins.addAll(pom.plugins());
+      pom.plugins().forEach(p -> plugins.put(Pom.pluginKey(p), p));
     }
     Pom own = w.pom();
     projectProperties(properties, own);
@@ -582,14 +593,14 @@ public final class MavenExtractor {
             own.modules(),
             own.dependencies(),
             own.managedDependencies(),
-            plugins);
+            List.copyOf(plugins.values()));
     return new Module(
         w,
         groupId,
         artifactId,
         Pom.interpolate(own.effectiveVersion(), properties),
         packaging,
-        withPlugins.deployable(packaging, true),
+        withPlugins.deployable(packaging, properties, true),
         deps,
         properties,
         WRITTEN_CONFIDENCE);
@@ -674,11 +685,13 @@ public final class MavenExtractor {
    * The last condition keeps a service with code of its own from being linked to, say, its API
    * library.
    */
-  private Dep packagedLibrary(Module m, Map<String, Module> internal) {
+  private static Dep packagedLibrary(
+      Module m, Map<String, Module> internal, Map<Module, Integer> sourceCounts) {
     if (!m.deployable() || m.container() == null) {
       return null;
     }
     List<String> own = nameParts(m.groupId(), m.artifactId());
+    String prefix = m.groupId();
     Dep best = null;
     int bestScore = 0;
     boolean tie = false;
@@ -693,7 +706,13 @@ public final class MavenExtractor {
           || !(dep.scope().equals("compile") || dep.scope().equals("runtime"))) {
         continue;
       }
-      int score = sharedPrefix(own, nameParts(target.groupId(), target.artifactId()));
+      // Strip the service's group ID from both, so differing group IDs still compare.
+      String targetPrefix =
+          target.artifactId().startsWith(prefix + ".")
+                  || target.artifactId().startsWith(prefix + "-")
+              ? prefix
+              : target.groupId();
+      int score = sharedPrefix(own, nameParts(targetPrefix, target.artifactId()));
       if (score > bestScore) {
         best = dep;
         bestScore = score;
@@ -706,7 +725,7 @@ public final class MavenExtractor {
       return null;
     }
     Module library = internal.get(best.key());
-    return mainSources(library) >= mainSources(m) ? best : null;
+    return mainSources(library, sourceCounts) >= mainSources(m, sourceCounts) ? best : null;
   }
 
   /** The parts of an artifact ID split at {@code . - _}, without a leading group ID. */
@@ -726,10 +745,8 @@ public final class MavenExtractor {
     return n;
   }
 
-  private final Map<Module, Integer> sourceCounts = new IdentityHashMap<>();
-
   /** How many {@code .java} files the module has under {@code src/main/java} at the commit. */
-  private int mainSources(Module m) {
+  private static int mainSources(Module m, Map<Module, Integer> sourceCounts) {
     return sourceCounts.computeIfAbsent(
         m,
         key -> {
@@ -742,6 +759,7 @@ public final class MavenExtractor {
                   "-r",
                   "--name-only",
                   "--full-tree",
+                  "-z",
                   w.repo().commit(),
                   "--",
                   dir);
@@ -749,7 +767,8 @@ public final class MavenExtractor {
             throw new IllegalStateException(
                 "Cannot list " + dir + " in " + w.repo().repo().name() + ": " + result.err());
           }
-          return (int) result.out().lines().filter(l -> l.endsWith(".java")).count();
+          return (int)
+              Arrays.stream(result.out().split("\0")).filter(l -> l.endsWith(".java")).count();
         });
   }
 
@@ -834,6 +853,11 @@ public final class MavenExtractor {
       byte[] out;
       try (InputStream in = process.getInputStream()) {
         out = in.readNBytes((int) MAX_POM_BYTES + 1);
+      }
+      if (out.length > MAX_POM_BYTES) {
+        // Too large to be a POM; git may still be writing, so stop it rather than wait.
+        process.destroyForcibly();
+        return null;
       }
       if (!process.waitFor(GIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
         process.destroyForcibly();

@@ -10,6 +10,8 @@ mkdir -p "$out/lib" "$out/work"
 
 mvn --version
 cd /work || exit 1
+# Only an effective POM Maven writes in this run may leave as one, not a file the repository holds.
+rm -f target/lantern/effective-pom.xml
 mvn "$@"
 code=$?
 echo "$code" > "$out/maven-exit-code"

@@ -51,6 +51,10 @@ final class Fixtures {
         }
       }
     }
+    return commit(target, name);
+  }
+
+  private static Repo commit(Path target, String name) throws IOException {
     git(target, "init", "--quiet");
     git(target, "add", "--all");
     git(
@@ -64,6 +68,16 @@ final class Fixtures {
         "--message",
         "Fixture");
     return new Repo(name, target.toRealPath(), RepoSettings.DEFAULT);
+  }
+
+  /** A git repository holding the given files (path to content), committed. */
+  static Repo repo(Path target, String name, Map<String, String> files) throws IOException {
+    for (Map.Entry<String, String> file : files.entrySet()) {
+      Path path = target.resolve(file.getKey());
+      Files.createDirectories(path.getParent());
+      Files.writeString(path, file.getValue());
+    }
+    return commit(target, name);
   }
 
   static String head(Repo repo) {

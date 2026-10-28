@@ -51,12 +51,27 @@ class PomTest {
                 + "</executions>"
                 + BOOT_PLUGIN_END);
 
-    assertThat(bound.deployable("jar", false)).isTrue();
-    assertThat(bare.deployable("jar", false)).isFalse();
-    assertThat(bare.deployable("jar", true)).isTrue();
-    assertThat(skipped.deployable("jar", true)).isFalse();
-    assertThat(pom("").deployable("war", false)).isTrue();
-    assertThat(pom("").deployable("jar", true)).isFalse();
+    assertThat(bound.deployable("jar", Map.of(), false)).isTrue();
+    assertThat(bare.deployable("jar", Map.of(), false)).isFalse();
+    assertThat(bare.deployable("jar", Map.of(), true)).isTrue();
+    assertThat(skipped.deployable("jar", Map.of(), true)).isFalse();
+    assertThat(pom("").deployable("war", Map.of(), false)).isTrue();
+    assertThat(pom("").deployable("jar", Map.of(), true)).isFalse();
+  }
+
+  @Test
+  void repackageCanBeSkippedThroughProperties() throws IOException {
+    Pom bySkip =
+        pom(
+            BOOT_PLUGIN_START
+                + "<configuration><skip>${no.boot}</skip></configuration>"
+                + BOOT_PLUGIN_END);
+    Pom bare = pom(BOOT_PLUGIN_START + BOOT_PLUGIN_END);
+
+    assertThat(bySkip.deployable("jar", Map.of("no.boot", "true"), true)).isFalse();
+    assertThat(bySkip.deployable("jar", Map.of("no.boot", "false"), true)).isTrue();
+    assertThat(bare.deployable("jar", Map.of("spring-boot.repackage.skip", "true"), true))
+        .isFalse();
   }
 
   @Test
