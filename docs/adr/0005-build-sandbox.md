@@ -75,8 +75,9 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   too much output, has no `pom.xml` or has no image for its JDK is stored as `FAILED` with a
   reason, keeping whatever outputs it left (a classpath often still resolves; a timed-out build
   leaves none, since outputs are gathered after Maven ends), and
-  `degraded()` tells the analysis to use degraded mode. Problems of the sandbox itself, such as
-  Docker being unavailable, or an interrupted build, throw `SandboxException` and store nothing;
+  `degraded()` tells the analysis to use degraded mode. A build whose dependencies do not resolve
+  still keeps its effective POM, which Maven writes first (added in #8). Problems of the sandbox
+  itself, such as Docker being unavailable, or an interrupted build, throw `SandboxException` and store nothing;
   the build's containers and network are removed on every path.
 - **No git metadata.** Builds get no `.git`, so plugins that read it fail. The
   `git-commit-id-maven-plugin`, used by the OpenWMS parent POM, is skipped

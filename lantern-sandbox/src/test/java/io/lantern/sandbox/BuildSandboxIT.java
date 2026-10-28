@@ -147,6 +147,10 @@ class BuildSandboxIT {
     assertThat(missing.status()).isEqualTo(BuildStatus.FAILED);
     assertThat(missing.degraded()).isTrue();
     assertThat(Files.readString(missing.log())).contains("greeting-lib");
+    // Its dependencies did not resolve, but Maven still wrote the effective POM.
+    assertThat(missing.modules()).isEmpty();
+    assertThat(Files.readString(missing.resolve(missing.effectivePom())))
+        .contains("<artifactId>greeting-service</artifactId>");
 
     // ...until the library is in the artifact repository, here the shared Maven cache.
     installIntoCache(source.resolve("lib"));

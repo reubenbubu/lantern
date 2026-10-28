@@ -1,0 +1,45 @@
+[
+  {
+    "name": "artifact",
+    "kind": "entity",
+    "description": "A Maven artifact that none of the analyzed repositories builds, such as a third-party library. Its key is groupId:artifactId.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "BUILD_DEPENDS_ON",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "The subject module declares a Maven dependency on the object module or artifact.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "scope": { "type": "string", "description": "The Maven scope, such as compile, runtime or test." },
+        "version": { "type": "string", "description": "The version the build asks for, if known." },
+        "optional": { "type": "boolean", "description": "Present and true for an optional dependency." },
+        "classifier": { "type": "string", "description": "The artifact classifier, if any." },
+        "artifactType": { "type": "string", "description": "The artifact type if not jar, such as test-jar or pom." }
+      },
+      "required": ["scope"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "PACKAGES",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "The subject service packages the object library as its main code, so the two form one deployable (a thin service repository and its .lib artifact).",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "version",
+    "kind": "attribute",
+    "description": "The version the subject's build declares.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "packaging",
+    "kind": "attribute",
+    "description": "The Maven packaging of the subject module, such as jar, war or pom.",
+    "attributeSchema": { "additionalProperties": false }
+  }
+]

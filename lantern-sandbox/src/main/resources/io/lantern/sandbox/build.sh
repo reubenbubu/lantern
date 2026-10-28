@@ -39,4 +39,12 @@ find . -path '*/target/lantern/dependency-tree.txt' -type f | while IFS= read -r
   fi
 done
 
+# The effective POM is written before dependencies are resolved, so a build that fails to resolve
+# them still has one, though no module has a dependency tree.
+pom=target/lantern/effective-pom.xml
+if [ -f "$pom" ] && [ ! -e "$out/work/$pom" ]; then
+  mkdir -p "$out/work/target/lantern"
+  cp "$pom" "$out/work/$pom"
+fi
+
 exit "$code"

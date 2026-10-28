@@ -97,7 +97,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 
 | Extractor | Reads | Produces |
 | --- | --- | --- |
-| Maven | Effective POM, reactor, dependency tree | Modules, artifacts, internal vs. third-party dependencies, deployable vs. library |
+| Maven | Effective POM and reactor (POMs as written when there is no effective POM) | Modules, artifacts, internal vs. third-party dependencies, deployable vs. library, and the library a thin service packages |
 | Java structure | javac Tree API with symbol resolution (JavaParser as fallback) | Packages, types, members, inheritance, resolved call graph |
 | Spring / Jakarta | Annotations and bean definitions | Controllers and endpoints, beans, configuration, `@Scheduled` jobs, profiles |
 | HTTP clients | Feign, RestTemplate, WebClient, JAX-RS clients | Outbound calls with target URLs or property keys |
@@ -108,6 +108,8 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | README | Markdown in the repo | Low-trust "documented claims", checked against code |
 
 Later: Dockerfiles, Helm and Kubernetes manifests, OpenAPI and AsyncAPI specs, Terraform.
+
+How the Maven extractor names entities, tells internal from third-party dependencies and links a thin service to its library is in ADR 0006.
 
 **Why javac instead of only a parser:** production Spring code relies on Lombok, MapStruct and generated OpenAPI or Protobuf clients. Analyzing through the compiler, with annotation processing on, sees generated members and resolves calls exactly as the build does.
 
