@@ -19,8 +19,9 @@ import java.util.function.Supplier;
  * many calls were in flight at once.
  *
  * <p>It can also {@linkplain #thinking think} before answering, like a model that thinks by
- * default: the thinking tokens count against the request's output limit, and an answer that does
- * not fit after them is cut off with the stop reason {@code max_tokens}, as a real model's is.
+ * default: the thinking tokens count against the request's output limit. Any answer that does not
+ * fit in the output limit, after any thinking, is cut off with the stop reason {@code max_tokens},
+ * as a real model's is.
  *
  * <p>Thread-safe if the answering function is.
  */
@@ -38,8 +39,7 @@ public final class FakeLlmProvider implements LlmProvider {
   private final Map<LlmRequest, Integer> attempts = new HashMap<>();
   private final AtomicInteger inFlight = new AtomicInteger();
   private final AtomicInteger maxInFlight = new AtomicInteger();
-  private volatile int thinkingTokens;
-  private volatile boolean thinkingCanBeDisabled;
+  private volatile Thinks thinks = new Thinks(0, false);
 
   public FakeLlmProvider() {
     this(NAME);
@@ -110,8 +110,7 @@ public final class FakeLlmProvider implements LlmProvider {
     if (tokens < 0) {
       throw new IllegalArgumentException("Thinking tokens must not be negative: " + tokens);
     }
-    this.thinkingTokens = tokens;
-    this.thinkingCanBeDisabled = canBeDisabled;
+    this.thinks = new Thinks(tokens, canBeDisabled);
     return this;
   }
 
@@ -132,13 +131,14 @@ public final class FakeLlmProvider implements LlmProvider {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
-    return complete(model, request, thinkingTokens);
+    return complete(model, request, thinks.tokens());
   }
 
   @Override
   public LlmResponse complete(ModelConfig model, LlmRequest request) {
-    boolean disabled = thinkingCanBeDisabled && model.thinking().disabled();
-    return complete(model.model(), request, disabled ? 0 : thinkingTokens);
+    Thinks current = thinks;
+    boolean disabled = current.canBeDisabled() && model.thinking().disabled();
+    return complete(model.model(), request, disabled ? 0 : current.tokens());
   }
 
   private LlmResponse complete(String model, LlmRequest request, int thinking) {
@@ -192,6 +192,9 @@ public final class FakeLlmProvider implements LlmProvider {
             : new TokenUsage(input, output, 0, 0);
     return new LlmResponse(text, stopReason, usage);
   }
+
+  /** How the fake thinks, in one value so that calls never see half a change. */
+  private record Thinks(int tokens, boolean canBeDisabled) {}
 
   /**
    * A request the fake was sent.

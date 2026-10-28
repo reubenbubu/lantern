@@ -268,7 +268,7 @@ public final class LlmClient {
               LlmCall.Outcome.TRUNCATED,
               response.usage(),
               cost,
-              "Cut off at the output limit of %d tokens (stop reason %s)"
+              "Cut off at the output limit of %d tokens or the context window (stop reason %s)"
                   .formatted(request.maxOutputTokens(), response.stopReason()));
         } else {
           log(

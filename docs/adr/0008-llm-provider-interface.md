@@ -39,7 +39,7 @@ where model settings come from.
   reservation, so a call that failed after being billed (for example a timeout) is not counted;
   the provider's own usage report remains the authority. The client has a run budget;
   `withBudget` adds a scope budget on top.
-- **The call log is an interface.** Every call, refused, failed or successful, is recorded with
+- **The call log is an interface.** Every call, refused, failed, successful or (since ADR 0022) truncated, is recorded with
   time, duration, role, purpose, provider, model, tokens, cost and error. Two implementations: one
   line per call on the `io.lantern.llm.calls` logger, and an in-memory list. Persisting the log
   and a monthly budget across runs are left to #37.
@@ -53,7 +53,8 @@ where model settings come from.
   `CLAUDE.md`.
 - **Test doubles live in the main code** of `lantern-llm` (`FakeLlmProvider`,
   `RecordReplayLlmProvider`), so tests in other modules can use them without a test-jar.
-  The fake answers with a fixed text or a function of the request, estimates usage from text
+  The fake answers with a fixed text or a function of the request (cut off at the output limit
+  since ADR 0022), estimates usage from text
   length and remembers what it was sent.
 - **Record/replay keys on what the model sees.** A recording is a JSON file named by the SHA-256
   of the provider, model, system prompt, caching flag, turns and output limit, so changing a
