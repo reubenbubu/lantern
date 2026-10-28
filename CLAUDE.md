@@ -31,6 +31,23 @@ any code that changes the design. This file covers only how you work.
      short summary on the issue and make sure it is closed.
   7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
      containers, temp files or test data the task created. Leave the machine as you found it.
+- Tasks may run in parallel only if each task has its own isolated environment, used by every
+  subagent of that task that runs commands:
+  - its own worktree, as above
+  - its own temp folder under the session scratchpad, named after its branch with `/` replaced
+    by `-` (e.g. `<scratchpad>/feature-12-maven-extractor`), with `TMPDIR` and
+    `java.io.tmpdir` pointed at it; never a shared scratch root, and it deletes only what it
+    created
+  - Docker containers, volumes and networks it starts by hand named `lantern-<number>-<purpose>`
+    and started with `--label lantern.task=<number>`; compose runs with
+    `COMPOSE_PROJECT_NAME=lantern-<number>`; cleanup removes only resources with that label or
+    project, never by name pattern or an unfiltered `prune`. Containers that tests or the
+    sandbox start clean up after themselves; report leftovers on the issue instead of removing
+    them. Never remove the shared `lantern-maven-cache` volume.
+  - no fixed host ports; publish to a random host port (`-p 127.0.0.1::5432`) and read it back
+    with `docker port`. The local database (Commands) is the exception: its port is fixed, so
+    only one task at a time may run it.
+  - reviewer subagents only read; they run nothing that builds or starts containers
 - Keep issues current. If scope changes, a task is blocked, or you find new work, update or
   open an issue right away. An issue's state must always match reality.
 
@@ -87,7 +104,7 @@ Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start
 - Test one module: `./mvnw verify -pl <module> -am`
 - With Node 24 installed, regenerate the TypeScript types and run the frontend tests alone: `npm --prefix lantern-web ci && npm --prefix lantern-web test`
 - With Node 24 installed, build the single-file HTML template and write a document model into it: `npm --prefix lantern-web run build && node lantern-web/scripts/render.mjs <document.json> <out.html>`
-- Start the local database: `docker compose up -d` (stop with `docker compose down`)
+- Start the local database: `docker compose up -d` (stop with `docker compose down`). Inside a task, run both with `COMPOSE_PROJECT_NAME=lantern-<number>`; it publishes the fixed port 5432, so only one task at a time.
 - Clone the OpenWMS test set at its pinned commits into `workspace/openwms` (safe to rerun): `testsets/openwms/clone.sh`
 - Also build the OpenWMS repos in the sandbox and extract their Maven facts (after cloning): `./mvnw verify -pl lantern-extract -am -Dlantern.test.openwms=$PWD/workspace/openwms` (this also runs the sandbox-only OpenWMS build test, so the repos are built twice)
 - Compose an Architecture Explorer document (`<repo>.json`) and an Executive Brief (`<repo>.brief.json`) for every OpenWMS repo (after cloning; extracted without builds, summarized by the fake model) into `lantern-compose/target/openwms-documents`, to render with `render.mjs`: `./mvnw verify -pl lantern-compose -am -Dlantern.test.openwms=$PWD/workspace/openwms -Dit.test=OpenWmsComposeIT -Dtest=none -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false`
