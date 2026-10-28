@@ -1,8 +1,8 @@
 ##### system
 You write short summaries of parts of a Java code base for architecture documentation.
-You are given facts that static analysis extracted from the code, each with a reference such as [F1], excerpts of the source code, each with a reference such as [E1], and summaries of the parts the unit contains, each with a reference such as [S1]. In the excerpts, "..." marks code that was left out.
+You are given facts that static analysis extracted from the code, each with a reference such as [F1], source files, each with a reference such as [E1], and summaries of the parts the unit contains, each with a reference such as [S1].
 Say what the unit is for and what it does, and name its most important dependencies.
-Use only the facts, excerpts and summaries given. Where they do not show what something is for, say what it contains rather than guessing.
+Use only the facts, source files and summaries given. Where they do not show what something is for, say what it contains rather than guessing.
 End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]. Cite only references from the input.
 Write plain prose without headings, lists or a title.
 
@@ -14,16 +14,17 @@ Facts:
 [F2] type:com.example.greeting.lib.Greeter CONTAINS method:com.example.greeting.lib.Greeter#greet(java.lang.String)
 [F3] type:com.example.greeting.lib.Greeter kind "class"
 
-Source excerpts:
-[E1] src/main/java/com/example/greeting/lib/Greeter.java, lines 3-4:
+Source files:
+[E1] src/main/java/com/example/greeting/lib/Greeter.java:
 ```java
+package com.example.greeting.lib;
+
 /** The service's logic, kept in the library. */
 public class Greeter {
-```
-[E2] src/main/java/com/example/greeting/lib/Greeter.java, lines 6-8:
-```java
-public String greet(String name) {
-  return "Hello, " + name + "!";
+
+  public String greet(String name) {
+    return "Hello, " + name + "!";
+  }
 }
 ```
 
@@ -64,20 +65,21 @@ Facts:
 [F4] type:com.example.greeting.service.GreetingServiceMain kind "class"
 [F5] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#<init>()
 
-Source excerpts:
-[E1] src/main/java/com/example/greeting/service/GreetingServiceMain.java, lines 5-6:
+Source files:
+[E1] src/main/java/com/example/greeting/service/GreetingServiceMain.java:
 ```java
+package com.example.greeting.service;
+
+import com.example.greeting.lib.Greeter;
+
 /** The service's only class: it starts the logic that lives in greeting-lib. */
 public final class GreetingServiceMain {
-```
-[E2] src/main/java/com/example/greeting/service/GreetingServiceMain.java, line 8:
-```java
-private GreetingServiceMain() {}
-```
-[E3] src/main/java/com/example/greeting/service/GreetingServiceMain.java, lines 10-12:
-```java
-public static void main(String[] args) {
-  System.out.println(new Greeter().greet(args.length > 0 ? args[0] : "world"));
+
+  private GreetingServiceMain() {}
+
+  public static void main(String[] args) {
+    System.out.println(new Greeter().greet(args.length > 0 ? args[0] : "world"));
+  }
 }
 ```
 
@@ -119,25 +121,25 @@ Facts:
 [F3] type:com.example.orders.Order kind "class"
 [F4] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#lines
 
-Source excerpts:
-[E1] src/main/java/com/example/orders/Order.java, lines 8-11:
+Source files:
+[E1] src/main/java/com/example/orders/Order.java:
 ```java
+package com.example.orders;
+
+import java.util.List;
+import lombok.Builder;
+import lombok.Singular;
+import lombok.Value;
+
 /** An order. Lombok generates the constructor, getters, equals, hashCode and builder. */
 @Value
 @Builder
 public class Order {
-```
-[E2] src/main/java/com/example/orders/Order.java, line 13:
-```java
-String id;
-```
-[E3] src/main/java/com/example/orders/Order.java, line 14:
-```java
-String customer;
-```
-[E4] src/main/java/com/example/orders/Order.java, line 15:
-```java
-@Singular List<OrderLine> lines;
+
+  String id;
+  String customer;
+  @Singular List<OrderLine> lines;
+}
 ```
 
 ##### summarize type type:com.example.orders.OrderLine
@@ -149,24 +151,21 @@ Facts:
 [F3] type:com.example.orders.OrderLine kind "class"
 [F4] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#unitPriceCents
 
-Source excerpts:
-[E1] src/main/java/com/example/orders/OrderLine.java, lines 5-7:
+Source files:
+[E1] src/main/java/com/example/orders/OrderLine.java:
 ```java
+package com.example.orders;
+
+import lombok.Value;
+
 /** One product on an order. */
 @Value
 public class OrderLine {
-```
-[E2] src/main/java/com/example/orders/OrderLine.java, line 9:
-```java
-String productId;
-```
-[E3] src/main/java/com/example/orders/OrderLine.java, line 10:
-```java
-int quantity;
-```
-[E4] src/main/java/com/example/orders/OrderLine.java, line 11:
-```java
-long unitPriceCents;
+
+  String productId;
+  int quantity;
+  long unitPriceCents;
+}
 ```
 
 ##### summarize type type:com.example.orders.OrderService
@@ -178,35 +177,34 @@ Facts:
 [F3] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#newOrder(java.lang.String,java.lang.String,java.lang.String,int)
 [F4] type:com.example.orders.OrderService CONTAINS field:com.example.orders.OrderService#currency
 
-Source excerpts:
-[E1] src/main/java/com/example/orders/OrderService.java, lines 5-7:
+Source files:
+[E1] src/main/java/com/example/orders/OrderService.java:
 ```java
+package com.example.orders;
+
+import lombok.RequiredArgsConstructor;
+
 /** Uses only Lombok-generated members, so it compiles only when Lombok runs. */
 @RequiredArgsConstructor
 public class OrderService {
-```
-[E2] src/main/java/com/example/orders/OrderService.java, line 9:
-```java
-private final String currency;
-```
-[E3] src/main/java/com/example/orders/OrderService.java, lines 11-17:
-```java
-public Order newOrder(String id, String customer, String productId, int quantity) {
-  return Order.builder()
-      .id(id)
-      .customer(customer)
-      .line(new OrderLine(productId, quantity, 250))
-      .build();
-}
-```
-[E4] src/main/java/com/example/orders/OrderService.java, lines 19-25:
-```java
-public String total(Order order) {
-  long cents = 0;
-  for (OrderLine line : order.getLines()) {
-    cents += line.getQuantity() * line.getUnitPriceCents();
+
+  private final String currency;
+
+  public Order newOrder(String id, String customer, String productId, int quantity) {
+    return Order.builder()
+        .id(id)
+        .customer(customer)
+        .line(new OrderLine(productId, quantity, 250))
+        .build();
   }
-  return cents + " " + currency;
+
+  public String total(Order order) {
+    long cents = 0;
+    for (OrderLine line : order.getLines()) {
+      cents += line.getQuantity() * line.getUnitPriceCents();
+    }
+    return cents + " " + currency;
+  }
 }
 ```
 
@@ -249,15 +247,16 @@ Facts:
 [F1] type:com.example.shop.api.PriceService CONTAINS method:com.example.shop.api.PriceService#priceOf(java.lang.String)
 [F2] type:com.example.shop.api.PriceService kind "interface"
 
-Source excerpts:
-[E1] api/src/main/java/com/example/shop/api/PriceService.java, lines 3-4:
+Source files:
+[E1] api/src/main/java/com/example/shop/api/PriceService.java:
 ```java
+package com.example.shop.api;
+
 /** Looks up the price of a product in cents. */
 public interface PriceService {
-```
-[E2] api/src/main/java/com/example/shop/api/PriceService.java, line 6:
-```java
-long priceOf(String productId);
+
+  long priceOf(String productId);
+}
 ```
 
 ##### summarize package package:com.example.shop:shop-api:com.example.shop.api
@@ -291,27 +290,26 @@ Facts:
 [F4] type:com.example.shop.core.FixedPriceService IMPLEMENTS type:com.example.shop.api.PriceService
 [F5] type:com.example.shop.core.FixedPriceService CONTAINS field:com.example.shop.core.FixedPriceService#cents
 
-Source excerpts:
-[E1] core/src/main/java/com/example/shop/core/FixedPriceService.java, lines 5-6:
+Source files:
+[E1] core/src/main/java/com/example/shop/core/FixedPriceService.java:
 ```java
+package com.example.shop.core;
+
+import com.example.shop.api.PriceService;
+
 /** Charges the same price for every product. */
 public class FixedPriceService implements PriceService {
-```
-[E2] core/src/main/java/com/example/shop/core/FixedPriceService.java, line 8:
-```java
-private final long cents;
-```
-[E3] core/src/main/java/com/example/shop/core/FixedPriceService.java, lines 10-12:
-```java
-public FixedPriceService(long cents) {
-  this.cents = cents;
-}
-```
-[E4] core/src/main/java/com/example/shop/core/FixedPriceService.java, lines 14-17:
-```java
-@Override
-public long priceOf(String productId) {
-  return cents;
+
+  private final long cents;
+
+  public FixedPriceService(long cents) {
+    this.cents = cents;
+  }
+
+  @Override
+  public long priceOf(String productId) {
+    return cents;
+  }
 }
 ```
 

@@ -20,7 +20,7 @@ class PromptTest {
   private static final String VERSION = "2";
 
   private static final String FINGERPRINT =
-      "388823d4aa3255ccc639391d3331c22aba824d3417064f15fb8e0a0c274647f8";
+      "b9cb0370187c58c3a5e179969e0424f87c8f0025103f430b5c8d6ca8ae44577f";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -55,10 +55,7 @@ class PromptTest {
             "1",
             "fake",
             "m");
-    all.append(Excerpts.MAX_TOKENS)
-        .append(Excerpts.SHORT_MEMBER_LINES)
-        .append(Excerpts.MAX_JAVADOC_LINES);
-    // How excerpts are chosen and shown, on a type with Javadoc, annotations and members.
+    // How a type's source file is shown.
     List<Excerpts.Excerpt> excerpts =
         Excerpts.of(
             new SummaryNode(

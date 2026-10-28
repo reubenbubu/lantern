@@ -496,27 +496,10 @@ class SummarizerTest {
     String prompt = fake.sent().getFirst().request().messages().getFirst().text();
     assertThat(prompt)
         .contains(
-            """
-
-            Source excerpts:
-            [E1] src/main/java/p/Order.java, lines 5-10:
-            ```java
-            /**
-             * An order a customer placed.
-             */
-            @Entity
-            @Getter
-            public class Order {
-            ```
-            [E2] src/main/java/p/Order.java, lines 14-17:
-            ```java
-            /** The total in cents. */
-            public long total() {
-              return 1;
-            }
-            ```
-            """);
-    // The fake cites [F1, F2, E1, E2]; the excerpts are cited as the facts they come from.
+            "\nSource files:\n[E1] src/main/java/p/Order.java:\n```java\n"
+                + ExcerptsTest.ORDER
+                + "```\n");
+    // The fake cites [F1, F2, E1]; the file is cited as the fact it comes from.
     Fact kind = order.facts().stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
     assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
     assertThat(summary.text()).contains("[fact:" + kind.id() + "]").doesNotContain("[E");
@@ -535,7 +518,7 @@ class SummarizerTest {
             .get(order.entity());
 
     assertThat(fake.sent().getFirst().request().messages().getFirst().text())
-        .doesNotContain("Source excerpts:");
+        .doesNotContain("Source files:");
     assertThat(summary.key())
         .isEqualTo(Summarizer.key(order, List.of(), List.of(), fake.model("model-a")));
   }
@@ -551,8 +534,9 @@ class SummarizerTest {
   }
 
   /**
-   * A model that cites every reference its prompt lists, or for a merge every reference the parts'
-   * summaries cite, with a filler of the given length.
+   * A model that cites the first and last reference its prompt lists, or for a merge every
+   * reference the parts' summaries cite, with a filler of the given length; the answer stays within
+   * a type's output limit.
    */
   private static String citingWhatItSees(LlmRequest request, int filler) {
     String prompt = request.messages().getFirst().text();
@@ -565,7 +549,8 @@ class SummarizerTest {
         refs.add(ref.group(1));
       }
     }
-    return "Part of it%s. [%s]".formatted("x".repeat(filler), String.join(", ", refs));
+    List<String> cited = refs.size() <= 2 ? refs : List.of(refs.getFirst(), refs.getLast());
+    return "Part of it%s. [%s]".formatted("x".repeat(filler), String.join(", ", cited));
   }
 
   private LlmClient smallWindowClient(int contextWindow) {
@@ -610,14 +595,16 @@ class SummarizerTest {
     assertThat(fake.sent().get(1).request().messages().getFirst().text())
         .startsWith("What is known about the type type:p.Big is too long for one request")
         .doesNotContain("[F1] ");
-    assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
+    // The merge keeps the citations of the first and the last part.
+    assertThat(summary.citedFacts())
+        .contains(summary.inputFacts().getFirst(), summary.inputFacts().getLast());
     assertThat(store.find(summary.key())).contains(summary);
   }
 
   @Test
   void partsThatDoNotFitOneMergeAreMergedInRounds() {
-    SummaryNode big = largeType(400);
-    fake.answering(request -> citingWhatItSees(request, 3_000));
+    SummaryNode big = largeType(1_500);
+    fake.answering(request -> citingWhatItSees(request, 1_400));
 
     Summary summary =
         new Summarizer(smallWindowClient(4_000), store)
@@ -628,7 +615,8 @@ class SummarizerTest {
     List<String> purposes = fake.sent().stream().map(s -> s.request().purpose()).toList();
     assertThat(purposes).anyMatch(p -> p.contains("(merge 1.1 of "));
     assertThat(purposes.getLast()).isEqualTo("summarize type type:p.Big (merge)");
-    assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
+    assertThat(summary.citedFacts())
+        .contains(summary.inputFacts().getFirst(), summary.inputFacts().getLast());
   }
 
   @Test
@@ -683,8 +671,7 @@ class SummarizerTest {
     assertThat(partPrompts.getLast())
         .contains("Summaries of the parts it contains:\n[S")
         .doesNotContain("[S1] ");
-    assertThat(summary.citedSummaries())
-        .containsExactlyInAnyOrderElementsOf(summary.inputSummaries());
-    assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
+    assertThat(summary.citedFacts()).contains(summary.inputFacts().getFirst());
+    assertThat(summary.citedSummaries()).contains(summary.inputSummaries().getLast());
   }
 }

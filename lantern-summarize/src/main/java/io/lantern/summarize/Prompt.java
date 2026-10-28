@@ -17,8 +17,8 @@ import tools.jackson.databind.node.ObjectNode;
  * keeps the references they cite.
  *
  * <p>Change {@link #VERSION} whenever the text of the prompt or the way inputs are written into it
- * changes (including how {@link Excerpts} chooses excerpts), so cached summaries made with the old
- * prompt are not reused. {@code PromptTest} fails until it is changed.
+ * changes (including which source files {@link Excerpts} shows), so cached summaries made with the
+ * old prompt are not reused. {@code PromptTest} fails until it is changed.
  */
 final class Prompt {
 
@@ -29,11 +29,10 @@ final class Prompt {
       """
       You write short summaries of parts of a Java code base for architecture documentation.
       You are given facts that static analysis extracted from the code, each with a reference \
-      such as [F1], excerpts of the source code, each with a reference such as [E1], and \
-      summaries of the parts the unit contains, each with a reference such as [S1]. In the \
-      excerpts, "..." marks code that was left out.
+      such as [F1], source files, each with a reference such as [E1], and summaries of the \
+      parts the unit contains, each with a reference such as [S1].
       Say what the unit is for and what it does, and name its most important dependencies.
-      Use only the facts, excerpts and summaries given. Where they do not show what something is \
+      Use only the facts, source files and summaries given. Where they do not show what something is \
       for, say what it contains rather than guessing.
       End every sentence with the references it is based on, in square brackets, for example \
       [F1] or [F2, E1, S1]. Cite only references from the input.
@@ -80,14 +79,8 @@ final class Prompt {
     List<Item> items = new ArrayList<>();
     for (int i = 0; i < excerpts.size(); i++) {
       Excerpts.Excerpt excerpt = excerpts.get(i);
-      String lines =
-          excerpt.start() == excerpt.end()
-              ? "line " + excerpt.start()
-              : "lines " + excerpt.start() + "-" + excerpt.end();
       items.add(
-          new Item(
-              "E" + (i + 1),
-              excerpt.path() + ", " + lines + ":\n```java\n" + excerpt.code() + "\n```"));
+          new Item("E" + (i + 1), excerpt.path() + ":\n```java\n" + excerpt.code() + "\n```"));
     }
     return items;
   }
@@ -141,7 +134,7 @@ final class Prompt {
           .append(" words; the summaries of the parts will be merged later.\n");
     }
     section(text, "Facts:", facts);
-    section(text, "Source excerpts:", excerpts);
+    section(text, "Source files:", excerpts);
     section(text, "Summaries of the parts it contains:", children);
     return text.toString();
   }
