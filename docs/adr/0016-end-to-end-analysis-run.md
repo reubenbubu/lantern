@@ -50,7 +50,7 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
   same commits differ only in their snapshot number.
 - **Zero LLM calls on a second run** follows from the above: fact IDs include the commit and
   leave out validity (ADR 0001), so unchanged commits give the same summary cache keys and every
-  summary is reused.
+  summary is reused, except units left without a summary, which are tried again (ADR 0010, #76).
 - **Workspace storage** is `lantern.workspace` (environment `LANTERN_WORKSPACE`, default
   `workspace` in the working directory, which the repository ignores, next to the OpenWMS
   clones). Builds go to `builds/` (ADR 0005), documents to `documents/`. The shared Maven cache

@@ -1,6 +1,6 @@
 # 0010: Hierarchical summarizer
 
-Status: accepted (#11), amended by ADR 0021 (#44) and below (#78), pending the user's review (#24)
+Status: accepted (#11), amended by ADR 0021 (#44) and below (#78, #76), pending the user's review (#24)
 
 ## Context
 
@@ -54,7 +54,8 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   output limit (the stop reason `max_tokens`, as Anthropic reports it; stop reasons should be
   normalized in `lantern-llm` when a second provider arrives, #38). A rejected answer is sent back once with the
   reason (a second call, logged with the purpose suffix "(retry)"); if the second answer is also
-  rejected the run fails with `SummaryRejectedException` and nothing is stored for that unit. The
+  rejected the run fails with `SummaryRejectedException` and nothing is stored for that unit
+  (since #76 the unit is left without a summary instead; see the amendment below). The
   check needs at least one valid citation, not one per sentence, since models do not always cite
   every sentence and the design allows rejecting or marking low confidence.
 - **Prompt version** is a constant (`Prompt.VERSION`). A test fingerprints the prompt texts, the
@@ -92,3 +93,27 @@ above the repository (service, group, system), which come with the linker and gr
 - **The prompt version was raised to 4.** Every cached summary is made again on the next run,
   since the version is part of its cache key. That also replaces the cached summaries of prompt 3
   that still hold raw range text.
+
+## Amendment (#76): a unit rejected twice has no summary
+
+A run of about 1,300 calls failed on one module whose answer was rejected twice, and a rerun
+passed, so the rejection was a chance bad answer, not a property of the unit.
+
+- **The run goes on.** A unit whose answer is rejected twice gets no summary and nothing is
+  stored for it, as before, but the summarizer carries on. Its parent is summarized without it,
+  the way a unit with nothing to summarize is left out: the parent's prompt does not show it and
+  its key does not include it. A unit summarized in parts or merges counts as rejected when any
+  of its answers is rejected twice. `Summarizer.Result.rejected` lists such units; the
+  `analyze` command prints them and `AnalysisRun` logs how many there are as a warning. A rerun tries them again, since
+  nothing is cached for them, and then summarizes their parents again, whose keys change.
+- **Both rejections are logged**, as warnings with the purpose of the call, the reason and the
+  rejected answer on one line, cut to its first 1,000 characters.
+- **An early stop instead of a threshold.** If the first 10 units to finish are all rejected
+  twice and none got a summary, the run fails with `SummaryRejectedException` as before: the
+  model or its settings are likely wrong (for example answers always cut off), and going on
+  would spend two calls on every unit. There is no setting for it. After a unit has been
+  summarized, any number of later units may be rejected and the run still succeeds; the printed
+  list and the warnings show it. Only the monthly budget (ADR 0009) bounds what such a run
+  costs; run budgets are #42.
+- **Documents need no change.** The composer already leaves out the summary paragraph and the
+  description of a unit without a summary.

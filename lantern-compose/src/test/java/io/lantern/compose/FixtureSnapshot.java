@@ -87,8 +87,11 @@ record FixtureSnapshot(
     FakeLlmProvider fake = fake();
     Summarizer summarizer =
         new Summarizer(fakeClient(fake), new InMemorySummaryStore(), sources(directories));
-    Map<EntityId, Summary> summaries =
-        summarizer.summarize(SummaryTree.fromFacts(facts)).summaries();
+    Summarizer.Result result = summarizer.summarize(SummaryTree.fromFacts(facts));
+    if (!result.rejected().isEmpty()) {
+      throw new IllegalStateException("Fixture summaries were rejected: " + result.rejected());
+    }
+    Map<EntityId, Summary> summaries = result.summaries();
     Snapshot snapshot = new Snapshot(NUMBER, commits, 3, "test", Instant.EPOCH);
     return new FixtureSnapshot(
         snapshot,
