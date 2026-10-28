@@ -256,7 +256,9 @@ The LLM handles understanding that static analysis can't provide, always working
 **Cost and reliability**
 
 - Results are cached by input hash, so unchanged code is never summarized twice.
-- Per-run and per-scope token budgets, with an estimate shown before a run starts.
+- Per-run and per-scope budgets in tokens and dollars, with an estimate shown before a run starts.
+- Every call is logged with its role, purpose, model, tokens and cost.
+- Tests never call a real provider: they use a fake or recorded responses (see ADR 0008).
 - Calls run in parallel on virtual threads, with rate limiting and retry with backoff per provider.
 
 ## Learned rules (self-improving extractors)
