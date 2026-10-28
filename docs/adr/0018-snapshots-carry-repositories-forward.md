@@ -16,9 +16,9 @@ snapshots is a query, and the system scope is all repos in the snapshot.
 - **A snapshot describes the whole system.** The analysis run creates its snapshot with
   `SnapshotStore.createCarryingForward`: the repositories it is given at their checked-out commits,
   and every other repository that an earlier snapshot analyzed, at its commit in the latest
-  snapshot that analyzed it (see the amendment below). Carried-forward commits are not resolved again, so a repository whose working tree
-  moved on or is gone is still described by what was analyzed. `SnapshotStore.create` still makes a
-  snapshot of exactly the repositories it is given.
+  snapshot that analyzed it (see the amendment below). Carried-forward commits are not resolved
+  again, so a repository whose working tree moved on or is gone is still described by what was
+  analyzed. `SnapshotStore.create` still makes a snapshot of exactly the repositories it is given.
 - **Only the named repositories are analyzed.** The run builds, summarizes, composes and renders
   only the repositories it is given, and records only their facts; carried-forward ones keep their
   facts and their documents stay where an earlier run wrote them. The extractors still see every
@@ -39,7 +39,7 @@ snapshots is a query, and the system scope is all repos in the snapshot.
 
 ## Consequences
 
-A repository stays in every later snapshot once it has been in one. Removing a repository from
+A repository stays in every later snapshot once a run has analyzed it. Removing a repository from
 the system is not supported yet; nothing unregisters one today.
 
 The snapshot is stored before its builds and extraction run, so a run that fails after creating it

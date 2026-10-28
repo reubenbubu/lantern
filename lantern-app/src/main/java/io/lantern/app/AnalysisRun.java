@@ -51,10 +51,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * and store their facts, summarize them with the LLM, compose an Architecture Explorer document and
  * an Executive Brief per repository, and render both as single-file HTML (ADR 0016).
  *
- * <p>The snapshot describes the whole system: every repository of an earlier snapshot that is not
- * named in this run is carried forward at its commit in the latest snapshot that analyzed it, and
- * its facts keep holding. Only the named repositories are built, summarized and composed, and only
- * their facts are recorded; the extractors see the whole snapshot (ADR 0018).
+ * <p>The snapshot describes the whole system: every repository an earlier snapshot analyzed that is
+ * not named in this run is carried forward at its commit in the latest snapshot that analyzed it,
+ * and its facts keep holding. Only the named repositories are built, summarized and composed, and
+ * only their facts are recorded; the extractors see the whole snapshot (ADR 0018).
  *
  * <p>Everything that can be reused is: a stored successful build of a {@code repo@commit}, stored
  * facts, and cached summaries. A run over commits that an earlier run already analyzed therefore
