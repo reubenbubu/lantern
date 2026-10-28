@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.extract.Fixtures;
+import io.lantern.extract.RepoBuild;
+import io.lantern.extract.TestDocker;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.SandboxSettings;
@@ -51,7 +54,7 @@ class MavenExtractorIT {
       inputs.add(new RepoBuild(repo, commit, build));
     }
     List<Fact> facts = new MavenExtractor().extract(inputs, SNAPSHOT);
-    Fixtures.checkEnvelope(facts, repos, SNAPSHOT);
+    Fixtures.checkEnvelope(facts, repos, SNAPSHOT, MavenExtractor.NAME, MavenExtractor.VERSION);
     return facts;
   }
 
@@ -59,14 +62,14 @@ class MavenExtractorIT {
   void multiModule() throws IOException {
     Repo repo = Fixtures.repo("multi-module", temp.resolve("shop"), "shop");
 
-    Fixtures.assertGolden("multi-module.txt", buildAndExtract(List.of(repo)));
+    Fixtures.assertGolden("maven/multi-module.txt", buildAndExtract(List.of(repo)));
   }
 
   @Test
   void lombok() throws IOException {
     Repo repo = Fixtures.repo("lombok", temp.resolve("orders"), "orders");
 
-    Fixtures.assertGolden("lombok.txt", buildAndExtract(List.of(repo)));
+    Fixtures.assertGolden("maven/lombok.txt", buildAndExtract(List.of(repo)));
   }
 
   @Test
@@ -76,6 +79,6 @@ class MavenExtractorIT {
         Fixtures.repo("lib-and-service/service", temp.resolve("service"), "greeting-service");
 
     // The service's build fails, since the library is not published, but leaves its effective POM.
-    Fixtures.assertGolden("lib-and-service.txt", buildAndExtract(List.of(lib, service)));
+    Fixtures.assertGolden("maven/lib-and-service.txt", buildAndExtract(List.of(lib, service)));
   }
 }

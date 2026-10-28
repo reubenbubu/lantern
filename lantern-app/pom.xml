@@ -85,6 +85,13 @@
         <configuration>
           <!-- Keep the plain jar as the main artifact so other modules (archtest) can use it. -->
           <classifier>exec</classifier>
+          <requiresUnpack>
+            <!-- The Java extractor runs Lombok, which loads its classes from its own jar file. -->
+            <dependency>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+            </dependency>
+          </requiresUnpack>
         </configuration>
       </plugin>
       <plugin>

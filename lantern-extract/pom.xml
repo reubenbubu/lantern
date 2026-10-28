@@ -32,6 +32,17 @@
       <artifactId>jackson-databind</artifactId>
     </dependency>
     <dependency>
+      <!-- The Java extractor's fallback parser, for repositories whose build failed. -->
+      <groupId>com.github.javaparser</groupId>
+      <artifactId>javaparser-symbol-solver-core</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Lantern's own Lombok, run by the Java extractor in place of the analyzed build's copy.
+           Version from Spring Boot. -->
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>

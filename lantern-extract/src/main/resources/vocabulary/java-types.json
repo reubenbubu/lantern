@@ -1,0 +1,22 @@
+[
+  {
+    "name": "method",
+    "kind": "entity",
+    "c4Level": "code",
+    "description": "A method or constructor of a Java type. Its key is the declaring type's binary name, '#', the method's name (<init> for a constructor) and its erased parameter types in parentheses, such as com.example.Order#total(java.lang.String,int[]).",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "field",
+    "kind": "entity",
+    "c4Level": "code",
+    "description": "A field or enum constant of a Java type. Its key is the declaring type's binary name, '#' and the field's name.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "kind",
+    "kind": "attribute",
+    "description": "What sort of thing the subject is. For a Java type: class, interface, enum, record or annotation.",
+    "attributeSchema": { "additionalProperties": false }
+  }
+]
