@@ -78,6 +78,34 @@ class SnapshotStoreIT {
   }
 
   @Test
+  void carriesForwardEveryRepositoryAtItsLastAnalyzedCommit() throws Exception {
+    String ordersName = "orders-" + UUID.randomUUID().toString().substring(0, 8);
+    TestGitRepo orders = TestGitRepo.init(Files.createDirectory(temp.resolve(ordersName)));
+    String first = orders.commit("a.txt", "one");
+    repos.register(ordersName, orders.dir(), RepoSettings.DEFAULT);
+    snapshots.create(Map.of(ordersName, RepoRegistry.HEAD));
+    String billing = register("billing");
+    String billingHead =
+        snapshots.create(Map.of(billing, RepoRegistry.HEAD)).commits().get(billing);
+    String second = orders.commit("a.txt", "two");
+
+    // orders moved on, but is not named: it stays at the commit it was last analyzed at.
+    Snapshot withBilling = snapshots.createCarryingForward(Map.of(billing, RepoRegistry.HEAD));
+    assertThat(withBilling.commits())
+        .containsEntry(ordersName, first)
+        .containsEntry(billing, billingHead);
+
+    Snapshot withOrders = snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD));
+    assertThat(withOrders.commits())
+        .containsEntry(ordersName, second)
+        .containsEntry(billing, billingHead);
+    assertThat(snapshots.find(withOrders.number())).contains(withOrders);
+    // create names only what it is given.
+    assertThat(snapshots.create(Map.of(billing, RepoRegistry.HEAD)).commits())
+        .containsOnlyKeys(billing);
+  }
+
+  @Test
   void failedCreationStoresNothing() throws Exception {
     String good = register("good");
     long before = snapshots.create(Map.of(good, RepoRegistry.HEAD)).number();
