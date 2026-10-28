@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.llm.BudgetGuard;
+import io.lantern.llm.Capability;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmClient;
@@ -14,13 +16,22 @@ import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
+import io.lantern.llm.ModelConfig;
 import io.lantern.llm.ModelSettings;
+import io.lantern.llm.Pricing;
 import io.lantern.llm.Role;
 import io.lantern.llm.Thinking;
 import io.lantern.llm.TokenUsage;
+import io.lantern.llm.Tokens;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,7 +39,7 @@ import org.junit.jupiter.api.Test;
 
 class SummarizerTest {
 
-  private static final Pattern REF = Pattern.compile("^\\[([FS]\\d+)\\]", Pattern.MULTILINE);
+  private static final Pattern REF = Pattern.compile("^\\[([FES]\\d+)\\]", Pattern.MULTILINE);
   private static final Pattern UNIT = Pattern.compile("Summarize the .*? (\\S+:\\S+) in at most");
 
   private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
@@ -228,13 +239,15 @@ class SummarizerTest {
             .values()
             .iterator()
             .next();
-    String key = Summarizer.key(order, List.of(child), fake.model("m"));
+    String key = Summarizer.key(order, List.of(), List.of(child), fake.model("m"));
 
-    assertThat(Summarizer.key(order, List.of(child), fake.model("m"))).isEqualTo(key);
-    assertThat(Summarizer.key(order, List.of(child), fake.model("n"))).isNotEqualTo(key);
-    assertThat(Summarizer.key(order, List.of(child), new FakeLlmProvider("other").model("m")))
+    assertThat(Summarizer.key(order, List.of(), List.of(child), fake.model("m"))).isEqualTo(key);
+    assertThat(Summarizer.key(order, List.of(), List.of(child), fake.model("n"))).isNotEqualTo(key);
+    assertThat(
+            Summarizer.key(
+                order, List.of(), List.of(child), new FakeLlmProvider("other").model("m")))
         .isNotEqualTo(key);
-    assertThat(Summarizer.key(order, List.of(), fake.model("m"))).isNotEqualTo(key);
+    assertThat(Summarizer.key(order, List.of(), List.of(), fake.model("m"))).isNotEqualTo(key);
     Summary editedChild =
         new Summary(
             child.key(),
@@ -248,7 +261,8 @@ class SummarizerTest {
             child.promptVersion(),
             child.provider(),
             child.model());
-    assertThat(Summarizer.key(order, List.of(editedChild), fake.model("m"))).isNotEqualTo(key);
+    assertThat(Summarizer.key(order, List.of(), List.of(editedChild), fake.model("m")))
+        .isNotEqualTo(key);
     Summary rekeyedChild =
         new Summary(
             "f".repeat(64),
@@ -262,14 +276,16 @@ class SummarizerTest {
             child.promptVersion(),
             child.provider(),
             child.model());
-    assertThat(Summarizer.key(order, List.of(rekeyedChild), fake.model("m"))).isNotEqualTo(key);
+    assertThat(Summarizer.key(order, List.of(), List.of(rekeyedChild), fake.model("m")))
+        .isNotEqualTo(key);
     SummaryNode fewerFacts =
         new SummaryNode(
             order.entity(),
             order.level(),
             order.facts().subList(1, order.facts().size()),
             order.children());
-    assertThat(Summarizer.key(fewerFacts, List.of(child), fake.model("m"))).isNotEqualTo(key);
+    assertThat(Summarizer.key(fewerFacts, List.of(), List.of(child), fake.model("m")))
+        .isNotEqualTo(key);
   }
 
   @Test
@@ -427,5 +443,210 @@ class SummarizerTest {
     assertThat(fake.sent())
         .allSatisfy(s -> assertThat(s.request().role()).isEqualTo(Role.SUMMARIZE));
     assertThat(fake.sent().getFirst().request().system()).isEqualTo(Prompt.SYSTEM);
+  }
+
+  /** Facts about {@code type:p.Order} whose evidence is {@link ExcerptsTest#ORDER}. */
+  private static SummaryNode orderWithSource(String contentHash) {
+    List<Fact> facts = new ArrayList<>();
+    for (Fact fact :
+        List.of(
+            ExcerptsTest.fact("kind", FactObject.string("class"), 8, 47),
+            ExcerptsTest.member("method:p.Order#total()", 15, 17))) {
+      facts.add(
+          Fact.create(
+              fact.subject(),
+              fact.predicate(),
+              fact.object(),
+              fact.attributes(),
+              fact.origin(),
+              new Evidence(
+                  fact.evidence().repo(),
+                  fact.evidence().commit(),
+                  fact.evidence().path(),
+                  fact.evidence().lines(),
+                  contentHash),
+              fact.confidence(),
+              fact.validity()));
+    }
+    return new SummaryNode(EntityId.parse("type:p.Order"), SummaryLevel.TYPE, facts, List.of());
+  }
+
+  private static String sha256(String text) throws Exception {
+    return HexFormat.of()
+        .formatHex(
+            MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
+  }
+
+  private static final SourceFiles ORDER_SOURCE =
+      (repo, commit, path) ->
+          repo.equals("r") && commit.equals(TestFacts.COMMIT) && path.equals(ExcerptsTest.PATH)
+              ? Optional.of(ExcerptsTest.ORDER.getBytes(StandardCharsets.UTF_8))
+              : Optional.empty();
+
+  @Test
+  void typePromptsShowSourceExcerptsCitedAsTheirFacts() throws Exception {
+    SummaryNode order = orderWithSource(sha256(ExcerptsTest.ORDER));
+
+    Summary summary =
+        new Summarizer(client("model-a", fake), store, ORDER_SOURCE)
+            .summarize(List.of(order))
+            .summaries()
+            .get(order.entity());
+
+    String prompt = fake.sent().getFirst().request().messages().getFirst().text();
+    assertThat(prompt)
+        .contains(
+            """
+
+            Source excerpts:
+            [E1] src/main/java/p/Order.java, lines 5-10:
+            ```java
+            /**
+             * An order a customer placed.
+             */
+            @Entity
+            @Getter
+            public class Order {
+            ```
+            [E2] src/main/java/p/Order.java, lines 14-17:
+            ```java
+            /** The total in cents. */
+            public long total() {
+              return 1;
+            }
+            ```
+            """);
+    // The fake cites [F1, F2, E1, E2]; the excerpts are cited as the facts they come from.
+    Fact kind = order.facts().stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
+    assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
+    assertThat(summary.text()).contains("[fact:" + kind.id() + "]").doesNotContain("[E");
+    assertThat(summary.key())
+        .isNotEqualTo(Summarizer.key(order, List.of(), List.of(), fake.model("model-a")));
+  }
+
+  @Test
+  void aFileThatIsNotTheVersionObservedShowsNoExcerpt() {
+    SummaryNode order = orderWithSource("0".repeat(64));
+
+    Summary summary =
+        new Summarizer(client("model-a", fake), store, ORDER_SOURCE)
+            .summarize(List.of(order))
+            .summaries()
+            .get(order.entity());
+
+    assertThat(fake.sent().getFirst().request().messages().getFirst().text())
+        .doesNotContain("Source excerpts:");
+    assertThat(summary.key())
+        .isEqualTo(Summarizer.key(order, List.of(), List.of(), fake.model("model-a")));
+  }
+
+  /** A type with many methods: about 60 characters a fact, so about 15 tokens. */
+  private static SummaryNode largeType(int methods) {
+    TestFacts facts = new TestFacts().attribute("r", "type:p.Big", "kind", "class");
+    for (int i = 0; i < methods; i++) {
+      facts.relate("r", "type:p.Big", "CONTAINS", "method:p.Big#method%03d()".formatted(i));
+    }
+    return new SummaryNode(
+        EntityId.parse("type:p.Big"), SummaryLevel.TYPE, facts.list(), List.of());
+  }
+
+  /**
+   * A model that cites every reference its prompt lists, or for a merge every reference the parts'
+   * summaries cite, with a filler of the given length.
+   */
+  private static String citingWhatItSees(LlmRequest request, int filler) {
+    String prompt = request.messages().getFirst().text();
+    List<String> refs = new ArrayList<>();
+    if (prompt.contains("Summaries of the parts:")) {
+      refs.addAll(Citations.references(prompt));
+    } else {
+      Matcher ref = REF.matcher(prompt);
+      while (ref.find()) {
+        refs.add(ref.group(1));
+      }
+    }
+    return "Part of it%s. [%s]".formatted("x".repeat(filler), String.join(", ", refs));
+  }
+
+  private LlmClient smallWindowClient(int contextWindow) {
+    ModelConfig small =
+        new ModelConfig(
+            FakeLlmProvider.NAME,
+            "small",
+            EnumSet.allOf(Capability.class),
+            contextWindow,
+            Pricing.FREE);
+    return new LlmClient(
+        ModelSettings.single(small),
+        List.of(fake),
+        BudgetGuard.unlimited("test"),
+        new InMemoryLlmCallLog(),
+        Clock.systemUTC());
+  }
+
+  @Test
+  void aUnitLargerThanTheContextWindowIsSummarizedInPartsAndMerged() {
+    SummaryNode big = largeType(400);
+    LlmClient client = smallWindowClient(4_000);
+    fake.answering(request -> citingWhatItSees(request, 0));
+    assertThat(Tokens.estimate(Prompt.SYSTEM + Prompt.user(big, List.of(), List.of())))
+        .as("the whole prompt does not fit")
+        .isGreaterThan(4_000);
+
+    Summary summary =
+        new Summarizer(client, store).summarize(List.of(big)).summaries().get(big.entity());
+
+    List<String> purposes = fake.sent().stream().map(s -> s.request().purpose()).toList();
+    assertThat(purposes.size()).isGreaterThan(2);
+    assertThat(purposes.getFirst())
+        .isEqualTo("summarize type type:p.Big (part 1 of " + (purposes.size() - 1) + ")");
+    assertThat(purposes.getLast()).isEqualTo("summarize type type:p.Big (merge)");
+    assertThat(fake.sent())
+        .allSatisfy(
+            s ->
+                assertThat(s.request().estimatedInputTokens() + s.request().maxOutputTokens())
+                    .isLessThanOrEqualTo(4_000));
+    // Each part shows its own facts under the references of the whole unit.
+    assertThat(fake.sent().get(1).request().messages().getFirst().text())
+        .startsWith("What is known about the type type:p.Big is too long for one request")
+        .doesNotContain("[F1] ");
+    assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
+    assertThat(store.find(summary.key())).contains(summary);
+  }
+
+  @Test
+  void partsThatDoNotFitOneMergeAreMergedInRounds() {
+    SummaryNode big = largeType(400);
+    fake.answering(request -> citingWhatItSees(request, 3_000));
+
+    Summary summary =
+        new Summarizer(smallWindowClient(4_000), store)
+            .summarize(List.of(big))
+            .summaries()
+            .get(big.entity());
+
+    List<String> purposes = fake.sent().stream().map(s -> s.request().purpose()).toList();
+    assertThat(purposes).anyMatch(p -> p.contains("(merge 1.1 of "));
+    assertThat(purposes.getLast()).isEqualTo("summarize type type:p.Big (merge)");
+    assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
+  }
+
+  @Test
+  void aPartCitingAReferenceItWasNotShownIsSentBack() {
+    SummaryNode big = largeType(400);
+    AtomicInteger calls = new AtomicInteger();
+    fake.answering(
+        request ->
+            calls.getAndIncrement() == 0
+                ? "It has many methods. [F400]"
+                : citingWhatItSees(request, 0));
+
+    new Summarizer(smallWindowClient(4_000), store).summarize(List.of(big));
+
+    assertThat(fake.sent().get(1).request().purpose())
+        .startsWith("summarize type type:p.Big (part 1 of ")
+        .endsWith(") (retry)");
+    assertThat(fake.sent().get(1).request().messages().get(2).text())
+        .contains("it cites references that are not in the input: [F400].");
   }
 }

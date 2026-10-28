@@ -20,6 +20,7 @@ import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
+import io.lantern.summarize.GitSourceFiles;
 import io.lantern.summarize.Summarizer;
 import io.lantern.summarize.SummaryStore;
 import io.lantern.summarize.SummaryTree;
@@ -208,8 +209,10 @@ public final class AnalysisRun {
       int newFacts = stored.added();
       LOG.info("Extracted {} facts, {} of them new", extracted.size(), newFacts);
 
+      // Prompts show source excerpts read from git at the commits the facts were observed in.
+      GitSourceFiles sources = new GitSourceFiles(name -> registry.find(name).map(Repo::path));
       Summarizer.Result summarized =
-          new Summarizer(client, summaries).summarize(SummaryTree.fromFacts(extracted));
+          new Summarizer(client, summaries, sources).summarize(SummaryTree.fromFacts(extracted));
       LOG.info(
           "Summaries: {} written by the LLM, {} reused",
           summarized.generated(),

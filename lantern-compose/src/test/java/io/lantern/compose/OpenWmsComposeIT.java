@@ -49,6 +49,7 @@ class OpenWmsComposeIT {
     Path root = Path.of(System.getProperty("lantern.test.openwms"));
     List<RepoBuild> repos = new ArrayList<>();
     Map<String, String> commits = new TreeMap<>();
+    Map<String, Path> directories = new TreeMap<>();
     try (Stream<Path> dirs = Files.list(root)) {
       for (Path dir : dirs.filter(Files::isDirectory).sorted().toList()) {
         String name = dir.getFileName().toString();
@@ -56,6 +57,7 @@ class OpenWmsComposeIT {
         repos.add(
             new RepoBuild(new Repo(name, dir.toRealPath(), RepoSettings.DEFAULT), commit, null));
         commits.put(name, commit);
+        directories.put(name, dir.toRealPath());
       }
     }
     assertThat(repos).hasSize(16);
@@ -63,7 +65,10 @@ class OpenWmsComposeIT {
     List<Fact> facts = new ArrayList<>(new MavenExtractor().extract(repos, 1));
     facts.addAll(new JavaExtractor().extract(repos, 1));
     Map<EntityId, Summary> summaries =
-        new Summarizer(FixtureSnapshot.fakeClient(), new InMemorySummaryStore())
+        new Summarizer(
+                FixtureSnapshot.fakeClient(),
+                new InMemorySummaryStore(),
+                FixtureSnapshot.sources(directories))
             .summarize(SummaryTree.fromFacts(facts))
             .summaries();
     Snapshot snapshot = new Snapshot(1, commits, 3, "test", Instant.EPOCH);

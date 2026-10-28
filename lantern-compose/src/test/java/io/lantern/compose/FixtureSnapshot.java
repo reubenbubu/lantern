@@ -13,7 +13,9 @@ import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmClient;
+import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelSettings;
+import io.lantern.summarize.GitSourceFiles;
 import io.lantern.summarize.InMemorySummaryStore;
 import io.lantern.summarize.Summarizer;
 import io.lantern.summarize.Summary;
@@ -28,6 +30,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -41,8 +44,13 @@ import java.util.stream.Stream;
  * @param snapshot the snapshot of the fixture repositories
  * @param facts the extracted facts
  * @param summaries the summaries, by entity
+ * @param requests what the summarizer sent the model, in order
  */
-record FixtureSnapshot(Snapshot snapshot, List<Fact> facts, Map<EntityId, Summary> summaries) {
+record FixtureSnapshot(
+    Snapshot snapshot,
+    List<Fact> facts,
+    Map<EntityId, Summary> summaries,
+    List<LlmRequest> requests) {
 
   static final long NUMBER = 1;
 
@@ -74,37 +82,57 @@ record FixtureSnapshot(Snapshot snapshot, List<Fact> facts, Map<EntityId, Summar
     }
     List<Fact> facts = new ArrayList<>(new MavenExtractor().extract(repos, NUMBER));
     facts.addAll(new JavaExtractor().extract(repos, NUMBER));
-    Summarizer summarizer = new Summarizer(fakeClient(), new InMemorySummaryStore());
+    Map<String, Path> directories = new TreeMap<>();
+    repos.forEach(repo -> directories.put(repo.repo().name(), repo.repo().path()));
+    FakeLlmProvider fake = fake();
+    Summarizer summarizer =
+        new Summarizer(fakeClient(fake), new InMemorySummaryStore(), sources(directories));
     Map<EntityId, Summary> summaries =
         summarizer.summarize(SummaryTree.fromFacts(facts)).summaries();
     Snapshot snapshot = new Snapshot(NUMBER, commits, 3, "test", Instant.EPOCH);
-    return new FixtureSnapshot(snapshot, List.copyOf(facts), summaries);
+    return new FixtureSnapshot(
+        snapshot,
+        List.copyOf(facts),
+        summaries,
+        fake.sent().stream().map(FakeLlmProvider.Sent::request).toList());
+  }
+
+  /** Reads the fixture repositories' files from git. */
+  static GitSourceFiles sources(Map<String, Path> directories) {
+    return new GitSourceFiles(name -> Optional.ofNullable(directories.get(name)));
   }
 
   /**
    * A client of a fake model that cites the first fact and the first part's summary it is given.
    */
   static LlmClient fakeClient() {
-    FakeLlmProvider fake =
-        new FakeLlmProvider()
-            .answering(
-                request -> {
-                  String prompt = request.messages().getFirst().text();
-                  List<String> sentences = new ArrayList<>();
-                  if (prompt.contains("[S1]")) {
-                    sentences.add("It builds on its parts. [S1]");
-                  }
-                  if (prompt.contains("[F1]")) {
-                    sentences.add("It is described by its facts. [F1]");
-                  }
-                  return String.join(" ", sentences);
-                });
+    return fakeClient(fake());
+  }
+
+  private static LlmClient fakeClient(FakeLlmProvider fake) {
     return new LlmClient(
         ModelSettings.single(fake.model("fake-model")),
         List.of(fake),
         BudgetGuard.unlimited("test"),
         new InMemoryLlmCallLog(),
         Clock.systemUTC());
+  }
+
+  /** A fake model that cites the first fact and the first part's summary it is given. */
+  private static FakeLlmProvider fake() {
+    return new FakeLlmProvider()
+        .answering(
+            request -> {
+              String prompt = request.messages().getFirst().text();
+              List<String> sentences = new ArrayList<>();
+              if (prompt.contains("[S1]")) {
+                sentences.add("It builds on its parts. [S1]");
+              }
+              if (prompt.contains("[F1]")) {
+                sentences.add("It is described by its facts. [F1]");
+              }
+              return String.join(" ", sentences);
+            });
   }
 
   private static void copy(Path source, Path target) throws IOException {
