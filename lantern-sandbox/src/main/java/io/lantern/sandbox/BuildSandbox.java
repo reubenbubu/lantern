@@ -290,14 +290,7 @@ public class BuildSandbox {
           docker.quietly(
               CLEANUP_TIMEOUT,
               List.of(
-                  "rm",
-                  "--force",
-                  "--volumes",
-                  container,
-                  detector,
-                  proxy,
-                  cacheOwner,
-                  monitor));
+                  "rm", "--force", "--volumes", container, detector, proxy, cacheOwner, monitor));
           docker.quietly(CLEANUP_TIMEOUT, List.of("network", "rm", network));
           if (interrupted) {
             Thread.currentThread().interrupt();
