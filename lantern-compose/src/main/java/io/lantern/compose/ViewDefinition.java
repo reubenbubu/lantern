@@ -1,0 +1,64 @@
+package io.lantern.compose;
+
+import io.lantern.core.document.TemplateRef;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+/**
+ * A persisted spec of one document: what it covers, who it is for, the template it is rendered with
+ * and which sections it has, in order. Composing the same view definition on a new snapshot gives
+ * the same structure, whatever the knowledge says.
+ *
+ * @param id the view ID, which is also the ID of the documents composed from it
+ * @param title the document title
+ * @param scope what the document covers
+ * @param audience the audience profile name, or {@code null}
+ * @param template the template the document is rendered with
+ * @param sections the sections, in reading order, at least one and each at most once
+ */
+public record ViewDefinition(
+    String id,
+    String title,
+    Scope scope,
+    String audience,
+    TemplateRef template,
+    List<SectionKind> sections) {
+
+  /** The form of document IDs (and section and block IDs) the document model allows. */
+  private static final Pattern ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]*");
+
+  public ViewDefinition {
+    Objects.requireNonNull(id, "id");
+    if (!ID.matcher(id).matches()) {
+      throw new IllegalArgumentException("Invalid view ID: '" + id + "'");
+    }
+    Objects.requireNonNull(title, "title");
+    if (title.isBlank()) {
+      throw new IllegalArgumentException("View title must not be blank");
+    }
+    Objects.requireNonNull(scope, "scope");
+    if (audience != null && audience.isBlank()) {
+      throw new IllegalArgumentException("Audience must be null or not blank");
+    }
+    Objects.requireNonNull(template, "template");
+    sections = List.copyOf(Objects.requireNonNull(sections, "sections"));
+    if (sections.isEmpty()) {
+      throw new IllegalArgumentException("A view must have at least one section");
+    }
+    Set<SectionKind> seen = EnumSet.noneOf(SectionKind.class);
+    for (SectionKind section : sections) {
+      if (!seen.add(section)) {
+        throw new IllegalArgumentException("Section " + section.jsonName() + " is listed twice");
+      }
+    }
+  }
+
+  /** A view of one repository with every section, in the catalog's order. */
+  public static ViewDefinition perRepo(String id, String repo, TemplateRef template) {
+    return new ViewDefinition(
+        id, repo, Scope.repo(repo), null, template, List.of(SectionKind.values()));
+  }
+}
