@@ -1,4 +1,4 @@
-package io.lantern.extract.maven;
+package io.lantern.extract;
 
 import io.lantern.core.repo.Repo;
 import io.lantern.sandbox.BuildResult;
@@ -6,8 +6,8 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * One repository of a snapshot as the Maven extractor sees it: the repository at a commit, and its
- * build in the sandbox if there is one.
+ * One repository of a snapshot as the extractors see it: the repository at a commit, and its build
+ * in the sandbox if there is one.
  *
  * @param repo the repository; its POMs are read from git at the commit
  * @param commit the full commit hash

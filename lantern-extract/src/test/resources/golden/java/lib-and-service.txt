@@ -1,0 +1,12 @@
+method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#<init>() @greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java#11-11 0.7
+method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#greet(java.lang.String) @greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java#11-11 0.7
+module:com.example.greeting:greeting-lib CONTAINS package:com.example.greeting:greeting-lib:com.example.greeting.lib @greeting-lib:src/main/java/com/example/greeting/lib 1.0
+module:com.example.greeting:greeting-service CONTAINS package:com.example.greeting:greeting-service:com.example.greeting.service @greeting-service:src/main/java/com/example/greeting/service 0.7
+package:com.example.greeting:greeting-lib:com.example.greeting.lib CONTAINS type:com.example.greeting.lib.Greeter @greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java#4-9 1.0
+package:com.example.greeting:greeting-service:com.example.greeting.service CONTAINS type:com.example.greeting.service.GreetingServiceMain @greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java#6-13 0.7
+type:com.example.greeting.lib.Greeter CONTAINS method:com.example.greeting.lib.Greeter#<init>() @greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java#4-4 1.0
+type:com.example.greeting.lib.Greeter CONTAINS method:com.example.greeting.lib.Greeter#greet(java.lang.String) @greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java#6-8 1.0
+type:com.example.greeting.lib.Greeter kind class @greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java#4-9 1.0
+type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#<init>() @greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java#8-8 0.7
+type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) @greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java#10-12 0.7
+type:com.example.greeting.service.GreetingServiceMain kind class @greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java#6-13 0.7

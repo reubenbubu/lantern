@@ -7,6 +7,9 @@ import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.Fixtures;
+import io.lantern.extract.RepoBuild;
+import io.lantern.extract.TestDocker;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.SandboxSettings;
 import java.nio.file.Files;
@@ -80,7 +83,7 @@ class OpenWmsMavenIT {
     }
 
     List<Fact> facts = new MavenExtractor().extract(inputs, 1);
-    Fixtures.checkEnvelope(facts, repos, 1);
+    Fixtures.checkEnvelope(facts, repos, 1, MavenExtractor.NAME, MavenExtractor.VERSION);
 
     List<String> services =
         facts.stream()

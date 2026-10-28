@@ -2,6 +2,8 @@ package io.lantern.extract.maven;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.extract.Fixtures;
+import io.lantern.extract.RepoBuild;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -22,7 +24,7 @@ class MavenExtractorTest {
     List<RepoBuild> inputs =
         repos.stream().map(r -> new RepoBuild(r, Fixtures.head(r), null)).toList();
     List<Fact> facts = new MavenExtractor().extract(inputs, SNAPSHOT);
-    Fixtures.checkEnvelope(facts, repos, SNAPSHOT);
+    Fixtures.checkEnvelope(facts, repos, SNAPSHOT, MavenExtractor.NAME, MavenExtractor.VERSION);
     return facts;
   }
 
@@ -30,14 +32,14 @@ class MavenExtractorTest {
   void multiModule() throws IOException {
     Repo repo = Fixtures.repo("multi-module", temp.resolve("shop"), "shop");
 
-    Fixtures.assertGolden("multi-module-written.txt", extract(List.of(repo)));
+    Fixtures.assertGolden("maven/multi-module-written.txt", extract(List.of(repo)));
   }
 
   @Test
   void lombok() throws IOException {
     Repo repo = Fixtures.repo("lombok", temp.resolve("orders"), "orders");
 
-    Fixtures.assertGolden("lombok-written.txt", extract(List.of(repo)));
+    Fixtures.assertGolden("maven/lombok-written.txt", extract(List.of(repo)));
   }
 
   @Test
@@ -46,6 +48,6 @@ class MavenExtractorTest {
     Repo service =
         Fixtures.repo("lib-and-service/service", temp.resolve("service"), "greeting-service");
 
-    Fixtures.assertGolden("lib-and-service-written.txt", extract(List.of(lib, service)));
+    Fixtures.assertGolden("maven/lib-and-service-written.txt", extract(List.of(lib, service)));
   }
 }

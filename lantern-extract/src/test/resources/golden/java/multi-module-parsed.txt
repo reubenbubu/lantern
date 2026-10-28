@@ -1,0 +1,11 @@
+module:com.example.shop:shop-api CONTAINS package:com.example.shop:shop-api:com.example.shop.api @shop:api/src/main/java/com/example/shop/api 0.7
+module:com.example.shop:shop-core CONTAINS package:com.example.shop:shop-core:com.example.shop.core @shop:core/src/main/java/com/example/shop/core 0.7
+package:com.example.shop:shop-api:com.example.shop.api CONTAINS type:com.example.shop.api.PriceService @shop:api/src/main/java/com/example/shop/api/PriceService.java#4-7 0.7
+package:com.example.shop:shop-core:com.example.shop.core CONTAINS type:com.example.shop.core.FixedPriceService @shop:core/src/main/java/com/example/shop/core/FixedPriceService.java#6-18 0.7
+type:com.example.shop.api.PriceService CONTAINS method:com.example.shop.api.PriceService#priceOf(java.lang.String) @shop:api/src/main/java/com/example/shop/api/PriceService.java#6-6 0.7
+type:com.example.shop.api.PriceService kind interface @shop:api/src/main/java/com/example/shop/api/PriceService.java#4-7 0.7
+type:com.example.shop.core.FixedPriceService CONTAINS field:com.example.shop.core.FixedPriceService#cents @shop:core/src/main/java/com/example/shop/core/FixedPriceService.java#8-8 0.7
+type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#<init>(long) @shop:core/src/main/java/com/example/shop/core/FixedPriceService.java#10-12 0.7
+type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#priceOf(java.lang.String) @shop:core/src/main/java/com/example/shop/core/FixedPriceService.java#14-17 0.7
+type:com.example.shop.core.FixedPriceService IMPLEMENTS type:com.example.shop.api.PriceService @shop:core/src/main/java/com/example/shop/core/FixedPriceService.java#6-6 0.7
+type:com.example.shop.core.FixedPriceService kind class @shop:core/src/main/java/com/example/shop/core/FixedPriceService.java#6-18 0.7

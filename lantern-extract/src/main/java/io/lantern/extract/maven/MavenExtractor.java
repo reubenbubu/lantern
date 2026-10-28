@@ -10,6 +10,7 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.repo.Git;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.RepoBuild;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -34,6 +35,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -249,6 +252,31 @@ public final class MavenExtractor {
                 .thenComparing(f -> f.object().value())
                 .thenComparing(Fact::id))
         .toList();
+  }
+
+  /**
+   * The modules of a repository at its commit, found as {@link #extract} finds them, by following
+   * {@code <modules>} from the top {@code pom.xml}: each module's directory relative to the top of
+   * the repository ({@code ""} for the top) and its entity ID from the POM as written. Modules
+   * whose coordinates do not form an entity ID are left out. Other extractors use this to tell
+   * which module a source file belongs to.
+   *
+   * @return the module IDs by directory, ordered by directory
+   */
+  public static SortedMap<String, EntityId> moduleDirectories(RepoBuild repo) {
+    Objects.requireNonNull(repo, "repo");
+    SortedMap<String, EntityId> modules = new TreeMap<>();
+    for (Written w : new MavenExtractor().discover(repo)) {
+      String groupId = w.pom().effectiveGroupId();
+      EntityId id =
+          groupId == null
+              ? null
+              : entity(BuiltInTypes.MODULE, groupId + ":" + w.pom().artifactId());
+      if (id != null) {
+        modules.putIfAbsent(w.directory(), id);
+      }
+    }
+    return modules;
   }
 
   // ---------------------------------------------------------------------------------------------

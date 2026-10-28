@@ -111,6 +111,8 @@ Later: Dockerfiles, Helm and Kubernetes manifests, OpenAPI and AsyncAPI specs, T
 
 How the Maven extractor names entities, tells internal from third-party dependencies and links a thin service to its library is in ADR 0006.
 
+How the Java structure extractor names packages, types and members, which annotation processors it runs, which calls it keeps and how its parsing fallback matches the compiler is in ADR 0007.
+
 **Why javac instead of only a parser:** production Spring code relies on Lombok, MapStruct and generated OpenAPI or Protobuf clients. Analyzing through the compiler, with annotation processing on, sees generated members and resolves calls exactly as the build does.
 
 ## Knowledge model and schema evolution

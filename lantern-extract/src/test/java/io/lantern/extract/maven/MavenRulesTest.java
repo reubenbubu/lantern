@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.extract.Fixtures;
+import io.lantern.extract.RepoBuild;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -56,7 +58,7 @@ class MavenRulesTest {
     List<RepoBuild> inputs =
         List.of(repos).stream().map(r -> new RepoBuild(r, Fixtures.head(r), null)).toList();
     List<Fact> facts = new MavenExtractor().extract(inputs, 1);
-    Fixtures.checkEnvelope(facts, List.of(repos), 1);
+    Fixtures.checkEnvelope(facts, List.of(repos), 1, MavenExtractor.NAME, MavenExtractor.VERSION);
     return Fixtures.render(facts).lines().toList();
   }
 

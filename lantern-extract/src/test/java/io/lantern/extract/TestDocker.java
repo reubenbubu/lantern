@@ -1,4 +1,4 @@
-package io.lantern.extract.maven;
+package io.lantern.extract;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -8,19 +8,19 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** Runs the docker CLI from tests, for the Maven cache volumes the sandbox builds use. */
-final class TestDocker {
+public final class TestDocker {
 
   private TestDocker() {}
 
   /** A new, empty volume with a random name. */
-  static String createVolume() {
+  public static String createVolume() {
     String volume =
         "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
     run("volume", "create", volume);
     return volume;
   }
 
-  static void removeVolume(String volume) {
+  public static void removeVolume(String volume) {
     run("volume", "rm", "--force", volume);
   }
 
