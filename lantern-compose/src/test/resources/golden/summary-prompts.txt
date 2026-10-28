@@ -1,0 +1,355 @@
+##### system
+You write short summaries of parts of a Java code base for architecture documentation.
+You are given facts that static analysis extracted from the code, each with a reference such as [F1], source files, each with a reference such as [E1], and summaries of the parts the unit contains, each with a reference such as [S1].
+Say what the unit is for and what it does, and name its most important dependencies.
+Use only the facts, source files and summaries given. Where they do not show what something is for, say what it contains rather than guessing.
+End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]. Cite only references from the input.
+Write plain prose without headings, lists or a title.
+
+##### summarize type type:com.example.greeting.lib.Greeter
+Summarize the type type:com.example.greeting.lib.Greeter in at most 80 words.
+
+Facts:
+[F1] type:com.example.greeting.lib.Greeter CONTAINS method:com.example.greeting.lib.Greeter#<init>()
+[F2] type:com.example.greeting.lib.Greeter CONTAINS method:com.example.greeting.lib.Greeter#greet(java.lang.String)
+[F3] type:com.example.greeting.lib.Greeter kind "class"
+
+Source files:
+[E1] src/main/java/com/example/greeting/lib/Greeter.java:
+```java
+package com.example.greeting.lib;
+
+/** The service's logic, kept in the library. */
+public class Greeter {
+
+  public String greet(String name) {
+    return "Hello, " + name + "!";
+  }
+}
+```
+
+##### summarize package package:com.example.greeting:greeting-lib:com.example.greeting.lib
+Summarize the package package:com.example.greeting:greeting-lib:com.example.greeting.lib in at most 120 words.
+
+Facts:
+[F1] package:com.example.greeting:greeting-lib:com.example.greeting.lib CONTAINS type:com.example.greeting.lib.Greeter
+
+Summaries of the parts it contains:
+[S1] type:com.example.greeting.lib.Greeter: It is described by its facts.
+
+##### summarize module module:com.example.greeting:greeting-lib
+Summarize the Maven module module:com.example.greeting:greeting-lib in at most 150 words.
+
+Facts:
+[F1] library:com.example.greeting:greeting-lib CONTAINS module:com.example.greeting:greeting-lib
+[F2] module:com.example.greeting:greeting-lib version "1.0.0"
+[F3] module:com.example.greeting:greeting-lib CONTAINS package:com.example.greeting:greeting-lib:com.example.greeting.lib
+[F4] module:com.example.greeting:greeting-lib packaging "jar"
+
+Summaries of the parts it contains:
+[S1] package:com.example.greeting:greeting-lib:com.example.greeting.lib: It builds on its parts. It is described by its facts.
+
+##### summarize repo repo:greeting-lib
+Summarize the repository repo:greeting-lib in at most 200 words.
+
+Summaries of the parts it contains:
+[S1] module:com.example.greeting:greeting-lib: It builds on its parts. It is described by its facts.
+
+##### summarize type type:com.example.greeting.service.GreetingServiceMain
+Summarize the type type:com.example.greeting.service.GreetingServiceMain in at most 80 words.
+
+Facts:
+[F1] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#greet(java.lang.String)
+[F2] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[])
+[F3] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#<init>()
+[F4] type:com.example.greeting.service.GreetingServiceMain kind "class"
+[F5] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#<init>()
+
+Source files:
+[E1] src/main/java/com/example/greeting/service/GreetingServiceMain.java:
+```java
+package com.example.greeting.service;
+
+import com.example.greeting.lib.Greeter;
+
+/** The service's only class: it starts the logic that lives in greeting-lib. */
+public final class GreetingServiceMain {
+
+  private GreetingServiceMain() {}
+
+  public static void main(String[] args) {
+    System.out.println(new Greeter().greet(args.length > 0 ? args[0] : "world"));
+  }
+}
+```
+
+##### summarize package package:com.example.greeting:greeting-service:com.example.greeting.service
+Summarize the package package:com.example.greeting:greeting-service:com.example.greeting.service in at most 120 words.
+
+Facts:
+[F1] package:com.example.greeting:greeting-service:com.example.greeting.service CONTAINS type:com.example.greeting.service.GreetingServiceMain
+
+Summaries of the parts it contains:
+[S1] type:com.example.greeting.service.GreetingServiceMain: It is described by its facts.
+
+##### summarize module module:com.example.greeting:greeting-service
+Summarize the Maven module module:com.example.greeting:greeting-service in at most 150 words.
+
+Facts:
+[F1] module:com.example.greeting:greeting-service CONTAINS package:com.example.greeting:greeting-service:com.example.greeting.service
+[F2] module:com.example.greeting:greeting-service packaging "jar"
+[F3] service:com.example.greeting:greeting-service PACKAGES library:com.example.greeting:greeting-lib
+[F4] module:com.example.greeting:greeting-service version "1.0.0"
+[F5] service:com.example.greeting:greeting-service CONTAINS module:com.example.greeting:greeting-service
+[F6] module:com.example.greeting:greeting-service BUILD_DEPENDS_ON module:com.example.greeting:greeting-lib {"scope":"compile","version":"1.0.0"}
+
+Summaries of the parts it contains:
+[S1] package:com.example.greeting:greeting-service:com.example.greeting.service: It builds on its parts. It is described by its facts.
+
+##### summarize repo repo:greeting-service
+Summarize the repository repo:greeting-service in at most 200 words.
+
+Summaries of the parts it contains:
+[S1] module:com.example.greeting:greeting-service: It builds on its parts. It is described by its facts.
+
+##### summarize type type:com.example.orders.Order
+Summarize the type type:com.example.orders.Order in at most 80 words.
+
+Facts:
+[F1] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#customer
+[F2] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#id
+[F3] type:com.example.orders.Order kind "class"
+[F4] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#lines
+
+Source files:
+[E1] src/main/java/com/example/orders/Order.java:
+```java
+package com.example.orders;
+
+import java.util.List;
+import lombok.Builder;
+import lombok.Singular;
+import lombok.Value;
+
+/** An order. Lombok generates the constructor, getters, equals, hashCode and builder. */
+@Value
+@Builder
+public class Order {
+
+  String id;
+  String customer;
+  @Singular List<OrderLine> lines;
+}
+```
+
+##### summarize type type:com.example.orders.OrderLine
+Summarize the type type:com.example.orders.OrderLine in at most 80 words.
+
+Facts:
+[F1] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#quantity
+[F2] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#productId
+[F3] type:com.example.orders.OrderLine kind "class"
+[F4] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#unitPriceCents
+
+Source files:
+[E1] src/main/java/com/example/orders/OrderLine.java:
+```java
+package com.example.orders;
+
+import lombok.Value;
+
+/** One product on an order. */
+@Value
+public class OrderLine {
+
+  String productId;
+  int quantity;
+  long unitPriceCents;
+}
+```
+
+##### summarize type type:com.example.orders.OrderService
+Summarize the type type:com.example.orders.OrderService in at most 80 words.
+
+Facts:
+[F1] type:com.example.orders.OrderService kind "class"
+[F2] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#total(com.example.orders.Order)
+[F3] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#newOrder(java.lang.String,java.lang.String,java.lang.String,int)
+[F4] type:com.example.orders.OrderService CONTAINS field:com.example.orders.OrderService#currency
+
+Source files:
+[E1] src/main/java/com/example/orders/OrderService.java:
+```java
+package com.example.orders;
+
+import lombok.RequiredArgsConstructor;
+
+/** Uses only Lombok-generated members, so it compiles only when Lombok runs. */
+@RequiredArgsConstructor
+public class OrderService {
+
+  private final String currency;
+
+  public Order newOrder(String id, String customer, String productId, int quantity) {
+    return Order.builder()
+        .id(id)
+        .customer(customer)
+        .line(new OrderLine(productId, quantity, 250))
+        .build();
+  }
+
+  public String total(Order order) {
+    long cents = 0;
+    for (OrderLine line : order.getLines()) {
+      cents += line.getQuantity() * line.getUnitPriceCents();
+    }
+    return cents + " " + currency;
+  }
+}
+```
+
+##### summarize package package:com.example.orders:orders:com.example.orders
+Summarize the package package:com.example.orders:orders:com.example.orders in at most 120 words.
+
+Facts:
+[F1] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderService
+[F2] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Order
+[F3] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderLine
+
+Summaries of the parts it contains:
+[S1] type:com.example.orders.Order: It is described by its facts.
+[S2] type:com.example.orders.OrderLine: It is described by its facts.
+[S3] type:com.example.orders.OrderService: It is described by its facts.
+
+##### summarize module module:com.example.orders:orders
+Summarize the Maven module module:com.example.orders:orders in at most 150 words.
+
+Facts:
+[F1] module:com.example.orders:orders version "1.0.0"
+[F2] module:com.example.orders:orders BUILD_DEPENDS_ON artifact:org.projectlombok:lombok {"scope":"provided","version":"1.18.48"}
+[F3] module:com.example.orders:orders packaging "jar"
+[F4] library:com.example.orders:orders CONTAINS module:com.example.orders:orders
+[F5] module:com.example.orders:orders CONTAINS package:com.example.orders:orders:com.example.orders
+
+Summaries of the parts it contains:
+[S1] package:com.example.orders:orders:com.example.orders: It builds on its parts. It is described by its facts.
+
+##### summarize repo repo:orders
+Summarize the repository repo:orders in at most 200 words.
+
+Summaries of the parts it contains:
+[S1] module:com.example.orders:orders: It builds on its parts. It is described by its facts.
+
+##### summarize type type:com.example.shop.api.PriceService
+Summarize the type type:com.example.shop.api.PriceService in at most 80 words.
+
+Facts:
+[F1] type:com.example.shop.api.PriceService CONTAINS method:com.example.shop.api.PriceService#priceOf(java.lang.String)
+[F2] type:com.example.shop.api.PriceService kind "interface"
+
+Source files:
+[E1] api/src/main/java/com/example/shop/api/PriceService.java:
+```java
+package com.example.shop.api;
+
+/** Looks up the price of a product in cents. */
+public interface PriceService {
+
+  long priceOf(String productId);
+}
+```
+
+##### summarize package package:com.example.shop:shop-api:com.example.shop.api
+Summarize the package package:com.example.shop:shop-api:com.example.shop.api in at most 120 words.
+
+Facts:
+[F1] package:com.example.shop:shop-api:com.example.shop.api CONTAINS type:com.example.shop.api.PriceService
+
+Summaries of the parts it contains:
+[S1] type:com.example.shop.api.PriceService: It is described by its facts.
+
+##### summarize module module:com.example.shop:shop-api
+Summarize the Maven module module:com.example.shop:shop-api in at most 150 words.
+
+Facts:
+[F1] module:com.example.shop:shop-api packaging "jar"
+[F2] library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api
+[F3] module:com.example.shop:shop-api version "1.0.0"
+[F4] module:com.example.shop:shop-api CONTAINS package:com.example.shop:shop-api:com.example.shop.api
+
+Summaries of the parts it contains:
+[S1] package:com.example.shop:shop-api:com.example.shop.api: It builds on its parts. It is described by its facts.
+
+##### summarize type type:com.example.shop.core.FixedPriceService
+Summarize the type type:com.example.shop.core.FixedPriceService in at most 80 words.
+
+Facts:
+[F1] type:com.example.shop.core.FixedPriceService kind "class"
+[F2] type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#priceOf(java.lang.String)
+[F3] type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#<init>(long)
+[F4] type:com.example.shop.core.FixedPriceService IMPLEMENTS type:com.example.shop.api.PriceService
+[F5] type:com.example.shop.core.FixedPriceService CONTAINS field:com.example.shop.core.FixedPriceService#cents
+
+Source files:
+[E1] core/src/main/java/com/example/shop/core/FixedPriceService.java:
+```java
+package com.example.shop.core;
+
+import com.example.shop.api.PriceService;
+
+/** Charges the same price for every product. */
+public class FixedPriceService implements PriceService {
+
+  private final long cents;
+
+  public FixedPriceService(long cents) {
+    this.cents = cents;
+  }
+
+  @Override
+  public long priceOf(String productId) {
+    return cents;
+  }
+}
+```
+
+##### summarize package package:com.example.shop:shop-core:com.example.shop.core
+Summarize the package package:com.example.shop:shop-core:com.example.shop.core in at most 120 words.
+
+Facts:
+[F1] package:com.example.shop:shop-core:com.example.shop.core CONTAINS type:com.example.shop.core.FixedPriceService
+
+Summaries of the parts it contains:
+[S1] type:com.example.shop.core.FixedPriceService: It is described by its facts.
+
+##### summarize module module:com.example.shop:shop-core
+Summarize the Maven module module:com.example.shop:shop-core in at most 150 words.
+
+Facts:
+[F1] library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core
+[F2] module:com.example.shop:shop-core packaging "jar"
+[F3] module:com.example.shop:shop-core version "1.0.0"
+[F4] module:com.example.shop:shop-core BUILD_DEPENDS_ON module:com.example.shop:shop-api {"scope":"compile","version":"1.0.0"}
+[F5] module:com.example.shop:shop-core CONTAINS package:com.example.shop:shop-core:com.example.shop.core
+
+Summaries of the parts it contains:
+[S1] package:com.example.shop:shop-core:com.example.shop.core: It builds on its parts. It is described by its facts.
+
+##### summarize module module:com.example.shop:shop-parent
+Summarize the Maven module module:com.example.shop:shop-parent in at most 150 words.
+
+Facts:
+[F1] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-core
+[F2] module:com.example.shop:shop-parent packaging "pom"
+[F3] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-api
+[F4] module:com.example.shop:shop-parent version "1.0.0"
+
+Summaries of the parts it contains:
+[S1] module:com.example.shop:shop-api: It builds on its parts. It is described by its facts.
+[S2] module:com.example.shop:shop-core: It builds on its parts. It is described by its facts.
+
+##### summarize repo repo:shop
+Summarize the repository repo:shop in at most 200 words.
+
+Summaries of the parts it contains:
+[S1] module:com.example.shop:shop-parent: It builds on its parts. It is described by its facts.

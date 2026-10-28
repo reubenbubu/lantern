@@ -10,13 +10,14 @@ import java.util.regex.Pattern;
 
 /**
  * Checks the references a model's answer cites and rewrites them to stable IDs. References are
- * {@code F<n>} for the n-th fact and {@code S<n>} for the n-th contained summary in the prompt,
- * cited in square brackets, alone or several separated by commas ({@code [F1, S2]}).
+ * {@code F<n>} for the n-th fact, {@code E<n>} for the n-th source excerpt and {@code S<n>} for the
+ * n-th contained summary in the prompt, cited in square brackets, alone or several separated by
+ * commas ({@code [F1, E2, S2]}). An excerpt is cited as the fact whose evidence it was taken from.
  */
 final class Citations {
 
   private static final Pattern GROUP =
-      Pattern.compile("\\[\\s*([FS]\\d+(?:\\s*,\\s*[FS]\\d+)*)\\s*\\]");
+      Pattern.compile("\\[\\s*([FES]\\d+(?:\\s*,\\s*[FES]\\d+)*)\\s*\\]");
   private static final Pattern MARKER = Pattern.compile("\\[(?:fact|summary):");
   private static final Pattern SPLIT = Pattern.compile("\\s*,\\s*");
 
@@ -36,11 +37,29 @@ final class Citations {
    * Checks an answer against the references the prompt gave.
    *
    * @param facts the facts' IDs, {@code F1} first
+   * @param excerpts the IDs of the facts the source excerpts were taken from, {@code E1} first
    * @param children the contained summaries, {@code S1} first
    * @throws Rejected if the answer is empty, cites nothing, cites a reference that was not given or
    *     writes stored-form markers itself
    */
-  static Checked check(String answer, List<String> facts, List<Summary> children) {
+  static Checked check(
+      String answer, List<String> facts, List<String> excerpts, List<Summary> children) {
+    return check(answer, facts, excerpts, children, null);
+  }
+
+  /**
+   * Checks an answer against the references a prompt gave when it showed only some of them.
+   *
+   * @param allowed the references the prompt showed, such as {@code F3}, or {@code null} for all
+   * @throws Rejected as {@link #check(String, List, List, List)}, and if the answer cites a
+   *     reference the prompt did not show
+   */
+  static Checked check(
+      String answer,
+      List<String> facts,
+      List<String> excerpts,
+      List<Summary> children,
+      Set<String> allowed) {
     String text = answer == null ? "" : answer.strip();
     if (text.isEmpty()) {
       throw new Rejected("it is empty.");
@@ -59,8 +78,14 @@ final class Citations {
       StringBuilder markers = new StringBuilder();
       for (String ref : SPLIT.split(matcher.group(1))) {
         int index = parseIndex(ref.substring(1));
-        if (ref.charAt(0) == 'F' && index >= 1 && index <= facts.size()) {
+        if (allowed != null && !allowed.contains(ref)) {
+          unknown.add(ref);
+        } else if (ref.charAt(0) == 'F' && index >= 1 && index <= facts.size()) {
           String id = facts.get(index - 1);
+          citedFacts.add(id);
+          markers.append("[fact:").append(id).append(']');
+        } else if (ref.charAt(0) == 'E' && index >= 1 && index <= excerpts.size()) {
+          String id = excerpts.get(index - 1);
           citedFacts.add(id);
           markers.append("[fact:").append(id).append(']');
         } else if (ref.charAt(0) == 'S' && index >= 1 && index <= children.size()) {
@@ -82,6 +107,16 @@ final class Citations {
     }
     return new Checked(
         out.toString(), new ArrayList<>(citedFacts), new ArrayList<>(citedSummaries));
+  }
+
+  /** The references a text cites, such as {@code F3} and {@code S1}, in order of first citation. */
+  static Set<String> references(String text) {
+    Set<String> refs = new LinkedHashSet<>();
+    Matcher matcher = GROUP.matcher(text);
+    while (matcher.find()) {
+      refs.addAll(List.of(SPLIT.split(matcher.group(1))));
+    }
+    return refs;
   }
 
   private static int parseIndex(String digits) {

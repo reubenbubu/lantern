@@ -7,6 +7,7 @@ import io.lantern.core.document.DocumentJson;
 import io.lantern.core.document.TemplateRef;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.llm.LlmRequest;
 import io.lantern.summarize.Summary;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,8 +32,9 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Per-repository documents of the fixture projects, compared with golden files in {@code
  * src/test/resources/golden}: {@code <repo>.json} for the Architecture Explorer and {@code
- * <repo>.brief.json} for the Executive Brief. On a mismatch the actual document is written to
- * {@code target/golden-actual/}, to compare with or copy over the golden file once checked.
+ * <repo>.brief.json} for the Executive Brief, and {@code summary-prompts.txt} with what the
+ * summarizer sent the model for them. On a mismatch the actual document is written to {@code
+ * target/golden-actual/}, to compare with or copy over the golden file once checked.
  */
 class ComposerGoldenTest {
 
@@ -73,16 +76,40 @@ class ComposerGoldenTest {
     assertMatchesGolden(document, repo + ".brief.json");
   }
 
+  /**
+   * The system prompt once, then each request's purpose and user turn. Units are summarized in
+   * parallel, so requests are listed in the order of the units' summaries (children first), and a
+   * unit's own requests in the order sent.
+   */
+  @Test
+  void summaryPromptsMatchGolden() throws IOException {
+    List<String> units = fixtures.summaries().keySet().stream().map(EntityId::toString).toList();
+    List<LlmRequest> requests = new ArrayList<>(fixtures.requests());
+    requests.sort(
+        Comparator.comparingInt(request -> units.indexOf(request.purpose().split(" ")[2])));
+    StringBuilder prompts = new StringBuilder();
+    prompts.append("##### system\n").append(requests.getFirst().system()).append('\n');
+    for (LlmRequest request : requests) {
+      assertThat(request.system()).isEqualTo(fixtures.requests().getFirst().system());
+      prompts.append("\n##### ").append(request.purpose()).append('\n');
+      request.messages().forEach(message -> prompts.append(message.text()));
+    }
+    assertMatchesGolden(prompts.toString(), "summary-prompts.txt");
+  }
+
   private static void assertMatchesGolden(Document document, String name) throws IOException {
-    String actual = PRETTY.writeValueAsString(DocumentJson.toJson(document)) + "\n";
+    assertMatchesGolden(PRETTY.writeValueAsString(DocumentJson.toJson(document)) + "\n", name);
+    assertThat(DocumentJson.read(DocumentJson.write(document))).isEqualTo(document);
+  }
+
+  private static void assertMatchesGolden(String actual, String name) throws IOException {
     String expected = golden(name);
     if (!actual.equals(expected)) {
       Path out = Path.of("target", "golden-actual", name);
       Files.createDirectories(out.getParent());
       Files.writeString(out, actual);
     }
-    assertThat(actual).as("document compared with golden file %s", name).isEqualTo(expected);
-    assertThat(DocumentJson.read(DocumentJson.write(document))).isEqualTo(document);
+    assertThat(actual).as("compared with golden file %s", name).isEqualTo(expected);
   }
 
   @ParameterizedTest
