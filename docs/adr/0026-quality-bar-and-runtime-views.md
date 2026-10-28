@@ -1,6 +1,6 @@
 # 0026: A quality bar, and diagrams of runtime units instead of build units
 
-Status: accepted (#86); the direction is the user's, the details are pending the user's review (#24)
+Status: accepted (#86), pending the user's review (#24)
 
 ## Context
 
@@ -16,47 +16,43 @@ set it had been checked on.
 
 ## Decisions
 
-- **Adopt the rubric as the design's Quality bar.** `docs/design.md` (Quality bar) condenses it
-  into yes-or-no checks for every diagram and for each document, and links to the research for
-  the evidence instead of copying it. The composer runs the checks it can make from the document
-  model on every document. `docs/research/` becomes a source of truth for research and evidence
-  (`CLAUDE.md`, One source of truth).
-- **C4 levels as c4model.com defines them.** A container is a runtime unit: an application with
-  the in-set libraries it packages, or a data store, never a Maven module or jar. A component is a
-  group of functionality behind an interface inside one container, found by role (controllers,
-  listeners and scheduled jobs with the beans behind them, using Spring stereotypes and their
-  meta-annotations), not by package. Queues and topics are elements or "via" labels, never one
-  broker box. Build-time dependencies move to the dependency views. Code diagrams are not drawn.
-  This replaces ADR 0012's C4 mapping; the definitions are in the design (Composition, Diagrams).
-- **Sequence diagrams from stitched traces.** Flows start at entry points, follow the resolved
-  call graph, keep only boundary-crossing steps (HTTP, messaging, database), collapse each
-  container to one lifeline, and are stitched across containers by the linker. A few flows per
-  scope are chosen by a deterministic ranking (containers touched, async handoff, failure
-  handling), so the same flows come back on later runs.
-- **The LLM words, it never invents.** It writes names, responsibilities, intent phrases and
-  purpose from extracted facts. Every element and relationship comes from a fact, an annotation
-  or a Resolve result among candidates the code shows. What code can't show is stated once as
-  unknown.
-- **Extraction gaps named in the design.** Meta-annotations, placeholder resolution across
-  `application*` and `bootstrap*` config per profile, constant folding and one-hop `@Value`
-  following, Feign client names against `spring.application.name`, the caller of a client being
-  whoever enables or injects it, AMQP topic wildcards, and profile-gated links marked
-  conditional. These were added to the existing extractor and linker tables, not as new stages.
-- **Executive Brief additions.** Business purpose first, blast radius, technology currency and
-  ranked risks. Change-history measures (activity, hotspots) need git history beyond the snapshot
-  and are left for later; until then the Brief doesn't rank static findings as debt.
-- **Phase reorder.** Phase 1 is built. System view is next and now also holds deployable units,
-  the container, component and sequence views, the Quality bar checks and the Brief additions,
-  because per-repo documents from Maven and Java facts alone can't meet the bar. Later phases
-  are unchanged.
-- **Test sets are generic.** The design says test sets are chosen together to cover different
-  styles (messaging technology, package-by-feature and by-layer code, thin services, a monolith)
-  and names none. The OpenWMS details that were in the design's Open questions moved to ADR 0004.
-  Choosing more test sets is #88.
+- **Adopt the rubric as the design's Quality bar** (`docs/design.md`, Quality bar). Checks are
+  yes or no, so a document can be shown to be right rather than plausible; the composer makes the
+  ones it can on every document, and the rest are judged on the test sets each phase.
+  `docs/research/` becomes the place for research and evidence (`CLAUDE.md`, One source of truth).
+- **C4 levels as c4model.com defines them** (design, Composition, Diagrams). Containers are
+  runtime units, not modules or jars, because a reader needs to know what runs and who is
+  responsible for what, and build structure answers neither. This replaces ADR 0012's C4 mapping
+  and changes the C4 levels of ADR 0002's built-in types (#90).
+- **Code diagrams are not drawn.** The research says "on request, for one key component"; Lantern
+  links types to their source instead, since IDEs show code structure better and nobody has asked
+  for one. This can be revisited without changing the model.
+- **Sequence diagrams from stitched traces** (design, Composition, Sequence diagrams). Only
+  boundary-crossing steps are kept, because generated diagrams that show every call become
+  unreadable, and stitching across repos is what a single-repo tool cannot do. Flows are chosen
+  by a deterministic ranking so the same ones return on later runs.
+- **The LLM words, it never invents** (design, LLM integration, Grounding), because confident
+  invented edges are the main failure of generated architecture docs.
+- **Extraction and linking gaps go into the existing tables** (design, Static analysis and
+  extractors; Cross-repo linking), not new stages: the architecture already has the right places.
+- **Executive Brief additions** (design, Quality bar). Change-history measures need git history
+  beyond the snapshot and are left for later. Where end-of-life data comes from is an open
+  question in the design.
+- **Phase reorder.** System view comes before the remaining Phase 1 fixes, because per-repo
+  documents from Maven and Java facts alone can't meet the bar.
+- **Test sets are generic** (design, Phasing). No single test set should shape the design, so
+  the design names none; the OpenWMS details moved to ADR 0004. Choosing more is #88.
 
 ## Consequences
 
-- Phase 1 per-repo documents keep working but do not pass the bar; follow-up issues build the
-  extractors, linker and views phase 2 lists.
-- Some open phase 1 issues about package-level component diagrams (ADR 0012's mapping) may no
-  longer be worth doing once components are found by role.
+- Phase 1 documents keep working but do not pass the bar. Follow-up issues in the Phase 2
+  milestone build it: vocabulary C4 levels (#90), document model additions (#91), runtime
+  extractors (#92), deployable units (#93), the linker (#94), the new views with the bar's checks
+  (#95) and sequence flows (#96).
+- The document model gains a `sequence` diagram kind and a quality report block, a schema change
+  per ADR 0011 (#91).
+- The Executive Brief (ADR 0015) changes with the new views: its context and container diagrams
+  are redrawn by the new definitions, and its package-cycle risk, which reads the old
+  package-as-component diagrams, has to be rebased on packages directly or replaced.
+- #49 and #53, about package-level component diagrams, were closed: components are now found by
+  role, and diagrams are capped at 15 elements.
