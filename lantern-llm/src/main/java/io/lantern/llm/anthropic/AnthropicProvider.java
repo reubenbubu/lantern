@@ -14,12 +14,14 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.TextBlock;
 import com.anthropic.models.messages.TextBlockParam;
+import com.anthropic.models.messages.ThinkingConfigDisabled;
 import com.anthropic.models.messages.Usage;
 import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
+import io.lantern.llm.ModelConfig;
 import io.lantern.llm.TokenUsage;
 import io.lantern.llm.TransientLlmException;
 import java.time.Duration;
@@ -35,6 +37,9 @@ import java.util.Objects;
  * (408), overload and server errors (5xx other than 501) and connection failures become a {@link
  * TransientLlmException} with the wait the API asked for, so {@link io.lantern.llm.LlmClient}
  * retries them; a provider made by {@link #create} leaves retrying to it and does not retry itself.
+ *
+ * <p>For a model whose {@link io.lantern.llm.Thinking#disabled()} is set, it sends {@code thinking:
+ * {type: "disabled"}}. Thinking blocks in an answer are left out of its text.
  */
 public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 
@@ -89,9 +94,18 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
+    return send(params(model, request, false));
+  }
+
+  @Override
+  public LlmResponse complete(ModelConfig model, LlmRequest request) {
+    return send(params(model.model(), request, model.thinking().disabled()));
+  }
+
+  private LlmResponse send(MessageCreateParams params) {
     Message message;
     try {
-      message = client.messages().create(params(model, request));
+      message = client.messages().create(params);
     } catch (AnthropicException e) {
       throw error(e);
     }
@@ -155,9 +169,12 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     return a.compareTo(b) <= 0 ? a : b;
   }
 
-  static MessageCreateParams params(String model, LlmRequest request) {
+  static MessageCreateParams params(String model, LlmRequest request, boolean thinkingDisabled) {
     MessageCreateParams.Builder params =
         MessageCreateParams.builder().model(model).maxTokens(request.maxOutputTokens());
+    if (thinkingDisabled) {
+      params.thinking(ThinkingConfigDisabled.builder().build());
+    }
     if (request.system() != null) {
       TextBlockParam.Builder system = TextBlockParam.builder().text(request.system());
       if (request.cacheSystem()) {
@@ -176,6 +193,7 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 
   static LlmResponse response(Message message) {
     StringBuilder text = new StringBuilder();
+    // Only text blocks: thinking and redacted thinking blocks are not part of the answer.
     for (ContentBlock block : message.content()) {
       block.text().map(TextBlock::text).ifPresent(text::append);
     }

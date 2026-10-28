@@ -254,4 +254,98 @@ class LlmClientTest {
             () -> new LlmRequest(Role.COMPOSE, "p", null, List.of(LlmMessage.user("Hi")), 10, true))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void thinkingHeadroomIsAddedToTheOutputLimitTheBudgetAndTheContextWindow() {
+    ModelConfig thinker =
+        new ModelConfig("fake", "thinker", Set.of(), 10_000, PRICED)
+            .withThinking(new Thinking(false, 300));
+    LlmClient client = client(ModelSettings.single(thinker));
+
+    // "You are a test." (15) + 385 characters = 100 tokens in; 50 + 300 out at most.
+    client.call(request(Role.COMPOSE, "y".repeat(385), 50));
+
+    assertThat(fake.sent().getFirst().request().maxOutputTokens()).isEqualTo(350);
+    BudgetGuard tight = new BudgetGuard("scope", 449L, null);
+    assertThatThrownBy(
+            () -> client.withBudget(tight).call(request(Role.COMPOSE, "y".repeat(385), 50)))
+        .isInstanceOf(BudgetExceededException.class);
+    assertThat(fake.sent()).hasSize(1);
+    BudgetGuard enough = new BudgetGuard("scope", 450L, null);
+    client.withBudget(enough).call(request(Role.COMPOSE, "y".repeat(385), 50));
+    assertThat(fake.sent()).hasSize(2);
+
+    ModelConfig narrow =
+        new ModelConfig("fake", "narrow", Set.of(), 400, Pricing.FREE)
+            .withThinking(new Thinking(false, 300));
+    assertThatThrownBy(
+            () ->
+                client(ModelSettings.single(narrow))
+                    .call(request(Role.COMPOSE, "y".repeat(385), 50)))
+        .isInstanceOf(UnsupportedCapabilityException.class)
+        .hasMessageContaining("thinking headroom");
+  }
+
+  @Test
+  void anAnswerCutOffByThinkingIsReturnedButLoggedAsTruncated() {
+    ModelConfig priced = new ModelConfig("fake", "priced", Set.of(), 10_000, PRICED);
+    fake.answering("x".repeat(40)).thinking(45, false);
+    LlmClient client = client(ModelSettings.single(priced));
+
+    LlmResponse response = client.call(request(Role.COMPOSE, "y".repeat(385), 50));
+
+    // 45 tokens of thinking leave 5 of the 50 for the answer's 10.
+    assertThat(response.cutOff()).isTrue();
+    assertThat(response.text()).isEqualTo("x".repeat(20));
+    assertThat(response.usage()).isEqualTo(new TokenUsage(100, 50, 0, 0));
+    LlmCall call = log.calls().getFirst();
+    assertThat(call.outcome()).isEqualTo(LlmCall.Outcome.TRUNCATED);
+    assertThat(call.error()).contains("Cut off at the output limit of 50 tokens");
+    assertThat(call.usage()).isEqualTo(response.usage());
+    // 100 in at $3 and 50 out at $15 per million: billed and counted like any answer.
+    assertThat(call.costUsd()).isEqualByComparingTo("0.00105");
+    assertThat(run.spentTokens()).isEqualTo(150);
+  }
+
+  @Test
+  void turningThinkingOffWorksWhereTheProviderHonorsIt() {
+    fake.answering("x".repeat(40)).thinking(400, true);
+    ModelConfig off = fake.model("off").withThinking(new Thinking(true, 0));
+
+    LlmResponse response = client(ModelSettings.single(off)).call(request(Role.SUMMARIZE, "y", 50));
+
+    assertThat(response.cutOff()).isFalse();
+    assertThat(response.text()).isEqualTo("x".repeat(40));
+    assertThat(response.usage().output()).isEqualTo(10);
+    assertThat(log.calls().getFirst().outcome()).isEqualTo(LlmCall.Outcome.SUCCEEDED);
+  }
+
+  @Test
+  void aModelThatThinksAnywayNeedsHeadroom() {
+    fake.answering("x".repeat(40)).thinking(400, false);
+    ModelConfig off = fake.model("glm").withThinking(new Thinking(true, 0));
+
+    LlmResponse cut = client(ModelSettings.single(off)).call(request(Role.SUMMARIZE, "y", 50));
+
+    assertThat(cut.cutOff()).isTrue();
+    assertThat(cut.text()).isEmpty();
+    assertThat(log.calls().getLast().outcome()).isEqualTo(LlmCall.Outcome.TRUNCATED);
+
+    ModelConfig roomy = off.withThinking(new Thinking(true, 500));
+    LlmResponse whole = client(ModelSettings.single(roomy)).call(request(Role.SUMMARIZE, "y", 50));
+
+    assertThat(whole.cutOff()).isFalse();
+    assertThat(whole.text()).isEqualTo("x".repeat(40));
+    assertThat(whole.usage().output()).isEqualTo(410);
+    assertThat(log.calls().getLast().outcome()).isEqualTo(LlmCall.Outcome.SUCCEEDED);
+  }
+
+  @Test
+  void thinkingHeadroomMustNotBeNegativeAndAContextWindowStopIsACutOff() {
+    assertThatThrownBy(() -> new Thinking(false, -1)).isInstanceOf(IllegalArgumentException.class);
+    assertThat(new LlmResponse("x", LlmResponse.CONTEXT_WINDOW_EXCEEDED, TokenUsage.NONE).cutOff())
+        .isTrue();
+    assertThat(new LlmResponse("x", "end_turn", TokenUsage.NONE).cutOff()).isFalse();
+    assertThat(new LlmResponse("x", null, TokenUsage.NONE).cutOff()).isFalse();
+  }
 }

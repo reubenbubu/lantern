@@ -5,14 +5,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.llm.BudgetExceededException;
 import io.lantern.llm.FakeLlmProvider;
+import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Pricing;
 import io.lantern.llm.RetryPolicy;
 import io.lantern.llm.Role;
+import io.lantern.llm.TokenUsage;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -90,6 +93,32 @@ class LlmAccessIT {
     assertThat(row.get("input_tokens")).isEqualTo(8L);
     assertThat(row.get("output_tokens")).isEqualTo(4L);
     assertThat((BigDecimal) row.get("cost_usd")).isEqualByComparingTo("0.00014");
+  }
+
+  @Test
+  void aTruncatedCallIsStoredWithItsUsage() {
+    String purpose = "test " + UUID.randomUUID();
+
+    stored.record(
+        new LlmCall(
+            Instant.now(),
+            Duration.ofMillis(5),
+            Role.SUMMARIZE,
+            purpose,
+            "fake",
+            "fast-model",
+            LlmCall.Outcome.TRUNCATED,
+            new TokenUsage(20, 50, 0, 0),
+            new BigDecimal("0.001"),
+            "Cut off at the output limit of 50 tokens (stop reason max_tokens)"));
+
+    Map<String, Object> row =
+        jdbc.sql("SELECT * FROM llm_calls WHERE purpose = :purpose")
+            .param("purpose", purpose)
+            .query()
+            .singleRow();
+    assertThat(row).containsEntry("outcome", "TRUNCATED");
+    assertThat(row.get("output_tokens")).isEqualTo(50L);
   }
 
   @Test

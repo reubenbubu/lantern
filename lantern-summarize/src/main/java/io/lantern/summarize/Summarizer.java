@@ -60,9 +60,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class Summarizer {
 
-  /** The stop reason of an answer cut off at its output limit, as Anthropic reports it. */
-  private static final String MAX_TOKENS = "max_tokens";
-
   private final LlmClient client;
   private final SummaryStore store;
 
@@ -318,7 +315,7 @@ public final class Summarizer {
 
     private Citations.Checked check(
         LlmResponse response, List<String> factIds, List<Summary> children) {
-      if (MAX_TOKENS.equals(response.stopReason())) {
+      if (response.cutOff()) {
         throw new Citations.Rejected("it was cut off at the length limit; write a shorter one.");
       }
       return Citations.check(response.text(), factIds, children);
