@@ -1,8 +1,6 @@
-# The OpenWMS test set (docs/design.md, Open questions): 16 repositories pinned to exact commits.
-# Each is pinned to the commit of its latest release tag (no milestones or release candidates),
-# checked on 28 Oct 2026; the tag is in the comment above each line. Two repos have no release
-# tag and stay at the head of their default branch on 28 Oct 2026. All are Apache-2.0 licensed.
-# See docs/adr/0020-openwms-release-pins.md.
+# The OpenWMS test set (docs/design.md, Open questions): 16 repositories pinned to exact commits,
+# chosen as docs/adr/0020-openwms-release-pins.md describes. The comment above each line names its
+# release tag. All are Apache-2.0 licensed.
 # Format: <name> <clone URL> <full commit hash>. Change a commit here to move the pin.
 #
 # Services

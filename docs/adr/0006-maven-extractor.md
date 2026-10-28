@@ -42,7 +42,7 @@ how these are named and modelled, what "internal" means, and how a service's lib
   repository in the snapshot builds a module with those coordinates, whatever the version (OpenWMS
   services depend on released versions of libraries whose repositories are at the next snapshot).
   An internal dependency points at the `module:` entity, a third-party one at `artifact:`. An
-  OpenWMS artifact without a repository in the test set (`core.util`) is third-party.
+  OpenWMS artifact without a repository in the snapshot is third-party.
 - **Deployable vs. library.** A module is deployable if its packaging is `war` or `ear`, or its
   build runs Spring Boot's `repackage` goal (not skipped with `<skip>` or the
   `spring-boot.repackage.skip` property). In an effective POM the goal must be

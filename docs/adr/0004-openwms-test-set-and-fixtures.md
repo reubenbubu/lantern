@@ -12,7 +12,7 @@ commits, or where the workspace is.
 
 ## Decisions
 
-- **The 15 repositories** are the five services and everything they build on that OpenWMS
+- **The 15 repositories** (16 since ADR 0020) are the five services and everything they build on that OpenWMS
   publishes as its own repository: `org.openwms.parent` (the shared parent POM),
   `common.service.lib`, `core.units`, `core.test.arch`, `core.uaa.lib`, `wms.receiving.lib`,
   `tms.routing.lib`, `tms.routing.osip` (the thin `tms.routing` service packages this, and it
