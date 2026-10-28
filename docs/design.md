@@ -159,8 +159,9 @@ Lantern works like a build system: every derived artifact records its inputs, an
 
 **Snapshots**
 
-- A snapshot is a named set of `repo@commit` pairs, plus the vocabulary revision, annotation revision and tool version used.
+- A snapshot is a numbered set of `repo@commit` pairs, plus the vocabulary revision, annotation revision and tool version used. Snapshots are numbered 1, 2, 3 and so on in creation order, because fact validity is a range of snapshot numbers.
 - Every document is tied to exactly one snapshot.
+- Only one analysis runs at a time. Starting one takes a PostgreSQL advisory lock, held on its own database connection until the analysis ends; a second start fails at once with an "analysis already running" error, even from another Lantern process on the same database. If the process dies, the connection drops and the lock is released.
 
 **Cache keys**
 

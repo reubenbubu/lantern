@@ -1,2 +1,5 @@
-/** Facts, the fact envelope and the vocabulary registry. */
+/**
+ * Facts, the fact envelope, the vocabulary registry, the repository registry, snapshots and the
+ * analysis lock.
+ */
 package io.lantern.core;

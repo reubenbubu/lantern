@@ -1,0 +1,142 @@
+package io.lantern.core.snapshot;
+
+import io.lantern.core.repo.RepoRegistry;
+import io.lantern.core.vocabulary.VocabularyRegistry;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.Instant;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.TreeMap;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.support.TransactionOperations;
+
+/**
+ * Creates and reads snapshots in the {@code snapshots} and {@code snapshot_repositories} tables.
+ * Snapshots are numbered 1, 2, 3 and so on without gaps, in creation order.
+ */
+public class SnapshotStore {
+
+  private final JdbcClient jdbc;
+  private final TransactionOperations transactions;
+  private final RepoRegistry repos;
+  private final VocabularyRegistry vocabulary;
+  private final String toolVersion;
+
+  public SnapshotStore(
+      JdbcClient jdbc,
+      TransactionOperations transactions,
+      RepoRegistry repos,
+      VocabularyRegistry vocabulary,
+      String toolVersion) {
+    this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
+    this.transactions = Objects.requireNonNull(transactions, "transactions");
+    this.repos = Objects.requireNonNull(repos, "repos");
+    this.vocabulary = Objects.requireNonNull(vocabulary, "vocabulary");
+    this.toolVersion = Objects.requireNonNull(toolVersion, "toolVersion");
+    if (toolVersion.isBlank()) {
+      throw new IllegalArgumentException("Tool version must not be blank");
+    }
+  }
+
+  /**
+   * Creates a snapshot. Each revision is resolved to a full commit hash first, and the snapshot
+   * records the latest vocabulary revision and this tool version.
+   *
+   * @param revisions for each repository to include, by name, the revision to analyze: {@link
+   *     RepoRegistry#HEAD}, a branch or tag name, or a commit hash
+   * @return the new snapshot
+   * @throws IllegalArgumentException if there are no repositories, a repository is not registered
+   *     or a revision does not name a commit; nothing is stored then
+   */
+  public Snapshot create(Map<String, String> revisions) {
+    Objects.requireNonNull(revisions, "revisions");
+    if (revisions.isEmpty()) {
+      throw new IllegalArgumentException("A snapshot must contain at least one repository");
+    }
+    Map<String, String> commits = new TreeMap<>();
+    revisions.forEach((repo, revision) -> commits.put(repo, repos.resolve(repo, revision)));
+    long vocabularyRevision = vocabulary.current().revision();
+    Long number =
+        transactions.execute(
+            status -> {
+              // One writer at a time, so snapshots are numbered without gaps or races.
+              jdbc.sql("LOCK TABLE snapshots IN EXCLUSIVE MODE").update();
+              long next =
+                  jdbc.sql("SELECT coalesce(max(number), 0) + 1 FROM snapshots")
+                      .query(Long.class)
+                      .single();
+              jdbc.sql(
+                      """
+                      INSERT INTO snapshots (number, vocabulary_revision, tool_version)
+                      VALUES (:n, :vocabulary, :tool)
+                      """)
+                  .param("n", next)
+                  .param("vocabulary", vocabularyRevision)
+                  .param("tool", toolVersion)
+                  .update();
+              commits.forEach(
+                  (repo, commit) ->
+                      jdbc.sql(
+                              """
+                              INSERT INTO snapshot_repositories (snapshot, repository, commit)
+                              VALUES (:n, :repo, :commit)
+                              """)
+                          .param("n", next)
+                          .param("repo", repo)
+                          .param("commit", commit)
+                          .update());
+              return next;
+            });
+    return find(Objects.requireNonNull(number, "number")).orElseThrow();
+  }
+
+  /** The snapshot with the number, if any. */
+  public Optional<Snapshot> find(long number) {
+    return jdbc.sql(
+            "SELECT number, vocabulary_revision, tool_version, created_at FROM snapshots"
+                + " WHERE number = :n")
+        .param("n", number)
+        .query(SnapshotStore::mapHeader)
+        .optional()
+        .map(this::withCommits);
+  }
+
+  /** The most recently created snapshot, if any. */
+  public Optional<Snapshot> latest() {
+    return jdbc.sql(
+            "SELECT number, vocabulary_revision, tool_version, created_at FROM snapshots"
+                + " ORDER BY number DESC LIMIT 1")
+        .query(SnapshotStore::mapHeader)
+        .optional()
+        .map(this::withCommits);
+  }
+
+  /** A snapshot row without its commits. */
+  private record Header(
+      long number, long vocabularyRevision, String toolVersion, Instant createdAt) {}
+
+  private static Header mapHeader(ResultSet rs, int rowNum) throws SQLException {
+    return new Header(
+        rs.getLong("number"),
+        rs.getLong("vocabulary_revision"),
+        rs.getString("tool_version"),
+        rs.getTimestamp("created_at").toInstant());
+  }
+
+  private Snapshot withCommits(Header header) {
+    Map<String, String> commits = new TreeMap<>();
+    jdbc.sql("SELECT repository, commit FROM snapshot_repositories WHERE snapshot = :n")
+        .param("n", header.number())
+        .query()
+        .listOfRows()
+        .forEach(row -> commits.put((String) row.get("repository"), (String) row.get("commit")));
+    return new Snapshot(
+        header.number(),
+        commits,
+        header.vocabularyRevision(),
+        header.toolVersion(),
+        header.createdAt());
+  }
+}

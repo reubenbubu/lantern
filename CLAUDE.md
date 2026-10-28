@@ -79,7 +79,7 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 ## Commands
 
-Requires JDK 21 and Docker (tests start PostgreSQL with Testcontainers). Run from the repo root.
+Requires JDK 21, git and Docker (tests start PostgreSQL with Testcontainers and create temporary git repositories). Run from the repo root.
 
 - Build and test everything (this is CI): `./mvnw verify`
 - Fix formatting: `./mvnw spotless:apply`
