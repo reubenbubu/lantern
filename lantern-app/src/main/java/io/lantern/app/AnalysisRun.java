@@ -8,6 +8,7 @@ import io.lantern.core.document.Document;
 import io.lantern.core.document.TemplateRef;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.RepoSettings;
@@ -118,7 +119,7 @@ public final class AnalysisRun {
    * @param builds the build of each repository, by name
    * @param reusedBuilds the names of the repositories whose stored build was reused
    * @param facts how many facts the extractors found
-   * @param newFacts how many of them were not stored before
+   * @param newFacts how many of them did not hold in the previous snapshot
    * @param summariesGenerated how many summaries the LLM wrote
    * @param summariesReused how many summaries came from the cache
    * @param llm the LLM calls made during the run, whatever their outcome
@@ -188,7 +189,7 @@ public final class AnalysisRun {
       List<Fact> found =
           new ArrayList<>(new MavenExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new JavaExtractor().extract(repoBuilds, snapshot.number()));
-      Stored stored = store(found);
+      Stored stored = store(snapshot.number(), found);
       List<Fact> extracted = stored.facts();
       int newFacts = stored.added();
       LOG.info("Extracted {} facts, {} of them new", extracted.size(), newFacts);
@@ -225,8 +226,7 @@ public final class AnalysisRun {
 
   /**
    * Builds every repository at its snapshot commit, in parallel up to the sandbox's limit, reusing
-   * a stored build of the same commit. A failed one is reused too: rebuilding it successfully would
-   * raise the confidence of facts already stored, which cannot change yet (#23).
+   * a stored build of the same commit, failed or not (ADR 0016).
    */
   private Map<String, BuildResult> build(
       Map<String, Repo> repos, Snapshot snapshot, List<String> reused) {
@@ -267,25 +267,20 @@ public final class AnalysisRun {
   }
 
   /**
-   * Stores the facts in one transaction, each ID once. A fact already stored is kept as stored,
-   * which may hold from an earlier snapshot.
+   * Records the facts found in the snapshot in one transaction, each ID once (ADR 0017). A fact
+   * that already held keeps the start of its validity, and stored static facts that were not found
+   * stop holding.
    */
-  private Stored store(List<Fact> found) {
+  private Stored store(long snapshot, List<Fact> found) {
     return transaction.execute(
         status -> {
-          List<Fact> stored = new ArrayList<>();
-          int added = 0;
           Map<String, Fact> unique = new LinkedHashMap<>();
           found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
-          for (Fact fact : unique.values()) {
-            if (facts.save(fact)) {
-              stored.add(fact);
-              added++;
-            } else {
-              stored.add(facts.findById(fact.id()).orElseThrow());
-            }
-          }
-          return new Stored(stored, added);
+          FactRepository.SnapshotUpdate update =
+              facts.recordSnapshot(snapshot, Origin.Kind.STATIC, unique.values());
+          LOG.info(
+              "Facts: {} changed confidence, {} no longer hold", update.changed(), update.closed());
+          return new Stored(update.facts(), update.added());
         });
   }
 
