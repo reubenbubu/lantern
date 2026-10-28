@@ -4,3 +4,5 @@ target/
 .vscode/
 .DS_Store
 /workspace/
+node_modules/
+/lantern-web/src/generated/

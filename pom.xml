@@ -25,6 +25,7 @@
     <module>lantern-summarize</module>
     <module>lantern-compose</module>
     <module>lantern-app</module>
+    <module>lantern-web</module>
     <module>lantern-archtest</module>
   </modules>
 
@@ -35,6 +36,8 @@
     <archunit.version>1.5.1</archunit.version>
     <javaparser.version>3.28.2</javaparser.version>
     <spotless.version>3.10.4</spotless.version>
+    <frontend-maven-plugin.version>2.0.2</frontend-maven-plugin.version>
+    <node.version>v24.21.0</node.version>
     <!-- 1.37.0 fails under spotless-maven-plugin 3.10.4 (IllegalAccessError into jdk.compiler). -->
     <google-java-format.version>1.36.1</google-java-format.version>
   </properties>
