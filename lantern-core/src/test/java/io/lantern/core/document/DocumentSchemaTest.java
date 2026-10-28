@@ -117,6 +117,8 @@ class DocumentSchemaTest {
         .isEqualTo(jsonNames(Level.values(), Level::jsonName));
     assertThat(strings(defs.get("callout").get("properties").get("variant").get("enum")))
         .isEqualTo(jsonNames(Callout.Variant.values(), Callout.Variant::jsonName));
+    assertThat(strings(defs.get("callout").get("properties").get("severity").get("enum")))
+        .isEqualTo(jsonNames(Callout.Severity.values(), Callout.Severity::jsonName));
     assertThat(strings(defs.get("diagram").get("properties").get("diagramKind").get("enum")))
         .isEqualTo(jsonNames(Diagram.Kind.values(), Diagram.Kind::jsonName));
     assertThat(strings(defs.get("textRun").get("properties").get("style").get("enum")))

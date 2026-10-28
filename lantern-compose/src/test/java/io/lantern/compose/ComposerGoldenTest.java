@@ -29,14 +29,16 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Per-repository documents of the fixture projects, compared with golden files in {@code
- * src/test/resources/golden}. On a mismatch the actual document is written to {@code
- * target/golden-actual/<repo>.json}, to compare with or copy over the golden file once checked.
+ * src/test/resources/golden}: {@code <repo>.json} for the Architecture Explorer and {@code
+ * <repo>.brief.json} for the Executive Brief. On a mismatch the actual document is written to
+ * {@code target/golden-actual/}, to compare with or copy over the golden file once checked.
  */
 class ComposerGoldenTest {
 
   private static final JsonMapper PRETTY =
       JsonMapper.builder().enable(SerializationFeature.INDENT_OUTPUT).build();
   private static final TemplateRef TEMPLATE = new TemplateRef("architecture-explorer", "1");
+  private static final TemplateRef BRIEF = new TemplateRef("executive-brief", "1");
 
   @TempDir static Path temp;
   private static FixtureSnapshot fixtures;
@@ -55,15 +57,31 @@ class ComposerGoldenTest {
   @ParameterizedTest
   @ValueSource(strings = {"shop", "orders", "greeting-lib", "greeting-service"})
   void matchesGolden(String repo) throws IOException {
-    Document document = compose(repo, fixtures.facts(), fixtures.summaries());
+    assertMatchesGolden(compose(repo, fixtures.facts(), fixtures.summaries()), repo + ".json");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"shop", "orders", "greeting-lib", "greeting-service"})
+  void briefMatchesGolden(String repo) throws IOException {
+    Document document =
+        new Composer("0.1.0-test")
+            .compose(
+                ViewDefinition.executiveBrief(repo + ".brief", repo, BRIEF),
+                fixtures.snapshot(),
+                fixtures.facts(),
+                fixtures.summaries());
+    assertMatchesGolden(document, repo + ".brief.json");
+  }
+
+  private static void assertMatchesGolden(Document document, String name) throws IOException {
     String actual = PRETTY.writeValueAsString(DocumentJson.toJson(document)) + "\n";
-    String expected = golden(repo + ".json");
+    String expected = golden(name);
     if (!actual.equals(expected)) {
-      Path out = Path.of("target", "golden-actual", repo + ".json");
+      Path out = Path.of("target", "golden-actual", name);
       Files.createDirectories(out.getParent());
       Files.writeString(out, actual);
     }
-    assertThat(actual).as("document compared with golden file %s.json", repo).isEqualTo(expected);
+    assertThat(actual).as("document compared with golden file %s", name).isEqualTo(expected);
     assertThat(DocumentJson.read(DocumentJson.write(document))).isEqualTo(document);
   }
 

@@ -33,7 +33,8 @@ live, and which tools generate and check the TypeScript types. The authoritative
   The design names sections, diagrams, tables, callouts and cross-references; lists are needed for
   ordinary narrative, a tree for the dependency tree and module and package structure #13 must
   produce, and metrics for the Executive Brief's headline numbers (#16). Risks are callouts with
-  the variant `risk`; the other variants are `note` and `warning`. Every block, and every list
+  the variant `risk`; the other variants are `note` and `warning`. A risk may have a severity
+  (`high`, `medium`, `low`), added for the Executive Brief (0015). Every block, and every list
   item, table row, diagram node and edge, tree node and metric, has its own fact IDs.
 - **Rich text** is a list of inline elements: text runs (optionally strong, emphasis or code),
   cross-references and citations. A citation lists the fact IDs behind the text before it, which

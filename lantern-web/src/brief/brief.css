@@ -1,0 +1,189 @@
+/* The Executive Brief: one column for reading, diagrams as wide as the column, large headline
+   numbers and risk cards. Uses the shared theme tokens (styles.css); docs/adr/0015. */
+.brief-page {
+  container: brief / inline-size;
+  min-height: 100vh;
+}
+
+/* A slim header that stays on top: the title, the sections (where there is room) and the theme. */
+.brief-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem var(--space);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.brief-bar-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.brief-nav {
+  display: none;
+  gap: 1.25rem;
+  margin-left: auto;
+  font-size: 0.9375rem;
+}
+
+.brief-nav a {
+  color: var(--color-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.brief-nav a:hover {
+  color: var(--color-link);
+}
+
+.brief-bar .icon-button {
+  margin-left: auto;
+}
+
+.brief-nav + .icon-button {
+  margin-left: 0;
+}
+
+@container brief (min-width: 760px) {
+  .brief-nav {
+    display: flex;
+  }
+}
+
+.brief {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 0 var(--space) 4rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+.brief-hero {
+  padding: 2.5rem 0 1rem;
+  scroll-margin-top: 4rem;
+}
+
+.brief-kicker {
+  margin: 0;
+  color: var(--color-link);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brief-hero h1 {
+  margin: 0.25rem 0 0.5rem;
+  font-size: clamp(1.75rem, 1.2rem + 2.5vw, 2.75rem);
+  line-height: 1.15;
+  overflow-wrap: break-word;
+}
+
+.brief-source {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.brief .section {
+  padding-top: 1.5rem;
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  /* Clears the sticky header when a link scrolls here. */
+  scroll-margin-top: 3.5rem;
+}
+
+.brief .section h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.5rem;
+}
+
+.brief .section > p {
+  max-width: 42rem;
+}
+
+/* Headline numbers as large tiles. */
+.brief .metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+@container brief (min-width: 600px) {
+  .brief .metrics {
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  }
+}
+
+.brief .metric {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.brief .metric dd {
+  font-size: 2.25rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.brief .metric dt {
+  font-size: 0.875rem;
+  line-height: 1.3;
+}
+
+/* Risks as cards. */
+.brief .callout {
+  max-width: 48rem;
+  margin: 0 0 0.75rem;
+  padding: 0.875rem 1rem;
+  border-left-width: 6px;
+  border-radius: 0 8px 8px 0;
+}
+
+.brief .callout-title {
+  font-size: 1.0625rem;
+}
+
+/* Diagrams: on laptops and wider the whole drawing fits the column, so the reader sees its shape at
+   once. On narrow pages a wide diagram keeps at least 75% of its size (as the Explorer's do), so
+   its text stays readable, and scrolls sideways, starting centred. */
+.brief .diagram {
+  margin: 0.5rem 0 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.brief .diagram figcaption {
+  margin-bottom: 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.brief .diagram-canvas {
+  margin: 0 auto;
+  width: max(100%, calc(var(--diagram-width) * 0.75));
+  max-width: var(--diagram-width);
+  height: auto;
+}
+
+@container brief (min-width: 600px) {
+  .brief .diagram-canvas {
+    width: 100%;
+  }
+}

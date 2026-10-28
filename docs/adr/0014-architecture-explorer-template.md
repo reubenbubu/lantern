@@ -18,8 +18,8 @@ open whether tree nodes need IDs of their own for deep links or expand and colla
 ## Decisions
 
 - **One page, every template.** The single-file build stays one template file (0013). It picks the
-  layout by the document's template name: `architecture-explorer` gets the app shell, any other name
-  the plain page, until its template exists (#16). The shell reuses the plain page's components; an
+  layout by the document's template name: `architecture-explorer` gets the app shell, `executive-brief` the
+  brief (0015), any other name the plain page. The shell reuses the plain page's components; an
   `Interaction` context turns entity references, citations, diagram nodes and trees into the
   interactive versions, so templates share one renderer.
 - **Navigation tree.** The left pane lists the document's sections, then its entities as a tree

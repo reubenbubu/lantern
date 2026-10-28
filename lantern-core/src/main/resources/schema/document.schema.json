@@ -191,7 +191,7 @@
     },
     "callout": {
       "title": "Callout",
-      "description": "Text set apart from the flow: a note, a warning or a risk.",
+      "description": "Text set apart from the flow: a note, a warning or a risk. Only a risk may have a severity.",
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "id", "variant", "content", "facts"],
@@ -199,10 +199,13 @@
         "kind": { "const": "callout" },
         "id": { "$ref": "#/$defs/elementId" },
         "variant": { "enum": ["note", "warning", "risk"] },
+        "severity": { "enum": ["high", "medium", "low"] },
         "title": { "$ref": "#/$defs/nonBlankText" },
         "content": { "$ref": "#/$defs/content" },
         "facts": { "$ref": "#/$defs/factIds" }
-      }
+      },
+      "if": { "properties": { "variant": { "enum": ["note", "warning"] } } },
+      "then": { "properties": { "severity": false } }
     },
     "table": {
       "title": "Table",

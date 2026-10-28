@@ -72,6 +72,7 @@ const blocks: Block[] = [
     kind: 'callout',
     id: 'risk',
     variant: 'risk',
+    severity: 'high',
     content: [{ kind: 'text', text: 'Shared.' }],
     facts: [],
   },
@@ -130,6 +131,15 @@ export const refused: Block[] = [
   { kind: 'paragraph', id: 'p', content: [{ kind: 'text', text: 'x' }] },
   // @ts-expect-error unknown callout variant
   { kind: 'callout', id: 'c', variant: 'tip', content: [{ kind: 'text', text: 'x' }], facts: [] },
+  {
+    kind: 'callout',
+    id: 'c',
+    variant: 'risk',
+    // @ts-expect-error unknown risk severity
+    severity: 'critical',
+    content: [{ kind: 'text', text: 'x' }],
+    facts: [],
+  },
   // @ts-expect-error empty rich text
   { kind: 'paragraph', id: 'p', content: [], facts: [] },
   {

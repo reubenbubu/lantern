@@ -135,6 +135,7 @@
       "kind" : "callout",
       "id" : "risk-db",
       "variant" : "risk",
+      "severity" : "high",
       "title" : "Shared database",
       "content" : [ {
         "kind" : "text",

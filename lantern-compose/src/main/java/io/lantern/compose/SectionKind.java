@@ -22,7 +22,11 @@ public enum SectionKind {
   /** The Maven dependency tree of each module. */
   DEPENDENCIES("Dependencies", EnumSet.of(Level.L2, Level.L3)),
   /** The modules and packages, as a tree. */
-  STRUCTURE("Modules and packages", EnumSet.of(Level.L3));
+  STRUCTURE("Modules and packages", EnumSet.of(Level.L3)),
+  /** Headline numbers: what the repository builds, how big it is and how connected. */
+  HEADLINES("At a glance", EnumSet.of(Level.L0, Level.L1)),
+  /** Risks found by fixed checks of the knowledge, most serious first. */
+  RISKS("Risks", EnumSet.of(Level.L0, Level.L1));
 
   private final String title;
   private final EnumSet<Level> levels;
