@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { documentSchema, factEnvelopeSchema } from '../scripts/schemas.mjs';
 import { sample } from './sample-document.ts';
