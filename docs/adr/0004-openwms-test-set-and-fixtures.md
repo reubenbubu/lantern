@@ -1,14 +1,30 @@
 # 0004: The pinned OpenWMS test set and the fixture Maven projects
 
-Status: accepted (#6), amended by ADR 0020 (#72), pending the user's review (#24)
+Status: accepted (#6), amended by ADR 0020 (#72) and ADR 0026 (#86), pending the user's review (#24)
 
 ## Context
 
-`docs/design.md` (Open questions) makes OpenWMS the first target set: 15 repositories, five
+`docs/design.md` (Open questions) made OpenWMS the first target set (that entry now lives under Choice and size, below): 15 repositories, five
 services plus the libraries they need. Issue #6 asks for a script that clones them at pinned
 commits into a gitignored workspace folder, a checked-in list of repositories and commits, and
 small fixture Maven projects for tests. The design names the services but not the full list, the
 commits, or where the workspace is.
+
+## Choice and size
+
+Moved here from `docs/design.md` (Open questions) by ADR 0026, which keeps the design free of
+test-set detail.
+
+- **Why OpenWMS.** [OpenWMS](https://openwms.github.io/org.openwms) is Apache-2.0, Spring Boot
+  4.1 and Maven, with one repository per service, a shared `org.openwms.parent` POM, the in-house
+  `ameba-lib`, and AMQP between services. It has five services (`common.service`,
+  `tms.transportation`, `tms.routing`, `wms.receiving`, `core.uaa`) and about ten shared libraries.
+- **Size.** Measured from shallow clones on 27 Oct 2026: 15 repositories (16 since ADR 0020),
+  958 Java files, about 57,000 non-blank lines of main code and 13,400 of test code, 14 MB on disk.
+- **Thin services.** Four of the five service repositories are thin (52 to 112 lines each) and
+  mainly package their `.lib` artifact, so a service and its library are one deployable (ADR 0006).
+- **Host.** The existing development VM (20 cores, 37 GB RAM with about 19 GB free, 106 GB free
+  disk, Docker 29.9) is enough for this set, with up to 4 build containers at 4 GB each.
 
 ## Decisions
 

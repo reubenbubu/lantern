@@ -73,7 +73,7 @@ Repos are cloned onto the service host, and each analysis builds them for real i
 - One container per repo build, run with Docker or Podman on the single VM.
 - Images per JDK (8, 11, 17, 21, 25). The JDK is detected from `maven.compiler.release` / `source` / toolchains, with a per-repo override.
 - A mounted `settings.xml` gives access to the internal Nexus or Artifactory.
-- The Maven repositories builds may download from are configured per analysis (`lantern.sandbox.maven-repositories`, an id and URL each, exact locations, no wildcards); Maven Central alone by default. Test sets name extra ones in their own settings, as OpenWMS does for Alfresco's Activiti repository. Downloads are only used to compile; third-party code is never analyzed.
+- The Maven repositories builds may download from are configured per analysis (`lantern.sandbox.maven-repositories`, an id and URL each, exact locations, no wildcards); Maven Central alone by default. Test sets name extra ones in their own settings. Downloads are only used to compile; third-party code is never analyzed.
 - A shared, persistent local Maven repository cache across builds, for speed.
 - The build runs to `compile` (which includes `generate-sources` and annotation processing), with tests skipped. The outputs the analyzer needs are the resolved classpath, generated sources and compiled classes.
 - Resource limits (CPU, memory, disk, timeout) per container, builds run as a non-root user, and a concurrency limit for the VM.
@@ -100,13 +100,15 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | --- | --- | --- |
 | Maven | Effective POM and reactor (POMs as written when there is no effective POM) | Modules, artifacts, internal vs. third-party dependencies, deployable vs. library, and the library a thin service packages |
 | Java structure | javac Tree API with symbol resolution (JavaParser as fallback) | Packages, types, members, inheritance, resolved call graph |
-| Spring / Jakarta | Annotations and bean definitions | Controllers and endpoints, beans, configuration, `@Scheduled` jobs, profiles |
-| HTTP clients | Feign, RestTemplate, WebClient, JAX-RS clients | Outbound calls with target URLs or property keys |
-| Messaging | Kafka, JMS, RabbitMQ listeners and templates | Topics and queues produced and consumed |
+| Spring / Jakarta | Annotations, including meta-annotations (a custom annotation carrying `@RestController` or `@Service` counts as one), and bean definitions | Application main classes, controllers and endpoints, beans by stereotype, configuration, `@Scheduled` jobs, `@Profile` gates |
+| HTTP clients | Feign, RestTemplate, WebClient, JAX-RS clients | Outbound calls with target service name, URL or property key, and path. The caller of a client interface is the code that enables or injects it, not the jar that defines it |
+| Messaging | Kafka, JMS, RabbitMQ listeners and templates | Topics, exchanges, queues, bindings and routing keys produced and consumed |
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
-| Config | `.properties`, `.yml`, Spring profiles, env-var placeholders | Resolved and unresolved config values per profile |
+| Config | `.properties`, `.yml` (`application*` and `bootstrap*`), Spring profiles, env-var placeholders | Resolved and unresolved config values per profile, including `spring.application.name` |
 | SQL | Flyway and Liquibase migrations, `.sql` files (JSqlParser) | Schema as of the commit: tables, columns, keys |
 | README | Markdown in the repo | Low-trust "documented claims", checked against code |
+
+**Following values.** Paths, queue, exchange and topic names and routing keys are rarely literals where they are used. Extractors resolve `${...}` placeholders against config per profile, fold constants, and follow a value one hop from a `@Value` field or constructor argument into the template or client call that uses it. A value that can't be resolved keeps its placeholder key, which still says what it is.
 
 Later: Dockerfiles, Helm and Kubernetes manifests, OpenAPI and AsyncAPI specs, Terraform.
 
@@ -202,10 +204,12 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | Link | Matched by |
 | --- | --- |
 | Library dependency | Maven coordinates of internal artifacts |
-| HTTP call | Resolved client URL or property key against service base URLs and endpoint paths |
-| Messaging | Topic or queue names, produced vs. consumed |
+| HTTP call | Client name (Feign `name`) against the target's `spring.application.name`, else resolved client URL or property key against service base URLs; then the path against the target's endpoints |
+| Messaging | Topic, exchange or queue names and routing keys, produced vs. consumed, with AMQP topic wildcards (`order.*`) matched as the broker matches them |
 | Shared database | Datasource URLs and table names |
 | Shared config | Common property keys and config servers |
+
+A link that holds only under a Spring profile is marked conditional, naming the profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
 
 Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue.
 
@@ -254,6 +258,8 @@ The LLM handles understanding that static analysis can't provide, always working
 
 - Every LLM output must cite the fact IDs or file ranges it used. Outputs without citations are rejected or marked low-confidence.
 - The glossary (from annotations) is included in prompts.
+- The LLM words what extraction found: names, the responsibility sentence of each element, the intent phrase of each relationship, a system's purpose and "start here". It never invents elements or relationships. Every box and line in a document comes from an extracted fact, an annotation, or a Resolve result that picks among candidates the code shows.
+- What code can't show (business purpose, people, owners, rationale, quality goals, production topology) comes from annotations or README claims, or is stated once, plainly, as unknown.
 
 How summaries are built bottom-up, cached and cited is in ADR 0010; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025.
 
@@ -359,6 +365,20 @@ Presentation rules control how knowledge is shown without changing what is true.
 
 Presentation rules follow the same lifecycle as knowledge annotations: anchored to stable IDs, versioned, audited, and flagged as orphaned when their target disappears.
 
+## Quality bar
+
+Every diagram and document is judged against these checks, each yes or no. The composer runs those it can check from the document model on every document and reports failures with it. The evidence behind them is in `docs/research/architecture-documentation-quality-bar.md`.
+
+**Every diagram:** a title naming its type and scope; a legend for every shape, color, line style and arrowhead used; one abstraction level; about 15 elements or fewer, else split. Every element has a name, a type and a responsibility sentence that doesn't restate the name, and containers and components a technology. Every line is one-way, labelled with an intent phrase (never just "uses" or "depends on"), names its protocol between containers, and links to the facts behind it. No unexplained acronyms. What each diagram type contains is under Diagrams in Composition.
+
+| Document | Passes only if |
+| --- | --- |
+| Every document | It states its reader and pins its snapshot (commits) and date. Its first paragraph gives the system's purpose and the most important fact about it. Every specific claim links to a fact or source. Unknowns are stated once, plainly (see LLM integration, Grounding). No sentence that would be true of any Spring application. One name per concept across text, diagrams and glossary. No diagram repeated across sections |
+| Architecture Explorer | A five-minute orientation and "start here"; the container diagram first; the main flows as sequence diagrams; a catalog of containers, components, endpoints, queues, tables and config, each linked to source; change guidance ("to add an endpoint, follow X in Y"); observed decisions, with rationale quoted from ADRs or READMEs or marked unknown |
+| Executive Brief | Business purpose first, in one sentence. Who depends on it and what it depends on (blast radius). Technology currency: runtime and framework versions against their end of life. Risks ranked by impact, each with its consequence and confidence. Quality evidence, with quality goals marked unrecorded when absent. No implementation detail |
+
+Change-history measures (activity level, hotspots of complex code that changes often) need git history beyond the snapshot and come later. Until then the Brief doesn't present static findings as ranked debt.
+
 ## Composition, layout stability and prose stability
 
 Composition decides what a document says and shows; rendering only formats it. Composition takes the previous rendition as an input, so a rerun on the same or slightly changed knowledge produces the same or a slightly changed document.
@@ -371,13 +391,35 @@ How the first composer builds per-repository documents from view definitions is 
 
 **View definitions.** A persisted spec per document: scope, audience profile, template, sections and diagrams. Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
+**Diagrams.** Lantern uses the C4 levels with c4model.com's definitions. A container is a runtime unit (an application, job or data store), never a Maven module or jar; a component is a group of functionality behind an interface, never just a package. Each diagram must also pass the Quality bar.
+
+| Diagram | Contains | Built from |
+| --- | --- | --- |
+| Landscape | Every system in scope and the people using them; no internals | Container relationships, aggregated per system |
+| System context | One system in focus, its users and the external systems it talks to directly; no technology. Unknown users are marked unknown, not invented | Relationships leaving the system; annotations for people and for external systems no code names |
+| Container | One box per deployable unit: an application together with the in-set libraries it packages (a thin service and its library are one box). Its data stores, one schema per service. Queues, topics and exchanges as their own elements or as "via" labels on producer-to-consumer lines, never one broker box. Each box has a type, a technology and a one-sentence responsibility; each line is one-way, with an intent phrase and a protocol (`[JSON/HTTPS]`, `[AMQP]`, `[JDBC]`), conditional when profile-gated | Deployable evidence (a Spring Boot main class, a repackaged executable artifact, a Dockerfile), `spring.application.name`, and linked HTTP client, messaging and persistence facts |
+| Component | Inside one container, one component per role: each controller, message listener or scheduled job with the services and repositories reachable from it. Domain and util classes are left out; packages count only in package-by-feature code. Drawn only when it adds value: more than one component, and not a repeat of the container diagram | Spring stereotypes (including meta-annotations) and the resolved call graph |
+| Sequence | See Sequence diagrams below | Entry points and the resolved call graph, linked across containers |
+| Deployment | Nodes and container instances in one environment | Dockerfiles, compose files and Kubernetes manifests (later extractors); omitted with a note when there are none |
+| Code | Not drawn; the Explorer links types to their source | |
+
+Build-time library dependencies are not container or component relationships; they appear in the dependency tree and dependency views. A diagram with more than about 15 elements is split into several at the same level, for example one per container with its direct neighbours. This replaces ADR 0012's first mapping, which drew modules and packages (see ADR 0026).
+
+**Sequence diagrams.** A few architecturally significant flows per scope, as the runtime view.
+
+- Traced from entry points (REST endpoints, message listeners, scheduled jobs) through the resolved call graph, keeping only steps that cross a container boundary: HTTP calls, messages, database access. Traces are stitched across containers: an HTTP call continues in the callee's endpoint, a published message in each listener bound to it.
+- Participants are all at one C4 level, containers by default, with the container diagram's names: one lifeline per container (its internals collapsed), one per queue or exchange, and actors for people and external systems.
+- Labels put intent first and protocol second ("Create order [POST /orders]"). Async messages are drawn as async and followed by a note that the rest happens later. Replies are drawn only when they carry meaning. Profile-gated steps are marked conditional, naming the profile; at most one level of fragments.
+- Candidate flows are ranked by the containers they touch, whether they hand off asynchronously and whether they handle failure, ties broken by stable ID. A system scope shows about three to seven, plus one or two error flows; a narrower scope shows those that start in or pass through it, under the same cap.
+- Each has a title naming the scenario and its trigger, and two to four sentences of prose.
+
 **Granularity through hierarchical summaries**
 
 | Level | Typical audience | Content |
 | --- | --- | --- |
 | L0 | Executive | The system on a page: capabilities, key dependencies, risks |
 | L1 | Architect, new engineer | Groups, services, how they communicate, data stores |
-| L2 | Engineer | Inside a service: modules, APIs, entities, config |
+| L2 | Engineer | Inside a service: components, APIs, entities, config |
 | L3 | Deep dive | Packages, key classes, flows |
 
 Audience profiles choose levels, sections and tone. One HTML file can embed several levels and let the reader switch between them.
@@ -484,15 +526,20 @@ The backend is Java 21+ on Spring Boot because the hardest part, Java analysis, 
 
 Each phase delivers something usable on real repos. The knowledge model and stable IDs come first because everything later depends on them.
 
-1. **Foundation:** a single repo through to a real document.
+**Test sets.** Each phase is checked on several open-source test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, and a monolith. No single test set shapes the design. Each one's repos and pins are in its own ADR (the first: 0004 and 0020); choosing more is #88.
+
+1. **Foundation** (built): a single repo through to a real document.
    - Repo registry, build sandbox, Maven and Java structure extractors
    - Fact store with envelope, vocabulary registry and snapshots
    - Bottom-up LLM summaries
    - Architecture Explorer and Executive Brief templates, single-file HTML, per-repo scope
-2. **System view:** many repos as one system.
-   - Spring, HTTP client, messaging, persistence, config and SQL extractors
+2. **System view** (next): many repos as one system. Per-repo documents from Maven and Java facts alone can't meet the Quality bar, so this comes before anything else (ADR 0026).
+   - Spring, HTTP client, messaging, persistence, config and SQL extractors, following values
    - Cross-repo linker and LLM resolver
+   - Deployable units, container, component and sequence views, and Quality bar checks
+   - Executive Brief blast radius, technology currency and ranked risks
    - System scope, audience profiles, granularity switch
+   - More test sets (#88)
 3. **Living docs:** versions and human knowledge.
    - Incremental runs, architecture diff, Change Report template
    - Knowledge annotations, questions queue, audit log, sign-in and roles
@@ -511,10 +558,6 @@ Each phase delivers something usable on real repos. The knowledge model and stab
 - [x] Which identity provider will sign-in use (Azure AD / Entra ID, Okta, Keycloak, other)? Decided: Keycloak or LDAP, selectable by property (see Users and access).
 - [x] Which in-house frameworks or annotations are most common, so extractors and early learned rules can target them? Decided: Spring Boot first; the Spring extractors take priority and early learned rules target Spring annotations.
 - [x] Which LLM provider and models for the first deployment, and what monthly budget? Decided: Anthropic, $100/month budget. Sonnet for high-volume roles, Opus for reasoning-heavy ones (see LLM integration).
-- [x] Rough scale for sizing the VM: number of repos and total lines of code in the first target set.
-
-  Proposed open-source test set: [OpenWMS](https://openwms.github.io/org.openwms) (Apache-2.0; Spring Boot 4.1, Maven, one repo per service, shared org.openwms.parent POM, in-house ameba-lib, AMQP between services). Five services (common.service, tms.transportation, tms.routing, wms.receiving, core.uaa) plus about 10 shared libraries (core.util, core.units, core.test.arch, common.service.lib and other .lib modules).
-
-  Decided: OpenWMS is the first target set. Measured from shallow clones on 27 Oct 2026: 15 repos, 958 Java files, about 57,000 non-blank lines of main code and 13,400 of test code, 14 MB on disk. There is no separate core.util repo; it is a module of the umbrella repo org.openwms, which the test set adds as a 16th repo. Four of the five service repos are thin (52–112 lines each) and mainly package their .lib artifact, so the Maven extractor must treat a service and its lib as one deployable. Host: the existing development VM (20 cores, 37 GB RAM with about 19 GB free, 106 GB free disk, Docker 29.9). That is enough for this set, with up to 4 build containers at 4 GB each. The repositories and their pinned commits (chosen as ADR 0020 describes) are listed in `testsets/openwms/repos.txt`; `testsets/openwms/clone.sh` clones them into `workspace/openwms` (see ADRs 0004 and 0020).
+- [x] Rough scale for sizing the VM: number of repos and total lines of code in the first target set. Decided: the first test set (16 repos, about 57,000 lines of main code) fits the existing development VM with up to 4 build containers at 4 GB each. Its measurements and repos are in ADR 0004.
 - [x] Re-layout threshold: how many new nodes in one diagram before automatic re-layout? Decided: 10 by default, configurable.
 - [x] Who are the first users, and which document do they need first? Decided: User is the first user. First outputs: C4 diagrams (context, container, component), sequence diagrams, dependency trees, and runtime environment details where the sources hold them.

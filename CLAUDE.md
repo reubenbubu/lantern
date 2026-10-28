@@ -61,6 +61,7 @@ Every piece of information lives in exactly one place. Link to it; never copy it
 | How to work | This file |
 | Tasks, status, progress | GitHub issues and milestones |
 | Decisions made while building | `docs/adr/NNNN-title.md` |
+| Research and evidence behind the design | `docs/research/` |
 | Build and test commands | The Commands section below |
 
 No running logs, plan files, TODO lists or notes outside these places. If two places disagree,
