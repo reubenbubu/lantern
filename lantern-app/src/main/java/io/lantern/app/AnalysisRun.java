@@ -35,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
@@ -210,7 +211,8 @@ public final class AnalysisRun {
       LOG.info("Extracted {} facts, {} of them new", extracted.size(), newFacts);
 
       // Prompts show source excerpts read from git at the commits the facts were observed in.
-      GitSourceFiles sources = new GitSourceFiles(name -> registry.find(name).map(Repo::path));
+      GitSourceFiles sources =
+          new GitSourceFiles(name -> Optional.ofNullable(registered.get(name)).map(Repo::path));
       Summarizer.Result summarized =
           new Summarizer(client, summaries, sources).summarize(SummaryTree.fromFacts(extracted));
       LOG.info(

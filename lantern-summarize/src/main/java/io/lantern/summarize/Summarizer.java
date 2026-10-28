@@ -38,10 +38,10 @@ import java.util.function.ToLongFunction;
  * Summarizes units bottom-up: a unit's summary is written from its facts and the summaries of the
  * units it contains, so each level builds on the one below.
  *
- * <p>A type's prompt also shows excerpts of its source code (see {@link Excerpts}), read through
- * {@link SourceFiles} and shown only when the file matches the content hash of the fact's evidence.
- * A unit whose inputs do not fit the model's context window is summarized in parts that are then
- * merged (see {@link Prompt}).
+ * <p>A type's prompt also shows its whole source file (see {@link Excerpts}), read through {@link
+ * SourceFiles} and shown only when the file matches the content hash of the fact's evidence. A unit
+ * whose inputs do not fit the model's context window is summarized in parts that are then merged
+ * (see {@link Prompt}).
  *
  * <p>Every summary is cached under a key that hashes its entity and level, the IDs of its input
  * facts, the source excerpts its prompt shows, the text of its contained units' summaries, the
@@ -213,9 +213,7 @@ public final class Summarizer {
       text.append("excerpt ")
           .append(excerpt.fact())
           .append(' ')
-          .append(excerpt.start())
-          .append('-')
-          .append(excerpt.end())
+          .append(oneLine(excerpt.path()))
           .append(' ')
           .append(sha256(excerpt.code()))
           .append('\n');
@@ -251,16 +249,15 @@ public final class Summarizer {
   /**
    * The most tokens, as {@link io.lantern.llm.Tokens} estimates them, that a unit's user turn may
    * take so that the request still fits the context window with a retry: the system prompt, the
-   * model's thinking headroom, the answer (its estimate may exceed the output limit by half) and
-   * the retry message come on top.
+   * output limit with the model's thinking headroom, a rejected answer sent back (up to that limit,
+   * and its estimate may exceed it by half) and the retry message come on top.
    */
   static long promptBudget(SummaryNode node, ModelConfig model) {
-    int output = node.level().maxOutputTokens();
+    long output = node.level().maxOutputTokens() + (long) model.thinking().headroomTokens();
     return model.contextWindow()
         - Tokens.estimate(Prompt.SYSTEM)
-        - model.thinking().headroomTokens()
         - output
-        - output * 3L / 2
+        - output * 3 / 2
         - Tokens.estimate(Prompt.RETRY)
         - 100;
   }
@@ -295,10 +292,10 @@ public final class Summarizer {
     private final AtomicInteger reused = new AtomicInteger();
     private final AtomicBoolean failed = new AtomicBoolean();
     private final Semaphore running;
-    private final Map<String, Optional<List<String>>> files =
+    private final Map<String, Optional<String>> files =
         new LinkedHashMap<>(16, 0.75f, true) {
           @Override
-          protected boolean removeEldestEntry(Map.Entry<String, Optional<List<String>>> eldest) {
+          protected boolean removeEldestEntry(Map.Entry<String, Optional<String>> eldest) {
             return size() > CACHED_FILES;
           }
         };
@@ -343,7 +340,7 @@ public final class Summarizer {
     }
 
     private Summary summary(SummaryNode node, List<Summary> children) {
-      List<Excerpts.Excerpt> excerpts = Excerpts.of(node, this::lines);
+      List<Excerpts.Excerpt> excerpts = Excerpts.of(node, this::text);
       String key = key(node, excerpts, children, model);
       Optional<Summary> cached = store.find(key);
       if (cached.isPresent()) {
@@ -357,25 +354,25 @@ public final class Summarizer {
     }
 
     /**
-     * A file's lines for a fact's evidence, if it can be read and is the version observed. Units
-     * run in parallel, so the cache is locked, but not while the file is read.
+     * The text of the file of a fact's evidence, if it can be read and is the version observed.
+     * Units run in parallel, so the cache is locked, but not while the file is read.
      */
-    private Optional<List<String>> lines(Evidence evidence) {
+    private Optional<String> text(Evidence evidence) {
       if (evidence.path() == null || evidence.contentHash() == null) {
         return Optional.empty();
       }
       String file = evidence.repo() + '\u0000' + evidence.commit() + '\u0000' + evidence.path();
       synchronized (files) {
-        Optional<List<String>> known = files.get(file);
+        Optional<String> known = files.get(file);
         if (known != null) {
           return known;
         }
       }
-      Optional<List<String>> read =
+      Optional<String> read =
           sources
               .read(evidence.repo(), evidence.commit(), evidence.path())
               .filter(content -> sha256(content).equals(evidence.contentHash()))
-              .map(content -> new String(content, StandardCharsets.UTF_8).lines().toList());
+              .map(content -> new String(content, StandardCharsets.UTF_8));
       synchronized (files) {
         files.put(file, read);
       }

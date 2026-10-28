@@ -12,13 +12,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Reads files from git at the commit the facts were observed in (never the working tree), with
- * {@code git cat-file}. Files larger than 1 MiB are not read.
+ * {@code git cat-file}. Files larger than 1 MiB are not read. A file that is missing gives nothing;
+ * one that cannot be read because git fails or times out gives nothing and logs a warning.
  */
 public final class GitSourceFiles implements SourceFiles {
 
+  private static final Logger LOG = LoggerFactory.getLogger(GitSourceFiles.class);
   private static final int MAX_BYTES = 1024 * 1024;
   private static final long TIMEOUT_SECONDS = 30;
 
@@ -45,6 +49,7 @@ public final class GitSourceFiles implements SourceFiles {
     try {
       process = builder.start();
     } catch (IOException e) {
+      LOG.warn("Cannot run git to read {} at {} in {}", path, commit, repo, e);
       return Optional.empty();
     }
     try {
@@ -68,6 +73,7 @@ public final class GitSourceFiles implements SourceFiles {
       return process.exitValue() == 0 ? Optional.of(content) : Optional.empty();
     } catch (IOException | ExecutionException | TimeoutException e) {
       process.destroyForcibly();
+      LOG.warn("Cannot read {} at {} in {}", path, commit, repo, e);
       return Optional.empty();
     } catch (InterruptedException e) {
       process.destroyForcibly();

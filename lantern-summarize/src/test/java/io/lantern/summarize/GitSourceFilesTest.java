@@ -43,7 +43,7 @@ class GitSourceFilesTest {
     };
     git(commit);
     first = git("rev-parse", "HEAD");
-    // The working tree and a later commit differ; reads are at the commit asked for.
+    // The working tree now differs from the commit; reads are at the commit asked for.
     Files.writeString(repo.resolve("A.java"), "class A { int changed; }\n");
     files = new GitSourceFiles(name -> name.equals("r") ? Optional.of(repo) : Optional.empty());
   }

@@ -74,15 +74,29 @@ final class Prompt {
     return items;
   }
 
-  /** The source excerpts as prompt items, {@code E1} first. */
+  /** The source files as prompt items, {@code E1} first. */
   static List<Item> excerpts(List<Excerpts.Excerpt> excerpts) {
     List<Item> items = new ArrayList<>();
     for (int i = 0; i < excerpts.size(); i++) {
       Excerpts.Excerpt excerpt = excerpts.get(i);
+      String fence = fence(excerpt.code());
       items.add(
-          new Item("E" + (i + 1), excerpt.path() + ":\n```java\n" + excerpt.code() + "\n```"));
+          new Item(
+              "E" + (i + 1),
+              excerpt.path() + ":\n" + fence + "java\n" + excerpt.code() + "\n" + fence));
     }
     return items;
+  }
+
+  /** A code fence longer than any run of backticks in the code, at least three. */
+  static String fence(String code) {
+    int longest = 0;
+    int run = 0;
+    for (int i = 0; i < code.length(); i++) {
+      run = code.charAt(i) == '`' ? run + 1 : 0;
+      longest = Math.max(longest, run);
+    }
+    return "`".repeat(Math.max(3, longest + 1));
   }
 
   /** The contained units' summaries as prompt items, {@code S1} first. */

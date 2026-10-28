@@ -22,10 +22,11 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
 - **Files are read from git at the fact's commit** (`GitSourceFiles`, `git cat-file`, files up to 1
   MiB), never from the working tree, and shown only when the file's SHA-256 matches the content
   hash of the fact's evidence. Files that cannot be read (for example generated sources, whose
-  evidence paths point into the build directory) are not shown. The app reads from each registered
+  evidence paths point into the build directory) are not shown; when git fails or times out a
+  warning is logged. The file is fenced with more backticks than it contains. The app reads from each registered
   repository's directory; `Summarizer` without a `SourceFiles` shows none. Units run in parallel
   (ADR 0021), so the small cache of read files is locked, but not while a file is read.
-- **The cache key includes each file** (its fact, line count and the SHA-256 of its text), so the
+- **The cache key includes each file** (its fact, path and the SHA-256 of its text), so the
   same facts summarized with and without files are not mixed up. `Prompt.VERSION` is 2.
 - **Cost.** On the fixture projects the type prompts grow from 3,299 to 6,159 characters and all
   prompts from 10,119 to 12,979 (+28%). Not measured on OpenWMS: its main code is about 57,000
@@ -33,9 +34,10 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
   so a full run sends roughly that much more input, more where member types repeat their file;
   about $2 at Sonnet's input price.
 - **Units too large for one prompt are split and merged**, as a safety net only; nothing is trimmed.
-  A unit's user turn may take the context window minus the system prompt, the model's thinking
-  headroom (ADR 0022), the output limit, one and a half output limits for a rejected answer sent
-  back with a retry, the retry message and 100 tokens. A unit over that is sent in parts: its
+  A unit's user turn may take the context window minus the system prompt, the output limit plus
+  the model's thinking headroom (ADR 0022), one and a half times that again for a rejected answer
+  sent back with a retry (a model that does not think may use the headroom for text), the retry
+  message and 100 tokens. A unit over that is sent in parts: its
   facts, files and child summaries, in that order, are packed into prompts that each fit, under the
   references of the whole unit, and each part is summarized (purpose suffix `(part i of n)`). The
   parts' summaries, with their references, are then merged into one (`(merge)`); if they do not fit
@@ -46,7 +48,7 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
 - **A single input larger than the budget** (a source file, a fact or a child summary) still gets
   its own part and is refused by `LlmClient`, failing the run, as is a merge whose part summaries
   cannot be paired within the budget. With today's context windows this needs a source file of
-  several hundred thousand characters, which the 1 MiB read limit makes rare.
+  several hundred thousand characters, which the 1 MiB read limit does not rule out (#83).
 
 ## Not in this issue
 

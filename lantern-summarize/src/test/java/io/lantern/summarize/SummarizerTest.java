@@ -450,8 +450,8 @@ class SummarizerTest {
     List<Fact> facts = new ArrayList<>();
     for (Fact fact :
         List.of(
-            ExcerptsTest.fact("kind", FactObject.string("class"), 8, 47),
-            ExcerptsTest.member("method:p.Order#total()", 15, 17))) {
+            ExcerptsTest.fact("kind", FactObject.string("class")),
+            ExcerptsTest.member("method:p.Order#total()"))) {
       facts.add(
           Fact.create(
               fact.subject(),
@@ -497,8 +497,8 @@ class SummarizerTest {
     assertThat(prompt)
         .contains(
             "\nSource files:\n[E1] src/main/java/p/Order.java:\n```java\n"
-                + ExcerptsTest.ORDER
-                + "```\n");
+                + ExcerptsTest.ORDER.stripTrailing()
+                + "\n```\n");
     // The fake cites [F1, F2, E1]; the file is cited as the fact it comes from.
     Fact kind = order.facts().stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
     assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
@@ -673,5 +673,46 @@ class SummarizerTest {
         .doesNotContain("[S1] ");
     assertThat(summary.citedFacts()).contains(summary.inputFacts().getFirst());
     assertThat(summary.citedSummaries()).contains(summary.inputSummaries().getLast());
+  }
+
+  @Test
+  void aSplitTypeShowsItsSourceFileInOnePartAndKeepsItsCitation() throws Exception {
+    String source = ExcerptsTest.ORDER + "// filler\n".repeat(500);
+    List<Fact> facts = new ArrayList<>(orderWithSource(sha256(source)).facts());
+    TestFacts methods = new TestFacts();
+    for (int i = 0; i < 200; i++) {
+      methods.relate("r", "type:p.Order", "CONTAINS", "method:p.Order#method%03d()".formatted(i));
+    }
+    facts.addAll(methods.list());
+    SummaryNode order =
+        new SummaryNode(EntityId.parse("type:p.Order"), SummaryLevel.TYPE, facts, List.of());
+    SourceFiles files =
+        (repo, commit, path) -> Optional.of(source.getBytes(StandardCharsets.UTF_8));
+    fake.answering(request -> citingWhatItSees(request, 0));
+
+    Summary summary =
+        new Summarizer(smallWindowClient(4_000), store, files)
+            .summarize(List.of(order))
+            .summaries()
+            .get(order.entity());
+
+    List<String> prompts =
+        fake.sent().stream().map(s -> s.request().messages().getFirst().text()).toList();
+    assertThat(prompts.size()).isGreaterThan(2);
+    assertThat(prompts)
+        .filteredOn(p -> p.contains("\n[E1] src/main/java/p/Order.java:"))
+        .hasSize(1);
+    assertThat(prompts.getLast()).contains("Summaries of the parts:").contains("E1");
+    Fact kind = facts.stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
+    assertThat(summary.citedFacts()).contains(kind.id());
+  }
+
+  @Test
+  void thePromptBudgetLeavesRoomForThinking() {
+    SummaryNode big = largeType(1);
+    ModelConfig model = fake.model("m");
+
+    assertThat(Summarizer.promptBudget(big, model.withThinking(new Thinking(false, 1_000))))
+        .isEqualTo(Summarizer.promptBudget(big, model) - 1_000 - 1_000 * 3 / 2);
   }
 }

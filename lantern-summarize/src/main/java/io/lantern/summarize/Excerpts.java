@@ -24,19 +24,17 @@ final class Excerpts {
    *
    * @param fact the ID of the fact whose evidence it comes from, which citing it cites
    * @param path the file, relative to its repository
-   * @param start the first line shown, 1-based
-   * @param end the last line shown
-   * @param code the lines, joined with newlines
+   * @param code the file's text, without trailing blank space
    */
-  record Excerpt(String fact, String path, int start, int end, String code) {}
+  record Excerpt(String fact, String path, String code) {}
 
   /**
    * The excerpts for a unit, in path order; none unless it is a type.
    *
-   * @param lines a file's lines for a fact's evidence, or empty if the file cannot be read or is
-   *     not the version the fact was observed in
+   * @param files the text of the file of a fact's evidence, or empty if the file cannot be read or
+   *     is not the version the fact was observed in
    */
-  static List<Excerpt> of(SummaryNode node, Function<Evidence, Optional<List<String>>> lines) {
+  static List<Excerpt> of(SummaryNode node, Function<Evidence, Optional<String>> files) {
     if (node.level() != SummaryLevel.TYPE) {
       return List.of();
     }
@@ -61,12 +59,10 @@ final class Excerpts {
       if (shown.contains(file)) {
         continue;
       }
-      Optional<List<String>> content = lines.apply(evidence);
-      if (content.isPresent() && !content.get().isEmpty()) {
+      String text = files.apply(evidence).map(String::stripTrailing).orElse("");
+      if (!text.isEmpty()) {
         shown.add(file);
-        List<String> text = content.get();
-        excerpts.add(
-            new Excerpt(fact.id(), evidence.path(), 1, text.size(), String.join("\n", text)));
+        excerpts.add(new Excerpt(fact.id(), evidence.path(), text));
       }
     }
     return List.copyOf(excerpts);

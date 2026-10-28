@@ -2,6 +2,7 @@ package io.lantern.summarize;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.FactObject;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -20,7 +21,7 @@ class PromptTest {
   private static final String VERSION = "2";
 
   private static final String FINGERPRINT =
-      "b9cb0370187c58c3a5e179969e0424f87c8f0025103f430b5c8d6ca8ae44577f";
+      "fb256f819bac965c74e036bc7ab21b956758948a15c62eafaf09858cd6b162b1";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -55,19 +56,17 @@ class PromptTest {
             "1",
             "fake",
             "m");
-    // How a type's source file is shown.
+    // How a type's source file is shown (with a fence longer than the backticks in it).
     List<Excerpts.Excerpt> excerpts =
         Excerpts.of(
             new SummaryNode(
-                order.entity(),
+                EntityId.parse("type:p.Order"),
                 SummaryLevel.TYPE,
                 List.of(
-                    ExcerptsTest.fact("kind", FactObject.string("class"), 8, 47),
-                    ExcerptsTest.member("field:p.Order#id", 12, 12),
-                    ExcerptsTest.member("method:p.Order#total()", 15, 17),
-                    ExcerptsTest.member("method:p.Order#ship(java.lang.String)", 19, 46)),
+                    ExcerptsTest.fact("kind", FactObject.string("class")),
+                    ExcerptsTest.member("method:p.Order#total()")),
                 List.of()),
-            e -> Optional.of(ExcerptsTest.ORDER.lines().toList()));
+            e -> Optional.of(ExcerptsTest.ORDER + "// ```\n"));
     all.append('\u0000').append(Prompt.user(order, excerpts, List.of(child)));
     all.append('\u0000')
         .append(
@@ -144,5 +143,11 @@ class PromptTest {
             Part 1: It is an interface. [F1]
             Part 2: It prices. [F2]
             """);
+  }
+
+  @Test
+  void codeFencesAreLongerThanAnyRunOfBackticksInTheFile() {
+    assertThat(Prompt.fence("int x;")).isEqualTo("```");
+    assertThat(Prompt.fence("/// ```java\n/// ````\n")).isEqualTo("`````");
   }
 }
