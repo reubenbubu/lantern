@@ -1,0 +1,180 @@
+package io.lantern.extract.maven;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.lantern.core.fact.Fact;
+import io.lantern.core.repo.Git;
+import io.lantern.core.repo.Repo;
+import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.vocabulary.Vocabulary;
+import io.lantern.core.vocabulary.VocabularyType;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Stream;
+
+/** Test repositories made from the fixture projects, and golden fact files to compare with. */
+final class Fixtures {
+
+  private Fixtures() {}
+
+  /** The fixture directory, such as {@code multi-module} or {@code lib-and-service/lib}. */
+  static Path fixture(String name) {
+    try {
+      return Path.of(Fixtures.class.getResource("/fixtures/" + name).toURI());
+    } catch (URISyntaxException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  /** A git repository holding a copy of the fixture, committed. */
+  static Repo repo(String fixture, Path target, String name) throws IOException {
+    Path source = fixture(fixture);
+    Files.createDirectories(target);
+    try (Stream<Path> paths = Files.walk(source)) {
+      for (Path from : paths.toList()) {
+        Path to = target.resolve(source.relativize(from).toString());
+        if (Files.isDirectory(from)) {
+          Files.createDirectories(to);
+        } else {
+          Files.copy(from, to);
+        }
+      }
+    }
+    return commit(target, name);
+  }
+
+  private static Repo commit(Path target, String name) throws IOException {
+    git(target, "init", "--quiet");
+    git(target, "add", "--all");
+    git(
+        target,
+        "-c",
+        "user.name=Lantern Test",
+        "-c",
+        "user.email=test@lantern.invalid",
+        "commit",
+        "--quiet",
+        "--message",
+        "Fixture");
+    return new Repo(name, target.toRealPath(), RepoSettings.DEFAULT);
+  }
+
+  /** A git repository holding the given files (path to content), committed. */
+  static Repo repo(Path target, String name, Map<String, String> files) throws IOException {
+    for (Map.Entry<String, String> file : files.entrySet()) {
+      Path path = target.resolve(file.getKey());
+      Files.createDirectories(path.getParent());
+      Files.writeString(path, file.getValue());
+    }
+    return commit(target, name);
+  }
+
+  static String head(Repo repo) {
+    return git(repo.path(), "rev-parse", "HEAD");
+  }
+
+  private static String git(Path dir, String... args) {
+    Git.Result result = Git.run(dir, args);
+    if (!result.ok()) {
+      throw new IllegalStateException("git " + String.join(" ", args) + ": " + result.err());
+    }
+    return result.out();
+  }
+
+  /** The vocabulary with the built-in types and the Maven extractor's. */
+  static Vocabulary vocabulary() {
+    Map<String, VocabularyType> types = new TreeMap<>();
+    BuiltInTypes.definitions().forEach(t -> types.put(t.name(), t));
+    Vocabulary builtIn = new Vocabulary(1, types.values());
+    List<VocabularyType> changes = builtIn.changes(MavenExtractor.vocabulary());
+    changes.forEach(t -> types.put(t.name(), t));
+    return new Vocabulary(2, types.values());
+  }
+
+  /**
+   * Checks what every fact must satisfy whatever the fixture: it matches the vocabulary, comes from
+   * this extractor, and its evidence names the repository's commit and the file's hash.
+   */
+  static void checkEnvelope(List<Fact> facts, List<Repo> repos, long snapshot) throws IOException {
+    Vocabulary vocabulary = vocabulary();
+    for (Fact fact : facts) {
+      vocabulary.validate(fact);
+      assertThat(fact.origin().name()).isEqualTo(MavenExtractor.NAME);
+      assertThat(fact.origin().version()).isEqualTo(MavenExtractor.VERSION);
+      assertThat(fact.validity().from()).isEqualTo(snapshot);
+      assertThat(fact.validity().to()).isNull();
+      Repo repo =
+          repos.stream().filter(r -> r.name().equals(fact.evidence().repo())).findFirst().get();
+      assertThat(fact.evidence().commit()).isEqualTo(head(repo));
+      assertThat(fact.evidence().contentHash())
+          .isEqualTo(sha256(Files.readAllBytes(repo.path().resolve(fact.evidence().path()))));
+    }
+  }
+
+  /** One line per fact: what golden files hold, leaving out the commit, hash and fact ID. */
+  static String render(List<Fact> facts) {
+    List<String> lines = new ArrayList<>();
+    for (Fact f : facts) {
+      String where = f.evidence().repo() + ":" + f.evidence().path();
+      if (f.evidence().lines() != null) {
+        where += "#" + f.evidence().lines().start() + "-" + f.evidence().lines().end();
+      }
+      lines.add(
+          f.subject()
+              + " "
+              + f.predicate()
+              + " "
+              + f.object().value()
+              + (f.attributes().isEmpty() ? "" : " " + f.attributes())
+              + " @"
+              + where
+              + " "
+              + f.confidence());
+    }
+    return String.join("\n", lines) + "\n";
+  }
+
+  /**
+   * Checks the facts against a golden file in {@code src/test/resources/golden/maven}. On a
+   * mismatch the actual facts are written to {@code target/golden-actual/<name>}, to compare with
+   * or copy over the golden file once checked.
+   */
+  static void assertGolden(String name, List<Fact> facts) throws IOException {
+    String actual = render(facts);
+    String expected = golden(name);
+    if (!actual.equals(expected)) {
+      Path out = Path.of("target", "golden-actual", name);
+      Files.createDirectories(out.getParent());
+      Files.writeString(out, actual);
+    }
+    assertThat(actual).as("facts compared with golden file %s", name).isEqualTo(expected);
+  }
+
+  private static String golden(String name) throws IOException {
+    try (var in = Fixtures.class.getResourceAsStream("/golden/maven/" + name)) {
+      if (in == null) {
+        throw new IOException("No golden file " + name);
+      }
+      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    }
+  }
+
+  private static String sha256(byte[] bytes) {
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+}

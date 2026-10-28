@@ -3,6 +3,7 @@ package io.lantern.app;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyRegistry;
+import io.lantern.extract.maven.MavenExtractor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -13,13 +14,17 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Configuration(proxyBeanMethods = false)
 class FactStoreConfiguration {
 
-  /** The vocabulary registry, with the built-in types loaded before anything can use it. */
+  /**
+   * The vocabulary registry, with the built-in types and those of the extractors loaded before
+   * anything can use it.
+   */
   @Bean
   VocabularyRegistry vocabularyRegistry(
       JdbcClient jdbcClient, PlatformTransactionManager transactionManager) {
     VocabularyRegistry registry =
         new VocabularyRegistry(jdbcClient, new TransactionTemplate(transactionManager));
     registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
+    registry.apply(MavenExtractor.VOCABULARY_SOURCE, MavenExtractor.vocabulary());
     return registry;
   }
 

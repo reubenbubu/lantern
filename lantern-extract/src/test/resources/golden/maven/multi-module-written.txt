@@ -1,0 +1,11 @@
+library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api @shop:api/pom.xml 0.7
+library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core @shop:core/pom.xml 0.7
+module:com.example.shop:shop-api packaging jar @shop:api/pom.xml 0.7
+module:com.example.shop:shop-api version 1.0.0 @shop:api/pom.xml#10-10 0.7
+module:com.example.shop:shop-core BUILD_DEPENDS_ON module:com.example.shop:shop-api {"scope":"compile","version":"1.0.0"} @shop:core/pom.xml#16-19 0.7
+module:com.example.shop:shop-core packaging jar @shop:core/pom.xml 0.7
+module:com.example.shop:shop-core version 1.0.0 @shop:core/pom.xml#10-10 0.7
+module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-api @shop:pom.xml#14-14 0.7
+module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-core @shop:pom.xml#15-15 0.7
+module:com.example.shop:shop-parent packaging pom @shop:pom.xml#11-11 0.7
+module:com.example.shop:shop-parent version 1.0.0 @shop:pom.xml#10-10 0.7

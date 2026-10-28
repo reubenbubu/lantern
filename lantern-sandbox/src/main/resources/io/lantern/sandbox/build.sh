@@ -10,6 +10,8 @@ mkdir -p "$out/lib" "$out/work"
 
 mvn --version
 cd /work || exit 1
+# Only an effective POM Maven writes in this run may leave as one, not a file the repository holds.
+rm -f target/lantern/effective-pom.xml
 mvn "$@"
 code=$?
 echo "$code" > "$out/maven-exit-code"
@@ -38,5 +40,13 @@ find . -path '*/target/lantern/dependency-tree.txt' -type f | while IFS= read -r
     done
   fi
 done
+
+# The effective POM is written before dependencies are resolved, so a build that fails to resolve
+# them still has one, though no module has a dependency tree.
+pom=target/lantern/effective-pom.xml
+if [ -f "$pom" ] && [ ! -e "$out/work/$pom" ]; then
+  mkdir -p "$out/work/target/lantern"
+  cp "$pom" "$out/work/$pom"
+fi
 
 exit "$code"

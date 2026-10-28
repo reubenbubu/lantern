@@ -87,5 +87,5 @@ Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start
 - Test one module: `./mvnw verify -pl <module> -am`
 - Start the local database: `docker compose up -d` (stop with `docker compose down`)
 - Clone the OpenWMS test set at its pinned commits into `workspace/openwms` (safe to rerun): `testsets/openwms/clone.sh`
-- Also build OpenWMS repos in the sandbox (after cloning): `./mvnw verify -pl lantern-sandbox -am -Dlantern.test.openwms=$PWD/workspace/openwms`
+- Also build the OpenWMS repos in the sandbox and extract their Maven facts (after cloning): `./mvnw verify -pl lantern-extract -am -Dlantern.test.openwms=$PWD/workspace/openwms` (this also runs the sandbox-only OpenWMS build test, so the repos are built twice)
 - Run the app (needs the local database): `./mvnw install -DskipTests && ./mvnw spring-boot:run -pl lantern-app`
