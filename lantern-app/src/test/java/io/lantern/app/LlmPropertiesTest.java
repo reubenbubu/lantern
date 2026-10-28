@@ -3,12 +3,16 @@ package io.lantern.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.lantern.llm.Capability;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmProvider;
+import io.lantern.llm.LlmRequest;
+import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Pricing;
@@ -154,6 +158,21 @@ class LlmPropertiesTest {
     assertThatThrownBy(access::client)
         .isInstanceOf(LlmNotConfiguredException.class)
         .hasMessageContaining("no API key");
+  }
+
+  @Test
+  void aCallStillSucceedsWhenStoringItFails() {
+    model("fast", "fake", "fast-model");
+    tiers("fast", "fast");
+    doThrow(new IllegalStateException("database down")).when(stored).record(any());
+
+    LlmResponse response =
+        access(List.of(new FakeLlmProvider().answering("still here")))
+            .client()
+            .call(LlmRequest.of(Role.COMPOSE, "storage failure test", null, "Write", 10));
+
+    assertThat(response.text()).isEqualTo("still here");
+    verify(stored).record(any());
   }
 
   @Test

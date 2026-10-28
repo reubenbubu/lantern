@@ -32,23 +32,29 @@ app; model identifiers, prices and keys must not be in the code.
   at startup, so mistakes show at once rather than at the first call.
 - **The key is read from configuration for now.** The design asks for keys to be stored encrypted
   once providers are managed in the app by administrators; until then the key comes from the
-  environment and is never logged.
+  environment and is never logged. Encrypted storage is #41.
 - **`LlmAccess` is the app's way in.** It makes the providers the configured models need (only
   Anthropic so far; OpenAI is #38) and also uses any `LlmProvider` bean, which is how tests put
   the fake in. `client()` returns an `LlmClient` whose budget is the monthly one; callers add run
   and scope budgets with `withBudget`.
 - **Every call is stored** in the `llm_calls` table (time, duration, role, purpose, provider,
   model, outcome, the four token counts, cost and error) and also written to the
-  `io.lantern.llm.calls` logger as before. A failure to store makes the call fail.
+  `io.lantern.llm.calls` logger as before, the log line first. If storing fails, the error is
+  logged and the call still returns its answer or its own error: it has already happened and may
+  have been paid for, so failing it would lose the answer or hide the real cause. The in-process
+  monthly budget still counts it; only a restart would miss it.
 - **The monthly budget is a dollar limit per calendar month in UTC.** When a month's budget is
   first needed, its spending so far is summed from `llm_calls`, so the limit holds across runs
   and restarts. Within the process the same budget object then counts every call. A client made in
-  one month keeps counting against that month's budget if used after the month ends; the next
-  client starts the new month from the stored log. The month has no token limit, since the design
-  sets only a dollar amount. Several app instances sharing one database would each count only
-  their own calls after startup; the design runs one instance.
+  one month keeps counting against that month's budget if used after the month ends, so a run
+  that crosses into a new month is not limited by the new month's budget for the rest of the
+  run (the stored log still counts those calls for the new month after a restart). Checking the
+  current month on every call would need a change to `LlmClient`, which is not worth it for one
+  run a month. The month has no token limit, since the design sets only a dollar amount. Several
+  app instances sharing one database would each count only their own calls after startup; the
+  design runs one instance.
 
 ## Not in this issue
 
-The cost estimate before a run, run budgets from configuration, encrypted key storage and
-provider management in the UI belong with the work that needs them.
+The cost estimate before a run and run budgets from configuration (#42), and encrypted key
+storage with provider management in the app (#41).

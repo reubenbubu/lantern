@@ -174,7 +174,7 @@ public record LlmProperties(
   }
 
   private static void require(String property, Object value) {
-    if (value == null) {
+    if (value == null || (value instanceof String text && text.isBlank())) {
       throw new IllegalStateException(property + " is not set");
     }
   }

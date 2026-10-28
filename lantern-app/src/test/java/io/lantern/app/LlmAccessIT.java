@@ -11,14 +11,12 @@ import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Pricing;
 import io.lantern.llm.Role;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -96,7 +94,7 @@ class LlmAccessIT {
   @Test
   void theMonthlyBudgetHoldsAcrossRunsFromTheStoredLog() {
     // A month no other test uses, so the stored log holds only this test's calls for it.
-    int year = 2200 + ThreadLocalRandom.current().nextInt(5000);
+    int year = 2999;
     Clock october = Clock.fixed(Instant.parse(year + "-10-15T12:00:00Z"), ZoneOffset.UTC);
     Clock november = Clock.fixed(Instant.parse(year + "-11-01T00:00:00Z"), ZoneOffset.UTC);
     // Free input; each output token costs half a dollar.
@@ -125,8 +123,8 @@ class LlmAccessIT {
             jdbc.sql(
                     "SELECT outcome FROM llm_calls WHERE started_at >= :from AND started_at < :to"
                         + " ORDER BY id")
-                .param("from", Timestamp.from(october.instant().minusSeconds(86_400)))
-                .param("to", Timestamp.from(november.instant()))
+                .param("from", october.instant().minusSeconds(86_400).atOffset(ZoneOffset.UTC))
+                .param("to", november.instant().atOffset(ZoneOffset.UTC))
                 .query(String.class)
                 .list())
         .containsExactly("SUCCEEDED", "REFUSED");

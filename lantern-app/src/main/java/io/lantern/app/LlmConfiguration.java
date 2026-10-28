@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -27,6 +29,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(LlmProperties.class)
 class LlmConfiguration {
+
+  private static final Logger LOG = LoggerFactory.getLogger(LlmConfiguration.class);
 
   @Bean
   JdbcLlmCallLog jdbcLlmCallLog(JdbcClient jdbcClient) {
@@ -79,8 +83,14 @@ class LlmConfiguration {
     LlmCallLog slf4j = new Slf4jLlmCallLog();
     LlmCallLog log =
         call -> {
-          stored.record(call);
           slf4j.record(call);
+          try {
+            stored.record(call);
+          } catch (RuntimeException e) {
+            // The call has happened and may have been paid for; failing it now would lose the
+            // answer or hide why it failed. The log line above still records it.
+            LOG.error("Could not store LLM call {}", call, e);
+          }
         };
     try {
       LlmAccess access =

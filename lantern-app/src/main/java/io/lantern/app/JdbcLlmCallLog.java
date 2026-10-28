@@ -3,8 +3,8 @@ package io.lantern.app;
 import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmCallLog;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Objects;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
@@ -26,7 +26,7 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             VALUES (:startedAt, :durationMs, :role, :purpose, :provider, :model, :outcome,
                 :input, :output, :cacheWrite, :cacheRead, :cost, :error)
             """)
-        .param("startedAt", Timestamp.from(call.startedAt()))
+        .param("startedAt", call.startedAt().atOffset(ZoneOffset.UTC))
         .param("durationMs", Math.max(0, call.duration().toMillis()))
         .param("role", call.role().name())
         .param("purpose", call.purpose())
@@ -52,7 +52,7 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             FROM llm_calls
             WHERE started_at >= :since
             """)
-        .param("since", Timestamp.from(since))
+        .param("since", since.atOffset(ZoneOffset.UTC))
         .query((rs, row) -> new Spending(rs.getLong("tokens"), rs.getBigDecimal("cost")))
         .single();
   }
