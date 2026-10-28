@@ -7,7 +7,7 @@ Status: accepted (#8), pending the user's review (#24)
 `docs/design.md` (Static analysis and extractors) says the Maven extractor reads the effective POM,
 reactor and dependency tree and produces modules, artifacts, internal vs. third-party dependencies
 and deployable vs. library. Issue #8 adds that a thin service repository must be linked to the
-`.lib` artifact it packages, the OpenWMS pattern (design, Open questions). The design leaves open
+`.lib` artifact it packages, the OpenWMS pattern (ADR 0004). The design leaves open
 how these are named and modelled, what "internal" means, and how a service's library is found.
 
 ## Decisions

@@ -1,6 +1,6 @@
 # 0002: Vocabulary registry details
 
-Status: accepted (#4), pending the user's review (#24)
+Status: accepted (#4), amended by ADR 0026 (#86), pending the user's review (#24)
 
 ## Context
 
