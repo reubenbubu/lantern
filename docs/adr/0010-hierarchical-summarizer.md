@@ -69,6 +69,6 @@ found in the facts, how summaries are stored and cited, and what happens to unci
 
 ## Not in this issue
 
-Source excerpts in the prompt and units too large for one prompt (#43, now ADR 0021), parallel calls
+Source excerpts in the prompt and units too large for one prompt (#43, now ADR 0022), parallel calls
 with rate limiting (#44), the glossary in prompts (annotations, Phase 3), and levels
 above the repository (service, group, system), which come with the linker and grouping.

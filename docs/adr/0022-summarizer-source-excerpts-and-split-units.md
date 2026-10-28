@@ -1,4 +1,4 @@
-# 0021: Source excerpts in summaries, and units too large for one prompt
+# 0022: Source excerpts in summaries, and units too large for one prompt
 
 Status: accepted (#43), pending the user's review (#24)
 
@@ -45,7 +45,8 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
   fit, under the references of the whole unit, and each part is summarized (purpose suffix
   `(part i of n)`). The parts' summaries, with their references, are then merged into one
   (`(merge)`); if they do not fit one prompt they are merged in groups first (`(merge r.i of n)`).
-  Each answer is checked as in ADR 0010, and may cite only references its prompt showed. Only the
+  A unit's parts and merges are asked one after another, while other units run in parallel (ADR
+  0021). Each answer is checked as in ADR 0010, and may cite only references its prompt showed. Only the
   final summary is stored; if a run fails part-way, the parts are summarized again next time. No
   facts are dropped: splitting keeps everything a unit has, at the cost of more calls.
 - **A single input larger than the budget** (one fact or child summary) still gets its own part

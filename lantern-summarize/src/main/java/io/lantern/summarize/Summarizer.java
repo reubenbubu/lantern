@@ -356,22 +356,30 @@ public final class Summarizer {
       return summary;
     }
 
-    /** A file's lines for a fact's evidence, if it can be read and is the version observed. */
+    /**
+     * A file's lines for a fact's evidence, if it can be read and is the version observed. Units
+     * run in parallel, so the cache is locked, but not while the file is read.
+     */
     private Optional<List<String>> lines(Evidence evidence) {
       if (evidence.path() == null || evidence.contentHash() == null) {
         return Optional.empty();
       }
       String file = evidence.repo() + '\u0000' + evidence.commit() + '\u0000' + evidence.path();
-      Optional<List<String>> known = files.get(file);
-      if (known == null) {
-        known =
-            sources
-                .read(evidence.repo(), evidence.commit(), evidence.path())
-                .filter(content -> sha256(content).equals(evidence.contentHash()))
-                .map(content -> new String(content, StandardCharsets.UTF_8).lines().toList());
-        files.put(file, known);
+      synchronized (files) {
+        Optional<List<String>> known = files.get(file);
+        if (known != null) {
+          return known;
+        }
       }
-      return known;
+      Optional<List<String>> read =
+          sources
+              .read(evidence.repo(), evidence.commit(), evidence.path())
+              .filter(content -> sha256(content).equals(evidence.contentHash()))
+              .map(content -> new String(content, StandardCharsets.UTF_8).lines().toList());
+      synchronized (files) {
+        files.put(file, read);
+      }
+      return read;
     }
 
     private Summary generate(
