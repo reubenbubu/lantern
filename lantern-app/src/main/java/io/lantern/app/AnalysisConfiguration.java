@@ -28,10 +28,14 @@ class AnalysisConfiguration {
   @Bean
   BuildSandbox buildSandbox(
       @Value("${lantern.workspace}") Path workspace, SandboxProperties sandbox) {
-    return new BuildSandbox(
-        SandboxSettings.defaults(absolute(workspace).resolve("builds"))
-            .withMavenCacheVolume(sandbox.mavenCacheVolume())
-            .withMavenRepositories(sandbox.mavenRepositories()));
+    return new BuildSandbox(sandboxSettings(workspace, sandbox));
+  }
+
+  /** The sandbox settings: the defaults, with builds in the workspace and the configured ones. */
+  static SandboxSettings sandboxSettings(Path workspace, SandboxProperties sandbox) {
+    return SandboxSettings.defaults(absolute(workspace).resolve("builds"))
+        .withMavenCacheVolume(sandbox.mavenCacheVolume())
+        .withMavenRepositories(sandbox.mavenRepositories());
   }
 
   @Bean

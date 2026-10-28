@@ -112,6 +112,8 @@ class SandboxSettingsTest {
         .hasMessageContaining("Disk limits");
     assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withOwnerLabel("--x", "y"))
         .hasMessageContaining("owner label");
+    assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withOwnerLabel(null, "y"))
+        .isInstanceOf(NullPointerException.class);
     assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withOwnerLabel("x", ""))
         .hasMessageContaining("owner label");
     assertThatThrownBy(

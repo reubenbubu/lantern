@@ -16,7 +16,6 @@ import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
-import io.lantern.sandbox.SandboxSettings;
 import io.lantern.summarize.SummaryStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -37,16 +36,18 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -109,22 +110,34 @@ class EndToEndIT {
                 return String.join(" ", sentences);
               });
     }
+
+    /**
+     * Replaces the sandbox of AnalysisConfiguration with one built from the same settings plus this
+     * test class's owner label.
+     */
+    @Bean
+    static BeanPostProcessor ownerLabel(
+        ObjectProvider<SandboxProperties> sandbox, Environment environment) {
+      return new BeanPostProcessor() {
+        @Override
+        public Object postProcessAfterInitialization(Object bean, String name) {
+          if (!(bean instanceof BuildSandbox)) {
+            return bean;
+          }
+          return new BuildSandbox(
+              AnalysisConfiguration.sandboxSettings(
+                      Path.of(environment.getRequiredProperty("lantern.workspace")),
+                      sandbox.getObject())
+                  .withOwnerLabel(RUN_LABEL, RUN));
+        }
+      };
+    }
   }
 
   @DynamicPropertySource
   static void workspace(DynamicPropertyRegistry registry) {
     registry.add("lantern.workspace", WORKSPACE::toString);
     registry.add("lantern.sandbox.maven-cache-volume", () -> VOLUME);
-  }
-
-  /** The sandbox of AnalysisConfiguration, with the test cache volume and the owner label. */
-  @TestBean BuildSandbox buildSandbox;
-
-  static BuildSandbox buildSandbox() {
-    return new BuildSandbox(
-        SandboxSettings.defaults(WORKSPACE.toAbsolutePath().resolve("builds"))
-            .withMavenCacheVolume(VOLUME)
-            .withOwnerLabel(RUN_LABEL, RUN));
   }
 
   @Autowired AnalysisRun run;

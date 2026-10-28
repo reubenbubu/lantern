@@ -70,7 +70,7 @@ public record SandboxSettings(
   static final int PROXY_MIN_JDK = 21;
 
   private static final Pattern VOLUME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*");
-  private static final Pattern LABEL =
+  private static final Pattern OWNER_LABEL =
       Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*=[A-Za-z0-9_.:/-]+");
 
   public SandboxSettings {
@@ -127,7 +127,7 @@ public record SandboxSettings(
           "Disk limits out of range: disk=" + diskBytes + ", minFree=" + minFreeDiskBytes);
     }
     if (ownerLabel != null
-        && (!LABEL.matcher(ownerLabel).matches()
+        && (!OWNER_LABEL.matcher(ownerLabel).matches()
             || ownerLabel.startsWith(BuildSandbox.LABEL + "="))) {
       throw new IllegalArgumentException("Invalid owner label: " + ownerLabel);
     }
@@ -293,6 +293,8 @@ public record SandboxSettings(
    * @param value the label value
    */
   public SandboxSettings withOwnerLabel(String key, String value) {
+    Objects.requireNonNull(key, "key");
+    Objects.requireNonNull(value, "value");
     return new SandboxSettings(
         dockerCommand,
         images,
