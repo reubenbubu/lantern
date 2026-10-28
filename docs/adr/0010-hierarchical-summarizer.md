@@ -73,3 +73,16 @@ found in the facts, how summaries are stored and cited, and what happens to unci
 Source excerpts in the prompt and units too large for one prompt (#43, now ADR 0024), parallel calls
 with rate limiting (#44), the glossary in prompts (annotations, Phase 3), and levels
 above the repository (service, group, system), which come with the linker and grouping.
+
+## Amendment (#78): citation ranges
+
+- **A range cites every reference in it.** Models sometimes cite ranges such as `[F1-F3, F5]`.
+  A range of one kind, written with a hyphen, en dash or em dash (`F1-F3`, `F1–F3`, `F1-3`), is
+  read as citing each reference in it, so its facts are recorded as cited and it is stored as one
+  marker per reference; no range text is stored or shown.
+- **Ranges are checked like single references.** A range that reaches past the references given,
+  or past those a merge prompt showed (ADR 0024), is rejected naming the references it lacks; a
+  range of mixed kinds or in reverse order (`F1-S2`, `F3-F1`) is rejected as written. Rejection
+  and retry are as above.
+- **The prompt asks for single references** (`[F1, F2, F3]`, never `[F1-F3]`), so ranges should
+  be rare; accepting them avoids a retry when one appears. The prompt version was raised to 4.

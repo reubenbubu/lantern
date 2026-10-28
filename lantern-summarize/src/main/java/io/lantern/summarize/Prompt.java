@@ -24,7 +24,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "3";
+  static final String VERSION = "4";
 
   static final String SYSTEM =
       """
@@ -49,7 +49,8 @@ final class Prompt {
       Say only what the input shows or what follows from it. End every sentence with the \
       references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a \
       sentence about purpose cites the facts, source files or summaries it is inferred from. \
-      Cite only references from the input.
+      Cite only references from the input, each one on its own, such as [F1, F2, F3], never a \
+      range such as [F1-F3].
       Write plain prose without headings, lists or a title.""";
 
   static final String RETRY =
