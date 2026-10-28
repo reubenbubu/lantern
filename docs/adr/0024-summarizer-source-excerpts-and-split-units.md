@@ -1,4 +1,4 @@
-# 0022: Source excerpts in summaries, and units too large for one prompt
+# 0024: Source excerpts in summaries, and units too large for one prompt
 
 Status: accepted (#43), pending the user's review (#24)
 
@@ -39,7 +39,7 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
 - **The cache key includes each excerpt** (its fact, lines and the SHA-256 of its text), so the
   same facts summarized with and without excerpts are not mixed up. `Prompt.VERSION` is 2.
 - **Units too large for one prompt are split and merged.** A unit's user turn may take the context
-  window minus the system prompt, the output limit, one and a half output limits for a rejected
+  window minus the system prompt, the model's thinking headroom (ADR 0022), the output limit, one and a half output limits for a rejected
   answer sent back with a retry, the retry message and 100 tokens. A unit over that is sent in
   parts: its facts, excerpts and child summaries, in that order, are packed into prompts that each
   fit, under the references of the whole unit, and each part is summarized (purpose suffix
