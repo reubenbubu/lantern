@@ -68,7 +68,10 @@ public final class BudgetGuard {
    */
   public synchronized Reservation reserve(long tokens, BigDecimal costUsd) {
     Objects.requireNonNull(costUsd, "costUsd");
-    long tokensAfter = spentTokens + reservedTokens + tokens;
+    if (tokens < 0) {
+      throw new IllegalArgumentException("Tokens must not be negative: " + tokens);
+    }
+    long tokensAfter = saturatedAdd(saturatedAdd(spentTokens, reservedTokens), tokens);
     if (maxTokens != null && tokensAfter > maxTokens) {
       throw new BudgetExceededException(
           "Budget '%s': a call of up to %d tokens would exceed the limit of %d (%d used, %d reserved)"
@@ -85,7 +88,7 @@ public final class BudgetGuard {
                   spentCostUsd.toPlainString(),
                   reservedCostUsd.toPlainString()));
     }
-    reservedTokens += tokens;
+    reservedTokens = saturatedAdd(reservedTokens, tokens);
     reservedCostUsd = reservedCostUsd.add(costUsd);
     return new Reservation(this, tokens, costUsd);
   }
@@ -93,8 +96,13 @@ public final class BudgetGuard {
   private synchronized void close(Reservation reservation, long tokens, BigDecimal costUsd) {
     reservedTokens -= reservation.tokens;
     reservedCostUsd = reservedCostUsd.subtract(reservation.costUsd);
-    spentTokens += tokens;
+    spentTokens = saturatedAdd(spentTokens, tokens);
     spentCostUsd = spentCostUsd.add(costUsd);
+  }
+
+  private static long saturatedAdd(long a, long b) {
+    long sum = a + b;
+    return ((a ^ sum) & (b ^ sum)) < 0 ? Long.MAX_VALUE : sum;
   }
 
   @Override

@@ -167,6 +167,40 @@ class LlmClientTest {
   }
 
   @Test
+  void addingTheSameBudgetTwiceCountsItOnce() {
+    LlmClient client = client(ModelSettings.single(small)).withBudget(run).withBudget(run);
+    fake.answering("ok");
+
+    client.call(request(Role.COMPOSE, "y".repeat(385), 10));
+
+    assertThat(run.spentTokens()).isEqualTo(101);
+  }
+
+  @Test
+  void onlyTheSystemPromptIsReservedAtTheCacheWritePrice() {
+    // Cache writes cheaper than input, so pricing all input as cache writes would under-reserve.
+    Pricing cheapCache =
+        new Pricing(BigDecimal.valueOf(10), BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO);
+    ModelConfig model =
+        new ModelConfig("fake", "m", Set.of(Capability.PROMPT_CACHING), 10_000, cheapCache);
+    // System "s".repeat(400) = 100 tokens; user 400 characters = 100 tokens.
+    // Worst case: 100 * $1 + 100 * $10 per million = $0.0011.
+    BudgetGuard budget = new BudgetGuard("run", null, new BigDecimal("0.00109"));
+    LlmClient client =
+        new LlmClient(ModelSettings.single(model), List.of(fake), budget, log, clock);
+    LlmRequest cached =
+        new LlmRequest(
+            Role.SUMMARIZE,
+            "cached",
+            "s".repeat(400),
+            List.of(LlmMessage.user("u".repeat(400))),
+            1,
+            true);
+
+    assertThatThrownBy(() -> client.call(cached)).isInstanceOf(BudgetExceededException.class);
+  }
+
+  @Test
   void aFailedCallIsLoggedAndReleasesItsReservation() {
     BudgetGuard tight = new BudgetGuard("run", 200L, null);
     LlmClient client = new LlmClient(ModelSettings.single(small), List.of(fake), tight, log, clock);

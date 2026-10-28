@@ -50,6 +50,20 @@ class RecordReplayLlmProviderTest {
   }
 
   @Test
+  void recordingDoesNotPayTwiceForTheSameRequest() {
+    FakeLlmProvider real = new FakeLlmProvider("anthropic").answering("An order.");
+    RecordReplayLlmProvider recorder = RecordReplayLlmProvider.recording(real, recordings);
+
+    LlmResponse first = recorder.complete("big", request);
+    real.answering("Something else.");
+    LlmResponse second =
+        RecordReplayLlmProvider.recording(real, recordings).complete("big", request);
+
+    assertThat(second).isEqualTo(first);
+    assertThat(real.sent()).hasSize(1);
+  }
+
+  @Test
   void failsWithoutARecording() {
     RecordReplayLlmProvider.recording(new FakeLlmProvider("anthropic"), recordings)
         .complete("big", request);

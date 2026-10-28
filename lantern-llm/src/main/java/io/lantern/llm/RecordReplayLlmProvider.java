@@ -5,6 +5,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -48,7 +49,10 @@ public final class RecordReplayLlmProvider implements LlmProvider {
     return new RecordReplayLlmProvider(name, directory, null);
   }
 
-  /** Sends every request to the given provider and records its answer in the directory. */
+  /**
+   * Replays recorded requests and sends the others to the given provider, recording its answers in
+   * the directory.
+   */
   public static RecordReplayLlmProvider recording(LlmProvider provider, Path directory) {
     Objects.requireNonNull(provider, "provider");
     return new RecordReplayLlmProvider(provider.name(), directory, provider);
@@ -63,20 +67,20 @@ public final class RecordReplayLlmProvider implements LlmProvider {
   public LlmResponse complete(String model, LlmRequest request) {
     ObjectNode key = key(model, request);
     Path file = directory.resolve(hash(key) + ".json");
+    if (Files.isRegularFile(file)) {
+      return read(file);
+    }
     if (recordFrom != null) {
       LlmResponse response = recordFrom.complete(model, request);
       write(file, key, response);
       return response;
     }
-    if (!Files.isRegularFile(file)) {
-      throw new LlmException(
-          "No recording for this request in "
-              + directory
-              + " (expected "
-              + file.getFileName()
-              + "). Record it with a recording provider, which calls the real model.");
-    }
-    return read(file);
+    throw new LlmException(
+        "No recording for this request in "
+            + directory
+            + " (expected "
+            + file.getFileName()
+            + "). Record it with a recording provider, which calls the real model.");
   }
 
   /** What identifies a request: everything sent to the model, in a fixed order. */
@@ -127,7 +131,14 @@ public final class RecordReplayLlmProvider implements LlmProvider {
         .put("cacheRead", response.usage().cacheRead());
     try {
       Files.createDirectories(file.getParent());
-      Files.writeString(file, MAPPER.writeValueAsString(root) + "\n");
+      // Written to a temporary file and moved, so that concurrent readers never see half a file.
+      Path temp = Files.createTempFile(file.getParent(), file.getFileName().toString(), ".tmp");
+      try {
+        Files.writeString(temp, MAPPER.writeValueAsString(root) + "\n");
+        Files.move(temp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+      } finally {
+        Files.deleteIfExists(temp);
+      }
     } catch (IOException e) {
       throw new UncheckedIOException("Cannot write recording " + file, e);
     }

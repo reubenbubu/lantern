@@ -34,8 +34,11 @@ where model settings come from.
   dollar limit. Before a call the client reserves its worst case (input estimated at four
   characters per token, plus the output limit) and refuses the call if any budget would go over;
   afterwards the reservation is replaced by real usage. Input estimates are rough, so spending can
-  pass a limit slightly, after which every call is refused. A failed call releases its
-  reservation. The client has a run budget; `withBudget` adds a scope budget on top.
+  pass a limit slightly, after which every call is refused. With prompt caching, the system
+  prompt's share of the estimate is priced as a cache write. A failed call releases its
+  reservation, so a call that failed after being billed (for example a timeout) is not counted;
+  the provider's own usage report remains the authority. The client has a run budget;
+  `withBudget` adds a scope budget on top.
 - **The call log is an interface.** Every call, refused, failed or successful, is recorded with
   time, duration, role, purpose, provider, model, tokens, cost and error. Two implementations: one
   line per call on the `io.lantern.llm.calls` logger, and an in-memory list. Persisting the log
@@ -54,8 +57,10 @@ where model settings come from.
 - **Record/replay keys on what the model sees.** A recording is a JSON file named by the SHA-256
   of the provider, model, system prompt, caching flag, turns and output limit, so changing a
   prompt needs a new recording, while role and purpose do not matter. Replaying fails on a
-  missing recording rather than calling out. Recording calls the real provider and so needs the
-  user's go-ahead like any real call.
+  missing recording rather than calling out. Recording replays what is already recorded and
+  calls the real provider only for the rest, so rerunning it does not pay twice; it still needs
+  the user's go-ahead like any real call. Files are written to a temporary file and moved into
+  place, so parallel calls never read half a recording.
 
 ## Not in this issue
 

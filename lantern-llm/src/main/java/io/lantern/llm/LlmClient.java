@@ -78,6 +78,9 @@ public final class LlmClient {
    */
   public LlmClient withBudget(BudgetGuard budget) {
     Objects.requireNonNull(budget, "budget");
+    if (budgets.stream().anyMatch(existing -> existing == budget)) {
+      return this;
+    }
     List<BudgetGuard> all = new ArrayList<>(budgets);
     all.add(budget);
     return new LlmClient(settings, providers, List.copyOf(all), log, clock);
@@ -138,10 +141,9 @@ public final class LlmClient {
 
   private List<BudgetGuard.Reservation> reserve(ModelConfig model, LlmRequest request) {
     long input = request.estimatedInputTokens();
-    TokenUsage worstCase =
-        request.cacheSystem()
-            ? new TokenUsage(0, request.maxOutputTokens(), input, 0)
-            : new TokenUsage(input, request.maxOutputTokens(), 0, 0);
+    // With caching, the system prompt may be written to the cache; the rest is normal input.
+    long cached = request.cacheSystem() ? Math.min(input, Tokens.estimate(request.system())) : 0;
+    TokenUsage worstCase = new TokenUsage(input - cached, request.maxOutputTokens(), cached, 0);
     BigDecimal cost = model.pricing().cost(worstCase);
     List<BudgetGuard.Reservation> reservations = new ArrayList<>();
     try {
