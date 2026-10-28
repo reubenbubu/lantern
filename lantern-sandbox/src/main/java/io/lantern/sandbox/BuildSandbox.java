@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -77,13 +78,16 @@ public class BuildSandbox {
   private static final Duration PROXY_START_TIMEOUT = Duration.ofSeconds(60);
   private static final long MAX_OUTPUT_ENTRIES = 2_000_000;
   private static final long MAX_DETECT_BYTES = 64L * 1024 * 1024;
+  private static final long MAX_TRAILING_BYTES = 1024 * 1024;
   private static final Pattern COMMIT = Pattern.compile("[0-9a-f]{40}|[0-9a-f]{64}");
+  // The repository name rule of Repo, so a name cannot lead outside the builds directory.
+  private static final Pattern REPO_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
   private static final SecureRandom RANDOM = new SecureRandom();
 
   private final SandboxSettings settings;
   private final Docker docker;
   private final Semaphore slots;
-  private final Map<String, Object> locks = new ConcurrentHashMap<>();
+  private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
   public BuildSandbox(SandboxSettings settings) {
     this.settings = Objects.requireNonNull(settings, "settings");
@@ -105,18 +109,27 @@ public class BuildSandbox {
     Objects.requireNonNull(repo, "repo");
     checkCommit(repo, commit);
     Path directory = directory(repo.name(), commit);
-    synchronized (locks.computeIfAbsent(repo.name() + "@" + commit, key -> new Object())) {
-      try {
-        slots.acquire();
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new SandboxException("Interrupted while waiting for a build slot", e);
-      }
-      try {
-        return buildInto(repo, commit, directory);
-      } finally {
-        slots.release();
-      }
+    // A lock, not a monitor: a virtual thread blocked in a monitor would pin its carrier.
+    ReentrantLock lock =
+        locks.computeIfAbsent(repo.name() + "@" + commit, key -> new ReentrantLock());
+    try {
+      lock.lockInterruptibly();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new SandboxException("Interrupted while waiting for another build of the commit", e);
+    }
+    try {
+      slots.acquire();
+    } catch (InterruptedException e) {
+      lock.unlock();
+      Thread.currentThread().interrupt();
+      throw new SandboxException("Interrupted while waiting for a build slot", e);
+    }
+    try {
+      return buildInto(repo, commit, directory);
+    } finally {
+      slots.release();
+      lock.unlock();
     }
   }
 
@@ -124,7 +137,7 @@ public class BuildSandbox {
   public Optional<BuildResult> find(String repo, String commit) {
     Objects.requireNonNull(repo, "repo");
     Objects.requireNonNull(commit, "commit");
-    if (!COMMIT.matcher(commit).matches()) {
+    if (!COMMIT.matcher(commit).matches() || !REPO_NAME.matcher(repo).matches()) {
       return Optional.empty();
     }
     Path directory = directory(repo, commit);
@@ -237,10 +250,16 @@ public class BuildSandbox {
           }
           failure = failure();
         } finally {
+          // Clean up even when interrupted: clear the flag so the docker calls run, then restore
+          // it.
+          boolean interrupted = Thread.interrupted();
           appendProxyLog();
           docker.quietly(
               CLEANUP_TIMEOUT, List.of("rm", "--force", "--volumes", container, detector, proxy));
           docker.quietly(CLEANUP_TIMEOUT, List.of("network", "rm", network));
+          if (interrupted) {
+            Thread.currentThread().interrupt();
+          }
         }
         if (failure != null) {
           log.note("build failed: " + failure);
@@ -448,7 +467,7 @@ public class BuildSandbox {
                   "--network",
                   network,
                   "--cpus",
-                  Double.toString(settings.cpus()),
+                  java.math.BigDecimal.valueOf(settings.cpus()).toPlainString(),
                   "--memory",
                   Long.toString(settings.memoryBytes()),
                   "--memory-swap",
@@ -552,8 +571,15 @@ public class BuildSandbox {
       CompletableFuture<String> gitErr = Docker.capture(git.getErrorStream());
       CompletableFuture<String> cpOut = Docker.capture(cp.getInputStream());
       CompletableFuture<String> cpErr = Docker.capture(cp.getErrorStream());
-      int gitExit = Docker.waitFor(git, COPY_TIMEOUT, "git archive");
-      int cpExit = Docker.waitFor(cp, COPY_TIMEOUT, "docker cp");
+      int gitExit;
+      int cpExit;
+      try {
+        gitExit = Docker.waitFor(git, COPY_TIMEOUT, "git archive");
+        cpExit = Docker.waitFor(cp, COPY_TIMEOUT, "docker cp");
+      } finally {
+        git.destroyForcibly();
+        cp.destroyForcibly();
+      }
       if (gitExit != 0 || cpExit != 0) {
         throw new SandboxException(
             "Cannot copy the repository into the build container: "
@@ -638,22 +664,28 @@ public class BuildSandbox {
 
     /** Copies {@code /out} out of the container and reads it. */
     private void collect() throws IOException {
-      String problem = copyOut(container + ":/out", outputs, settings.maxOutputBytes());
+      // Extract apart from Lantern's own files, so the build cannot overwrite the log or result.
+      Path raw = Files.createDirectories(staging.resolve("out"));
+      String problem = copyOut(container + ":/out", raw, settings.maxOutputBytes());
       if (problem != null) {
-        clearOutputs();
         if (!problem.isEmpty()) {
           outputProblem = problem;
         }
         return;
       }
-      Path exitFile = outputs.resolve("maven-exit-code");
+      for (String part : List.of(BuildOutputs.WORK, BuildOutputs.LIB)) {
+        Path from = raw.resolve(part);
+        if (Files.isDirectory(from, LinkOption.NOFOLLOW_LINKS)) {
+          Files.move(from, outputs.resolve(part));
+        }
+      }
+      Path exitFile = raw.resolve("maven-exit-code");
       if (Files.isRegularFile(exitFile, LinkOption.NOFOLLOW_LINKS) && Files.size(exitFile) < 32) {
         try {
           mavenExitCode = Integer.parseInt(Files.readString(exitFile).strip());
         } catch (NumberFormatException e) {
           mavenExitCode = null;
         }
-        Files.delete(exitFile);
       }
       modules = BuildOutputs.modules(outputs);
       effectivePom = BuildOutputs.effectivePom(outputs);
@@ -675,6 +707,16 @@ public class BuildSandbox {
                 try (InputStream in = process.getInputStream()) {
                   process.getOutputStream().close();
                   extractor.extract(in, into);
+                  // Read what docker cp still writes after the end marker, so it exits cleanly.
+                  byte[] rest = new byte[8192];
+                  long drained = 0;
+                  int read;
+                  while ((read = in.read(rest)) >= 0) {
+                    drained += read;
+                    if (drained > MAX_TRAILING_BYTES) {
+                      throw new TarExtractor.TarException("Data after the end of the archive");
+                    }
+                  }
                   return null;
                 } catch (IOException e) {
                   return e;
@@ -703,17 +745,6 @@ public class BuildSandbox {
         return "";
       }
       return null;
-    }
-
-    /** Removes everything from the outputs but the log. */
-    private void clearOutputs() throws IOException {
-      try (var children = Files.list(outputs)) {
-        for (Path child : children.toList()) {
-          if (!child.getFileName().toString().equals(LOG_FILE)) {
-            deleteQuietly(child);
-          }
-        }
-      }
     }
 
     private void appendProxyLog() {

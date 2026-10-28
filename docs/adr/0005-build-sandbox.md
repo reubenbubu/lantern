@@ -33,19 +33,25 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   default bridge network. It tunnels `CONNECT host:port` to an allowed list (by default only
   `repo.maven.apache.org:443`) and answers everything else with 403 or 405. Maven settings point
   both `http` and `https` at it. Code in the build that ignores the proxy settings has no route at
-  all. Plain-HTTP repositories are not supported yet.
+  all, and external names do not resolve (Docker 26 and later do not forward DNS from internal
+  networks; older versions would leak DNS lookups). The proxy is also reachable from other
+  containers on the default bridge network, which can use it to reach the same allowed hosts.
+  Plain-HTTP repositories are not supported yet.
 - **No host files in the container.** The repo's files at the commit are streamed in with
   `git archive` (no `.git`, no uncommitted changes, no build output on the host) and `docker cp`.
   Nothing is bind-mounted, and the Docker socket is not available. Outputs come back as a tar
   stream from `docker cp`, parsed by Lantern's own extractor: only regular files and directories,
   every path confined to the target, symbolic and hard links skipped, at most 4 GiB and 2 million
-  entries. A larger output fails the build. This also means Lantern can itself run in a container.
+  entries. A larger output fails the build. Only `work/`, `lib/` and Maven's exit code are taken
+  from it, so the build cannot overwrite Lantern's log or result. This also means Lantern can itself run in a container.
 - **Container limits** (all configurable): 2 CPUs, 4 GiB memory with swap off, 4096 processes,
-  30 minutes, all capabilities dropped, `no-new-privileges`, and at most 4 builds at once (the
+  30 minutes per container (JDK detection and the build each get that), all capabilities dropped, `no-new-privileges`, and at most 4 builds at once (the
   design's sizing for the development VM). The build runs as the image's root user, because the
   copied files are root-owned; without capabilities it cannot change that, and under rootless
-  Docker (as on the development VM) root in a container is the unprivileged host user. Running as
-  another user is possible later.
+  Docker (as on the development VM) root in a container is the unprivileged host user. This is
+  assumed, not checked; on rootful Docker the build's root is real root confined only by the
+  container. Running as another user is possible later. Disk use is not limited: a hostile build
+  can fill Docker's storage through its container layer or the shared cache.
 - **Shared Maven cache** is one Docker volume, `lantern-maven-cache`, mounted as the local
   repository of every build, with Maven's file locking for concurrent builds. Trade-off: a
   malicious build can plant artifacts in the cache that later builds use. The design accepts a
@@ -67,9 +73,11 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   `repo@commit` again replaces its outputs.
 - **Failure.** A build that fails to compile or resolve, times out, runs out of memory, produces
   too much output, has no `pom.xml` or has no image for its JDK is stored as `FAILED` with a
-  reason, keeping whatever outputs it left (a classpath often still resolves), and
+  reason, keeping whatever outputs it left (a classpath often still resolves; a timed-out build
+  leaves none, since outputs are gathered after Maven ends), and
   `degraded()` tells the analysis to use degraded mode. Problems of the sandbox itself, such as
-  Docker being unavailable, throw `SandboxException` and store nothing.
+  Docker being unavailable, or an interrupted build, throw `SandboxException` and store nothing;
+  the build's containers and network are removed on every path.
 - **No git metadata.** Builds get no `.git`, so plugins that read it fail. The
   `git-commit-id-maven-plugin`, used by the OpenWMS parent POM, is skipped
   (`-Dmaven.gitcommitid.skip=true`); the build information it records is not needed for analysis.

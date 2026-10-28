@@ -74,6 +74,9 @@ final class TarExtractor {
       }
       char type = (char) header[156];
       long size = number(header, 124, 12);
+      if (size < 0) {
+        throw new TarException("Negative entry size");
+      }
       switch (type) {
         case 'x' -> {
           byte[] pax = readSmall(in, size);

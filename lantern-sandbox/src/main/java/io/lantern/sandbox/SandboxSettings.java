@@ -19,7 +19,8 @@ import java.util.regex.Pattern;
  * @param cpus the CPUs each build container may use
  * @param memoryBytes the memory each build container may use, swap included
  * @param pidsLimit the most processes and threads each build container may run
- * @param timeout how long a build may run before it is stopped and recorded as failed
+ * @param timeout how long each container of a build (the JDK detection, if needed, and the build)
+ *     may run before it is stopped and the build recorded as failed
  * @param maxConcurrentBuilds the most builds that run at once on this host
  * @param mavenCacheVolume the Docker volume holding the local Maven repository that all builds
  *     share
@@ -98,7 +99,8 @@ public record SandboxSettings(
       throw new IllegalArgumentException("Invalid Maven cache volume name: " + mavenCacheVolume);
     }
     for (String host : allowedHosts) {
-      if (!HOST_PORT.matcher(host).matches()) {
+      if (!HOST_PORT.matcher(host).matches()
+          || Integer.parseInt(host.substring(host.lastIndexOf(':') + 1)) > 65535) {
         throw new IllegalArgumentException("Allowed host must be host:port: " + host);
       }
     }

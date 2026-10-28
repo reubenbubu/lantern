@@ -57,6 +57,9 @@ final class Docker {
       throw new SandboxException("Interrupted while running docker " + args, e);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    } finally {
+      // Ends the output readers too, if waiting failed.
+      process.destroyForcibly();
     }
   }
 

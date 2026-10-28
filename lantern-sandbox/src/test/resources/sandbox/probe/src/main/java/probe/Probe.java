@@ -3,6 +3,7 @@ package probe;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +18,9 @@ public class Probe {
     Properties results = new Properties();
     results.setProperty("direct.name", connect("repo.maven.apache.org", 443));
     results.setProperty("direct.address", connect("1.1.1.1", 443));
+    results.setProperty("dns", resolve("example.com"));
+    results.setProperty("metadata", connect("169.254.169.254", 80));
+    results.setProperty("gateway", gateway());
     results.setProperty("proxy.allowed", viaProxy("CONNECT repo.maven.apache.org:443 HTTP/1.1"));
     results.setProperty("proxy.denied", viaProxy("CONNECT example.com:443 HTTP/1.1"));
     results.setProperty("proxy.plain", viaProxy("GET http://example.com/ HTTP/1.1"));
@@ -40,6 +44,34 @@ public class Probe {
     } catch (IOException e) {
       return "blocked";
     }
+  }
+
+  private static String resolve(String host) {
+    try {
+      InetAddress.getByName(host);
+      return "resolved";
+    } catch (IOException e) {
+      return "failed";
+    }
+  }
+
+  /** "none" without a default route, else whether common ports on the gateway were reachable. */
+  private static String gateway() {
+    for (String line : read("/proc/net/route").split("\n")) {
+      String[] fields = line.trim().split("\\s+");
+      if (fields.length > 2 && fields[1].equals("00000000") && !fields[2].equals("00000000")) {
+        long hex = Long.parseLong(fields[2], 16);
+        String address =
+            (hex & 0xff) + "." + ((hex >> 8) & 0xff) + "." + ((hex >> 16) & 0xff) + "." + ((hex >> 24) & 0xff);
+        for (int port : new int[] {22, 80, 443, 2375, 5432, 8080}) {
+          if (connect(address, port).equals("connected")) {
+            return "reached " + address + ":" + port;
+          }
+        }
+        return "blocked";
+      }
+    }
+    return "none";
   }
 
   /** Sends one request line to the egress proxy and returns its status code. */

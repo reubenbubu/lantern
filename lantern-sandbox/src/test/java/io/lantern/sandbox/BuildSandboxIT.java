@@ -15,6 +15,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -206,6 +207,45 @@ class BuildSandboxIT {
   }
 
   @Test
+  void cleansUpWhenInterrupted() throws Exception {
+    Repo repo = repo(sandboxFixture("broken"), "interrupted", RepoSettings.DEFAULT);
+    BuildSandbox sandbox = new BuildSandbox(settings());
+    AtomicReference<Throwable> thrown = new AtomicReference<>();
+    Thread build =
+        Thread.ofVirtual()
+            .start(
+                () -> {
+                  try {
+                    sandbox.build(repo, TestRepos.head(repo));
+                  } catch (Throwable t) {
+                    thrown.set(t);
+                  }
+                });
+    long deadline = System.nanoTime() + Duration.ofMinutes(1).toNanos();
+    while (DOCKER
+        .check(
+            TIMEOUT,
+            List.of(
+                "ps",
+                "--quiet",
+                "--filter",
+                "label=" + BuildSandbox.LABEL,
+                "--filter",
+                "name=lantern-build-[0-9a-f]+$"))
+        .out()
+        .isEmpty()) {
+      assertThat(System.nanoTime()).as("build container never started").isLessThan(deadline);
+      Thread.sleep(100);
+    }
+    build.interrupt();
+    build.join(Duration.ofMinutes(2));
+
+    assertThat(build.isAlive()).isFalse();
+    assertThat(thrown.get()).isInstanceOf(SandboxException.class);
+    assertThat(sandbox.find("interrupted", TestRepos.head(repo))).isEmpty();
+  }
+
+  @Test
   void usesTheJdkOverride() throws IOException {
     Repo repo =
         repo(
@@ -278,6 +318,9 @@ class BuildSandboxIT {
     // No route out except the proxy, and the proxy only reaches the artifact repository.
     assertThat(probe.getProperty("direct.name")).isEqualTo("blocked");
     assertThat(probe.getProperty("direct.address")).isEqualTo("blocked");
+    assertThat(probe.getProperty("dns")).isEqualTo("failed");
+    assertThat(probe.getProperty("metadata")).isEqualTo("blocked");
+    assertThat(probe.getProperty("gateway")).isIn("none", "blocked");
     assertThat(probe.getProperty("proxy.allowed")).isEqualTo("200");
     assertThat(probe.getProperty("proxy.denied")).isEqualTo("403");
     assertThat(probe.getProperty("proxy.plain")).isEqualTo("405");
