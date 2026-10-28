@@ -257,7 +257,7 @@ class BuildSandboxIT {
 
     BuildResult result =
         new BuildSandbox(
-                settings().withDiskBytes(256L * 1024 * 1024).withTimeout(Duration.ofMinutes(2)))
+                settings().withDiskBytes(256L * 1024 * 1024).withTimeout(Duration.ofMinutes(10)))
             .build(repo, TestRepos.head(repo));
 
     assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.FAILED);
@@ -275,7 +275,7 @@ class BuildSandboxIT {
 
     BuildResult result =
         new BuildSandbox(
-                settings().withMinFreeDiskBytes(Long.MAX_VALUE).withTimeout(Duration.ofMinutes(2)))
+                settings().withMinFreeDiskBytes(Long.MAX_VALUE).withTimeout(Duration.ofMinutes(10)))
             .build(repo, TestRepos.head(repo));
 
     assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.FAILED);

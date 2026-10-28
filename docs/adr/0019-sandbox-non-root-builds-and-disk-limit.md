@@ -41,4 +41,5 @@ VM's rootless Docker.
   free-space guard cannot tell which build is filling the disk, so with several builds at once the
   others can be stopped too; it assumes the cache volume is on the same filesystem as the rest of
   Docker's storage, as with Docker's default local volumes. The build timeout can be overrun by
-  the time of one check.
+  the time of one check. On a very busy host an honest build with very many files could be stopped
+  because its size could not be measured in time.
