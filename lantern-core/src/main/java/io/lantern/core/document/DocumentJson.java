@@ -209,6 +209,33 @@ public final class DocumentJson {
         ArrayNode edges = node.putArray("edges");
         d.edges().forEach(e -> edges.add(toJson(e)));
       }
+      case SequenceDiagram d -> {
+        node.put("kind", "diagram");
+        node.put("id", d.id());
+        node.put("diagramKind", SequenceDiagram.DIAGRAM_KIND);
+        putOptional(node, "title", d.title());
+        ArrayNode participants = node.putArray("participants");
+        d.participants().forEach(p -> participants.add(toJson(p)));
+        ArrayNode steps = node.putArray("steps");
+        d.steps().forEach(step -> steps.add(toJson(step)));
+      }
+      case QualityReport q -> {
+        node.put("kind", "quality-report");
+        node.put("id", q.id());
+        putOptional(node, "title", q.title());
+        ArrayNode failures = node.putArray("failures");
+        for (QualityReport.Failure failure : q.failures()) {
+          ObjectNode failureNode = failures.addObject();
+          failureNode.put("check", failure.check());
+          if (failure.target() != null) {
+            failureNode.set("target", toJson(failure.target()));
+          }
+          if (!failure.detail().isEmpty()) {
+            failureNode.set("detail", contentToJson(failure.detail()));
+          }
+          putFacts(failureNode, failure.facts());
+        }
+      }
       case Tree t -> {
         node.put("kind", "tree");
         node.put("id", t.id());
@@ -278,6 +305,25 @@ public final class DocumentJson {
             in.facts());
       }
       case "diagram" -> {
+        if (SequenceDiagram.DIAGRAM_KIND.equals(Reader.of(node, "diagram").string("diagramKind"))) {
+          Reader in =
+              Reader.of(
+                  node,
+                  "sequence diagram",
+                  "kind",
+                  "id",
+                  "diagramKind",
+                  "title",
+                  "participants",
+                  "steps",
+                  "facts");
+          yield new SequenceDiagram(
+              in.string("id"),
+              in.optionalString("title"),
+              in.array("participants", DocumentJson::participantFromJson),
+              in.array("steps", DocumentJson::stepFromJson),
+              in.facts());
+        }
         Reader in =
             Reader.of(
                 node, "diagram", "kind", "id", "diagramKind", "title", "nodes", "edges", "facts");
@@ -302,6 +348,14 @@ public final class DocumentJson {
         yield new Metrics(
             in.string("id"), in.array("items", DocumentJson::metricFromJson), in.facts());
       }
+      case "quality-report" -> {
+        Reader in = Reader.of(node, "quality report", "kind", "id", "title", "failures", "facts");
+        yield new QualityReport(
+            in.string("id"),
+            in.optionalString("title"),
+            in.array("failures", DocumentJson::failureFromJson),
+            in.facts());
+      }
       default -> throw new IllegalArgumentException("Unknown block kind: '" + kind + "'");
     };
   }
@@ -314,19 +368,189 @@ public final class DocumentJson {
         in.facts());
   }
 
-  private static ObjectNode toJson(Diagram.Node diagramNode) {
+  private static ObjectNode toJson(SequenceDiagram.Participant participant) {
     ObjectNode node = MAPPER.createObjectNode();
-    node.put("id", diagramNode.id().toString());
-    node.put("label", diagramNode.label());
-    putOptional(node, "technology", diagramNode.technology());
-    putOptional(node, "parent", diagramNode.parent());
-    Diagram.Style style = diagramNode.style();
+    node.put("id", participant.id().toString());
+    putOptional(node, "label", participant.label());
+    putOptional(node, "technology", participant.technology());
+    putStyle(node, participant.style());
+    putFacts(node, participant.facts());
+    return node;
+  }
+
+  private static SequenceDiagram.Participant participantFromJson(JsonNode node) {
+    Reader in = Reader.of(node, "participant", "id", "label", "technology", "style", "facts");
+    return new SequenceDiagram.Participant(
+        in.entityId("id"),
+        in.optionalString("label"),
+        in.optionalString("technology"),
+        styleFromJson(in),
+        in.facts());
+  }
+
+  private static ObjectNode toJson(SequenceDiagram.Step step) {
+    ObjectNode node = MAPPER.createObjectNode();
+    switch (step) {
+      case SequenceDiagram.Message m -> {
+        node.put("kind", "message");
+        putOptional(node, "from", m.from());
+        putOptional(node, "to", m.to());
+        putOptional(node, "label", m.label());
+        putOptional(node, "code", m.code());
+        if (m.messageKind() != null) {
+          node.put("messageKind", m.messageKind().jsonName());
+        }
+        if (m.activate() != null) {
+          node.put("activate", m.activate());
+        }
+        if (m.deactivate() != null) {
+          node.put("deactivate", m.deactivate());
+        }
+        if (!m.profiles().isEmpty()) {
+          ArrayNode profiles = node.putArray("profiles");
+          m.profiles().forEach(profiles::add);
+        }
+        if (!m.info().isEmpty()) {
+          node.set("info", contentToJson(m.info()));
+        }
+      }
+      case SequenceDiagram.Frame f -> {
+        node.put("kind", "frame");
+        node.put("operator", f.operator().jsonName());
+        ArrayNode operands = node.putArray("operands");
+        for (SequenceDiagram.Operand operand : f.operands()) {
+          ObjectNode operandNode = operands.addObject();
+          putOptional(operandNode, "guard", operand.guard());
+          ArrayNode steps = operandNode.putArray("steps");
+          operand.steps().forEach(s -> steps.add(toJson(s)));
+        }
+      }
+      case SequenceDiagram.Note n -> {
+        node.put("kind", "note");
+        if (!n.over().isEmpty()) {
+          ArrayNode over = node.putArray("over");
+          n.over().forEach(p -> over.add(p.toString()));
+        }
+        node.set("content", contentToJson(n.content()));
+      }
+    }
+    putFacts(node, step.facts());
+    return node;
+  }
+
+  private static SequenceDiagram.Step stepFromJson(JsonNode node) {
+    String kind = Reader.of(node, "sequence step").string("kind");
+    return switch (kind) {
+      case "message" -> {
+        Reader in =
+            Reader.of(
+                node,
+                "message",
+                "kind",
+                "from",
+                "to",
+                "label",
+                "code",
+                "messageKind",
+                "activate",
+                "deactivate",
+                "profiles",
+                "info",
+                "facts");
+        String messageKind = in.optionalString("messageKind");
+        List<String> profiles = List.of();
+        if (in.has("profiles")) {
+          profiles = in.array("profiles", p -> Reader.string(p, "profiles"));
+          if (profiles.isEmpty()) {
+            throw new IllegalArgumentException("Message profiles must not be empty when present");
+          }
+        }
+        yield new SequenceDiagram.Message(
+            in.optionalEntityId("from"),
+            in.optionalEntityId("to"),
+            in.optionalString("label"),
+            in.optionalString("code"),
+            messageKind == null ? null : SequenceDiagram.MessageKind.fromJsonName(messageKind),
+            in.has("activate") ? in.bool("activate") : null,
+            in.has("deactivate") ? in.bool("deactivate") : null,
+            profiles,
+            in.has("info") ? Checks.content(in.content("info"), "message info") : List.of(),
+            in.facts());
+      }
+      case "frame" -> {
+        Reader in = Reader.of(node, "frame", "kind", "operator", "operands", "facts");
+        yield new SequenceDiagram.Frame(
+            SequenceDiagram.Operator.fromJsonName(in.string("operator")),
+            in.array(
+                "operands",
+                operand -> {
+                  Reader o = Reader.of(operand, "operand", "guard", "steps");
+                  return new SequenceDiagram.Operand(
+                      o.optionalString("guard"), o.array("steps", DocumentJson::stepFromJson));
+                }),
+            in.facts());
+      }
+      case "note" -> {
+        Reader in = Reader.of(node, "note", "kind", "over", "content", "facts");
+        List<EntityId> over = List.of();
+        if (in.has("over")) {
+          over = in.array("over", p -> EntityId.parse(Reader.string(p, "over")));
+          if (over.isEmpty()) {
+            throw new IllegalArgumentException("Note over must not be empty when present");
+          }
+        }
+        yield new SequenceDiagram.Note(over, in.content("content"), in.facts());
+      }
+      default -> throw new IllegalArgumentException("Unknown sequence step kind: '" + kind + "'");
+    };
+  }
+
+  private static QualityReport.Failure failureFromJson(JsonNode node) {
+    Reader in = Reader.of(node, "quality failure", "check", "target", "detail", "facts");
+    return new QualityReport.Failure(
+        in.string("check"),
+        in.has("target") ? targetFromJson(in.object("target", "kind", "id")) : null,
+        in.has("detail") ? Checks.content(in.content("detail"), "failure detail") : List.of(),
+        in.facts());
+  }
+
+  private static ObjectNode toJson(CrossReference.Target target) {
+    ObjectNode node = MAPPER.createObjectNode();
+    node.put("kind", target.kind().jsonName());
+    node.put("id", target.id());
+    return node;
+  }
+
+  private static CrossReference.Target targetFromJson(Reader target) {
+    return new CrossReference.Target(
+        CrossReference.Target.Kind.fromJsonName(target.string("kind")), target.string("id"));
+  }
+
+  private static void putStyle(ObjectNode node, Diagram.Style style) {
     if (style != null) {
       ObjectNode styleNode = node.putObject("style");
       putOptional(styleNode, "shape", style.shape());
       putOptional(styleNode, "icon", style.icon());
       putOptional(styleNode, "color", style.color());
     }
+  }
+
+  private static Diagram.Style styleFromJson(Reader in) {
+    if (!in.has("style")) {
+      return null;
+    }
+    Reader s = in.object("style", "shape", "icon", "color");
+    return new Diagram.Style(
+        s.optionalString("shape"), s.optionalString("icon"), s.optionalString("color"));
+  }
+
+  private static ObjectNode toJson(Diagram.Node diagramNode) {
+    ObjectNode node = MAPPER.createObjectNode();
+    node.put("id", diagramNode.id().toString());
+    node.put("label", diagramNode.label());
+    putOptional(node, "technology", diagramNode.technology());
+    putOptional(node, "parent", diagramNode.parent());
+    putStyle(node, diagramNode.style());
     Diagram.Position position = diagramNode.position();
     if (position != null) {
       ObjectNode positionNode = node.putObject("position");
@@ -342,13 +566,7 @@ public final class DocumentJson {
     Reader in =
         Reader.of(
             node, "node", "id", "label", "technology", "parent", "style", "position", "facts");
-    Diagram.Style style = null;
-    if (in.has("style")) {
-      Reader s = in.object("style", "shape", "icon", "color");
-      style =
-          new Diagram.Style(
-              s.optionalString("shape"), s.optionalString("icon"), s.optionalString("color"));
-    }
+    Diagram.Style style = styleFromJson(in);
     Diagram.Position position = null;
     if (in.has("position")) {
       Reader p = in.object("position", "x", "y", "pinned");
@@ -434,9 +652,7 @@ public final class DocumentJson {
         case CrossReference r -> {
           node.put("kind", "ref");
           node.put("text", r.text());
-          ObjectNode target = node.putObject("target");
-          target.put("kind", r.target().kind().jsonName());
-          target.put("id", r.target().id());
+          node.set("target", toJson(r.target()));
           if (r.citation()) {
             node.put("citation", true);
           }
@@ -462,12 +678,9 @@ public final class DocumentJson {
       }
       case "ref" -> {
         Reader in = Reader.of(node, "cross-reference", "kind", "text", "target", "citation");
-        Reader target = in.object("target", "kind", "id");
         yield new CrossReference(
             in.string("text"),
-            new CrossReference.Target(
-                CrossReference.Target.Kind.fromJsonName(target.string("kind")),
-                target.string("id")),
+            targetFromJson(in.object("target", "kind", "id")),
             in.has("citation") && in.bool("citation"));
       }
       case "citation" -> new Citation(Reader.of(node, "citation", "kind", "facts").facts());

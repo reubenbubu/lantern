@@ -1,6 +1,6 @@
 # 0011: Document model
 
-Status: accepted (#12), amended by ADR 0027 (#70), pending the user's review (#24)
+Status: accepted (#12), amended by ADR 0027 (#70) and ADR 0028 (#91), pending the user's review (#24)
 
 ## Context
 
@@ -29,7 +29,8 @@ live, and which tools generate and check the TypeScript types. The authoritative
 - **Sections** have a stable ID, a title, optional granularity levels (`L0` to `L3`; absent means
   every level), an optional entity they are about, fact IDs, blocks and subsections. Section and
   block IDs are unique across the document and are what deep links and cross-references use.
-- **Blocks** are paragraph, list, callout, table, diagram, tree and metrics, told apart by `kind`.
+- **Blocks** are paragraph, list, callout, table, diagram, tree, metrics and quality report (0028),
+  told apart by `kind`.
   The design names sections, diagrams, tables, callouts and cross-references; lists are needed for
   ordinary narrative, a tree for the dependency tree and module and package structure #13 must
   produce, and metrics for the Executive Brief's headline numbers (#16). Risks are callouts with
@@ -46,7 +47,7 @@ live, and which tools generate and check the TypeScript types. The authoritative
   an optional resolved style (shape, icon, `#rrggbb` color) and an optional stored position
   (integer layout units, and whether a user pinned it). Nodes and edges are held sorted by ID so
   layout input is stable. Without stored positions the renderer lays the diagram out. Sequence
-  diagrams are left out until something extracts call flows; adding a kind is a schema change.
+  diagrams (`sequence`) have participants and steps instead of nodes and edges (0028).
 - **Where it lives.** The schema sits next to the fact envelope schema in `lantern-core`, and the
   Java types are records in `io.lantern.core.document`, written and read by `DocumentJson` in the
   same strict style as `FactJson`, because the document embeds fact envelopes and both the

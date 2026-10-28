@@ -225,6 +225,104 @@ class DocumentJsonTest {
   }
 
   @Test
+  void keepsSequenceParticipantsAndStepsInTheOrderGiven() {
+    SequenceDiagram flow =
+        (SequenceDiagram) SampleDocument.create().sections().get(1).blocks().get(0);
+
+    assertThat(flow.participants())
+        .extracting(SequenceDiagram.Participant::id)
+        .containsExactly(ORDERS, LIB, DB);
+    assertThat(flow.steps().get(0)).isInstanceOf(SequenceDiagram.Message.class);
+    assertThat(flow.steps().get(1)).isInstanceOf(SequenceDiagram.Frame.class);
+  }
+
+  @Test
+  void refusesSequenceDiagramsThatNameNonParticipants() {
+    SequenceDiagram.Participant orders = participant(ORDERS);
+
+    assertThatThrownBy(() -> sequence(List.of(orders, participant(ORDERS)), List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Duplicate participant");
+    assertThatThrownBy(() -> sequence(List.of(orders), List.of(message(ORDERS, DB))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a participant");
+    assertThatThrownBy(() -> sequence(List.of(orders), List.of(message(DB, null))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a participant");
+    SequenceDiagram.Note note =
+        new SequenceDiagram.Note(List.of(DB), List.of(TextRun.of("x")), List.of());
+    SequenceDiagram.Frame frame =
+        new SequenceDiagram.Frame(
+            SequenceDiagram.Operator.OPT,
+            List.of(new SequenceDiagram.Operand(null, List.of(note))),
+            List.of());
+    assertThatThrownBy(() -> sequence(List.of(orders), List.of(frame)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a participant");
+    assertThatThrownBy(
+            () -> new SequenceDiagram.Frame(SequenceDiagram.Operator.ALT, List.of(), List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("operand");
+    assertThatThrownBy(
+            () ->
+                new SequenceDiagram.Message(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of("prod", "prod"),
+                    List.of(),
+                    List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Duplicate profile");
+  }
+
+  @Test
+  void writesAMessageWithNoDetailsAsKindAndFactsOnly() {
+    SequenceDiagram flow = sequence(List.of(), List.of(message(null, null)));
+
+    assertThat(DocumentJson.toJson(document(List.of(), section(flow))).at("/sections/0/blocks/0"))
+        .isEqualTo(
+            FactJson.parse(
+                """
+                {"kind": "diagram", "id": "f", "diagramKind": "sequence", "participants": [],
+                 "steps": [{"kind": "message", "facts": []}], "facts": []}
+                """));
+  }
+
+  @Test
+  void refusesSequenceParticipantsFactsAndFailureTargetsNotInTheDocument() {
+    assertThatThrownBy(
+            () -> document(List.of(), section(sequence(List.of(participant(ORDERS)), List.of()))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(ORDERS.toString());
+    SequenceDiagram.Note note =
+        new SequenceDiagram.Note(List.of(), List.of(TextRun.of("x")), facts(BUILDS));
+    SequenceDiagram.Frame frame =
+        new SequenceDiagram.Frame(
+            SequenceDiagram.Operator.LOOP,
+            List.of(new SequenceDiagram.Operand(null, List.of(note))),
+            List.of());
+    assertThatThrownBy(() -> document(List.of(), section(sequence(List.of(), List.of(frame)))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not in the document's facts");
+    QualityReport report =
+        new QualityReport(
+            "q",
+            null,
+            List.of(
+                new QualityReport.Failure(
+                    "check", CrossReference.Target.block("missing"), List.of(), List.of())),
+            List.of());
+    assertThatThrownBy(() -> document(List.of(), section(report)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("missing");
+  }
+
+  @Test
   void holdsMetricValuesInOneForm() {
     Metrics.Item a = new Metrics.Item("n", new java.math.BigDecimal("10.0"), null, null, List.of());
     Metrics.Item b = new Metrics.Item("n", new java.math.BigDecimal("1E+1"), null, null, List.of());
@@ -280,6 +378,20 @@ class DocumentJsonTest {
 
   private static Diagram.Node node(EntityId id, EntityId parent) {
     return new Diagram.Node(id, id.key(), null, parent, null, null, List.of());
+  }
+
+  private static SequenceDiagram.Participant participant(EntityId id) {
+    return new SequenceDiagram.Participant(id, null, null, null, List.of());
+  }
+
+  private static SequenceDiagram.Message message(EntityId from, EntityId to) {
+    return new SequenceDiagram.Message(
+        from, to, null, null, null, null, null, List.of(), List.of(), List.of());
+  }
+
+  private static SequenceDiagram sequence(
+      List<SequenceDiagram.Participant> participants, List<SequenceDiagram.Step> steps) {
+    return new SequenceDiagram("f", null, participants, steps, List.of());
   }
 
   private static Diagram diagram(List<Diagram.Node> nodes, List<Diagram.Edge> edges) {

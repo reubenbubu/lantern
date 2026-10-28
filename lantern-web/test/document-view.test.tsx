@@ -17,8 +17,29 @@ describe('DocumentView', () => {
 
   test('the fixture has every kind of block', () => {
     expect(new Set(blocks.map((b) => b.kind))).toEqual(
-      new Set(['paragraph', 'list', 'callout', 'table', 'diagram', 'tree', 'metrics']),
+      new Set(['paragraph', 'list', 'callout', 'table', 'diagram', 'tree', 'metrics', 'quality-report']),
     );
+    expect(blocks.some((b) => b.kind === 'diagram' && b.diagramKind === 'sequence')).toBe(true);
+  });
+
+  test('shows a sequence diagram as a plain list of its steps', () => {
+    expect(html).toContain('<figcaption>Place an order</figcaption>');
+    expect(html).toContain('Orders → orders-lib: Create order <code>POST /orders</code>');
+    expect(html).toContain('(only with profile prod, staging)');
+    expect(html).toContain('alt [in stock]');
+    expect(html).toContain('orders-lib → orders-db: Save order <code>INSERT orders</code>');
+    expect(html).toContain('orders-lib → Orders (reply): Order ID');
+    expect(html).toContain('Orders → unknown (async): Order placed');
+    expect(html).toContain('unknown → unknown</li>');
+    expect(html).toContain('Note over orders-lib, orders-db: Nothing is saved.');
+    expect(html).toContain('Note: The rest happens later.');
+  });
+
+  test('lists the failed quality checks, or says none failed', () => {
+    expect(html).toContain('<p class="callout-title">Quality report</p>');
+    expect(html).toMatch(/Every line is labelled with an intent phrase \(<a href="#containers">containers<\/a>\): The line/);
+    expect(html).toContain('It states its reader</li>');
+    expect(html).toContain('No check failed.');
   });
 
   test('renders the title and every section and block under its ID, for deep links', () => {

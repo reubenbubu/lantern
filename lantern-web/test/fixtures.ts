@@ -17,12 +17,13 @@ export const schemaFixture = (): Document => JSON.parse(schemaFixtureJson) as Do
 export const composerOutput = (): Document => JSON.parse(composerOutputJson) as Document;
 export const briefOutput = (): Document => JSON.parse(briefOutputJson) as Document;
 
+/** The document's diagrams that are graphs: every diagram but sequence diagrams. */
 export function diagrams(document: Document): Diagram[] {
   const found: Diagram[] = [];
   const visit = (sections: Section[]) => {
     for (const section of sections) {
       for (const block of section.blocks) {
-        if (block.kind === 'diagram') {
+        if (block.kind === 'diagram' && block.diagramKind !== 'sequence') {
           found.push(block);
         }
       }

@@ -121,6 +121,21 @@ class DocumentSchemaTest {
         .isEqualTo(jsonNames(Callout.Severity.values(), Callout.Severity::jsonName));
     assertThat(strings(defs.get("diagram").get("properties").get("diagramKind").get("enum")))
         .isEqualTo(jsonNames(Diagram.Kind.values(), Diagram.Kind::jsonName));
+    assertThat(
+            defs.get("sequenceDiagram")
+                .get("properties")
+                .get("diagramKind")
+                .get("const")
+                .stringValue())
+        .isEqualTo(SequenceDiagram.DIAGRAM_KIND)
+        .isNotIn(jsonNames(Diagram.Kind.values(), Diagram.Kind::jsonName));
+    assertThat(
+            strings(defs.get("sequenceMessage").get("properties").get("messageKind").get("enum")))
+        .isEqualTo(
+            jsonNames(SequenceDiagram.MessageKind.values(), SequenceDiagram.MessageKind::jsonName));
+    assertThat(strings(defs.get("sequenceFrame").get("properties").get("operator").get("enum")))
+        .isEqualTo(
+            jsonNames(SequenceDiagram.Operator.values(), SequenceDiagram.Operator::jsonName));
     assertThat(strings(defs.get("textRun").get("properties").get("style").get("enum")))
         .isEqualTo(jsonNames(TextRun.Style.values(), TextRun.Style::jsonName));
     Set<String> targetKinds =
@@ -133,11 +148,11 @@ class DocumentSchemaTest {
   }
 
   @Test
-  void blockAndInlineKindsMatchTheJavaForm() {
+  void blockInlineAndStepKindsMatchTheJavaForm() {
     JsonNode defs = defs();
     Map<String, List<JsonNode>> instances = instances();
 
-    for (String union : List.of("block", "inline")) {
+    for (String union : List.of("block", "inline", "sequenceStep")) {
       Set<String> schemaKinds = new HashSet<>();
       Set<String> writtenKinds = new HashSet<>();
       for (JsonNode ref : defs.get(union).get("oneOf")) {
@@ -268,6 +283,17 @@ class DocumentSchemaTest {
           }
         }
         case "diagram" -> {
+          if (block.get("diagramKind").stringValue().equals(SequenceDiagram.DIAGRAM_KIND)) {
+            add("sequenceDiagram", block);
+            for (JsonNode participant : block.get("participants")) {
+              add("sequenceParticipant", participant);
+              if (participant.has("style")) {
+                add("nodeStyle", participant.get("style"));
+              }
+            }
+            block.get("steps").forEach(this::step);
+            return;
+          }
           add("diagram", block);
           for (JsonNode node : block.get("nodes")) {
             add("diagramNode", node);
@@ -288,8 +314,50 @@ class DocumentSchemaTest {
           add("metrics", block);
           block.get("items").forEach(i -> add("metric", i));
         }
+        case "quality-report" -> {
+          add("qualityReport", block);
+          for (JsonNode failure : block.get("failures")) {
+            add("qualityFailure", failure);
+            if (failure.has("target")) {
+              target(failure.get("target"));
+            }
+            if (failure.has("detail")) {
+              content(failure.get("detail"));
+            }
+          }
+        }
         default -> throw new AssertionError("Unknown block kind " + kind);
       }
+    }
+
+    void step(JsonNode step) {
+      String kind = step.get("kind").stringValue();
+      switch (kind) {
+        case "message" -> {
+          add("sequenceMessage", step);
+          if (step.has("info")) {
+            content(step.get("info"));
+          }
+        }
+        case "frame" -> {
+          add("sequenceFrame", step);
+          for (JsonNode operand : step.get("operands")) {
+            add("sequenceOperand", operand);
+            operand.get("steps").forEach(this::step);
+          }
+        }
+        case "note" -> {
+          add("sequenceNote", step);
+          content(step.get("content"));
+        }
+        default -> throw new AssertionError("Unknown sequence step kind " + kind);
+      }
+    }
+
+    void target(JsonNode target) {
+      add(
+          target.get("kind").stringValue().equals("entity") ? "entityTarget" : "elementTarget",
+          target);
     }
 
     void treeNode(JsonNode node) {
@@ -304,12 +372,7 @@ class DocumentSchemaTest {
           case "text" -> add("textRun", inline);
           case "ref" -> {
             add("ref", inline);
-            JsonNode target = inline.get("target");
-            add(
-                target.get("kind").stringValue().equals("entity")
-                    ? "entityTarget"
-                    : "elementTarget",
-                target);
+            target(inline.get("target"));
           }
           case "citation" -> add("citation", inline);
           default -> throw new AssertionError("Unknown inline kind " + kind);

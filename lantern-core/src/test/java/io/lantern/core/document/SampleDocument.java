@@ -185,6 +185,103 @@ final class SampleDocument {
         new Callout(
             "note-1", Callout.Variant.NOTE, null, null, List.of(TextRun.of("Draft.")), List.of());
 
+    SequenceDiagram flow =
+        new SequenceDiagram(
+            "order-flow",
+            "Place an order",
+            List.of(
+                new SequenceDiagram.Participant(
+                    ORDERS,
+                    "Orders",
+                    "Spring Boot",
+                    new Diagram.Style("box", "server", "#1f77b4"),
+                    facts(BUILDS)),
+                new SequenceDiagram.Participant(LIB, "orders-lib", null, null, List.of()),
+                new SequenceDiagram.Participant(DB, null, null, null, List.of())),
+            List.of(
+                new SequenceDiagram.Message(
+                    ORDERS,
+                    LIB,
+                    "Create order",
+                    "POST /orders",
+                    SequenceDiagram.MessageKind.SYNC,
+                    true,
+                    false,
+                    List.of("prod", "staging"),
+                    List.of(TextRun.of("Validates the order first."), new Citation(facts(BUILDS))),
+                    facts(BUILDS)),
+                new SequenceDiagram.Frame(
+                    SequenceDiagram.Operator.ALT,
+                    List.of(
+                        new SequenceDiagram.Operand(
+                            "in stock",
+                            List.of(
+                                message(LIB, LIB, "Check stock", null),
+                                message(LIB, DB, "Save order", "INSERT orders"))),
+                        new SequenceDiagram.Operand(
+                            null,
+                            List.of(
+                                new SequenceDiagram.Note(
+                                    List.of(LIB, DB),
+                                    List.of(TextRun.of("Nothing is saved.")),
+                                    facts(READS))))),
+                    facts(READS)),
+                new SequenceDiagram.Message(
+                    LIB,
+                    ORDERS,
+                    "Order ID",
+                    null,
+                    SequenceDiagram.MessageKind.RETURN,
+                    null,
+                    null,
+                    List.of(),
+                    List.of(),
+                    List.of()),
+                new SequenceDiagram.Message(
+                    ORDERS,
+                    null,
+                    "Order placed",
+                    null,
+                    SequenceDiagram.MessageKind.ASYNC,
+                    null,
+                    null,
+                    List.of(),
+                    List.of(),
+                    List.of()),
+                message(null, null, null, null),
+                new SequenceDiagram.Note(
+                    List.of(), List.of(TextRun.of("The rest happens later.")), List.of())),
+            facts(BUILDS, READS));
+    SequenceDiagram emptyFlow =
+        new SequenceDiagram("no-flow", null, List.of(), List.of(), List.of());
+    QualityReport quality =
+        new QualityReport(
+            "quality",
+            "Quality report",
+            List.of(
+                new QualityReport.Failure(
+                    "Every line is labelled with an intent phrase",
+                    CrossReference.Target.block("containers"),
+                    List.of(TextRun.of("The line from orders to orders-db has no label.")),
+                    facts(READS)),
+                new QualityReport.Failure(
+                    "Every element has a responsibility sentence",
+                    CrossReference.Target.entity(DB),
+                    List.of(),
+                    List.of()),
+                new QualityReport.Failure("It states its reader", null, List.of(), List.of())),
+            facts(BUILDS));
+    QualityReport passed = new QualityReport("quality-passed", null, List.of(), List.of());
+    Section flows =
+        new Section(
+            "flows",
+            "Flows",
+            Set.of(),
+            null,
+            List.of(),
+            List.of(flow, emptyFlow, quality, passed),
+            List.of());
+
     Section structure =
         new Section(
             "structure",
@@ -221,7 +318,14 @@ final class SampleDocument {
             new DocumentEntity(LIB, "orders-lib", ORDERS, List.of(), facts(BUILDS, READS)),
             new DocumentEntity(DB, "orders-db", null, List.of(), List.of())),
         List.of(READS, BUILDS),
-        List.of(overview));
+        List.of(overview, flows));
+  }
+
+  /** A sync message with only the given details. */
+  private static SequenceDiagram.Message message(
+      EntityId from, EntityId to, String label, String code) {
+    return new SequenceDiagram.Message(
+        from, to, label, code, null, null, null, List.of(), List.of(), List.of());
   }
 
   /** The fixture text: the JSON form of {@link #create()}. */
