@@ -28,9 +28,10 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
   2. creates a snapshot of each repository's checked-out commit (`HEAD`);
   3. builds the repositories in the sandbox, in parallel up to the sandbox's limit, reusing a
      stored build of the same `repo@commit`, failed or not. A failed build gives facts of lower
-     confidence (degraded mode), and a stored fact's confidence cannot change until #23, so
-     rebuilding after a passing failure would make the run fail; to build again, delete the
-     build's directory under `builds/`. Reuse is keyed by
+     confidence (degraded mode); when this was decided a stored fact's confidence could not change,
+     so a successful rebuild would have made the run fail. Since ADR 0017 it would not, and whether
+     to rebuild failed builds is #58. To build again, delete the build's directory under `builds/`.
+     Reuse is keyed by
      `repo@commit` alone; the design's key also has the JDK image and `settings.xml` hash, which
      matter once images or settings change (#31);
   4. runs the Maven and Java extractors over all repositories and stores their facts in one
@@ -41,13 +42,11 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
      missing one is stored with the template's default sections (ADR 0012, 0015);
   7. renders each as one HTML file, `<workspace>/documents/<snapshot>/<view>.html`.
 - **A fact found again stays as stored.** Extractors give facts the new snapshot as the start of
-  their validity, while the same fact (same ID) is stored from an earlier snapshot. Saving such a
-  fact is accepted without change when the stored one still holds (open validity, starting no
-  later) and has the same confidence; other differences are still refused. The run composes from
-  the facts as stored, so the documents of two runs over the same commits differ only in their
-  snapshot number. Closing the validity of facts that are no longer found is not done yet (#23):
-  until it is, the store answers "facts valid at snapshot N" wrongly after a commit changes, so
-  the run composes from the facts its extractors found, not from that query.
+  their validity, while the same fact (same ID) is stored from an earlier snapshot. The run records
+  its facts as the snapshot's static facts (ADR 0017): a fact that still holds with the same
+  confidence keeps its stored validity, and static facts no longer found stop holding. The run
+  composes from the facts its extractors found, as stored, so the documents of two runs over the
+  same commits differ only in their snapshot number.
 - **Zero LLM calls on a second run** follows from the above: fact IDs include the commit and
   leave out validity (ADR 0001), so unchanged commits give the same summary cache keys and every
   summary is reused.
@@ -75,5 +74,5 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
 ## Not in this issue
 
 The real-LLM acceptance run on tms.transportation, which needs the user's go-ahead; persisted,
-resumable jobs and progress in the UI (#56); closing fact validity (#23); run budgets and the
+resumable jobs and progress in the UI (#56); run budgets and the
 estimate before a run (#42); parallel LLM calls (#44).

@@ -79,6 +79,10 @@ class FactRepositoryIT {
   }
 
   static Fact consumes(EntityId subject, Validity validity) {
+    return consumes(subject, 0.9, validity);
+  }
+
+  static Fact consumes(EntityId subject, double confidence, Validity validity) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("group", "orders-service");
     ObjectNode nested = attributes.putObject("nested");
@@ -86,7 +90,14 @@ class FactRepositoryIT {
     nested.putArray("tags").add("a").add(2);
     attributes.put("a-last-but-sorts-first", true);
     return Fact.create(
-        subject, "CONSUMES", FactObject.entity(TOPIC), attributes, ORIGIN, EVIDENCE, 0.9, validity);
+        subject,
+        "CONSUMES",
+        FactObject.entity(TOPIC),
+        attributes,
+        ORIGIN,
+        EVIDENCE,
+        confidence,
+        validity);
   }
 
   @Test
@@ -168,6 +179,176 @@ class FactRepositoryIT {
     assertThat(facts.save(consumes(ORDERS, Validity.from(2)))).isFalse();
     assertThat(facts.findById(first.id())).contains(first);
     assertThat(facts.findValidAt(2)).containsExactly(first);
+  }
+
+  static Fact human(Validity validity) {
+    return Fact.create(
+        ORDERS,
+        "owner",
+        FactObject.string("team-payments"),
+        FactJson.newObject(),
+        new Origin(Origin.Kind.HUMAN, "user-42", null),
+        new Evidence("orders", COMMIT, null, null, null),
+        1.0,
+        validity);
+  }
+
+  FactRepository.SnapshotUpdate record(long snapshot, Fact... found) {
+    return facts.recordSnapshot(snapshot, Origin.Kind.STATIC, List.of(found));
+  }
+
+  @Test
+  void aFactFoundAgainKeepsHoldingFromWhereItStarted() {
+    Fact orders = consumes(ORDERS, Validity.from(1));
+    record(1, orders);
+
+    FactRepository.SnapshotUpdate update = record(2, consumes(ORDERS, Validity.from(2)));
+
+    assertThat(update.facts()).containsExactly(orders);
+    assertThat(update.added()).isZero();
+    assertThat(update.changed()).isZero();
+    assertThat(update.closed()).isZero();
+    assertThat(facts.findValidAt(1)).containsExactly(orders);
+    assertThat(facts.findValidAt(2)).containsExactly(orders);
+    assertThat(facts.findValidAt(7)).containsExactly(orders);
+  }
+
+  @Test
+  void aFactNoLongerFoundStopsHolding() {
+    Fact orders = consumes(ORDERS, Validity.from(1));
+    Fact payments = consumes(PAYMENTS, Validity.from(1));
+    record(1, orders, payments);
+
+    FactRepository.SnapshotUpdate update = record(2, consumes(ORDERS, Validity.from(2)));
+
+    assertThat(update.closed()).isEqualTo(1);
+    Fact closed = consumes(PAYMENTS, new Validity(1, 2L));
+    assertThat(facts.findById(payments.id())).contains(closed);
+    assertThat(facts.findValidAt(1)).containsExactlyInAnyOrder(orders, closed);
+    assertThat(facts.findValidAt(2)).containsExactly(orders);
+  }
+
+  @Test
+  void aFactFoundAgainAfterAGapHoldsAgainAsANewVersion() {
+    record(1, consumes(ORDERS, Validity.from(1)));
+    record(2);
+
+    FactRepository.SnapshotUpdate update = record(3, consumes(ORDERS, Validity.from(3)));
+
+    Fact before = consumes(ORDERS, new Validity(1, 2L));
+    Fact again = consumes(ORDERS, Validity.from(3));
+    assertThat(update.added()).isEqualTo(1);
+    assertThat(update.facts()).containsExactly(again);
+    assertThat(facts.findById(again.id())).contains(again);
+    assertThat(facts.findBySubject(ORDERS)).containsExactly(before, again);
+    assertThat(facts.findValidAt(1)).containsExactly(before);
+    assertThat(facts.findValidAt(2)).isEmpty();
+    assertThat(facts.findValidAt(3)).containsExactly(again);
+  }
+
+  @Test
+  void aConfidenceChangeStartsANewVersion() {
+    record(1, consumes(ORDERS, 0.5, Validity.from(1)));
+
+    FactRepository.SnapshotUpdate update = record(3, consumes(ORDERS, 0.9, Validity.from(3)));
+
+    Fact lower = consumes(ORDERS, 0.5, new Validity(1, 3L));
+    Fact higher = consumes(ORDERS, 0.9, Validity.from(3));
+    assertThat(update.changed()).isEqualTo(1);
+    assertThat(update.added()).isZero();
+    assertThat(update.facts()).containsExactly(higher);
+    assertThat(facts.findValidAt(2)).containsExactly(lower);
+    assertThat(facts.findValidAt(3)).containsExactly(higher);
+    assertThat(facts.findById(higher.id())).contains(higher);
+  }
+
+  @Test
+  void recordingTheLatestSnapshotAgainReplacesIt() {
+    Fact orders = consumes(ORDERS, Validity.from(1));
+    Fact payments = consumes(PAYMENTS, Validity.from(2));
+    record(1, orders);
+    record(2, payments);
+
+    record(2, consumes(ORDERS, Validity.from(2)), consumes(PAYMENTS, 0.5, Validity.from(2)));
+    assertThat(facts.findValidAt(1)).containsExactly(orders);
+    assertThat(facts.findValidAt(2))
+        .containsExactlyInAnyOrder(orders, consumes(PAYMENTS, 0.5, Validity.from(2)));
+
+    record(2, payments);
+    assertThat(facts.findValidAt(1)).containsExactly(consumes(ORDERS, new Validity(1, 2L)));
+    assertThat(facts.findValidAt(2)).containsExactly(payments);
+    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isEqualTo(2L);
+  }
+
+  @Test
+  void recordingTheLatestSnapshotAgainWithTheEarlierConfidenceRejoinsTheVersions() {
+    Fact lower = consumes(ORDERS, 0.5, Validity.from(1));
+    record(1, lower);
+    record(2, consumes(ORDERS, 0.9, Validity.from(2)));
+
+    FactRepository.SnapshotUpdate update = record(2, consumes(ORDERS, 0.5, Validity.from(2)));
+
+    assertThat(update.facts()).containsExactly(lower);
+    assertThat(update.changed()).isEqualTo(1);
+    assertThat(update.added()).isZero();
+    assertThat(facts.findBySubject(ORDERS)).containsExactly(lower);
+  }
+
+  @Test
+  void factsOfOtherOriginKindsAreNotTouched() {
+    Fact owner = human(Validity.from(1));
+    facts.save(owner);
+    record(1, consumes(ORDERS, Validity.from(1)));
+
+    record(2);
+
+    assertThat(facts.findValidAt(2)).containsExactly(owner);
+  }
+
+  @Test
+  void snapshotsMustBeRecordedInOrder() {
+    record(3, consumes(ORDERS, Validity.from(3)));
+    assertThatThrownBy(() -> record(2, consumes(ORDERS, Validity.from(2))))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("in order");
+
+    record(4);
+    assertThatThrownBy(() -> record(3)).isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void recordingRefusesFactsThatDoNotFitTheSnapshot() {
+    assertThatThrownBy(() -> record(2, consumes(ORDERS, Validity.from(1))))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> record(2, consumes(ORDERS, new Validity(2, 3L))))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(
+            () ->
+                record(
+                    2, consumes(ORDERS, 0.5, Validity.from(2)), consumes(ORDERS, Validity.from(2))))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> record(2, human(Validity.from(2))))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isZero();
+  }
+
+  @Test
+  void databaseRejectsOverlappingVersions() {
+    Fact orders = consumes(ORDERS, Validity.from(1));
+    facts.save(orders);
+
+    assertThatThrownBy(
+            () ->
+                jdbc.sql(
+                        """
+                        INSERT INTO facts (id, subject, predicate, object_kind, object, origin,
+                                           evidence, confidence, validity)
+                        SELECT id, subject, predicate, object_kind, object, origin, evidence,
+                               confidence, int8range(5, 9)
+                        FROM facts
+                        """)
+                    .update())
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 
   @Test
