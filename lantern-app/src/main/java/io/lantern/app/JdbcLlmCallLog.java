@@ -42,26 +42,33 @@ public final class JdbcLlmCallLog implements LlmCallLog {
         .update();
   }
 
-  /** What calls started at or after the given time used, in tokens and US dollars. */
+  /**
+   * How many calls started at or after the given time, whatever their outcome, and what they used
+   * in tokens and US dollars.
+   */
   public Spending spentSince(Instant since) {
     return jdbc.sql(
             """
-            SELECT coalesce(sum(input_tokens + output_tokens + cache_write_tokens
+            SELECT count(*) AS calls,
+                   coalesce(sum(input_tokens + output_tokens + cache_write_tokens
                        + cache_read_tokens), 0) AS tokens,
                    coalesce(sum(cost_usd), 0) AS cost
             FROM llm_calls
             WHERE started_at >= :since
             """)
         .param("since", since.atOffset(ZoneOffset.UTC))
-        .query((rs, row) -> new Spending(rs.getLong("tokens"), rs.getBigDecimal("cost")))
+        .query(
+            (rs, row) ->
+                new Spending(rs.getLong("calls"), rs.getLong("tokens"), rs.getBigDecimal("cost")))
         .single();
   }
 
   /**
    * Tokens and money used by a set of calls.
    *
+   * @param calls how many calls were logged, including failed and refused ones
    * @param tokens all tokens, input of every kind plus output
    * @param costUsd US dollars
    */
-  public record Spending(long tokens, BigDecimal costUsd) {}
+  public record Spending(long calls, long tokens, BigDecimal costUsd) {}
 }

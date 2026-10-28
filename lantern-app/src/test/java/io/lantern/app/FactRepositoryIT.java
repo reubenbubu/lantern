@@ -37,6 +37,7 @@ class FactRepositoryIT {
   static final String CONTENT_HASH =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final EntityId ORDERS = EntityId.parse("service:orders");
+  static final EntityId PAYMENTS = EntityId.parse("service:payments");
   static final EntityId TOPIC = EntityId.parse("topic:kafka:order-created");
   static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, "messaging", "1.0.0");
   static final Evidence EVIDENCE =
@@ -153,6 +154,20 @@ class FactRepositoryIT {
 
     assertThatThrownBy(() -> facts.save(consumes(ORDERS, new Validity(1, 2L))))
         .isInstanceOf(IllegalStateException.class);
+    // A stored fact that holds from a later snapshot does not cover an earlier one.
+    facts.save(consumes(PAYMENTS, Validity.from(3)));
+    assertThatThrownBy(() -> facts.save(consumes(PAYMENTS, Validity.from(2))))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void aFactObservedAgainWhileItStillHoldsChangesNothing() {
+    Fact first = consumes(ORDERS, Validity.from(1));
+    facts.save(first);
+
+    assertThat(facts.save(consumes(ORDERS, Validity.from(2)))).isFalse();
+    assertThat(facts.findById(first.id())).contains(first);
+    assertThat(facts.findValidAt(2)).containsExactly(first);
   }
 
   @Test

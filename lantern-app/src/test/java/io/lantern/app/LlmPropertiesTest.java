@@ -34,7 +34,7 @@ class LlmPropertiesTest {
   private final JdbcLlmCallLog stored = mock(JdbcLlmCallLog.class);
 
   {
-    when(stored.spentSince(any())).thenReturn(new JdbcLlmCallLog.Spending(0, BigDecimal.ZERO));
+    when(stored.spentSince(any())).thenReturn(new JdbcLlmCallLog.Spending(0, 0, BigDecimal.ZERO));
   }
 
   private LlmProperties bind() {

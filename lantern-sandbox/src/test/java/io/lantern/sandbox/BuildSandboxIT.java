@@ -2,6 +2,7 @@ package io.lantern.sandbox;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
@@ -11,11 +12,13 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -81,6 +84,14 @@ class BuildSandboxIT {
     return TestRepos.create(source, temp.resolve("repos").resolve(name), name, settings);
   }
 
+  private static void deleteRecursively(Path dir) throws IOException {
+    try (Stream<Path> paths = Files.walk(dir)) {
+      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+        Files.delete(path);
+      }
+    }
+  }
+
   private static Path sandboxFixture(String name) throws URISyntaxException {
     return Path.of(BuildSandboxIT.class.getResource("/sandbox/" + name).toURI());
   }
@@ -114,6 +125,33 @@ class BuildSandboxIT {
     assertThat(result.directory())
         .isEqualTo(temp.resolve("builds/multi-module").resolve(result.commit()));
     assertThat(sandbox.find("multi-module", result.commit())).contains(result);
+  }
+
+  @Test
+  void storesBuildsOnAnotherFilesystemThanTheTemporaryDirectory() throws IOException {
+    Path shm = Path.of("/dev/shm");
+    Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
+    assumeTrue(
+        Files.isDirectory(shm)
+            && Files.isWritable(shm)
+            && !Files.getFileStore(shm).equals(Files.getFileStore(tmp)),
+        "needs /dev/shm on another filesystem than " + tmp);
+    Path builds = Files.createTempDirectory(shm, "lantern-builds-");
+    try {
+      Repo repo = repo(fixtures.resolve("multi-module"), "multi-module", RepoSettings.DEFAULT);
+      BuildSandbox sandbox =
+          new BuildSandbox(SandboxSettings.defaults(builds).withMavenCacheVolume(volume));
+
+      BuildResult result = sandbox.build(repo, TestRepos.head(repo));
+
+      assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
+      assertThat(sandbox.find("multi-module", result.commit())).contains(result);
+      try (Stream<Path> left = Files.list(builds.resolve("multi-module"))) {
+        assertThat(left).as("staging left behind").containsExactly(result.directory());
+      }
+    } finally {
+      deleteRecursively(builds);
+    }
   }
 
   @Test

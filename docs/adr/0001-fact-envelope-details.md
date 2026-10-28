@@ -35,8 +35,9 @@ record explains the choices.
   text), so they read back from JSON and the database unchanged. A fact's ID must match its
   content; a mismatch is rejected.
 - **Storage** is one `facts` table keyed by fact ID. Saving a fact that is already stored changes
-  nothing; saving one with the same ID but a different confidence or validity is refused until an
-  update path exists. Origin and evidence are `NOT NULL` with checks on their required keys, so
+  nothing, and so does saving one found again in a later snapshot while the stored one still
+  holds (ADR 0016); saving one with the same ID but any other difference in confidence or
+  validity is refused until an update path exists (#23). Origin and evidence are `NOT NULL` with checks on their required keys, so
   the database also refuses facts without provenance.
 - **Java types** are hand-written records in `io.lantern.core.fact`, kept in line with the schema
   by `FactSchemaTest`, rather than generated. Generation would need a code generator the design
