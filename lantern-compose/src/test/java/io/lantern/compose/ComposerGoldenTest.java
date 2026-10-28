@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,12 +76,20 @@ class ComposerGoldenTest {
     assertMatchesGolden(document, repo + ".brief.json");
   }
 
-  /** The system prompt once, then each request's purpose and user turn, in the order sent. */
+  /**
+   * The system prompt once, then each request's purpose and user turn. Units are summarized in
+   * parallel, so requests are listed in the order of the units' summaries (children first), and a
+   * unit's own requests in the order sent.
+   */
   @Test
   void summaryPromptsMatchGolden() throws IOException {
+    List<String> units = fixtures.summaries().keySet().stream().map(EntityId::toString).toList();
+    List<LlmRequest> requests = new ArrayList<>(fixtures.requests());
+    requests.sort(
+        Comparator.comparingInt(request -> units.indexOf(request.purpose().split(" ")[2])));
     StringBuilder prompts = new StringBuilder();
-    prompts.append("##### system\n").append(fixtures.requests().getFirst().system()).append('\n');
-    for (LlmRequest request : fixtures.requests()) {
+    prompts.append("##### system\n").append(requests.getFirst().system()).append('\n');
+    for (LlmRequest request : requests) {
       assertThat(request.system()).isEqualTo(fixtures.requests().getFirst().system());
       prompts.append("\n##### ").append(request.purpose()).append('\n');
       request.messages().forEach(message -> prompts.append(message.text()));
