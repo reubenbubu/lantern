@@ -5,22 +5,69 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 
 /** The levels of the summary hierarchy, from a single type up to a repository. */
 public enum SummaryLevel {
-  TYPE("type", 80, 400),
-  PACKAGE("package", 120, 600),
-  MODULE("Maven module", 150, 800),
-  REPO("repository", 200, 1000);
+  TYPE(
+      "type",
+      2,
+      4,
+      80,
+      400,
+      "its purpose, its main responsibilities and the types it works with most"),
+  PACKAGE("package", 3, 5, 120, 600, "what the package is for and its main parts"),
+  MODULE(
+      "Maven module",
+      3,
+      6,
+      150,
+      800,
+      "first what the module is for, in plain words for a non-engineer, then its main parts and"
+          + " the dependencies that matter"),
+  REPO(
+      "repository",
+      3,
+      6,
+      150,
+      800,
+      "first what the repository is for, in plain words for a non-engineer, then its main parts"
+          + " and the dependencies that matter");
 
   /** The entity type of repository summaries, which have no entity in the fact store. */
   public static final String REPO_ENTITY_TYPE = "repo";
 
   private final String noun;
+  private final int minSentences;
+  private final int maxSentences;
   private final int maxWords;
   private final int maxOutputTokens;
+  private final String content;
 
-  SummaryLevel(String noun, int maxWords, int maxOutputTokens) {
+  SummaryLevel(
+      String noun,
+      int minSentences,
+      int maxSentences,
+      int maxWords,
+      int maxOutputTokens,
+      String content) {
     this.noun = noun;
+    this.minSentences = minSentences;
+    this.maxSentences = maxSentences;
     this.maxWords = maxWords;
     this.maxOutputTokens = maxOutputTokens;
+    this.content = content;
+  }
+
+  /** The fewest sentences the prompt asks for. */
+  int minSentences() {
+    return minSentences;
+  }
+
+  /** The most sentences the prompt asks for; with about 25 words each, within {@link #maxWords}. */
+  int maxSentences() {
+    return maxSentences;
+  }
+
+  /** What the prompt asks a summary of this level to cover. */
+  String content() {
+    return content;
   }
 
   /** What the prompt calls a unit of this level. */

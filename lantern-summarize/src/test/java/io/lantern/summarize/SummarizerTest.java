@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Test;
 class SummarizerTest {
 
   private static final Pattern REF = Pattern.compile("^\\[([FES]\\d+)\\]", Pattern.MULTILINE);
-  private static final Pattern UNIT = Pattern.compile("Summarize the .*? (\\S+:\\S+) in at most");
+  private static final Pattern UNIT = Pattern.compile("^summarize \\S+ (\\S+:\\S+)");
 
   private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
   private final InMemorySummaryStore store = new InMemorySummaryStore();
@@ -57,11 +57,12 @@ class SummarizerTest {
       refs.add(ref.group(1));
     }
     return "Summary of %s (%08x). [%s]"
-        .formatted(unit(prompt), prompt.hashCode(), String.join(", ", refs));
+        .formatted(unit(request), prompt.hashCode(), String.join(", ", refs));
   }
 
-  private static String unit(String prompt) {
-    Matcher unit = UNIT.matcher(prompt);
+  /** The entity a request summarizes, from its purpose (the prompt names it without its ID). */
+  private static String unit(LlmRequest request) {
+    Matcher unit = UNIT.matcher(request.purpose());
     assertThat(unit.find()).isTrue();
     return unit.group(1);
   }
@@ -80,7 +81,7 @@ class SummarizerTest {
   }
 
   private List<String> summarizedUnits() {
-    return fake.sent().stream().map(s -> unit(s.request().messages().getFirst().text())).toList();
+    return fake.sent().stream().map(s -> unit(s.request())).toList();
   }
 
   @Test
@@ -127,7 +128,8 @@ class SummarizerTest {
             .getFirst()
             .text();
     assertThat(packagePrompt)
-        .contains("[S1] type:com.example.shop.Order: Summary of type:com.example.shop.Order")
+        .contains(
+            "[S1] type Order in package com.example.shop: Summary of type:com.example.shop.Order")
         .doesNotContain("[fact:");
   }
 
@@ -192,7 +194,7 @@ class SummarizerTest {
     Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(changed));
 
     assertThat(fake.sent().subList(calls, fake.sent().size()))
-        .extracting(s -> unit(s.request().messages().getFirst().text()))
+        .extracting(s -> unit(s.request()))
         .containsExactly(
             "type:com.example.shop.PriceService",
             "package:com.example:shop-core:com.example.shop",
@@ -593,7 +595,7 @@ class SummarizerTest {
                     .isLessThanOrEqualTo(4_000));
     // Each part shows its own facts under the references of the whole unit.
     assertThat(fake.sent().get(1).request().messages().getFirst().text())
-        .startsWith("What is known about the type type:p.Big is too long for one request")
+        .startsWith("What is known about the type Big in package p is too long for one request")
         .doesNotContain("[F1] ");
     // The merge keeps the citations of the first and the last part.
     assertThat(summary.citedFacts())

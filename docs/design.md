@@ -255,7 +255,7 @@ The LLM handles understanding that static analysis can't provide, always working
 - Every LLM output must cite the fact IDs or file ranges it used. Outputs without citations are rejected or marked low-confidence.
 - The glossary (from annotations) is included in prompts.
 
-How summaries are built bottom-up, cached and cited is in ADR 0010; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024.
+How summaries are built bottom-up, cached and cited is in ADR 0010; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025.
 
 **Cost and reliability**
 
