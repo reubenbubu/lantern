@@ -31,6 +31,18 @@ any code that changes the design. This file covers only how you work.
      short summary on the issue and make sure it is closed.
   7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
      containers, temp files or test data the task created. Leave the machine as you found it.
+- Tasks may run in parallel only if each task, and every subagent that runs commands, works in
+  its own isolated environment:
+  - its own worktree, as above
+  - its own temp folder named after its branch, e.g. `<scratchpad>/feature-12-maven-extractor`,
+    never a shared scratch root; it deletes only what it created
+  - Docker containers, volumes and networks named `lantern-<number>-<purpose>-<random>` and
+    started with `--label lantern.task=<number>`; compose runs with
+    `COMPOSE_PROJECT_NAME=lantern-<number>`; cleanup removes only resources with that label or
+    project, never by name pattern or `docker system prune`
+  - no fixed host ports; publish to a random host port (`-p 127.0.0.1::5432`) and read it back
+    with `docker port`
+  - reviewer subagents only read; they run nothing that builds or starts containers
 - Keep issues current. If scope changes, a task is blocked, or you find new work, update or
   open an issue right away. An issue's state must always match reality.
 
