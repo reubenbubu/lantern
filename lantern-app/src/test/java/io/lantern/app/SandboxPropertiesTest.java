@@ -65,10 +65,10 @@ class SandboxPropertiesTest {
             "lantern.sandbox.maven-repositories[0].id", "internal",
             "lantern.sandbox.maven-repositories[0].url", "https://nexus.example.com/repository/x");
     Map<String, String> two = new HashMap<>(one);
-    two.put("lantern.sandbox.maven-repositories[1].id", "activiti");
+    two.put("lantern.sandbox.maven-repositories[1].id", "releases");
     two.put(
         "lantern.sandbox.maven-repositories[1].url",
-        "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases");
+        "https://nexus.example.com/repository/releases");
 
     // Higher priority first, as Spring orders an additional location before the defaults.
     assertThat(bind(one, defaults).mavenRepositories())
@@ -76,7 +76,7 @@ class SandboxPropertiesTest {
         .containsExactly("internal");
     assertThat(bind(two, defaults).mavenRepositories())
         .extracting(MavenRepository::id)
-        .containsExactly("internal", "activiti");
+        .containsExactly("internal", "releases");
     assertThat(bind(defaults, two).mavenRepositories()).containsExactly(MavenRepository.CENTRAL);
   }
 

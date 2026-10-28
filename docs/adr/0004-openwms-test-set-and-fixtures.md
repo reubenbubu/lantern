@@ -1,6 +1,6 @@
 # 0004: The pinned OpenWMS test set and the fixture Maven projects
 
-Status: accepted (#6), amended by ADR 0020 (#72) and ADR 0026 (#86), superseded by #100: OpenWMS is no longer a test set (see #88)
+Status: accepted (#6), amended by ADR 0020 (#72) and ADR 0026 (#86), partly superseded by #100: OpenWMS is no longer a test set (see #88)
 
 The fixture Maven projects this ADR describes stay; only the OpenWMS parts are superseded.
 

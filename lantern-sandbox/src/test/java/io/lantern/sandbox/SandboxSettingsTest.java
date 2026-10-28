@@ -59,27 +59,22 @@ class SandboxSettingsTest {
 
   @Test
   void allowsTheHostOfEachConfiguredRepositoryOnce() {
-    MavenRepository activiti =
+    MavenRepository releases =
         new MavenRepository(
-            "activiti",
-            URI.create(
-                "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases"));
+            "releases", URI.create("https://nexus.example.com/repository/releases"));
     MavenRepository other =
         new MavenRepository(
-            "other", URI.create("https://artifacts.alfresco.com:8443/nexus/content/groups/public"));
+            "other", URI.create("https://nexus.example.com:8443/repository/public"));
     MavenRepository sameHost =
-        new MavenRepository(
-            "same-host", URI.create("https://artifacts.alfresco.com/nexus/content/groups/public"));
+        new MavenRepository("same-host", URI.create("https://nexus.example.com/repository/public"));
 
     SandboxSettings settings =
         SandboxSettings.defaults(BUILDS)
-            .withMavenRepositories(List.of(MavenRepository.CENTRAL, activiti, other, sameHost));
+            .withMavenRepositories(List.of(MavenRepository.CENTRAL, releases, other, sameHost));
 
     assertThat(settings.allowedHosts())
         .containsExactly(
-            "repo.maven.apache.org:443",
-            "artifacts.alfresco.com:443",
-            "artifacts.alfresco.com:8443");
+            "repo.maven.apache.org:443", "nexus.example.com:443", "nexus.example.com:8443");
   }
 
   @Test

@@ -83,6 +83,7 @@ estimate before a run (#42); parallel LLM calls (#44).
 
 OpenWMS is no longer a test set (#100). Besides the `multi-module` fixture, `EndToEndIT` now runs
 on the Maven repository that `lantern.test.repo` names, as an absolute path, when it is set,
-instead of on OpenWMS tms.transportation. The repository is named after its directory, and the
-calls and estimated tokens a real run would use go to
-`lantern-app/target/end-to-end/<repo>-llm-calls.txt`. The new test sets (#88) provide its input.
+instead of on OpenWMS tms.transportation. A relative path is rejected. The repository is
+registered as `given-<directory>`, so its name cannot clash with a fixture's, and the calls and
+estimated tokens a real run would use go to
+`lantern-app/target/end-to-end/given-<directory>-llm-calls.txt`. The new test sets (#88) provide its input.

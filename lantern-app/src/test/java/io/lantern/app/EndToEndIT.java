@@ -60,9 +60,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * storing its facts leaves its commit out of later snapshots (ADR 0018).
  *
  * <p>Always runs on the {@code multi-module} fixture. Also runs on the Maven repository that {@code
- * lantern.test.repo} names, as an absolute path, if set, and then writes what the LLM was asked to
- * {@code target/end-to-end/<repo>-llm-calls.txt}, named after the repository's directory, so the
- * cost of a real run can be judged before making one.
+ * lantern.test.repo} names, as an absolute path, if set. It registers that repository as {@code
+ * given-<directory>}, so the name cannot clash with a fixture's, and writes what the LLM was asked
+ * to {@code target/end-to-end/given-<directory>-llm-calls.txt}, so the cost of a real run can be
+ * judged before making one.
  *
  * <p>Builds run in the real sandbox with a Maven cache volume made for these tests and removed
  * after them, and with an owner label of their own, so the check that nothing is left behind sees
@@ -310,8 +311,13 @@ class EndToEndIT {
   void runsAGivenRepositoryTwiceAndTheSecondRunMakesNoLlmCall() throws IOException {
     String path = System.getProperty("lantern.test.repo");
     assumeTrue(path != null && !path.isBlank(), "lantern.test.repo is not set");
-    Path repo = Path.of(path).toAbsolutePath().normalize();
-    String name = repo.getFileName().toString();
+    Path repo = Path.of(path).normalize();
+    assertThat(repo.isAbsolute())
+        .as("lantern.test.repo must be an absolute path: " + path)
+        .isTrue();
+    assertThat(repo.getFileName()).as("lantern.test.repo names no directory: " + path).isNotNull();
+    // Prefixed so it cannot be one of the fixture repositories the other tests register.
+    String name = "given-" + repo.getFileName();
 
     int before = fake.sent().size();
     Twice twice = runTwice(name, repo);

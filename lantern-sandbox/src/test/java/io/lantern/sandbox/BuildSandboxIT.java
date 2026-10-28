@@ -518,6 +518,43 @@ class BuildSandboxIT {
     assertThat(Files.readString(result.log())).contains("denied CONNECT example.com:443");
   }
 
+  @Test
+  void downloadsDependenciesFromAConfiguredRepository() throws IOException {
+    // A cache of its own, so the dependency is not there yet and must be downloaded.
+    String cache =
+        "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
+    DOCKER.check(TIMEOUT, List.of("volume", "create", cache));
+    try {
+      Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+      SandboxSettings settings =
+          settings()
+              .withMavenCacheVolume(cache)
+              .withMavenRepositories(List.of(EXTRA, MavenRepository.CENTRAL));
+
+      BuildResult result = new BuildSandbox(settings).build(repo, TestRepos.head(repo));
+
+      assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
+      // Maven records in the cache which repository each downloaded file came from. Builds log
+      // no transfers (--no-transfer-progress), so this is where the download shows.
+      Docker.Result origins =
+          DOCKER.check(
+              TIMEOUT,
+              List.of(
+                  "run",
+                  "--rm",
+                  "--mount",
+                  "type=volume,source=" + cache + ",target=/m2",
+                  "--entrypoint",
+                  "sh",
+                  SandboxSettings.DEFAULT_IMAGES.get(21),
+                  "-c",
+                  "cat /m2/org/projectlombok/lombok/*/_remote.repositories"));
+      assertThat(origins.out()).containsPattern("lombok-[^>]+\\.jar>" + EXTRA.id() + "=");
+    } finally {
+      DOCKER.quietly(TIMEOUT, List.of("volume", "rm", "--force", cache));
+    }
+  }
+
   /** Installs a fixture project into the shared Maven cache, as if it came from the repository. */
   private void installIntoCache(Path project) {
     String name =

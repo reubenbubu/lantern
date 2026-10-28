@@ -150,6 +150,26 @@ class MavenRulesTest {
   }
 
   @Test
+  void aClassifiedLibraryDependencyStillLinksAServiceToItsLibrary() throws IOException {
+    Repo service =
+        repo(
+            "svc",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "orders-service",
+                    dependencies(dependency("g", "orders-lib", "<classifier>all</classifier>"))
+                        + BOOT)));
+    Repo lib = repo("lib", Map.of("pom.xml", pom("g", "orders-lib", "")));
+
+    assertThat(packages(extract(service, lib)))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:orders-service PACKAGES library:g:orders-lib");
+  }
+
+  @Test
   void writtenPomsInheritFromAParentInTheSnapshot() throws IOException {
     String parentPom =
         pom(

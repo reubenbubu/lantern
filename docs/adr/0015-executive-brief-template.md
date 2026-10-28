@@ -54,7 +54,7 @@ severity (`variant: risk` had none).
 - **Checking it.** Java tests cover the new sections, the risk checks and order independence, and
   golden files `<repo>.brief.json` hold the briefs of the fixture repositories. Vitest renders the
   golden brief and the schema fixture with the brief and checks the severity badge. `OpenWmsComposeIT`
-  also writes `<repo>.brief.json` for every OpenWMS repository; they were rendered and checked by
+  also wrote `<repo>.brief.json` for every OpenWMS repository (removed in #100); they were rendered and checked by
   eye in headless Chrome at 390px, 1366px and 1920px wide. The overview's narrative there comes from
   the fake model, so its wording was not judged.
 

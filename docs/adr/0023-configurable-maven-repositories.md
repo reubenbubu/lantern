@@ -65,9 +65,11 @@ how it works stay.
   Central keeps such a file in its `testsets/<name>/` folder (#88).
 - **Tests download only from Maven Central.** The test that built a fixture against Alfresco's
   Activiti repository, and that fixture, are removed, so `./mvnw verify` no longer reaches
-  `artifacts.alfresco.com`. That a configured repository's host becomes reachable, and that other
-  hosts stay blocked, is checked by `BuildSandboxIT` with `repo1.maven.org`, Maven Central's other
-  host name, which the default settings do not allow. The generated Maven settings are checked by
-  `MavenSettingsTest`, and reading and binding the list by `MavenRepositoryTest` and
-  `SandboxPropertiesTest`. No test now proves that a build downloads an artifact from a
-  repository other than Maven Central.
+  `artifacts.alfresco.com`. `BuildSandboxIT` configures `repo1.maven.org` instead, Maven Central's
+  other host name, which the default settings do not allow. It checks that this host becomes
+  reachable and others stay blocked, and that a build listing it before Maven Central, on a cache
+  of its own, downloads the `lombok` fixture's dependency from it: Maven's
+  `_remote.repositories` file in the cache names the configured repository's ID. (Builds log no
+  transfers, so the cache is where the download shows.) The generated Maven settings are checked
+  by `MavenSettingsTest`, and reading and binding the list by `MavenRepositoryTest` and
+  `SandboxPropertiesTest`.
