@@ -6,6 +6,7 @@ import io.lantern.compose.ViewDefinitionStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.TemplateRef;
+import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
@@ -130,6 +131,8 @@ public final class AnalysisRun {
    * @param newFacts how many of them did not hold in the previous snapshot
    * @param summariesGenerated how many summaries the LLM wrote
    * @param summariesReused how many summaries came from the cache
+   * @param summariesRejected the units left without a summary because the LLM's answer was rejected
+   *     twice
    * @param llm the LLM calls made during the run, whatever their outcome
    * @param documents the rendered documents, in the order written
    */
@@ -141,10 +144,12 @@ public final class AnalysisRun {
       int newFacts,
       int summariesGenerated,
       int summariesReused,
+      List<EntityId> summariesRejected,
       JdbcLlmCallLog.Spending llm,
       List<Rendered> documents) {
 
     public Result {
+      summariesRejected = List.copyOf(summariesRejected);
       builds = Collections.unmodifiableMap(new TreeMap<>(builds));
       reusedBuilds = List.copyOf(reusedBuilds);
       documents = List.copyOf(documents);
@@ -219,6 +224,12 @@ public final class AnalysisRun {
           "Summaries: {} written by the LLM, {} reused",
           summarized.generated(),
           summarized.reused());
+      if (!summarized.rejected().isEmpty()) {
+        LOG.warn(
+            "{} units have no summary, their answers rejected twice: {}",
+            summarized.rejected().size(),
+            summarized.rejected());
+      }
 
       List<Rendered> documents = new ArrayList<>();
       Composer composer = new Composer(toolVersion);
@@ -238,6 +249,7 @@ public final class AnalysisRun {
           newFacts,
           summarized.generated(),
           summarized.reused(),
+          summarized.rejected(),
           callLog.spentSince(started),
           documents);
     }

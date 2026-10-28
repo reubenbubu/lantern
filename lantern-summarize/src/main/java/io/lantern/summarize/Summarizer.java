@@ -27,12 +27,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.ToLongFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Summarizes units bottom-up: a unit's summary is written from its facts and the summaries of the
@@ -53,8 +56,10 @@ import java.util.function.ToLongFunction;
  *
  * <p>Every summary must cite the facts or contained summaries it used. An answer that cites
  * nothing, or cites a reference that was not in the prompt, is sent back once with the reason; if
- * the second answer is no better the unit fails with {@link SummaryRejectedException} and nothing
- * is stored for it.
+ * the second answer is no better the unit gets no summary and nothing is stored for it. Both
+ * rejections are logged with their reason and the rejected answer. The run goes on: the unit's
+ * parent is summarized without it, as if the unit had nothing to summarize, and the result lists
+ * the units rejected this way.
  *
  * <p>Units that do not contain each other are summarized in parallel, each on its own virtual
  * thread; a unit starts once the units it contains are done. At most as many units run at once as
@@ -68,6 +73,11 @@ import java.util.function.ToLongFunction;
  * <p>Not thread-safe; use one summarizer per run.
  */
 public final class Summarizer {
+
+  private static final Logger LOG = LoggerFactory.getLogger(Summarizer.class);
+
+  /** How much of a rejected answer is logged. */
+  private static final int LOGGED_ANSWER = 1000;
 
   /** Files read for excerpts that are kept for the next units, which are often in the same file. */
   private static final int CACHED_FILES = 64;
@@ -104,10 +114,14 @@ public final class Summarizer {
    *     without summarized parts has none
    * @param generated how many summaries the model wrote in this run
    * @param reused how many came from the store
+   * @param rejected the units that have no summary because the model's answer was rejected twice,
+   *     in the order {@link #summaries} lists units in
    */
-  public record Result(Map<EntityId, Summary> summaries, int generated, int reused) {
+  public record Result(
+      Map<EntityId, Summary> summaries, int generated, int reused, List<EntityId> rejected) {
     public Result {
       summaries = Collections.unmodifiableMap(new LinkedHashMap<>(summaries));
+      rejected = List.copyOf(rejected);
     }
   }
 
@@ -115,7 +129,6 @@ public final class Summarizer {
    * Summarizes the given units and everything they contain, for example the trees from {@link
    * SummaryTree#fromFacts}.
    *
-   * @throws SummaryRejectedException if the model's summary of a unit is rejected twice
    * @throws io.lantern.llm.LlmException if a call fails or is refused, for example over budget
    */
   public Result summarize(Collection<SummaryNode> roots) {
@@ -151,7 +164,8 @@ public final class Summarizer {
     }
     Map<EntityId, Summary> summaries = new LinkedHashMap<>();
     futures.forEach((entity, future) -> future.join().ifPresent(s -> summaries.put(entity, s)));
-    return new Result(summaries, run.generated.get(), run.reused.get());
+    List<EntityId> rejected = units.keySet().stream().filter(run.rejected::contains).toList();
+    return new Result(summaries, run.generated.get(), run.reused.get(), rejected);
   }
 
   /**
@@ -291,6 +305,7 @@ public final class Summarizer {
     private final AtomicInteger generated = new AtomicInteger();
     private final AtomicInteger reused = new AtomicInteger();
     private final AtomicBoolean failed = new AtomicBoolean();
+    private final Set<EntityId> rejected = ConcurrentHashMap.newKeySet();
     private final Semaphore running;
     private final Map<String, Optional<String>> files =
         new LinkedHashMap<>(16, 0.75f, true) {
@@ -305,7 +320,10 @@ public final class Summarizer {
       this.running = new Semaphore(maxRunning, true);
     }
 
-    /** Summarizes a unit whose parts are done, unless another unit has failed. */
+    /**
+     * Summarizes a unit whose parts are done, unless another unit has failed. A unit whose summary
+     * is rejected twice gets none.
+     */
     Optional<Summary> visit(SummaryNode node, List<CompletableFuture<Optional<Summary>>> parts) {
       try {
         running.acquire();
@@ -320,9 +338,16 @@ public final class Summarizer {
         for (CompletableFuture<Optional<Summary>> part : parts) {
           part.join().ifPresent(children::add);
         }
-        return node.facts().isEmpty() && children.isEmpty()
-            ? Optional.empty()
-            : Optional.of(summary(node, children));
+        if (node.facts().isEmpty() && children.isEmpty()) {
+          return Optional.empty();
+        }
+        try {
+          return Optional.of(summary(node, children));
+        } catch (SummaryRejectedException e) {
+          LOG.warn("{} has no summary: {}", node.entity(), e.getMessage());
+          rejected.add(node.entity());
+          return Optional.empty();
+        }
       } catch (Skipped e) {
         throw e;
       } catch (RuntimeException | Error e) {
@@ -464,7 +489,8 @@ public final class Summarizer {
      * Asks the model and checks its answer, sending it back once with the reason if it is rejected.
      *
      * @param allowed the references the prompt shows, or {@code null} for all of the unit's
-     * @throws SummaryRejectedException if the second answer is rejected too
+     * @throws SummaryRejectedException if the second answer is rejected too, which {@link #visit}
+     *     turns into a unit without a summary
      */
     private Answer answer(
         String purpose, SummaryNode node, String prompt, Inputs inputs, Set<String> allowed) {
@@ -474,6 +500,7 @@ public final class Summarizer {
       try {
         return new Answer(first.text(), check(first, inputs, allowed));
       } catch (Citations.Rejected rejected) {
+        logRejected(purpose, rejected, first);
         if (first.text().isBlank()) {
           // A conversation cannot hold an empty turn, so the reason goes with the prompt again.
           messages.set(
@@ -490,6 +517,7 @@ public final class Summarizer {
         try {
           return new Answer(second.text(), check(second, inputs, allowed));
         } catch (Citations.Rejected again) {
+          logRejected(purpose + " (retry)", again, second);
           throw new SummaryRejectedException(
               "The summary of "
                   + node.entity()
@@ -497,6 +525,14 @@ public final class Summarizer {
                   + again.getMessage());
         }
       }
+    }
+
+    private static void logRejected(String purpose, Citations.Rejected reason, LlmResponse answer) {
+      String text = answer.text();
+      if (text.length() > LOGGED_ANSWER) {
+        text = text.substring(0, LOGGED_ANSWER) + "... (" + text.length() + " characters)";
+      }
+      LOG.warn("Rejected the answer to {}: {} The answer: {}", purpose, reason.getMessage(), text);
     }
 
     private Citations.Checked check(LlmResponse response, Inputs inputs, Set<String> allowed) {

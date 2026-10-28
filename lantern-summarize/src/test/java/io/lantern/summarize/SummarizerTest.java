@@ -1,8 +1,11 @@
 package io.lantern.summarize;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
@@ -35,7 +38,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class SummarizerTest {
 
@@ -44,6 +50,20 @@ class SummarizerTest {
 
   private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
   private final InMemorySummaryStore store = new InMemorySummaryStore();
+
+  /** What the summarizer logs during a test. */
+  private final ListAppender<ILoggingEvent> log = new ListAppender<>();
+
+  @BeforeEach
+  void captureLog() {
+    log.start();
+    ((Logger) LoggerFactory.getLogger(Summarizer.class)).addAppender(log);
+  }
+
+  @AfterEach
+  void releaseLog() {
+    ((Logger) LoggerFactory.getLogger(Summarizer.class)).detachAppender(log);
+  }
 
   /**
    * A well-behaved model: names the unit, includes a fingerprint of its prompt so the text changes
@@ -291,7 +311,7 @@ class SummarizerTest {
   }
 
   @Test
-  void uncitedAnswerIsSentBackOnceThenRejected() {
+  void uncitedAnswerIsSentBackOnceThenTheUnitHasNoSummary() {
     fake.answering("Order holds the lines of an order.");
     SummaryNode line =
         new SummaryNode(
@@ -302,10 +322,10 @@ class SummarizerTest {
                     "r", "type:p.Line", "kind", FactObject.string("record"), "Line.java")),
             List.of());
 
-    assertThatThrownBy(() -> summarizer().summarize(List.of(line)))
-        .isInstanceOf(SummaryRejectedException.class)
-        .hasMessageContaining("type:p.Line")
-        .hasMessageContaining("cites no references");
+    Summarizer.Result result = summarizer().summarize(List.of(line));
+
+    assertThat(result.summaries()).isEmpty();
+    assertThat(result.rejected()).containsExactly(line.entity());
     assertThat(fake.sent()).hasSize(2);
     List<LlmMessage> retry = fake.sent().get(1).request().messages();
     assertThat(retry).hasSize(3);
@@ -334,6 +354,69 @@ class SummarizerTest {
             .toList();
     assertThat(retries).hasSize(1);
     return retries.getFirst();
+  }
+
+  @Test
+  void aUnitRejectedTwiceHasNoSummaryAndItsParentIsSummarizedWithoutIt() {
+    fake.answering(
+        request ->
+            request.purpose().contains("type:com.example.shop.Order$Line")
+                ? "Line is a line of an order."
+                : citingAll(request));
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    EntityId line = EntityId.parse("type:com.example.shop.Order$Line");
+    assertThat(result.rejected()).containsExactly(line);
+    assertThat(result.summaries()).doesNotContainKey(line).hasSize(6);
+    assertThat(result.generated()).isEqualTo(6);
+    assertThat(store.size()).isEqualTo(6);
+    Summary order = result.summaries().get(EntityId.parse("type:com.example.shop.Order"));
+    assertThat(order.inputSummaries()).isEmpty();
+    assertThat(result.summaries().get(EntityId.parse("repo:shop"))).isNotNull();
+
+    List<String> rejections =
+        log.list.stream()
+            .filter(e -> e.getLevel() == Level.WARN)
+            .map(ILoggingEvent::getFormattedMessage)
+            .filter(m -> m.startsWith("Rejected the answer"))
+            .toList();
+    assertThat(rejections).hasSize(2);
+    assertThat(rejections)
+        .allSatisfy(
+            m ->
+                assertThat(m)
+                    .contains("type:com.example.shop.Order$Line")
+                    .contains("it cites no references.")
+                    .contains("The answer: Line is a line of an order."));
+    assertThat(rejections.get(1)).contains("(retry)");
+  }
+
+  @Test
+  void aLongRejectedAnswerIsLoggedTruncated() {
+    // Short enough that the fake does not cut it off at the type's output limit.
+    String answer = "x".repeat(1200);
+    fake.answering(answer);
+    SummaryNode line =
+        new SummaryNode(
+            EntityId.parse("type:p.Line"),
+            SummaryLevel.TYPE,
+            List.of(
+                TestFacts.fact(
+                    "r", "type:p.Line", "kind", FactObject.string("record"), "Line.java")),
+            List.of());
+
+    summarizer().summarize(List.of(line));
+
+    assertThat(log.list)
+        .filteredOn(e -> e.getFormattedMessage().startsWith("Rejected the answer"))
+        .hasSize(2)
+        .allSatisfy(
+            e ->
+                assertThat(e.getFormattedMessage())
+                    .doesNotContain(answer)
+                    .contains("x".repeat(1000) + "... (1200 characters)"));
   }
 
   @Test
@@ -394,12 +477,14 @@ class SummarizerTest {
           }
         };
 
-    assertThatThrownBy(
-            () ->
-                new Summarizer(client("model-a", provider), store)
-                    .summarize(SummaryTree.fromFacts(TestFacts.shop().list())))
-        .isInstanceOf(SummaryRejectedException.class)
-        .hasMessageContaining("cut off");
+    Summarizer.Result result =
+        new Summarizer(client("model-a", provider), store)
+            .summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(result.summaries()).isEmpty();
+    // The repository has no facts of its own, so with all its parts rejected it has nothing.
+    assertThat(result.rejected()).hasSize(6).doesNotContain(EntityId.parse("repo:shop"));
+    assertThat(log.list).anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("cut off"));
     assertThat(store.size()).isZero();
   }
 
@@ -407,9 +492,10 @@ class SummarizerTest {
   void aModelThatThinksIsCutOffUnlessItHasHeadroom() {
     fake.thinking(1000, false);
 
-    assertThatThrownBy(() -> summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list())))
-        .isInstanceOf(SummaryRejectedException.class)
-        .hasMessageContaining("cut off");
+    Summarizer.Result cutOff =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+    assertThat(cutOff.summaries()).isEmpty();
+    assertThat(cutOff.rejected()).hasSize(6);
     assertThat(store.size()).isZero();
 
     LlmClient roomy =

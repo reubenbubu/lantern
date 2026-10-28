@@ -7,10 +7,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import io.lantern.core.fact.EntityId;
+import io.lantern.core.snapshot.Snapshot;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -76,5 +80,34 @@ class AnalyzeCommandTest {
     assertThat(command.getExitCode()).isEqualTo(1);
     assertThat(bytes.toString(StandardCharsets.UTF_8))
         .contains("The analysis failed: The LLM is not configured: no tiers");
+  }
+
+  @Test
+  void listsTheUnitsLeftWithoutASummary() {
+    AnalysisRun run = mock(AnalysisRun.class);
+    when(run.run(any()))
+        .thenReturn(
+            new AnalysisRun.Result(
+                new Snapshot(1, Map.of("shop", "abc"), 0, "test", Instant.EPOCH),
+                Map.of(),
+                List.of(),
+                10,
+                10,
+                5,
+                0,
+                List.of(EntityId.parse("type:com.example.Order")),
+                new JdbcLlmCallLog.Spending(7, 100, BigDecimal.ZERO),
+                List.of()));
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+
+    command.run(new DefaultApplicationArguments("analyze", "/clones/shop"));
+
+    assertThat(command.getExitCode()).isZero();
+    assertThat(bytes.toString(StandardCharsets.UTF_8))
+        .contains(
+            "Without a summary, the LLM's answer rejected twice (1; rerun to try them again):\n"
+                + "  type:com.example.Order\n");
   }
 }
