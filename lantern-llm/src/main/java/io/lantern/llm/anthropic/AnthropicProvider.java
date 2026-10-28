@@ -32,7 +32,7 @@ import java.util.Objects;
 
 /**
  * Calls Anthropic's Messages API through the official Java SDK. Rate limits (HTTP 429), timeouts
- * (408), overload and server errors (5xx) and connection failures become a {@link
+ * (408), overload and server errors (5xx other than 501) and connection failures become a {@link
  * TransientLlmException} with the wait the API asked for, so {@link io.lantern.llm.LlmClient}
  * retries them; a provider made by {@link #create} leaves retrying to it and does not retry itself.
  */
@@ -102,7 +102,7 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     String message = "Anthropic call failed: " + e.getMessage();
     if (e instanceof AnthropicServiceException service) {
       int status = service.statusCode();
-      if (status == 408 || status == 429 || status >= 500) {
+      if (status == 408 || status == 429 || (status >= 500 && status != 501)) {
         return new TransientLlmException(message, retryAfter(service.headers()), e);
       }
       return new LlmException(message, e);

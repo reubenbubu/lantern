@@ -221,14 +221,16 @@ class AnthropicProviderTest {
   }
 
   @Test
-  void clientErrorsAreNotTransient() {
-    status = 401;
+  void clientErrorsAndNotImplementedAreNotTransient() {
     responseBody =
         """
         {"type": "error", "error": {"type": "authentication_error", "message": "bad key"}}
         """;
+    for (int code : new int[] {400, 401, 501}) {
+      status = code;
 
-    assertThat(failure()).isNotInstanceOf(TransientLlmException.class);
+      assertThat(failure()).isNotInstanceOf(TransientLlmException.class);
+    }
   }
 
   @Test

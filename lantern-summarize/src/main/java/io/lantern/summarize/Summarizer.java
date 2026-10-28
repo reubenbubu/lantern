@@ -27,6 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,12 +48,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * is stored for it.
  *
  * <p>Units that do not contain each other are summarized in parallel, each on its own virtual
- * thread; a unit starts once the units it contains are done. How many calls run at once is bounded
- * by the model's limits in the {@link LlmClient}. The results do not depend on the order calls
- * finish in: each unit's prompt and key depend only on its own inputs, and the result lists units
- * children first, in entity ID order, as a sequential walk would. If a unit fails, no new units are
- * started, the ones already running finish, and the failure of the first unit in that order is
- * thrown.
+ * thread; a unit starts once the units it contains are done. At most as many units run at once as
+ * the {@code SUMMARIZE} model may have calls in flight. The results do not depend on the order
+ * calls finish in: each unit's prompt and key depend only on its own inputs, and the result lists
+ * units in the order of a sequential walk (each root's units, children first, siblings in entity ID
+ * order). If a unit fails, no further calls are made, the calls already running finish, and the
+ * failure of the first failed unit in walk order is thrown; with several failures this may differ
+ * from the one a sequential walk would have met first.
  *
  * <p>Not thread-safe; use one summarizer per run.
  */
@@ -95,7 +97,8 @@ public final class Summarizer {
    * @throws io.lantern.llm.LlmException if a call fails or is refused, for example over budget
    */
   public Result summarize(Collection<SummaryNode> roots) {
-    Run run = new Run(client.model(Role.SUMMARIZE));
+    ModelConfig model = client.model(Role.SUMMARIZE);
+    Run run = new Run(model, model.limits().maxConcurrency());
     Map<EntityId, SummaryNode> units = new LinkedHashMap<>();
     for (SummaryNode root : roots) {
       collect(root, units, new HashSet<>());
@@ -211,17 +214,24 @@ public final class Summarizer {
     private final AtomicInteger generated = new AtomicInteger();
     private final AtomicInteger reused = new AtomicInteger();
     private final AtomicBoolean failed = new AtomicBoolean();
+    private final Semaphore running;
 
-    Run(ModelConfig model) {
+    Run(ModelConfig model, int maxRunning) {
       this.model = model;
+      this.running = new Semaphore(maxRunning, true);
     }
 
-    /** Summarizes a unit whose parts are done. */
+    /** Summarizes a unit whose parts are done, unless another unit has failed. */
     Optional<Summary> visit(SummaryNode node, List<CompletableFuture<Optional<Summary>>> parts) {
-      if (failed.get()) {
-        throw new Skipped();
+      try {
+        running.acquire();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        failed.set(true);
+        throw new IllegalStateException("Interrupted while summarizing " + node.entity(), e);
       }
       try {
+        stopIfFailed();
         List<Summary> children = new ArrayList<>();
         for (CompletableFuture<Optional<Summary>> part : parts) {
           part.join().ifPresent(children::add);
@@ -229,9 +239,19 @@ public final class Summarizer {
         return node.facts().isEmpty() && children.isEmpty()
             ? Optional.empty()
             : Optional.of(summary(node, children));
+      } catch (Skipped e) {
+        throw e;
       } catch (RuntimeException | Error e) {
         failed.set(true);
         throw e;
+      } finally {
+        running.release();
+      }
+    }
+
+    private void stopIfFailed() {
+      if (failed.get()) {
+        throw new Skipped();
       }
     }
 
@@ -305,6 +325,7 @@ public final class Summarizer {
     }
 
     private LlmResponse ask(String purpose, SummaryNode node, List<LlmMessage> messages) {
+      stopIfFailed();
       return client.call(
           new LlmRequest(
               Role.SUMMARIZE,

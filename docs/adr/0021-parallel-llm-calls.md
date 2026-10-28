@@ -14,12 +14,15 @@ the same whatever order calls finish in, and budgets must hold when calls race.
 
 - **The summarizer runs units in parallel, children first.** Every unit is a task on a virtual
   thread that starts once the units it contains are done (type, package, module, repository).
-  Cycles are found before any call. The summarizer itself puts no bound on tasks; the model's
-  limits below bound the calls. A unit's prompt and cache key depend only on its own facts and
-  its parts' summaries (ADR 0010), so finishing order cannot change any summary, and the result
-  lists units in the order of the old sequential walk. If a unit fails, units not yet started are
-  skipped, running ones finish (so every call is logged before the summarizer returns), and the
-  failure of the first unit in walk order is thrown.
+  Cycles are found before any call. At most as many units run at once as the `SUMMARIZE` model
+  may have calls in flight, so units wait in the summarizer rather than in the client. A unit's
+  prompt and cache key depend only on its own facts and its parts' summaries (ADR 0010), so
+  finishing order cannot change any summary, and the result lists units in the order of the old
+  sequential walk. If a unit fails, no further calls are made (units not yet running are skipped,
+  and a running unit makes no further call), the calls already in flight finish so every call is
+  logged before the summarizer returns, and the failure of the first failed unit in walk order is
+  thrown. With several failing units this can be a different one than a sequential run would
+  have stopped at.
 - **Limits are per model, in a shared `CallLimiter`.** Each model (provider plus model identifier)
   has a lane: at most `max-concurrency` calls in flight (default 8) and, optionally, at most
   `requests-per-minute` calls started, spread evenly over the minute. The limits are part of
@@ -34,12 +37,19 @@ the same whatever order calls finish in, and budgets must hold when calls race.
   `retry-after` in seconds or as a date, capped at 10 minutes). `LlmClient` retries those, up to
   `lantern.llm.retry.max-attempts` attempts in all (default 5), waiting a random time between half
   and all of `initial-backoff` (default 1 s) doubled per attempt up to `max-backoff` (default 1
-  minute); with a wait from the API it waits that plus up to `initial-backoff`, and holds back
-  every other call to that model until the wait is over. Other failures are not retried. After the
+  minute); with a wait from the API it waits that (at most an hour) plus up to `initial-backoff`,
+  and holds back every other call to that model until the wait is over. A call keeps its slot
+  while it waits to retry, so during a long wait from the API the model's slots may all sit idle;
+  that is the point of the wait. Other failures are not retried. After the
   last attempt the call fails with "Gave up after N attempts". The Anthropic SDK's own retries are
-  turned off for providers Lantern creates, so retries are counted and logged in one place.
+  turned off for providers Lantern creates, so retries are counted and logged in one place. 501
+  (not implemented) is not retried.
 - **Every attempt is logged.** A retried attempt is logged as `FAILED` with its error and "attempt
-  N of M, retrying in T ms"; no new outcome value, so the call log's table is unchanged.
+  N of M, retrying in T ms"; no new outcome value, so the call log's table is unchanged. Counts of
+  calls from the log, such as the "LLM calls" line after an analysis, therefore include retried
+  attempts. An attempt that was never sent because the thread was interrupted is logged as
+  `REFUSED`. The logged start and duration of an attempt leave out the time spent waiting for a
+  slot.
 - **Budgets are reserved once a call has its slot** and kept across its retries; a call that
   finally fails releases them (as in ADR 0008). Calls waiting for a slot hold no budget, so a
   queue of waiting calls cannot make the budget refuse calls it could afford. `BudgetGuard` is

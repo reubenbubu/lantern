@@ -159,100 +159,126 @@ public final class LlmClient {
       throw refused;
     }
     try {
-      return send(lane, model, request, start);
+      return send(lane, model, request);
     } finally {
       lane.release();
     }
   }
 
-  private LlmResponse send(
-      CallLimiter.Lane lane, ModelConfig model, LlmRequest request, Instant start) {
+  private LlmResponse send(CallLimiter.Lane lane, ModelConfig model, LlmRequest request) {
+    Instant attemptStart = clock.instant();
     List<BudgetGuard.Reservation> reservations;
     try {
       reservations = reserve(model, request);
     } catch (LlmException e) {
-      log(start, request, model, LlmCall.Outcome.REFUSED, TokenUsage.NONE, BigDecimal.ZERO, e);
+      log(
+          attemptStart,
+          request,
+          model,
+          LlmCall.Outcome.REFUSED,
+          TokenUsage.NONE,
+          BigDecimal.ZERO,
+          e);
       throw e;
     }
-    RetryPolicy policy = limiter.retryPolicy();
-    Instant attemptStart = start;
-    for (int attempt = 1; ; attempt++) {
-      LlmResponse response;
-      try {
-        lane.awaitTurn();
-        response = provider(model).complete(model.model(), request);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw failed(
-            attemptStart,
-            request,
-            model,
-            reservations,
-            new LlmException("Interrupted while waiting to call " + model.model(), e));
-      } catch (RuntimeException e) {
-        if (!(e instanceof TransientLlmException transientFailure)) {
-          throw failed(attemptStart, request, model, reservations, e);
-        }
-        if (attempt >= policy.maxAttempts()) {
+    boolean closed = false;
+    try {
+      RetryPolicy policy = limiter.retryPolicy();
+      for (int attempt = 1; ; attempt++) {
+        try {
+          lane.awaitTurn();
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          closed = true;
           throw failed(
               attemptStart,
               request,
               model,
               reservations,
-              policy.maxAttempts() == 1
-                  ? transientFailure
-                  : new LlmException(
-                      "Gave up after %d attempts: %s"
-                          .formatted(attempt, transientFailure.getMessage()),
-                      transientFailure));
+              LlmCall.Outcome.REFUSED,
+              new LlmException("Interrupted while waiting to call " + model.model(), e));
         }
-        Duration delay = policy.delay(attempt, transientFailure.retryAfter());
-        transientFailure.retryAfter().ifPresent(lane::pause);
-        record(
-            attemptStart,
-            request,
-            model,
-            LlmCall.Outcome.FAILED,
-            TokenUsage.NONE,
-            BigDecimal.ZERO,
-            "%s (attempt %d of %d, retrying in %d ms)"
-                .formatted(e.getMessage(), attempt, policy.maxAttempts(), delay.toMillis()));
+        LlmResponse response;
         try {
-          TimeUnit.NANOSECONDS.sleep(delay.toNanos());
-        } catch (InterruptedException interrupted) {
-          Thread.currentThread().interrupt();
-          reservations.forEach(BudgetGuard.Reservation::release);
-          throw new LlmException(
-              "Interrupted while waiting to retry a call to " + model.model(), interrupted);
+          response = provider(model).complete(model.model(), request);
+        } catch (RuntimeException e) {
+          if (!(e instanceof TransientLlmException transientFailure)) {
+            closed = true;
+            throw failed(attemptStart, request, model, reservations, LlmCall.Outcome.FAILED, e);
+          }
+          if (attempt >= policy.maxAttempts()) {
+            closed = true;
+            throw failed(
+                attemptStart,
+                request,
+                model,
+                reservations,
+                LlmCall.Outcome.FAILED,
+                policy.maxAttempts() == 1
+                    ? transientFailure
+                    : new LlmException(
+                        "Gave up after %d attempts: %s"
+                            .formatted(attempt, transientFailure.getMessage()),
+                        transientFailure));
+          }
+          Duration delay = policy.delay(attempt, transientFailure.retryAfter());
+          transientFailure.retryAfter().ifPresent(lane::pause);
+          logMessage(
+              attemptStart,
+              request,
+              model,
+              LlmCall.Outcome.FAILED,
+              TokenUsage.NONE,
+              BigDecimal.ZERO,
+              "%s (attempt %d of %d, retrying in %d ms)"
+                  .formatted(e.getMessage(), attempt, policy.maxAttempts(), delay.toMillis()));
+          attemptStart = clock.instant();
+          try {
+            TimeUnit.NANOSECONDS.sleep(delay.toNanos());
+          } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            closed = true;
+            throw failed(
+                attemptStart,
+                request,
+                model,
+                reservations,
+                LlmCall.Outcome.REFUSED,
+                new LlmException(
+                    "Interrupted while waiting to retry a call to " + model.model(), interrupted));
+          }
+          attemptStart = clock.instant();
+          continue;
         }
-        attemptStart = clock.instant();
-        continue;
+        BigDecimal cost = model.pricing().cost(response.usage());
+        closed = true;
+        for (BudgetGuard.Reservation reservation : reservations) {
+          reservation.settle(response.usage().total(), cost);
+        }
+        log(attemptStart, request, model, LlmCall.Outcome.SUCCEEDED, response.usage(), cost, null);
+        return response;
       }
-      BigDecimal cost = model.pricing().cost(response.usage());
-      for (BudgetGuard.Reservation reservation : reservations) {
-        reservation.settle(response.usage().total(), cost);
+    } finally {
+      if (!closed) {
+        // Something unexpected, such as an Error or a failing call log, ended the call.
+        reservations.forEach(BudgetGuard.Reservation::release);
       }
-      log(attemptStart, request, model, LlmCall.Outcome.SUCCEEDED, response.usage(), cost, null);
-      return response;
     }
   }
 
-  /** Releases the call's budget, logs the failed attempt and returns the error to throw. */
+  /**
+   * Releases the call's budget, logs the attempt as failed or, if it was never sent, refused, and
+   * returns the error to throw.
+   */
   private LlmException failed(
       Instant attemptStart,
       LlmRequest request,
       ModelConfig model,
       List<BudgetGuard.Reservation> reservations,
+      LlmCall.Outcome outcome,
       RuntimeException error) {
     reservations.forEach(BudgetGuard.Reservation::release);
-    log(
-        attemptStart,
-        request,
-        model,
-        LlmCall.Outcome.FAILED,
-        TokenUsage.NONE,
-        BigDecimal.ZERO,
-        error);
+    log(attemptStart, request, model, outcome, TokenUsage.NONE, BigDecimal.ZERO, error);
     return error instanceof LlmException e
         ? e
         : new LlmException("LLM call failed: " + error, error);
@@ -306,10 +332,11 @@ public final class LlmClient {
       TokenUsage usage,
       BigDecimal cost,
       Exception error) {
-    record(start, request, model, outcome, usage, cost, error == null ? null : error.getMessage());
+    logMessage(
+        start, request, model, outcome, usage, cost, error == null ? null : error.getMessage());
   }
 
-  private void record(
+  private void logMessage(
       Instant start,
       LlmRequest request,
       ModelConfig model,
