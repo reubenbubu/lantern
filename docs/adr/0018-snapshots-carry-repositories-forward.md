@@ -34,5 +34,10 @@ snapshots is a query, and the system scope is all repos in the snapshot.
 
 ## Consequences
 
-A repository stays in every later snapshot once analyzed. Removing a repository from the system
-is not supported yet; nothing unregisters one today.
+A repository stays in every later snapshot once it has been in one. Removing a repository from
+the system is not supported yet; nothing unregisters one today.
+
+The snapshot is stored before its builds and extraction run, so a run that fails after creating it
+leaves its commits behind, and later runs carry a repository forward at that commit even though
+its facts are still those of the commit analyzed before. Carrying forward only commits whose
+analysis completed needs a marker in the snapshot tables, a schema change left to #61.

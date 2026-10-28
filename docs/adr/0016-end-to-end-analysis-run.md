@@ -26,7 +26,7 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
   before any work, then takes the analysis lock (ADR 0003) and:
   1. registers each repository, keeping the settings of one registered before;
   2. creates a snapshot of each repository's checked-out commit (`HEAD`), carrying every other
-     repository analyzed before forward at its last analyzed commit (ADR 0018);
+     repository of an earlier snapshot forward at its commit there (ADR 0018);
   3. builds the repositories in the sandbox, in parallel up to the sandbox's limit, reusing a
      stored build of the same `repo@commit`, failed or not. A failed build gives facts of lower
      confidence (degraded mode); when this was decided a stored fact's confidence could not change,
