@@ -115,6 +115,10 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
         .forEach(
             (repo, commit) -> {
               var build = result.builds().get(repo);
+              if (build == null) {
+                out.println("  " + repo + "@" + commit + ": carried forward, not analyzed");
+                return;
+              }
               out.println(
                   "  "
                       + repo

@@ -25,7 +25,8 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
 - **Order and reuse.** The run first gets the LLM client, so an unconfigured LLM fails at once
   before any work, then takes the analysis lock (ADR 0003) and:
   1. registers each repository, keeping the settings of one registered before;
-  2. creates a snapshot of each repository's checked-out commit (`HEAD`);
+  2. creates a snapshot of each repository's checked-out commit (`HEAD`), carrying every other
+     repository of an earlier snapshot forward at its commit there (ADR 0018);
   3. builds the repositories in the sandbox, in parallel up to the sandbox's limit, reusing a
      stored build of the same `repo@commit`, failed or not. A failed build gives facts of lower
      confidence (degraded mode); when this was decided a stored fact's confidence could not change,
@@ -34,8 +35,8 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
      Reuse is keyed by
      `repo@commit` alone; the design's key also has the JDK image and `settings.xml` hash, which
      matter once images or settings change (#31);
-  4. runs the Maven and Java extractors over all repositories and stores their facts in one
-     transaction;
+  4. runs the Maven and Java extractors over all repositories of the snapshot and stores the
+     analyzed repositories' facts in one transaction (ADR 0018);
   5. summarizes with the `SUMMARIZE` role's model through the cached summarizer (ADR 0010);
   6. composes an Architecture Explorer document (view `<repo>`) and an Executive Brief (view
      `<repo>.brief`) per repository. A view definition stored before is used as stored; a
@@ -44,7 +45,7 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
 - **A fact found again stays as stored.** Extractors give facts the new snapshot as the start of
   their validity, while the same fact (same ID) is stored from an earlier snapshot. The run records
   its facts as the snapshot's static facts (ADR 0017): a fact that still holds with the same
-  confidence keeps its stored validity, and static facts no longer found stop holding. The run
+  confidence keeps its stored validity, and static facts of the analyzed repositories no longer found stop holding (ADR 0018). The run
   composes from the facts its extractors found, as stored, so the documents of two runs over the
   same commits differ only in their snapshot number.
 - **Zero LLM calls on a second run** follows from the above: fact IDs include the commit and

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactRepository;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.sandbox.BuildSandbox;
@@ -40,7 +42,8 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * Runs the whole pipeline (register, snapshot, build, extract, summarize, compose, render) twice
  * over the same commits, with a fake LLM, and checks that both templates are produced and that the
- * second run reuses every build, fact and summary and makes no LLM call.
+ * second run reuses every build, fact and summary and makes no LLM call. Also checks that analyzing
+ * one repository keeps the facts of another analyzed before (ADR 0018).
  *
  * <p>Always runs on the {@code multi-module} fixture. Also runs on OpenWMS tms.transportation when
  * {@code lantern.test.openwms} names the directory {@code testsets/openwms/clone.sh} cloned the
@@ -98,6 +101,7 @@ class EndToEndIT {
 
   @Autowired AnalysisRun run;
   @Autowired FakeLlmProvider fake;
+  @Autowired FactRepository facts;
 
   @TempDir Path temp;
 
@@ -116,12 +120,7 @@ class EndToEndIT {
 
   @Test
   void runsTheFixtureTwiceAndTheSecondRunMakesNoLlmCall() throws IOException {
-    Path fixture = Path.of(System.getProperty("lantern.test.fixtures"), "multi-module");
-    Path repo = temp.resolve("shop");
-    copy(fixture, repo);
-    TestGitRepo git = TestGitRepo.init(repo);
-    git.git("add", "--all");
-    git.git("commit", "--quiet", "-m", "Fixture");
+    Path repo = fixtureRepo("multi-module", "shop");
 
     Twice twice = runTwice("shop", repo);
 
@@ -142,6 +141,80 @@ class EndToEndIT {
         .contains("Summaries: 0 written by the LLM")
         .contains("LLM calls: 0, tokens: 0, cost: $0")
         .contains("shop.brief.html");
+  }
+
+  @Test
+  void analyzingAnotherRepositoryKeepsTheFactsOfTheFirst() throws IOException {
+    // Two repositories, the service depending on the library.
+    Path lib = fixtureRepo("lib-and-service/lib", "greeting-lib");
+    Path service = fixtureRepo("lib-and-service/service", "greeting-service");
+
+    AnalysisRun.Result first = run.run(Map.of("greeting-lib", lib));
+    List<Fact> libFacts = validIn(first, "greeting-lib");
+    assertThat(libFacts).hasSize(first.facts());
+
+    // The second run analyzes only the service; the library is carried forward, its facts keep
+    // holding, and the service's dependency on it is found as internal.
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+    command.run(new DefaultApplicationArguments("analyze", service.toString()));
+    String output = bytes.toString(StandardCharsets.UTF_8);
+    assertThat(command.getExitCode()).as(output).isZero();
+    assertThat(output)
+        .contains("greeting-lib@" + first.snapshot().commits().get("greeting-lib"))
+        .contains("carried forward, not analyzed");
+    long second = first.snapshot().number() + 1;
+    assertThat(validIn(second, "greeting-lib")).isEqualTo(libFacts);
+    List<Fact> serviceFacts = validIn(second, "greeting-service");
+    assertThat(serviceFacts)
+        .anySatisfy(
+            fact -> {
+              assertThat(fact.predicate()).isEqualTo("BUILD_DEPENDS_ON");
+              assertThat(fact.object().value())
+                  .isEqualTo("module:com.example.greeting:greeting-lib");
+            });
+
+    // Analyzing the library again at the same commit reuses everything and starts no new fact
+    // version, and the service's facts keep holding.
+    int sent = fake.sent().size();
+    AnalysisRun.Result third = run.run(Map.of("greeting-lib", lib));
+    assertThat(fake.sent()).as("LLM requests in the third run").hasSize(sent);
+    assertThat(third.snapshot().number()).isEqualTo(second + 1);
+    assertThat(third.builds()).containsOnlyKeys("greeting-lib");
+    assertThat(third.reusedBuilds()).containsExactly("greeting-lib");
+    assertThat(third.facts()).isEqualTo(first.facts());
+    assertThat(third.newFacts()).isZero();
+    assertThat(third.summariesGenerated()).isZero();
+    assertThat(third.documents())
+        .extracting(d -> d.file().getFileName().toString())
+        .containsExactly("greeting-lib.html", "greeting-lib.brief.html");
+    assertThat(validIn(third, "greeting-lib")).isEqualTo(libFacts);
+    assertThat(validIn(third, "greeting-service")).isEqualTo(serviceFacts);
+    for (Fact fact : libFacts) {
+      assertThat(facts.findBySubject(fact.subject()))
+          .filteredOn(f -> f.id().equals(fact.id()))
+          .as("versions of %s", fact.id())
+          .containsExactly(fact);
+    }
+
+    // Analyzed together, both find exactly the facts they found apart.
+    AnalysisRun.Result together = run.run(Map.of("greeting-lib", lib, "greeting-service", service));
+    assertThat(fake.sent()).as("LLM requests when analyzed together").hasSize(sent);
+    assertThat(together.newFacts()).isZero();
+    assertThat(validIn(together, "greeting-lib")).isEqualTo(libFacts);
+    assertThat(validIn(together, "greeting-service")).isEqualTo(serviceFacts);
+  }
+
+  private List<Fact> validIn(AnalysisRun.Result result, String repo) {
+    return validIn(result.snapshot().number(), repo);
+  }
+
+  /** The stored facts of the repository that hold in the snapshot. */
+  private List<Fact> validIn(long snapshot, String repo) {
+    return facts.findValidAt(snapshot).stream()
+        .filter(fact -> fact.evidence().repo().equals(repo))
+        .toList();
   }
 
   @Test
@@ -267,6 +340,17 @@ class EndToEndIT {
     Files.createDirectories(out);
     Files.writeString(out.resolve(name + "-llm-calls.txt"), report.toString());
     System.out.print(report);
+  }
+
+  /** A git repository with the fixture committed, in a directory with the given name. */
+  private Path fixtureRepo(String fixtureName, String name) throws IOException {
+    Path fixture = Path.of(System.getProperty("lantern.test.fixtures"), fixtureName);
+    Path repo = temp.resolve(name);
+    copy(fixture, repo);
+    TestGitRepo git = TestGitRepo.init(repo);
+    git.git("add", "--all");
+    git.git("commit", "--quiet", "-m", "Fixture");
+    return repo;
   }
 
   private static void copy(Path source, Path target) throws IOException {

@@ -30,9 +30,9 @@ analyzes repository A, the next one B, and a third A again at the same commit.
     with the new confidence holds from it, so older snapshots keep the confidence they had;
   - a found fact that does not hold, new or closed since, starts a new version at the snapshot;
   - a fact of that kind that holds but was not found is closed at the snapshot.
-- **The scope of closing is the origin kind, across all repositories.** A snapshot is the set of
-  `repo@commit` pairs analyzed together (design, Versioning), so a static fact of a repository the
-  snapshot leaves out does not hold in it. Facts of other kinds (human, LLM, README, rule) belong
+- **The scope of closing is the origin kind, across all repositories.** (Replaced by ADR 0018:
+  closing is limited to the repositories the snapshot's analysis covered, and `recordSnapshot`
+  also takes their names.) Facts of other kinds (human, LLM, README, rule) belong
   to other stages and are never closed by a static analysis; annotations have their own staleness
   rules in the design. The analysis run records its extractors' facts as `static`.
 - **Order.** Snapshots must be recorded in order; recording one older than a snapshot the stored

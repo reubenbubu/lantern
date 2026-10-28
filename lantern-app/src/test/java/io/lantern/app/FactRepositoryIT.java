@@ -36,6 +36,7 @@ class FactRepositoryIT {
   static final String COMMIT = "0123456789abcdef0123456789abcdef01234567";
   static final String CONTENT_HASH =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  static final Evidence BILLING_EVIDENCE = new Evidence("billing", COMMIT, null, null, null);
   static final EntityId ORDERS = EntityId.parse("service:orders");
   static final EntityId PAYMENTS = EntityId.parse("service:payments");
   static final EntityId TOPIC = EntityId.parse("topic:kafka:order-created");
@@ -83,6 +84,10 @@ class FactRepositoryIT {
   }
 
   static Fact consumes(EntityId subject, double confidence, Validity validity) {
+    return consumes(subject, confidence, EVIDENCE, validity);
+  }
+
+  static Fact consumes(EntityId subject, double confidence, Evidence evidence, Validity validity) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("group", "orders-service");
     ObjectNode nested = attributes.putObject("nested");
@@ -95,7 +100,7 @@ class FactRepositoryIT {
         FactObject.entity(TOPIC),
         attributes,
         ORIGIN,
-        EVIDENCE,
+        evidence,
         confidence,
         validity);
   }
@@ -194,7 +199,7 @@ class FactRepositoryIT {
   }
 
   FactRepository.SnapshotUpdate record(long snapshot, Fact... found) {
-    return facts.recordSnapshot(snapshot, Origin.Kind.STATIC, List.of(found));
+    return facts.recordSnapshot(snapshot, Origin.Kind.STATIC, Set.of("orders"), List.of(found));
   }
 
   @Test
@@ -303,6 +308,38 @@ class FactRepositoryIT {
     record(2);
 
     assertThat(facts.findValidAt(2)).containsExactly(owner);
+  }
+
+  @Test
+  void factsOfRepositoriesNotAnalyzedKeepHolding() {
+    Fact orders = consumes(ORDERS, Validity.from(1));
+    record(1, orders);
+
+    Fact billing = consumes(PAYMENTS, 0.9, BILLING_EVIDENCE, Validity.from(2));
+    FactRepository.SnapshotUpdate update =
+        facts.recordSnapshot(2, Origin.Kind.STATIC, Set.of("billing"), List.of(billing));
+
+    assertThat(update.closed()).isZero();
+    assertThat(facts.findValidAt(2)).containsExactlyInAnyOrder(orders, billing);
+
+    // Analyzing orders again closes its facts that are gone, and leaves billing's alone.
+    update = record(3);
+    assertThat(update.closed()).isEqualTo(1);
+    assertThat(facts.findValidAt(3)).containsExactly(billing);
+  }
+
+  @Test
+  void recordingRefusesFactsOfRepositoriesNotAnalyzed() {
+    assertThatThrownBy(
+            () ->
+                facts.recordSnapshot(
+                    1,
+                    Origin.Kind.STATIC,
+                    Set.of("billing"),
+                    List.of(consumes(ORDERS, Validity.from(1)))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("orders");
+    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isZero();
   }
 
   @Test

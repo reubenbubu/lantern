@@ -51,6 +51,23 @@ public class SnapshotStore {
    *     or a revision does not name a commit; nothing is stored then
    */
   public Snapshot create(Map<String, String> revisions) {
+    return create(revisions, false);
+  }
+
+  /**
+   * Creates a snapshot of the whole system: the named repositories at their revisions, as {@link
+   * #create(Map)} resolves them, and every other repository that an earlier snapshot has at its
+   * commit in the latest snapshot that has it, without resolving it again (ADR 0018).
+   *
+   * @param revisions for each repository to analyze, by name, the revision to analyze
+   * @return the new snapshot
+   * @throws IllegalArgumentException as {@link #create(Map)} does; nothing is stored then
+   */
+  public Snapshot createCarryingForward(Map<String, String> revisions) {
+    return create(revisions, true);
+  }
+
+  private Snapshot create(Map<String, String> revisions, boolean carryForward) {
     Objects.requireNonNull(revisions, "revisions");
     if (revisions.isEmpty()) {
       throw new IllegalArgumentException("A snapshot must contain at least one repository");
@@ -67,6 +84,19 @@ public class SnapshotStore {
                   jdbc.sql("SELECT coalesce(max(number), 0) + 1 FROM snapshots")
                       .query(Long.class)
                       .single();
+              if (carryForward) {
+                jdbc.sql(
+                        """
+                        SELECT DISTINCT ON (repository) repository, commit
+                        FROM snapshot_repositories ORDER BY repository, snapshot DESC
+                        """)
+                    .query()
+                    .listOfRows()
+                    .forEach(
+                        row ->
+                            commits.putIfAbsent(
+                                (String) row.get("repository"), (String) row.get("commit")));
+              }
               jdbc.sql(
                       """
                       INSERT INTO snapshots (number, vocabulary_revision, tool_version)

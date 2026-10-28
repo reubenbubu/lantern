@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -106,8 +107,9 @@ public class FactRepository {
   }
 
   /**
-   * Records the facts of one origin kind found in a snapshot, so that afterwards exactly these
-   * facts of that kind hold in it (ADR 0017):
+   * Records the facts of one origin kind found in a snapshot by analyzing some repositories, so
+   * that afterwards exactly these facts of that kind hold in it for those repositories (ADR 0017,
+   * 0018):
    *
    * <ul>
    *   <li>a found fact that already holds with the same confidence keeps holding, its validity
@@ -115,26 +117,35 @@ public class FactRepository {
    *   <li>one that holds with a different confidence stops holding at this snapshot, and a new
    *       version with the new confidence holds from it;
    *   <li>one that does not hold (new, or seen before but closed since) holds from this snapshot;
-   *   <li>a fact of that kind that holds but was not found stops holding at this snapshot.
+   *   <li>a fact of that kind with evidence in one of the repositories that holds but was not found
+   *       stops holding at this snapshot.
    * </ul>
    *
-   * Snapshots must be recorded in order, which is checked as far as the stored facts of that kind
-   * show. Recording the latest snapshot again replaces what was recorded for it. The store is
+   * Facts of other repositories are not touched: they keep holding as they did, so a snapshot that
+   * carries a repository forward without analyzing it again keeps that repository's facts.
+   *
+   * <p>Snapshots must be recorded in order, which is checked as far as the stored facts of that
+   * kind show. Recording the latest snapshot again replaces what was recorded for it. The store is
    * expected to have one writer at a time (the analysis lock); concurrent writers may fail on the
    * constraint that keeps a fact's versions from overlapping. Run this in a transaction, so a
    * failure leaves the store unchanged.
    *
    * @param snapshot the snapshot number
    * @param kind the origin kind of the found facts; facts of other kinds are not touched
-   * @param found the facts found, each valid from the snapshot onwards; the same fact may appear
-   *     more than once, with the same confidence
-   * @throws IllegalArgumentException if a fact has another validity or origin kind, the same fact
-   *     appears with different confidences, or the validator rejects a fact
+   * @param repos the names of the repositories that were analyzed, by which a fact's evidence names
+   *     it; facts of other repositories are not touched
+   * @param found the facts found, each valid from the snapshot onwards and with evidence in one of
+   *     the repositories; the same fact may appear more than once, with the same confidence
+   * @throws IllegalArgumentException if a fact has another validity or origin kind, evidence in
+   *     another repository, the same fact appears with different confidences, or the validator
+   *     rejects a fact
    * @throws IllegalStateException if facts of that kind were recorded for a later snapshot
    */
-  public SnapshotUpdate recordSnapshot(long snapshot, Origin.Kind kind, Collection<Fact> found) {
+  public SnapshotUpdate recordSnapshot(
+      long snapshot, Origin.Kind kind, Set<String> repos, Collection<Fact> found) {
     Objects.requireNonNull(kind, "kind");
     Objects.requireNonNull(found, "found");
+    repos = Set.copyOf(Objects.requireNonNull(repos, "repos"));
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> byId = new LinkedHashMap<>();
     for (Fact fact : found) {
@@ -150,6 +161,15 @@ public class FactRepository {
       if (fact.origin().kind() != kind) {
         throw new IllegalArgumentException(
             "Fact " + fact.id() + " has origin kind " + fact.origin().kind() + ", not " + kind);
+      }
+      if (!repos.contains(fact.evidence().repo())) {
+        throw new IllegalArgumentException(
+            "Fact "
+                + fact.id()
+                + " has evidence in "
+                + fact.evidence().repo()
+                + ", which is not one of the analyzed repositories "
+                + new TreeSet<>(repos));
       }
       Fact previous = byId.putIfAbsent(fact.id(), fact);
       if (previous != null && previous.confidence() != fact.confidence()) {
@@ -189,8 +209,11 @@ public class FactRepository {
                 """
                 SELECT id, confidence, lower(validity) AS valid_from FROM facts
                 WHERE upper_inf(validity) AND origin->>'kind' = :kind
+                  AND evidence->>'repo' IN (:repos)
                 """)
             .param("kind", kind.jsonName())
+            // No repository is named "", so an empty set matches no fact.
+            .param("repos", repos.isEmpty() ? List.of("") : List.copyOf(repos))
             .query(
                 (rs, rowNum) ->
                     new OpenVersion(

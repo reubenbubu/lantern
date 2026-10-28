@@ -34,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -49,6 +50,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * repositories, take a snapshot of their checked-out commits, build them in the sandbox, extract
  * and store their facts, summarize them with the LLM, compose an Architecture Explorer document and
  * an Executive Brief per repository, and render both as single-file HTML (ADR 0016).
+ *
+ * <p>The snapshot describes the whole system: every repository of an earlier snapshot that is not
+ * named in this run is carried forward at its commit in the latest snapshot that has it, and its
+ * facts keep holding. Only the named repositories are built, summarized and composed, and only
+ * their facts are recorded; the extractors see the whole snapshot (ADR 0018).
  *
  * <p>Everything that can be reused is: a stored successful build of a {@code repo@commit}, stored
  * facts, and cached summaries. A run over commits that an earlier run already analyzed therefore
@@ -115,8 +121,8 @@ public final class AnalysisRun {
   /**
    * What a run did.
    *
-   * @param snapshot the snapshot it analyzed
-   * @param builds the build of each repository, by name
+   * @param snapshot the snapshot it analyzed, which also has the repositories carried forward
+   * @param builds the build of each repository it analyzed, by name
    * @param reusedBuilds the names of the repositories whose stored build was reused
    * @param facts how many facts the extractors found
    * @param newFacts how many of them did not hold in the previous snapshot
@@ -176,8 +182,11 @@ public final class AnalysisRun {
         registered.put(name, registry.register(name, entry.getValue(), settings));
         revisions.put(name, RepoRegistry.HEAD);
       }
-      Snapshot snapshot = snapshots.create(revisions);
+      Snapshot snapshot = snapshots.createCarryingForward(revisions);
       LOG.info("Snapshot {}: {}", snapshot.number(), snapshot.commits());
+      snapshot.commits().keySet().stream()
+          .filter(name -> !registered.containsKey(name))
+          .forEach(name -> LOG.info("Carried forward without analyzing: {}", name));
 
       List<String> reused = new ArrayList<>();
       Map<String, BuildResult> builds = build(registered, snapshot, reused);
@@ -185,11 +194,16 @@ public final class AnalysisRun {
       registered.forEach(
           (name, repo) ->
               repoBuilds.add(new RepoBuild(repo, snapshot.commits().get(name), builds.get(name))));
+      repoBuilds.addAll(carriedForward(snapshot, registered.keySet()));
 
+      // The extractors see the whole snapshot, so whether a dependency or call reaches another
+      // repository does not depend on which repositories this run names. Only the named
+      // repositories' facts are recorded.
       List<Fact> found =
           new ArrayList<>(new MavenExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new JavaExtractor().extract(repoBuilds, snapshot.number()));
-      Stored stored = store(snapshot.number(), found);
+      found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
+      Stored stored = store(snapshot.number(), registered.keySet(), found);
       List<Fact> extracted = stored.facts();
       int newFacts = stored.added();
       LOG.info("Extracted {} facts, {} of them new", extracted.size(), newFacts);
@@ -222,6 +236,38 @@ public final class AnalysisRun {
           callLog.spentSince(started),
           documents);
     }
+  }
+
+  /**
+   * The repositories the snapshot carries forward, for the extractors to see as context: each at
+   * its commit with its stored build, if any, and none built again. One whose working tree no
+   * longer has the commit is left out, with a warning.
+   */
+  private List<RepoBuild> carriedForward(Snapshot snapshot, Set<String> analyzed) {
+    List<RepoBuild> result = new ArrayList<>();
+    snapshot
+        .commits()
+        .forEach(
+            (name, commit) -> {
+              if (analyzed.contains(name)) {
+                return;
+              }
+              Repo repo = registry.find(name).orElse(null);
+              try {
+                if (repo == null || !registry.resolve(name, commit).equals(commit)) {
+                  throw new IllegalArgumentException("Commit " + commit + " not found");
+                }
+              } catch (IllegalArgumentException e) {
+                LOG.warn(
+                    "Carried forward {}@{}, but cannot read it, so the extractors do not see it: {}",
+                    name,
+                    commit,
+                    e.getMessage());
+                return;
+              }
+              result.add(new RepoBuild(repo, commit, sandbox.find(name, commit).orElse(null)));
+            });
+    return result;
   }
 
   /**
@@ -268,16 +314,17 @@ public final class AnalysisRun {
 
   /**
    * Records the facts found in the snapshot in one transaction, each ID once (ADR 0017). A fact
-   * that already held keeps the start of its validity, and stored static facts that were not found
-   * stop holding.
+   * that already held keeps the start of its validity, and stored static facts of the analyzed
+   * repositories that were not found stop holding; other repositories' facts are untouched (ADR
+   * 0018).
    */
-  private Stored store(long snapshot, List<Fact> found) {
+  private Stored store(long snapshot, Set<String> repos, List<Fact> found) {
     return transaction.execute(
         status -> {
           Map<String, Fact> unique = new LinkedHashMap<>();
           found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
           FactRepository.SnapshotUpdate update =
-              facts.recordSnapshot(snapshot, Origin.Kind.STATIC, unique.values());
+              facts.recordSnapshot(snapshot, Origin.Kind.STATIC, repos, unique.values());
           LOG.info(
               "Facts: {} changed confidence, {} no longer hold", update.changed(), update.closed());
           return new Stored(update.facts(), update.added());
