@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, test } from 'vitest';
-import { DocumentView } from '../src/DocumentView.tsx';
+import { citationLabel, DocumentView } from '../src/DocumentView.tsx';
 import { DiagramSvg } from '../src/diagram/DiagramView.tsx';
 import { layoutDiagram } from '../src/diagram/layout.ts';
 import type { Block, Section } from '../src/generated/document.ts';
@@ -35,6 +35,27 @@ describe('DocumentView', () => {
   test('renders cross-references as links and citations as fact numbers', () => {
     expect(html).toMatch(/<a href="#[^"]+">/);
     expect(html).toMatch(/<sup class="citation" title="[^"]+">\[\d+(, \d+)*\]<\/sup>/);
+  });
+
+  test('leaves out a summary citation with no section to link to, and links one that has a section', () => {
+    expect(html).toMatch(/packages its library\.<sup class="citation" title="[^"]+">\[\d+\]<\/sup><\/p>/);
+    expect(html).not.toContain('Summary of orders-lib');
+
+    const linked = JSON.parse(
+      JSON.stringify(document).replace('"target":{"kind":"entity","id":"library:orders-lib"},"citation":true', '"target":{"kind":"entity","id":"service:orders"},"citation":true'),
+    ) as typeof document;
+    expect(JSON.stringify(linked)).not.toBe(JSON.stringify(document));
+    const page = renderToStaticMarkup(<DocumentView document={linked} />);
+    expect(page).toMatch(
+      /\]<\/sup><sup class="citation"><a href="#[^"]+" class="entity-ref" title="Summary of orders-lib" aria-label="Summary of orders-lib">\[\u2197\]<\/a><\/sup><\/p>/,
+    );
+  });
+
+  test('shows at most four fact numbers in a citation and counts the rest', () => {
+    expect(citationLabel([3])).toBe('[3]');
+    expect(citationLabel([1, 2, 5, 9])).toBe('[1, 2, 5, 9]');
+    expect(citationLabel([1, 2, 5, 9, 12])).toBe('[1, 2, 5 +2]');
+    expect(citationLabel([1, 2, 5, 9, 12, 14])).toBe('[1, 2, 5 +3]');
   });
 
   test('renders composer output', () => {

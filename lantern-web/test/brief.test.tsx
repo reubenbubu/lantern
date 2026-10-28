@@ -46,6 +46,20 @@ describe('the Executive Brief', () => {
     }
   });
 
+  test('leaves the summaries an overview cites out of its text, since the brief has no section to link to', () => {
+    const overview = document.sections[0].blocks.find((b) => b.kind === 'paragraph')!;
+    const cited = overview.kind === 'paragraph' ? overview.content.filter((i) => i.kind === 'ref' && i.citation) : [];
+    expect(cited.length).toBeGreaterThan(0);
+    const paragraph = html.match(new RegExp(`<p id="${overview.id}">(.*?)</p>`))![1];
+    const visible = paragraph.replace(/<[^>]+>/g, '');
+    for (const ref of cited) {
+      expect(ref.kind === 'ref' && !document.sections.some((s) => s.entity === ref.target.id)).toBe(true);
+      expect(visible).not.toContain(ref.kind === 'ref' ? ref.text : '');
+    }
+    expect(paragraph).not.toContain('\u2197');
+    expect(paragraph).not.toContain('Summary of');
+  });
+
   test('reads deep links', () => {
     expect(hashTarget('#risks')).toBe('risks');
     expect(hashTarget('#a%20b')).toBe('a b');

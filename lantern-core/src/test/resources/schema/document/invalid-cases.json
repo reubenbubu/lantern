@@ -20,6 +20,7 @@
   {"description": "unknown cross-reference target kind", "pointer": "/sections/0/blocks/0/content/3/target/kind", "value": "page"},
   {"description": "entity target with a section ID", "pointer": "/sections/0/blocks/0/content/3/target/id", "value": "overview"},
   {"description": "empty citation", "pointer": "/sections/0/blocks/0/content/5/facts", "value": []},
+  {"description": "cross-reference citation flag that is not a boolean", "pointer": "/sections/0/blocks/0/content/6/citation", "value": "yes"},
   {"description": "metric value as a string", "pointer": "/sections/0/blocks/1/items/1/value", "value": "72.5"},
   {"description": "unknown callout variant", "pointer": "/sections/0/blocks/2/variant", "value": "tip"},
   {"description": "unknown risk severity", "pointer": "/sections/0/blocks/2/severity", "value": "critical"},

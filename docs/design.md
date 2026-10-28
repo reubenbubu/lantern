@@ -386,7 +386,7 @@ Composition decides what a document says and shows; rendering only formats it. C
 
 **Composer inputs:** knowledge in scope (at the snapshot), the view definition, presentation rules, and the previous rendition (layout state, prior prose, color assignments). **Output:** a format-neutral document model of sections, diagrams, tables, callouts and cross-references, each element linked to the fact IDs it came from.
 
-What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011.
+What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011. How templates show a summary's citations of other summaries is in ADR 0027.
 
 How the first composer builds per-repository documents from view definitions is in ADR 0012.
 

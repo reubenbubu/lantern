@@ -437,6 +437,9 @@ public final class DocumentJson {
           ObjectNode target = node.putObject("target");
           target.put("kind", r.target().kind().jsonName());
           target.put("id", r.target().id());
+          if (r.citation()) {
+            node.put("citation", true);
+          }
         }
         case Citation c -> {
           node.put("kind", "citation");
@@ -458,13 +461,14 @@ public final class DocumentJson {
             in.string("text"), style == null ? null : TextRun.Style.fromJsonName(style));
       }
       case "ref" -> {
-        Reader in = Reader.of(node, "cross-reference", "kind", "text", "target");
+        Reader in = Reader.of(node, "cross-reference", "kind", "text", "target", "citation");
         Reader target = in.object("target", "kind", "id");
         yield new CrossReference(
             in.string("text"),
             new CrossReference.Target(
                 CrossReference.Target.Kind.fromJsonName(target.string("kind")),
-                target.string("id")));
+                target.string("id")),
+            in.has("citation") && in.bool("citation"));
       }
       case "citation" -> new Citation(Reader.of(node, "citation", "kind", "facts").facts());
       default -> throw new IllegalArgumentException("Unknown inline kind: '" + kind + "'");

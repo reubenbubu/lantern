@@ -27,14 +27,15 @@
     "parent" : "repo:greeting-service",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "com.example.greeting.service",
       "target" : {
         "kind" : "entity",
         "id" : "package:com.example.greeting:greeting-service:com.example.greeting.service"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -49,14 +50,15 @@
     "parent" : "module:com.example.greeting:greeting-service",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "GreetingServiceMain",
       "target" : {
         "kind" : "entity",
         "id" : "type:com.example.greeting.service.GreetingServiceMain"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -74,14 +76,15 @@
     "name" : "greeting-service",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "greeting-service",
       "target" : {
         "kind" : "entity",
         "id" : "module:com.example.greeting:greeting-service"
-      }
+      },
+      "citation" : true
     } ],
     "facts" : [ ]
   }, {
@@ -431,14 +434,15 @@
       "id" : "overview.summary",
       "content" : [ {
         "kind" : "text",
-        "text" : "It builds on its parts. "
+        "text" : "It builds on its parts."
       }, {
         "kind" : "ref",
         "text" : "greeting-service",
         "target" : {
           "kind" : "entity",
           "id" : "module:com.example.greeting:greeting-service"
-        }
+        },
+        "citation" : true
       } ],
       "facts" : [ ]
     }, {
@@ -561,14 +565,15 @@
         "id" : "components.service:com.example.greeting:greeting-service.summary",
         "content" : [ {
           "kind" : "text",
-          "text" : "It builds on its parts. "
+          "text" : "It builds on its parts."
         }, {
           "kind" : "ref",
           "text" : "com.example.greeting.service",
           "target" : {
             "kind" : "entity",
             "id" : "package:com.example.greeting:greeting-service:com.example.greeting.service"
-          }
+          },
+          "citation" : true
         }, {
           "kind" : "text",
           "text" : " It is described by its facts."

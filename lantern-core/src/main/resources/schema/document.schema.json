@@ -447,6 +447,10 @@
         "text": { "type": "string", "minLength": 1 },
         "target": {
           "oneOf": [{ "$ref": "#/$defs/elementTarget" }, { "$ref": "#/$defs/entityTarget" }]
+        },
+        "citation": {
+          "description": "The target is a source of the text before the reference, as a summary's [summary:...] marker says; templates show it as a citation marker, not as words in the text. Written only when true.",
+          "type": "boolean"
         }
       }
     },

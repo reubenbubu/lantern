@@ -217,12 +217,72 @@ class ComposerTest {
         .containsExactly(
             TextRun.of("The app module."),
             new Citation(List.of(packaging.id(), contains.id())),
-            TextRun.of(" It holds the web layer. "),
-            new CrossReference("com.example.web", CrossReference.Target.entity(web)));
+            TextRun.of(" It holds the web layer."),
+            new CrossReference("com.example.web", CrossReference.Target.entity(web), true));
     assertThat(paragraph.facts()).containsExactlyInAnyOrder(packaging.id(), contains.id());
     DocumentEntity entity =
         document.entities().stream().filter(e -> e.id().equals(module)).findFirst().orElseThrow();
     assertThat(entity.description()).isEqualTo(paragraph.content());
+  }
+
+  @Test
+  void summaryCitationsOpeningASummaryOrInARowAreMarkersWithoutSpaces() {
+    Fact packaging = facts.find("module:com.example:app", "packaging");
+    EntityId module = EntityId.parse("module:com.example:app");
+    EntityId web = EntityId.parse("package:com.example:app:com.example.web");
+    EntityId domain = EntityId.parse("package:com.example:app:com.example.domain");
+    Summary summary =
+        summary(
+            module,
+            "[summary:" + web + "] [summary:" + domain + "] It holds the web layer.",
+            List.of(packaging.id()));
+
+    Paragraph paragraph =
+        block(
+            section(compose(facts.list(), Map.of(module, summary)), "components")
+                .sections()
+                .getFirst(),
+            Paragraph.class);
+
+    assertThat(paragraph.content())
+        .containsExactly(
+            new CrossReference("com.example.web", CrossReference.Target.entity(web), true),
+            new CrossReference("com.example.domain", CrossReference.Target.entity(domain), true),
+            TextRun.of("It holds the web layer."));
+  }
+
+  @Test
+  void aSummaryCitationBetweenFactCitationsSplitsThem() {
+    Fact packaging = facts.find("module:com.example:app", "packaging");
+    Fact contains = facts.find("service:com.example:app", "CONTAINS");
+    EntityId module = EntityId.parse("module:com.example:app");
+    EntityId web = EntityId.parse("package:com.example:app:com.example.web");
+    Summary summary =
+        summary(
+            module,
+            "The app module. [fact:"
+                + packaging.id()
+                + "] [summary:"
+                + web
+                + "] [fact:"
+                + contains.id()
+                + "] It runs.",
+            List.of(packaging.id(), contains.id()));
+
+    Paragraph paragraph =
+        block(
+            section(compose(facts.list(), Map.of(module, summary)), "components")
+                .sections()
+                .getFirst(),
+            Paragraph.class);
+
+    assertThat(paragraph.content())
+        .containsExactly(
+            TextRun.of("The app module."),
+            new Citation(List.of(packaging.id())),
+            new CrossReference("com.example.web", CrossReference.Target.entity(web), true),
+            new Citation(List.of(contains.id())),
+            TextRun.of(" It runs."));
   }
 
   @Test

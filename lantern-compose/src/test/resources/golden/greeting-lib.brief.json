@@ -22,14 +22,15 @@
     "parent" : "repo:greeting-lib",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "com.example.greeting.lib",
       "target" : {
         "kind" : "entity",
         "id" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -44,14 +45,15 @@
     "parent" : "module:com.example.greeting:greeting-lib",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "Greeter",
       "target" : {
         "kind" : "entity",
         "id" : "type:com.example.greeting.lib.Greeter"
-      }
+      },
+      "citation" : true
     }, {
       "kind" : "text",
       "text" : " It is described by its facts."
@@ -65,14 +67,15 @@
     "name" : "greeting-lib",
     "description" : [ {
       "kind" : "text",
-      "text" : "It builds on its parts. "
+      "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "greeting-lib",
       "target" : {
         "kind" : "entity",
         "id" : "module:com.example.greeting:greeting-lib"
-      }
+      },
+      "citation" : true
     } ],
     "facts" : [ ]
   }, {
@@ -317,14 +320,15 @@
       "id" : "overview.summary",
       "content" : [ {
         "kind" : "text",
-        "text" : "It builds on its parts. "
+        "text" : "It builds on its parts."
       }, {
         "kind" : "ref",
         "text" : "greeting-lib",
         "target" : {
           "kind" : "entity",
           "id" : "module:com.example.greeting:greeting-lib"
-        }
+        },
+        "citation" : true
       } ],
       "facts" : [ ]
     }, {

@@ -3,6 +3,7 @@ import { createContext, memo, type MouseEvent, type ReactNode, useContext, useMe
 import type {
   Block,
   Callout,
+  CrossReference,
   Document as LanternDocument,
   DocumentEntity,
   FactEnvelope,
@@ -284,6 +285,9 @@ function InlineView({ inline }: { inline: Inline }) {
           return <>{inline.text}</>;
       }
     case 'ref':
+      if (inline.citation) {
+        return <SourceCitation target={inline.target} text={inline.text} />;
+      }
       return inline.target.kind === 'entity' ? (
         <EntityLink id={inline.target.id}>{inline.text}</EntityLink>
       ) : (
@@ -311,11 +315,20 @@ export function entityHash(id: string): string {
  * Links to the section about the entity when there is one; otherwise names it. In an interactive
  * template it selects the entity instead.
  */
-export function EntityLink({ id, children }: { id: string; children: ReactNode }) {
+export function EntityLink({
+  id,
+  children,
+  title: label,
+}: {
+  id: string;
+  children: ReactNode;
+  /** The link's tooltip and accessible name; the entity's name by default. */
+  title?: string;
+}) {
   const { entities, sectionByEntity } = useLookup();
   const interaction = useInteraction();
   const section = sectionByEntity.get(id);
-  const title = entities.get(id)?.name ?? id;
+  const title = label ?? entities.get(id)?.name ?? id;
   if (interaction) {
     const select = (event: MouseEvent) => {
       if (isPlainClick(event)) {
@@ -324,17 +337,17 @@ export function EntityLink({ id, children }: { id: string; children: ReactNode }
       }
     };
     return (
-      <a href={entityHash(id)} className="entity-ref" title={title} onClick={select}>
+      <a href={entityHash(id)} className="entity-ref" title={title} aria-label={label} onClick={select}>
         {children}
       </a>
     );
   }
   return section !== undefined ? (
-    <a href={`#${section}`} className="entity-ref" title={title}>
+    <a href={`#${section}`} className="entity-ref" title={title} aria-label={label}>
       {children}
     </a>
   ) : (
-    <span className="entity-ref" title={title}>
+    <span className="entity-ref" title={title} aria-label={label}>
       {children}
     </span>
   );
@@ -347,6 +360,49 @@ function describeFact(fact: FactEnvelope): string {
   return `${fact.subject} ${fact.predicate} ${String(fact.object.value)} (${where}${lines}, ${fact.origin.kind})`;
 }
 
+/**
+ * A reference that cites what it points to, as a summary cites the summaries of its parts: a
+ * marker after the text, like a citation of facts, that names its source only in its tooltip and
+ * accessible name. On a page without interaction it links to the section about the target, and
+ * without one it is left out, since it would lead nowhere.
+ */
+function SourceCitation({ target, text }: { target: CrossReference['target']; text: string }) {
+  const { sectionByEntity } = useLookup();
+  const interaction = useInteraction();
+  const label = `Summary of ${text}`;
+  if (target.kind !== 'entity') {
+    return (
+      <sup className="citation">
+        <a href={`#${target.id}`} title={label} aria-label={label}>
+          {SOURCE_MARKER}
+        </a>
+      </sup>
+    );
+  }
+  if (!interaction && !sectionByEntity.has(target.id)) {
+    return null;
+  }
+  return (
+    <sup className="citation">
+      <EntityLink id={target.id} title={label}>
+        {SOURCE_MARKER}
+      </EntityLink>
+    </sup>
+  );
+}
+
+const SOURCE_MARKER = '[\u2197]';
+
+/** How many fact numbers a citation shows; the rest are counted, and all are in its tooltip. */
+const SHOWN_NUMBERS = 3;
+
+export function citationLabel(numbers: number[]): string {
+  if (numbers.length <= SHOWN_NUMBERS + 1) {
+    return `[${numbers.join(', ')}]`;
+  }
+  return `[${numbers.slice(0, SHOWN_NUMBERS).join(', ')} +${numbers.length - SHOWN_NUMBERS}]`;
+}
+
 function CitationView({ facts }: { facts: string[] }) {
   const lookup = useLookup();
   const interaction = useInteraction();
@@ -357,7 +413,7 @@ function CitationView({ facts }: { facts: string[] }) {
   if (cited.length === 0) {
     return null;
   }
-  const numbers = `[${cited.map((c) => c.number).join(', ')}]`;
+  const numbers = citationLabel(cited.map((c) => c.number));
   const title = cited.map((c) => describeFact(c.fact)).join('\n');
   if (interaction) {
     return (

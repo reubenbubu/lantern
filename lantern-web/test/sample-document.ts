@@ -36,6 +36,7 @@ const intro: Inline[] = [
   { kind: 'ref', text: 'orders', target: { kind: 'entity', id: 'service:orders' } },
   { kind: 'text', text: ' service.', style: 'strong' },
   { kind: 'citation', facts: [factId] },
+  { kind: 'ref', text: 'orders-lib', target: { kind: 'entity', id: 'library:orders-lib' }, citation: true },
 ];
 
 const diagram: Diagram = {

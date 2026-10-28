@@ -68,7 +68,8 @@ final class SampleDocument {
                 new TextRun(" service ", null),
                 new CrossReference("orders", CrossReference.Target.entity(ORDERS)),
                 TextRun.of(" packages its library."),
-                new Citation(facts(BUILDS))),
+                new Citation(facts(BUILDS)),
+                new CrossReference("orders-lib", CrossReference.Target.entity(LIB), true)),
             facts(BUILDS));
     Metrics headline =
         new Metrics(
