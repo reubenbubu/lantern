@@ -8,12 +8,27 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /** Runs the {@code git} command line tool on a local repository. */
 final class Git {
 
   private static final long TIMEOUT_SECONDS = 30;
+
+  /** Environment variables that make git use a repository other than the one given with -C. */
+  static final List<String> REPOSITORY_VARIABLES =
+      List.of(
+          "GIT_DIR",
+          "GIT_WORK_TREE",
+          "GIT_INDEX_FILE",
+          "GIT_OBJECT_DIRECTORY",
+          "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+          "GIT_COMMON_DIR",
+          "GIT_NAMESPACE",
+          "GIT_CEILING_DIRECTORIES",
+          "GIT_DISCOVERY_ACROSS_FILESYSTEM");
 
   private Git() {}
 
@@ -30,6 +45,8 @@ final class Git {
     List<String> command = new ArrayList<>(List.of("git", "-C", dir.toString()));
     command.addAll(List.of(args));
     ProcessBuilder builder = new ProcessBuilder(command);
+    // Variables like GIT_DIR would override -C and point git at another repository.
+    REPOSITORY_VARIABLES.forEach(builder.environment()::remove);
     builder.environment().put("GIT_TERMINAL_PROMPT", "0");
     builder.environment().put("LC_ALL", "C");
     Process process;
@@ -46,7 +63,12 @@ final class Git {
         process.destroyForcibly();
         throw new IllegalStateException("git timed out in " + dir + ": " + command);
       }
-      return new Result(process.exitValue(), out.join().strip(), err.join().strip());
+      return new Result(
+          process.exitValue(),
+          out.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).strip(),
+          err.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).strip());
+    } catch (ExecutionException | TimeoutException e) {
+      throw new IllegalStateException("Cannot read git output in " + dir + ": " + command, e);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     } catch (InterruptedException e) {

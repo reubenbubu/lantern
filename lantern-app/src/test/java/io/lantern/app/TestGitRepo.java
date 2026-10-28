@@ -20,7 +20,8 @@ final class TestGitRepo {
   /** Creates an empty repository in the directory, on a branch named {@code main}. */
   static TestGitRepo init(Path dir) {
     TestGitRepo repo = new TestGitRepo(dir);
-    repo.git("init", "--quiet", "--initial-branch=main");
+    repo.git("init", "--quiet");
+    repo.git("symbolic-ref", "HEAD", "refs/heads/main");
     return repo;
   }
 
@@ -62,7 +63,22 @@ final class TestGitRepo {
                 "core.hooksPath=/dev/null"));
     command.addAll(List.of(args));
     try {
-      Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+      ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+      // Never touch another repository (such as the Lantern checkout) or the user's git config.
+      for (String variable :
+          List.of(
+              "GIT_DIR",
+              "GIT_WORK_TREE",
+              "GIT_INDEX_FILE",
+              "GIT_OBJECT_DIRECTORY",
+              "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+              "GIT_COMMON_DIR",
+              "GIT_NAMESPACE")) {
+        builder.environment().remove(variable);
+      }
+      builder.environment().put("GIT_CONFIG_GLOBAL", "/dev/null");
+      builder.environment().put("GIT_CONFIG_NOSYSTEM", "1");
+      Process process = builder.start();
       String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
       if (process.waitFor() != 0) {
         throw new IllegalStateException(command + " failed: " + out);

@@ -26,7 +26,8 @@ import org.springframework.context.annotation.Import;
 
 /**
  * Creates snapshots of temporary git repositories. The database is shared with other tests and
- * snapshots cannot be deleted, so tests compare snapshot numbers relative to each other.
+ * snapshots cannot be deleted, so tests compare snapshot numbers relative to each other. That
+ * assumes no other test creates snapshots at the same time; integration tests run one at a time.
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)

@@ -12,9 +12,11 @@ import org.springframework.dao.DataAccessResourceFailureException;
  * Makes sure only one analysis runs at a time, across every Lantern process that uses the same
  * database, with a PostgreSQL session-level advisory lock.
  *
- * <p>{@link #acquire} takes the lock without waiting and holds a database connection of its own
- * until the returned {@link Held} is closed. If the process dies, PostgreSQL drops the connection
- * and with it the lock, so a crashed analysis never blocks the next one.
+ * <p>{@link #acquire} takes the lock without waiting for it and keeps the connection it took the
+ * lock on, borrowed from the data source, until the returned {@link Held} is closed. Taking that
+ * connection can still wait if the data source is a pool with no free connection. If the process
+ * dies, PostgreSQL drops the connection and with it the lock, so a crashed analysis never blocks
+ * the next one.
  */
 public class AnalysisLock {
 
@@ -65,12 +67,23 @@ public class AnalysisLock {
       }
       Connection held = connection;
       connection = null;
-      try (held) {
-        if (!call(held, "SELECT pg_advisory_unlock(?)")) {
-          throw new IllegalStateException("The analysis lock was not held by this connection");
-        }
+      boolean unlocked = false;
+      try {
+        unlocked = call(held, "SELECT pg_advisory_unlock(?)");
       } catch (SQLException e) {
+        // The session may still hold the lock. Abort rather than close, so a pool discards the
+        // connection instead of lending it out with the lock; ending the session releases it.
+        abortQuietly(held, e);
         throw new DataAccessResourceFailureException("Cannot release the analysis lock", e);
+      }
+      try {
+        held.close();
+      } catch (SQLException e) {
+        throw new DataAccessResourceFailureException(
+            "Cannot close the analysis lock connection", e);
+      }
+      if (!unlocked) {
+        throw new IllegalStateException("The analysis lock was not held by this connection");
       }
     }
   }
@@ -82,6 +95,14 @@ public class AnalysisLock {
         rs.next();
         return rs.getBoolean(1);
       }
+    }
+  }
+
+  private static void abortQuietly(Connection connection, SQLException cause) {
+    try {
+      connection.abort(Runnable::run);
+    } catch (SQLException | RuntimeException e) {
+      cause.addSuppressed(e);
     }
   }
 

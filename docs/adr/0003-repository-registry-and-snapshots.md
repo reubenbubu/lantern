@@ -32,8 +32,11 @@ have increasing numeric IDs, because fact validity is a range of snapshot number
   (`lantern.version`). The number is the snapshot's name; there is no separate label. The
   annotation revision the design lists is added once annotations exist (Phase 3).
 - **Analysis lock** is a PostgreSQL session-level advisory lock with one fixed key, taken with
-  `pg_try_advisory_lock` on a connection held for the whole analysis. A second start fails at once
+  `pg_try_advisory_lock` on a connection borrowed from the app's pool and held for the whole
+  analysis. A second start fails at once
   with `AnalysisAlreadyRunningException` ("analysis already running"), including from another
   Lantern process on the same database. If the process dies, PostgreSQL drops the connection and
-  the lock with it. Creating a snapshot does not take the lock by itself; the analysis run that
+  the lock with it. If releasing fails, the connection is aborted rather than returned to the
+  pool, so it cannot be lent out still holding the lock. Borrowing from the pool can wait if the
+  pool has no free connection; a dedicated connection can be added if that becomes a problem. Creating a snapshot does not take the lock by itself; the analysis run that
   will use both takes the lock first.
