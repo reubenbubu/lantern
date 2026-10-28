@@ -5,10 +5,12 @@ import io.lantern.core.vocabulary.VocabularyRegistry;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionOperations;
 
@@ -56,8 +58,9 @@ public class SnapshotStore {
 
   /**
    * Creates a snapshot of the whole system: the named repositories at their revisions, as {@link
-   * #create(Map)} resolves them, and every other repository that an earlier snapshot has at its
-   * commit in the latest snapshot that has it, without resolving it again (ADR 0018).
+   * #create(Map)} resolves them, and every other repository that an earlier snapshot analyzed, at
+   * its commit in the latest snapshot that analyzed it (see {@link #markAnalyzed}), without
+   * resolving it again (ADR 0018). A repository that no snapshot analyzed is not carried forward.
    *
    * @param revisions for each repository to analyze, by name, the revision to analyze
    * @return the new snapshot
@@ -88,7 +91,8 @@ public class SnapshotStore {
                 jdbc.sql(
                         """
                         SELECT DISTINCT ON (repository) repository, commit
-                        FROM snapshot_repositories ORDER BY repository, snapshot DESC
+                        FROM snapshot_repositories WHERE analyzed
+                        ORDER BY repository, snapshot DESC
                         """)
                     .query()
                     .listOfRows()
@@ -120,6 +124,40 @@ public class SnapshotStore {
               return next;
             });
     return find(Objects.requireNonNull(number, "number")).orElseThrow();
+  }
+
+  /**
+   * Marks repositories as analyzed in a snapshot: their facts for it are stored. Later snapshots
+   * carry a repository forward only at a commit marked here, so a run that fails before storing its
+   * facts leaves nothing behind to carry forward (ADR 0018). A repository carried forward into a
+   * snapshot is not analyzed in it. Run this in the transaction that stores the facts; it joins
+   * that transaction. Marking a repository again changes nothing.
+   *
+   * @param snapshot the snapshot number
+   * @param repos the names of the repositories analyzed in it
+   * @throws IllegalArgumentException if the snapshot does not have one of the repositories; nothing
+   *     is marked then
+   */
+  public void markAnalyzed(long snapshot, Collection<String> repos) {
+    Objects.requireNonNull(repos, "repos");
+    transactions.executeWithoutResult(
+        status -> {
+          for (String repo : new TreeSet<>(repos)) {
+            int updated =
+                jdbc.sql(
+                        """
+                        UPDATE snapshot_repositories SET analyzed = true
+                        WHERE snapshot = :n AND repository = :repo
+                        """)
+                    .param("n", snapshot)
+                    .param("repo", repo)
+                    .update();
+            if (updated == 0) {
+              throw new IllegalArgumentException(
+                  "Snapshot " + snapshot + " does not have the repository " + repo);
+            }
+          }
+        });
   }
 
   /** The snapshot with the number, if any. */

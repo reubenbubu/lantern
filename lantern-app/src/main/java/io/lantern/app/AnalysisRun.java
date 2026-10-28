@@ -52,8 +52,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * an Executive Brief per repository, and render both as single-file HTML (ADR 0016).
  *
  * <p>The snapshot describes the whole system: every repository of an earlier snapshot that is not
- * named in this run is carried forward at its commit in the latest snapshot that has it, and its
- * facts keep holding. Only the named repositories are built, summarized and composed, and only
+ * named in this run is carried forward at its commit in the latest snapshot that analyzed it, and
+ * its facts keep holding. Only the named repositories are built, summarized and composed, and only
  * their facts are recorded; the extractors see the whole snapshot (ADR 0018).
  *
  * <p>Everything that can be reused is: a stored successful build of a {@code repo@commit}, stored
@@ -315,8 +315,10 @@ public final class AnalysisRun {
   /**
    * Records the facts found in the snapshot in one transaction, each ID once (ADR 0017). A fact
    * that already held keeps the start of its validity, and stored static facts of the analyzed
-   * repositories that were not found stop holding; other repositories' facts are untouched (ADR
-   * 0018).
+   * repositories that were not found stop holding; other repositories' facts are untouched. In the
+   * same transaction the analyzed repositories are marked as such in the snapshot, so later
+   * snapshots carry them forward at their commits here, and a run that fails before this point
+   * leaves its commits out of later snapshots (ADR 0018).
    */
   private Stored store(long snapshot, Set<String> repos, List<Fact> found) {
     return transaction.execute(
@@ -327,6 +329,7 @@ public final class AnalysisRun {
               facts.recordSnapshot(snapshot, Origin.Kind.STATIC, repos, unique.values());
           LOG.info(
               "Facts: {} changed confidence, {} no longer hold", update.changed(), update.closed());
+          snapshots.markAnalyzed(snapshot, repos);
           return new Stored(update.facts(), update.added());
         });
   }
