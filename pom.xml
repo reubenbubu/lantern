@@ -22,6 +22,7 @@
     <module>lantern-sandbox</module>
     <module>lantern-extract</module>
     <module>lantern-llm</module>
+    <module>lantern-summarize</module>
     <module>lantern-compose</module>
     <module>lantern-app</module>
     <module>lantern-archtest</module>
@@ -58,6 +59,11 @@
       <dependency>
         <groupId>io.lantern</groupId>
         <artifactId>lantern-llm</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.lantern</groupId>
+        <artifactId>lantern-summarize</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
