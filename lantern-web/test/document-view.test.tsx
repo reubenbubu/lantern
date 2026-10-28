@@ -1,0 +1,61 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, test } from 'vitest';
+import { DocumentView } from '../src/DocumentView.tsx';
+import { DiagramSvg } from '../src/diagram/DiagramView.tsx';
+import { layoutDiagram } from '../src/diagram/layout.ts';
+import type { Block, Section } from '../src/generated/document.ts';
+import { composerOutput, diagrams, schemaFixture } from './fixtures.ts';
+
+function allSections(sections: Section[]): Section[] {
+  return sections.flatMap((s) => [s, ...allSections(s.sections)]);
+}
+
+describe('DocumentView', () => {
+  const document = schemaFixture();
+  const html = renderToStaticMarkup(<DocumentView document={document} />);
+  const blocks: Block[] = allSections(document.sections).flatMap((s) => s.blocks);
+
+  test('the fixture has every kind of block', () => {
+    expect(new Set(blocks.map((b) => b.kind))).toEqual(
+      new Set(['paragraph', 'list', 'callout', 'table', 'diagram', 'tree', 'metrics']),
+    );
+  });
+
+  test('renders the title and every section and block under its ID, for deep links', () => {
+    expect(html).toContain(`<h1>${document.title}</h1>`);
+    for (const section of allSections(document.sections)) {
+      expect(html).toContain(`id="${section.id}"`);
+      expect(html).toContain(section.title);
+    }
+    for (const block of blocks) {
+      expect(html).toContain(`id="${block.id}"`);
+    }
+  });
+
+  test('renders cross-references as links and citations as fact numbers', () => {
+    expect(html).toMatch(/<a href="#[^"]+">/);
+    expect(html).toMatch(/<sup class="citation" title="[^"]+">\[\d+(, \d+)*\]<\/sup>/);
+  });
+
+  test('renders composer output', () => {
+    const output = composerOutput();
+    const page = renderToStaticMarkup(<DocumentView document={output} />);
+    for (const section of allSections(output.sections)) {
+      expect(page).toContain(`id="${section.id}"`);
+    }
+  });
+});
+
+describe('DiagramSvg', () => {
+  test('draws every node and edge', async () => {
+    for (const diagram of diagrams(composerOutput())) {
+      const svg = renderToStaticMarkup(<DiagramSvg diagram={diagram} layout={await layoutDiagram(diagram)} />);
+      for (const node of diagram.nodes) {
+        expect(svg).toContain(`data-entity="${node.id}"`);
+      }
+      for (const edge of diagram.edges) {
+        expect(svg).toContain(`data-edge="${edge.id}"`);
+      }
+    }
+  });
+});
