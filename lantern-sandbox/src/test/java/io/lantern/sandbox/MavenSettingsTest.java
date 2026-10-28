@@ -62,11 +62,9 @@ class MavenSettingsTest {
 
   @Test
   void addsConfiguredRepositoriesInOrder() throws Exception {
-    MavenRepository activiti =
+    MavenRepository releases =
         new MavenRepository(
-            "activiti",
-            URI.create(
-                "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases"));
+            "releases", URI.create("https://nexus.example.com/repository/releases"));
 
     Document settings =
         parse(
@@ -74,14 +72,14 @@ class MavenSettingsTest {
                 "/var/lantern/m2",
                 "lantern-proxy",
                 3128,
-                List.of(MavenRepository.CENTRAL, activiti)));
+                List.of(MavenRepository.CENTRAL, releases)));
 
     assertThat(values(settings, "//repositories/repository/id"))
-        .containsExactly("central", "activiti");
+        .containsExactly("central", "releases");
     assertThat(values(settings, "//pluginRepositories")).isEmpty();
     assertThat(values(settings, "//repositories/repository/url"))
         .containsExactly(
             "https://repo.maven.apache.org/maven2",
-            "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases");
+            "https://nexus.example.com/repository/releases");
   }
 }

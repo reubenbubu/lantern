@@ -7,8 +7,6 @@ import io.lantern.sandbox.MavenRepository;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -67,10 +65,10 @@ class SandboxPropertiesTest {
             "lantern.sandbox.maven-repositories[0].id", "internal",
             "lantern.sandbox.maven-repositories[0].url", "https://nexus.example.com/repository/x");
     Map<String, String> two = new HashMap<>(one);
-    two.put("lantern.sandbox.maven-repositories[1].id", "activiti");
+    two.put("lantern.sandbox.maven-repositories[1].id", "releases");
     two.put(
         "lantern.sandbox.maven-repositories[1].url",
-        "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases");
+        "https://nexus.example.com/repository/releases");
 
     // Higher priority first, as Spring orders an additional location before the defaults.
     assertThat(bind(one, defaults).mavenRepositories())
@@ -78,18 +76,18 @@ class SandboxPropertiesTest {
         .containsExactly("internal");
     assertThat(bind(two, defaults).mavenRepositories())
         .extracting(MavenRepository::id)
-        .containsExactly("internal", "activiti");
+        .containsExactly("internal", "releases");
     assertThat(bind(defaults, two).mavenRepositories()).containsExactly(MavenRepository.CENTRAL);
   }
 
   @Test
-  void bindsTheOpenWmsTestSetAsTheSandboxReadsIt() throws IOException {
-    Path file =
-        Path.of("").toAbsolutePath().getParent().resolve("testsets/openwms/lantern.properties");
-    Map<String, String> values;
-    try (InputStream in = Files.newInputStream(file)) {
-      values = load(in);
-    }
+  void bindsAListAsTheSandboxReadsIt() {
+    Map<String, String> values =
+        Map.of(
+            "lantern.sandbox.maven-repositories[0].id", "central",
+            "lantern.sandbox.maven-repositories[0].url", "https://repo.maven.apache.org/maven2",
+            "lantern.sandbox.maven-repositories[1].id", "internal",
+            "lantern.sandbox.maven-repositories[1].url", "https://nexus.example.com/repository/x");
     Properties properties = new Properties();
     properties.putAll(values);
 
@@ -98,10 +96,7 @@ class SandboxPropertiesTest {
     assertThat(repositories)
         .containsExactly(
             MavenRepository.CENTRAL,
-            new MavenRepository(
-                "activiti",
-                URI.create(
-                    "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases")));
+            new MavenRepository("internal", URI.create("https://nexus.example.com/repository/x")));
     assertThat(repositories).isEqualTo(MavenRepository.listFrom(properties));
   }
 

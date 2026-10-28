@@ -3,11 +3,7 @@ package io.lantern.sandbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,8 +11,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class MavenRepositoryTest {
 
-  private static final String ACTIVITI =
-      "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases";
+  private static final String RELEASES = "https://nexus.example.com/repository/releases";
 
   @Test
   void centralIsMavenCentral() {
@@ -79,13 +74,13 @@ class MavenRepositoryTest {
     properties.setProperty("lantern.sandbox.maven-repositories[0].id", "central");
     properties.setProperty(
         "lantern.sandbox.maven-repositories[0].url", "https://repo.maven.apache.org/maven2");
-    properties.setProperty("lantern.sandbox.maven-repositories[1].id", " activiti ");
-    properties.setProperty("lantern.sandbox.maven-repositories[1].url", ACTIVITI);
+    properties.setProperty("lantern.sandbox.maven-repositories[1].id", " releases ");
+    properties.setProperty("lantern.sandbox.maven-repositories[1].url", RELEASES);
     properties.setProperty("lantern.sandbox.maven-cache-volume", "other setting");
 
     assertThat(MavenRepository.listFrom(properties))
         .containsExactly(
-            MavenRepository.CENTRAL, new MavenRepository("activiti", URI.create(ACTIVITI)));
+            MavenRepository.CENTRAL, new MavenRepository("releases", URI.create(RELEASES)));
     assertThat(MavenRepository.listFrom(new Properties())).isEmpty();
   }
 
@@ -98,32 +93,15 @@ class MavenRepositoryTest {
 
     Properties gap = new Properties();
     gap.setProperty("lantern.sandbox.maven-repositories[0].id", "central");
-    gap.setProperty("lantern.sandbox.maven-repositories[0].url", ACTIVITI);
+    gap.setProperty("lantern.sandbox.maven-repositories[0].url", RELEASES);
     gap.setProperty("lantern.sandbox.maven-repositories[2].id", "late");
-    gap.setProperty("lantern.sandbox.maven-repositories[2].url", ACTIVITI);
+    gap.setProperty("lantern.sandbox.maven-repositories[2].url", RELEASES);
     assertThatThrownBy(() -> MavenRepository.listFrom(gap)).hasMessageContaining("[2].id");
 
     Properties unknown = new Properties();
     unknown.setProperty("lantern.sandbox.maven-repositories[0].id", "central");
-    unknown.setProperty("lantern.sandbox.maven-repositories[0].url", ACTIVITI);
+    unknown.setProperty("lantern.sandbox.maven-repositories[0].url", RELEASES);
     unknown.setProperty("lantern.sandbox.maven-repositories[0].password", "x");
     assertThatThrownBy(() -> MavenRepository.listFrom(unknown)).hasMessageContaining("password");
-  }
-
-  @Test
-  void openWmsTestSetAddsOnlyTheActivitiRepositoryToCentral() throws IOException {
-    Properties properties = new Properties();
-    try (InputStream in = Files.newInputStream(openWmsProperties())) {
-      properties.load(in);
-    }
-
-    assertThat(MavenRepository.listFrom(properties))
-        .containsExactly(
-            MavenRepository.CENTRAL, new MavenRepository("activiti", URI.create(ACTIVITI)));
-  }
-
-  /** The OpenWMS test set's properties, found from the module's directory. */
-  static Path openWmsProperties() {
-    return Path.of("").toAbsolutePath().getParent().resolve("testsets/openwms/lantern.properties");
   }
 }

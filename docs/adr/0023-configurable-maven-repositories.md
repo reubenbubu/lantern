@@ -1,6 +1,6 @@
 # 0023: Configurable Maven repositories for sandbox builds
 
-Status: accepted (#30), pending the user's review (#24)
+Status: accepted (#30), amended (#100), pending the user's review (#24)
 
 ## Context
 
@@ -50,3 +50,26 @@ more are configured, and that downloaded code is used only to compile, never ana
   under `builds/` is deleted; whether to rebuild stored failed builds is #58.
 - Host names must have a dot and may not be IP addresses, so `localhost` and addresses such as
   the cloud metadata service cannot be configured.
+
+## Amendment (#100): no OpenWMS settings
+
+OpenWMS is no longer a test set (#100, #88), so `testsets/openwms/lantern.properties` and the
+OpenWMS build tests are gone. The setting, its Maven Central default and everything above about
+how it works stay.
+
+- **Configuring more repositories.** A properties file outside the repository lists every
+  repository builds may use, Maven Central included, for example
+  `lantern.sandbox.maven-repositories[0].id=central` and `[0].url=https://repo.maven.apache.org/maven2`,
+  then `[1].id=internal` and `[1].url=https://nexus.example.com/repository/releases`. It is passed
+  to Lantern with `--spring.config.additional-location`. A test set that needs more than Maven
+  Central keeps such a file in its `testsets/<name>/` folder (#88).
+- **Tests download only from Maven Central.** The test that built a fixture against Alfresco's
+  Activiti repository, and that fixture, are removed, so `./mvnw verify` no longer reaches
+  `artifacts.alfresco.com`. `BuildSandboxIT` configures `repo1.maven.org` instead, Maven Central's
+  other host name, which the default settings do not allow. It checks that this host becomes
+  reachable and others stay blocked, and that a build listing it before Maven Central, on a cache
+  of its own, downloads the `lombok` fixture's dependency from it: Maven's
+  `_remote.repositories` file in the cache names the configured repository's ID. (Builds log no
+  transfers, so the cache is where the download shows.) The generated Maven settings are checked
+  by `MavenSettingsTest`, and reading and binding the list by `MavenRepositoryTest` and
+  `SandboxPropertiesTest`.

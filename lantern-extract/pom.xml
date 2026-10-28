@@ -13,11 +13,6 @@
   <artifactId>lantern-extract</artifactId>
   <name>Lantern Extract</name>
 
-  <properties>
-    <!-- A directory of OpenWMS clones (testsets/openwms/clone.sh); OpenWmsMavenIT runs if set. -->
-    <lantern.test.openwms></lantern.test.openwms>
-  </properties>
-
   <dependencies>
     <dependency>
       <groupId>io.lantern</groupId>
@@ -61,9 +56,6 @@
             <lantern.test.mvnw>${maven.multiModuleProjectDirectory}/mvnw</lantern.test.mvnw>
             <!-- ...reading, but never writing, the local repository of the outer build. -->
             <lantern.test.localRepository>${settings.localRepository}</lantern.test.localRepository>
-            <lantern.test.openwms>${lantern.test.openwms}</lantern.test.openwms>
-            <!-- The OpenWMS test set's Lantern settings: the Maven repositories its builds use. -->
-            <lantern.test.openwms.settings>${maven.multiModuleProjectDirectory}/testsets/openwms/lantern.properties</lantern.test.openwms.settings>
           </systemPropertyVariables>
         </configuration>
       </plugin>

@@ -528,7 +528,7 @@ The backend is Java 21+ on Spring Boot because the hardest part, Java analysis, 
 
 Each phase delivers something usable on real repos. The knowledge model and stable IDs come first because everything later depends on them.
 
-**Test sets.** From Phase 2, each phase is checked on several open-source test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, and a monolith. No single test set shapes the design. Each one's repos and pins are in its ADRs (the first's: 0004 and 0020); choosing more is #88.
+**Test sets.** From Phase 2, each phase is checked on several open-source test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, and a monolith. No single test set shapes the design. Each one's repos and pins are in its ADRs. No test set is chosen yet: OpenWMS, the first, was dropped in #100, and choosing them is #88.
 
 1. **Foundation** (built; remaining fixes tracked in its milestone): a single repo through to a real document.
    - Repo registry, build sandbox, Maven and Java structure extractors
@@ -559,7 +559,7 @@ Each phase delivers something usable on real repos. The knowledge model and stab
 - [x] Which identity provider will sign-in use (Azure AD / Entra ID, Okta, Keycloak, other)? Decided: Keycloak or LDAP, selectable by property (see Users and access).
 - [x] Which in-house frameworks or annotations are most common, so extractors and early learned rules can target them? Decided: Spring Boot first; the Spring extractors take priority and early learned rules target Spring annotations.
 - [x] Which LLM provider and models for the first deployment, and what monthly budget? Decided: Anthropic, $100/month budget. Sonnet for high-volume roles, Opus for reasoning-heavy ones (see LLM integration).
-- [x] Rough scale for sizing the VM: number of repos and total lines of code in the first target set. Decided: the first test set fits the existing development VM with up to 4 build containers at 4 GB each; its measurements are in ADR 0004.
+- [x] Rough scale for sizing the VM: number of repos and total lines of code in the first target set. Decided: the first test set (OpenWMS, since dropped, #100) fits the existing development VM with up to 4 build containers at 4 GB each; its measurements are in ADR 0004.
 - [ ] Where does end-of-life data for technology currency come from? Recommended: a table of JDK, Spring Boot and Spring Framework end-of-life dates bundled with Lantern and updated each release, so no network call or new dependency is needed.
 - [x] Re-layout threshold: how many new nodes in one diagram before automatic re-layout? Decided: 10 by default, configurable.
 - [x] Who are the first users, and which document do they need first? Decided: User is the first user. First outputs: C4 diagrams (context, container, component), sequence diagrams, dependency trees, and runtime environment details where the sources hold them.

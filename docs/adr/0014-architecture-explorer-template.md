@@ -73,9 +73,10 @@ open whether tree nodes need IDs of their own for deep links or expand and colla
   fixture and test the navigation tree, placements, search, deep links and zoom arithmetic in Node.
   Behaviour in a real browser (drawers, search, theme, deep links, pan, zoom and pinch, and the
   three widths) was checked by hand in headless Chrome with composer output for OpenWMS
-  repositories. `OpenWmsComposeIT` (run only when `lantern.test.openwms` is set, see `CLAUDE.md`)
-  writes those documents, extracted without builds and summarized by the fake model, to
-  `lantern-compose/target/openwms-documents`.
+  repositories. `OpenWmsComposeIT` (run only when `lantern.test.openwms` was set) wrote those
+  documents, extracted without builds and summarized by the fake model, to
+  `lantern-compose/target/openwms-documents` (removed in #100). Documents for a real repository
+  now come from `analyze` or from `EndToEndIT` with `lantern.test.repo` (see `CLAUDE.md`).
 
 ## Not in this issue
 

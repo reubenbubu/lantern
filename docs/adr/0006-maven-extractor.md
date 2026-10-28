@@ -1,6 +1,6 @@
 # 0006: Maven extractor
 
-Status: accepted (#8), pending the user's review (#24)
+Status: accepted (#8), amended (#100), pending the user's review (#24)
 
 ## Context
 
@@ -84,4 +84,11 @@ how these are named and modelled, what "internal" means, and how a service's lib
   set's Maven repositories (ADR 0023), 15 of the 16 repositories have an effective POM;
   `org.openwms` is read as written because its `core.util` module names a parent version that
   does not exist (ADR 0020).
-  `OpenWmsMavenIT` checks this when the clones are present.
+  `OpenWmsMavenIT` checked this when the clones were present (removed in #100).
+
+## Amendment (#100): rules that came from OpenWMS
+
+OpenWMS is no longer a test set (#100), and `OpenWmsMavenIT` is removed. The rules it shaped
+stay as general Maven rules: the `PACKAGES` link from a thin service to its library, and
+accepting any classifier on that dependency. The `lib-and-service` fixture and `MavenRulesTest`
+cover the link, and `MavenRulesTest` a dependency with classifier `all`.

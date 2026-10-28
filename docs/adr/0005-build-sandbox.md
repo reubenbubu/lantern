@@ -80,6 +80,6 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   `git-commit-id-maven-plugin`, used by the OpenWMS parent POM, is skipped
   (`-Dmaven.gitcommitid.skip=true`); the build information it records is not needed for analysis.
 - **OpenWMS.** Which of the pinned repos build, and why the others fail into degraded mode, is in
-  ADR 0020; `OpenWmsBuildIT` builds the ones that do when the clones are present.
+  ADR 0020; `OpenWmsBuildIT` built the ones that do when the clones were present (removed in #100).
 - **Not covered yet:** the mounted `settings.xml` for an internal artifact repository (#31),
   and images for JDK 8 and 11.

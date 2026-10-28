@@ -1,6 +1,6 @@
 # 0016: End-to-end analysis run
 
-Status: accepted (#17), pending the user's review (#24)
+Status: accepted (#17), amended (#100), pending the user's review (#24)
 
 ## Context
 
@@ -78,3 +78,12 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
 The real-LLM acceptance run on tms.transportation, which needs the user's go-ahead; persisted,
 resumable jobs and progress in the UI (#56); run budgets and the
 estimate before a run (#42); parallel LLM calls (#44).
+
+## Amendment (#100): the second repository is any repository
+
+OpenWMS is no longer a test set (#100). Besides the `multi-module` fixture, `EndToEndIT` now runs
+on the Maven repository that `lantern.test.repo` names, as an absolute path, when it is set,
+instead of on OpenWMS tms.transportation. A relative path is rejected. The repository is
+registered as `given-<directory>`, so its name cannot clash with a fixture's, and the calls and
+estimated tokens a real run would use go to
+`lantern-app/target/end-to-end/given-<directory>-llm-calls.txt`. The new test sets (#88) provide its input.
