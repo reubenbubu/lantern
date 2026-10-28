@@ -16,6 +16,8 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -35,6 +38,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Builds a repository at a commit in an isolated container and stores what the analyzers need:
@@ -45,8 +49,9 @@ import java.util.stream.Collectors;
  * <p>Each build gets its own container and its own internal Docker network, which has no route out.
  * The only other container on that network is an egress proxy that tunnels to the allowed hosts
  * (the artifact repository) and nothing else. The build container gets the repository's files at
- * the commit (no {@code .git}), no host directories, no capabilities and limited CPU, memory,
- * processes and time. All builds share one Docker volume as their local Maven repository.
+ * the commit (no {@code .git}), no host directories, no capabilities, a user that is not root, and
+ * limited CPU, memory, disk, processes and time. All builds share one Docker volume as their local
+ * Maven repository.
  *
  * <p>A build that fails, times out or runs out of memory is stored as {@link BuildStatus#FAILED},
  * keeping whatever outputs it left, so the repository can be analyzed in degraded mode. Problems of
@@ -76,6 +81,7 @@ public class BuildSandbox {
   private static final Duration COPY_TIMEOUT = Duration.ofMinutes(15);
   private static final Duration CLEANUP_TIMEOUT = Duration.ofMinutes(1);
   private static final Duration PROXY_START_TIMEOUT = Duration.ofSeconds(60);
+  private static final Duration DISK_CHECK_INTERVAL = Duration.ofSeconds(5);
   private static final long MAX_OUTPUT_ENTRIES = 2_000_000;
   private static final long MAX_DETECT_BYTES = 64L * 1024 * 1024;
   private static final long MAX_TRAILING_BYTES = 1024 * 1024;
@@ -83,6 +89,20 @@ public class BuildSandbox {
   // The repository name rule of Repo, so a name cannot lead outside the builds directory.
   private static final Pattern REPO_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
   private static final SecureRandom RANDOM = new SecureRandom();
+
+  /**
+   * The user and group builds and the egress proxy run as: not root, and not a user the images
+   * define. The shared Maven cache belongs to this user.
+   */
+  static final String BUILD_USER = "10001:10001";
+
+  /** The file in the shared Maven cache that says it has been handed to {@link #BUILD_USER}. */
+  private static final String CACHE_OWNER_MARKER = ".lantern-owner-10001";
+
+  /** Where the shared Maven cache is mounted in every container that mounts it. */
+  private static final String CACHE_MOUNT =
+      BuildOutputs.CONTAINER_REPOSITORY.substring(
+          0, BuildOutputs.CONTAINER_REPOSITORY.length() - 1);
 
   private final SandboxSettings settings;
   private final Docker docker;
@@ -203,6 +223,7 @@ public class BuildSandbox {
     private final String proxy = "lantern-build-proxy-" + id;
     private final String container = "lantern-build-" + id;
     private final String detector = "lantern-build-jdk-" + id;
+    private final String cacheOwner = "lantern-build-cache-" + id;
     private final Log log;
 
     private int jdk;
@@ -213,6 +234,7 @@ public class BuildSandbox {
     private boolean outOfMemory;
     private int containerExitCode;
     private String outputProblem;
+    private String diskProblem;
     private String failure;
     private List<BuildModule> modules = List.of();
     private String effectivePom;
@@ -233,12 +255,13 @@ public class BuildSandbox {
           return;
         }
         try {
+          prepareCache();
           startProxy();
           Path lantern = writeLanternFiles();
           if (jdk == 0) {
             detectWithMaven(lantern);
           }
-          if (!timedOut) {
+          if (!stopped()) {
             image = settings.images().get(jdk);
             log.note("JDK " + jdk + " (" + jdkSource + "), image " + image);
             Files.writeString(lantern.resolve("toolchains.xml"), toolchains(jdk));
@@ -247,7 +270,7 @@ public class BuildSandbox {
             createContainer(container, image, "sh", command, lantern);
             runBuild();
           }
-          if (!timedOut) {
+          if (!stopped()) {
             collect();
           }
           failure = failure();
@@ -257,7 +280,8 @@ public class BuildSandbox {
           boolean interrupted = Thread.interrupted();
           appendProxyLog();
           docker.quietly(
-              CLEANUP_TIMEOUT, List.of("rm", "--force", "--volumes", container, detector, proxy));
+              CLEANUP_TIMEOUT,
+              List.of("rm", "--force", "--volumes", container, detector, proxy, cacheOwner));
           docker.quietly(CLEANUP_TIMEOUT, List.of("network", "rm", network));
           if (interrupted) {
             Thread.currentThread().interrupt();
@@ -349,6 +373,10 @@ public class BuildSandbox {
         timedOut = true;
         return;
       }
+      if (exit.diskProblem() != null) {
+        diskProblem = exit.diskProblem();
+        return;
+      }
       Optional<JdkDetector.Detection> detected = Optional.empty();
       if (exit.code() == 0) {
         Path into = Files.createDirectories(staging.resolve("detect"));
@@ -376,6 +404,57 @@ public class BuildSandbox {
       }
     }
 
+    /** Whether the build was stopped before it finished: timed out or used too much disk. */
+    private boolean stopped() {
+      return timedOut || diskProblem != null;
+    }
+
+    /**
+     * Creates the shared Maven cache if it does not exist and hands it to the build user. A cache
+     * filled by builds that ran as root is handed over once, by a container that runs only this
+     * command as root with no network and no capabilities but changing owners and writing the
+     * marker. The container is removed with the build's other containers.
+     */
+    private void prepareCache() {
+      docker.check(DOCKER_TIMEOUT, List.of("volume", "create", settings.mavenCacheVolume()));
+      docker.check(
+          DOCKER_TIMEOUT,
+          List.of(
+              "run",
+              "--name",
+              cacheOwner,
+              "--label",
+              LABEL + "=" + id,
+              "--network",
+              "none",
+              "--user",
+              "0:0",
+              "--cap-drop",
+              "ALL",
+              "--cap-add",
+              "CHOWN",
+              // To write the marker once the cache belongs to the build user.
+              "--cap-add",
+              "DAC_OVERRIDE",
+              "--security-opt",
+              "no-new-privileges",
+              "--memory",
+              Long.toString(PROXY_MEMORY_BYTES),
+              "--pids-limit",
+              "64",
+              "--mount",
+              "type=volume,source=" + settings.mavenCacheVolume() + ",target=" + CACHE_MOUNT,
+              "--entrypoint",
+              "sh",
+              settings.proxyImage(),
+              "-c",
+              "[ -e \"$1/$2\" ] || { chown -R \"$3\" \"$1\" && touch \"$1/$2\"; }",
+              "sh",
+              CACHE_MOUNT,
+              CACHE_OWNER_MARKER,
+              BUILD_USER));
+    }
+
     private void startProxy() throws IOException {
       Path proxyDir = Files.createDirectories(staging.resolve("proxy"));
       String classFile = PROXY_CLASS.replace('.', '/') + ".class";
@@ -387,6 +466,7 @@ public class BuildSandbox {
         }
         Files.copy(in, target);
       }
+      permit(proxyDir, false);
       docker.check(
           DOCKER_TIMEOUT,
           List.of("network", "create", "--internal", "--label", LABEL + "=" + id, network));
@@ -412,6 +492,15 @@ public class BuildSandbox {
               "ALL",
               "--security-opt",
               "no-new-privileges",
+              "--user",
+              BUILD_USER,
+              // Read-only, to measure the free space of Docker's storage while a build runs.
+              "--mount",
+              "type=volume,source="
+                  + settings.mavenCacheVolume()
+                  + ",target="
+                  + CACHE_MOUNT
+                  + ",readonly",
               "--entrypoint",
               "java",
               settings.proxyImage(),
@@ -441,7 +530,10 @@ public class BuildSandbox {
       }
     }
 
-    /** Writes the files every container gets in {@code /lantern}. */
+    /**
+     * Writes the files every container gets in {@code /lantern}, and an empty directory the build
+     * user may write to for {@code /out}.
+     */
     private Path writeLanternFiles() throws IOException {
       Path lantern = Files.createDirectories(staging.resolve("lantern"));
       for (String resource : List.of("build.sh", "settings.xml")) {
@@ -449,6 +541,7 @@ public class BuildSandbox {
           Files.copy(Objects.requireNonNull(in, resource), lantern.resolve(resource));
         }
       }
+      permit(Files.createDirectories(staging.resolve("empty-out")), true);
       return lantern;
     }
 
@@ -457,7 +550,8 @@ public class BuildSandbox {
      * copies the repository into {@code /work} and the Lantern files into {@code /lantern}.
      */
     private void createContainer(
-        String name, String image, String entrypoint, List<String> command, Path lantern) {
+        String name, String image, String entrypoint, List<String> command, Path lantern)
+        throws IOException {
       List<String> args =
           new ArrayList<>(
               List.of(
@@ -480,24 +574,27 @@ public class BuildSandbox {
                   "ALL",
                   "--security-opt",
                   "no-new-privileges",
+                  "--user",
+                  BUILD_USER,
                   "--mount",
-                  "type=volume,source="
-                      + settings.mavenCacheVolume()
-                      + ",target="
-                      + BuildOutputs.CONTAINER_REPOSITORY.substring(
-                          0, BuildOutputs.CONTAINER_REPOSITORY.length() - 1),
+                  "type=volume,source=" + settings.mavenCacheVolume() + ",target=" + CACHE_MOUNT,
+                  // The build user has no home directory in the image.
                   "--env",
-                  "MAVEN_OPTS=-XX:MaxRAMPercentage=50",
+                  "HOME=/tmp",
+                  "--env",
+                  "MAVEN_OPTS=-XX:MaxRAMPercentage=50 -Duser.home=/tmp",
                   "--workdir",
                   "/work",
                   "--entrypoint",
                   entrypoint,
                   image));
       args.addAll(command);
-      docker.check(DOCKER_TIMEOUT, List.of("volume", "create", settings.mavenCacheVolume()));
       docker.check(DOCKER_TIMEOUT, args);
       copyIn(name);
+      permit(lantern, false);
       docker.check(COPY_TIMEOUT, List.of("cp", lantern.toString(), name + ":/lantern"));
+      docker.check(
+          COPY_TIMEOUT, List.of("cp", staging.resolve("empty-out").toString(), name + ":/out"));
     }
 
     /** Options for every Maven run in the sandbox. */
@@ -557,10 +654,20 @@ public class BuildSandbox {
       return isPath ? "!" + module : "!:" + module;
     }
 
-    /** Streams the repository's files at the commit into the container's {@code /work}. */
+    /**
+     * Streams the repository's files at the commit into the container's {@code /work}, writable by
+     * everyone so the build user can build there.
+     */
     private void copyIn(String container) {
       ProcessBuilder archive =
-          Git.command(repo.path(), "archive", "--format=tar", "--prefix=work/", commit);
+          Git.command(
+              repo.path(),
+              "-c",
+              "tar.umask=0",
+              "archive",
+              "--format=tar",
+              "--prefix=work/",
+              commit);
       ProcessBuilder copy = docker.builder(List.of("cp", "-", container + ":/"));
       List<Process> pipeline;
       try {
@@ -593,10 +700,18 @@ public class BuildSandbox {
       }
     }
 
-    /** How a container run ended. */
-    private record ContainerExit(boolean timedOut, int code, boolean outOfMemory) {}
+    /**
+     * How a container run ended.
+     *
+     * @param diskProblem why the container was stopped for its disk use, or null
+     */
+    private record ContainerExit(
+        boolean timedOut, int code, boolean outOfMemory, String diskProblem) {}
 
-    /** Starts the container, copies its output into the log and waits up to the build timeout. */
+    /**
+     * Starts the container, copies its output into the log and waits up to the build timeout,
+     * checking its disk use every few seconds and stopping it when it uses too much.
+     */
     private ContainerExit runContainer(String name) throws IOException {
       ProcessBuilder start =
           docker.builder(List.of("start", "--attach", name)).redirectErrorStream(true);
@@ -606,13 +721,26 @@ public class BuildSandbox {
           CompletableFuture.runAsync(
               () -> log.copy(process.getInputStream()), Thread.ofVirtual()::start);
       try {
-        if (!process.waitFor(settings.timeout().toMillis(), TimeUnit.MILLISECONDS)) {
-          docker.quietly(CLEANUP_TIMEOUT, List.of("kill", name));
-          if (!process.waitFor(CLEANUP_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
-            process.destroyForcibly();
+        long deadline = System.nanoTime() + settings.timeout().toNanos();
+        while (true) {
+          long left = deadline - System.nanoTime();
+          if (left <= 0) {
+            stop(name, process, pump);
+            return new ContainerExit(true, -1, false, null);
           }
-          pump.join();
-          return new ContainerExit(true, -1, false);
+          if (process.waitFor(
+              Math.min(left, DISK_CHECK_INTERVAL.toNanos()), TimeUnit.NANOSECONDS)) {
+            break;
+          }
+          String problem = diskProblem(name);
+          if (Thread.interrupted()) {
+            throw new InterruptedException();
+          }
+          if (problem != null) {
+            log.note("stopping the container: " + problem);
+            stop(name, process, pump);
+            return new ContainerExit(false, -1, false, problem);
+          }
         }
       } catch (InterruptedException e) {
         process.destroyForcibly();
@@ -628,10 +756,56 @@ public class BuildSandbox {
       String[] parts = state.out().split(" ");
       try {
         return new ContainerExit(
-            false, Integer.parseInt(parts[0]), parts.length == 2 && parts[1].equals("true"));
+            false, Integer.parseInt(parts[0]), parts.length == 2 && parts[1].equals("true"), null);
       } catch (NumberFormatException e) {
         throw new SandboxException("Unexpected docker inspect output: " + state.out());
       }
+    }
+
+    /** Kills a running container and waits for its output to end. */
+    private void stop(String name, Process process, CompletableFuture<Void> pump)
+        throws InterruptedException {
+      docker.quietly(CLEANUP_TIMEOUT, List.of("kill", name));
+      if (!process.waitFor(CLEANUP_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+        process.destroyForcibly();
+      }
+      pump.join();
+    }
+
+    /**
+     * Why the container must be stopped for its disk use, or null: it wrote more than the disk
+     * limit to its own filesystem, or Docker's storage, which also holds the shared Maven cache,
+     * has less free space than it must keep. A measurement that fails is skipped.
+     */
+    private String diskProblem(String name) {
+      try {
+        Docker.Result size =
+            docker.run(
+                DOCKER_TIMEOUT,
+                List.of("container", "inspect", "--size", "--format", "{{.SizeRw}}", name));
+        if (size.ok() && Long.parseLong(size.out()) > settings.diskBytes()) {
+          return "The build used more than " + settings.diskBytes() + " bytes of disk";
+        }
+        // POSIX output: the last line ends with available 1024-byte blocks, capacity, mount point.
+        Docker.Result df =
+            docker.run(DOCKER_TIMEOUT, List.of("exec", proxy, "df", "-P", "-k", CACHE_MOUNT));
+        if (df.ok()) {
+          String[] lines = df.out().split("\n");
+          String[] fields = lines[lines.length - 1].trim().split("\\s+");
+          long free =
+              fields.length < 6 ? Long.MAX_VALUE : Long.parseLong(fields[fields.length - 3]) * 1024;
+          if (free < settings.minFreeDiskBytes()) {
+            return "Docker's storage has "
+                + free
+                + " bytes free, less than the "
+                + settings.minFreeDiskBytes()
+                + " it must keep";
+          }
+        }
+      } catch (NumberFormatException | ArrayIndexOutOfBoundsException | SandboxException e) {
+        // Skipped; an interrupt is handled by the caller.
+      }
+      return null;
     }
 
     private void runBuild() throws IOException {
@@ -639,6 +813,7 @@ public class BuildSandbox {
       timedOut = exit.timedOut();
       containerExitCode = exit.code();
       outOfMemory = exit.outOfMemory();
+      diskProblem = exit.diskProblem();
     }
 
     /** Why the build failed, or null if it succeeded. */
@@ -648,6 +823,9 @@ public class BuildSandbox {
       }
       if (outOfMemory) {
         return "The build ran out of memory (limit " + settings.memoryBytes() + " bytes)";
+      }
+      if (diskProblem != null) {
+        return diskProblem;
       }
       if (outputProblem != null) {
         return "The build output was rejected: " + outputProblem;
@@ -841,6 +1019,22 @@ public class BuildSandbox {
     @Override
     public synchronized void close() throws IOException {
       out.close();
+    }
+  }
+
+  /**
+   * Makes a directory tree on the host readable, or also writable, by everyone, so the build user
+   * can use it once copied into a container, whatever the host's umask.
+   */
+  private static void permit(Path root, boolean writable) throws IOException {
+    Set<PosixFilePermission> directory =
+        PosixFilePermissions.fromString(writable ? "rwxrwxrwx" : "rwxr-xr-x");
+    Set<PosixFilePermission> file = PosixFilePermissions.fromString("rw-r--r--");
+    try (Stream<Path> paths = Files.walk(root)) {
+      for (Path path : paths.toList()) {
+        Files.setPosixFilePermissions(
+            path, Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS) ? directory : file);
+      }
     }
   }
 

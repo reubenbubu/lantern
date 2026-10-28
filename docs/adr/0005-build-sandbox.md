@@ -46,12 +46,8 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   from it, so the build cannot overwrite Lantern's log or result. This also means Lantern can itself run in a container.
 - **Container limits** (all configurable): 2 CPUs, 4 GiB memory with swap off, 4096 processes,
   30 minutes per container (JDK detection and the build each get that), all capabilities dropped, `no-new-privileges`, and at most 4 builds at once (the
-  design's sizing for the development VM). The build runs as the image's root user, because the
-  copied files are root-owned; without capabilities it cannot change that, and under rootless
-  Docker (as on the development VM) root in a container is the unprivileged host user. This is
-  assumed, not checked; on rootful Docker the build's root is real root confined only by the
-  container. Running as another user is possible later. Disk use is not limited: a hostile build
-  can fill Docker's storage through its container layer or the shared cache.
+  design's sizing for the development VM). Builds run as a non-root user and have a disk limit;
+  see ADR 0018.
 - **Shared Maven cache** is one Docker volume, `lantern-maven-cache`, mounted as the local
   repository of every build, with Maven's file locking for concurrent builds. Trade-off: a
   malicious build can plant artifacts in the cache that later builds use. The design accepts a
@@ -71,8 +67,8 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   `build.json` are relative to the build directory. The module graph is each module's direct
   dependencies on other modules of the build, taken from the dependency trees. Building a
   `repo@commit` again replaces its outputs.
-- **Failure.** A build that fails to compile or resolve, times out, runs out of memory, produces
-  too much output, has no `pom.xml` or has no image for its JDK is stored as `FAILED` with a
+- **Failure.** A build that fails to compile or resolve, times out, runs out of memory, uses too
+  much disk (ADR 0018), produces too much output, has no `pom.xml` or has no image for its JDK is stored as `FAILED` with a
   reason, keeping whatever outputs it left (a classpath often still resolves; a timed-out build
   leaves none, since outputs are gathered after Maven ends), and
   `degraded()` tells the analysis to use degraded mode. A build whose dependencies do not resolve

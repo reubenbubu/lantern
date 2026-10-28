@@ -249,6 +249,38 @@ class BuildSandboxIT {
   }
 
   @Test
+  void stopsABuildThatUsesTooMuchDisk() throws IOException, URISyntaxException {
+    Repo repo = repo(sandboxFixture("filler"), "filler", RepoSettings.DEFAULT);
+
+    BuildResult result =
+        new BuildSandbox(settings().withDiskBytes(256L * 1024 * 1024))
+            .build(repo, TestRepos.head(repo));
+
+    assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.FAILED);
+    assertThat(result.degraded()).isTrue();
+    assertThat(result.failure()).isEqualTo("The build used more than 268435456 bytes of disk");
+    assertThat(result.mavenExitCode()).isNull();
+    assertThat(result.modules()).isEmpty();
+    assertThat(Files.readString(result.log())).contains("filler wrote");
+    assertThat(new BuildSandbox(settings()).find("filler", result.commit())).contains(result);
+  }
+
+  @Test
+  void stopsABuildWhenDockerStorageRunsLow() throws IOException, URISyntaxException {
+    Repo repo = repo(sandboxFixture("filler"), "filler", RepoSettings.DEFAULT);
+
+    BuildResult result =
+        new BuildSandbox(settings().withMinFreeDiskBytes(Long.MAX_VALUE))
+            .build(repo, TestRepos.head(repo));
+
+    assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.FAILED);
+    assertThat(result.failure())
+        .startsWith("Docker's storage has ")
+        .endsWith(" bytes free, less than the " + Long.MAX_VALUE + " it must keep");
+    assertThat(result.modules()).isEmpty();
+  }
+
+  @Test
   void cleansUpWhenInterrupted() throws Exception {
     Repo repo = repo(sandboxFixture("broken"), "interrupted", RepoSettings.DEFAULT);
     BuildSandbox sandbox = new BuildSandbox(settings());
@@ -371,7 +403,8 @@ class BuildSandboxIT {
     assertThat(probe.getProperty("memory.swap.max")).isEqualTo("0");
     assertThat(probe.getProperty("pids.max")).isEqualTo(Integer.toString(settings.pidsLimit()));
     assertThat(probe.getProperty("cpu.max")).isEqualTo("200000 100000");
-    // No capabilities, no git metadata and no Docker socket.
+    // Not root, no capabilities, no git metadata and no Docker socket.
+    assertThat(probe.getProperty("uid")).isEqualTo("10001 10001 10001 10001");
     assertThat(probe.getProperty("capabilities")).isEqualTo("0000000000000000");
     assertThat(probe.getProperty("git")).isEqualTo("false");
     assertThat(probe.getProperty("docker.socket")).isEqualTo("false");

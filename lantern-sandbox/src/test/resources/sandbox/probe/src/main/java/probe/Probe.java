@@ -28,7 +28,9 @@ public class Probe {
     results.setProperty("memory.swap.max", read("/sys/fs/cgroup/memory.swap.max"));
     results.setProperty("pids.max", read("/sys/fs/cgroup/pids.max"));
     results.setProperty("cpu.max", read("/sys/fs/cgroup/cpu.max"));
-    results.setProperty("capabilities", capabilities());
+    results.setProperty("capabilities", status("CapEff:"));
+    // The real, effective, saved and file system user IDs.
+    results.setProperty("uid", status("Uid:"));
     results.setProperty("git", Boolean.toString(Files.exists(Path.of("/work/.git"))));
     results.setProperty(
         "docker.socket", Boolean.toString(Files.exists(Path.of("/var/run/docker.sock"))));
@@ -95,10 +97,11 @@ public class Probe {
     }
   }
 
-  private static String capabilities() {
+  /** A field of /proc/self/status, with tabs between its values replaced by spaces. */
+  private static String status(String field) {
     for (String line : read("/proc/self/status").split("\n")) {
-      if (line.startsWith("CapEff:")) {
-        return line.substring("CapEff:".length()).strip();
+      if (line.startsWith(field)) {
+        return line.substring(field.length()).strip().replaceAll("\\s+", " ");
       }
     }
     return "unknown";

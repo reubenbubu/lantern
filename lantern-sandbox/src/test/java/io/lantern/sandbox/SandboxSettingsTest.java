@@ -29,7 +29,9 @@ class SandboxSettingsTest {
         hosts,
         builds,
         d.maxOutputBytes(),
-        d.maxLogBytes());
+        d.maxLogBytes(),
+        d.diskBytes(),
+        d.minFreeDiskBytes());
   }
 
   @Test
@@ -41,6 +43,9 @@ class SandboxSettingsTest {
     assertThat(settings.allowedHosts()).containsExactly("repo.maven.apache.org:443");
     assertThat(settings.proxyImage()).isEqualTo("maven:3.9.16-eclipse-temurin-25");
     assertThat(settings.withTimeout(Duration.ofMinutes(1)).timeout()).hasMinutes(1);
+    assertThat(settings.diskBytes()).isEqualTo(8L << 30);
+    assertThat(settings.withDiskBytes(1L << 30).diskBytes()).isEqualTo(1L << 30);
+    assertThat(settings.withMinFreeDiskBytes(0).minFreeDiskBytes()).isZero();
   }
 
   @Test
@@ -61,5 +66,9 @@ class SandboxSettingsTest {
         .hasMessageContaining("volume");
     assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withTimeout(Duration.ZERO))
         .hasMessageContaining("Timeout");
+    assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withDiskBytes(1024))
+        .hasMessageContaining("Disk limits");
+    assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withMinFreeDiskBytes(-1))
+        .hasMessageContaining("Disk limits");
   }
 }
