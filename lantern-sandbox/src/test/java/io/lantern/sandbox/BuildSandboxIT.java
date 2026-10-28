@@ -76,8 +76,11 @@ class BuildSandboxIT {
         .isEmpty();
   }
 
+  /** The default settings, with the test cache and no free space required on Docker's storage. */
   private SandboxSettings settings() {
-    return SandboxSettings.defaults(temp.resolve("builds")).withMavenCacheVolume(volume);
+    return SandboxSettings.defaults(temp.resolve("builds"))
+        .withMavenCacheVolume(volume)
+        .withMinFreeDiskBytes(0);
   }
 
   private Repo repo(Path source, String name, RepoSettings settings) throws IOException {
@@ -140,7 +143,10 @@ class BuildSandboxIT {
     try {
       Repo repo = repo(fixtures.resolve("multi-module"), "multi-module", RepoSettings.DEFAULT);
       BuildSandbox sandbox =
-          new BuildSandbox(SandboxSettings.defaults(builds).withMavenCacheVolume(volume));
+          new BuildSandbox(
+              SandboxSettings.defaults(builds)
+                  .withMavenCacheVolume(volume)
+                  .withMinFreeDiskBytes(0));
 
       BuildResult result = sandbox.build(repo, TestRepos.head(repo));
 
@@ -245,6 +251,90 @@ class BuildSandboxIT {
     try (var files = Files.list(result.directory())) {
       assertThat(files.map(p -> p.getFileName().toString()))
           .containsExactlyInAnyOrder(BuildSandbox.LOG_FILE, BuildSandbox.RESULT_FILE);
+    }
+  }
+
+  @Test
+  void stopsABuildThatUsesTooMuchDisk() throws IOException, URISyntaxException {
+    Repo repo = repo(sandboxFixture("filler"), "filler", RepoSettings.DEFAULT);
+
+    BuildResult result =
+        new BuildSandbox(
+                settings().withDiskBytes(256L * 1024 * 1024).withTimeout(Duration.ofMinutes(10)))
+            .build(repo, TestRepos.head(repo));
+
+    assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.FAILED);
+    assertThat(result.degraded()).isTrue();
+    assertThat(result.failure()).isEqualTo("The build used more than 268435456 bytes of disk");
+    assertThat(result.mavenExitCode()).isNull();
+    assertThat(result.modules()).isEmpty();
+    assertThat(Files.readString(result.log())).contains("filler wrote");
+    assertThat(new BuildSandbox(settings()).find("filler", result.commit())).contains(result);
+  }
+
+  @Test
+  void refusesToBuildWhenDockerStorageIsLow() throws IOException, URISyntaxException {
+    Repo repo = repo(sandboxFixture("filler"), "filler", RepoSettings.DEFAULT);
+    BuildSandbox sandbox = new BuildSandbox(settings().withMinFreeDiskBytes(Long.MAX_VALUE));
+
+    // A problem of the host, not of the build: nothing is stored.
+    assertThatThrownBy(() -> sandbox.build(repo, TestRepos.head(repo)))
+        .isInstanceOf(SandboxException.class)
+        .hasMessageStartingWith("Not building: Docker's storage has ")
+        .hasMessageEndingWith(" bytes free, less than the " + Long.MAX_VALUE + " it must keep");
+    assertThat(sandbox.find("filler", TestRepos.head(repo))).isEmpty();
+  }
+
+  @Test
+  void givesACacheFilledByRootToTheBuildUser() throws IOException {
+    String cache =
+        "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
+    String mount = "type=volume,source=" + cache + ",target=/m2";
+    String image = SandboxSettings.DEFAULT_IMAGES.get(21);
+    DOCKER.check(TIMEOUT, List.of("volume", "create", cache));
+    try {
+      // As an older Lantern that built as root left it.
+      DOCKER.check(
+          TIMEOUT,
+          List.of(
+              "run",
+              "--rm",
+              "--user",
+              "0:0",
+              "--mount",
+              mount,
+              "--entrypoint",
+              "sh",
+              image,
+              "-c",
+              "mkdir -p /m2/old && touch /m2/old/artifact.jar"));
+      Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+
+      BuildResult result =
+          new BuildSandbox(settings().withMavenCacheVolume(cache))
+              .build(repo, TestRepos.head(repo));
+
+      assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
+      Docker.Result owners =
+          DOCKER.check(
+              TIMEOUT,
+              List.of(
+                  "run",
+                  "--rm",
+                  "--mount",
+                  mount,
+                  "--entrypoint",
+                  "stat",
+                  image,
+                  "-c",
+                  "%u:%g",
+                  "/m2",
+                  "/m2/old",
+                  "/m2/old/artifact.jar",
+                  "/m2/org/projectlombok"));
+      assertThat(owners.out().lines()).hasSize(4).containsOnly(BuildSandbox.BUILD_USER);
+    } finally {
+      DOCKER.quietly(TIMEOUT, List.of("volume", "rm", "--force", cache));
     }
   }
 
@@ -371,7 +461,8 @@ class BuildSandboxIT {
     assertThat(probe.getProperty("memory.swap.max")).isEqualTo("0");
     assertThat(probe.getProperty("pids.max")).isEqualTo(Integer.toString(settings.pidsLimit()));
     assertThat(probe.getProperty("cpu.max")).isEqualTo("200000 100000");
-    // No capabilities, no git metadata and no Docker socket.
+    // Not root, no capabilities, no git metadata and no Docker socket.
+    assertThat(probe.getProperty("uid")).isEqualTo("10001 10001 10001 10001");
     assertThat(probe.getProperty("capabilities")).isEqualTo("0000000000000000");
     assertThat(probe.getProperty("git")).isEqualTo("false");
     assertThat(probe.getProperty("docker.socket")).isEqualTo("false");

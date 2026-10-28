@@ -31,6 +31,12 @@ import java.util.regex.Pattern;
  * @param maxOutputBytes the most bytes of output a build may hand back; a larger output fails the
  *     build
  * @param maxLogBytes the most bytes of build log kept; the rest is dropped
+ * @param diskBytes the most bytes each build container may write outside the shared Maven cache,
+ *     counting the repository's files and the outputs it hands back, classpath jars included; a
+ *     build that writes more is stopped and recorded as failed
+ * @param minFreeDiskBytes the free space Docker's storage must keep while a build runs; below it a
+ *     build does not start, or is stopped, with a {@link SandboxException} and nothing stored,
+ *     since which build used the space is unknown
  */
 public record SandboxSettings(
     String dockerCommand,
@@ -45,7 +51,9 @@ public record SandboxSettings(
     List<String> allowedHosts,
     Path buildsDirectory,
     long maxOutputBytes,
-    long maxLogBytes) {
+    long maxLogBytes,
+    long diskBytes,
+    long minFreeDiskBytes) {
 
   /** The JDK images used unless configured otherwise: official Maven images on Eclipse Temurin. */
   public static final Map<Integer, String> DEFAULT_IMAGES =
@@ -110,11 +118,16 @@ public record SandboxSettings(
     if (maxOutputBytes < 1 || maxLogBytes < 1) {
       throw new IllegalArgumentException("Output and log limits must be positive");
     }
+    if (diskBytes < 64L * 1024 * 1024 || minFreeDiskBytes < 0) {
+      throw new IllegalArgumentException(
+          "Disk limits out of range: disk=" + diskBytes + ", minFree=" + minFreeDiskBytes);
+    }
   }
 
   /**
-   * The default settings: JDK 17, 21 and 25 images with 21 as the default, 2 CPUs, 4 GiB and 30
-   * minutes per build, 4 builds at once, and Maven Central as the only reachable host.
+   * The default settings: JDK 17, 21 and 25 images with 21 as the default, 2 CPUs, 4 GiB of memory,
+   * 8 GiB of disk and 30 minutes per build, 4 builds at once, at least 2 GiB left free on Docker's
+   * storage, and Maven Central as the only reachable host.
    *
    * @param buildsDirectory where build outputs are stored
    */
@@ -132,7 +145,9 @@ public record SandboxSettings(
         List.of(MAVEN_CENTRAL),
         buildsDirectory,
         4L * 1024 * 1024 * 1024,
-        16L * 1024 * 1024);
+        16L * 1024 * 1024,
+        8L * 1024 * 1024 * 1024,
+        2L * 1024 * 1024 * 1024);
   }
 
   /** These settings with another build timeout. */
@@ -150,7 +165,9 @@ public record SandboxSettings(
         allowedHosts,
         buildsDirectory,
         maxOutputBytes,
-        maxLogBytes);
+        maxLogBytes,
+        diskBytes,
+        minFreeDiskBytes);
   }
 
   /** These settings with another shared Maven cache volume. */
@@ -168,7 +185,9 @@ public record SandboxSettings(
         allowedHosts,
         buildsDirectory,
         maxOutputBytes,
-        maxLogBytes);
+        maxLogBytes,
+        diskBytes,
+        minFreeDiskBytes);
   }
 
   /** These settings with another output size limit. */
@@ -186,7 +205,49 @@ public record SandboxSettings(
         allowedHosts,
         buildsDirectory,
         maxOutputBytes,
-        maxLogBytes);
+        maxLogBytes,
+        diskBytes,
+        minFreeDiskBytes);
+  }
+
+  /** These settings with another per-build disk limit. */
+  public SandboxSettings withDiskBytes(long diskBytes) {
+    return new SandboxSettings(
+        dockerCommand,
+        images,
+        defaultJdk,
+        cpus,
+        memoryBytes,
+        pidsLimit,
+        timeout,
+        maxConcurrentBuilds,
+        mavenCacheVolume,
+        allowedHosts,
+        buildsDirectory,
+        maxOutputBytes,
+        maxLogBytes,
+        diskBytes,
+        minFreeDiskBytes);
+  }
+
+  /** These settings with another amount of free space to keep on Docker's storage. */
+  public SandboxSettings withMinFreeDiskBytes(long minFreeDiskBytes) {
+    return new SandboxSettings(
+        dockerCommand,
+        images,
+        defaultJdk,
+        cpus,
+        memoryBytes,
+        pidsLimit,
+        timeout,
+        maxConcurrentBuilds,
+        mavenCacheVolume,
+        allowedHosts,
+        buildsDirectory,
+        maxOutputBytes,
+        maxLogBytes,
+        diskBytes,
+        minFreeDiskBytes);
   }
 
   /** The image the egress proxy runs in: the one with the newest JDK. */

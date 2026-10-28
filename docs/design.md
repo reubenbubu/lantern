@@ -75,10 +75,10 @@ Repos are cloned onto the service host, and each analysis builds them for real i
 - A mounted `settings.xml` gives access to the internal Nexus or Artifactory.
 - A shared, persistent local Maven repository cache across builds, for speed.
 - The build runs to `compile` (which includes `generate-sources` and annotation processing), with tests skipped. The outputs the analyzer needs are the resolved classpath, generated sources and compiled classes.
-- Resource limits (CPU, memory, timeout) per container, and a concurrency limit for the VM.
+- Resource limits (CPU, memory, disk, timeout) per container, builds run as a non-root user, and a concurrency limit for the VM.
 - **Fallback:** if a build fails, analysis continues in degraded mode (source parsing with whatever classpath resolves), and the affected facts are marked lower-confidence.
 
-**What leaves the sandbox:** classpath, generated sources, class files and build metadata (effective POM, dependency tree, module graph). No network access from the build except to the artifact repository. How the sandbox enforces this, chooses the JDK and stores outputs is in ADR 0005.
+**What leaves the sandbox:** classpath, generated sources, class files and build metadata (effective POM, dependency tree, module graph). No network access from the build except to the artifact repository. How the sandbox enforces this, chooses the JDK and stores outputs is in ADR 0005; the build user and disk limit are in ADR 0019.
 
 ## Static analysis and extractors
 
