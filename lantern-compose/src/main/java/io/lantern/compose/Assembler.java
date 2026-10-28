@@ -221,8 +221,13 @@ final class Assembler {
       return !citation.isEmpty();
     }
 
+    /** Adds text; text after markers that open the summary starts without a space. */
     void text(String value) {
-      text.append(value);
+      boolean onlyMarkers =
+          text.isEmpty()
+              && !content.isEmpty()
+              && content.stream().noneMatch(inline -> inline instanceof TextRun);
+      text.append(onlyMarkers ? value.stripLeading() : value);
     }
 
     /** Cites a fact for the text before it, with no space between them. */

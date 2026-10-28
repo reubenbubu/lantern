@@ -37,18 +37,24 @@ describe('DocumentView', () => {
     expect(html).toMatch(/<sup class="citation" title="[^"]+">\[\d+(, \d+)*\]<\/sup>/);
   });
 
-  test('renders a reference that cites a summary as a marker that names it only in its tooltip', () => {
-    expect(html).toContain(
-      'packages its library.<sup class="citation" title="'
-    );
-    expect(html).toMatch(
-      /\]<\/sup><sup class="citation"><(a href="#[^"]+"|span) class="entity-ref" title="Summary of orders-lib" aria-label="Summary of orders-lib">\[\u2197\]<\/(a|span)><\/sup><\/p>/,
+  test('leaves out a summary citation with no section to link to, and links one that has a section', () => {
+    expect(html).toMatch(/packages its library\.<sup class="citation" title="[^"]+">\[\d+\]<\/sup><\/p>/);
+    expect(html).not.toContain('Summary of orders-lib');
+
+    const linked = JSON.parse(
+      JSON.stringify(document).replace('"target":{"kind":"entity","id":"library:orders-lib"},"citation":true', '"target":{"kind":"entity","id":"service:orders"},"citation":true'),
+    ) as typeof document;
+    expect(JSON.stringify(linked)).not.toBe(JSON.stringify(document));
+    const page = renderToStaticMarkup(<DocumentView document={linked} />);
+    expect(page).toMatch(
+      /\]<\/sup><sup class="citation"><a href="#[^"]+" class="entity-ref" title="Summary of orders-lib" aria-label="Summary of orders-lib">\[\u2197\]<\/a><\/sup><\/p>/,
     );
   });
 
   test('shows at most four fact numbers in a citation and counts the rest', () => {
     expect(citationLabel([3])).toBe('[3]');
     expect(citationLabel([1, 2, 5, 9])).toBe('[1, 2, 5, 9]');
+    expect(citationLabel([1, 2, 5, 9, 12])).toBe('[1, 2, 5 +2]');
     expect(citationLabel([1, 2, 5, 9, 12, 14])).toBe('[1, 2, 5 +3]');
   });
 

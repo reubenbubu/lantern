@@ -106,6 +106,19 @@ describe('search', () => {
     expect(search(index, 'price service').map((r) => r.label).slice(0, 2)).toEqual(['FixedPriceService', 'PriceService']);
     expect(search(index, 'nothing-like-this')).toEqual([]);
   });
+
+  test('does not match an entity by the names of the summaries it cites', () => {
+    const document = composerOutput();
+    const citing = document.entities.flatMap((entity) =>
+      (entity.description ?? []).flatMap((i) =>
+        i.kind === 'ref' && i.citation && !`${entity.name} ${entity.id}`.includes(i.text) ? [{ entity, name: i.text }] : [],
+      ),
+    );
+    expect(citing.length).toBeGreaterThan(0);
+    for (const { entity, name } of citing) {
+      expect(search(index, name).map((r) => r.target.id)).not.toContain(entity.id);
+    }
+  });
 });
 
 describe('deep links', () => {

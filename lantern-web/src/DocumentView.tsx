@@ -362,21 +362,29 @@ function describeFact(fact: FactEnvelope): string {
 
 /**
  * A reference that cites what it points to, as a summary cites the summaries of its parts: a
- * marker after the text, like a citation of facts, that names its source only in its tooltip.
+ * marker after the text, like a citation of facts, that names its source only in its tooltip and
+ * accessible name. On a page without interaction it links to the section about the target, and
+ * without one it is left out, since it would lead nowhere.
  */
 function SourceCitation({ target, text }: { target: CrossReference['target']; text: string }) {
+  const { sectionByEntity } = useLookup();
+  const interaction = useInteraction();
+  const label = `Summary of ${text}`;
   if (target.kind !== 'entity') {
     return (
       <sup className="citation">
-        <a href={`#${target.id}`} title={text} aria-label={text}>
+        <a href={`#${target.id}`} title={label} aria-label={label}>
           {SOURCE_MARKER}
         </a>
       </sup>
     );
   }
+  if (!interaction && !sectionByEntity.has(target.id)) {
+    return null;
+  }
   return (
     <sup className="citation">
-      <EntityLink id={target.id} title={`Summary of ${text}`}>
+      <EntityLink id={target.id} title={label}>
         {SOURCE_MARKER}
       </EntityLink>
     </sup>

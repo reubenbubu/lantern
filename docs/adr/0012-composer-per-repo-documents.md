@@ -1,6 +1,6 @@
 # 0012: Composer v1, per-repository documents
 
-Status: accepted (#13), C4 mapping replaced by ADR 0026 (#86), pending the user's review (#24)
+Status: accepted (#13), C4 mapping replaced by ADR 0026 (#86), amended by ADR 0027 (#70), pending the user's review (#24)
 
 ## Context
 
@@ -81,7 +81,7 @@ exist yet and are not used.
   the repository builds; each service's or library's module summary opens its components
   subsection. A summary's `[fact:...]` markers become citations (adjacent markers merged into one,
   attached to the text before them), and `[summary:<entity>]` markers become cross-references to
-  the entity, shown by its name, as 0011 says. A summary citing a fact that does not hold in the
+  the entity marked as citations, shown as citation markers (0027). A summary citing a fact that does not hold in the
   snapshot is refused. Units without a summary simply get no paragraph, so documents can be
   composed before or without any LLM run.
 - **Section and block IDs** are fixed: the section kind (`overview`), and below it the block's

@@ -21,11 +21,13 @@ button in the Explorer's details panel and stood as a centred block on its own l
   reference is marked. The schema version stays 1: the field is optional and absent means what it
   meant before. A new inline kind was not chosen, because a summary citation still points to an
   entity, which a fact citation cannot, and every template already knows how to follow a reference.
-- **Every template shows a marked reference as a superscript `[↗]`** after the text, styled like a
+- **Templates show a marked reference as a superscript `[↗]`** after the text, styled like a
   fact citation. Its tooltip and accessible name are "Summary of <name>", so the name never appears
-  in the reading flow. It follows the reference as other references do: in the Explorer it selects
-  the entity, on plain pages and the Brief it links to the entity's section when there is one. Search
-  leaves marked references out of an entity's text, as it does citations.
+  in the reading flow. In the Explorer it selects the entity. On plain pages and in the Brief it
+  links to the section about the entity, and is left out when there is none (in the Brief there
+  usually is none), since a marker that leads nowhere would only be noise. A summary that opens
+  with markers has its text start without a space. Search leaves marked references out of an
+  entity's text, as it does citations.
 - **A citation never wraps** (`white-space: nowrap`), and one of more than four facts shows the
   first three numbers and counts the rest (`[4, 9, 12 +11]`); its tooltip, and in the Explorer the
   details panel, still list every fact.
