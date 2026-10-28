@@ -4,11 +4,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -83,8 +85,8 @@ public class FactRepository {
   private static boolean stillHolds(Fact stored, Fact observed) {
     return stored.confidence() == observed.confidence()
         && observed.validity().to() == null
-        && stored.validity().from() <= observed.validity().from()
-        && stored.validity().to() == null;
+        && stored.validity().to() == null
+        && stored.validity().from() <= observed.validity().from();
   }
 
   /**
@@ -92,10 +94,9 @@ public class FactRepository {
    *
    * @param facts the facts found in the snapshot as now stored, each once, in the order first
    *     found; a fact that already held keeps the start of its validity
-   * @param added how many found facts did not hold in the previous snapshot
-   * @param changed how many found facts held with a different confidence, which now starts a new
-   *     version
-   * @param closed how many facts that held were not found, so no longer hold
+   * @param added how many found facts did not hold before this recording
+   * @param changed how many found facts held before this recording with a different confidence
+   * @param closed how many facts that held before this recording were not found, so no longer hold
    */
   public record SnapshotUpdate(List<Fact> facts, int added, int changed, int closed) {
 
@@ -118,8 +119,10 @@ public class FactRepository {
    * </ul>
    *
    * Snapshots must be recorded in order, which is checked as far as the stored facts of that kind
-   * show. Recording the latest snapshot again replaces what was recorded for it. Run this in a
-   * transaction, so a failure leaves the store unchanged.
+   * show. Recording the latest snapshot again replaces what was recorded for it. The store is
+   * expected to have one writer at a time (the analysis lock); concurrent writers may fail on the
+   * constraint that keeps a fact's versions from overlapping. Run this in a transaction, so a
+   * failure leaves the store unchanged.
    *
    * @param snapshot the snapshot number
    * @param kind the origin kind of the found facts; facts of other kinds are not touched
@@ -180,6 +183,7 @@ public class FactRepository {
     int added = 0;
     int changed = 0;
     int closed = 0;
+    Set<String> changedIds = new HashSet<>();
     List<OpenVersion> open =
         jdbc.sql(
                 """
@@ -216,14 +220,16 @@ public class FactRepository {
       if (fact == null) {
         closed++;
       } else {
-        insert(fact, false);
-        stored.put(fact.id(), fact);
+        changedIds.add(fact.id());
         changed++;
       }
     }
     for (Fact fact : byId.values()) {
       if (stored.containsKey(fact.id())) {
         continue;
+      }
+      if (!changedIds.contains(fact.id())) {
+        added++;
       }
       // Closed at this very snapshot by an earlier recording of it: it holds on, unbroken.
       Optional<Long> reopened =
@@ -244,7 +250,6 @@ public class FactRepository {
         insert(fact, false);
         stored.put(fact.id(), fact);
       }
-      added++;
     }
     return new SnapshotUpdate(
         byId.keySet().stream().map(stored::get).toList(), added, changed, closed);

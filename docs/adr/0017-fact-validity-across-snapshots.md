@@ -38,7 +38,8 @@ analyzes repository A, the next one B, and a third A again at the same commit.
 - **Order.** Snapshots must be recorded in order; recording one older than a snapshot the stored
   facts of that kind already show is refused. Recording the latest snapshot again replaces what
   was recorded for it, so a repeated run of the same snapshot is safe. The caller runs the
-  recording in one transaction, as the analysis run does.
+  recording in one transaction, as the analysis run does. The store expects one writer at a time
+  (the analysis lock); the queries by origin kind scan the table, which is fine at today's sizes.
 - **`save` stays** for single facts and still refuses a different confidence or validity; changes
   go through `recordSnapshot`.
 

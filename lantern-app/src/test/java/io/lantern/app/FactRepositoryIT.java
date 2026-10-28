@@ -281,6 +281,20 @@ class FactRepositoryIT {
   }
 
   @Test
+  void recordingTheLatestSnapshotAgainWithTheEarlierConfidenceRejoinsTheVersions() {
+    Fact lower = consumes(ORDERS, 0.5, Validity.from(1));
+    record(1, lower);
+    record(2, consumes(ORDERS, 0.9, Validity.from(2)));
+
+    FactRepository.SnapshotUpdate update = record(2, consumes(ORDERS, 0.5, Validity.from(2)));
+
+    assertThat(update.facts()).containsExactly(lower);
+    assertThat(update.changed()).isEqualTo(1);
+    assertThat(update.added()).isZero();
+    assertThat(facts.findBySubject(ORDERS)).containsExactly(lower);
+  }
+
+  @Test
   void factsOfOtherOriginKindsAreNotTouched() {
     Fact owner = human(Validity.from(1));
     facts.save(owner);

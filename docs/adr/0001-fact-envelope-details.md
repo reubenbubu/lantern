@@ -34,9 +34,10 @@ record explains the choices.
 - **Attributes** are held in canonical form (keys sorted, numbers re-parsed from canonical
   text), so they read back from JSON and the database unchanged. A fact's ID must match its
   content; a mismatch is rejected.
-- **Storage** is one `facts` table, one row per version of a fact (ADR 0017). Saving a fact that is already
-  stored changes nothing, and so does saving one found again in a later snapshot while the stored one still
-  holds (ADR 0016); validity and confidence change only by recording a snapshot (ADR 0017). Origin and evidence are `NOT NULL` with checks on their required keys, so
+- **Storage** is one `facts` table, one row per version of a fact (ADR 0017). Saving a fact that
+  is already stored changes nothing, and so does saving one found again in a later snapshot while
+  the stored one still holds (ADR 0016); validity and confidence change only by recording a
+  snapshot (ADR 0017). Origin and evidence are `NOT NULL` with checks on their required keys, so
   the database also refuses facts without provenance.
 - **Java types** are hand-written records in `io.lantern.core.fact`, kept in line with the schema
   by `FactSchemaTest`, rather than generated. Generation would need a code generator the design
