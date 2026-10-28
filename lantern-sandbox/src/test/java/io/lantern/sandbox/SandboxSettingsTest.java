@@ -35,7 +35,8 @@ class SandboxSettingsTest {
         d.maxOutputBytes(),
         d.maxLogBytes(),
         d.diskBytes(),
-        d.minFreeDiskBytes());
+        d.minFreeDiskBytes(),
+        d.ownerLabel());
   }
 
   @Test
@@ -51,6 +52,9 @@ class SandboxSettingsTest {
     assertThat(settings.diskBytes()).isEqualTo(8L << 30);
     assertThat(settings.withDiskBytes(1L << 30).diskBytes()).isEqualTo(1L << 30);
     assertThat(settings.withMinFreeDiskBytes(0).minFreeDiskBytes()).isZero();
+    assertThat(settings.ownerLabel()).isNull();
+    assertThat(settings.withOwnerLabel("lantern.test.run", "0a1b").ownerLabel())
+        .isEqualTo("lantern.test.run=0a1b");
   }
 
   @Test
@@ -106,5 +110,14 @@ class SandboxSettingsTest {
         .hasMessageContaining("Disk limits");
     assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withMinFreeDiskBytes(-1))
         .hasMessageContaining("Disk limits");
+    assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withOwnerLabel("--x", "y"))
+        .hasMessageContaining("owner label");
+    assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withOwnerLabel(null, "y"))
+        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withOwnerLabel("x", ""))
+        .hasMessageContaining("owner label");
+    assertThatThrownBy(
+            () -> SandboxSettings.defaults(BUILDS).withOwnerLabel(BuildSandbox.LABEL, "y"))
+        .hasMessageContaining("owner label");
   }
 }

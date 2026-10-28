@@ -42,6 +42,16 @@ class BuildSandboxIT {
           URI.create(
               "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases"));
 
+  /** The owner label key on everything these tests' sandboxes create. */
+  private static final String RUN_LABEL = "lantern.test.run";
+
+  /**
+   * The owner label value of this test class, so leftover checks see only its own resources and not
+   * those of other sandboxes on the same Docker.
+   */
+  private static final String RUN =
+      HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
+
   private static String volume;
   private static Path fixtures;
 
@@ -67,27 +77,30 @@ class BuildSandboxIT {
   @AfterEach
   void nothingLeftRunning() {
     assertThat(
-            DOCKER
-                .check(
-                    TIMEOUT,
-                    List.of("ps", "--all", "--quiet", "--filter", "label=" + BuildSandbox.LABEL))
-                .out())
+            DOCKER.check(TIMEOUT, List.of("ps", "--all", "--quiet", "--filter", ownFilter())).out())
         .as("sandbox containers left behind")
         .isEmpty();
     assertThat(
             DOCKER
-                .check(
-                    TIMEOUT,
-                    List.of("network", "ls", "--quiet", "--filter", "label=" + BuildSandbox.LABEL))
+                .check(TIMEOUT, List.of("network", "ls", "--quiet", "--filter", ownFilter()))
                 .out())
         .as("sandbox networks left behind")
         .isEmpty();
   }
 
-  /** The default settings, with the test cache and no free space required on Docker's storage. */
+  /** The Docker filter for the containers and networks of this test class's sandboxes. */
+  private static String ownFilter() {
+    return "label=" + RUN_LABEL + "=" + RUN;
+  }
+
+  /**
+   * The default settings, with the test cache, this test class's owner label and no free space
+   * required on Docker's storage.
+   */
   private SandboxSettings settings() {
     return SandboxSettings.defaults(temp.resolve("builds"))
         .withMavenCacheVolume(volume)
+        .withOwnerLabel(RUN_LABEL, RUN)
         .withMinFreeDiskBytes(0);
   }
 
@@ -154,6 +167,7 @@ class BuildSandboxIT {
           new BuildSandbox(
               SandboxSettings.defaults(builds)
                   .withMavenCacheVolume(volume)
+                  .withOwnerLabel(RUN_LABEL, RUN)
                   .withMinFreeDiskBytes(0));
 
       BuildResult result = sandbox.build(repo, TestRepos.head(repo));
@@ -369,7 +383,7 @@ class BuildSandboxIT {
                 "ps",
                 "--quiet",
                 "--filter",
-                "label=" + BuildSandbox.LABEL,
+                ownFilter(),
                 "--filter",
                 "name=lantern-build-[0-9a-f]+$"))
         .out()

@@ -36,13 +36,16 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -63,7 +66,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * judged before making one.
  *
  * <p>Builds run in the real sandbox with a Maven cache volume made for these tests and removed
- * after them; the workspace is a temporary directory.
+ * after them, and with an owner label of their own, so the check that nothing is left behind sees
+ * only their containers; the workspace is a temporary directory.
  */
 @SpringBootTest(
     properties = {
@@ -82,6 +86,9 @@ class EndToEndIT {
   private static final String VOLUME =
       "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
   private static final Path WORKSPACE = tempDirectory();
+  private static final String RUN_LABEL = "lantern.test.run";
+  private static final String RUN =
+      HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
   private static final String STORE_FAILED = "Storing the facts failed";
 
   @TestConfiguration(proxyBeanMethods = false)
@@ -102,6 +109,28 @@ class EndToEndIT {
                 }
                 return String.join(" ", sentences);
               });
+    }
+
+    /**
+     * Replaces the sandbox of AnalysisConfiguration with one built from the same settings plus this
+     * test class's owner label.
+     */
+    @Bean
+    static BeanPostProcessor ownerLabel(
+        ObjectProvider<SandboxProperties> sandbox, Environment environment) {
+      return new BeanPostProcessor() {
+        @Override
+        public Object postProcessAfterInitialization(Object bean, String name) {
+          if (!(bean instanceof BuildSandbox)) {
+            return bean;
+          }
+          return new BuildSandbox(
+              AnalysisConfiguration.sandboxSettings(
+                      Path.of(environment.getRequiredProperty("lantern.workspace")),
+                      sandbox.getObject())
+                  .withOwnerLabel(RUN_LABEL, RUN));
+        }
+      };
     }
   }
 
@@ -126,7 +155,7 @@ class EndToEndIT {
         Files.delete(path);
       }
     }
-    assertThat(docker("ps", "--all", "--quiet", "--filter", "label=" + BuildSandbox.LABEL))
+    assertThat(docker("ps", "--all", "--quiet", "--filter", "label=" + RUN_LABEL + "=" + RUN))
         .as("sandbox containers left behind")
         .isEmpty();
   }

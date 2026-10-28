@@ -37,6 +37,9 @@ import java.util.regex.Pattern;
  * @param minFreeDiskBytes the free space Docker's storage must keep while a build runs; below it a
  *     build does not start, or is stopped, with a {@link SandboxException} and nothing stored,
  *     since which build used the space is unknown
+ * @param ownerLabel an extra {@code key=value} label on every container and network the sandbox
+ *     creates, besides {@link BuildSandbox#LABEL}, so whoever runs the sandbox can find its own
+ *     resources among those of other sandboxes on the same Docker; none if {@code null}
  */
 public record SandboxSettings(
     String dockerCommand,
@@ -53,7 +56,8 @@ public record SandboxSettings(
     long maxOutputBytes,
     long maxLogBytes,
     long diskBytes,
-    long minFreeDiskBytes) {
+    long minFreeDiskBytes,
+    String ownerLabel) {
 
   /** The JDK images used unless configured otherwise: official Maven images on Eclipse Temurin. */
   public static final Map<Integer, String> DEFAULT_IMAGES =
@@ -66,6 +70,8 @@ public record SandboxSettings(
   static final int PROXY_MIN_JDK = 21;
 
   private static final Pattern VOLUME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*");
+  private static final Pattern OWNER_LABEL =
+      Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*=[A-Za-z0-9_.:/-]+");
 
   public SandboxSettings {
     Objects.requireNonNull(dockerCommand, "dockerCommand");
@@ -120,6 +126,11 @@ public record SandboxSettings(
       throw new IllegalArgumentException(
           "Disk limits out of range: disk=" + diskBytes + ", minFree=" + minFreeDiskBytes);
     }
+    if (ownerLabel != null
+        && (!OWNER_LABEL.matcher(ownerLabel).matches()
+            || ownerLabel.startsWith(BuildSandbox.LABEL + "="))) {
+      throw new IllegalArgumentException("Invalid owner label: " + ownerLabel);
+    }
   }
 
   /**
@@ -145,7 +156,8 @@ public record SandboxSettings(
         4L * 1024 * 1024 * 1024,
         16L * 1024 * 1024,
         8L * 1024 * 1024 * 1024,
-        2L * 1024 * 1024 * 1024);
+        2L * 1024 * 1024 * 1024,
+        null);
   }
 
   /** These settings with another build timeout. */
@@ -165,7 +177,8 @@ public record SandboxSettings(
         maxOutputBytes,
         maxLogBytes,
         diskBytes,
-        minFreeDiskBytes);
+        minFreeDiskBytes,
+        ownerLabel);
   }
 
   /** These settings with another shared Maven cache volume. */
@@ -185,7 +198,8 @@ public record SandboxSettings(
         maxOutputBytes,
         maxLogBytes,
         diskBytes,
-        minFreeDiskBytes);
+        minFreeDiskBytes,
+        ownerLabel);
   }
 
   /** These settings with another output size limit. */
@@ -205,7 +219,8 @@ public record SandboxSettings(
         maxOutputBytes,
         maxLogBytes,
         diskBytes,
-        minFreeDiskBytes);
+        minFreeDiskBytes,
+        ownerLabel);
   }
 
   /** These settings with other Maven repositories. */
@@ -225,7 +240,8 @@ public record SandboxSettings(
         maxOutputBytes,
         maxLogBytes,
         diskBytes,
-        minFreeDiskBytes);
+        minFreeDiskBytes,
+        ownerLabel);
   }
 
   /** These settings with another per-build disk limit. */
@@ -245,7 +261,8 @@ public record SandboxSettings(
         maxOutputBytes,
         maxLogBytes,
         diskBytes,
-        minFreeDiskBytes);
+        minFreeDiskBytes,
+        ownerLabel);
   }
 
   /** These settings with another amount of free space to keep on Docker's storage. */
@@ -265,7 +282,36 @@ public record SandboxSettings(
         maxOutputBytes,
         maxLogBytes,
         diskBytes,
-        minFreeDiskBytes);
+        minFreeDiskBytes,
+        ownerLabel);
+  }
+
+  /**
+   * These settings with an extra label on every container and network the sandbox creates.
+   *
+   * @param key the label key, not {@link BuildSandbox#LABEL}
+   * @param value the label value
+   */
+  public SandboxSettings withOwnerLabel(String key, String value) {
+    Objects.requireNonNull(key, "key");
+    Objects.requireNonNull(value, "value");
+    return new SandboxSettings(
+        dockerCommand,
+        images,
+        defaultJdk,
+        cpus,
+        memoryBytes,
+        pidsLimit,
+        timeout,
+        maxConcurrentBuilds,
+        mavenCacheVolume,
+        mavenRepositories,
+        buildsDirectory,
+        maxOutputBytes,
+        maxLogBytes,
+        diskBytes,
+        minFreeDiskBytes,
+        key + "=" + value);
   }
 
   /**
