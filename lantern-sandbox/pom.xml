@@ -13,6 +13,11 @@
   <artifactId>lantern-sandbox</artifactId>
   <name>Lantern Sandbox</name>
 
+  <properties>
+    <!-- The folder project-0 was set up in (testsets/project-0/setup.sh); Project0BuildIT runs if set. -->
+    <lantern.test.project0></lantern.test.project0>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>io.lantern</groupId>
@@ -39,6 +44,7 @@
           <systemPropertyVariables>
             <!-- The fixture Maven projects of lantern-extract, which the sandbox tests build. -->
             <lantern.test.fixtures>${maven.multiModuleProjectDirectory}/lantern-extract/src/test/resources/fixtures</lantern.test.fixtures>
+            <lantern.test.project0>${lantern.test.project0}</lantern.test.project0>
           </systemPropertyVariables>
         </configuration>
       </plugin>
