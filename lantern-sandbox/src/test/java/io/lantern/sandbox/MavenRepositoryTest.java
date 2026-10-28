@@ -3,11 +3,7 @@ package io.lantern.sandbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -108,22 +104,5 @@ class MavenRepositoryTest {
     unknown.setProperty("lantern.sandbox.maven-repositories[0].url", ACTIVITI);
     unknown.setProperty("lantern.sandbox.maven-repositories[0].password", "x");
     assertThatThrownBy(() -> MavenRepository.listFrom(unknown)).hasMessageContaining("password");
-  }
-
-  @Test
-  void openWmsTestSetAddsOnlyTheActivitiRepositoryToCentral() throws IOException {
-    Properties properties = new Properties();
-    try (InputStream in = Files.newInputStream(openWmsProperties())) {
-      properties.load(in);
-    }
-
-    assertThat(MavenRepository.listFrom(properties))
-        .containsExactly(
-            MavenRepository.CENTRAL, new MavenRepository("activiti", URI.create(ACTIVITI)));
-  }
-
-  /** The OpenWMS test set's properties, found from the module's directory. */
-  static Path openWmsProperties() {
-    return Path.of("").toAbsolutePath().getParent().resolve("testsets/openwms/lantern.properties");
   }
 }

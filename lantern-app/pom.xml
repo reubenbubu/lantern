@@ -14,8 +14,8 @@
   <name>Lantern App</name>
 
   <properties>
-    <!-- A directory of OpenWMS clones (testsets/openwms/clone.sh); EndToEndIT also runs on it if set. -->
-    <lantern.test.openwms></lantern.test.openwms>
+    <!-- A Maven repository to run EndToEndIT on as well, as an absolute path; none if empty. -->
+    <lantern.test.repo></lantern.test.repo>
   </properties>
 
   <dependencies>
@@ -116,7 +116,7 @@
           <systemPropertyVariables>
             <!-- The fixture projects live with the extractors that were their first user. -->
             <lantern.test.fixtures>${maven.multiModuleProjectDirectory}/lantern-extract/src/test/resources/fixtures</lantern.test.fixtures>
-            <lantern.test.openwms>${lantern.test.openwms}</lantern.test.openwms>
+            <lantern.test.repo>${lantern.test.repo}</lantern.test.repo>
           </systemPropertyVariables>
         </configuration>
       </plugin>

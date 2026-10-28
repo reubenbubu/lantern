@@ -59,11 +59,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * one repository keeps the facts of another analyzed before, and that a run that fails before
  * storing its facts leaves its commit out of later snapshots (ADR 0018).
  *
- * <p>Always runs on the {@code multi-module} fixture. Also runs on OpenWMS tms.transportation when
- * {@code lantern.test.openwms} names the directory {@code testsets/openwms/clone.sh} cloned the
- * test set into, and then writes what the LLM was asked to {@code
- * target/end-to-end/org.openwms.tms.transportation-llm-calls.txt}, so the cost of a real run can be
- * judged before making one.
+ * <p>Always runs on the {@code multi-module} fixture. Also runs on the Maven repository that {@code
+ * lantern.test.repo} names, as an absolute path, if set, and then writes what the LLM was asked to
+ * {@code target/end-to-end/<repo>-llm-calls.txt}, named after the repository's directory, so the
+ * cost of a real run can be judged before making one.
  *
  * <p>Builds run in the real sandbox with a Maven cache volume made for these tests and removed
  * after them, and with an owner label of their own, so the check that nothing is left behind sees
@@ -308,13 +307,14 @@ class EndToEndIT {
   }
 
   @Test
-  void runsOpenWmsTransportationTwiceAndTheSecondRunMakesNoLlmCall() throws IOException {
-    String openwms = System.getProperty("lantern.test.openwms");
-    assumeTrue(openwms != null && !openwms.isBlank(), "lantern.test.openwms is not set");
-    String name = "org.openwms.tms.transportation";
+  void runsAGivenRepositoryTwiceAndTheSecondRunMakesNoLlmCall() throws IOException {
+    String path = System.getProperty("lantern.test.repo");
+    assumeTrue(path != null && !path.isBlank(), "lantern.test.repo is not set");
+    Path repo = Path.of(path).toAbsolutePath().normalize();
+    String name = repo.getFileName().toString();
 
     int before = fake.sent().size();
-    Twice twice = runTwice(name, Path.of(openwms, name));
+    Twice twice = runTwice(name, repo);
     List<FakeLlmProvider.Sent> sent = fake.sent().subList(before, fake.sent().size());
 
     assertThat(twice.first().builds().get(name).status())

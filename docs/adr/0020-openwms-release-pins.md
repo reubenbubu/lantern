@@ -1,6 +1,6 @@
 # 0020: Pin the OpenWMS test set to release tags
 
-Status: accepted (#72), pending the user's review (#24)
+Status: accepted (#72), superseded by #100: OpenWMS is no longer a test set (see #88)
 
 ## Context
 

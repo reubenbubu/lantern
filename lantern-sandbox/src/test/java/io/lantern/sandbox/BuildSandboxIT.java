@@ -35,12 +35,12 @@ class BuildSandboxIT {
   private static final Docker DOCKER = new Docker("docker");
   private static final Duration TIMEOUT = Duration.ofMinutes(2);
 
-  /** The Alfresco repository Activiti releases come from; it is not on Maven Central. */
-  private static final MavenRepository ACTIVITI =
-      new MavenRepository(
-          "activiti",
-          URI.create(
-              "https://artifacts.alfresco.com/nexus/content/repositories/activiti-releases"));
+  /**
+   * A repository on a host the default settings do not allow: Maven Central's other host name, so
+   * the tests that configure it download nothing from outside Maven Central.
+   */
+  private static final MavenRepository EXTRA =
+      new MavenRepository("central-repo1", URI.create("https://repo1.maven.org/maven2"));
 
   /** The owner label key on everything these tests' sandboxes create. */
   private static final String RUN_LABEL = "lantern.test.run";
@@ -497,7 +497,7 @@ class BuildSandboxIT {
   void reachesAConfiguredRepositoryAndStillNoOtherHost() throws IOException, URISyntaxException {
     Repo repo = repo(sandboxFixture("probe"), "probe", RepoSettings.DEFAULT);
     SandboxSettings settings =
-        settings().withMavenRepositories(List.of(MavenRepository.CENTRAL, ACTIVITI));
+        settings().withMavenRepositories(List.of(MavenRepository.CENTRAL, EXTRA));
 
     BuildResult result = new BuildSandbox(settings).build(repo, TestRepos.head(repo));
 
@@ -516,30 +516,6 @@ class BuildSandboxIT {
     assertThat(probe.getProperty("direct.name")).isEqualTo("blocked");
     assertThat(probe.getProperty("dns")).isEqualTo("failed");
     assertThat(Files.readString(result.log())).contains("denied CONNECT example.com:443");
-  }
-
-  @Test
-  void downloadsFromAConfiguredRepositoryOnlyWhenConfigured()
-      throws IOException, URISyntaxException {
-    Repo repo = repo(sandboxFixture("activiti"), "activiti", RepoSettings.DEFAULT);
-    String commit = TestRepos.head(repo);
-    String jar =
-        "lib/org/activiti/activiti-api-runtime-shared/8.8.0-alpha.7/"
-            + "activiti-api-runtime-shared-8.8.0-alpha.7.jar";
-
-    BuildResult central = new BuildSandbox(settings()).build(repo, commit);
-
-    assertThat(central.status()).isEqualTo(BuildStatus.FAILED);
-    assertThat(Files.readString(central.log())).contains("activiti-api-runtime-shared");
-
-    BuildResult configured =
-        new BuildSandbox(
-                settings().withMavenRepositories(List.of(MavenRepository.CENTRAL, ACTIVITI)))
-            .build(repo, commit);
-
-    assertThat(configured.status()).as(log(configured)).isEqualTo(BuildStatus.SUCCEEDED);
-    assertThat(configured.modules().getFirst().classpath()).contains(jar);
-    assertThat(configured.resolve(jar)).isRegularFile();
   }
 
   /** Installs a fixture project into the shared Maven cache, as if it came from the repository. */
