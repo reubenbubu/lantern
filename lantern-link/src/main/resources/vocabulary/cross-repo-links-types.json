@@ -117,7 +117,7 @@
         },
         "matchedBy": {
           "type": "string",
-          "description": "How the target was found: service-name (a Feign client's name against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone) or external (a host with a domain that names no unit)."
+          "description": "How the target was found: service-name (a Feign client's name against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone), external (a host with a domain that names no unit) or llm (picked by the LLM resolver among the candidates of a link static matching left open)."
         },
         "exceptProfiles": {
           "type": "array",
@@ -132,6 +132,18 @@
             "type": "string"
           },
           "description": "The entity IDs of the other units or external systems the same call reaches under other profiles, such as a production host for a sandbox one."
+        },
+        "resolves": {
+          "type": "string",
+          "description": "The stable link ID of the unresolved-link the LLM resolver picked this link for. Present only on links of origin llm."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why the LLM resolver picked this candidate, in its own words. Present only on links of origin llm."
+        },
+        "model": {
+          "type": "string",
+          "description": "The provider and model that picked this link, as provider/model. Present only on links of origin llm."
         }
       },
       "additionalProperties": false
@@ -342,6 +354,18 @@
             "type": "string"
           },
           "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+        },
+        "resolves": {
+          "type": "string",
+          "description": "The stable link ID of the unresolved-link the LLM resolver picked this link for. Present only on links of origin llm."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why the LLM resolver picked this candidate, in its own words. Present only on links of origin llm."
+        },
+        "model": {
+          "type": "string",
+          "description": "The provider and model that picked this link, as provider/model. Present only on links of origin llm."
         }
       },
       "additionalProperties": false
