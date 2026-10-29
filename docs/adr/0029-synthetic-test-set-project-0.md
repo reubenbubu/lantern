@@ -44,11 +44,12 @@ author and dates, and that Lantern pins that repository's commit.
   in `pins.txt` (its `.lantern-pin`), reads each repository's commit from the repository, builds
   them in the sandbox in dependency order, each given the builds of those it uses, and checks each
   succeeds on the JDK its POM asks for, that `catalog` had `catalog-lib`'s build and its jar on
-  the classpath, and that `catalog` built alone fails (`BUILD-1`). Like every project-0 test (#177), it names no commit: `pins.txt` is the one place,
-  so moving the pin is that one edit plus the expected answers that move with it. It runs only when
-  `lantern.test.project0` names the set-up folder (see Commands in `CLAUDE.md`). Checks of the
-  facts, links, views and flows Lantern should find belong to the extractor, linker and composer
-  issues (#92, #94, #113, #114), which read the case list.
+  the classpath, and that `catalog` built alone fails (`BUILD-1`). Like every project-0 test
+  (#177), it names no commit: `pins.txt` is the one place, so moving the pin is that one edit plus
+  the expected answers that move with it. It runs only when `lantern.test.project0` names the
+  set-up folder (see Commands in `CLAUDE.md`). Checks of the facts, links, views and flows Lantern
+  should find belong to the extractor, linker and composer issues (#92, #94, #113, #114), which
+  read the case list.
 - **End to end in every build** (#167). `Project0EndToEndIT` (lantern-app) runs the analyze
   pipeline with the fake model over all project-0 repositories as one snapshot, twice, and checks
   every repository builds and gets its documents, the second run reuses every build, fact and

@@ -52,7 +52,8 @@ public final class Project0 {
     assertThat(setUpFrom)
         .as(
             "project-0 in %s was not set up from the pin %s in %s (it holds %s); run"
-                + " testsets/project-0/setup.sh again (docs/adr/0029)",
+                + " testsets/project-0/setup.sh, removing the old repositories first if it says"
+                + " so (docs/adr/0029)",
             setUp, pin, PINS.normalize(), setUpFrom == null ? "no " + PIN_FILE : setUpFrom)
         .isEqualTo(pin);
     Map<String, Repo> repos = new TreeMap<>();
