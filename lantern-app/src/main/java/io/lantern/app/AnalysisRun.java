@@ -175,6 +175,8 @@ public final class AnalysisRun {
    *     repositories
    * @param newFacts how many facts did not hold in the previous snapshot, the linker's about any
    *     repository included
+   * @param linksAsked how many links static matching left open the LLM was asked about (ADR 0045)
+   * @param linksReused how many of their answers came from the cache
    * @param summariesGenerated how many summaries the LLM wrote
    * @param summariesReused how many summaries came from the cache
    * @param summariesRejected the units left without a summary because the LLM's answer was rejected
@@ -182,7 +184,7 @@ public final class AnalysisRun {
    * @param wordingsAsked how many deployable units, data stores, destinations and flows, and the
    *     system for its purpose, the LLM was asked to word (ADR 0050, ADR 0056, ADR 0058, ADR 0060)
    * @param wordingsReused how many of their wordings came from the cache
-   * @param llm the LLM calls made during the run, whatever their outcome
+   * @param llm the LLM calls made during the run, whatever their outcome, by role
    * @param documents the rendered documents, in the order written
    */
   public record Result(
@@ -191,6 +193,8 @@ public final class AnalysisRun {
       List<String> reusedBuilds,
       int facts,
       int newFacts,
+      int linksAsked,
+      int linksReused,
       int summariesGenerated,
       int summariesReused,
       List<EntityId> summariesRejected,
@@ -335,6 +339,8 @@ public final class AnalysisRun {
           reused,
           extracted.size(),
           newFacts,
+          stored.linksAsked(),
+          stored.linksReused(),
           summarized.generated(),
           summarized.reused(),
           summarized.rejected(),
@@ -522,7 +528,8 @@ public final class AnalysisRun {
           found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
           // The LLM resolver is the linker's last step: it picks among the candidates of the links
           // the static steps leave open, with cached answers reused (ADR 0045).
-          Linker linker = Linker.standard(facts, new LinkResolver(client, resolutions));
+          LinkResolver resolver = new LinkResolver(client, resolutions);
+          Linker linker = Linker.standard(facts, resolver);
           // Each origin kind is recorded on its own, so a static analysis closes only the facts of
           // its kind; the docs extractor's facts are of kind readme (ADR 0033).
           Map<Origin.Kind, List<Fact>> byKind = new LinkedHashMap<>();
@@ -566,12 +573,15 @@ public final class AnalysisRun {
           linked.facts().stream()
               .filter(f -> repos.contains(f.evidence().repo()))
               .forEach(stored::add);
-          return new Stored(stored, added + linked.added());
+          return new Stored(stored, added + linked.added(), resolver.asked(), resolver.reused());
         });
   }
 
-  /** Facts as stored, and how many of them were new. */
-  private record Stored(List<Fact> facts, int added) {}
+  /**
+   * Facts as stored, how many of them were new, and how many open links the LLM was asked about and
+   * how many of its answers were reused.
+   */
+  private record Stored(List<Fact> facts, int added, int linksAsked, int linksReused) {}
 
   /**
    * The repository's three views, the Architecture Explorer document {@code <repo>}, the Executive

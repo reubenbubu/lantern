@@ -1,6 +1,6 @@
 # 0016: End-to-end analysis run
 
-Status: accepted (#17), amended (#100, #58), amended by ADR 0031 (#112) and ADR 0044 (#95), pending the user's review (#24)
+Status: accepted (#17), amended (#100, #58, #245), amended by ADR 0031 (#112) and ADR 0044 (#95), pending the user's review (#24)
 
 ## Context
 
@@ -111,3 +111,14 @@ fixed by a change the build key does not cover, such as the Maven repositories o
 and reusing it would keep the repository in degraded mode until its directory under `builds/` was
 deleted by hand. A failure that comes from broken code fails again, at the cost of a build per run;
 no setting turns rebuilding off, since none was needed yet.
+
+## Amendment (#245): every call is counted under its role
+
+The run's report showed its summaries and wordings but not the links left open that the LLM
+resolver (ADR 0045) asked about, so on project-2 its 478 logged calls did not add up to the 473
+summaries and wordings it listed. The report now says how many open links the LLM was asked about,
+whatever it answered, and how many answers were reused, and splits the "LLM calls" line by role from the stored call log
+(`LLM calls: 478 (SUMMARIZE=449, RESOLVE=5, INFER_INTENT=17, COMPOSE=7), ...`). Retried attempts
+and answers rejected twice stay in their role's count (ADR 0021), so only with no retries or
+rejections do a role's calls equal what the run asked of it; `EndToEndIT` checks that equality
+with the fake model.

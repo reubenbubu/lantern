@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -111,6 +112,8 @@ public final class LinkResolver implements LinkStep {
 
   private final LlmClient client;
   private final ResolutionStore store;
+  private final AtomicInteger asked = new AtomicInteger();
+  private final AtomicInteger reused = new AtomicInteger();
 
   /**
    * @param client the LLM, with the budgets the run's calls count against
@@ -124,6 +127,19 @@ public final class LinkResolver implements LinkStep {
   @Override
   public Origin origin() {
     return ORIGIN;
+  }
+
+  /**
+   * How many links the model was asked about by every resolve of this resolver, so a run can count
+   * its {@link Role#RESOLVE} calls with its summaries and wordings.
+   */
+  public int asked() {
+    return asked.get();
+  }
+
+  /** How many answers came from the cache in every resolve of this resolver. */
+  public int reused() {
+    return reused.get();
   }
 
   @Override
@@ -224,6 +240,8 @@ public final class LinkResolver implements LinkStep {
         }
       }
     }
+    this.asked.addAndGet(asked);
+    this.reused.addAndGet(reused);
     return new Result(derived, asked, reused, unknown, rejected, skipped);
   }
 

@@ -210,8 +210,8 @@ class Project0EndToEndIT {
     // The links project-0 leaves open with candidates: HTTP-6, HTTP-7 and MSG-5.
     long resolves = fake.sent().stream().filter(s -> s.request().role() == Role.RESOLVE).count();
     assertThat(resolves).isEqualTo(3);
-    assertThat(calls).isEqualTo(first.summariesGenerated() + first.wordingsAsked() + resolves);
-    assertThat(first.llm().calls()).isEqualTo(calls);
+    assertThat(first.linksAsked()).isEqualTo(3);
+    EndToEndIT.assertEveryCallCountedUnderItsRole(first, calls);
     List<String> files = new ArrayList<>();
     for (String name : commits.keySet()) {
       files.addAll(List.of(name + ".html", name + ".brief.html", name + ".c4.html"));
