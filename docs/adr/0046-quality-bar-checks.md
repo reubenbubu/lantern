@@ -16,14 +16,16 @@ sequence flows, the Brief's blast radius); those fail, so the report shows what 
   on that document (`QualityBar`) and adds a last section, "Quality report" (ID `quality`), holding
   one quality report block. It has no failures when every check passes. The per-section blocks of
   ADR 0044 are gone. Each failure names the check as the Quality bar words it, the diagram, section
-  or block that failed it (none for the document as a whole) and how, naming the elements or lines.
+  or block that failed it (none for the document as a whole) and how, naming the elements or lines
+  (the first ten, then how many more).
 - **Every diagram** (C4 and sequence):
   - *Title*: a C4 diagram's title names its kind (context, container, component) and the label of
     a boundary node, or of a node when nothing is drawn inside another. A sequence diagram has a
     title.
   - *Legend*: Lantern's own templates (Explorer, Brief) draw none, so each of their diagrams fails.
-    The C4 report spec's template draws a legend of the kinds it uses; a sequence with asynchronous
-    messages fails, since its legend has no async arrowhead.
+    The C4 report spec's template draws a legend of the kinds it uses; a diagram with a boundary
+    and a sequence with asynchronous messages fail, since its legend has neither the dashed boundary
+    nor an async arrowhead.
   - *One abstraction level*: a context diagram shows systems, external systems and people; a
     container diagram also deployable units, databases, topics, queues and exchanges; a component
     diagram also types (components). Boundaries are not counted.

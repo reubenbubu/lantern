@@ -151,8 +151,11 @@ class QualityBarTest {
             "architect",
             section("containers", "Containers", goodContainers("d")));
 
-    // Its protocol is an acronym, and the document has no glossary.
-    assertThat(checks(document)).containsExactly(QualityBar.ACRONYMS, QualityBar.PINNED);
+    // The legend has no dashed boundary, its protocol is an acronym and there is no glossary.
+    assertThat(checks(document))
+        .containsExactly(QualityBar.LEGEND, QualityBar.ACRONYMS, QualityBar.PINNED);
+    assertThat(failed(document, QualityBar.LEGEND))
+        .containsExactly("d: The template's legend has no entry for the dashed boundary.");
   }
 
   @Test
@@ -224,6 +227,19 @@ class QualityBarTest {
         .containsExactly("d: No protocol on shop to shop on db.");
     // The database rests on no fact, not even through a line.
     assertThat(failed(document, QualityBar.CLAIMS)).containsExactly("d: No fact for shop on db.");
+  }
+
+  @Test
+  void aFailureNamesTenElementsAndCountsTheRest() {
+    List<Table.Row> rows = new ArrayList<>();
+    for (int i = 0; i < 12; i++) {
+      rows.add(new Table.Row(null, List.of(List.of(TextRun.of("r" + i))), List.of()));
+    }
+    Table table = new Table("t", "Rows", List.of(new Table.Column("Name")), rows, List.of());
+    Document document = document("c4-model-sequence-diagrams", "a", section("s", "S", table));
+
+    assertThat(failed(document, QualityBar.CLAIMS))
+        .containsExactly("t: No fact for r0, r1, r2, r3, r4, r5, r6, r7, r8, r9 and 2 more.");
   }
 
   @Test

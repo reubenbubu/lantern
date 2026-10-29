@@ -54,7 +54,10 @@ final class QualityBar {
   /** The template of the Executive Brief, whose own checks are made on it. */
   static final String BRIEF = "executive-brief";
 
-  /** The templates that draw a legend of the element kinds and line styles their diagrams use. */
+  /**
+   * The templates that draw a legend of the element kinds and line styles their diagrams use; their
+   * legend has no entry for boundaries or asynchronous arrowheads.
+   */
   private static final Set<String> LEGEND_TEMPLATES = Set.of("c4-model-sequence-diagrams");
 
   /** The top-level sections the Brief's rows need that no section kind composes yet (#164). */
@@ -92,6 +95,9 @@ final class QualityBar {
   static final String EVIDENCE = "Quality evidence";
 
   private static final int ORIENTATION_WORDS = 300;
+
+  /** How many elements a failure names before it counts the rest. */
+  private static final int MAX_NAMES = 10;
 
   /** Labels that say only that there is a relationship, not what it is for. */
   private static final Set<String> GENERIC_LABELS =
@@ -210,6 +216,8 @@ final class QualityBar {
     title(diagram, target, boundaries);
     if (!LEGEND_TEMPLATES.contains(document.template().name())) {
       fail(LEGEND, target, "The template draws no legend.");
+    } else if (!boundaries.isEmpty()) {
+      fail(LEGEND, target, "The template's legend has no entry for the dashed boundary.");
     }
     if (diagram.diagramKind() == Diagram.Kind.DEPENDENCY) {
       return;
@@ -870,6 +878,10 @@ final class QualityBar {
     List<String> list = new ArrayList<>(new LinkedHashSet<>(names));
     if (list.size() == 1) {
       return list.getFirst();
+    }
+    if (list.size() > MAX_NAMES) {
+      int more = list.size() - MAX_NAMES;
+      return String.join(", ", list.subList(0, MAX_NAMES)) + " and " + more + " more";
     }
     String last = list.removeLast();
     return String.join(", ", list) + " and " + last;
