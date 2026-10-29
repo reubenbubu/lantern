@@ -1,0 +1,11 @@
+# project-3: MediaHub (docs/adr/0029, #251). One "<name> <clone URL> <full commit hash>" line per repository.
+# The reference in reference/ describes exactly these commits; moving a pin means redoing it.
+mediahub-api-gateway https://github.com/Mediahub-microservices/mediahub-api-gateway.git 3ad3447569811e123d06685e2f99e7d5724a3241
+mediahub-config-repo https://github.com/Mediahub-microservices/mediahub-config-repo.git a57c8a6f762fc57eb74d41b373fe06ced740ba7d
+mediahub-config-server https://github.com/Mediahub-microservices/mediahub-config-server.git 7def2dadcb3c19c88a50f0d5d4e0bb91f9b918b0
+mediahub-discovery-server https://github.com/Mediahub-microservices/mediahub-discovery-server.git 4363aa9f0daefa956e47210da226a9485fe6c03b
+mediahub-frontend-ui https://github.com/Mediahub-microservices/mediahub-frontend-ui.git acefeda6b3e99dc4667be91e0ea620c65249ca92
+mediahub-infra https://github.com/Mediahub-microservices/mediahub-infra.git aef86fb6c1988cdef3512cdfaf2705a7e5209a65
+mediahub-media-service https://github.com/Mediahub-microservices/mediahub-media-service.git fab6a4cb1240653196da2a62afc847c0edf95cb0
+mediahub-subscription-service https://github.com/Mediahub-microservices/mediahub-subscription-service.git 8a16d856c6ccee5908401ffae58334b3b5db7dfd
+mediahub-user-service https://github.com/Mediahub-microservices/mediahub-user-service.git c5698fa7e4e333ff11c00fe2bafb51568550acf1

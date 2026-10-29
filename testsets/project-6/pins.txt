@@ -1,0 +1,4 @@
+# project-6: spring-petclinic-microservices. HELD-OUT (see "Held-out sets" in docs/design.md, and CLAUDE.md): pinned only. Nobody reads its code or
+# analyzes it before Phase 2 acceptance (2D), where its reference is written. One "<name> <clone URL> <full commit hash>" line per repository.
+# Pinned (#251) to the default branch's HEAD on 2026-10-29, read with git ls-remote alone.
+spring-petclinic-microservices https://github.com/spring-petclinic/spring-petclinic-microservices.git e8b747ab522721076cacb5cf688eb8a54ba8c5c9

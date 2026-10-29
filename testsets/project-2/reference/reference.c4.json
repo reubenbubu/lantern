@@ -1,0 +1,3448 @@
+{
+  "document": {
+    "id": "project-2",
+    "title": "Event Management Platform Architecture",
+    "subtitle": "C4 views of the Event Management Platform for **architects and new engineers**: context, containers, components and six runtime flows. Written by hand from the repository at commit `4625169`; no Lantern output.",
+    "version": "1.1.0",
+    "status": "Draft",
+    "updated": "2026-10-29",
+    "revisions": [
+      {
+        "version": "1.0.0",
+        "date": "2026-10-29",
+        "author": "Hand-written from the code",
+        "summary": "First version, from Event-Management-platform `4625169` (462516947458d4a161dfa0aef482865d9940e241).",
+        "status": "Draft"
+      },
+      {
+        "version": "1.1.0",
+        "date": "2026-10-29",
+        "author": "Independent second pass",
+        "summary": "Verified against the code: the gateway rate limiter fails open, not closed; filter order and scan outcomes corrected; three Low risks and two JWKS callers added. See verification.md.",
+        "status": "Draft"
+      }
+    ]
+  },
+  "elements": {
+    "p-attendee": {
+      "kind": "person",
+      "name": "Attendee",
+      "description": "Registers, signs in, books tickets, pays, sees their tickets and payments, asks for refunds and sets notification preferences; receives booking, payment, ticket and reminder messages.",
+      "properties": {
+        "access": "Role ATTENDEE, granted to every self-registered account"
+      }
+    },
+    "p-organizer": {
+      "kind": "person",
+      "name": "Organizer",
+      "description": "Manages their own venues and rooms, creates events and ticket types, publishes, opens sales, cancels or completes events, refunds bookings of their events and scans tickets at their events.",
+      "properties": {
+        "access": "Role ORGANIZER, assigned by an administrator"
+      }
+    },
+    "p-staff": {
+      "kind": "person",
+      "name": "Event staff",
+      "description": "Validates QR tickets and checks attendees in at the door.",
+      "properties": {
+        "access": "Role EVENT_STAFF, assigned by an administrator; may scan tickets of any event"
+      }
+    },
+    "p-admin": {
+      "kind": "person",
+      "name": "Administrator",
+      "description": "Assigns roles, reads the security audit log, manages event categories, acts on any event, venue or payment, and inspects locally recorded email and SMS output.",
+      "properties": {
+        "access": "Role ADMIN; bootstrapped from configuration, disabled by default"
+      }
+    },
+    "emp": {
+      "kind": "system",
+      "name": "Event Management Platform",
+      "description": "Lets organizers publish events in their venues and sell tickets, and lets attendees book, pay for, receive and use QR tickets, with refunds and notifications."
+    },
+    "oauth-idp": {
+      "kind": "external",
+      "name": "OAuth2 identity provider",
+      "description": "Optional social or corporate login through Spring Security client registration; must supply a verified email. Switched off by default and no provider is configured in the repository."
+    },
+    "frontend": {
+      "kind": "container",
+      "parent": "emp",
+      "name": "frontend",
+      "tag": "Web App",
+      "technology": "React 19 · Vite · nginx",
+      "description": "A static landing page that lists the services; nginx also proxies /api/ to the gateway. It makes no API calls, so people use the API directly.",
+      "properties": {
+        "repo": "Event-Management-platform",
+        "commit": "4625169",
+        "stack": "React 19.1.1, TypeScript 5.9.2, Vite 8.2.1, Tailwind CSS 4.3.3; built on node:24-alpine, served by nginx:1.29-alpine",
+        "port": "80 (3000 on the host)"
+      }
+    },
+    "gateway": {
+      "kind": "container",
+      "parent": "emp",
+      "name": "api-gateway",
+      "tag": "API Gateway",
+      "technology": "Spring Cloud Gateway · Boot 3.5 / Java 17",
+      "description": "The public entry point: validates the JWT on protected routes, strips client identity headers, enforces CORS and correlation ids, rate-limits sign-up, login and refresh in Redis, and routes by path to fixed service URLs.",
+      "properties": {
+        "repo": "Event-Management-platform",
+        "commit": "4625169",
+        "stack": "Spring Cloud 2025.0.2 gateway (WebFlux), OAuth2 resource server, reactive Redis, springdoc",
+        "port": "8080"
+      }
+    },
+    "auth": {
+      "kind": "container",
+      "parent": "emp",
+      "name": "auth-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5 / Java 17",
+      "description": "Identity: accounts with BCrypt passwords, RS256 access tokens and their public JWKS, rotating refresh sessions, roles, optional OAuth2 login and a security audit log.",
+      "properties": {
+        "repo": "Event-Management-platform",
+        "commit": "4625169",
+        "stack": "Spring Security, OAuth2 resource server and client, Spring Data JPA, Flyway",
+        "port": "8081"
+      }
+    },
+    "event": {
+      "kind": "container",
+      "parent": "emp",
+      "name": "event-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5 / Java 17",
+      "description": "Event lifecycle, categories, ticket types and authoritative ticket inventory with locked holds; public event discovery cached in Redis; reserves rooms at venue-service; publishes event and inventory events.",
+      "properties": {
+        "repo": "Event-Management-platform",
+        "commit": "4625169",
+        "stack": "Spring MVC, Spring Data JPA, Spring Data Redis cache, Spring Kafka, Flyway, RestClient",
+        "port": "8082"
+      }
+    },
+    "venue": {
+      "kind": "container",
+      "parent": "emp",
+      "name": "venue-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5 / Java 17",
+      "description": "Venues, rooms, amenities, availability blocks and the room reservations that event publication needs; only the owning organizer or an administrator may use a venue.",
+      "properties": {
+        "repo": "Event-Management-platform",
+        "commit": "4625169",
+        "stack": "Spring MVC, Spring Data JPA, Flyway",
+        "port": "8083"
+      }
+    },
+    "attendee": {
+      "kind": "container",
+      "parent": "emp",
+      "name": "attendee-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5 / Java 17",
+      "description": "Attendee profiles, bookings and ticket holds, the booking/payment Saga, signed QR tickets and check-in.",
+      "properties": {
+        "repo": "Event-Management-platform",
+        "commit": "4625169",
+        "stack": "Spring MVC, Spring Data JPA, Spring Kafka, Flyway, RestClient, HMAC-SHA256 QR tokens",
+        "port": "8084"
+      }
+    },
+    "payment": {
+      "kind": "container",
+      "parent": "emp",
+      "name": "payment-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5 / Java 17",
+      "description": "Payments, attempts, transactions, refunds, signed provider webhooks and reconciliation behind a provider port; the only provider is an in-process fake.",
+      "properties": {
+        "repo": "Event-Management-platform",
+        "commit": "4625169",
+        "stack": "Spring MVC, Spring Data JPA, Spring Kafka, Flyway",
+        "port": "8085"
+      }
+    },
+    "notification": {
+      "kind": "container",
+      "parent": "emp",
+      "name": "notification-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5 / Java 17",
+      "description": "Turns lifecycle events into durable email and SMS intents with preferences, templates, retries and reminders; the only senders record the message locally instead of sending it.",
+      "properties": {
+        "repo": "Event-Management-platform",
+        "commit": "4625169",
+        "stack": "Spring MVC, Spring Data JPA, Spring Kafka, Flyway",
+        "port": "8086"
+      }
+    },
+    "redis": {
+      "kind": "database",
+      "parent": "emp",
+      "name": "Redis",
+      "technology": "Redis 8.2.1 (AOF)",
+      "description": "Gateway rate-limit buckets for sign-up, login and refresh, and event-service's public event detail cache (TTL 5 min).",
+      "properties": {
+        "owner": "api-gateway, event-service"
+      }
+    },
+    "auth-db": {
+      "kind": "database",
+      "parent": "emp",
+      "name": "auth_service",
+      "technology": "PostgreSQL 17.6",
+      "description": "User accounts and roles, refresh sessions (hashes and families), external OAuth identities and security audit events. Flyway migrations.",
+      "properties": {
+        "owner": "auth-service"
+      }
+    },
+    "event-db": {
+      "kind": "database",
+      "parent": "emp",
+      "name": "event_service",
+      "technology": "PostgreSQL 17.6",
+      "description": "Categories, events, ticket types, inventory reservations (holds), the outbox and processed message ids. Flyway migrations.",
+      "properties": {
+        "owner": "event-service"
+      }
+    },
+    "venue-db": {
+      "kind": "database",
+      "parent": "emp",
+      "name": "venue_service",
+      "technology": "PostgreSQL 17.6",
+      "description": "Venues, rooms, amenities, metadata and availability entries (blocks and event reservations). Flyway migrations.",
+      "properties": {
+        "owner": "venue-service"
+      }
+    },
+    "attendee-db": {
+      "kind": "database",
+      "parent": "emp",
+      "name": "attendee_service",
+      "technology": "PostgreSQL 17.6",
+      "description": "Profiles, booking commands, registrations, bookings, holds, Saga state, tickets, check-ins and scan attempts, the outbox and processed message ids. Flyway migrations.",
+      "properties": {
+        "owner": "attendee-service"
+      }
+    },
+    "payment-db": {
+      "kind": "database",
+      "parent": "emp",
+      "name": "payment_service",
+      "technology": "PostgreSQL 17.6",
+      "description": "Booking payment orders and ticket projections, payments, attempts, transactions, refunds, webhook event ids, the outbox and processed message ids. Flyway migrations.",
+      "properties": {
+        "owner": "payment-service"
+      }
+    },
+    "notification-db": {
+      "kind": "database",
+      "parent": "emp",
+      "name": "notification_service",
+      "technology": "PostgreSQL 17.6",
+      "description": "Recipients and preferences, booking projections, notification intents and delivery attempts, locally recorded deliveries and processed message ids. Flyway migrations.",
+      "properties": {
+        "owner": "notification-service"
+      }
+    },
+    "t-event": {
+      "kind": "queue",
+      "parent": "emp",
+      "name": "event-platform.event-lifecycle.v1",
+      "technology": "Kafka topic (Apache Kafka 4.0, KRaft)",
+      "description": "Event lifecycle (published, updated, cancelled), ticket-type changes and inventory facts (held, confirmed, released, expired, confirmation or release rejected).",
+      "properties": {
+        "owner": "event-service (outbox relay)"
+      }
+    },
+    "t-attendee": {
+      "kind": "queue",
+      "parent": "emp",
+      "name": "event-platform.attendee-lifecycle.v1",
+      "technology": "Kafka topic (Apache Kafka 4.0, KRaft)",
+      "description": "Booking facts (created, payment requested, confirmed, payment failed, refunded), hold expiry, ticket issued and checked in, and the Saga commands for inventory confirmation or release and payment compensation.",
+      "properties": {
+        "owner": "attendee-service (outbox relay)"
+      }
+    },
+    "t-payment": {
+      "kind": "queue",
+      "parent": "emp",
+      "name": "event-platform.payment-lifecycle.v1",
+      "technology": "Kafka topic (Apache Kafka 4.0, KRaft)",
+      "description": "Payment processing, succeeded and failed; refund succeeded and failed.",
+      "properties": {
+        "owner": "payment-service (outbox relay)"
+      }
+    },
+    "gw-edge": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Edge filters",
+      "technology": "WebFlux WebFilters",
+      "description": "Sets or validates X-Correlation-Id, rejects origins not on the allow-list, removes client-sent X-User-* identity headers and adds security headers.",
+      "properties": {
+        "classes": "CorrelationIdWebFilter, CorsOriginValidationWebFilter, UntrustedIdentityHeadersFilter, GatewaySecurityHeadersFilter"
+      }
+    },
+    "gw-rate-limit": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Authentication rate limiter",
+      "technology": "Spring Cloud Gateway RedisRateLimiter",
+      "description": "Limits POST register, login and refresh per client IP; answers 429 when exceeded. If Redis fails, Spring Cloud Gateway's RedisRateLimiter lets the request through (fails open).",
+      "properties": {
+        "classes": "AuthenticationRateLimitWebFilter, GatewayRateLimitConfiguration"
+      }
+    },
+    "gw-security": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "JWT security chain",
+      "technology": "Spring Security OAuth2 resource server",
+      "description": "Lets public routes through and requires a valid RS256 access token (issuer, audience, typ=access) on every other /api/v1 path; keys come from auth-service's JWKS.",
+      "properties": {
+        "classes": "GatewaySecurityConfiguration, GatewayJwtConfiguration"
+      }
+    },
+    "gw-routes": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Route table",
+      "technology": "Spring Cloud Gateway routes",
+      "description": "Forwards by path prefix to fixed service URLs, keeping the original bearer token.",
+      "properties": {
+        "classes": "application.yml spring.cloud.gateway.server.webflux.routes"
+      }
+    },
+    "au-api": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Auth API",
+      "technology": "Spring MVC controller",
+      "description": "Register, login, refresh, logout, revoke all sessions, current user, role replacement (ADMIN) and audit log (ADMIN).",
+      "properties": {
+        "classes": "AuthController"
+      }
+    },
+    "au-jwks": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "JWKS endpoint and key material",
+      "technology": "Spring MVC · RSA key pair",
+      "description": "Publishes the current RSA public key; loads the key pair from PEM files or generates an ephemeral 2048-bit key at startup.",
+      "properties": {
+        "classes": "JwkSetController, JwtKeyConfiguration, RsaKeyMaterial"
+      }
+    },
+    "au-authn": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Authentication service",
+      "technology": "Spring service · BCrypt · Nimbus JWT encoder",
+      "description": "Checks passwords, issues 10-minute RS256 access tokens, rotates opaque refresh tokens under a row lock and revokes the family on reuse.",
+      "properties": {
+        "classes": "AuthenticationService, JwtTokenService, RefreshTokenCodec, BootstrapAdminInitializer"
+      }
+    },
+    "au-oauth": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "OAuth2 login",
+      "technology": "Spring Security oauth2Login",
+      "description": "When enabled, completes a provider login, requires a verified email, creates or finds the linked account and returns the token pair as JSON.",
+      "properties": {
+        "classes": "OAuth2LoginSuccessHandler, OAuth2LoginFailureHandler"
+      }
+    },
+    "au-audit": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Security audit",
+      "technology": "Spring Data JPA",
+      "description": "Records every registration, login, refresh, revocation and role change with request metadata.",
+      "properties": {
+        "classes": "SecurityAuditService, SecurityAuditEventRepository"
+      }
+    },
+    "ev-public": {
+      "kind": "component",
+      "parent": "event",
+      "name": "Public discovery",
+      "technology": "Spring MVC · Spring Cache (Redis)",
+      "description": "Lists events and categories and serves event details without a token; details are cached in Redis.",
+      "properties": {
+        "classes": "EventController (GET), EventCategoryController, PublicEventQueryService, PublicEventCache"
+      }
+    },
+    "ev-manage": {
+      "kind": "component",
+      "parent": "event",
+      "name": "Event management",
+      "technology": "Spring MVC controllers and services",
+      "description": "Organizer and admin commands: create and update drafts, ticket types, transitions (publish, open sales, sold out, cancel, complete) and archive.",
+      "properties": {
+        "classes": "EventController, TicketTypeController, EventManagementService, TicketTypeService, EventCategoryService"
+      }
+    },
+    "ev-inventory": {
+      "kind": "component",
+      "parent": "event",
+      "name": "Inventory",
+      "technology": "Spring MVC · pessimistic locks · @Scheduled",
+      "description": "Idempotent hold, confirm and release on locked ticket rows; holds expire after 15 minutes.",
+      "properties": {
+        "classes": "InventoryController, InventoryService, InventoryExpiryJob"
+      }
+    },
+    "ev-venue-client": {
+      "kind": "component",
+      "parent": "event",
+      "name": "Venue client",
+      "technology": "Spring RestClient (3 s timeouts)",
+      "description": "Reserves and releases the room at venue-service with the organizer's bearer token.",
+      "properties": {
+        "classes": "HttpVenueAvailabilityAdapter, VenueClientConfiguration"
+      }
+    },
+    "ev-saga": {
+      "kind": "component",
+      "parent": "event",
+      "name": "Inventory Saga consumer",
+      "technology": "@KafkaListener",
+      "description": "Executes inventory confirmation and release commands from attendee-service; turns business errors into rejection events.",
+      "properties": {
+        "classes": "AttendeeInventorySagaConsumer, InventorySagaCommandService"
+      }
+    },
+    "ev-outbox": {
+      "kind": "component",
+      "parent": "event",
+      "name": "Event outbox",
+      "technology": "Transactional outbox · KafkaTemplate",
+      "description": "Writes event records in the business transaction and relays them every second; dead-letters a row after 10 failed attempts.",
+      "properties": {
+        "classes": "TransactionalOutbox, OutboxRelay"
+      }
+    },
+    "ve-api": {
+      "kind": "component",
+      "parent": "venue",
+      "name": "Venue API",
+      "technology": "Spring MVC controller",
+      "description": "Venue, room and availability-block management for owning organizers and admins.",
+      "properties": {
+        "classes": "VenueController, VenueManagementService"
+      }
+    },
+    "ve-availability": {
+      "kind": "component",
+      "parent": "venue",
+      "name": "Availability and reservations",
+      "technology": "Spring service · pessimistic lock",
+      "description": "Checks availability and reserves or releases a venue or room for an owner reference, under a lock on the venue row.",
+      "properties": {
+        "classes": "VenueAvailabilityService"
+      }
+    },
+    "ve-location": {
+      "kind": "component",
+      "parent": "venue",
+      "name": "Location enrichment",
+      "technology": "Port with local adapter",
+      "description": "Placeholder for geocoding: returns the supplied coordinates unchanged.",
+      "properties": {
+        "classes": "LocationEnrichmentPort, LocalLocationEnrichmentAdapter"
+      }
+    },
+    "at-booking": {
+      "kind": "component",
+      "parent": "attendee",
+      "name": "Booking API",
+      "technology": "Spring MVC controllers",
+      "description": "Creates bookings from a durable idempotent command, lists bookings and tickets, and keeps the attendee profile.",
+      "properties": {
+        "classes": "BookingController, BookingCoordinator, BookingCommandService, BookingPersistenceService, AttendeeProfileController"
+      }
+    },
+    "at-event-client": {
+      "kind": "component",
+      "parent": "attendee",
+      "name": "Event inventory client",
+      "technology": "Spring RestClient (3 s timeouts)",
+      "description": "Holds and, for free tickets, confirms inventory at event-service with the attendee's bearer token and stable keys.",
+      "properties": {
+        "classes": "HttpEventInventoryAdapter"
+      }
+    },
+    "at-saga": {
+      "kind": "component",
+      "parent": "attendee",
+      "name": "Booking Saga",
+      "technology": "Spring service · @Scheduled jobs",
+      "description": "Moves each booking through payment, inventory confirmation, ticket issue, expiry, compensation and refund; recovers stuck Sagas every 5 s and expires holds every 30 s.",
+      "properties": {
+        "classes": "BookingSagaService, BookingSagaRecoveryJob, TicketHoldExpiryJob"
+      }
+    },
+    "at-consumers": {
+      "kind": "component",
+      "parent": "attendee",
+      "name": "Lifecycle consumers",
+      "technology": "@KafkaListener × 2",
+      "description": "Feed inventory, event-cancellation and payment events into the Saga, deduplicated by message id.",
+      "properties": {
+        "classes": "EventLifecycleConsumer, PaymentLifecycleConsumer"
+      }
+    },
+    "at-scan": {
+      "kind": "component",
+      "parent": "attendee",
+      "name": "Ticket scanning",
+      "technology": "Spring MVC · HMAC-SHA256",
+      "description": "Signs QR tokens; validates them and checks tickets in exactly once under a row lock, auditing every scan.",
+      "properties": {
+        "classes": "TicketScanController, TicketScanService, QrTokenService"
+      }
+    },
+    "at-outbox": {
+      "kind": "component",
+      "parent": "attendee",
+      "name": "Attendee outbox",
+      "technology": "Transactional outbox · KafkaTemplate",
+      "description": "Relays booking, ticket and Saga-command records to the attendee topic every second.",
+      "properties": {
+        "classes": "AttendeeTransactionalOutbox, AttendeeOutboxRelay"
+      }
+    },
+    "pa-api": {
+      "kind": "component",
+      "parent": "payment",
+      "name": "Payment API",
+      "technology": "Spring MVC controller",
+      "description": "Pay for a booking, list and read payments and their transactions, verify, refund, and receive signed provider webhooks.",
+      "properties": {
+        "classes": "PaymentController"
+      }
+    },
+    "pa-payments": {
+      "kind": "component",
+      "parent": "payment",
+      "name": "Payment processing",
+      "technology": "Spring services · @Scheduled",
+      "description": "Claims a payment for a projected booking order, calls the provider outside the transaction, applies the result, deduplicates webhooks and reconciles stuck PROCESSING payments every 10 s.",
+      "properties": {
+        "classes": "PaymentApplicationService, PaymentStateService, PaymentWebhookService, PaymentReconciliationJob"
+      }
+    },
+    "pa-refunds": {
+      "kind": "component",
+      "parent": "payment",
+      "name": "Refunds",
+      "technology": "Spring services",
+      "description": "Full or partial refunds for the attendee, the event's organizer or an admin until the event starts, and full compensation refunds for the Saga.",
+      "properties": {
+        "classes": "RefundApplicationService, RefundStateService"
+      }
+    },
+    "pa-provider": {
+      "kind": "component",
+      "parent": "payment",
+      "name": "Fake payment provider",
+      "technology": "In-process adapter behind PaymentProvider",
+      "description": "Deterministic sandbox outcomes chosen by token, payment state held in memory, HMAC webhook signatures; no network call.",
+      "properties": {
+        "classes": "PaymentProvider, FakePaymentProvider"
+      }
+    },
+    "pa-consumer": {
+      "kind": "component",
+      "parent": "payment",
+      "name": "Attendee events consumer",
+      "technology": "@KafkaListener",
+      "description": "Builds the booking payment order and ticket projections and runs compensation refunds.",
+      "properties": {
+        "classes": "AttendeeLifecycleConsumer"
+      }
+    },
+    "pa-outbox": {
+      "kind": "component",
+      "parent": "payment",
+      "name": "Payment outbox",
+      "technology": "Transactional outbox · KafkaTemplate",
+      "description": "Relays payment and refund records to the payment topic every second.",
+      "properties": {
+        "classes": "PaymentTransactionalOutbox, PaymentOutboxRelay"
+      }
+    },
+    "no-api": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Notification API",
+      "technology": "Spring MVC controller",
+      "description": "Reads and updates the caller's preferences, lists their notifications and, for admins, the locally recorded deliveries.",
+      "properties": {
+        "classes": "NotificationController, NotificationPreferenceService, NotificationQueryService"
+      }
+    },
+    "no-planner": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Event handler and planner",
+      "technology": "@KafkaListener · Spring service",
+      "description": "Consumes the three lifecycle topics, keeps recipient and booking projections and plans one idempotent intent per message, recipient and channel, including reminders 24 h before the start.",
+      "properties": {
+        "classes": "NotificationEventConsumer, NotificationEventHandler, NotificationPlanner"
+      }
+    },
+    "no-delivery": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Delivery job",
+      "technology": "@Scheduled · templates",
+      "description": "Every second locks due intents, renders the template and calls the email or SMS port; retries up to 5 times, then dead-letters.",
+      "properties": {
+        "classes": "NotificationDeliveryJob, TemplateCatalog, TemplateRenderer"
+      }
+    },
+    "no-local": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Local email and SMS adapters",
+      "technology": "Provider ports, local adapters",
+      "description": "Store the rendered message in local_deliveries instead of sending it; the only implementations.",
+      "properties": {
+        "classes": "EmailSender, SmsSender, LocalEmailAdapter, LocalSmsAdapter"
+      }
+    }
+  },
+  "pages": [
+    {
+      "id": "ctx-emp",
+      "level": "context",
+      "title": "Event Management Platform",
+      "element": "emp",
+      "summary": "The Event Management Platform sells tickets for events held in organizers' own venues: organizers publish events and open sales, attendees book and pay, staff check them in with signed QR tickets. The most important fact for anyone changing it: **bookings are a Kafka-driven Saga across attendee-, event- and payment-service**, so most state changes arrive asynchronously through transactional outboxes.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "This document is for **architects and new engineers**. It was written by hand from the code of the `Event-Management-platform` repository at commit `4625169` (2026-08-16), on 2026-10-29. Lantern produced none of it.\n\nThe repository records its decisions as nine ADRs; they are summarised at the end of this page and checked against the code. Owners and quality goals are not recorded. All payment, email and SMS providers are local stand-ins, so the system has no real outside dependency yet; people reach it through the HTTP API, because the web front end is only a landing page."
+        },
+        {
+          "type": "stats",
+          "id": "key-facts",
+          "items": [
+            {
+              "label": "Runtime units",
+              "value": "8",
+              "note": "1 web shell, 1 gateway, 6 services"
+            },
+            {
+              "label": "User roles",
+              "value": "4",
+              "note": "Attendee, organizer, event staff, admin"
+            },
+            {
+              "label": "External systems",
+              "value": "1",
+              "note": "Optional OAuth2 login, off by default"
+            },
+            {
+              "label": "Recorded decisions",
+              "value": "9 ADRs",
+              "note": "Owners, quality goals: not recorded"
+            }
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "System Context Diagram",
+          "caption": "System Context diagram for the Event Management Platform",
+          "focus": "emp",
+          "relationships": [
+            {
+              "from": "p-attendee",
+              "to": "emp",
+              "label": "Books, pays for and uses tickets; asks for refunds in"
+            },
+            {
+              "from": "p-organizer",
+              "to": "emp",
+              "label": "Manages venues, events and ticket sales in"
+            },
+            {
+              "from": "p-staff",
+              "to": "emp",
+              "label": "Validates tickets and checks attendees in with"
+            },
+            {
+              "from": "p-admin",
+              "to": "emp",
+              "label": "Assigns roles and administers"
+            },
+            {
+              "from": "emp",
+              "to": "oauth-idp",
+              "label": "Optionally signs users in through",
+              "technology": "OAuth2 / OIDC"
+            }
+          ],
+          "layout": {
+            "rules": [
+              {
+                "a": "p-attendee",
+                "rel": "leftOf",
+                "b": "emp",
+                "strict": false
+              },
+              {
+                "a": "p-organizer",
+                "rel": "above",
+                "b": "emp",
+                "strict": false
+              },
+              {
+                "a": "oauth-idp",
+                "rel": "rightOf",
+                "b": "emp",
+                "strict": false
+              }
+            ]
+          }
+        },
+        {
+          "type": "elements",
+          "id": "people",
+          "eyebrow": "Catalogue",
+          "title": "People",
+          "select": {
+            "kind": "person"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Person"
+            },
+            {
+              "key": "description",
+              "label": "Does"
+            },
+            {
+              "key": "properties.access",
+              "label": "Access"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "external",
+          "eyebrow": "Catalogue",
+          "title": "External Systems",
+          "select": {
+            "kind": "external"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "System"
+            },
+            {
+              "key": "description",
+              "label": "Provides"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "left-out",
+          "tone": "info",
+          "body": "Left out on purpose. **Payment, email and SMS providers** are ports with only local implementations: payments go to an in-process fake and messages are stored in notification-service's database, so no outside system receives them. The maps provider is a no-op adapter. Prometheus, Grafana, Loki, Jaeger and the OpenTelemetry collector only observe the system, and GitHub Actions only builds it."
+        },
+        {
+          "type": "table",
+          "id": "sources",
+          "eyebrow": "Provenance",
+          "title": "Sources",
+          "columns": [
+            "Repository",
+            "Commit",
+            "Commit date",
+            "Runtime units"
+          ],
+          "rows": [
+            [
+              "Event-Management-platform",
+              "`4625169`",
+              "2026-08-16",
+              "frontend, api-gateway and the six services; `shared/` holds libraries only"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "id": "glossary",
+          "eyebrow": "Reference",
+          "title": "Glossary",
+          "columns": [
+            "Term",
+            "Meaning here"
+          ],
+          "rows": [
+            [
+              "Hold (inventory reservation)",
+              "Seats of one ticket type set aside for 15 minutes by event-service while a booking is paid; confirmed, released or expired."
+            ],
+            [
+              "Booking Saga",
+              "The booking/payment workflow that attendee-service drives over Kafka: payment, inventory confirmation, ticket issue, or compensation."
+            ],
+            [
+              "Compensation",
+              "A full refund requested by attendee-service when a payment succeeds but the seats can no longer be confirmed."
+            ],
+            [
+              "Transactional outbox",
+              "A table row written in the same database transaction as the business change and published to Kafka later by a relay."
+            ],
+            [
+              "DLT",
+              "Dead-letter topic: `<topic>.dlt`, where a record goes after the consumer's retries are exhausted."
+            ],
+            [
+              "Idempotency-Key",
+              "Client-supplied request header; the same key with the same input returns the original result."
+            ],
+            [
+              "JWT, JWKS",
+              "JSON Web Token (the access token) and JSON Web Key Set (the published public key that verifies it)."
+            ],
+            [
+              "RS256",
+              "RSA signature with SHA-256: auth-service signs with a private key, everyone else verifies with the public key."
+            ],
+            [
+              "Refresh session / family",
+              "One refresh token row; a family is the chain of rotations from one login, revoked together on reuse."
+            ],
+            [
+              "QR token",
+              "An HMAC-SHA256-signed string identifying a ticket and event, shown at the door."
+            ],
+            [
+              "KRaft",
+              "Kafka running without ZooKeeper; here a single node acts as broker and controller."
+            ],
+            [
+              "OTLP",
+              "OpenTelemetry protocol, used to send traces to the collector."
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "adrs",
+          "tone": "info",
+          "title": "Recorded decisions",
+          "body": "The decisions below come from `docs/adr/` (all *Accepted*), followed by decisions seen only in code and configuration, whose rationale is *not recorded*. Each was checked against the code; where the code differs the risk table says so."
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Decisions",
+          "title": "Architecture decisions",
+          "items": [
+            {
+              "id": "ADR-0001",
+              "title": "Kafka is the only message broker",
+              "status": "Accepted",
+              "body": "Versioned event schemas, at-least-once delivery, correlation and trace context in headers. Holds in code: three lifecycle topics, no other broker."
+            },
+            {
+              "id": "ADR-0002",
+              "title": "Database per service",
+              "status": "Accepted",
+              "body": "Six PostgreSQL databases, one login each with CONNECT revoked from PUBLIC; locally all in one PostgreSQL container (`docker/postgres/init-databases.sql`)."
+            },
+            {
+              "id": "ADR-0003",
+              "title": "Orchestrated Saga with transactional outboxes",
+              "status": "Accepted",
+              "body": "attendee-service orchestrates; event-, attendee- and payment-service publish only through their outbox tables; no XA."
+            },
+            {
+              "id": "ADR-0004",
+              "title": "URI-versioned public APIs",
+              "status": "Accepted",
+              "body": "Every public path starts with `/api/v1`."
+            },
+            {
+              "id": "ADR-0005",
+              "title": "RS256 access tokens checked at every boundary, rotated refresh sessions",
+              "status": "Accepted",
+              "body": "The gateway and each service validate the token against auth-service's JWKS; refresh tokens are opaque, hashed and rotated, reuse revokes the family. Access tokens are not revoked before expiry (10 minutes)."
+            },
+            {
+              "id": "ADR-0006",
+              "title": "Locked inventory holds and venue reservation over HTTP",
+              "status": "Accepted",
+              "body": "Ticket rows are locked for every hold change; publication reserves the room through venue-service with the organizer's token and owner reference `event:<id>`."
+            },
+            {
+              "id": "ADR-0007",
+              "title": "Durable booking commands, signed QR tickets, locked check-in",
+              "status": "Accepted",
+              "body": "A booking command row is claimed before calling event-service; QR tokens are HMAC-SHA256 signed; check-in locks the ticket row."
+            },
+            {
+              "id": "ADR-0008",
+              "title": "Provider-neutral payments with a fake adapter; recoverable Saga",
+              "status": "Accepted",
+              "body": "One provider port; only a deterministic fake exists. Refund policy by role; stuck payments and Saga steps are re-driven by scheduled jobs."
+            },
+            {
+              "id": "ADR-0009",
+              "title": "Bounded Kafka retries and durable notification delivery",
+              "status": "Accepted",
+              "body": "Four exponential retries then `<topic>.dlt`; outbox rows dead-lettered after 10 attempts; notifications stored as intents with attempts."
+            },
+            {
+              "title": "Fixed service URLs, no service discovery",
+              "status": "Observed",
+              "body": "The gateway and the two HTTP clients use configured URLs (`http://<service>:<port>` in compose). Rationale: not recorded."
+            },
+            {
+              "title": "Redis for auth rate limits and the public event cache",
+              "status": "Observed",
+              "body": "One Redis serves the gateway's rate limiter and event-service's Spring cache. Rationale: not recorded (system-context.md allows Redis for caches and rate limits)."
+            },
+            {
+              "title": "One repository, one Maven reactor, one backend Dockerfile",
+              "status": "Observed",
+              "body": "All services build from `docker/backend.Dockerfile` with a `MODULE` argument; shared libraries hold no domain code. Rationale: not recorded."
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "risks",
+          "eyebrow": "Findings",
+          "title": "Risks and findings",
+          "columns": [
+            "Impact",
+            "Finding",
+            "Consequence",
+            "Evidence"
+          ],
+          "rows": [
+            [
+              "**High**",
+              "event-service's inventory endpoints are reachable through the gateway by any attendee: the gateway routes all of `/api/v1/events/**` and only requires a token, and the endpoints allow the ATTENDEE role. An attendee can hold seats and confirm their own hold without a booking or payment.",
+              "Seats can be taken out of sale permanently without paying; repeated holds can also block sales for 15 minutes at a time.",
+              "gateway `application.yml:24-27`; `GatewaySecurityConfiguration.java:57-58`; `InventoryController.java:26-27,87-103`; `InventoryService.java:250-255`"
+            ],
+            [
+              "**High**",
+              "Cancelling an event cancels its bookings and tickets in attendee-service but requests no refund; no service reacts to `event.cancelled` with money. Refunds stay a manual call that closes when the event's start time passes.",
+              "Paid attendees of a cancelled event keep being charged unless someone refunds each payment before the original start time.",
+              "`BookingPersistenceService.java:185-199`; `EventLifecycleConsumer.java:68-69`; `RefundStateService.java:13-14`"
+            ],
+            [
+              "Medium",
+              "Default configuration is local-only: the JWT signing key and the QR signing key are generated at startup when none is configured (allowed by default), the payment webhook secret defaults to a known value, and all database passwords are `local_dev_only`.",
+              "Restarting auth-service logs everyone out; restarting attendee-service makes every issued QR ticket fail at the door; a deployment that keeps the defaults accepts forged webhooks.",
+              "`JwtKeyConfiguration.java:66-74`; `QrTokenService.java:36-48`; `compose.yaml:169,269,305`; `init-databases.sql:1-16`"
+            ],
+            [
+              "Medium",
+              "Redis is on event-service's write path: business transactions evict the cache by calling `Cache.evict` directly, which no cache error handler covers, and cached detail reads use Spring's default handler, which rethrows.",
+              "A Redis outage makes event publication, transitions, inventory holds (so every booking) and public event details fail. (The gateway's login rate limiter does not block: it fails open, so the limits stop applying.)",
+              "`PublicEventCache.java:19-24`; `EventManagementService.java:128,166`; `InventoryService.java:151,277`; `PublicEventQueryService.java:94-96`"
+            ],
+            [
+              "Medium",
+              "Publishing and cancelling an event call venue-service over HTTP inside the event database transaction.",
+              "If the transaction rolls back after the call (e.g. Redis or database failure), the room stays reserved, or is released while the event stays published. The idempotent `event:<id>` reference only helps if publication is retried.",
+              "`EventManagementService.java:209-229,282-292`; `VenueAvailabilityService.java:86-101`"
+            ],
+            [
+              "Medium",
+              "Personal data and ticket credentials travel through Kafka and are copied: `booking.created`, `ticket.issued` and payment events carry email, phone and locale, and `ticket.issued` carries the signed QR token, which notification-service stores in intent variables and local deliveries.",
+              "Anyone who can read the topics or notification_service can use other people's tickets; GDPR erasure has to reach three services and the topics.",
+              "`BookingSagaService.java:210-220`; `PaymentLifecycleEvents.java:9-10`; `NotificationEventHandler.java:109-122`"
+            ],
+            [
+              "Medium",
+              "Single points of failure in the only deployment: one Kafka node with replication factor 1 and auto-created topics, one PostgreSQL for all six databases, one Redis.",
+              "Losing any of them stops bookings; losing the Kafka volume loses undelivered Saga commands already marked published.",
+              "`compose.yaml:14-74`"
+            ],
+            [
+              "Low",
+              "The payment provider is an in-process fake that keeps payment state in memory.",
+              "After a restart, reconciliation of a payment still PROCESSING finds no provider record and marks it failed.",
+              "`FakePaymentProvider.java:22,32`; `PaymentReconciliationJob.java:9`"
+            ],
+            [
+              "Low",
+              "Compensation refunds call the provider inside the Kafka consumer's database transaction.",
+              "With a real, slow provider the consumer holds locks and stalls its partition; failures retry and end in the DLT.",
+              "`AttendeeLifecycleConsumer.java:59-60,74-76`; `RefundApplicationService.java:10`"
+            ],
+            [
+              "Low",
+              "Any EVENT_STAFF user may validate and check in tickets for every event; staff are not tied to events.",
+              "A staff account of one organizer can check in (consume) tickets of another organizer's event.",
+              "`AuthenticatedActor.java:34-35` (attendee-service)"
+            ],
+            [
+              "Low",
+              "Cancelling an event does not stop bookings still awaiting payment: payment-service never hears of the cancellation, event-service confirms an active hold without checking the event status, and attendee-service confirms a booking from any status.",
+              "An attendee who pays within the 15-minute hold after a cancellation gets a confirmed booking and valid tickets for the cancelled event, and is charged.",
+              "`BookingPersistenceService.java:185-199`; `PaymentStateService.java:17-25`; `InventoryService.java:223-279`; `BookingSagaService.java:81-103,201-206`"
+            ],
+            [
+              "Low",
+              "Reminders and cancellation alerts are not withdrawn for bookings that end without tickets: notification-service plans the 24 h reminder on `booking.created` for every unexpired booking and ignores `booking.payment-failed`, `ticket-hold.expired` and `booking.refunded`; `event.cancelled` alerts every booking it has seen.",
+              "Attendees whose booking failed, expired or was refunded still get a reminder and a cancellation message.",
+              "`NotificationEventHandler.java:57-67,82-85,130-139`"
+            ],
+            [
+              "Low",
+              "The gateway rate-limits by the TCP peer address and ignores `X-Forwarded-For`, while the frontend's nginx proxies `/api/` to it.",
+              "All users who reach the API through the frontend share one sign-up, login and refresh bucket, so a few failed logins block everyone; any future load balancer has the same effect.",
+              "`AuthenticationRateLimitWebFilter.java:64-69`; `frontend/nginx.conf:8-14`"
+            ],
+            [
+              "Low",
+              "Every service port (8081-8086) is published on the host next to the gateway.",
+              "Callers can bypass the gateway's CORS, correlation and rate limiting (tokens are still checked by each service).",
+              "`compose.yaml:175-176,209-210,240-241,278-279,312-313,346-347`"
+            ],
+            [
+              "Low",
+              "Reschedule alerts cannot fire: event details can change only while an event is a draft, and bookings exist only once sales are open.",
+              "The EVENT_RESCHEDULED notification and template are dead code.",
+              "`EventManagementService.java:96-101`; `InventoryService.java:111-116`; `NotificationPlanner.java:110-126`"
+            ],
+            [
+              "Low",
+              "Setting the email or SMS provider to anything but `local` leaves no sender bean, since no other adapter exists.",
+              "notification-service would fail to start.",
+              "`LocalEmailAdapter.java:14`; `LocalSmsAdapter.java:14`"
+            ],
+            [
+              "Low",
+              "Observability gaps: Grafana has a Loki data source but nothing ships logs to Loki.",
+              "Logs exist only in container output.",
+              "`datasources.yml:11-15`; `otel-collector/config.yml:23-28`"
+            ],
+            [
+              "Low",
+              "Documentation and UI are behind the code: the front end says \"Phase 3\" and that booking is deferred, and system-context.md says notification delivery is deferred and draws users going through the front end.",
+              "New engineers get a wrong picture of what runs.",
+              "`frontend/src/App.tsx:25,53`; `docs/architecture/system-context.md:5,9-10`"
+            ]
+          ]
+        },
+        {
+          "type": "list",
+          "id": "unknowns",
+          "eyebrow": "Gaps",
+          "title": "Unknowns",
+          "items": [
+            "Owners and quality goals: not recorded.",
+            "Production deployment: Kubernetes, Helm, Terraform and AWS are named as future work; no descriptor exists.",
+            "Which payment, email, SMS and maps providers will be used, and how their credentials and keys will be managed.",
+            "Whether a real web or mobile client is planned; the React app makes no API calls.",
+            "Topic partitioning, retention and replication outside the local compose file."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-requests",
+      "level": "containers",
+      "title": "Requests and data",
+      "summary": "The synchronous view: who calls the gateway, where it routes, which service calls which over HTTP, and which store each service owns.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "All public traffic is meant to enter through **api-gateway** on port 8080. The gateway checks the token on protected routes and forwards the original bearer token; **every service validates it again** against auth-service's JWKS and enforces roles and ownership itself. Only two service-to-service HTTP calls exist, both carrying the end user's token: event-service → venue-service (room reservation) and attendee-service → event-service (inventory holds). Everything else between services goes through Kafka (next page).\n\nThe `shared/` modules (Kafka reliability, web error handling, header contracts) are libraries compiled into the services, not containers."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "emp",
+          "caption": "Container diagram for the Event Management Platform: requests",
+          "relationships": [
+            {
+              "from": "p-attendee",
+              "to": "gateway",
+              "label": "Registers, books, pays, reads tickets and notifications",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "p-organizer",
+              "to": "gateway",
+              "label": "Manages venues, events, ticket types and refunds",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "p-staff",
+              "to": "gateway",
+              "label": "Validates and checks in QR tickets",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "p-admin",
+              "to": "gateway",
+              "label": "Assigns roles, manages categories, reads audit",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "p-attendee",
+              "to": "frontend",
+              "label": "Opens the landing page",
+              "technology": "HTTPS"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "label": "Proxies /api/ (unused by the page)",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "redis",
+              "label": "Counts sign-up, login and refresh attempts",
+              "technology": "Redis"
+            },
+            {
+              "from": "gateway",
+              "to": "auth",
+              "label": "Routes /api/v1/auth and OAuth2; fetches the JWKS",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "event",
+              "label": "Routes events, categories, ticket types, inventory",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "venue",
+              "label": "Routes venue management",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "attendee",
+              "label": "Routes profiles, bookings, tickets, check-ins",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "payment",
+              "label": "Routes payments, refunds and webhooks",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "notification",
+              "label": "Routes preferences and notification status",
+              "technology": "HTTP"
+            },
+            {
+              "from": "event",
+              "to": "venue",
+              "label": "Reserves and releases the room with the organizer token",
+              "technology": "JSON/HTTP, 3 s timeout"
+            },
+            {
+              "from": "attendee",
+              "to": "event",
+              "label": "Holds and confirms inventory with the attendee token",
+              "technology": "JSON/HTTP, Idempotency-Key"
+            },
+            {
+              "from": "auth",
+              "to": "oauth-idp",
+              "label": "Optional OAuth2 login",
+              "technology": "OAuth2 / OIDC"
+            }
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram-2",
+          "eyebrow": "Diagram",
+          "title": "Data stores",
+          "boundary": "emp",
+          "caption": "Container diagram for the Event Management Platform: data stores and token keys",
+          "relationships": [
+            {
+              "from": "auth",
+              "to": "auth-db",
+              "label": "Accounts, sessions, audit",
+              "technology": "JDBC"
+            },
+            {
+              "from": "event",
+              "to": "event-db",
+              "label": "Events, ticket types, holds, outbox",
+              "technology": "JDBC"
+            },
+            {
+              "from": "venue",
+              "to": "venue-db",
+              "label": "Venues, rooms, availability",
+              "technology": "JDBC"
+            },
+            {
+              "from": "attendee",
+              "to": "attendee-db",
+              "label": "Bookings, Saga, tickets, check-ins, outbox",
+              "technology": "JDBC"
+            },
+            {
+              "from": "payment",
+              "to": "payment-db",
+              "label": "Payments, refunds, projections, outbox",
+              "technology": "JDBC"
+            },
+            {
+              "from": "notification",
+              "to": "notification-db",
+              "label": "Intents, attempts, preferences, local deliveries",
+              "technology": "JDBC"
+            },
+            {
+              "from": "event",
+              "to": "redis",
+              "label": "Caches public event details",
+              "technology": "Redis"
+            },
+            {
+              "from": "event",
+              "to": "auth",
+              "label": "Fetches the JWKS to verify tokens",
+              "technology": "HTTP"
+            },
+            {
+              "from": "venue",
+              "to": "auth",
+              "label": "Fetches the JWKS",
+              "technology": "HTTP"
+            },
+            {
+              "from": "attendee",
+              "to": "auth",
+              "label": "Fetches the JWKS",
+              "technology": "HTTP"
+            },
+            {
+              "from": "payment",
+              "to": "auth",
+              "label": "Fetches the JWKS",
+              "technology": "HTTP"
+            },
+            {
+              "from": "notification",
+              "to": "auth",
+              "label": "Fetches the JWKS",
+              "technology": "HTTP"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "containers",
+          "eyebrow": "Catalogue",
+          "title": "Container Catalogue",
+          "select": {
+            "ids": [
+              "frontend",
+              "gateway",
+              "auth",
+              "event",
+              "venue",
+              "attendee",
+              "payment",
+              "notification"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Container"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            "technology",
+            {
+              "key": "properties.stack",
+              "label": "Libraries"
+            },
+            {
+              "key": "properties.port",
+              "label": "Port"
+            },
+            {
+              "key": "properties.commit",
+              "label": "Commit",
+              "format": "code"
+            },
+            "zoom"
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "data",
+          "eyebrow": "Persistence",
+          "title": "Data Stores",
+          "select": {
+            "ids": [
+              "auth-db",
+              "event-db",
+              "venue-db",
+              "attendee-db",
+              "payment-db",
+              "notification-db",
+              "redis"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Store"
+            },
+            {
+              "key": "description",
+              "label": "Holds"
+            },
+            {
+              "key": "technology",
+              "label": "Engine"
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "routes",
+          "eyebrow": "Catalogue",
+          "title": "Gateway routes and access",
+          "columns": [
+            "Paths",
+            "Target",
+            "Gateway rule",
+            "Service rule"
+          ],
+          "rows": [
+            [
+              "`/api/v1/auth/register`, `/login`, `/refresh`",
+              "auth-service",
+              "public, rate-limited per IP",
+              "public"
+            ],
+            [
+              "`/api/v1/auth/.well-known/jwks.json`, `/oauth2/**`, `/login/oauth2/**`",
+              "auth-service",
+              "public",
+              "public"
+            ],
+            [
+              "other `/api/v1/auth/**`",
+              "auth-service",
+              "token",
+              "token; role changes and audit ADMIN"
+            ],
+            [
+              "`GET /api/v1/events`, `/events/*`, `/event-categories`",
+              "event-service",
+              "public",
+              "public, cached"
+            ],
+            [
+              "other `/api/v1/events/**`, `/event-categories/**`",
+              "event-service",
+              "token",
+              "ORGANIZER/ADMIN; inventory also ATTENDEE"
+            ],
+            [
+              "`/api/v1/venues/**`",
+              "venue-service",
+              "token",
+              "ORGANIZER/ADMIN and venue owner"
+            ],
+            [
+              "`/api/v1/attendees/**`, `/bookings/**`",
+              "attendee-service",
+              "token",
+              "ATTENDEE, own data"
+            ],
+            [
+              "`/api/v1/tickets/**`, `/check-ins/**`",
+              "attendee-service",
+              "token",
+              "EVENT_STAFF, ORGANIZER (own events), ADMIN"
+            ],
+            [
+              "`POST /api/v1/payments/webhooks/**`",
+              "payment-service",
+              "public",
+              "HMAC signature"
+            ],
+            [
+              "other `/api/v1/payments/**`",
+              "payment-service",
+              "token",
+              "paying ATTENDEE, event ORGANIZER, ADMIN"
+            ],
+            [
+              "`/api/v1/notifications/**`",
+              "notification-service",
+              "token",
+              "own data; local deliveries ADMIN"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "id": "deployment",
+          "eyebrow": "Runtime",
+          "title": "Deployment",
+          "columns": [
+            "Descriptor",
+            "What runs",
+            "Notes"
+          ],
+          "rows": [
+            [
+              "`compose.yaml` (default)",
+              "PostgreSQL 17.6 (six databases), Redis 8.2.1, Kafka 4.0.0 (single KRaft node).",
+              "Infrastructure only, for running services from an IDE."
+            ],
+            [
+              "`compose.yaml --profile full-stack`",
+              "Adds the gateway, six services (one image per module from `docker/backend.Dockerfile`, Temurin 17 JRE) and the frontend (nginx), plus Jaeger, OTel collector, Loki, Prometheus, Grafana.",
+              "The only deployment descriptor. One replica of everything; service ports also published on the host."
+            ],
+            [
+              "`compose.yaml --profile observability`",
+              "Jaeger, OTel collector, Loki, Prometheus, Grafana.",
+              "Prometheus scrapes all seven Spring services; traces go through the collector to Jaeger."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-messaging",
+      "level": "containers",
+      "title": "Messaging",
+      "summary": "The asynchronous view: three Kafka topics, each written by one service through its transactional outbox, carry the booking Saga, ticket facts and everything notification-service turns into messages.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "Each producing service writes an outbox row in the same transaction as its change; a relay publishes due rows every second, keyed by aggregate id, with standard headers (`messageId`, `eventType`, `schemaVersion`, correlation and trace). After 10 failed sends a row is kept as dead-lettered. Consumers store each processed `messageId` in the same transaction as their effect; failures are retried four times with exponential backoff and then go to `<topic>.dlt`, which nothing consumes. auth-service and venue-service use no Kafka."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "emp",
+          "caption": "Container diagram for the Event Management Platform: messaging",
+          "relationships": [
+            {
+              "from": "event",
+              "to": "t-event",
+              "label": "Publishes event and inventory facts",
+              "technology": "Kafka, outbox relay"
+            },
+            {
+              "from": "attendee",
+              "to": "t-attendee",
+              "label": "Publishes booking and ticket facts and Saga commands",
+              "technology": "Kafka, outbox relay"
+            },
+            {
+              "from": "payment",
+              "to": "t-payment",
+              "label": "Publishes payment and refund results",
+              "technology": "Kafka, outbox relay"
+            },
+            {
+              "from": "t-event",
+              "to": "attendee",
+              "label": "Inventory confirmed, expired or rejected; event cancelled",
+              "technology": "Kafka · group attendee-service-v1"
+            },
+            {
+              "from": "t-attendee",
+              "to": "event",
+              "label": "Confirm or release inventory commands",
+              "technology": "Kafka · group event-service-inventory-saga-v1"
+            },
+            {
+              "from": "t-attendee",
+              "to": "payment",
+              "label": "Payment orders, ticket facts, compensation requests",
+              "technology": "Kafka · group payment-service-v1"
+            },
+            {
+              "from": "t-payment",
+              "to": "attendee",
+              "label": "Payment processing, succeeded, failed; refund succeeded",
+              "technology": "Kafka · group attendee-service-v1"
+            },
+            {
+              "from": "t-event",
+              "to": "notification",
+              "label": "Event updated or cancelled",
+              "technology": "Kafka · group notification-service-v1"
+            },
+            {
+              "from": "t-attendee",
+              "to": "notification",
+              "label": "Booking created or confirmed, ticket issued",
+              "technology": "Kafka · group notification-service-v1"
+            },
+            {
+              "from": "t-payment",
+              "to": "notification",
+              "label": "Payment succeeded or failed, refund succeeded",
+              "technology": "Kafka · group notification-service-v1"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "topics",
+          "eyebrow": "Catalogue",
+          "title": "Topics",
+          "select": {
+            "kind": "queue"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Topic"
+            },
+            {
+              "key": "description",
+              "label": "Carries"
+            },
+            "technology",
+            {
+              "key": "properties.owner",
+              "label": "Written by"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "event-types",
+          "eyebrow": "Catalogue",
+          "title": "Event types and consumers",
+          "columns": [
+            "Event type (`event-platform.…v1`)",
+            "Topic",
+            "Consumers"
+          ],
+          "rows": [
+            [
+              "`event.published`, `ticket-type.changed`, `inventory.held`, `inventory.released`, `inventory.release-rejected`",
+              "event-lifecycle",
+              "none (audit and future projections)"
+            ],
+            [
+              "`event.updated`",
+              "event-lifecycle",
+              "notification-service (reschedule reminders)"
+            ],
+            [
+              "`event.cancelled`",
+              "event-lifecycle",
+              "attendee-service (cancel bookings and tickets), notification-service (alert)"
+            ],
+            [
+              "`inventory.confirmed`, `inventory.expired`, `inventory.confirmation-rejected`",
+              "event-lifecycle",
+              "attendee-service (Saga)"
+            ],
+            [
+              "`booking.created`",
+              "attendee-lifecycle",
+              "notification-service (receipt, recipient, reminder)"
+            ],
+            [
+              "`booking.payment-requested`",
+              "attendee-lifecycle",
+              "payment-service (payment order)"
+            ],
+            [
+              "`booking.confirmed`",
+              "attendee-lifecycle",
+              "notification-service"
+            ],
+            [
+              "`ticket.issued`",
+              "attendee-lifecycle",
+              "payment-service (ticket projection), notification-service (QR email)"
+            ],
+            [
+              "`ticket.checked-in`",
+              "attendee-lifecycle",
+              "payment-service (no refund after check-in)"
+            ],
+            [
+              "`inventory.confirmation-requested`, `inventory.release-requested`",
+              "attendee-lifecycle",
+              "event-service (Saga commands)"
+            ],
+            [
+              "`payment.compensation-requested`",
+              "attendee-lifecycle",
+              "payment-service (full refund)"
+            ],
+            [
+              "`booking.payment-failed`, `booking.refunded`, `ticket-hold.expired`",
+              "attendee-lifecycle",
+              "none"
+            ],
+            [
+              "`payment.processing`",
+              "payment-lifecycle",
+              "attendee-service"
+            ],
+            [
+              "`payment.succeeded`, `payment.failed`, `refund.succeeded`",
+              "payment-lifecycle",
+              "attendee-service, notification-service"
+            ],
+            [
+              "`refund.failed`",
+              "payment-lifecycle",
+              "none"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-gateway",
+      "level": "components",
+      "title": "api-gateway",
+      "element": "gateway",
+      "summary": "How a request is filtered, authenticated and routed. The gateway authenticates but never authorizes by role; services do that.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Filter order: correlation id, security headers, identity-header stripping, origin check, rate limit, then the Spring Security chain.",
+            "Routes go to fixed URLs; no service discovery, retries or circuit breakers are configured.",
+            "Redis holds the sign-up, login and refresh buckets. If Redis fails, the limiter lets requests through (fails open) and the gateway reports itself not ready."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "gateway",
+          "caption": "Component diagram for api-gateway",
+          "relationships": [
+            {
+              "from": "p-attendee",
+              "to": "gw-edge",
+              "label": "Sends API requests to",
+              "technology": "JSON/HTTPS"
+            },
+            {
+              "from": "frontend",
+              "to": "gw-edge",
+              "label": "Proxies /api/ to",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-edge",
+              "to": "gw-rate-limit",
+              "label": "Passes requests to"
+            },
+            {
+              "from": "gw-rate-limit",
+              "to": "redis",
+              "label": "Takes a token from the IP bucket",
+              "technology": "Redis"
+            },
+            {
+              "from": "gw-rate-limit",
+              "to": "gw-security",
+              "label": "Passes allowed requests to"
+            },
+            {
+              "from": "gw-security",
+              "to": "auth",
+              "label": "Fetches the JWKS",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-security",
+              "to": "gw-routes",
+              "label": "Hands public or authenticated requests to"
+            },
+            {
+              "from": "gw-routes",
+              "to": "auth",
+              "label": "Forwards auth and OAuth2 calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-routes",
+              "to": "event",
+              "label": "Forwards event calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-routes",
+              "to": "venue",
+              "label": "Forwards venue calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-routes",
+              "to": "attendee",
+              "label": "Forwards booking and ticket calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-routes",
+              "to": "payment",
+              "label": "Forwards payment calls and webhooks",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-routes",
+              "to": "notification",
+              "label": "Forwards notification calls",
+              "technology": "HTTP"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "gateway"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-auth",
+      "level": "components",
+      "title": "auth-service",
+      "element": "auth",
+      "summary": "Accounts, tokens and roles. Every other container trusts only the tokens this service signs.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Self-registration grants only ATTENDEE; other roles come from an admin call that also revokes the user's refresh sessions.",
+            "Without configured key files the RSA key is generated at startup, so every token dies with a restart.",
+            "Kafka is configured but unused."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "auth",
+          "caption": "Component diagram for auth-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "au-api",
+              "label": "Forwards register, login, refresh, logout, me, roles, audit",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "au-oauth",
+              "label": "Forwards OAuth2 redirects and callbacks",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "au-jwks",
+              "label": "Fetches the public key",
+              "technology": "HTTP"
+            },
+            {
+              "from": "event",
+              "to": "au-jwks",
+              "label": "Fetches the public key",
+              "technology": "HTTP"
+            },
+            {
+              "from": "attendee",
+              "to": "au-jwks",
+              "label": "Fetches the public key",
+              "technology": "HTTP"
+            },
+            {
+              "from": "payment",
+              "to": "au-jwks",
+              "label": "Fetches the public key",
+              "technology": "HTTP"
+            },
+            {
+              "from": "venue",
+              "to": "au-jwks",
+              "label": "Fetches the public key",
+              "technology": "HTTP"
+            },
+            {
+              "from": "notification",
+              "to": "au-jwks",
+              "label": "Fetches the public key",
+              "technology": "HTTP"
+            },
+            {
+              "from": "au-api",
+              "to": "au-authn",
+              "label": "Delegates credential and session work to"
+            },
+            {
+              "from": "au-oauth",
+              "to": "au-authn",
+              "label": "Signs the user in through"
+            },
+            {
+              "from": "au-oauth",
+              "to": "oauth-idp",
+              "label": "Completes the provider login",
+              "technology": "OAuth2 / OIDC"
+            },
+            {
+              "from": "au-authn",
+              "to": "au-jwks",
+              "label": "Signs access tokens with the private key of"
+            },
+            {
+              "from": "au-authn",
+              "to": "au-audit",
+              "label": "Records security events in"
+            },
+            {
+              "from": "au-authn",
+              "to": "auth-db",
+              "label": "Reads accounts; locks and rotates refresh sessions",
+              "technology": "JDBC"
+            },
+            {
+              "from": "au-audit",
+              "to": "auth-db",
+              "label": "Appends audit events",
+              "technology": "JDBC"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "auth"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-event",
+      "level": "components",
+      "title": "event-service",
+      "element": "event",
+      "summary": "Events, ticket types and the authoritative seat count. The Saga changes inventory only through Kafka commands; attendee-service holds seats over HTTP.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Event details are frozen once an event leaves DRAFT.",
+            "Publishing reserves the room at venue-service inside the database transaction.",
+            "Every change that others must see goes through the outbox; the Redis cache is evicted in the same transaction."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "event",
+          "caption": "Component diagram for event-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "ev-public",
+              "label": "Forwards public reads",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "ev-manage",
+              "label": "Forwards organizer and admin commands",
+              "technology": "HTTP"
+            },
+            {
+              "from": "attendee",
+              "to": "ev-inventory",
+              "label": "Holds and confirms seats",
+              "technology": "JSON/HTTP, Idempotency-Key"
+            },
+            {
+              "from": "ev-public",
+              "to": "redis",
+              "label": "Caches event details",
+              "technology": "Redis"
+            },
+            {
+              "from": "ev-public",
+              "to": "event-db",
+              "label": "Reads events and ticket types",
+              "technology": "JDBC"
+            },
+            {
+              "from": "ev-manage",
+              "to": "ev-venue-client",
+              "label": "Reserves or releases the room through"
+            },
+            {
+              "from": "ev-venue-client",
+              "to": "venue",
+              "label": "Calls the reservation API",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "ev-manage",
+              "to": "event-db",
+              "label": "Stores events and ticket types",
+              "technology": "JDBC"
+            },
+            {
+              "from": "ev-manage",
+              "to": "ev-outbox",
+              "label": "Records published, updated and cancelled events in"
+            },
+            {
+              "from": "ev-inventory",
+              "to": "event-db",
+              "label": "Locks ticket rows; stores holds",
+              "technology": "JDBC"
+            },
+            {
+              "from": "ev-inventory",
+              "to": "ev-outbox",
+              "label": "Records held, confirmed, released and expired in"
+            },
+            {
+              "from": "t-attendee",
+              "to": "ev-saga",
+              "label": "Delivers confirm and release commands",
+              "technology": "Kafka"
+            },
+            {
+              "from": "ev-saga",
+              "to": "ev-inventory",
+              "label": "Confirms or releases holds through"
+            },
+            {
+              "from": "ev-outbox",
+              "to": "t-event",
+              "label": "Relays outbox rows",
+              "technology": "Kafka"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "event"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-venue",
+      "level": "components",
+      "title": "venue-service",
+      "element": "venue",
+      "summary": "Venues and their calendars. Small and synchronous: no messaging.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Every endpoint needs ORGANIZER or ADMIN, and venue changes and reservations need the venue owner.",
+            "A reservation is idempotent on its owner reference; conflicting entries are rejected under a venue-row lock."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "venue",
+          "caption": "Component diagram for venue-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "ve-api",
+              "label": "Forwards venue, room and block calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "event",
+              "to": "ve-availability",
+              "label": "Reserves and releases rooms",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "ve-api",
+              "to": "ve-location",
+              "label": "Enriches the address through"
+            },
+            {
+              "from": "ve-api",
+              "to": "ve-availability",
+              "label": "Manages availability blocks through"
+            },
+            {
+              "from": "ve-api",
+              "to": "venue-db",
+              "label": "Stores venues and rooms",
+              "technology": "JDBC"
+            },
+            {
+              "from": "ve-availability",
+              "to": "venue-db",
+              "label": "Locks the venue; stores entries",
+              "technology": "JDBC"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "venue"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-attendee",
+      "level": "components",
+      "title": "attendee-service",
+      "element": "attendee",
+      "summary": "The booking side and the Saga orchestrator. Requests start bookings synchronously; everything after the hold is driven by Kafka.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "A booking is a durable command first, so a retried request with the same key converges on one booking and one hold.",
+            "Paid bookings wait in PAYMENT_PENDING; tickets are issued only after event-service confirms the seats.",
+            "Event cancellation cancels bookings and tickets here but starts no refund."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "attendee",
+          "caption": "Component diagram for attendee-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "at-booking",
+              "label": "Forwards profile, booking and ticket calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "at-scan",
+              "label": "Forwards validate and check-in calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "at-booking",
+              "to": "at-event-client",
+              "label": "Holds seats through"
+            },
+            {
+              "from": "at-event-client",
+              "to": "event",
+              "label": "Calls the inventory API",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "at-booking",
+              "to": "attendee-db",
+              "label": "Stores commands, bookings, holds, Saga rows",
+              "technology": "JDBC"
+            },
+            {
+              "from": "at-booking",
+              "to": "at-outbox",
+              "label": "Records booking created and payment requested in"
+            },
+            {
+              "from": "t-event",
+              "to": "at-consumers",
+              "label": "Delivers inventory and cancellation events",
+              "technology": "Kafka"
+            },
+            {
+              "from": "t-payment",
+              "to": "at-consumers",
+              "label": "Delivers payment and refund results",
+              "technology": "Kafka"
+            },
+            {
+              "from": "at-consumers",
+              "to": "at-saga",
+              "label": "Advances the booking through"
+            },
+            {
+              "from": "at-saga",
+              "to": "attendee-db",
+              "label": "Updates bookings; issues tickets",
+              "technology": "JDBC"
+            },
+            {
+              "from": "at-saga",
+              "to": "at-outbox",
+              "label": "Records commands, tickets and outcomes in"
+            },
+            {
+              "from": "at-scan",
+              "to": "attendee-db",
+              "label": "Locks tickets; records check-ins and attempts",
+              "technology": "JDBC"
+            },
+            {
+              "from": "at-scan",
+              "to": "at-outbox",
+              "label": "Records ticket checked in in"
+            },
+            {
+              "from": "at-outbox",
+              "to": "t-attendee",
+              "label": "Relays outbox rows",
+              "technology": "Kafka"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "attendee"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-payment",
+      "level": "components",
+      "title": "payment-service",
+      "element": "payment",
+      "summary": "Money in and out, behind a provider port whose only implementation is an in-process fake.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "A payment can start only after the booking's payment order has arrived from Kafka (else 409).",
+            "The provider is called between two short transactions; webhooks and the reconciliation job feed the same state machine.",
+            "Refunds close when the event starts; checked-in tickets cannot be refunded."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "payment",
+          "caption": "Component diagram for payment-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "pa-api",
+              "label": "Forwards payment, refund and webhook calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "pa-api",
+              "to": "pa-payments",
+              "label": "Starts, verifies and receives webhooks through"
+            },
+            {
+              "from": "pa-api",
+              "to": "pa-refunds",
+              "label": "Requests refunds through"
+            },
+            {
+              "from": "pa-payments",
+              "to": "pa-provider",
+              "label": "Creates and verifies payments; checks webhook signatures"
+            },
+            {
+              "from": "pa-refunds",
+              "to": "pa-provider",
+              "label": "Refunds through"
+            },
+            {
+              "from": "pa-payments",
+              "to": "payment-db",
+              "label": "Stores payments, attempts, transactions, webhook ids",
+              "technology": "JDBC"
+            },
+            {
+              "from": "pa-refunds",
+              "to": "payment-db",
+              "label": "Stores refunds",
+              "technology": "JDBC"
+            },
+            {
+              "from": "t-attendee",
+              "to": "pa-consumer",
+              "label": "Delivers payment orders, ticket facts, compensation",
+              "technology": "Kafka"
+            },
+            {
+              "from": "pa-consumer",
+              "to": "payment-db",
+              "label": "Stores order and ticket projections",
+              "technology": "JDBC"
+            },
+            {
+              "from": "pa-consumer",
+              "to": "pa-refunds",
+              "label": "Runs compensation refunds through"
+            },
+            {
+              "from": "pa-payments",
+              "to": "pa-outbox",
+              "label": "Records processing, succeeded and failed in"
+            },
+            {
+              "from": "pa-refunds",
+              "to": "pa-outbox",
+              "label": "Records refund succeeded and failed in"
+            },
+            {
+              "from": "pa-outbox",
+              "to": "t-payment",
+              "label": "Relays outbox rows",
+              "technology": "Kafka"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "payment"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-notification",
+      "level": "components",
+      "title": "notification-service",
+      "element": "notification",
+      "summary": "Turns lifecycle events into email and SMS, durably and idempotently. Nothing is actually sent: the only adapters record the message.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Transactional types are mandatory; only reminders can be switched off, and SMS needs an opt-in.",
+            "Reminders are intents scheduled 24 h before the start, so they survive restarts.",
+            "A failed delivery is retried up to 5 times, then dead-lettered."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "notification",
+          "caption": "Component diagram for notification-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "no-api",
+              "label": "Forwards preference and status calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "t-event",
+              "to": "no-planner",
+              "label": "Delivers event updates and cancellations",
+              "technology": "Kafka"
+            },
+            {
+              "from": "t-attendee",
+              "to": "no-planner",
+              "label": "Delivers booking and ticket facts",
+              "technology": "Kafka"
+            },
+            {
+              "from": "t-payment",
+              "to": "no-planner",
+              "label": "Delivers payment and refund results",
+              "technology": "Kafka"
+            },
+            {
+              "from": "no-planner",
+              "to": "notification-db",
+              "label": "Stores recipients, projections and intents",
+              "technology": "JDBC"
+            },
+            {
+              "from": "no-api",
+              "to": "notification-db",
+              "label": "Reads and updates preferences and intents",
+              "technology": "JDBC"
+            },
+            {
+              "from": "no-delivery",
+              "to": "notification-db",
+              "label": "Locks due intents; records attempts",
+              "technology": "JDBC"
+            },
+            {
+              "from": "no-delivery",
+              "to": "no-local",
+              "label": "Sends rendered email or SMS through"
+            },
+            {
+              "from": "no-local",
+              "to": "notification-db",
+              "label": "Records the message in local_deliveries",
+              "technology": "JDBC"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "notification"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seq-sign-in",
+      "level": "sequence",
+      "title": "Sign in and call a protected API",
+      "summary": "An attendee logs in and lists their bookings. The gateway rate-limits the login in Redis; auth-service checks the password and returns an RS256 access token and an opaque refresh token. On the next call both the gateway and attendee-service verify the token themselves with auth-service's public key.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Attendee sends their email and password"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "The account exists and is enabled"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "The attendee holds a 10-minute access token and a 30-day refresh token; the booking list is returned"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "p-attendee",
+            "gateway",
+            "redis",
+            "auth",
+            "attendee"
+          ],
+          "steps": [
+            {
+              "from": "p-attendee",
+              "to": "gateway",
+              "message": "Logs in",
+              "code": "POST /api/v1/auth/login [JSON/HTTPS]"
+            },
+            {
+              "from": "gateway",
+              "to": "redis",
+              "message": "Takes a token from the login bucket for this IP",
+              "code": "RedisRateLimiter auth-login"
+            },
+            {
+              "frame": "alt",
+              "label": "bucket empty"
+            },
+            {
+              "from": "gateway",
+              "to": "p-attendee",
+              "message": "429 RATE_LIMIT_EXCEEDED",
+              "type": "return"
+            },
+            {
+              "end": true
+            },
+            {
+              "note": "If Redis is down the limiter allows the request (fails open)",
+              "over": [
+                "gateway",
+                "redis"
+              ]
+            },
+            {
+              "from": "gateway",
+              "to": "auth",
+              "message": "Forwards (public route)",
+              "code": "POST /api/v1/auth/login [HTTP]"
+            },
+            {
+              "from": "auth",
+              "to": "auth",
+              "message": "Checks the BCrypt hash, stores a refresh session, signs an RS256 JWT, audits the login"
+            },
+            {
+              "from": "auth",
+              "to": "gateway",
+              "message": "Access token, refresh token, user",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "p-attendee",
+              "message": "Tokens",
+              "type": "return"
+            },
+            {
+              "from": "p-attendee",
+              "to": "gateway",
+              "message": "Lists bookings with the bearer token",
+              "code": "GET /api/v1/bookings [JSON/HTTPS]"
+            },
+            {
+              "from": "gateway",
+              "to": "auth",
+              "message": "Fetches the public key when not cached",
+              "code": "GET /api/v1/auth/.well-known/jwks.json [HTTP]"
+            },
+            {
+              "from": "auth",
+              "to": "gateway",
+              "message": "JWK set",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "gateway",
+              "message": "Verifies signature, issuer, audience, typ=access; strips X-User-* headers"
+            },
+            {
+              "from": "gateway",
+              "to": "attendee",
+              "message": "Forwards with the original bearer token",
+              "code": "GET /api/v1/bookings [HTTP]"
+            },
+            {
+              "from": "attendee",
+              "to": "attendee",
+              "message": "Verifies the token again (own JWKS cache) and requires ATTENDEE"
+            },
+            {
+              "from": "attendee",
+              "to": "gateway",
+              "message": "The attendee's bookings",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "p-attendee",
+              "message": "Bookings",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-publish-event",
+      "level": "sequence",
+      "title": "Publish an event",
+      "summary": "An organizer publishes a draft event. event-service checks the schedule, category and ticket types, then reserves the room at venue-service with the organizer's own token, records `event.published` in its outbox and evicts the Redis cache, all in one database transaction. Opening sales is a second transition.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Organizer requests the PUBLISHED transition"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Draft event with an active category and at least one valid ticket type; the organizer owns the venue"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Event PUBLISHED with a room reservation; event.published on the event topic"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "p-organizer",
+            "gateway",
+            "event",
+            "venue",
+            "redis",
+            "t-event"
+          ],
+          "steps": [
+            {
+              "from": "p-organizer",
+              "to": "gateway",
+              "message": "Publishes the event",
+              "code": "POST /api/v1/events/{id}/transitions [JSON/HTTPS]"
+            },
+            {
+              "from": "gateway",
+              "to": "event",
+              "message": "Forwards with the bearer token (token checked)",
+              "code": "HTTP"
+            },
+            {
+              "from": "event",
+              "to": "event",
+              "message": "Checks ORGANIZER and ownership; locks the event; validates schedule, category, tickets"
+            },
+            {
+              "from": "event",
+              "to": "venue",
+              "message": "Reserves the room for owner reference event:{id}",
+              "code": "POST /api/v1/venues/{venueId}/reservations [JSON/HTTP, organizer token]"
+            },
+            {
+              "from": "venue",
+              "to": "venue",
+              "message": "Locks the venue row; checks owner, capacity and conflicts; stores the entry"
+            },
+            {
+              "from": "venue",
+              "to": "event",
+              "message": "Reservation id",
+              "type": "return"
+            },
+            {
+              "from": "event",
+              "to": "event",
+              "message": "Marks PUBLISHED and writes event.published to the outbox"
+            },
+            {
+              "from": "event",
+              "to": "redis",
+              "message": "Evicts the cached event details",
+              "code": "DEL public-event-details::{id}"
+            },
+            {
+              "note": "The venue call happens inside the event transaction; a later rollback leaves the room reserved",
+              "over": [
+                "event",
+                "venue"
+              ]
+            },
+            {
+              "from": "event",
+              "to": "gateway",
+              "message": "Event",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "p-organizer",
+              "message": "Event",
+              "type": "return"
+            },
+            {
+              "from": "event",
+              "to": "t-event",
+              "message": "Relay publishes the outbox row",
+              "code": "event-platform.event.published.v1 [Kafka]",
+              "type": "async",
+              "info": "No service consumes event.published yet."
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-book-and-pay",
+      "level": "sequence",
+      "title": "Book and pay for tickets",
+      "summary": "The main flow. attendee-service claims a durable booking command and holds seats at event-service over HTTP; the booking waits for payment. payment-service needs the payment order that arrives over Kafka, calls the (fake) provider and publishes the result. attendee-service then asks event-service over Kafka to confirm the seats and only after `inventory.confirmed` issues signed QR tickets, which notification-service turns into messages.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Attendee books a paid ticket type, then pays"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Event SALES_OPEN, ticket type on sale with stock; attendee signed in"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Booking CONFIRMED, seats confirmed, tickets issued; confirmation and ticket messages recorded"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "p-attendee",
+            "gateway",
+            "attendee",
+            "event",
+            "t-attendee",
+            "payment",
+            "t-payment",
+            "t-event",
+            "notification"
+          ],
+          "steps": [
+            {
+              "from": "p-attendee",
+              "to": "gateway",
+              "message": "Books seats",
+              "code": "POST /api/v1/bookings + Idempotency-Key [JSON/HTTPS]"
+            },
+            {
+              "from": "gateway",
+              "to": "attendee",
+              "message": "Forwards with the bearer token",
+              "code": "HTTP"
+            },
+            {
+              "from": "attendee",
+              "to": "attendee",
+              "message": "Ensures the profile; claims the booking command for the key"
+            },
+            {
+              "from": "attendee",
+              "to": "event",
+              "message": "Holds the seats with the attendee token",
+              "code": "POST /api/v1/events/{e}/ticket-types/{t}/inventory/reservations [JSON/HTTP]"
+            },
+            {
+              "from": "event",
+              "to": "event",
+              "message": "Locks the ticket row; creates a 15-minute hold; outbox inventory.held"
+            },
+            {
+              "from": "event",
+              "to": "attendee",
+              "message": "Hold with unit price and expiry",
+              "type": "return"
+            },
+            {
+              "from": "attendee",
+              "to": "attendee",
+              "message": "Stores booking PAYMENT_PENDING, hold and Saga; outbox payment-requested and booking.created"
+            },
+            {
+              "from": "attendee",
+              "to": "gateway",
+              "message": "201 booking",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "p-attendee",
+              "message": "Booking",
+              "type": "return"
+            },
+            {
+              "from": "attendee",
+              "to": "t-attendee",
+              "message": "Relays booking.payment-requested and booking.created",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "t-attendee",
+              "to": "payment",
+              "message": "Payment order projection",
+              "code": "booking.payment-requested [Kafka]",
+              "type": "async"
+            },
+            {
+              "from": "t-attendee",
+              "to": "notification",
+              "message": "Plans BOOKING_RECEIVED and a reminder 24 h before the start",
+              "code": "booking.created [Kafka]",
+              "type": "async"
+            },
+            {
+              "from": "p-attendee",
+              "to": "gateway",
+              "message": "Pays for the booking",
+              "code": "POST /api/v1/payments + Idempotency-Key [JSON/HTTPS]"
+            },
+            {
+              "from": "gateway",
+              "to": "payment",
+              "message": "Forwards",
+              "code": "HTTP"
+            },
+            {
+              "from": "payment",
+              "to": "payment",
+              "message": "Claims the payment (409 if the order has not arrived); fake provider settles by token; outbox payment.succeeded"
+            },
+            {
+              "from": "payment",
+              "to": "gateway",
+              "message": "Payment SUCCEEDED",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "p-attendee",
+              "message": "Payment",
+              "type": "return"
+            },
+            {
+              "from": "payment",
+              "to": "t-payment",
+              "message": "Relays payment.succeeded",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "t-payment",
+              "to": "attendee",
+              "message": "Payment succeeded",
+              "code": "payment.succeeded [Kafka]",
+              "type": "async"
+            },
+            {
+              "frame": "alt",
+              "label": "hold still active"
+            },
+            {
+              "from": "attendee",
+              "to": "t-attendee",
+              "message": "Requests seat confirmation",
+              "code": "inventory.confirmation-requested [Kafka]",
+              "type": "async"
+            },
+            {
+              "from": "t-attendee",
+              "to": "event",
+              "message": "Confirm command",
+              "code": "Kafka · inventory Saga consumer",
+              "type": "async"
+            },
+            {
+              "from": "event",
+              "to": "t-event",
+              "message": "Confirms the hold under the ticket-row lock; outbox inventory.confirmed",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "t-event",
+              "to": "attendee",
+              "message": "Inventory confirmed",
+              "code": "inventory.confirmed [Kafka]",
+              "type": "async"
+            },
+            {
+              "from": "attendee",
+              "to": "attendee",
+              "message": "Confirms the booking; issues one ticket per seat with a signed QR token"
+            },
+            {
+              "from": "attendee",
+              "to": "t-attendee",
+              "message": "ticket.issued (QR, contact) and booking.confirmed",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "t-attendee",
+              "to": "notification",
+              "message": "Plans TICKET_ISSUED and BOOKING_CONFIRMED",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "notification",
+              "to": "notification",
+              "message": "Delivery job renders and records the email in local_deliveries"
+            },
+            {
+              "else": "hold expired or confirmation rejected"
+            },
+            {
+              "from": "attendee",
+              "to": "t-attendee",
+              "message": "Requests a full refund",
+              "code": "payment.compensation-requested [Kafka]",
+              "type": "async"
+            },
+            {
+              "from": "t-attendee",
+              "to": "payment",
+              "message": "Compensation refund through the fake provider; outbox refund.succeeded",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "payment",
+              "to": "t-payment",
+              "message": "Relays refund.succeeded",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "t-payment",
+              "to": "attendee",
+              "message": "Marks the booking REFUNDED",
+              "code": "refund.succeeded [Kafka]",
+              "type": "async"
+            },
+            {
+              "end": true
+            },
+            {
+              "note": "Stuck confirmation or compensation is re-sent every 5 s by the recovery job",
+              "over": [
+                "attendee",
+                "t-attendee"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-check-in",
+      "level": "sequence",
+      "title": "Check in at the door",
+      "summary": "Staff scan an attendee's QR code. attendee-service verifies the HMAC signature, the event, the scanner's right to scan, the ticket's status and token version, then locks the ticket and records exactly one check-in. payment-service learns about it so the ticket can no longer be refunded.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Staff scan a QR ticket for an event"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Ticket ISSUED; scanner is ADMIN, EVENT_STAFF or the event's organizer"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Ticket CHECKED_IN; ticket.checked-in on the attendee topic"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "p-staff",
+            "gateway",
+            "attendee",
+            "t-attendee",
+            "payment"
+          ],
+          "steps": [
+            {
+              "from": "p-staff",
+              "to": "gateway",
+              "message": "Checks a ticket in",
+              "code": "POST /api/v1/check-ins + Idempotency-Key [JSON/HTTPS]"
+            },
+            {
+              "from": "gateway",
+              "to": "attendee",
+              "message": "Forwards with the bearer token",
+              "code": "HTTP"
+            },
+            {
+              "from": "attendee",
+              "to": "attendee",
+              "message": "Returns the earlier result for a repeated key; verifies the QR signature"
+            },
+            {
+              "from": "attendee",
+              "to": "attendee",
+              "message": "Locks the ticket; checks event, scanner permission, status, token version"
+            },
+            {
+              "frame": "alt",
+              "label": "ticket valid and not yet used"
+            },
+            {
+              "from": "attendee",
+              "to": "attendee",
+              "message": "Marks CHECKED_IN, stores the check-in and scan attempt, outbox ticket.checked-in"
+            },
+            {
+              "from": "attendee",
+              "to": "gateway",
+              "message": "CHECKED_IN",
+              "type": "return"
+            },
+            {
+              "else": "rejected"
+            },
+            {
+              "from": "attendee",
+              "to": "gateway",
+              "message": "ALREADY_CHECKED_IN, INVALID_TOKEN, TAMPERED_TOKEN, WRONG_EVENT, ORGANIZER_NOT_OWNER, TICKET_CANCELLED or TICKET_REFUNDED (attempt audited)",
+              "type": "return"
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "gateway",
+              "to": "p-staff",
+              "message": "Scan outcome",
+              "type": "return"
+            },
+            {
+              "from": "attendee",
+              "to": "t-attendee",
+              "message": "Relays ticket.checked-in",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "t-attendee",
+              "to": "payment",
+              "message": "Marks the ticket projection checked in (not refundable)",
+              "code": "ticket.checked-in [Kafka]",
+              "type": "async"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-refund",
+      "level": "sequence",
+      "title": "Refund a booking",
+      "summary": "An attendee asks for a refund of their whole remaining booking (organizers and admins may also refund selected tickets). payment-service checks the role and the refund window, refunds through the provider and publishes `refund.succeeded`; attendee-service then invalidates the tickets and notification-service confirms the refund.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Attendee requests a refund of a paid booking"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Payment SUCCEEDED; the event has not started; tickets not checked in"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Refund recorded; booking and tickets REFUNDED; refund message recorded"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "p-attendee",
+            "gateway",
+            "payment",
+            "t-payment",
+            "attendee",
+            "notification"
+          ],
+          "steps": [
+            {
+              "from": "p-attendee",
+              "to": "gateway",
+              "message": "Requests a refund",
+              "code": "POST /api/v1/payments/{id}/refunds + Idempotency-Key [JSON/HTTPS]"
+            },
+            {
+              "from": "gateway",
+              "to": "payment",
+              "message": "Forwards",
+              "code": "HTTP"
+            },
+            {
+              "from": "payment",
+              "to": "payment",
+              "message": "Checks owner/organizer/admin, refund window and refundable tickets; claims the refund"
+            },
+            {
+              "from": "payment",
+              "to": "payment",
+              "message": "Refunds through the provider port (fake); records the transaction; outbox refund.succeeded"
+            },
+            {
+              "from": "payment",
+              "to": "gateway",
+              "message": "Refund",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "p-attendee",
+              "message": "Refund",
+              "type": "return"
+            },
+            {
+              "from": "payment",
+              "to": "t-payment",
+              "message": "Relays refund.succeeded",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "from": "t-payment",
+              "to": "attendee",
+              "message": "Marks selected tickets and the booking refunded; outbox booking.refunded",
+              "code": "refund.succeeded [Kafka]",
+              "type": "async"
+            },
+            {
+              "from": "t-payment",
+              "to": "notification",
+              "message": "Plans REFUND_CONFIRMED",
+              "code": "refund.succeeded [Kafka]",
+              "type": "async"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-cancel-event",
+      "level": "sequence",
+      "title": "Cancel an event",
+      "summary": "An organizer cancels a published or on-sale event. event-service releases the room at venue-service and records `event.cancelled`. attendee-service cancels the event's bookings and tickets, and notification-service cancels reminders and alerts each attendee. **No refund is started**: paid attendees must ask for one before the original start time.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Organizer requests the CANCELLED transition"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Event PUBLISHED, SALES_OPEN or SOLD_OUT; caller owns it"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Event CANCELLED; room released; bookings and tickets CANCELLED; attendees alerted; payments untouched"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "p-organizer",
+            "gateway",
+            "event",
+            "venue",
+            "t-event",
+            "attendee",
+            "notification"
+          ],
+          "steps": [
+            {
+              "from": "p-organizer",
+              "to": "gateway",
+              "message": "Cancels the event",
+              "code": "POST /api/v1/events/{id}/transitions [JSON/HTTPS]"
+            },
+            {
+              "from": "gateway",
+              "to": "event",
+              "message": "Forwards with the bearer token",
+              "code": "HTTP"
+            },
+            {
+              "from": "event",
+              "to": "venue",
+              "message": "Releases the room reservation",
+              "code": "DELETE /api/v1/venues/{v}/reservations/{r} [HTTP, organizer token]"
+            },
+            {
+              "from": "venue",
+              "to": "event",
+              "message": "Released",
+              "type": "return"
+            },
+            {
+              "from": "event",
+              "to": "event",
+              "message": "Marks CANCELLED; outbox event.cancelled; evicts the cache"
+            },
+            {
+              "from": "event",
+              "to": "gateway",
+              "message": "Event",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "p-organizer",
+              "message": "Event",
+              "type": "return"
+            },
+            {
+              "from": "event",
+              "to": "t-event",
+              "message": "Relays event.cancelled",
+              "code": "Kafka",
+              "type": "async"
+            },
+            {
+              "frame": "par",
+              "label": "consumers of event.cancelled"
+            },
+            {
+              "from": "t-event",
+              "to": "attendee",
+              "message": "Cancels every booking, registration and ticket of the event",
+              "code": "event.cancelled [Kafka]",
+              "type": "async"
+            },
+            {
+              "else": "notification-service"
+            },
+            {
+              "from": "t-event",
+              "to": "notification",
+              "message": "Cancels reminders; plans EVENT_CANCELLED per booking",
+              "code": "event.cancelled [Kafka]",
+              "type": "async"
+            },
+            {
+              "end": true
+            },
+            {
+              "note": "Nothing requests a refund; payment-service never hears of the cancellation",
+              "over": [
+                "attendee",
+                "notification"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    }
+  ]
+}

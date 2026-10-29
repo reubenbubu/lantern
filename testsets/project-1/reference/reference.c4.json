@@ -1,0 +1,2660 @@
+{
+ "document": {
+  "id": "project-1",
+  "title": "Enterprise Spring Microservices Template Architecture",
+  "subtitle": "C4 views of the Enterprise Spring Microservices Template for **architects and new engineers**: context, containers, components and six runtime flows. Written by hand from the repository at its current commit; no Lantern output.",
+  "version": "1.1.0",
+  "status": "Draft",
+  "updated": "2026-10-29",
+  "revisions": [
+   {
+    "version": "1.0.0",
+    "date": "2026-10-29",
+    "author": "Hand-written from the code",
+    "summary": "First version, from Enterprise-Spring-Microservices-Template `8f5cb68`.",
+    "status": "Draft"
+   },
+   {
+    "version": "1.1.0",
+    "date": "2026-10-29",
+    "author": "Independent second pass",
+    "summary": "Verified against the code: sign-in redirects reach the BFF directly, realm import only on an empty database, role checks narrowed, browser edges are HTTP; two risks added.",
+    "status": "Draft"
+   }
+  ]
+ },
+ "elements": {
+  "web-user": {
+   "kind": "person",
+   "name": "Web user",
+   "description": "Signs in through the web app, keeps one personal profile, and creates and lists their own orders.",
+   "properties": {
+    "access": "Any Keycloak user of realm my-realm; no role checks on profile or order endpoints"
+   }
+  },
+  "visitor": {
+   "kind": "person",
+   "name": "New visitor",
+   "description": "Registers with an email address and profile data (no password), confirms through an emailed link, then sets a password through Keycloak's email.",
+   "properties": {
+    "access": "Anonymous: public registration and confirmation endpoints only"
+   }
+  },
+  "admin": {
+   "kind": "person",
+   "name": "Administrator",
+   "description": "Creates and deletes users (Keycloak account plus profile) through the admin APIs; there is no admin screen.",
+   "properties": {
+    "access": "Realm role ADMIN"
+   }
+  },
+  "template": {
+   "kind": "system",
+   "name": "Enterprise Spring Microservices Template",
+   "description": "A secured microservices template: users sign in through Keycloak, manage a profile and place orders, from a web app through a BFF or from a mobile app straight to the API gateway."
+  },
+  "mobile-app": {
+   "kind": "external",
+   "name": "Mobile app",
+   "description": "The \"mobile lane\": a native app that signs in at Keycloak with PKCE (mobile-client) and calls the API gateway with bearer tokens. Not in this repository."
+  },
+  "angular-ui": {
+   "kind": "container",
+   "parent": "template",
+   "name": "angular-ui",
+   "tag": "Single-Page App",
+   "technology": "Angular 22 · Angular Material · nginx",
+   "description": "Browser UI for sign-in, registration and confirmation, profile and orders; sends every call to /bff with cookies and X-Requested-With, and never sees a token.",
+   "properties": {
+    "repo": "Enterprise-Spring-Microservices-Template",
+    "commit": "8f5cb68",
+    "stack": "Angular ^22.1.7, Angular Material, RxJS 7.8, TypeScript ~6.0; built on node:24-alpine, served by nginx:alpine, which proxies /bff/ to the BFF",
+    "port": "4200"
+   }
+  },
+  "bff": {
+   "kind": "container",
+   "parent": "template",
+   "name": "bff",
+   "tag": "Backend for Frontend",
+   "technology": "Spring Boot 4.1.1 MVC / Java 25",
+   "description": "OAuth2 client for the web app: runs the Keycloak login, keeps the tokens in Redis behind a signed BFF_SESSION cookie, refreshes them early and proxies /bff/api and /bff/public calls to the gateway.",
+   "properties": {
+    "repo": "Enterprise-Spring-Microservices-Template",
+    "commit": "8f5cb68",
+    "stack": "Spring Security OAuth2 client, Spring Session Data Redis, Spring Data Redis, nimbus-jose-jwt 10.10, Resilience4j 2.4.0, common-web",
+    "port": "8081 (actuator 9081)"
+   }
+  },
+  "gateway": {
+   "kind": "container",
+   "parent": "template",
+   "name": "gateway",
+   "tag": "API Gateway",
+   "technology": "Spring Cloud Gateway Server WebFlux · Boot 4.1.1 / Java 25",
+   "description": "Single API entry for the BFF and the mobile app: validates the JWT and its audience, rate-limits with Redis, applies circuit breakers and routes /profile, /orders and /admin to the services.",
+   "properties": {
+    "repo": "Enterprise-Spring-Microservices-Template",
+    "commit": "8f5cb68",
+    "stack": "Spring Cloud 2025.1.3, OAuth2 resource server, reactive Redis, Resilience4j, springdoc webflux",
+    "port": "8888 (actuator 9888)"
+   }
+  },
+  "profile": {
+   "kind": "container",
+   "parent": "template",
+   "name": "profile-service",
+   "tag": "Service",
+   "technology": "Spring Boot 4.1.1 MVC / Java 25",
+   "description": "User profiles, self-registration with email confirmation, and the administrator's create and delete user saga; asks keycloak-admin-service to create Keycloak users.",
+   "properties": {
+    "repo": "Enterprise-Spring-Microservices-Template",
+    "commit": "8f5cb68",
+    "stack": "Spring Data JPA, Flyway, OAuth2 resource server and client (client credentials), RestClient, springdoc, common-security",
+    "port": "8082 (actuator 9082)"
+   }
+  },
+  "order": {
+   "kind": "container",
+   "parent": "template",
+   "name": "order-service",
+   "tag": "Service",
+   "technology": "Spring Boot 4.1.1 MVC / Java 25",
+   "description": "Creates orders and lists the caller's own orders; the owner is the JWT subject, recorded by JPA auditing.",
+   "properties": {
+    "repo": "Enterprise-Spring-Microservices-Template",
+    "commit": "8f5cb68",
+    "stack": "Spring Data JPA with auditing, Flyway, OAuth2 resource server, springdoc, common-security",
+    "port": "8083 (actuator 9083)"
+   }
+  },
+  "kc-admin": {
+   "kind": "container",
+   "parent": "template",
+   "name": "keycloak-admin-service",
+   "tag": "Service",
+   "technology": "Spring Boot 4.1.1 MVC / Java 25",
+   "description": "Thin proxy to the Keycloak Admin API: creates and deletes users for administrators and creates self-registered users for profile-service.",
+   "properties": {
+    "repo": "Enterprise-Spring-Microservices-Template",
+    "commit": "8f5cb68",
+    "stack": "keycloak-admin-client 26.0.12, OAuth2 resource server, common-security; no database",
+    "port": "8084 (actuator 9084)"
+   }
+  },
+  "keycloak": {
+   "kind": "container",
+   "parent": "template",
+   "name": "Keycloak",
+   "tag": "Identity Provider",
+   "technology": "Keycloak 26.7.4 (start-dev)",
+   "description": "Off-the-shelf identity provider run by this repository with its own realm export (my-realm): logs users in, issues 5-minute access tokens with rotating refresh tokens, holds users and roles.",
+   "properties": {
+    "repo": "Enterprise-Spring-Microservices-Template",
+    "commit": "8f5cb68",
+    "stack": "quay.io/keycloak/keycloak:26.7.4, realm imported from keycloak/realm-config at startup (Keycloak skips it once the realm exists in its database)",
+    "port": "8080"
+   }
+  },
+  "redis": {
+   "kind": "database",
+   "parent": "template",
+   "name": "Redis",
+   "technology": "Redis 8 (password, AOF)",
+   "description": "BFF sessions (bff:session:<jti>, 30 min TTL), refresh locks, the Spring Session behind JSESSIONID, and the gateway's rate-limit buckets.",
+   "properties": {
+    "owner": "bff and gateway (shared)"
+   }
+  },
+  "profile-db": {
+   "kind": "database",
+   "parent": "template",
+   "name": "profile_db",
+   "technology": "PostgreSQL 18",
+   "description": "user_profiles and pending_registrations (confirmation token, expiry). Schema by Flyway.",
+   "properties": {
+    "owner": "profile-service"
+   }
+  },
+  "order-db": {
+   "kind": "database",
+   "parent": "template",
+   "name": "order_db",
+   "technology": "PostgreSQL 18",
+   "description": "orders with globally unique order numbers, status, audit columns and an optimistic-lock version. Schema by Flyway.",
+   "properties": {
+    "owner": "order-service"
+   }
+  },
+  "keycloak-db": {
+   "kind": "database",
+   "parent": "template",
+   "name": "keycloak (database)",
+   "technology": "PostgreSQL 18",
+   "description": "Keycloak's own store: realm, clients, users, credentials and sessions.",
+   "properties": {
+    "owner": "Keycloak"
+   }
+  },
+  "bff-login": {
+   "kind": "component",
+   "parent": "bff",
+   "name": "Login and identity",
+   "technology": "Spring Security oauth2Login · Spring MVC",
+   "description": "Starts the Keycloak login, and on success stores the tokens as a BffSession under a new jti and sets the BFF_SESSION cookie; /bff/user returns the OIDC user from the JSESSIONID session.",
+   "properties": {
+    "classes": "BffController (login, loginSuccess, user), SecurityConfig.oauth2Login"
+   }
+  },
+  "bff-guard": {
+   "kind": "component",
+   "parent": "bff",
+   "name": "Security chain",
+   "technology": "Spring Security",
+   "description": "CSRF with a readable XSRF-TOKEN cookie, CORS for the web origin, strict security headers, and 401 instead of a redirect for AJAX calls.",
+   "properties": {
+    "classes": "SecurityConfig, CsrfCookieFilter"
+   }
+  },
+  "bff-refresh": {
+   "kind": "component",
+   "parent": "bff",
+   "name": "Proactive token refresh",
+   "technology": "Servlet filter · RestClient",
+   "description": "Before a /bff/api call, refreshes an access token that expires within 60 s under a per-session Redis lock; deletes the session when Keycloak rejects the refresh token.",
+   "properties": {
+    "classes": "TokenRefreshFilter, RefreshLockService"
+   }
+  },
+  "bff-proxy": {
+   "kind": "component",
+   "parent": "bff",
+   "name": "API proxy",
+   "technology": "Spring MVC · RestClient · Resilience4j",
+   "description": "Forwards /bff/api/** with the session's bearer token and /bff/public/{service}/** without one to the gateway, behind one circuit breaker (503 when open, 502 when unreachable).",
+   "properties": {
+    "classes": "BffController (proxyRequest, proxyPublicRequest, proxyToGateway)"
+   }
+  },
+  "bff-logout": {
+   "kind": "component",
+   "parent": "bff",
+   "name": "Single sign-out",
+   "technology": "Spring MVC",
+   "description": "Deletes the Redis session, invalidates JSESSIONID, clears both cookies and redirects to Keycloak's end-session endpoint with the ID token.",
+   "properties": {
+    "classes": "BffController.logout"
+   }
+  },
+  "bff-session-jwt": {
+   "kind": "component",
+   "parent": "bff",
+   "name": "Session cookie signer",
+   "technology": "nimbus-jose-jwt, RS256",
+   "description": "Signs and verifies the BFF_SESSION JWT (jti, 30-minute expiry); uses an ephemeral key outside prod when no key is set.",
+   "properties": {
+    "classes": "JwtUtils"
+   }
+  },
+  "bff-session-store": {
+   "kind": "component",
+   "parent": "bff",
+   "name": "Session store",
+   "technology": "Spring Data Redis, JSON",
+   "description": "Saves, loads and deletes BffSession records under bff:session:<jti> with a 30-minute TTL.",
+   "properties": {
+    "classes": "SessionRedisService, RedisConfig, BffSession"
+   }
+  },
+  "gw-security": {
+   "kind": "component",
+   "parent": "gateway",
+   "name": "JWT check",
+   "technology": "Spring Security WebFlux resource server",
+   "description": "Rejects any request without a valid Keycloak JWT carrying audience template-api, except /*/public/**, health, Swagger and /fallback; no role checks.",
+   "properties": {
+    "classes": "SecurityConfig"
+   }
+  },
+  "gw-routes": {
+   "kind": "component",
+   "parent": "gateway",
+   "name": "Route table",
+   "technology": "Spring Cloud Gateway properties routes",
+   "description": "Maps /profile/**, /orders/** and /admin/** to the services, stripping the first segment and adding /api; answers 403 on /admin/users/register.",
+   "properties": {
+    "classes": "application.properties routes[0..3]"
+   }
+  },
+  "gw-ratelimit": {
+   "kind": "component",
+   "parent": "gateway",
+   "name": "Rate limiter",
+   "technology": "RequestRateLimiter · reactive Redis",
+   "description": "Token bucket of 10 requests/s, burst 20, keyed by user, or by the caller's address when anonymous.",
+   "properties": {
+    "classes": "RateLimiterConfig (userKeyResolver)"
+   }
+  },
+  "gw-breaker": {
+   "kind": "component",
+   "parent": "gateway",
+   "name": "Circuit breakers",
+   "technology": "Resilience4j · Spring Cloud CircuitBreaker",
+   "description": "One breaker per route with a 5 s time limit; forwards to /fallback, which answers 503 Problem Details.",
+   "properties": {
+    "classes": "FallbackController, CircuitBreaker filters"
+   }
+  },
+  "ps-security": {
+   "kind": "component",
+   "parent": "profile",
+   "name": "JWT check",
+   "technology": "common-security auto-configured resource server",
+   "description": "Validates the JWT and audience, maps realm roles to ROLE_*, permits /api/public/** and enables @PreAuthorize.",
+   "properties": {
+    "classes": "ResourceServerSecurityAutoConfiguration, KeycloakJwtAuthenticationConverter"
+   }
+  },
+  "ps-profile-api": {
+   "kind": "component",
+   "parent": "profile",
+   "name": "Profile API",
+   "technology": "Spring MVC controller",
+   "description": "Gets, creates and deletes the caller's own profile, keyed by the JWT subject.",
+   "properties": {
+    "classes": "ProfileController, ProfileService"
+   }
+  },
+  "ps-registration": {
+   "kind": "component",
+   "parent": "profile",
+   "name": "Registration",
+   "technology": "Spring MVC controller · services",
+   "description": "Public register (same 201 for every email) and confirm; creates a disabled profile and pending registration, and on confirmation the Keycloak user.",
+   "properties": {
+    "classes": "RegistrationController, RegistrationService, RegistrationPersistenceService"
+   }
+  },
+  "ps-admin-api": {
+   "kind": "component",
+   "parent": "profile",
+   "name": "Admin user API",
+   "technology": "Spring MVC controller · @PreAuthorize ADMIN",
+   "description": "Creates a Keycloak user and then its profile (deleting the user if that fails), or deletes the profile and then the Keycloak user.",
+   "properties": {
+    "classes": "AdminProfileController, ProfileService (createAdminUser, deleteAdminUser)"
+   }
+  },
+  "ps-email": {
+   "kind": "component",
+   "parent": "profile",
+   "name": "Confirmation email",
+   "technology": "EmailService",
+   "description": "Only implementation logs the confirmation link (not under prod); no email is actually sent.",
+   "properties": {
+    "classes": "EmailService, LoggingEmailService"
+   }
+  },
+  "ps-kc-client": {
+   "kind": "component",
+   "parent": "profile",
+   "name": "Keycloak admin client",
+   "technology": "RestClient · OAuth2 client credentials",
+   "description": "Calls keycloak-admin-service with the caller's token for admin calls, or with an internal-client token for registration.",
+   "properties": {
+    "classes": "KeycloakAdminClient, SecurityConfig"
+   }
+  },
+  "ps-repos": {
+   "kind": "component",
+   "parent": "profile",
+   "name": "Repositories",
+   "technology": "Spring Data JPA",
+   "description": "Read and write user profiles and pending registrations.",
+   "properties": {
+    "classes": "UserProfileEntityRepository, PendingRegistrationEntityRepository"
+   }
+  },
+  "os-security": {
+   "kind": "component",
+   "parent": "order",
+   "name": "JWT check",
+   "technology": "common-security auto-configured resource server",
+   "description": "Validates the JWT and audience; every order endpoint needs a signed-in user.",
+   "properties": {
+    "classes": "ResourceServerSecurityAutoConfiguration"
+   }
+  },
+  "os-orders-api": {
+   "kind": "component",
+   "parent": "order",
+   "name": "Orders API",
+   "technology": "Spring MVC controller",
+   "description": "Creates an order with status CREATED and pages the caller's orders.",
+   "properties": {
+    "classes": "OrdersController, OrderService"
+   }
+  },
+  "os-auditing": {
+   "kind": "component",
+   "parent": "order",
+   "name": "Auditor",
+   "technology": "Spring Data JPA auditing",
+   "description": "Fills createdBy and updatedBy from the JWT subject and the timestamps.",
+   "properties": {
+    "classes": "JpaAuditingConfig"
+   }
+  },
+  "os-repo": {
+   "kind": "component",
+   "parent": "order",
+   "name": "Order repository",
+   "technology": "Spring Data JPA",
+   "description": "Stores orders and finds them by createdBy.",
+   "properties": {
+    "classes": "OrderRepository, OrderEntity"
+   }
+  },
+  "ka-security": {
+   "kind": "component",
+   "parent": "kc-admin",
+   "name": "JWT and role check",
+   "technology": "common-security resource server · @PreAuthorize",
+   "description": "Validates the JWT and audience; user creation and deletion need ADMIN, registration needs INTERNAL_SERVICE.",
+   "properties": {
+    "classes": "ResourceServerSecurityAutoConfiguration"
+   }
+  },
+  "ka-api": {
+   "kind": "component",
+   "parent": "kc-admin",
+   "name": "User admin API",
+   "technology": "Spring MVC controller",
+   "description": "Creates users (with a password, or without one plus an UPDATE_PASSWORD email) and deletes them.",
+   "properties": {
+    "classes": "AdminController"
+   }
+  },
+  "ka-client": {
+   "kind": "component",
+   "parent": "kc-admin",
+   "name": "Keycloak Admin client",
+   "technology": "keycloak-admin-client 26.0.12",
+   "description": "Talks to the Keycloak Admin REST API as the admin-service-client service account (manage-users, view-users).",
+   "properties": {
+    "classes": "KeycloakConfig"
+   }
+  }
+ },
+ "pages": [
+  {
+   "id": "ctx-template",
+   "level": "context",
+   "title": "Enterprise Spring Microservices Template",
+   "element": "template",
+   "summary": "A template for secured Spring microservices: users sign in with Keycloak, keep a profile and place orders, from a web app through a Backend for Frontend or from a mobile app directly against the API gateway. The most important fact for anyone changing it: **the browser never holds a token**; the BFF keeps them in Redis, and every hop behind it validates the JWT again.",
+   "sections": [
+    {
+     "type": "text",
+     "id": "overview",
+     "eyebrow": "Scope",
+     "title": "Overview",
+     "body": "This document is for **architects and new engineers**. It was written by hand from the code of the one repository at the commit listed under Sources (2026-09-21), on 2026-10-29. Lantern produced none of it.\n\nThe repository explains several choices in `docs/` and the README but records no owners or quality goals; where this document needs one it says *unknown*. People and external systems below are only those the code shows."
+    },
+    {
+     "type": "stats",
+     "id": "key-facts",
+     "items": [
+      {
+       "label": "Runtime units",
+       "value": "7",
+       "note": "1 web app, 1 BFF, 1 gateway, 3 services, Keycloak"
+      },
+      {
+       "label": "User roles",
+       "value": "2",
+       "note": "ADMIN and plain users; INTERNAL_SERVICE for service calls"
+      },
+      {
+       "label": "External systems",
+       "value": "1",
+       "note": "A mobile app, outside this repository"
+      },
+      {
+       "label": "Owners, quality goals",
+       "value": "Unknown",
+       "note": "Not recorded in the repository"
+      }
+     ]
+    },
+    {
+     "type": "diagram",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "System Context Diagram",
+     "caption": "System Context diagram for the Enterprise Spring Microservices Template",
+     "focus": "template",
+     "relationships": [
+      {
+       "from": "web-user",
+       "to": "template",
+       "label": "Signs in, manages their profile and orders in"
+      },
+      {
+       "from": "visitor",
+       "to": "template",
+       "label": "Registers and confirms their email in"
+      },
+      {
+       "from": "admin",
+       "to": "template",
+       "label": "Creates and deletes users through the API of"
+      },
+      {
+       "from": "web-user",
+       "to": "mobile-app",
+       "label": "May use instead of the web app"
+      },
+      {
+       "from": "mobile-app",
+       "to": "template",
+       "label": "Signs in and calls the API of",
+       "technology": "OIDC + PKCE; JSON/HTTPS with bearer token"
+      }
+     ],
+     "layout": {
+      "rules": [
+       {
+        "a": "web-user",
+        "rel": "leftOf",
+        "b": "template",
+        "strict": false
+       },
+       {
+        "a": "mobile-app",
+        "rel": "below",
+        "b": "template",
+        "strict": false
+       },
+       {
+        "a": "admin",
+        "rel": "rightOf",
+        "b": "template",
+        "strict": false
+       }
+      ]
+     }
+    },
+    {
+     "type": "elements",
+     "id": "people",
+     "eyebrow": "Catalogue",
+     "title": "People",
+     "select": {
+      "kind": "person"
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "Person"
+      },
+      {
+       "key": "description",
+       "label": "Does"
+      },
+      {
+       "key": "properties.access",
+       "label": "Access"
+      }
+     ]
+    },
+    {
+     "type": "elements",
+     "id": "external",
+     "eyebrow": "Catalogue",
+     "title": "External Systems",
+     "select": {
+      "kind": "external"
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "System"
+      },
+      {
+       "key": "description",
+       "label": "Provides"
+      }
+     ]
+    },
+    {
+     "type": "callout",
+     "id": "left-out",
+     "tone": "info",
+     "body": "Left out on purpose: Zipkin, Prometheus, Loki and Grafana only receive traces, metrics and logs, and GitLab CI only builds. None takes part in a user request. No email provider appears: confirmation links are only logged, and Keycloak has no SMTP server configured. Keycloak is drawn as a container because this repository runs it with its own realm configuration."
+    },
+    {
+     "type": "table",
+     "id": "sources",
+     "eyebrow": "Provenance",
+     "title": "Sources",
+     "columns": [
+      "Repository",
+      "Commit",
+      "Commit date",
+      "Runtime units"
+     ],
+     "rows": [
+      [
+       "Enterprise-Spring-Microservices-Template",
+       "`8f5cb68`",
+       "2026-09-21",
+       "angular-ui, bff, gateway, profile-service, order-service, keycloak-admin-service; Keycloak configured by its realm export. common-core, common-web, common-security and common-test are libraries."
+      ]
+     ]
+    },
+    {
+     "type": "table",
+     "id": "glossary",
+     "eyebrow": "Reference",
+     "title": "Glossary",
+     "columns": [
+      "Term",
+      "Meaning here"
+     ],
+     "rows": [
+      [
+       "BFF",
+       "Backend for Frontend: a server that runs the login for the web app and keeps its tokens, so the browser only holds a cookie."
+      ],
+      [
+       "BFF_SESSION",
+       "The BFF's own cookie: an RS256-signed JWT whose jti names the Redis record that holds the user's tokens."
+      ],
+      [
+       "JSESSIONID",
+       "The repository's name for the BFF's servlet session cookie, kept in Redis by Spring Session; used only by /bff/user and the login itself. With Spring Session and no cookie name configured, the cookie is most likely named `SESSION` on the wire."
+      ],
+      [
+       "Audience (aud)",
+       "Token claim naming who the token is for; every resource server here requires `template-api`."
+      ],
+      [
+       "Client credentials",
+       "OAuth2 grant in which a service gets a token for itself, with no user."
+      ],
+      [
+       "CSRF",
+       "Cross-site request forgery; the BFF requires the XSRF-TOKEN cookie value back on state-changing requests."
+      ],
+      [
+       "JWKS",
+       "The JSON Web Key Set Keycloak publishes; resource servers fetch it to check token signatures."
+      ],
+      [
+       "JWT",
+       "JSON Web Token."
+      ],
+      [
+       "OIDC",
+       "OpenID Connect, the sign-in protocol on top of OAuth2."
+      ],
+      [
+       "PKCE",
+       "Proof Key for Code Exchange, which protects the authorization-code flow of public clients such as the mobile app."
+      ],
+      [
+       "Realm",
+       "Keycloak's tenant: here `my-realm`, with its clients, roles and users."
+      ],
+      [
+       "Refresh-token rotation",
+       "Each refresh token can be used once; the BFF serializes refreshes with a Redis lock because of it."
+      ],
+      [
+       "Problem Details",
+       "RFC 9457 error format returned by every service."
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "id": "no-adrs",
+     "tone": "warning",
+     "title": "No decision records",
+     "body": "The repository has no architecture decision records, but its `docs/` folder and README explain several choices. Decisions below cite that rationale where it exists and say *not recorded* otherwise."
+    },
+    {
+     "type": "decisions",
+     "id": "decisions",
+     "eyebrow": "Observed",
+     "title": "Observed decisions",
+     "items": [
+      {
+       "title": "Decoupled BFF service for the web app",
+       "status": "Observed",
+       "body": "A separate Spring MVC BFF runs the OAuth2 login and proxies to the gateway, instead of a BFF inside the gateway. Rationale recorded: single responsibility, room to aggregate, three verification layers (`docs/bff_comparison_analysis.md:33-39`)."
+      },
+      {
+       "title": "Two client lanes",
+       "status": "Observed",
+       "body": "Web: cookie session through the BFF. Mobile: OIDC with PKCE and bearer tokens straight to the gateway (`README.md:24-25`; `docs/bff_comparison_analysis.md:41-47`)."
+      },
+      {
+       "title": "Defense in depth: every hop validates the JWT",
+       "status": "Observed",
+       "body": "The gateway and each service validate signature, issuer and audience `template-api`; profile-service's admin endpoints and keycloak-admin-service also check realm roles (the gateway and order-service check none). Rationale recorded: no trusted internal network (`docs/defense_in_depth_vs_perimeter.md:31-37`; `README.md:348-355`)."
+      },
+      {
+       "title": "Tokens never reach the browser",
+       "status": "Observed",
+       "body": "The BFF keeps access, refresh and ID tokens in Redis as JSON (no client secret, no Java serialization) behind a signed BFF_SESSION cookie (`BffSession.java:9-31`; `RedisConfig.java:11-20`)."
+      },
+      {
+       "title": "Two BFF sessions",
+       "status": "Observed",
+       "body": "JSESSIONID (Spring Session in Redis) for /bff/user and the login; BFF_SESSION for the proxy, so refresh is under the BFF's control (`README.md:459-464`; `docs/dual_session_strategy.md:83-97`)."
+      },
+      {
+       "title": "Proactive, race-safe token refresh",
+       "status": "Observed",
+       "body": "Refresh 60 s before expiry, one refresher per session through a Redis lock, because the realm rotates refresh tokens (`README.md:407-433`; `docs/proactive_token_refresh.md:39-65`)."
+      },
+      {
+       "title": "Keycloak user only after email confirmation, no password collected",
+       "status": "Observed",
+       "body": "Unconfirmed registrations live only in profile_db; the password is set through Keycloak's own email; every registration answer is the same 201 (`docs/user_registration_flow.md:69-117`)."
+      },
+      {
+       "title": "User administration through a dedicated service",
+       "status": "Observed",
+       "body": "keycloak-admin-service alone holds the realm-management service account; profile-service calls it (`README.md:278`; `KeycloakConfig.java:25-33`). Rationale: not recorded."
+      },
+      {
+       "title": "Database per service, schema by Flyway",
+       "status": "Observed",
+       "body": "profile_db and order_db on separate PostgreSQL instances, Hibernate only validates (`README.md:665-671`). Rationale: not recorded."
+      },
+      {
+       "title": "Reactive gateway for the Redis rate limiter",
+       "status": "Observed",
+       "body": "Rationale recorded: Spring Cloud Gateway WebFlux was chosen for its Redis RequestRateLimiter (`README.md:292`)."
+      },
+      {
+       "title": "Shared libraries and one Dockerfile",
+       "status": "Observed",
+       "body": "common-web and common-security auto-configure error handling and the resource-server chain; one multi-stage Dockerfile builds every Java service (`README.md:223-265`; `Dockerfile:1-14`)."
+      }
+     ]
+    },
+    {
+     "type": "table",
+     "id": "risks",
+     "eyebrow": "Findings",
+     "title": "Risks and findings",
+     "columns": [
+      "Impact",
+      "Finding",
+      "Consequence",
+      "Evidence"
+     ],
+     "rows": [
+      [
+       "**High**",
+       "Default credentials are live: the realm export, imported when Keycloak first starts on an empty database, holds the client secrets and users `admin`/`password` (ADMIN) and `user`/`password`; `test-client` allows the password grant and adds audience `template-api`. Keycloak runs `start-dev`, and its bootstrap console admin defaults to `admin`/`admin`.",
+       "Unless every default is overridden, anyone who reaches Keycloak can get an ADMIN token that all services accept, and create or delete users, or take over the whole Keycloak server through the admin console.",
+       "`realm-export.json:35-124,161-196`; `compose.yaml:107,117-118`; `README.md:590-601`"
+      ],
+      [
+       "**High**",
+       "Self-registered users probably cannot set a password: the realm configures no SMTP server, and keycloak-admin-service logs and ignores the failed UPDATE_PASSWORD email and still answers 201.",
+       "Registration \"succeeds\" but the new Keycloak user has no password and no way to get the email again.",
+       "`AdminController.java:118-127`; `realm-export.json` (no smtpServer); `PRODUCTION_CHECKLIST.md:76-81`"
+      ],
+      [
+       "Medium",
+       "No email sender exists for confirmation links: the only EmailService logs the link and is disabled under `prod`.",
+       "In production profile-service does not start until one is written; elsewhere confirmation links are only in the logs.",
+       "`LoggingEmailService.java:7-28`; `PRODUCTION_CHECKLIST.md:41-51`"
+      ],
+      [
+       "Medium",
+       "An unconfirmed or expired registration blocks its email for good: register silently does nothing when any profile has the email, and no cleanup job exists.",
+       "A visitor whose link expired cannot register again with the same address.",
+       "`RegistrationService.java:51-56,100-106,139-141`"
+      ],
+      [
+       "Medium",
+       "Confirmation is not atomic across Keycloak and profile_db: the Keycloak user is created inside the database transaction.",
+       "If the save or commit fails, the Keycloak user stays and every retry of the link fails with 500 because the username exists.",
+       "`RegistrationService.java:133-168`; `AdminController.java:114-133`"
+      ],
+      [
+       "Medium",
+       "Anonymous web traffic shares one rate-limit bucket: public calls reach the gateway from the BFF without a token or X-Forwarded-For, and TRUSTED_PROXY_HOPS is 0.",
+       "All visitors together get 10 requests/s for registration and confirmation; one noisy client blocks everyone.",
+       "`BffController.java:407-430`; `RateLimiterConfig.java:35-53`; gateway `application.properties:20-23,120`"
+      ],
+      [
+       "Medium",
+       "Single instances: one Redis holds BFF sessions, Spring sessions, refresh locks and rate-limit state; one Keycloak in dev mode with one PostgreSQL; no HA in the repository.",
+       "Losing Redis logs every web user out and fails gateway readiness; losing Keycloak stops all sign-ins and token refreshes.",
+       "`compose.yaml:24-39,104-140`; gateway `application.properties:128`"
+      ],
+      [
+       "Low",
+       "BFF_SESSION expires 30 minutes after login whatever the activity: it is issued only at login, and refresh renews only the Redis record.",
+       "Active web users are sent back through the Keycloak login every 30 minutes.",
+       "`JwtUtils.java:102-118,141-145`; `BffController.java:184`"
+      ],
+      [
+       "Low",
+       "Order numbers are made in the browser (`ORD-` + random below 10000) but must be unique across all users.",
+       "Collisions give 409 once there are a few hundred orders.",
+       "`orders.service.ts:38-39`; `V1__init.sql:13`; `GlobalExceptionHandler.java:100-104`"
+      ],
+      [
+       "Low",
+       "The profile `enabled` flag is inconsistent and unused: admin-created profiles stay false, self-registered ones become true.",
+       "Business logic cannot rely on it as the docs suggest.",
+       "`ProfileService.java:86-93`; `UserProfileEntity.java:62-64`; `user_registration_flow.md:132-139`"
+      ],
+      [
+       "Low",
+       "Confirmation tokens are stored in plain text, while admin-service Javadoc says a BCrypt hash is stored; confirmation is a state-changing GET.",
+       "A database reader can confirm pending registrations; link scanners can confirm by fetching the link.",
+       "`RegistrationPersistenceService.java:59-65`; `AdminController.java:92-93`; `RegistrationController.java:71-78`"
+      ],
+      [
+       "Low",
+       "Every container publishes its port on the host, including PostgreSQL, Redis and the services.",
+       "Direct calls bypass the gateway's rate limiting and circuit breakers (the JWT is still checked).",
+       "`compose.yaml:28-29,48-49,119-120,228-230,267-269`"
+      ],
+      [
+       "Low",
+       "A profile's email is whatever the client sends: `POST /api` takes the email from the request body and never compares it with the token, while `user_profiles.email` is unique and registration silently skips any email already in it.",
+       "Any signed-in user can claim someone else's address in their profile, and that person can then never self-register with it.",
+       "`ProfileService.java:49-64`; `UserProfileRequest.java:19-20`; `V1__init.sql:16`; `RegistrationService.java:103-106`; `profile.component.ts:80`"
+      ],
+      [
+       "Low",
+       "No transport security by default: every hop is plain HTTP (nginx on 4200, Keycloak with `KC_HTTP_ENABLED`, the services), the BFF_SESSION cookie is not `Secure` unless `BFF_COOKIE_SECURE` is set, and Redis runs without TLS.",
+       "Outside a trusted network, session cookies and bearer tokens travel in clear text; production needs TLS added in front of or inside every container.",
+       "`angular-ui/nginx.conf:2`; `compose.yaml:114-115,387`; `bff/src/main/resources/application.properties:15,36`; `.env.example:42,82`"
+      ],
+      [
+       "Low",
+       "Stale or missing documentation: the README diagram puts the order database on 5433 (it is 5434); the admin profile endpoints sit at `/profile/profile/admin/users` through the gateway, which no document mentions; and `.env.example` says its values work out of the box, but its `changeme` client secrets do not match the realm export.",
+       "New engineers are misled about ports and paths; a copied `.env.example` breaks sign-in and service calls until the realm's secrets are changed to match.",
+       "`README.md:75-78`; `compose.yaml:91-92`; `AdminProfileController.java:13`; `.env.example:7,31,48,56`; `realm-export.json:38,47,80`"
+      ]
+     ]
+    },
+    {
+     "type": "list",
+     "id": "unknowns",
+     "eyebrow": "Gaps",
+     "title": "Unknowns",
+     "items": [
+      "How the system runs in production: only Docker Compose exists, and CI builds images without pushing them anywhere.",
+      "The mobile app: the README and the realm (`mobile-client`) describe it, but no code exists.",
+      "Which email provider is meant for confirmation links and for Keycloak's password email.",
+      "Owners and quality goals: not recorded.",
+      "The order lifecycle: six statuses exist, but no endpoint or job changes an order's status."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cnt-requests",
+   "level": "containers",
+   "title": "Requests and data",
+   "summary": "How a request reaches the services: the web app through nginx and the BFF, the mobile app and API clients straight to the gateway, and which store each container owns.",
+   "sections": [
+    {
+     "type": "text",
+     "id": "overview",
+     "eyebrow": "Scope",
+     "title": "Overview",
+     "body": "The web app's calls go to its own origin: nginx (or the Angular dev server) proxies `/bff/` to the **BFF**; only the sign-in redirects take the browser straight to the BFF's published port 8081 (the realm's redirect URI) and to Keycloak. The BFF adds the user's bearer token and calls the **gateway**. The gateway validates the token, rate-limits through Redis and routes `/profile`, `/orders` and `/admin` to the three services, rewriting the prefix to `/api`. Each service validates the token again. profile-service calls keycloak-admin-service directly, not through the gateway.\n\n**common-core, common-web and common-security** are not containers: they are libraries compiled into the services (error handling, trailing-slash handling, the resource-server security chain)."
+    },
+    {
+     "type": "diagram",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Container Diagram",
+     "boundary": "template",
+     "caption": "Container diagram for the Enterprise Spring Microservices Template: requests and data",
+     "relationships": [
+      {
+       "from": "web-user",
+       "to": "angular-ui",
+       "label": "Manages profile and orders in",
+       "technology": "HTTP, browser"
+      },
+      {
+       "from": "visitor",
+       "to": "angular-ui",
+       "label": "Registers and confirms in",
+       "technology": "HTTP, browser"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "label": "Calls /bff with cookies, X-Requested-With and the CSRF token; the browser reaches it directly for the OAuth2 redirects",
+       "technology": "JSON/HTTP via nginx proxy; HTTP redirects to :8081"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "label": "Stores sessions, tokens and refresh locks",
+       "technology": "Redis"
+      },
+      {
+       "from": "bff",
+       "to": "gateway",
+       "label": "Forwards API calls with the user's bearer token; public calls without",
+       "technology": "JSON/HTTP"
+      },
+      {
+       "from": "mobile-app",
+       "to": "gateway",
+       "label": "Calls the API with a bearer token",
+       "technology": "JSON/HTTPS"
+      },
+      {
+       "from": "admin",
+       "to": "gateway",
+       "label": "Creates and deletes users",
+       "technology": "JSON/HTTP, bearer token"
+      },
+      {
+       "from": "gateway",
+       "to": "redis",
+       "label": "Keeps rate-limit buckets",
+       "technology": "Redis, reactive"
+      },
+      {
+       "from": "gateway",
+       "to": "profile",
+       "label": "Routes /profile/** to /api/**",
+       "technology": "HTTP"
+      },
+      {
+       "from": "gateway",
+       "to": "order",
+       "label": "Routes /orders/** to /api/**",
+       "technology": "HTTP"
+      },
+      {
+       "from": "gateway",
+       "to": "kc-admin",
+       "label": "Routes /admin/** to /api/**; blocks /admin/users/register",
+       "technology": "HTTP"
+      },
+      {
+       "from": "profile",
+       "to": "kc-admin",
+       "label": "Creates and deletes Keycloak users",
+       "technology": "JSON/HTTP, bearer token"
+      },
+      {
+       "from": "profile",
+       "to": "profile-db",
+       "label": "Stores profiles and pending registrations",
+       "technology": "JDBC"
+      },
+      {
+       "from": "order",
+       "to": "order-db",
+       "label": "Stores orders",
+       "technology": "JDBC"
+      },
+      {
+       "from": "kc-admin",
+       "to": "keycloak",
+       "label": "Manages users",
+       "technology": "Keycloak Admin REST API"
+      }
+     ]
+    },
+    {
+     "type": "callout",
+     "id": "identity-note",
+     "tone": "info",
+     "body": "Sign-in, token refresh and token validation against Keycloak are on the next page, [Identity and tokens](#/cnt-identity/diagram)."
+    },
+    {
+     "type": "elements",
+     "id": "containers",
+     "eyebrow": "Catalogue",
+     "title": "Container Catalogue",
+     "select": {
+      "ids": [
+       "angular-ui",
+       "bff",
+       "gateway",
+       "profile",
+       "order",
+       "kc-admin",
+       "keycloak"
+      ]
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "Container"
+      },
+      {
+       "key": "description",
+       "label": "Responsibility"
+      },
+      "technology",
+      {
+       "key": "properties.stack",
+       "label": "Libraries"
+      },
+      {
+       "key": "properties.port",
+       "label": "Port"
+      },
+      {
+       "key": "properties.commit",
+       "label": "Commit",
+       "format": "code"
+      },
+      "zoom"
+     ]
+    },
+    {
+     "type": "elements",
+     "id": "data",
+     "eyebrow": "Persistence",
+     "title": "Data Stores",
+     "select": {
+      "ids": [
+       "redis",
+       "profile-db",
+       "order-db",
+       "keycloak-db"
+      ]
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "Store"
+      },
+      {
+       "key": "description",
+       "label": "Holds"
+      },
+      {
+       "key": "technology",
+       "label": "Engine"
+      },
+      {
+       "key": "properties.owner",
+       "label": "Owner"
+      }
+     ]
+    },
+    {
+     "type": "table",
+     "id": "deployment",
+     "eyebrow": "Runtime",
+     "title": "Deployments",
+     "columns": [
+      "Descriptor",
+      "What runs",
+      "Notes"
+     ],
+     "rows": [
+      [
+       "`compose.yaml` (default)",
+       "Infrastructure only: Redis 8, three PostgreSQL 18 (keycloak, profile_db, order_db), Keycloak 26.7.4, Zipkin, Prometheus, Loki, Grafana.",
+       "The Java services and the Angular dev server then run on the host, via `manage_services.sh start` and `npm start`."
+      ],
+      [
+       "`compose.yaml --profile apps`",
+       "Adds the five Java services, built from the shared `Dockerfile`, and angular-ui (nginx) on `sec-network`.",
+       "The browser must resolve `keycloak` to 127.0.0.1; every container also publishes its port on the host."
+      ],
+      [
+       "`.gitlab-ci.yml`",
+       "Builds and tests, scans with Trivy, and on the default branch or tags builds the images.",
+       "No registry push and no deployment job; no Kubernetes or other production descriptor exists."
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cnt-identity",
+   "level": "containers",
+   "title": "Identity and tokens",
+   "summary": "Who talks to Keycloak and why: the BFF runs the login and refreshes tokens, every resource server checks signatures against Keycloak's keys, and two services hold their own service accounts.",
+   "sections": [
+    {
+     "type": "text",
+     "id": "overview",
+     "eyebrow": "Scope",
+     "title": "Overview",
+     "body": "Access tokens live **5 minutes** and refresh tokens rotate (single use). The BFF uses the confidential `bff-client`; the mobile app the public `mobile-client` with PKCE; profile-service gets client-credentials tokens as `internal-client` (role INTERNAL_SERVICE) to call the registration endpoint; keycloak-admin-service uses `admin-service-client` with realm-management rights. All user-facing clients add the audience `template-api` that every resource server requires."
+    },
+    {
+     "type": "diagram",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Container Diagram",
+     "boundary": "template",
+     "caption": "Container diagram for the Enterprise Spring Microservices Template: identity and tokens",
+     "relationships": [
+      {
+       "from": "web-user",
+       "to": "keycloak",
+       "label": "Enters credentials on the login page",
+       "technology": "HTTP, browser redirect"
+      },
+      {
+       "from": "visitor",
+       "to": "keycloak",
+       "label": "Sets a password from Keycloak's email (if one is sent)",
+       "technology": "HTTP, browser"
+      },
+      {
+       "from": "mobile-app",
+       "to": "keycloak",
+       "label": "Signs in as mobile-client",
+       "technology": "OIDC code + PKCE"
+      },
+      {
+       "from": "bff",
+       "to": "keycloak",
+       "label": "Exchanges the code, refreshes tokens, sends the user to logout",
+       "technology": "OIDC/OAuth2 over HTTP"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "label": "Keeps tokens and the JSESSIONID session",
+       "technology": "Redis"
+      },
+      {
+       "from": "gateway",
+       "to": "keycloak",
+       "label": "Fetches signing keys to validate JWTs",
+       "technology": "OIDC discovery, JWKS"
+      },
+      {
+       "from": "profile",
+       "to": "keycloak",
+       "label": "Validates JWTs; gets internal-client tokens",
+       "technology": "JWKS; OAuth2 client credentials"
+      },
+      {
+       "from": "order",
+       "to": "keycloak",
+       "label": "Validates JWTs",
+       "technology": "JWKS"
+      },
+      {
+       "from": "kc-admin",
+       "to": "keycloak",
+       "label": "Validates JWTs; creates, emails and deletes users",
+       "technology": "JWKS; Admin REST API"
+      },
+      {
+       "from": "keycloak",
+       "to": "keycloak-db",
+       "label": "Stores realm, users, credentials and sessions",
+       "technology": "JDBC"
+      }
+     ]
+    },
+    {
+     "type": "table",
+     "id": "clients",
+     "eyebrow": "Catalogue",
+     "title": "Keycloak clients",
+     "columns": [
+      "Client",
+      "Type and grants",
+      "Used by"
+     ],
+     "rows": [
+      [
+       "`bff-client`",
+       "Confidential; authorization code + PKCE; no password grant; audience template-api",
+       "bff"
+      ],
+      [
+       "`mobile-client`",
+       "Public; authorization code + PKCE; audience template-api",
+       "Mobile app (not in repository)"
+      ],
+      [
+       "`internal-client`",
+       "Confidential; client credentials; service account with INTERNAL_SERVICE; audience template-api",
+       "profile-service → keycloak-admin-service registration"
+      ],
+      [
+       "`admin-service-client`",
+       "Confidential; client credentials; service account with manage-users and view-users",
+       "keycloak-admin-service → Keycloak Admin API"
+      ],
+      [
+       "`test-client`",
+       "Confidential; **password grant**; audience template-api",
+       "Tests and curl, per the README"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cmp-bff",
+   "level": "components",
+   "title": "bff",
+   "element": "bff",
+   "summary": "How the BFF turns a Keycloak login into a cookie session and turns each browser call into a gateway call with a fresh token.",
+   "sections": [
+    {
+     "type": "list",
+     "id": "overview",
+     "eyebrow": "Scope",
+     "title": "Overview",
+     "items": [
+      "Two sessions: JSESSIONID (Spring Session in Redis) for `/bff/user`, BFF_SESSION for `/bff/api/**`.",
+      "`/bff/api/**` is `permitAll` in Spring Security; the controller and the refresh filter check the BFF_SESSION cookie themselves.",
+      "Only Authorization, Content-Type, Accept and Accept-Language are forwarded to the gateway."
+     ]
+    },
+    {
+     "type": "diagram",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Component Diagram",
+     "boundary": "bff",
+     "caption": "Component diagram for bff",
+     "relationships": [
+      {
+       "from": "angular-ui",
+       "to": "bff-guard",
+       "label": "Every /bff call passes through",
+       "technology": "JSON/HTTP"
+      },
+      {
+       "from": "bff-guard",
+       "to": "bff-login",
+       "label": "Lets through /bff/login, the OAuth2 callback and /bff/user"
+      },
+      {
+       "from": "bff-guard",
+       "to": "bff-refresh",
+       "label": "Runs before the proxy for /bff/api/**"
+      },
+      {
+       "from": "bff-refresh",
+       "to": "bff-proxy",
+       "label": "Hands the request on to"
+      },
+      {
+       "from": "bff-guard",
+       "to": "bff-logout",
+       "label": "Checks the CSRF token for"
+      },
+      {
+       "from": "bff-login",
+       "to": "keycloak",
+       "label": "Redirects to login; exchanges the code",
+       "technology": "OIDC"
+      },
+      {
+       "from": "bff-login",
+       "to": "bff-session-store",
+       "label": "Saves the new BffSession"
+      },
+      {
+       "from": "bff-login",
+       "to": "bff-session-jwt",
+       "label": "Signs the BFF_SESSION cookie with"
+      },
+      {
+       "from": "bff-refresh",
+       "to": "bff-session-jwt",
+       "label": "Verifies the cookie with"
+      },
+      {
+       "from": "bff-refresh",
+       "to": "keycloak",
+       "label": "Refreshes tokens",
+       "technology": "OAuth2 refresh_token grant"
+      },
+      {
+       "from": "bff-refresh",
+       "to": "bff-session-store",
+       "label": "Reloads and saves tokens; takes the refresh lock"
+      },
+      {
+       "from": "bff-proxy",
+       "to": "bff-session-store",
+       "label": "Loads the access token"
+      },
+      {
+       "from": "bff-proxy",
+       "to": "gateway",
+       "label": "Forwards with Bearer token, or without for public calls",
+       "technology": "JSON/HTTP, circuit breaker"
+      },
+      {
+       "from": "bff-logout",
+       "to": "bff-session-store",
+       "label": "Deletes the session"
+      },
+      {
+       "from": "bff-session-store",
+       "to": "redis",
+       "label": "Reads and writes bff:session:*",
+       "technology": "Redis"
+      }
+     ]
+    },
+    {
+     "type": "elements",
+     "id": "components",
+     "eyebrow": "Catalogue",
+     "title": "Components",
+     "select": {
+      "parent": "bff"
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "Component"
+      },
+      {
+       "key": "description",
+       "label": "Responsibility"
+      },
+      {
+       "key": "technology",
+       "label": "Implementation"
+      },
+      {
+       "key": "properties.classes",
+       "label": "Classes",
+       "format": "code"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cmp-gateway",
+   "level": "components",
+   "title": "gateway",
+   "element": "gateway",
+   "summary": "The gateway authenticates, limits and routes; it does not authorize by role.",
+   "sections": [
+    {
+     "type": "list",
+     "id": "overview",
+     "eyebrow": "Scope",
+     "title": "Overview",
+     "items": [
+      "Routes are declared only in properties; each strips the first path segment and adds `/api`.",
+      "`/*/public/**` passes without a token, so `/profile/public/register` and the API docs are open.",
+      "The rate-limit key is the user, or the TCP peer address for anonymous calls."
+     ]
+    },
+    {
+     "type": "diagram",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Component Diagram",
+     "boundary": "gateway",
+     "caption": "Component diagram for gateway",
+     "relationships": [
+      {
+       "from": "bff",
+       "to": "gw-security",
+       "label": "Sends API calls",
+       "technology": "JSON/HTTP, bearer token"
+      },
+      {
+       "from": "mobile-app",
+       "to": "gw-security",
+       "label": "Sends API calls",
+       "technology": "JSON/HTTPS, bearer token"
+      },
+      {
+       "from": "gw-security",
+       "to": "keycloak",
+       "label": "Fetches signing keys",
+       "technology": "JWKS"
+      },
+      {
+       "from": "gw-security",
+       "to": "gw-routes",
+       "label": "Passes authenticated and public requests to"
+      },
+      {
+       "from": "gw-routes",
+       "to": "gw-ratelimit",
+       "label": "Applies on every route"
+      },
+      {
+       "from": "gw-ratelimit",
+       "to": "redis",
+       "label": "Updates token buckets",
+       "technology": "Redis, reactive"
+      },
+      {
+       "from": "gw-routes",
+       "to": "gw-breaker",
+       "label": "Wraps every route call in"
+      },
+      {
+       "from": "gw-breaker",
+       "to": "profile",
+       "label": "Forwards /profile/** as /api/**",
+       "technology": "HTTP"
+      },
+      {
+       "from": "gw-breaker",
+       "to": "order",
+       "label": "Forwards /orders/** as /api/**",
+       "technology": "HTTP"
+      },
+      {
+       "from": "gw-breaker",
+       "to": "kc-admin",
+       "label": "Forwards /admin/** as /api/**",
+       "technology": "HTTP"
+      }
+     ]
+    },
+    {
+     "type": "elements",
+     "id": "components",
+     "eyebrow": "Catalogue",
+     "title": "Components",
+     "select": {
+      "parent": "gateway"
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "Component"
+      },
+      {
+       "key": "description",
+       "label": "Responsibility"
+      },
+      {
+       "key": "technology",
+       "label": "Implementation"
+      },
+      {
+       "key": "properties.classes",
+       "label": "Classes",
+       "format": "code"
+      }
+     ]
+    },
+    {
+     "type": "table",
+     "id": "routes",
+     "eyebrow": "Catalogue",
+     "title": "Routes",
+     "columns": [
+      "Route",
+      "Path",
+      "Filters",
+      "Target"
+     ],
+     "rows": [
+      [
+       "block-internal-registration (order -1)",
+       "`/admin/users/register`",
+       "SetStatus=403",
+       "none"
+      ],
+      [
+       "profile-service",
+       "`/profile/**`",
+       "StripPrefix=1, PrefixPath=/api, RequestRateLimiter 10/s burst 20, CircuitBreaker profileServiceCB",
+       "profile-service :8082"
+      ],
+      [
+       "order-service",
+       "`/orders/**`",
+       "same, orderServiceCB",
+       "order-service :8083"
+      ],
+      [
+       "admin-service",
+       "`/admin/**`",
+       "same, adminServiceCB",
+       "keycloak-admin-service :8084"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cmp-profile",
+   "level": "components",
+   "title": "profile-service",
+   "element": "profile",
+   "summary": "Profiles, self-registration and the administrator's user saga. The only service that calls another service.",
+   "sections": [
+    {
+     "type": "list",
+     "id": "overview",
+     "eyebrow": "Scope",
+     "title": "Overview",
+     "items": [
+      "Three controllers: own profile (`/api`), public registration (`/api/public`) and admin (`/api/profile/admin`, ADMIN only).",
+      "Calls keycloak-admin-service directly at `KEYCLOAK_ADMIN_SERVICE_URL`, with the caller's token or an internal-client token.",
+      "Confirmation links are only logged; no email is sent."
+     ]
+    },
+    {
+     "type": "diagram",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Component Diagram",
+     "boundary": "profile",
+     "caption": "Component diagram for profile-service",
+     "relationships": [
+      {
+       "from": "gateway",
+       "to": "ps-security",
+       "label": "Forwards /profile/** as /api/**",
+       "technology": "HTTP, bearer token"
+      },
+      {
+       "from": "ps-security",
+       "to": "keycloak",
+       "label": "Fetches signing keys",
+       "technology": "JWKS"
+      },
+      {
+       "from": "ps-security",
+       "to": "ps-profile-api",
+       "label": "Admits signed-in users to"
+      },
+      {
+       "from": "ps-security",
+       "to": "ps-registration",
+       "label": "Admits anonymous callers to"
+      },
+      {
+       "from": "ps-security",
+       "to": "ps-admin-api",
+       "label": "Admits ADMIN callers to"
+      },
+      {
+       "from": "ps-profile-api",
+       "to": "ps-repos",
+       "label": "Reads and writes the caller's profile through"
+      },
+      {
+       "from": "ps-registration",
+       "to": "ps-repos",
+       "label": "Stores disabled profiles and pending registrations through"
+      },
+      {
+       "from": "ps-registration",
+       "to": "ps-email",
+       "label": "Sends the confirmation link through"
+      },
+      {
+       "from": "ps-registration",
+       "to": "ps-kc-client",
+       "label": "Creates the confirmed user through"
+      },
+      {
+       "from": "ps-admin-api",
+       "to": "ps-kc-client",
+       "label": "Creates and deletes Keycloak users through"
+      },
+      {
+       "from": "ps-admin-api",
+       "to": "ps-repos",
+       "label": "Stores and deletes profiles through"
+      },
+      {
+       "from": "ps-kc-client",
+       "to": "keycloak",
+       "label": "Gets internal-client tokens",
+       "technology": "OAuth2 client credentials"
+      },
+      {
+       "from": "ps-kc-client",
+       "to": "kc-admin",
+       "label": "Calls /api/users and /api/users/register",
+       "technology": "JSON/HTTP, bearer token"
+      },
+      {
+       "from": "ps-repos",
+       "to": "profile-db",
+       "label": "Reads and writes",
+       "technology": "JDBC"
+      }
+     ]
+    },
+    {
+     "type": "elements",
+     "id": "components",
+     "eyebrow": "Catalogue",
+     "title": "Components",
+     "select": {
+      "parent": "profile"
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "Component"
+      },
+      {
+       "key": "description",
+       "label": "Responsibility"
+      },
+      {
+       "key": "technology",
+       "label": "Implementation"
+      },
+      {
+       "key": "properties.classes",
+       "label": "Classes",
+       "format": "code"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cmp-order",
+   "level": "components",
+   "title": "order-service",
+   "element": "order",
+   "summary": "The smallest service: create an order, list your own.",
+   "sections": [
+    {
+     "type": "list",
+     "id": "overview",
+     "eyebrow": "Scope",
+     "title": "Overview",
+     "items": [
+      "`POST /api` and `GET /api` (paged) only; no update, cancel or status change.",
+      "The owner is whatever JWT subject created the order, recorded by JPA auditing.",
+      "Order numbers come from the client and are unique across all users."
+     ]
+    },
+    {
+     "type": "diagram",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Component Diagram",
+     "boundary": "order",
+     "caption": "Component diagram for order-service",
+     "relationships": [
+      {
+       "from": "gateway",
+       "to": "os-security",
+       "label": "Forwards /orders/** as /api/**",
+       "technology": "HTTP, bearer token"
+      },
+      {
+       "from": "os-security",
+       "to": "keycloak",
+       "label": "Fetches signing keys",
+       "technology": "JWKS"
+      },
+      {
+       "from": "os-security",
+       "to": "os-orders-api",
+       "label": "Admits signed-in users to"
+      },
+      {
+       "from": "os-orders-api",
+       "to": "os-repo",
+       "label": "Saves and pages orders through"
+      },
+      {
+       "from": "os-repo",
+       "to": "os-auditing",
+       "label": "Gets createdBy and updatedBy from"
+      },
+      {
+       "from": "os-repo",
+       "to": "order-db",
+       "label": "Reads and writes",
+       "technology": "JDBC"
+      }
+     ]
+    },
+    {
+     "type": "elements",
+     "id": "components",
+     "eyebrow": "Catalogue",
+     "title": "Components",
+     "select": {
+      "parent": "order"
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "Component"
+      },
+      {
+       "key": "description",
+       "label": "Responsibility"
+      },
+      {
+       "key": "technology",
+       "label": "Implementation"
+      },
+      {
+       "key": "properties.classes",
+       "label": "Classes",
+       "format": "code"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cmp-kc-admin",
+   "level": "components",
+   "title": "keycloak-admin-service",
+   "element": "kc-admin",
+   "summary": "A thin, stateless proxy that holds the only Keycloak service account with user-management rights.",
+   "sections": [
+    {
+     "type": "list",
+     "id": "overview",
+     "eyebrow": "Scope",
+     "title": "Overview",
+     "items": [
+      "Three endpoints: create user (ADMIN), register user (INTERNAL_SERVICE), delete user (ADMIN).",
+      "Registered users get no password; Keycloak is asked to email an UPDATE_PASSWORD link, and a failure is ignored.",
+      "No database."
+     ]
+    },
+    {
+     "type": "diagram",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Component Diagram",
+     "boundary": "kc-admin",
+     "caption": "Component diagram for keycloak-admin-service",
+     "relationships": [
+      {
+       "from": "gateway",
+       "to": "ka-security",
+       "label": "Forwards /admin/** as /api/**",
+       "technology": "HTTP, bearer token"
+      },
+      {
+       "from": "profile",
+       "to": "ka-security",
+       "label": "Calls /api/users and /api/users/register",
+       "technology": "HTTP, bearer token"
+      },
+      {
+       "from": "ka-security",
+       "to": "ka-api",
+       "label": "Admits ADMIN or INTERNAL_SERVICE callers to"
+      },
+      {
+       "from": "ka-api",
+       "to": "ka-client",
+       "label": "Creates, emails and deletes users through"
+      },
+      {
+       "from": "ka-client",
+       "to": "keycloak",
+       "label": "Calls as admin-service-client",
+       "technology": "Keycloak Admin REST API"
+      }
+     ]
+    },
+    {
+     "type": "elements",
+     "id": "components",
+     "eyebrow": "Catalogue",
+     "title": "Components",
+     "select": {
+      "parent": "kc-admin"
+     },
+     "columns": [
+      {
+       "key": "name",
+       "label": "Component"
+      },
+      {
+       "key": "description",
+       "label": "Responsibility"
+      },
+      {
+       "key": "technology",
+       "label": "Implementation"
+      },
+      {
+       "key": "properties.classes",
+       "label": "Classes",
+       "format": "code"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "seq-web-login",
+   "level": "sequence",
+   "title": "Web sign-in",
+   "summary": "The web app sends the browser to the BFF, which runs the OIDC authorization-code flow with Keycloak. After the code exchange the BFF copies the tokens into Redis under a new id and gives the browser only a signed BFF_SESSION cookie.",
+   "sections": [
+    {
+     "type": "stats",
+     "id": "overview",
+     "eyebrow": "Context",
+     "title": "Overview",
+     "columns": 3,
+     "variant": "text",
+     "items": [
+      {
+       "label": "Trigger",
+       "value": "User clicks \"Sign in with Keycloak\""
+      },
+      {
+       "label": "Pre-conditions",
+       "value": "The user has a Keycloak account with a password"
+      },
+      {
+       "label": "Post-conditions",
+       "value": "BFF_SESSION and JSESSIONID cookies set; tokens in Redis for 30 minutes"
+      }
+     ]
+    },
+    {
+     "type": "sequence",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Sequence Diagram",
+     "participants": [
+      "web-user",
+      "angular-ui",
+      "bff",
+      "keycloak",
+      "redis"
+     ],
+     "steps": [
+      {
+       "from": "web-user",
+       "to": "angular-ui",
+       "message": "Clicks sign in"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Navigates the browser to the login endpoint (through the /bff proxy)",
+       "code": "GET /bff/login"
+      },
+      {
+       "from": "bff",
+       "to": "angular-ui",
+       "message": "Redirect to the OAuth2 authorization endpoint, made absolute from the pinned Host header",
+       "code": "302 http://localhost:8081/oauth2/authorization/keycloak",
+       "type": "return"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Browser goes straight to the BFF's published port",
+       "code": "GET /oauth2/authorization/keycloak"
+      },
+      {
+       "from": "bff",
+       "to": "angular-ui",
+       "message": "Redirect to Keycloak with state, nonce and PKCE challenge (bff-client)",
+       "code": "302 …/protocol/openid-connect/auth",
+       "type": "return"
+      },
+      {
+       "from": "angular-ui",
+       "to": "keycloak",
+       "message": "Browser opens the login page",
+       "code": "GET /realms/my-realm/protocol/openid-connect/auth"
+      },
+      {
+       "from": "web-user",
+       "to": "keycloak",
+       "message": "Enters user name and password"
+      },
+      {
+       "from": "keycloak",
+       "to": "angular-ui",
+       "message": "Redirects the browser back with an authorization code",
+       "code": "302 http://localhost:8081/login/oauth2/code/keycloak",
+       "type": "return"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Browser delivers the code to the BFF directly",
+       "code": "GET /login/oauth2/code/keycloak?code&state"
+      },
+      {
+       "from": "bff",
+       "to": "keycloak",
+       "message": "Exchanges the code for access, refresh and ID tokens",
+       "code": "POST …/token [OIDC]"
+      },
+      {
+       "from": "keycloak",
+       "to": "bff",
+       "message": "Tokens (access token lives 5 min)",
+       "type": "return"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "message": "Stores the Spring Security session",
+       "code": "JSESSIONID [Spring Session]"
+      },
+      {
+       "from": "bff",
+       "to": "angular-ui",
+       "message": "Redirect to the default success URL",
+       "code": "302 /bff/login/success",
+       "type": "return"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Browser follows it",
+       "code": "GET /bff/login/success"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "message": "Stores the tokens as a BffSession under a new jti, TTL 30 min",
+       "code": "SET bff:session:<jti>"
+      },
+      {
+       "from": "bff",
+       "to": "bff",
+       "message": "Signs the BFF_SESSION JWT (RS256, expires in 30 min)"
+      },
+      {
+       "from": "bff",
+       "to": "angular-ui",
+       "message": "Sets the HttpOnly BFF_SESSION cookie and redirects to the frontend",
+       "code": "302 FRONTEND_URL",
+       "type": "return"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Asks who is signed in",
+       "code": "GET /bff/user"
+      },
+      {
+       "from": "bff",
+       "to": "angular-ui",
+       "message": "OIDC user claims",
+       "type": "return"
+      }
+     ]
+    },
+    {
+     "type": "steps",
+     "id": "steps",
+     "eyebrow": "Walkthrough",
+     "title": "Steps",
+     "of": "diagram"
+    }
+   ]
+  },
+  {
+   "id": "seq-web-orders",
+   "level": "sequence",
+   "title": "List my orders (web)",
+   "summary": "A signed-in user opens the orders page. The BFF swaps the cookie for the stored access token, refreshing it first if it expires within 60 seconds, and calls the gateway. The gateway and order-service both validate the token; the orders are those whose creator is the token's subject.",
+   "sections": [
+    {
+     "type": "stats",
+     "id": "overview",
+     "eyebrow": "Context",
+     "title": "Overview",
+     "columns": 3,
+     "variant": "text",
+     "items": [
+      {
+       "label": "Trigger",
+       "value": "User opens the Orders page"
+      },
+      {
+       "label": "Pre-conditions",
+       "value": "Valid BFF_SESSION cookie and Redis session"
+      },
+      {
+       "label": "Post-conditions",
+       "value": "A page of the user's orders, newest first"
+      }
+     ]
+    },
+    {
+     "type": "sequence",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Sequence Diagram",
+     "participants": [
+      "angular-ui",
+      "bff",
+      "redis",
+      "keycloak",
+      "gateway",
+      "order",
+      "order-db"
+     ],
+     "steps": [
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Lists orders with the session cookie",
+       "code": "GET /bff/api/orders?page&size&sort [JSON/HTTP]"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "message": "Loads the session for the cookie's jti",
+       "code": "GET bff:session:<jti>"
+      },
+      {
+       "frame": "opt",
+       "label": "access token expires within 60 s"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "message": "Takes the refresh lock",
+       "code": "SET bff:session:<jti>:refresh-lock NX PX 5000"
+      },
+      {
+       "from": "bff",
+       "to": "keycloak",
+       "message": "Refreshes the tokens",
+       "code": "POST …/token grant_type=refresh_token"
+      },
+      {
+       "from": "keycloak",
+       "to": "bff",
+       "message": "New access and refresh tokens",
+       "type": "return"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "message": "Saves the session and releases the lock"
+      },
+      {
+       "end": true
+      },
+      {
+       "from": "bff",
+       "to": "gateway",
+       "message": "Forwards with the bearer token",
+       "code": "GET /orders?… [HTTP, circuit breaker]"
+      },
+      {
+       "from": "gateway",
+       "to": "gateway",
+       "message": "Validates the JWT and audience, takes a rate-limit token, rewrites to /api"
+      },
+      {
+       "from": "gateway",
+       "to": "order",
+       "message": "Routes",
+       "code": "GET /api?… [HTTP]"
+      },
+      {
+       "from": "order",
+       "to": "order",
+       "message": "Validates the JWT again"
+      },
+      {
+       "from": "order",
+       "to": "order-db",
+       "message": "Pages orders created by the subject",
+       "code": "SELECT … WHERE created_by = :sub [JDBC]"
+      },
+      {
+       "from": "order-db",
+       "to": "order",
+       "message": "Rows",
+       "type": "return"
+      },
+      {
+       "from": "order",
+       "to": "gateway",
+       "message": "PagedModel of orders",
+       "type": "return"
+      },
+      {
+       "from": "gateway",
+       "to": "bff",
+       "message": "PagedModel of orders",
+       "type": "return"
+      },
+      {
+       "from": "bff",
+       "to": "angular-ui",
+       "message": "PagedModel of orders",
+       "type": "return"
+      },
+      {
+       "note": "On 401 the app sends the browser to /bff/login",
+       "over": [
+        "angular-ui",
+        "bff"
+       ]
+      }
+     ]
+    },
+    {
+     "type": "steps",
+     "id": "steps",
+     "eyebrow": "Walkthrough",
+     "title": "Steps",
+     "of": "diagram"
+    }
+   ]
+  },
+  {
+   "id": "seq-self-registration",
+   "level": "sequence",
+   "title": "Self-registration and confirmation",
+   "summary": "A visitor registers with an email and profile data but no password. profile-service stores a disabled profile and a pending registration and \"sends\" a confirmation link, which today is only logged. Opening the link creates the Keycloak user through keycloak-admin-service, which asks Keycloak to email a set-password link.",
+   "sections": [
+    {
+     "type": "stats",
+     "id": "overview",
+     "eyebrow": "Context",
+     "title": "Overview",
+     "columns": 3,
+     "variant": "text",
+     "items": [
+      {
+       "label": "Trigger",
+       "value": "Visitor submits the registration form; later opens the confirmation link"
+      },
+      {
+       "label": "Pre-conditions",
+       "value": "Email not yet in user_profiles"
+      },
+      {
+       "label": "Post-conditions",
+       "value": "Enabled profile and a Keycloak user without a password; a set-password email if Keycloak can send one"
+      }
+     ]
+    },
+    {
+     "type": "sequence",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Sequence Diagram",
+     "participants": [
+      "visitor",
+      "angular-ui",
+      "bff",
+      "gateway",
+      "profile",
+      "profile-db",
+      "kc-admin",
+      "keycloak"
+     ],
+     "steps": [
+      {
+       "from": "visitor",
+       "to": "angular-ui",
+       "message": "Fills in email, names, gender, age"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Registers",
+       "code": "POST /bff/public/profile/register [JSON/HTTP]"
+      },
+      {
+       "from": "bff",
+       "to": "gateway",
+       "message": "Forwards without a token",
+       "code": "POST /profile/public/register"
+      },
+      {
+       "from": "gateway",
+       "to": "profile",
+       "message": "Routes (public path, rate limit by address)",
+       "code": "POST /api/public/register"
+      },
+      {
+       "frame": "alt",
+       "label": "email not registered yet"
+      },
+      {
+       "from": "profile",
+       "to": "profile-db",
+       "message": "Inserts a disabled profile and a pending registration (token, expiry 24 h)",
+       "code": "REQUIRES_NEW transaction [JDBC]"
+      },
+      {
+       "from": "profile",
+       "to": "profile",
+       "message": "Logs the confirmation link",
+       "code": "LoggingEmailService",
+       "info": "No real email sender exists; under prod the service does not start."
+      },
+      {
+       "else": "email already registered"
+      },
+      {
+       "from": "profile",
+       "to": "profile",
+       "message": "Does nothing, logs at INFO"
+      },
+      {
+       "end": true
+      },
+      {
+       "from": "profile",
+       "to": "angular-ui",
+       "message": "Same 201 message in every case",
+       "type": "return"
+      },
+      {
+       "from": "visitor",
+       "to": "angular-ui",
+       "message": "Opens the confirmation link",
+       "code": "/confirm?token=…"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Confirms",
+       "code": "GET /bff/public/profile/confirm?token= [JSON/HTTP]"
+      },
+      {
+       "from": "bff",
+       "to": "gateway",
+       "message": "Forwards without a token",
+       "code": "GET /profile/public/confirm"
+      },
+      {
+       "from": "gateway",
+       "to": "profile",
+       "message": "Routes",
+       "code": "GET /api/public/confirm"
+      },
+      {
+       "from": "profile",
+       "to": "profile-db",
+       "message": "Finds the pending registration; rejects unknown or expired tokens"
+      },
+      {
+       "from": "profile",
+       "to": "keycloak",
+       "message": "Gets an internal-client token (cached)",
+       "code": "POST …/token grant_type=client_credentials"
+      },
+      {
+       "from": "profile",
+       "to": "kc-admin",
+       "message": "Registers the user with sendPasswordEmail",
+       "code": "POST /api/users/register [JSON/HTTP, INTERNAL_SERVICE]"
+      },
+      {
+       "from": "kc-admin",
+       "to": "keycloak",
+       "message": "Creates an enabled, email-verified user without password",
+       "code": "POST /admin/realms/my-realm/users"
+      },
+      {
+       "from": "kc-admin",
+       "to": "keycloak",
+       "message": "Asks for an UPDATE_PASSWORD email",
+       "code": "PUT …/execute-actions-email"
+      },
+      {
+       "note": "No SMTP is configured in the realm; a failure is logged and ignored",
+       "over": [
+        "kc-admin",
+        "keycloak"
+       ]
+      },
+      {
+       "from": "kc-admin",
+       "to": "profile",
+       "message": "Keycloak user id (201)",
+       "type": "return"
+      },
+      {
+       "from": "profile",
+       "to": "profile-db",
+       "message": "Sets userId, enables the profile, deletes the pending registration"
+      },
+      {
+       "from": "profile",
+       "to": "angular-ui",
+       "message": "Email confirmed, check your email to set a password",
+       "type": "return"
+      }
+     ]
+    },
+    {
+     "type": "steps",
+     "id": "steps",
+     "eyebrow": "Walkthrough",
+     "title": "Steps",
+     "of": "diagram"
+    }
+   ]
+  },
+  {
+   "id": "seq-admin-create-user",
+   "level": "sequence",
+   "title": "Administrator creates a user",
+   "summary": "An administrator, using an API client, creates a user. profile-service creates the Keycloak account through keycloak-admin-service with the administrator's own token, then the profile; if the profile insert fails it deletes the Keycloak account again.",
+   "sections": [
+    {
+     "type": "stats",
+     "id": "overview",
+     "eyebrow": "Context",
+     "title": "Overview",
+     "columns": 3,
+     "variant": "text",
+     "items": [
+      {
+       "label": "Trigger",
+       "value": "Administrator sends the create-user request"
+      },
+      {
+       "label": "Pre-conditions",
+       "value": "Bearer token with realm role ADMIN"
+      },
+      {
+       "label": "Post-conditions",
+       "value": "Keycloak user with password and a profile (enabled stays false)"
+      }
+     ]
+    },
+    {
+     "type": "sequence",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Sequence Diagram",
+     "participants": [
+      "admin",
+      "gateway",
+      "profile",
+      "kc-admin",
+      "keycloak",
+      "profile-db"
+     ],
+     "steps": [
+      {
+       "from": "admin",
+       "to": "gateway",
+       "message": "Creates a user with password and profile data",
+       "code": "POST /profile/profile/admin/users [JSON/HTTP, bearer]"
+      },
+      {
+       "from": "gateway",
+       "to": "profile",
+       "message": "Validates the JWT and routes",
+       "code": "POST /api/profile/admin/users"
+      },
+      {
+       "from": "profile",
+       "to": "profile",
+       "message": "Checks hasRole(ADMIN)"
+      },
+      {
+       "from": "profile",
+       "to": "kc-admin",
+       "message": "Creates the Keycloak user with the caller's token",
+       "code": "POST /api/users [JSON/HTTP]"
+      },
+      {
+       "from": "kc-admin",
+       "to": "keycloak",
+       "message": "Creates the user with a password",
+       "code": "POST /admin/realms/my-realm/users [Admin REST]"
+      },
+      {
+       "from": "kc-admin",
+       "to": "profile",
+       "message": "Keycloak user id",
+       "type": "return"
+      },
+      {
+       "from": "profile",
+       "to": "profile-db",
+       "message": "Inserts the profile",
+       "code": "JDBC"
+      },
+      {
+       "frame": "opt",
+       "label": "profile insert fails"
+      },
+      {
+       "from": "profile",
+       "to": "kc-admin",
+       "message": "Compensates: deletes the Keycloak user",
+       "code": "DELETE /api/users/{id}"
+      },
+      {
+       "from": "kc-admin",
+       "to": "keycloak",
+       "message": "Removes the user",
+       "code": "DELETE …/users/{id} [Admin REST]"
+      },
+      {
+       "end": true
+      },
+      {
+       "from": "profile",
+       "to": "gateway",
+       "message": "Profile (or 500)",
+       "type": "return"
+      },
+      {
+       "from": "gateway",
+       "to": "admin",
+       "message": "Profile (or 500)",
+       "type": "return"
+      }
+     ]
+    },
+    {
+     "type": "steps",
+     "id": "steps",
+     "eyebrow": "Walkthrough",
+     "title": "Steps",
+     "of": "diagram"
+    }
+   ]
+  },
+  {
+   "id": "seq-logout",
+   "level": "sequence",
+   "title": "Single sign-out",
+   "summary": "Logout is a real form POST carrying the CSRF token, so the browser follows the redirects. The BFF removes the Redis session and both cookies, then sends the browser to Keycloak to end the SSO session, which returns it to the login page.",
+   "sections": [
+    {
+     "type": "stats",
+     "id": "overview",
+     "eyebrow": "Context",
+     "title": "Overview",
+     "columns": 3,
+     "variant": "text",
+     "items": [
+      {
+       "label": "Trigger",
+       "value": "User clicks Logout"
+      },
+      {
+       "label": "Pre-conditions",
+       "value": "Any or no session"
+      },
+      {
+       "label": "Post-conditions",
+       "value": "No BFF or Keycloak session; browser on /login"
+      }
+     ]
+    },
+    {
+     "type": "sequence",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Sequence Diagram",
+     "participants": [
+      "web-user",
+      "angular-ui",
+      "bff",
+      "redis",
+      "keycloak"
+     ],
+     "steps": [
+      {
+       "from": "web-user",
+       "to": "angular-ui",
+       "message": "Clicks logout"
+      },
+      {
+       "from": "angular-ui",
+       "to": "bff",
+       "message": "Submits a hidden form with _csrf",
+       "code": "POST /bff/logout [form]"
+      },
+      {
+       "from": "bff",
+       "to": "bff",
+       "message": "Checks the CSRF token and reads the jti from BFF_SESSION"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "message": "Loads the session for its ID token, then deletes it",
+       "code": "GET / DEL bff:session:<jti>"
+      },
+      {
+       "from": "bff",
+       "to": "redis",
+       "message": "Invalidates the JSESSIONID session",
+       "code": "[Spring Session]"
+      },
+      {
+       "from": "bff",
+       "to": "angular-ui",
+       "message": "Clears both cookies; redirects to Keycloak end-session with id_token_hint",
+       "code": "302 …/protocol/openid-connect/logout",
+       "type": "return"
+      },
+      {
+       "from": "angular-ui",
+       "to": "keycloak",
+       "message": "Browser follows the redirect",
+       "code": "GET …/logout?id_token_hint&post_logout_redirect_uri"
+      },
+      {
+       "from": "keycloak",
+       "to": "angular-ui",
+       "message": "Ends the SSO session; redirects to the login page",
+       "code": "302 FRONTEND_URL/login",
+       "type": "return"
+      }
+     ]
+    },
+    {
+     "type": "steps",
+     "id": "steps",
+     "eyebrow": "Walkthrough",
+     "title": "Steps",
+     "of": "diagram"
+    }
+   ]
+  },
+  {
+   "id": "seq-mobile-api",
+   "level": "sequence",
+   "title": "Mobile app call (mobile lane)",
+   "summary": "The mobile app does not use the BFF. It signs in at Keycloak as the public mobile-client with PKCE and sends its access token straight to the gateway; the service validates the token again.",
+   "sections": [
+    {
+     "type": "stats",
+     "id": "overview",
+     "eyebrow": "Context",
+     "title": "Overview",
+     "columns": 3,
+     "variant": "text",
+     "items": [
+      {
+       "label": "Trigger",
+       "value": "Mobile user opens their profile"
+      },
+      {
+       "label": "Pre-conditions",
+       "value": "mobile-client is configured in the realm; the app itself is not in the repository"
+      },
+      {
+       "label": "Post-conditions",
+       "value": "The user's profile is shown"
+      }
+     ]
+    },
+    {
+     "type": "sequence",
+     "id": "diagram",
+     "eyebrow": "Diagram",
+     "title": "Sequence Diagram",
+     "participants": [
+      "mobile-app",
+      "keycloak",
+      "gateway",
+      "profile",
+      "profile-db"
+     ],
+     "steps": [
+      {
+       "from": "mobile-app",
+       "to": "keycloak",
+       "message": "Signs in with authorization code + PKCE",
+       "code": "mobile-client, redirect com.example.app://callback"
+      },
+      {
+       "from": "keycloak",
+       "to": "mobile-app",
+       "message": "Access and refresh tokens (audience template-api)",
+       "type": "return"
+      },
+      {
+       "from": "mobile-app",
+       "to": "gateway",
+       "message": "Gets the profile with the bearer token",
+       "code": "GET /profile [JSON/HTTPS]"
+      },
+      {
+       "from": "gateway",
+       "to": "gateway",
+       "message": "Validates the JWT and audience; rate limit by user"
+      },
+      {
+       "from": "gateway",
+       "to": "profile",
+       "message": "Routes",
+       "code": "GET /api/ [HTTP]",
+       "info": "The trailing slash is removed by common-web's TrailingSlashFilter."
+      },
+      {
+       "from": "profile",
+       "to": "profile",
+       "message": "Validates the JWT again"
+      },
+      {
+       "from": "profile",
+       "to": "profile-db",
+       "message": "Finds the profile by the token subject",
+       "code": "JDBC"
+      },
+      {
+       "from": "profile",
+       "to": "gateway",
+       "message": "Profile (404 if none)",
+       "type": "return"
+      },
+      {
+       "from": "gateway",
+       "to": "mobile-app",
+       "message": "Profile",
+       "type": "return"
+      }
+     ]
+    },
+    {
+     "type": "steps",
+     "id": "steps",
+     "eyebrow": "Walkthrough",
+     "title": "Steps",
+     "of": "diagram"
+    }
+   ]
+  }
+ ]
+}
