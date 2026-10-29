@@ -4,6 +4,7 @@ import io.lantern.core.fact.FactRepository;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import org.springframework.context.annotation.Bean;
@@ -35,6 +36,7 @@ class FactStoreConfiguration {
     registry.apply(MavenExtractor.VOCABULARY_SOURCE, MavenExtractor.vocabulary());
     registry.apply(JavaExtractor.VOCABULARY_SOURCE, JavaExtractor.vocabulary());
     registry.apply(ConfigExtractor.VOCABULARY_SOURCE, ConfigExtractor.vocabulary());
+    registry.apply(DocsExtractor.VOCABULARY_SOURCE, DocsExtractor.vocabulary());
   }
 
   @Bean

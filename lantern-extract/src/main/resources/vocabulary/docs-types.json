@@ -1,0 +1,76 @@
+[
+  {
+    "name": "readme",
+    "kind": "entity",
+    "description": "A README file in a repository, read as low-trust documented claims. Its key is the repository's name, ':' and the file's path in the repository, such as orders:README.md.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "decision",
+    "kind": "entity",
+    "description": "An architecture decision record (ADR) in a repository. Its key is the repository's name, ':' and the file's path in the repository, such as orders:docs/adr/0001-use-kafka.md.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "claim",
+    "kind": "attribute",
+    "description": "Something the subject document says, one paragraph, list item or table row in its Markdown as written. A documented claim, not checked against the code.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "section": { "type": "string", "description": "The heading the claim is under, if any." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "title",
+    "kind": "attribute",
+    "description": "The subject's title, as written, without a leading number.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  },
+  {
+    "name": "decision-number",
+    "kind": "attribute",
+    "description": "The number of the subject decision record, from its file name or else its title, such as 12 for 0012-use-kafka.md.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "integer"
+  },
+  {
+    "name": "decision-status",
+    "kind": "attribute",
+    "description": "The status the subject decision record states, as written, such as Accepted, proposed or Superseded by ADR-0005.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  },
+  {
+    "name": "decision-date",
+    "kind": "attribute",
+    "description": "The date the subject decision record states, as written, such as 2024-03-01.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  },
+  {
+    "name": "decision-context",
+    "kind": "attribute",
+    "description": "The context or problem statement of the subject decision record: the Markdown of its Context (or Context and Problem Statement) section.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  },
+  {
+    "name": "decision-outcome",
+    "kind": "attribute",
+    "description": "What the subject decision record decided, and why where it says: the Markdown of its Decision (or Decision Outcome) section.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  },
+  {
+    "name": "decision-consequences",
+    "kind": "attribute",
+    "description": "The consequences the subject decision record states: the Markdown of one of its Consequences sections.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  }
+]
