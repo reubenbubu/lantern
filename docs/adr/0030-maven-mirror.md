@@ -115,3 +115,11 @@ amendment for #212 changes as follows:
 - **`MVNW_REPOURL` is no longer advised.** The wrapper downloads Maven once and keeps it in
   `~/.m2/wrapper`, so after the first run it does not reach Maven Central. A machine that must
   avoid even that first download can still export it.
+
+## Amendment for #314: a failed download is retried
+
+Maven keeps a failed download, such as a mirror that was down for a moment, in the shared cache and
+does not try again for a day; all five Maven builds of project-3 failed on one such entry for
+`spring-cloud-kubernetes-dependencies:5.0.0`, which Maven Central and the mirror both serve. Every
+Maven run in the sandbox now passes `--update-snapshots`, which makes Maven try again; it fetches
+nothing the cache already holds.

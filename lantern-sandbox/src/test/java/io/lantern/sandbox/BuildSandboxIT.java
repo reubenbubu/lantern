@@ -996,6 +996,37 @@ class BuildSandboxIT {
   }
 
   /**
+   * A download that failed once (#314: a mirror that was down for a moment) is recorded in the
+   * Maven cache, and Maven would not try again for a day. The build tries again.
+   */
+  @Test
+  void retriesADownloadThatFailedBefore() throws IOException {
+    // A cache of its own, with the failure Maven records for the POM of the dependency, as it
+    // keeps it for the repository the build reads from.
+    Path cache = temp.resolve("failed-cache");
+    try {
+      String url = (MIRROR != null ? MIRROR.url() : MavenRepository.CENTRAL.url()).toString();
+      Path failed =
+          cache.resolve("org/projectlombok/lombok/1.18.48/lombok-1.18.48.pom.lastUpdated");
+      Files.createDirectories(failed.getParent());
+      String key = (url.endsWith("/") ? url : url + "/").replace(":", "\\:");
+      Files.writeString(
+          failed, key + ".lastUpdated=" + System.currentTimeMillis() + "\n" + key + ".error=\n");
+      Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+
+      BuildResult result =
+          new BuildSandbox(settings().withMavenCacheDirectory(cache))
+              .build(repo, TestRepos.head(repo));
+
+      assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
+      // Without the retry the build still succeeds, but the POM is missing and Maven warns.
+      assertThat(Files.readString(result.log())).as(log(result)).doesNotContain("is missing");
+    } finally {
+      deleteIfExists(cache);
+    }
+  }
+
+  /**
    * The {@code _remote.repositories} files of every version of an artifact in a Maven cache, which
    * name the repository each downloaded file came from.
    */

@@ -1008,6 +1008,10 @@ public class BuildSandbox {
               List.of(
                   "--batch-mode",
                   "--no-transfer-progress",
+                  // The shared cache keeps a failed download (a mirror that was down for a moment)
+                  // for a day and Maven does not retry it; this makes Maven try again. It fetches
+                  // nothing the cache already holds.
+                  "--update-snapshots",
                   "-Dstyle.color=never",
                   "--settings",
                   "/lantern/settings.xml",
