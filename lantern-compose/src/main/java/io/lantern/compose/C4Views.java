@@ -34,10 +34,11 @@ import tools.jackson.databind.JsonNode;
  * and exchanges they use, and the lines between them the linker's links (ADR 0042). Components are
  * found by role inside a unit, from Spring stereotypes and the call graph.
  *
- * <p>Nothing is invented: a line is drawn for a link, labelled with what the link records (the
- * endpoints called, the routing keys sent), its protocol as technology and the Spring profiles it
- * alone holds under; intent phrases are the LLM's to word (#97). People are drawn only when the
- * knowledge names them, which it does not yet, so a note says who uses the system is unknown.
+ * <p>Nothing is invented: a line is drawn for a link, labelled with the LLM's intent phrase for it
+ * when every link of the line has one (ADR 0050), else with what the link records (the endpoints
+ * called, the routing keys sent), its protocol as technology and the Spring profiles it alone holds
+ * under. People are drawn only when the knowledge names them, which it does not yet, so a note says
+ * who uses the system is unknown.
  */
 final class C4Views {
 
@@ -545,18 +546,37 @@ final class C4Views {
     boolean always;
     final List<Fact> facts = new ArrayList<>();
 
+    /** The intent phrases of the edge's links, used as its label only if every link has one. */
+    final Set<String> phrases = new TreeSet<>();
+
+    boolean unphrased;
+
     EdgeBuilder(EntityId from, String relationship, EntityId to) {
       this.from = from;
       this.relationship = relationship;
       this.to = to;
     }
 
-    void add(Link link) {
+    void add(Link link, Assembler.Phrased phrase) {
       add(link.plain, link.prefix, link.detail, link.technology, link.profile);
       if (link.via != null) {
         vias.add(link.via);
       }
       facts.addAll(link.facts);
+      phrased(phrase);
+    }
+
+    /**
+     * Adds the intent phrase of a link of the edge, with the facts it cites, or marks the edge as
+     * having a link without one, which keeps its static label.
+     */
+    void phrased(Assembler.Phrased phrase) {
+      if (phrase == null) {
+        unphrased = true;
+      } else {
+        phrases.add(phrase.text());
+        facts.addAll(phrase.facts());
+      }
     }
 
     /** The technology line: the protocols, then what the line goes through. */
@@ -587,7 +607,22 @@ final class C4Views {
       }
     }
 
+    /**
+     * The intent phrases of its links when every link has one, naming two and counting the rest;
+     * else what the links record.
+     */
     String label() {
+      if (!unphrased && !phrases.isEmpty()) {
+        List<String> named = new ArrayList<>(phrases);
+        StringBuilder text = new StringBuilder(named.getFirst());
+        for (String phrase : named.subList(1, Math.min(NAMED, named.size()))) {
+          text.append("; ").append(lowerFirst(phrase));
+        }
+        if (named.size() > NAMED) {
+          text.append(" and ").append(named.size() - NAMED).append(" more");
+        }
+        return text.toString();
+      }
       if (details.isEmpty()) {
         return plain;
       }
@@ -600,8 +635,18 @@ final class C4Views {
     }
   }
 
+  /** A phrase's first letter in lower case, unless it starts an acronym or a name in capitals. */
+  static String lowerFirst(String phrase) {
+    if (phrase.length() > 1
+        && Character.isUpperCase(phrase.charAt(0))
+        && Character.isLowerCase(phrase.charAt(1))) {
+      return Character.toLowerCase(phrase.charAt(0)) + phrase.substring(1);
+    }
+    return phrase;
+  }
+
   /** Edges by their ends and relationship, sorted so diagrams do not depend on fact order. */
-  private static final class Edges {
+  private final class Edges {
     private final SortedMap<String, EdgeBuilder> byKey = new TreeMap<>();
 
     EdgeBuilder get(EntityId from, String relationship, EntityId to) {
@@ -610,7 +655,7 @@ final class C4Views {
     }
 
     void add(Link link) {
-      get(link.from, link.relationship, link.to).add(link);
+      get(link.from, link.relationship, link.to).add(link, assembler.phrase(link.facts.getFirst()));
     }
 
     List<Diagram.Edge> build(Assembler assembler, boolean withTechnology) {
@@ -649,6 +694,7 @@ final class C4Views {
         EdgeBuilder edge = edges.get(system, link.relationship, link.to);
         edge.add(link.plain, link.prefix, link.detail, null, link.profile);
         edge.facts.addAll(link.facts);
+        edge.phrased(assembler.phrase(link.facts.getFirst()));
       }
     }
     List<Block> blocks = new ArrayList<>();
@@ -1186,6 +1232,7 @@ final class C4Views {
                 EdgeBuilder edge = edges.get(component.main, BuiltInTypes.CALLS, to);
                 edge.add("Calls", "Calls", methodName(called), null, null);
                 edge.facts.add(fact);
+                edge.phrased(null);
               }
             }
           }
@@ -1226,6 +1273,7 @@ final class C4Views {
           EdgeBuilder edge = edges.get(component.main, USES_DATABASE, link.to);
           edge.add(access, null, null, link.technology, link.profile);
           edge.facts.addAll(link.facts);
+          edge.phrased(null);
         }
       }
     }

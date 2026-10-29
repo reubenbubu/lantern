@@ -36,9 +36,9 @@ import java.util.TreeSet;
  *
  * <p>Nothing is invented: a step is drawn only for a fact, and a call Lantern could not link ends
  * there with a note. Participants are containers: deployable units, databases, topics, queues and
- * exchanges, and external systems, named as on the container diagram. Labels say what the facts say
- * (the endpoint, the routing key, the tables); intent phrases worded for the reader are the LLM's
- * (#97).
+ * exchanges, and external systems, named as on the container diagram. An HTTP call or a send is
+ * labelled with the LLM's intent phrase for its link where there is one (ADR 0050), the endpoint or
+ * protocol after it; other labels say what the facts say (the handler, the routing key).
  */
 final class SequenceFlows {
 
@@ -504,10 +504,16 @@ final class SequenceFlows {
         facts.add(other);
       }
     }
+    Assembler.Phrased phrase = assembler.phrase(link);
+    if (phrase != null) {
+      facts.addAll(phrase.facts());
+    }
     trace.message(
         unit,
         to,
-        "Calls " + (handler == null ? nameOf(to) : methodName(handler)),
+        phrase != null
+            ? phrase.text()
+            : "Calls " + (handler == null ? nameOf(to) : methodName(handler)),
         endpoint,
         null,
         profiles,
@@ -523,15 +529,20 @@ final class SequenceFlows {
     EntityId destination = Knowledge.object(link);
     List<String> profiles = profiles(link, outer);
     String key = attribute(link, "routingKey");
+    Assembler.Phrased phrase = assembler.phrase(link);
+    List<Fact> facts = withEnds(link);
+    if (phrase != null) {
+      facts.addAll(phrase.facts());
+    }
     trace.message(
         unit,
         destination,
-        key == null ? "Sends a message" : "Sends " + key,
+        phrase != null ? phrase.text() : key == null ? "Sends a message" : "Sends " + key,
         attribute(link, "protocol"),
         SequenceDiagram.MessageKind.ASYNC,
         profiles,
         null,
-        withEnds(link));
+        facts);
     trace.asyncThrough.add(nameOf(destination));
     List<Fact> deliveries =
         linksBySource.getOrDefault(unit + " " + method, List.of()).stream()
