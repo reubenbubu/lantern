@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The facts of one snapshot, indexed for composing. Every list and set it returns is sorted (facts
@@ -39,7 +40,7 @@ final class Knowledge {
         continue;
       }
       bySubject.computeIfAbsent(fact.subject(), s -> new ArrayList<>()).add(fact);
-      tools.jackson.databind.JsonNode resolves = fact.attributes().get("resolves");
+      JsonNode resolves = fact.attributes().get("resolves");
       if (resolves != null && resolves.isString()) {
         resolvedLinks.putIfAbsent(resolves.asString(), fact);
       }
@@ -79,7 +80,7 @@ final class Knowledge {
     if (byId != null) {
       return byId;
     }
-    tools.jackson.databind.JsonNode link = unresolved.attributes().get("link");
+    JsonNode link = unresolved.attributes().get("link");
     return link != null && link.isString() ? resolvedLinks.get(link.asString()) : null;
   }
 

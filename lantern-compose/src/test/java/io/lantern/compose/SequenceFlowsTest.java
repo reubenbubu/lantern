@@ -385,7 +385,7 @@ class SequenceFlowsTest {
             (ObjectNode)
                 FactJson.parse(
                     "{\"protocol\": \"HTTPS\", \"httpMethod\": \"GET\", \"path\": \"/quotes\","
-                        + " \"matchedBy\": \"llm\", \"resolves\": \""
+                        + " \"resolves\": \""
                         + open.id()
                         + "\", \"source\": \""
                         + SERVICE
@@ -407,6 +407,36 @@ class SequenceFlowsTest {
                 ((Paragraph) flows(system(facts)).sections().getFirst().blocks().getFirst())
                     .content()))
         .doesNotContain("could not be followed");
+  }
+
+  @Test
+  void aSendTheResolverLinkedIsMarkedAsTheLlmsToo() {
+    Fact open =
+        facts.stream().filter(f -> f.predicate().equals("unresolved-link")).findFirst().get();
+    facts.add(
+        Fact.create(
+            EntityId.parse(FRONT),
+            "PUBLISHES",
+            FactObject.entity(EntityId.parse("topic:kafka:tax")),
+            (ObjectNode)
+                FactJson.parse(
+                    "{\"protocol\": \"Kafka\", \"resolves\": \""
+                        + open.id()
+                        + "\", \"source\": \""
+                        + SERVICE
+                        + "\"}"),
+            new Origin(Origin.Kind.LLM, "link-resolver", "1"),
+            new Evidence(
+                "front", TestFacts.COMMIT, "Code.java", new Evidence.LineRange(22, 22), null),
+            0.18,
+            Validity.from(1)));
+    List<String> lines = steps(diagram(flows(system(facts)).sections().getFirst()).steps());
+    assertThat(lines)
+        .anyMatch(
+            l ->
+                l.startsWith("service:x:front >> topic:kafka:tax:")
+                    && l.contains("Resolved by the LLM, confidence 0.18."));
+    assertThat(lines).noneMatch(l -> l.contains("could not link"));
   }
 
   @Test

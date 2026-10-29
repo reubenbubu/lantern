@@ -311,7 +311,7 @@ final class SequenceFlows {
           through == null ? protocol : join(protocol, through),
           SequenceDiagram.MessageKind.ASYNC,
           later.profiles,
-          bindingInfo(link),
+          deliveryInfo(link),
           withEnds(link));
       if (handler != null) {
         trace.reached.add(receiver + " " + handler);
@@ -659,6 +659,17 @@ final class SequenceFlows {
             + " the message later.",
         profiles,
         deliveries);
+  }
+
+  private String deliveryInfo(Fact link) {
+    String binding = bindingInfo(link);
+    String resolution = C4Views.resolution(link);
+    if (resolution == null) {
+      return binding;
+    }
+    return binding == null
+        ? capitalize(resolution) + "."
+        : binding + " " + capitalize(resolution) + ".";
   }
 
   private static String capitalize(String text) {

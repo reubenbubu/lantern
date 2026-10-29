@@ -18,6 +18,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -586,11 +587,12 @@ final class C4Views {
 
   /** "resolved by the LLM, confidence 0.28" for a link the LLM resolver picked, else null. */
   static String resolution(Fact fact) {
-    if (!"llm".equals(attribute(fact, "matchedBy"))) {
+    // The resolver's links name the link left open they resolve (ADR 0045), whatever their kind.
+    if (!fact.attributes().has("resolves")) {
       return null;
     }
     return "resolved by the LLM, confidence "
-        + String.format(java.util.Locale.ROOT, "%.2f", fact.confidence());
+        + String.format(Locale.ROOT, "%.2f", fact.confidence());
   }
 
   private static String attribute(Fact fact, String name) {

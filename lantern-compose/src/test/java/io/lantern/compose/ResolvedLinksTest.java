@@ -44,7 +44,7 @@ class ResolvedLinksTest {
         (tools.jackson.databind.node.ObjectNode)
             FactJson.parse(
                 "{\"protocol\": \"HTTPS\", \"httpMethod\": \"GET\", \"path\": \"/quotes\","
-                    + " \"matchedBy\": \"llm\", \"resolves\": \""
+                    + " \"resolves\": \""
                     + unresolved.id()
                     + "\"}");
     return Fact.create(
@@ -56,6 +56,42 @@ class ResolvedLinksTest {
         new Evidence("shop", TestFacts.COMMIT, "Code.java", null, null),
         0.28,
         Validity.from(1));
+  }
+
+  private static Fact resolverSend() {
+    var attributes =
+        (tools.jackson.databind.node.ObjectNode)
+            FactJson.parse("{\"protocol\": \"Kafka\", \"resolves\": \"" + UNRESOLVED.id() + "\"}");
+    return Fact.create(
+        EntityId.parse(APP),
+        "PUBLISHES",
+        FactObject.entity(EntityId.parse("topic:kafka:audit")),
+        attributes,
+        new Origin(Origin.Kind.LLM, "link-resolver", "1"),
+        new Evidence("shop", TestFacts.COMMIT, "Code.java", null, null),
+        0.18,
+        Validity.from(1));
+  }
+
+  @Test
+  void aResolvedMessageLinkIsDrawnMarkedAsTheLlmsToo() {
+    List<Fact> facts = open();
+    facts.add(resolverSend());
+    Document document = c4(facts);
+    assertThat(notLinked(document)).isEmpty();
+    Diagram diagram =
+        section(document, "containers").blocks().stream()
+            .filter(Diagram.class::isInstance)
+            .map(Diagram.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertThat(diagram.edges())
+        .filteredOn(e -> e.to().toString().equals("topic:kafka:audit"))
+        .singleElement()
+        .satisfies(
+            e ->
+                assertThat(e.technology())
+                    .isEqualTo("Kafka · resolved by the LLM, confidence 0.18"));
   }
 
   private static List<Fact> open() {
