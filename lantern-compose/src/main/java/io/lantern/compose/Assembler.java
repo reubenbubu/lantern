@@ -264,6 +264,14 @@ final class Assembler {
   }
 
   /**
+   * The system's purpose (ADR 0059) as rich text citing the facts that are in the snapshot, or
+   * {@code null} if the LLM worded none or none of its citations is in the snapshot.
+   */
+  Text purpose() {
+    return worded(RepoSections.SYSTEM, wordings.responsibilities().get(RepoSections.SYSTEM));
+  }
+
+  /**
    * A text the LLM worded, with citation markers, as rich text citing the facts that are in the
    * snapshot, or {@code null} if it is {@code null} or none of its citations is in the snapshot.
    */

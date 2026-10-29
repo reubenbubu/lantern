@@ -1090,6 +1090,15 @@
     "entity" : "system:snapshot",
     "facts" : [ ],
     "blocks" : [ {
+      "kind" : "callout",
+      "id" : "overview.purpose",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The system's purpose is not known: no readme states it, and it could not be inferred from its deployable units."
+      } ],
+      "facts" : [ ]
+    }, {
       "kind" : "list",
       "id" : "overview.repositories",
       "ordered" : false,

@@ -106,8 +106,8 @@ class EndToEndIT {
     /**
      * A fake model that cites the first fact and the first part's summary it is given, picks the
      * first candidate of a link left open, citing it, and words a unit, its first component and its
-     * first relationship, a data store or destination, and a flow's walkthrough, citing the first
-     * fact (ADR 0050, ADR 0056, ADR 0058).
+     * first relationship, a data store or destination, a flow's walkthrough and the system's
+     * purpose, citing the first fact (ADR 0050, ADR 0056, ADR 0058, ADR 0059).
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -129,7 +129,9 @@ class EndToEndIT {
                       "{\"unit\": "
                           + cite.formatted("It greets its callers.")
                           + ", \"element\": "
-                          + cite.formatted("It keeps the greetings.");
+                          + cite.formatted("It keeps the greetings.")
+                          + ", \"purpose\": "
+                          + cite.formatted("It greets people.");
                   if (prompt.contains("[C1]")) {
                     answer +=
                         ", \"components\": {\"C1\": " + cite.formatted("It takes requests.") + "}";

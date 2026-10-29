@@ -2,6 +2,7 @@ package io.lantern.compose;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.lantern.core.document.Callout;
 import io.lantern.core.document.Citation;
 import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Document;
@@ -59,10 +60,16 @@ class DescriberTest {
    * Words each unit, its components and relationships from what its prompt shows: the shop app's
    * components and its send, the worker's call, each citing the first fact; and the database and
    * the topic, citing their uses, leaving the external system out; and each flow's walkthrough and
-   * post-conditions, citing its entry point and send, leaving its pre-conditions out.
+   * post-conditions, citing its entry point and send, leaving its pre-conditions out; and the
+   * system's purpose, citing its README's first claim where it shows one, else the first fact.
    */
   private static String answer(LlmRequest request) {
     String prompt = request.messages().getFirst().text();
+    if (prompt.startsWith("The software system")) {
+      return """
+          {"purpose": {"text": "Runs an online shop's orders.", "cites": ["F%s"]}}"""
+          .formatted(prompt.contains(" claim ") ? ref(prompt, "claim") : "1");
+    }
     if (prompt.startsWith("The flow")) {
       return """
           {"walkthrough": {"text": "Lists the orders and announces them for background work.",
@@ -164,7 +171,7 @@ class DescriberTest {
 
     Describer.Result result = describe(fake);
 
-    assertThat(result.asked()).isEqualTo(7);
+    assertThat(result.asked()).isEqualTo(8);
     assertThat(result.reused()).isZero();
     assertThat(result.rejected()).isEmpty();
     assertThat(result.skipped()).isEmpty();
@@ -177,7 +184,8 @@ class DescriberTest {
             "INFER_INTENT word element " + TOPIC,
             "INFER_INTENT word element " + PAY,
             "COMPOSE narrate flow " + LIST_FLOW,
-            "COMPOSE narrate flow " + RUN_FLOW);
+            "COMPOSE narrate flow " + RUN_FLOW,
+            "INFER_INTENT word the system's purpose");
     String app =
         fake.sent().stream()
             .map(s -> s.request().messages().getFirst().text())
@@ -259,7 +267,7 @@ class DescriberTest {
 
     Describer.Result result = new Describer(client(fake), store).describe(routed.list());
 
-    assertThat(result.asked()).isEqualTo(7);
+    assertThat(result.asked()).isEqualTo(8);
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
         .noneMatch(p -> p.contains("audit"));
@@ -492,6 +500,115 @@ class DescriberTest {
   }
 
   @Test
+  void theSystemsPurposeIsAskedFromTheUnitsSentencesAndTheirFactsAndTheReadmeClaims() {
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+
+    Describer.Result result = new Describer(client(fake), store).describe(withClaim);
+
+    LlmRequest purpose =
+        fake.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.purpose().equals("word the system's purpose"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(purpose.role()).isEqualTo(io.lantern.llm.Role.INFER_INTENT);
+    assertThat(purpose.system()).isEqualTo(WordingPrompt.PURPOSE_SYSTEM);
+    assertThat(purpose.maxOutputTokens()).isEqualTo(Describer.MAX_PURPOSE_OUTPUT_TOKENS);
+    assertThat(purpose.messages().getFirst().text())
+        .isEqualTo(
+            """
+            The software system, whose deployable units with a description are 2.
+
+            Its deployable units, each with what it does as worded from its facts:
+            - shop-app: Takes and lists the shop's orders.
+              [F1] service:com.example:app application-name "shop-app" (shop:pom.xml)
+              [F2] service:com.example:app deployable-unit "spring-boot" (shop:pom.xml)
+            - worker: Processes orders in the background.
+              [F3] service:com.example:worker deployable-unit "spring-boot" (base:pom.xml)
+
+            What the READMEs of its repositories claim:
+            shop (README.md):
+              [F4] readme:shop:README.md claim "The app keeps its orders in MySQL." (shop:README.md)
+            """);
+    assertThat(result.wordings().responsibilities().get(RepoSections.SYSTEM))
+        .isEqualTo(
+            "Runs an online shop's orders. [fact:"
+                + withClaim.stream()
+                    .filter(f -> f.predicate().equals("claim"))
+                    .findFirst()
+                    .orElseThrow()
+                    .id()
+                + "]");
+  }
+
+  @Test
+  void aPurposeFromAReadmeClaimOpensTheSystemsOverviewAndDescribesTheSystem() {
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    Wordings wordings =
+        new Describer(client(new FakeLlmProvider().answering(DescriberTest::answer)), store)
+            .describe(withClaim)
+            .wordings();
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                withClaim,
+                Map.of(),
+                wordings);
+
+    Paragraph first = (Paragraph) document.sections().getFirst().blocks().getFirst();
+    assertThat(text(first.content())).isEqualTo("Runs an online shop's orders.");
+    assertThat(first.content().getLast()).isInstanceOf(Citation.class);
+    DocumentEntity system =
+        document.entities().stream()
+            .filter(e -> e.id().equals(RepoSections.SYSTEM))
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(system.description())).isEqualTo("Runs an online shop's orders.");
+  }
+
+  @Test
+  void aPurposeCitingNoReadmeClaimIsSaidToBeInferredFromTheUnits() {
+    Wordings wordings = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
+
+    Paragraph first = (Paragraph) system(wordings).sections().getFirst().blocks().getFirst();
+
+    assertThat(text(first.content()))
+        .isEqualTo("Runs an online shop's orders. " + RepoSections.INFERRED_PURPOSE);
+    assertThat(first.facts()).containsExactly(facts.find(APP.toString(), "application-name").id());
+  }
+
+  @Test
+  void withoutAPurposeTheSystemsOverviewStatesItAsUnknown() {
+    FakeLlmProvider leavesItOut =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.messages().getFirst().text().startsWith("The software system")
+                        ? "{}"
+                        : answer(request));
+    Describer.Result result = describe(leavesItOut);
+
+    Document document = system(result.wordings());
+
+    assertThat(result.asked()).isEqualTo(8);
+    assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
+    Callout first = (Callout) document.sections().getFirst().blocks().getFirst();
+    assertThat(first.variant()).isEqualTo(Callout.Variant.NOTE);
+    assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
+    assertThat(
+            document.entities().stream()
+                .filter(e -> e.id().equals(RepoSections.SYSTEM))
+                .findFirst()
+                .orElseThrow()
+                .description())
+        .isEmpty();
+  }
+
+  @Test
   void aSecondRunOverTheSameFactsMakesNoCall() {
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
     Wordings first = describe(fake).wordings();
@@ -501,7 +618,7 @@ class DescriberTest {
 
     assertThat(fake.sent()).hasSize(calls);
     assertThat(second.asked()).isZero();
-    assertThat(second.reused()).isEqualTo(7);
+    assertThat(second.reused()).isEqualTo(8);
     assertThat(second.wordings()).isEqualTo(first);
   }
 
@@ -540,6 +657,10 @@ class DescriberTest {
                             + " cites F99, which is not a fact in the input."));
     assertThat(result.rejected())
         .containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY, LIST, RUN);
+    // Without a unit's sentence or a README claim, the system's purpose is not asked about.
+    assertThat(fake.sent())
+        .extracting(s -> s.request().purpose())
+        .noneMatch(p -> p.contains("purpose"));
     assertThat(result.wordings()).isEqualTo(Wordings.NONE);
     assertThat(store.size()).isZero();
     // The documents keep summaries and static labels.
@@ -632,7 +753,7 @@ class DescriberTest {
     Describer.Result second = new Describer(client(fake), store).describe(moved);
 
     assertThat(fake.sent()).hasSize(calls);
-    assertThat(second.reused()).isEqualTo(7);
+    assertThat(second.reused()).isEqualTo(8);
     // The answers cite the new commit's facts.
     assertThat(second.wordings().phrases())
         .containsKey(

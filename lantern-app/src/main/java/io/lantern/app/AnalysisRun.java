@@ -178,8 +178,8 @@ public final class AnalysisRun {
    * @param summariesReused how many summaries came from the cache
    * @param summariesRejected the units left without a summary because the LLM's answer was rejected
    *     twice
-   * @param wordingsAsked how many deployable units, data stores, destinations and flows the LLM was
-   *     asked to word (ADR 0050, ADR 0056, ADR 0058)
+   * @param wordingsAsked how many deployable units, data stores, destinations and flows, and the
+   *     system for its purpose, the LLM was asked to word (ADR 0050, ADR 0056, ADR 0058, ADR 0059)
    * @param wordingsReused how many of their wordings came from the cache
    * @param llm the LLM calls made during the run, whatever their outcome
    * @param documents the rendered documents, in the order written

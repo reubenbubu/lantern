@@ -15,7 +15,9 @@ import java.util.Objects;
  * prose where it has them.
  *
  * @param responsibilities the responsibility sentence of each deployable unit and component (by its
- *     main type), with citation markers as summaries have them, {@code [fact:<fact ID>]}
+ *     main type), data store and destination, and the purpose of the system ({@code
+ *     system:snapshot}, ADR 0059), with citation markers as summaries have them, {@code [fact:<fact
+ *     ID>]}
  * @param phrases the intent phrase of each link, by the ID of the link fact
  * @param flows the walkthrough and conditions of each flow, by {@link #flowKey} of the prompt that
  *     asked about it, so a flow is worded only when it is traced as the model saw it
