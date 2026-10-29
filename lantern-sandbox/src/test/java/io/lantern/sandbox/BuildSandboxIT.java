@@ -89,6 +89,11 @@ class BuildSandboxIT {
     fixtures = Path.of(path);
   }
 
+  /**
+   * Checks that the test's sandboxes left no container or network, the cache hand-over containers
+   * included: everything a sandbox creates carries the owner label, and the sandbox waits for each
+   * create to finish, even when interrupted or timed out, so nothing appears after the build ends.
+   */
   @AfterEach
   void nothingLeftRunning() {
     assertThat(
@@ -288,7 +293,7 @@ class BuildSandboxIT {
   }
 
   @Test
-  void recordsATimeout() throws IOException, URISyntaxException {
+  void recordsATimeout() throws IOException, URISyntaxException, InterruptedException {
     Repo repo = repo(sandboxFixture("broken"), "slow", RepoSettings.DEFAULT);
 
     BuildResult result =
@@ -298,6 +303,13 @@ class BuildSandboxIT {
     assertThat(result.status()).isEqualTo(BuildStatus.FAILED);
     assertThat(result.failure()).isEqualTo("The build timed out after PT1S");
     assertThat(result.mavenExitCode()).isNull();
+    // A create that the timeout cut short could still be completed by the daemon a little later
+    // (#144); wait a moment so the leftover check after the test would see it.
+    Thread.sleep(Duration.ofSeconds(5));
+    assertThat(
+            DOCKER.check(TIMEOUT, List.of("ps", "--all", "--quiet", "--filter", ownFilter())).out())
+        .as("containers left behind after a timed-out build")
+        .isEmpty();
     assertThat(result.modules()).isEmpty();
   }
 
@@ -460,6 +472,12 @@ class BuildSandboxIT {
     assertThat(build.isAlive()).isFalse();
     assertThat(thrown.get()).isInstanceOf(SandboxException.class);
     assertThat(sandbox.find("interrupted", TestRepos.head(repo))).isEmpty();
+    // Nothing a create cut short by the interrupt appears later (#98).
+    Thread.sleep(Duration.ofSeconds(5));
+    assertThat(
+            DOCKER.check(TIMEOUT, List.of("ps", "--all", "--quiet", "--filter", ownFilter())).out())
+        .as("containers left behind after an interrupted build")
+        .isEmpty();
   }
 
   @Test
