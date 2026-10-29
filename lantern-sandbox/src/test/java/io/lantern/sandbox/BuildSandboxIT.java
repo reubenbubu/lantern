@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
@@ -281,6 +282,39 @@ class BuildSandboxIT {
             .isNotEmpty()
             .allMatch(name -> name.endsWith(".lastUpdated"), "only download failure notes");
       }
+    } finally {
+      deleteIfExists(cache);
+    }
+  }
+
+  @Test
+  void buildsARepositoryOnAnotherOnesUnpublishedParentAndSnapshotLibrary()
+      throws IOException, URISyntaxException {
+    Repo shared = repo(sandboxFixture("shared"), "shared", RepoSettings.DEFAULT);
+    Repo consumer = repo(sandboxFixture("consumer"), "consumer", RepoSettings.DEFAULT);
+    Map<String, Repo> repos = Map.of("consumer", consumer, "shared", shared);
+    BuildOrder order =
+        BuildOrder.of(
+            repos, Map.of("consumer", TestRepos.head(consumer), "shared", TestRepos.head(shared)));
+    assertThat(order.order()).containsExactly("shared", "consumer");
+    assertThat(order.upstream("consumer")).containsExactly("shared");
+    // A cache of its own, seeded without the shared repository's artifacts, to check they never
+    // get into it.
+    Path cache = seededCache("shared-cache");
+    try {
+      BuildSandbox sandbox = new BuildSandbox(settings().withMavenCacheDirectory(cache));
+
+      BuildResult sharedResult = sandbox.build(shared, TestRepos.head(shared));
+      assertThat(sharedResult.status()).as(log(sharedResult)).isEqualTo(BuildStatus.SUCCEEDED);
+      BuildResult built =
+          sandbox.build(
+              consumer, TestRepos.head(consumer), List.of(new UpstreamBuild(shared, sharedResult)));
+
+      assertThat(built.status()).as(log(built)).isEqualTo(BuildStatus.SUCCEEDED);
+      assertThat(built.modules().getFirst().classpath())
+          .containsExactly(
+              "lib/com/example/shared/shared-lib/1.0.0-SNAPSHOT/shared-lib-1.0.0-SNAPSHOT.jar");
+      assertThat(cache.resolve("com/example/shared")).doesNotExist();
     } finally {
       deleteIfExists(cache);
     }
