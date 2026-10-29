@@ -34,4 +34,8 @@ component views, and nothing could state where authorization is decided.
   since an aspect that selects by name pattern is not shown to run in the unit.
 - **Not covered:** XML-declared aspects, `@DeclareParents`, annotations inherited from interfaces
   (`@annotation` matches only the method's own annotations, as AspectJ does), and whether Spring
-  AOP can proxy the method (private, final or self-invoked methods are not told apart).
+  AOP can proxy the method: there is no visibility filter, so private, final, static or
+  self-invoked methods are not told apart. An `execution` pattern names the declaring type, so a
+  pattern on an interface does not select the methods its implementers declare. `@target` is read
+  as `@within` (the annotation on the declaring class, not the runtime class). A malformed
+  pointcut selects nothing.

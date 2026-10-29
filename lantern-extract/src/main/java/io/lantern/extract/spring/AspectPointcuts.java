@@ -54,14 +54,15 @@ final class AspectPointcuts {
       return;
     }
     for (Term term : terms(expression)) {
-      if (term.designator.equals("@annotation")
-          || term.designator.equals("@within")
-          || term.designator.equals("@target")) {
+      if (term.argument != null
+          && (term.designator.equals("@annotation")
+              || term.designator.equals("@within")
+              || term.designator.equals("@target"))) {
         String type = names.annotationType(term.argument);
         if (type != null && !result.contains(type)) {
           result.add(type);
         }
-      } else if (term.argument == null) {
+      } else if (term.argument == null || term.argument.isBlank()) {
         String named = names.pointcut(term.designator);
         if (named != null) {
           collect(named, names, result, depth + 1);
@@ -77,8 +78,11 @@ final class AspectPointcuts {
 
   private static List<Term> terms(String expression) {
     List<Term> result = new ArrayList<>();
-    Parser p = new Parser(expression);
-    p.collect(result);
+    try {
+      new Parser(expression).collect(result);
+    } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
+      // A malformed expression gives the terms read before the error.
+    }
     return result;
   }
 
@@ -88,7 +92,7 @@ final class AspectPointcuts {
     }
     try {
       return new Parser(expression).or(term -> term(term, c, names, depth));
-    } catch (IllegalArgumentException e) {
+    } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
       return null;
     }
   }
