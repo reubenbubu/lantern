@@ -3,17 +3,14 @@ package io.lantern.extract.docs;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
-import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
-import io.lantern.core.repo.RepoSettings;
 import io.lantern.extract.Fixtures;
+import io.lantern.extract.Project0;
 import io.lantern.extract.RepoBuild;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -27,14 +24,6 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0DocsIT {
 
-  /** The commits setup.sh makes from the pinned source, as Project0BuildIT checks them. */
-  private static final Map<String, String> COMMITS =
-      Map.of(
-          "catalog", "8637326f638af796f242548b68216c8729e1a5f7",
-          "fulfilment", "d7a159078e44f5de32d3b3f4aa5fa0ef9cb24921",
-          "payments", "871bf725e98d45d11ea093749943bb555b65bae8",
-          "storefront", "fa592e452e659d26597defe3519ba0ec3bfc5014");
-
   private static final String ADR = "docs/adr/0001-order-events-over-rabbitmq.md";
   private static final String DECISION = "decision:storefront:" + ADR + " ";
 
@@ -42,22 +31,9 @@ class Project0DocsIT {
 
   @BeforeAll
   static void extract() throws IOException {
-    String setUp = System.getProperty("lantern.test.project0");
-    assertThat(Path.of(setUp).isAbsolute())
-        .as("lantern.test.project0 must be an absolute path: " + setUp)
-        .isTrue();
-    List<Repo> repos = new ArrayList<>();
-    List<RepoBuild> builds = new ArrayList<>();
-    for (Map.Entry<String, String> e : new TreeMap<>(COMMITS).entrySet()) {
-      Path path = Path.of(setUp).resolve(e.getKey()).toRealPath();
-      Git.Result head = Git.run(path, "rev-parse", "HEAD");
-      assertThat(head.out())
-          .as("%s is not at the pinned commit; run testsets/project-0/setup.sh again", e.getKey())
-          .isEqualTo(e.getValue());
-      Repo repo = new Repo(e.getKey(), path, RepoSettings.DEFAULT);
-      repos.add(repo);
-      builds.add(new RepoBuild(repo, e.getValue(), null));
-    }
+    Map<String, Repo> project = Project0.repos();
+    List<Repo> repos = new ArrayList<>(project.values());
+    List<RepoBuild> builds = Project0.unbuilt(project);
     List<Fact> extracted = new DocsExtractor().extract(builds, 1);
     Fixtures.checkEnvelope(extracted, repos, 1, DocsExtractor.NAME, DocsExtractor.VERSION);
     facts = Fixtures.render(extracted).lines().toList();

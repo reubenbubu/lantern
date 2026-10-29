@@ -3,13 +3,11 @@ package io.lantern.extract.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
-import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
-import io.lantern.core.repo.RepoSettings;
 import io.lantern.extract.Fixtures;
+import io.lantern.extract.Project0;
 import io.lantern.extract.RepoBuild;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,35 +24,14 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0ConfigIT {
 
-  /** The commits setup.sh makes from the pinned source, as Project0BuildIT checks them. */
-  private static final Map<String, String> COMMITS =
-      Map.of(
-          "catalog", "8637326f638af796f242548b68216c8729e1a5f7",
-          "fulfilment", "d7a159078e44f5de32d3b3f4aa5fa0ef9cb24921",
-          "payments", "871bf725e98d45d11ea093749943bb555b65bae8",
-          "storefront", "fa592e452e659d26597defe3519ba0ec3bfc5014");
-
   private static List<Repo> repos;
   private static List<String> facts;
 
   @BeforeAll
   static void extract() throws IOException {
-    String setUp = System.getProperty("lantern.test.project0");
-    assertThat(Path.of(setUp).isAbsolute())
-        .as("lantern.test.project0 must be an absolute path: " + setUp)
-        .isTrue();
-    repos = new ArrayList<>();
-    List<RepoBuild> builds = new ArrayList<>();
-    for (Map.Entry<String, String> e : new java.util.TreeMap<>(COMMITS).entrySet()) {
-      Path path = Path.of(setUp).resolve(e.getKey()).toRealPath();
-      Git.Result head = Git.run(path, "rev-parse", "HEAD");
-      assertThat(head.out())
-          .as("%s is not at the pinned commit; run testsets/project-0/setup.sh again", e.getKey())
-          .isEqualTo(e.getValue());
-      Repo repo = new Repo(e.getKey(), path, RepoSettings.DEFAULT);
-      repos.add(repo);
-      builds.add(new RepoBuild(repo, e.getValue(), null));
-    }
+    Map<String, Repo> project = Project0.repos();
+    repos = new ArrayList<>(project.values());
+    List<RepoBuild> builds = Project0.unbuilt(project);
     List<Fact> extracted = new ConfigExtractor().extract(builds, 1);
     Fixtures.checkEnvelope(extracted, repos, 1, ConfigExtractor.NAME, ConfigExtractor.VERSION);
     facts = Fixtures.render(extracted).lines().toList();
@@ -86,7 +63,7 @@ class Project0ConfigIT {
         .contains(
             CATALOG
                 + "catalog-service {\"key\":\"spring.application.name\"}"
-                + " @catalog:catalog-service/src/main/resources/bootstrap.yml#3-3 1.0");
+                + " @catalog:src/main/resources/bootstrap.yml#3-3 1.0");
     assertThat(facts.stream().filter(f -> f.contains("\"spring.application.name\""))).hasSize(4);
   }
 
@@ -136,7 +113,7 @@ class Project0ConfigIT {
             CATALOG
                 + "${CATALOG_DB_PASSWORD} {\"key\":\"spring.datasource.password\","
                 + "\"unresolved\":[\"CATALOG_DB_PASSWORD\"]}"
-                + " @catalog:catalog-service/src/main/resources/application.yml#8-8 1.0",
+                + " @catalog:src/main/resources/application.yml#8-8 1.0",
             PAYMENTS
                 + "${PAYGATE_API_KEY} {\"key\":\"paygate.api-key\","
                 + "\"unresolved\":[\"PAYGATE_API_KEY\"]}"
@@ -165,6 +142,6 @@ class Project0ConfigIT {
                 + " @payments:src/main/resources/application.properties#5-5 1.0",
             CATALOG
                 + "jdbc:postgresql://catalog-db:5432/catalog {\"key\":\"spring.datasource.url\"}"
-                + " @catalog:catalog-service/src/main/resources/application.yml#6-6 1.0");
+                + " @catalog:src/main/resources/application.yml#6-6 1.0");
   }
 }

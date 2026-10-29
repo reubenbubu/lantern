@@ -3,9 +3,7 @@ package io.lantern.link;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
-import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
-import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
@@ -19,7 +17,6 @@ import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.sandbox.BuildSandbox;
-import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
@@ -28,7 +25,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -48,15 +44,6 @@ import tools.jackson.databind.node.ObjectNode;
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0LinksIT {
 
-  /** The commits setup.sh makes from the pinned source, as Project0BuildIT checks them. */
-  private static final Map<String, String> COMMITS =
-      new TreeMap<>(
-          Map.of(
-              "catalog", "8637326f638af796f242548b68216c8729e1a5f7",
-              "fulfilment", "d7a159078e44f5de32d3b3f4aa5fa0ef9cb24921",
-              "payments", "871bf725e98d45d11ea093749943bb555b65bae8",
-              "storefront", "fa592e452e659d26597defe3519ba0ec3bfc5014"));
-
   private static final String J = "src/main/java/com/acme/shop/";
 
   @TempDir static Path temp;
@@ -71,25 +58,10 @@ class Project0LinksIT {
 
   @BeforeAll
   static void derive() throws IOException {
-    String setUp = System.getProperty("lantern.test.project0");
-    assertThat(Path.of(setUp).isAbsolute())
-        .as("lantern.test.project0 must be an absolute path: " + setUp)
-        .isTrue();
     BuildSandbox sandbox = new BuildSandbox(sandboxSettings(temp.resolve("builds")));
-    List<RepoBuild> withBuilds = new ArrayList<>();
-    List<RepoBuild> withoutBuilds = new ArrayList<>();
-    for (Map.Entry<String, String> e : COMMITS.entrySet()) {
-      Path path = Path.of(setUp).resolve(e.getKey()).toRealPath();
-      Git.Result head = Git.run(path, "rev-parse", "HEAD");
-      assertThat(head.out())
-          .as("%s is not at the pinned commit; run testsets/project-0/setup.sh again", e.getKey())
-          .isEqualTo(e.getValue());
-      Repo repo = new Repo(e.getKey(), path, RepoSettings.DEFAULT);
-      withoutBuilds.add(new RepoBuild(repo, e.getValue(), null));
-      RepoBuild build = new RepoBuild(repo, e.getValue(), sandbox.build(repo, e.getValue()));
-      assertThat(build.build().status()).as(e.getKey()).isEqualTo(BuildStatus.SUCCEEDED);
-      withBuilds.add(build);
-    }
+    Map<String, Repo> project = Project0.repos();
+    List<RepoBuild> withoutBuilds = Project0.unbuilt(project);
+    List<RepoBuild> withBuilds = Project0.built(project, sandbox);
     List<String> withBuildsFacts = render(extractAndLink(withBuilds));
     List<String> withoutBuildsFacts = render(extractAndLink(withoutBuilds));
     built = withBuildsFacts.stream().filter(l -> !l.startsWith("readme:")).toList();
@@ -361,7 +333,7 @@ class Project0LinksIT {
             + " {\"key\":\"spring.datasource.url\",\"protocol\":\"JDBC\","
             + "\"schemas\":[\"schema:~:catalog-lib\"],\"technology\":\"PostgreSQL\","
             + "\"url\":\"jdbc:postgresql://catalog-db:5432/catalog\"}"
-            + " @catalog:catalog-service/src/main/resources/application.yml#6",
+            + " @catalog:src/main/resources/application.yml#6",
         "database:shop-db:5432/shop technology PostgreSQL"
             + " @payments:src/main/resources/application.properties#5");
     // SQL in code is read only with the build's classpath (ADR 0036).
