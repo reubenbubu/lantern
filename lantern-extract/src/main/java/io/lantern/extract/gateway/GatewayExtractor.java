@@ -194,8 +194,7 @@ public final class GatewayExtractor {
    * A route as read in one view.
    *
    * @param id its id
-   * @param uri its URI as recorded (resolved, or as written when masked)
-   * @param value the URI's resolution
+   * @param uri its URI as it may be recorded: resolved, or as written when masked
    */
   private record Route(
       String id,
