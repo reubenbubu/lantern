@@ -145,22 +145,42 @@ public final class ModuleStructure {
    * <p>Each value is a list of strings: one for a single value, one per element of an array. A
    * string or number is its value as Java prints it, a class literal its binary name, and an enum
    * constant its name. A value that cannot be folded (in degraded mode, a constant the parser
-   * cannot find) is left out of its list. Nested annotations are not kept, except that a container
-   * of repeated annotations ({@code @Schedules}) is read as the annotations it contains.
+   * cannot find) is left out of its list, but an element written keeps its (then empty) list.
+   * Annotations written as values ({@code bindings = @QueueBinding(...)}) are kept apart, by
+   * element, each where the outer one is written; a container of repeated annotations
+   * ({@code @Schedules}) is read as the annotations it contains instead.
    *
    * @param type the annotation type's binary name
    * @param values the values written, by element name ({@code value} for a single one)
+   * @param nested the annotations written as values, by element name
    * @param where where it is written, or null for one read from the classpath
    */
-  public record Annotation(String type, Map<String, List<String>> values, Location where) {
+  public record Annotation(
+      String type,
+      Map<String, List<String>> values,
+      Map<String, List<Annotation>> nested,
+      Location where) {
 
     public Annotation {
       values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
+      Map<String, List<Annotation>> copy = new LinkedHashMap<>();
+      nested.forEach((k, v) -> copy.put(k, List.copyOf(v)));
+      nested = Collections.unmodifiableMap(copy);
+    }
+
+    /** An annotation without annotations written as values. */
+    public Annotation(String type, Map<String, List<String>> values, Location where) {
+      this(type, values, Map.of(), where);
     }
 
     /** The values written for an element, empty if none. */
     public List<String> values(String element) {
       return values.getOrDefault(element, List.of());
+    }
+
+    /** The annotations written as values of an element, empty if none. */
+    public List<Annotation> nested(String element) {
+      return nested.getOrDefault(element, List.of());
     }
   }
 
@@ -198,8 +218,11 @@ public final class ModuleStructure {
    *     Expression.Param} in it is that method's parameter
    * @param expression the outermost call of the chain
    * @param where the chain
+   * @param rootType the binary name of the tracked type the chain starts from: of what its
+   *     innermost call is made on, or of the object a constructor call makes
    */
-  public record Invocation(EntityId caller, Expression.Invoke expression, Location where) {}
+  public record Invocation(
+      EntityId caller, Expression.Invoke expression, Location where, String rootType) {}
 
   /**
    * A value given to a {@code String} field or a field of a tracked API's type ({@link

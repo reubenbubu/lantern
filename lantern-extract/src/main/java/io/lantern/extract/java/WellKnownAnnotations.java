@@ -44,6 +44,26 @@ final class WellKnownAnnotations {
     return ENUMS.contains(binaryName);
   }
 
+  /**
+   * String constants well-known annotations take, by type and name, so the parser can fold one
+   * ({@code @Exchange(type = ExchangeTypes.TOPIC)}) when no jar resolves it.
+   */
+  private static final Map<String, Map<String, String>> CONSTANTS =
+      Map.of(
+          "org.springframework.amqp.core.ExchangeTypes",
+          Map.of(
+              "DIRECT", "direct",
+              "TOPIC", "topic",
+              "FANOUT", "fanout",
+              "HEADERS", "headers",
+              "SYSTEM", "system"));
+
+  /** The value of a well-known string constant, or null if it is not one. */
+  static String knownConstant(String type, String name) {
+    Map<String, String> constants = CONSTANTS.get(type);
+    return constants == null ? null : constants.get(name);
+  }
+
   /** Whether the annotation type is on the list. */
   static boolean isKnown(String binaryName) {
     return KNOWN.containsKey(binaryName);
