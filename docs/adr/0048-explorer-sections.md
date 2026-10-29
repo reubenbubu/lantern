@@ -1,6 +1,6 @@
 # 0048: The Architecture Explorer's start-here list, catalog, change guidance and decisions
 
-Status: accepted (#97, composer part), amends ADR 0046's Explorer checks, amended by ADR 0050 (#181), pending the user's review (#24)
+Status: accepted (#97, composer part), amends ADR 0046's Explorer checks, amended by ADR 0050 (#181) and ADR 0063 (#178), pending the user's review (#24)
 
 ## Context
 

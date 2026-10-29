@@ -66,7 +66,7 @@ function typeName(id: string): string {
 
 /**
  * The legend of a diagram: every shape, line style, arrowhead and color it uses, and what each
- * means (docs/adr/0061). The document model does not say what a color means, so colors are only
+ * means (docs/adr/0063). The document model does not say what a color means, so colors are only
  * named as set by a presentation rule.
  */
 export function DiagramLegend({ diagram }: { diagram: Diagram }) {

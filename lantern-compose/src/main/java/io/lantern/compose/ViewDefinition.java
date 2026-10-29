@@ -72,7 +72,7 @@ public record ViewDefinition(
    * A view of one repository with the sections of the Architecture Explorer, in the order the
    * Quality bar asks: the overview as its orientation, where to start reading, the containers (the
    * first diagram), context, components, main flows, the catalog, change guidance, the dependencies
-   * and structure (ADR 0048), then the glossary (ADR 0061).
+   * and structure (ADR 0048), then the glossary (ADR 0063).
    */
   public static ViewDefinition perRepo(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -139,7 +139,7 @@ public record ViewDefinition(
   /**
    * A view of one repository with the sections of the Executive Brief: overview, headline numbers,
    * risks, blast radius, technology currency, and the context and container diagrams (ADR 0015, ADR
-   * 0052), then the glossary (ADR 0061).
+   * 0052), then the glossary (ADR 0063).
    */
   public static ViewDefinition executiveBrief(String id, String repo, TemplateRef template) {
     return new ViewDefinition(

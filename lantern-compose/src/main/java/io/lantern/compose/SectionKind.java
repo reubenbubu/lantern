@@ -58,7 +58,7 @@ public enum SectionKind {
   TECHNOLOGY_CURRENCY("Technology currency", EnumSet.of(Level.L0, Level.L1)),
   /**
    * What the acronyms the rest of the document uses stand for, from the table bundled with Lantern.
-   * Shown at every level; the composer builds it last, from the other sections (ADR 0061).
+   * Shown at every level; the composer builds it last, from the other sections (ADR 0063).
    */
   GLOSSARY("Glossary", EnumSet.noneOf(Level.class));
 

@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 /**
  * What a document was composed from, so it can be reproduced, and what pins it: the commits of the
- * repositories it covers and the date of their snapshot (ADR 0061).
+ * repositories it covers and the date of their snapshot (ADR 0063).
  *
  * @param snapshot the snapshot number
  * @param vocabularyRevision the vocabulary revision the snapshot used

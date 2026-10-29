@@ -22,7 +22,7 @@ import java.util.TreeMap;
 
 /**
  * Explains the acronyms a document uses, from the table bundled with Lantern ({@code glossary.csv},
- * ADR 0061), so no LLM call is needed. A document's glossary section lists the acronyms it uses
+ * ADR 0063), so no LLM call is needed. A document's glossary section lists the acronyms it uses
  * that the table explains, and names those it does not as code, so the Quality bar still reports
  * them.
  */

@@ -63,7 +63,7 @@ final class QualityBar {
   /**
    * Lantern's own templates, which draw under each diagram a legend of the element types, the
    * boundary and the arrow it uses, and under each sequence the meaning of its arrows and marks;
-   * not of colors, whose meaning the document model does not hold (ADR 0061).
+   * not of colors, whose meaning the document model does not hold (ADR 0063).
    */
   private static final Set<String> OWN_TEMPLATES = Set.of(EXPLORER, BRIEF);
 
@@ -602,7 +602,7 @@ final class QualityBar {
 
   /**
    * The acronyms the document uses outside code that its glossary does not explain: a top-level
-   * section titled Glossary (ADR 0061).
+   * section titled Glossary (ADR 0063).
    */
   private void acronyms() {
     SortedSet<String> used = acronymsUsed(document);

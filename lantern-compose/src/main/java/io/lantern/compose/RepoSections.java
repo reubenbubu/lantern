@@ -137,7 +137,7 @@ final class RepoSections {
     return assembler.documentFacts();
   }
 
-  /** The glossary of the acronyms the document, composed without it, uses (ADR 0061). */
+  /** The glossary of the acronyms the document, composed without it, uses (ADR 0063). */
   Section glossary(Document document) {
     return Glossary.BUNDLED.section(
         assembler.id(SectionKind.GLOSSARY.jsonName()), QualityBar.acronymsUsed(document));

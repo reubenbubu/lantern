@@ -117,7 +117,7 @@ public final class Composer {
             repo == null ? snapshot.commits() : Map.of(repo, snapshot.commits().get(repo)),
             LocalDate.ofInstant(snapshot.createdAt(), ZoneOffset.UTC));
     Document composed = document(view, source, composition, sections);
-    // The glossary explains what the other sections use, so it is built from them (ADR 0061).
+    // The glossary explains what the other sections use, so it is built from them (ADR 0063).
     if (glossary >= 0) {
       sections.add(glossary, composition.glossary(composed));
       composed = document(view, source, composition, sections);

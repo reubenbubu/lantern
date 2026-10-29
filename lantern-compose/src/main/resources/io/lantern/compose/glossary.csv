@@ -1,4 +1,4 @@
-# What the acronyms Lantern's documents use stand for (ADR 0061): ACRONYM,meaning, split at the
+# What the acronyms Lantern's documents use stand for (ADR 0063): ACRONYM,meaning, split at the
 # first comma. A document's glossary lists those it uses; one missing here is named in the glossary
 # and fails the Quality bar check "Acronyms are explained in the glossary". Add any acronym the
 # documents of the test sets use. A meaning uses no acronym this table does not explain

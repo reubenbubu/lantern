@@ -159,7 +159,7 @@ export function shortCommit(commit: string): string {
 
 /**
  * Who the document is for and what pins it: the commit of each repository it covers and the day of
- * their snapshot (docs/adr/0061).
+ * their snapshot (docs/adr/0063).
  */
 export function Pinned({ document, className }: { document: LanternDocument; className?: string }) {
   const { audience, source } = document;
