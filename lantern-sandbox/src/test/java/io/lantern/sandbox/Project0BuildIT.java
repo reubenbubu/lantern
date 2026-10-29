@@ -35,14 +35,15 @@ import org.junit.jupiter.params.provider.CsvSource;
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0BuildIT {
 
-  /** The commits setup.sh makes from the pinned source. */
-  private static final Map<String, String> COMMITS =
-      Map.of(
-          "catalog", "fc39b6e72803baa33b9e0e3d7ac8cf32fabce394",
-          "catalog-lib", "5bc5ec4ba4ffec38da7c0aaf3596be3365ec192f",
-          "fulfilment", "9c655dbfb97d32e25a5d569b4a1a4e84925078a7",
-          "payments", "e57f8293d681f7e0938b22a60ac30278eadfd715",
-          "storefront", "20297fb839cfe79c38b08a5a2dc0f8e2be266327");
+  /** The file setup.sh writes into the set-up folder, holding the pin it set the folder up from. */
+  private static final String PIN_FILE = ".lantern-pin";
+
+  /** The pins of the test set, the one place its commits are named (ADR 0029). */
+  private static final Path PINS = Path.of("..", "testsets", "project-0", "pins.txt");
+
+  /** The made-up repositories, as the source's README lists them. */
+  private static final List<String> NAMES =
+      List.of("catalog", "catalog-lib", "fulfilment", "payments", "storefront");
 
   private static final Docker DOCKER = new Docker("docker");
   private static final Duration TIMEOUT = Duration.ofMinutes(2);
@@ -53,6 +54,7 @@ class Project0BuildIT {
   @TempDir static Path temp;
 
   private static Map<String, Repo> repos;
+  private static Map<String, String> commits;
   private static BuildOrder order;
   private static Map<String, BuildResult> results;
 
@@ -62,21 +64,29 @@ class Project0BuildIT {
     assertThat(Path.of(setUp).isAbsolute())
         .as("lantern.test.project0 must be an absolute path: " + setUp)
         .isTrue();
+    String pin = pin();
+    Path pinFile = Path.of(setUp).resolve(PIN_FILE);
+    String setUpFrom = Files.isRegularFile(pinFile) ? Files.readString(pinFile).strip() : null;
+    assertThat(setUpFrom)
+        .as(
+            "project-0 in %s was not set up from the pin %s in %s (it holds %s); run"
+                + " testsets/project-0/setup.sh, removing the old repositories first if it says"
+                + " so (docs/adr/0029)",
+            setUp, pin, PINS.normalize(), setUpFrom == null ? "no " + PIN_FILE : setUpFrom)
+        .isEqualTo(pin);
     repos = new TreeMap<>();
-    for (Map.Entry<String, String> e : COMMITS.entrySet()) {
-      String name = e.getKey();
+    commits = new TreeMap<>();
+    for (String name : NAMES) {
       Path path = Path.of(setUp).resolve(name).toRealPath();
       Git.Result head = Git.run(path, "rev-parse", "HEAD");
       assertThat(head.ok()).as("%s: git rev-parse HEAD: %s", name, head.err()).isTrue();
-      assertThat(head.out())
-          .as("%s is not at the pinned commit; run testsets/project-0/setup.sh again", name)
-          .isEqualTo(e.getValue());
+      commits.put(name, head.out());
       Git.Result status = Git.run(path, "status", "--porcelain");
       assertThat(status.ok()).as("%s: git status: %s", name, status.err()).isTrue();
       assertThat(status.out()).as("%s has local changes", name).isEmpty();
       repos.put(name, new Repo(name, path, RepoSettings.DEFAULT));
     }
-    order = BuildOrder.of(repos, COMMITS);
+    order = BuildOrder.of(repos, commits);
     BuildSandbox sandbox = new BuildSandbox(settings("builds"));
     results = new HashMap<>();
     for (String name : order.order()) {
@@ -84,7 +94,7 @@ class Project0BuildIT {
           order.upstream(name).stream()
               .map(u -> new UpstreamBuild(repos.get(u), results.get(u)))
               .toList();
-      results.put(name, sandbox.build(repos.get(name), COMMITS.get(name), upstream));
+      results.put(name, sandbox.build(repos.get(name), commits.get(name), upstream));
     }
   }
 
@@ -120,7 +130,7 @@ class Project0BuildIT {
     assertThat(order.cycles()).isEmpty();
     assertThat(order.order()).containsSubsequence("catalog-lib", "catalog");
     assertThat(order.upstream("catalog")).containsExactly("catalog-lib");
-    COMMITS.keySet().stream()
+    commits.keySet().stream()
         .filter(name -> !name.equals("catalog"))
         .forEach(name -> assertThat(order.upstream(name)).as(name).isEmpty());
 
@@ -128,7 +138,7 @@ class Project0BuildIT {
     assertThat(catalog.status()).as(() -> log(catalog)).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(catalog.degraded()).isFalse();
     assertThat(catalog.jdk()).as("java.version of the parent from catalog-lib").isEqualTo(21);
-    assertThat(catalog.upstream()).containsExactly("catalog-lib@" + COMMITS.get("catalog-lib"));
+    assertThat(catalog.upstream()).containsExactly("catalog-lib@" + commits.get("catalog-lib"));
     assertThat(catalog.modules())
         .singleElement()
         .satisfies(
@@ -142,10 +152,21 @@ class Project0BuildIT {
 
     // Built alone, as before ADR 0041, it fails: nothing publishes its parent POM.
     BuildSandbox alone = new BuildSandbox(settings("alone"));
-    BuildResult without = alone.build(repos.get("catalog"), COMMITS.get("catalog"));
+    BuildResult without = alone.build(repos.get("catalog"), commits.get("catalog"));
     assertThat(without.status()).isEqualTo(BuildStatus.FAILED);
     assertThat(without.degraded()).isTrue();
     assertThat(Files.readString(without.log())).contains("com.acme.shop:catalog-parent");
+  }
+
+  /** The commit the one line of pins.txt pins the source to. */
+  private static String pin() throws IOException {
+    List<String> lines =
+        Files.readAllLines(PINS).stream()
+            .map(String::strip)
+            .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+            .toList();
+    assertThat(lines).as(PINS.toString()).hasSize(1);
+    return lines.getFirst().split("\\s+")[2];
   }
 
   private static SandboxSettings settings(String directory) {

@@ -40,14 +40,16 @@ author and dates, and that Lantern pins that repository's commit.
     project-0 it records the pin in `<destination>/.lantern-pin` (#167);
   - `lantern.properties`, only when the set needs Lantern settings, such as Maven repositories
     besides Maven Central (ADR 0023). project-0 needs none.
-- **Proof.** `Project0BuildIT` (lantern-sandbox) checks each project-0 repository is at the
-  commit `setup.sh` makes from the pin, builds them in the sandbox in dependency order, each given
-  the builds of those it uses, and checks each succeeds on the JDK its POM asks for, that `catalog`
-  had `catalog-lib`'s build and its jar on the classpath, and that `catalog` built alone fails
-  (`BUILD-1`); moving the pin moves those commits in the same change. It runs only when
-  `lantern.test.project0` names the set-up folder (see Commands in `CLAUDE.md`). Checks of the
-  facts, links, views and flows Lantern should find belong to the extractor, linker and composer
-  issues (#92, #94, #113, #114), which read the case list.
+- **Proof.** `Project0BuildIT` (lantern-sandbox) checks the set-up folder was set up from the pin
+  in `pins.txt` (its `.lantern-pin`), reads each repository's commit from the repository, builds
+  them in the sandbox in dependency order, each given the builds of those it uses, and checks each
+  succeeds on the JDK its POM asks for, that `catalog` had `catalog-lib`'s build and its jar on
+  the classpath, and that `catalog` built alone fails (`BUILD-1`). Like every project-0 test
+  (#177), it names no commit: `pins.txt` is the one place, so moving the pin is that one edit plus
+  the expected answers that move with it. It runs only when `lantern.test.project0` names the
+  set-up folder (see Commands in `CLAUDE.md`). Checks of the facts, links, views and flows Lantern
+  should find belong to the extractor, linker and composer issues (#92, #94, #113, #114), which
+  read the case list.
 - **End to end in every build** (#167). `Project0EndToEndIT` (lantern-app) runs the analyze
   pipeline with the fake model over all project-0 repositories as one snapshot, twice, and checks
   every repository builds and gets its documents, the second run reuses every build, fact and
