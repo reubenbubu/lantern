@@ -63,7 +63,7 @@ public final class MessagingExtractor {
   public static final String NAME = "messaging";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
