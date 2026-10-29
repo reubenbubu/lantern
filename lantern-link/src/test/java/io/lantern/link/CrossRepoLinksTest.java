@@ -18,6 +18,7 @@ import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
+import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import java.util.ArrayList;
@@ -231,6 +232,30 @@ class CrossRepoLinksTest {
             + (more == null ? "" : "," + more)
             + "}",
         repo + ":src/main/resources/" + file + "#4",
+        1.0);
+  }
+
+  /** A Redis use ({@code kind}) by a type of a module, with the attributes besides its source. */
+  private void redisUse(String repo, String module, String type, String kind, String attributes) {
+    add(
+        RedisExtractor.NAME,
+        "type:" + type,
+        RedisExtractor.REDIS_USE,
+        FactObject.string(kind),
+        attributes,
+        repo + ":src/main/java/" + type.replace('.', '/') + ".java#5",
+        1.0);
+  }
+
+  /** A Redis image a repository's compose file runs. */
+  private void redisImage(String repo, String module, String image, String technology) {
+    add(
+        RedisExtractor.NAME,
+        "repository:" + repo,
+        RedisExtractor.REDIS_IMAGE,
+        FactObject.string(image),
+        "{\"technology\":\"" + technology + "\",\"service\":\"redis\"}",
+        repo + ":compose.yaml#5",
         1.0);
   }
 
@@ -1153,6 +1178,170 @@ class CrossRepoLinksTest {
         .anyMatch(l -> l.startsWith("service:g:shop USES_DATABASE database:report-db:5432/report "))
         .anyMatch(
             l -> l.startsWith("service:g:reports USES_DATABASE database:report-db:5432/report "));
+  }
+
+  @Test
+  void unitsOnOneRedisServerShareItWithTheProtocolTechnologyAndWhatTheyStore() {
+    unit("bff", "bff", "bff");
+    unit("gw", "gateway", "gateway");
+    unit("other", "other", "other");
+    for (String module : List.of("bff", "gateway")) {
+      String repo = module.equals("bff") ? "bff" : "gw";
+      config(repo, module, "application.properties", "spring.data.redis.host", "Redis", null);
+      config(repo, module, "application.properties", "spring.data.redis.port", "6379", null);
+      config(
+          repo,
+          module,
+          "application.properties",
+          "spring.data.redis.password",
+          "******",
+          "\"masked\":true");
+    }
+    // The other unit's Redis is another server, on a port of its own.
+    config("other", "other", "application.properties", "spring.redis.host", "cache", null);
+    config("other", "other", "application.properties", "spring.redis.port", "6400", null);
+    type("bff", "bff", "app.SessionStore");
+    redisUse(
+        "bff",
+        "bff",
+        "app.SessionStore",
+        "template",
+        "{\"api\":\"org.springframework.data.redis.core.RedisTemplate\",\"key\":\"bff:session:*\","
+            + "\"operation\":\"write\",\"structure\":\"value\"}");
+    redisUse(
+        "bff",
+        "bff",
+        "app.SessionStore",
+        "template",
+        "{\"api\":\"org.springframework.data.redis.core.RedisTemplate\",\"key\":\"bff:session:*\","
+            + "\"operation\":\"delete\",\"structure\":\"value\"}");
+    redisImage("bff", "bff", "redis:8-alpine", "Redis 8");
+    redisImage("gw", "gateway", "redis:8-alpine", "Redis 8");
+    redisImage("other", "other", "redis/redis-stack:7", "Redis Stack 7");
+
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .containsExactly(
+            "service:g:bff USES_DATABASE database:redis:6379/redis"
+                + " {\"key\":\"spring.data.redis.host\",\"protocol\":\"RESP\","
+                + "\"server\":\"redis:6379\",\"stores\":[{\"key\":\"bff:session:*\","
+                + "\"kind\":\"template\",\"operations\":[\"delete\",\"write\"],"
+                + "\"structure\":\"value\"}],\"technology\":\"Redis 8\","
+                + "\"uses\":[\"template\"]} 1.0",
+            "service:g:gateway USES_DATABASE database:redis:6379/redis"
+                + " {\"key\":\"spring.data.redis.host\",\"protocol\":\"RESP\","
+                + "\"server\":\"redis:6379\",\"technology\":\"Redis 8\"} 1.0",
+            "service:g:other USES_DATABASE database:cache:6400/redis"
+                + " {\"key\":\"spring.redis.host\",\"protocol\":\"RESP\","
+                + "\"server\":\"cache:6400\",\"technology\":\"Redis Stack 7\"} 1.0");
+    assertThat(derive())
+        .filteredOn(l -> l.startsWith("database:") || l.contains(" technology "))
+        .anySatisfy(l -> assertThat(l).contains("database:redis:6379/redis technology Redis 8"))
+        .anySatisfy(
+            l ->
+                assertThat(l)
+                    .contains("database:cache:6400/redis display-name Redis Stack (cache:6400)"));
+  }
+
+  @Test
+  void aRedisHostOrPortNoConfigResolvesIsSharedByTheUnitsThatWriteItTheSameWay() {
+    for (String name : List.of("auth", "gw")) {
+      unit(name, name, name);
+      config(
+          name,
+          name,
+          "application.properties",
+          "spring.data.redis.host",
+          "${redis.host}",
+          "\"unresolved\":[\"redis.host\"]");
+      config(
+          name,
+          name,
+          "application.properties",
+          "spring.data.redis.port",
+          "${redis.port}",
+          "\"unresolved\":[\"redis.port\"]");
+    }
+    unit("main", "main", "main");
+    config(
+        "main",
+        "main",
+        "application.properties",
+        "spring.data.redis.host",
+        "${cache.host}",
+        "\"unresolved\":[\"cache.host\"]");
+
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:auth USES_DATABASE database:${redis.host}:${redis.port}/redis",
+            "service:g:gw USES_DATABASE database:${redis.host}:${redis.port}/redis",
+            "service:g:main USES_DATABASE database:${cache.host}:6379/redis");
+    assertThat(derive(CrossRepoLinks.USES_DATABASE).getFirst())
+        .contains("\"inferred\"")
+        .endsWith(" 0.8");
+  }
+
+  @Test
+  void aRedisUrlAndAClusterAreLinked() {
+    unit("a", "a", "a");
+    config(
+        "a",
+        "a",
+        "application.properties",
+        "spring.data.redis.url",
+        "rediss://u:p@Cache-A/2",
+        null);
+    unit("b", "b", "b");
+    config(
+        "b", "b", "application.properties", "spring.data.redis.cluster.nodes[0]", "n2:7001", null);
+    config(
+        "b", "b", "application.properties", "spring.data.redis.cluster.nodes[1]", "n1:7000", null);
+
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:a USES_DATABASE database:cache-a:6379/redis",
+            "service:g:b USES_DATABASE database:n1:7000,n2:7001/redis");
+    assertThat(derive(CrossRepoLinks.USES_DATABASE).getFirst()).contains("\"ssl\":true");
+    assertThat(derive()).noneMatch(l -> l.contains("u:p"));
+  }
+
+  @Test
+  void aUnitUsingRedisWithoutConfigTakesTheOnlyConfiguredServerElseTheDefaultElseNone() {
+    unit("c", "c", "c");
+    type("c", "c", "app.Limiter");
+    redisUse("c", "c", "app.Limiter", "rate-limiter", "{\"operation\":\"other\"}");
+
+    // No server is configured anywhere: Spring Boot's default.
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .singleElement()
+        .satisfies(
+            l ->
+                assertThat(l)
+                    .startsWith("service:g:c USES_DATABASE database:localhost:6379/redis")
+                    .contains("\"defaulted\":true")
+                    .endsWith(" 0.6"));
+
+    // One server is configured: the unit is taken to use it, inferred.
+    unit("a", "a", "a");
+    config("a", "a", "application.properties", "spring.data.redis.host", "cache", null);
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .anySatisfy(
+            l ->
+                assertThat(l)
+                    .startsWith("service:g:c USES_DATABASE database:cache:6379/redis")
+                    .contains("\"inferred\"")
+                    .doesNotContain("defaulted")
+                    .endsWith(" 0.6"));
+
+    // Several are: left open, no link and no guess.
+    unit("b", "b", "b");
+    config("b", "b", "application.properties", "spring.data.redis.host", "other", null);
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:a USES_DATABASE database:cache:6379/redis",
+            "service:g:b USES_DATABASE database:other:6379/redis");
   }
 
   @Test

@@ -49,7 +49,7 @@ line, and project-4's reference names an endpoint no route reaches.
   `Path` with two `patterns` has both). A route in config without an `id` is skipped. The evidence is the lines of the route's keys
   in the file that sets its id.
 - **Route links.** A new linker part, `RouteLinker`, runs after the HTTP one in `CrossRepoLinks`
-  (version 3). Each route of a unit's code or config, in each view, is a `CALLS_HTTP` link from the
+  (version 4). Each route of a unit's code or config, in each view, is a `CALLS_HTTP` link from the
   gateway with `route`, `paths`, `methods`, `url` (the URI) and `source` (the route's method or
   module), so every view, the Brief and the wording treat it as the gateway calling the service.
   `protocol` is `WebSocket` for `ws://`, `wss://` and `lb:ws://`, `HTTPS` for `https://`, else

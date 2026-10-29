@@ -20,6 +20,7 @@ import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
+import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import java.util.ArrayList;
@@ -221,6 +222,7 @@ class DeployableUnitsTest {
             PersistenceExtractor.vocabulary(),
             HttpClientExtractor.vocabulary(),
             MessagingExtractor.vocabulary(),
+            RedisExtractor.vocabulary(),
             GatewayExtractor.vocabulary(),
             DeployableUnits.vocabulary(),
             CrossRepoLinks.vocabulary(),

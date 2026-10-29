@@ -111,6 +111,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Messaging | Kafka, JMS, RabbitMQ listeners and templates; Spring Cloud Stream bindings and `StreamBridge` | Topics, exchanges, queues, bindings and routing keys produced and consumed |
 | Spring Cloud Gateway | Routes built with `RouteLocatorBuilder` and routes in `spring.cloud.gateway` config; filter classes | Routes per profile with their predicates, filters and target URI (`lb://`, `lb:ws://`, a URL), and the global, gateway and web filters requests pass through, as entry points |
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
+| Redis | Redis templates and operations, `@RedisHash`, Spring Session, lock registries, the gateway's rate limiter and caches in code, config and POM dependencies; Redis images in compose files | How each module uses Redis, with the keys the code writes out, and the product and version Redis runs as |
 | Config | `.properties`, `.yml` (`application*` and `bootstrap*`), Spring profiles, env-var placeholders | Resolved and unresolved config values per profile, including `spring.application.name` |
 | SQL | Flyway and Liquibase migrations, `.sql` files (JSqlParser) | Schema as of the commit: tables, columns, keys |
 | Tests | Test sources, parsed without compiling or running them | Test classes per module, how many tests each declares, and which are architecture tests (ArchUnit and similar) |
@@ -137,6 +138,8 @@ Which migrations and SQL files the SQL extractor reads, in what order, and how i
 How the Spring / Jakarta extractor reads annotations and meta-annotations through the Java extractor's reading of the code, what facts it makes of stereotypes, main classes, endpoints, scheduled jobs and profile gates, and which config resolves their placeholders is in ADR 0035.
 
 How the Persistence extractor finds entities, repositories and SQL in code, names the tables they touch, and records datasource URLs per profile without credentials is in ADR 0036.
+
+How Redis becomes a data store, found from the code, config, dependencies and compose files and linked per server with the protocol RESP, is in ADR 0073.
 
 Which listeners, templates and bindings the Messaging extractor reads, how it follows a name from a constant, a placeholder or a `@Value` into the call that uses it, and what facts it makes of listeners, sends and RabbitMQ bindings is in ADR 0037. How it reads Spring Cloud Stream, whose destinations come from config through bindings, into the same facts is in ADR 0040.
 
@@ -242,10 +245,10 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | HTTP call | Client name (Feign `name`) against the target's `spring.application.name`, else resolved client URL or property key against service base URLs; then the path against the target's endpoints |
 | Gateway route | A load-balanced URI's name (`lb://orders`) against `spring.application.name`, else the URI's host as for an HTTP call, or for this machine its port against the target's `server.port`; endpoints of a routed unit that no route reaches are recorded for the findings |
 | Messaging | Topic, exchange or queue names and routing keys, produced vs. consumed, with AMQP topic wildcards (`order.*`) matched as the broker matches them |
-| Shared database | Datasource URLs and table names |
+| Shared database | Datasource URLs and table names; Redis servers (`spring.data.redis.*`), one data store per server |
 | Shared config | Common property keys and config servers |
 
-A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open. A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
+A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open. The exception is Redis: units whose host and port are the same unresolved placeholders (`${redis.host}`) are taken to share one server, since a deployment fills them from one environment (ADR 0073). A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
 
 Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; tools to query the graph and read files come with #169, the questions queue with #170.
 
