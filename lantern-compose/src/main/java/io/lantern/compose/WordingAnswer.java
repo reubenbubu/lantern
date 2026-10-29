@@ -1,6 +1,7 @@
 package io.lantern.compose;
 
 import io.lantern.core.fact.EntityId;
+import io.lantern.summarize.Confidence;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,8 +54,11 @@ public record WordingAnswer(
    *
    * @param text a responsibility sentence or an intent phrase, without citation markers
    * @param cites the references of the facts it rests on, at least one
+   * @param confidence how far it can be trusted, above 0 and at most 1 ({@link Confidence}): {@link
+   *     Confidence#EVIDENCED} if it cites a README claim, else {@link Confidence#INFERRED} (ADR
+   *     0066); {@code null} for an answer cached before confidences were stored
    */
-  public record Item(String text, List<String> cites) {
+  public record Item(String text, List<String> cites, Double confidence) {
 
     public Item {
       Objects.requireNonNull(text, "text");
@@ -64,6 +68,9 @@ public record WordingAnswer(
       cites = List.copyOf(cites);
       if (cites.isEmpty()) {
         throw new IllegalArgumentException("A wording must cite at least one reference");
+      }
+      if (confidence != null && !Confidence.valid(confidence)) {
+        throw new IllegalArgumentException("Invalid wording confidence: " + confidence);
       }
     }
   }

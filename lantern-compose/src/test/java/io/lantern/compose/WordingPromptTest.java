@@ -8,8 +8,10 @@ import io.lantern.compose.WordingPrompt.Question;
 import io.lantern.compose.WordingPrompt.RelationshipInput;
 import io.lantern.compose.WordingPrompt.UseInput;
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Fact;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.TokenUsage;
+import io.lantern.summarize.Confidence;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
@@ -189,13 +191,14 @@ class WordingPromptTest {
         .containsExactly(
             Map.entry(
                 WordingPrompt.POSTCONDITIONS,
-                new WordingAnswer.Item("Orders announced.", List.of("F2"))),
+                new WordingAnswer.Item("Orders announced.", List.of("F2"), 0.35)),
             Map.entry(
                 WordingPrompt.PRECONDITIONS,
-                new WordingAnswer.Item("A request for the order list.", List.of("F1"))),
+                new WordingAnswer.Item("A request for the order list.", List.of("F1"), 0.35)),
             Map.entry(
                 WordingPrompt.WALKTHROUGH,
-                new WordingAnswer.Item("Lists orders. It announces them.", List.of("F1", "F2"))));
+                new WordingAnswer.Item(
+                    "Lists orders. It announces them.", List.of("F1", "F2"), 0.35)));
     String long31 = String.join(" ", java.util.Collections.nCopies(31, "word"));
     assertThatThrownBy(
             () ->
@@ -250,7 +253,8 @@ class WordingPromptTest {
                 element()))
         .containsExactly(
             Map.entry(
-                WordingPrompt.ELEMENT, new WordingAnswer.Item("Keeps orders.", List.of("F2"))));
+                WordingPrompt.ELEMENT,
+                new WordingAnswer.Item("Keeps orders.", List.of("F2"), 0.35)));
     assertThatThrownBy(
             () ->
                 WordingPrompt.check(
@@ -338,9 +342,49 @@ class WordingPromptTest {
                  "components": {"C1": {"text": "Serves the order pages.", "cites": ["[F2]"]}},
                  "relationships": {"r1": {"text": "Announces new orders.", "cites": ["f3"]}}}"""))
         .containsExactly(
-            Map.entry("C1", new WordingAnswer.Item("Serves the order pages.", List.of("F2"))),
-            Map.entry("R1", new WordingAnswer.Item("Announces new orders", List.of("F3"))),
-            Map.entry("unit", new WordingAnswer.Item("Takes orders.", List.of("F1"))));
+            Map.entry("C1", new WordingAnswer.Item("Serves the order pages.", List.of("F2"), 0.35)),
+            Map.entry("R1", new WordingAnswer.Item("Announces new orders", List.of("F3"), 0.35)),
+            Map.entry("unit", new WordingAnswer.Item("Takes orders.", List.of("F1"), 0.35)));
+  }
+
+  @Test
+  void aTextCitingAReadmeClaimIsTrustedMoreThanOneInferredFromTheCode() {
+    Fact claim =
+        TestFacts.contradictedClaim("The app takes orders.", 1, "x", null, List.of(), List.of())
+            .getFirst();
+    Question question =
+        WordingPrompt.question(
+            EntityId.parse("service:com.example:app"),
+            "shop-app",
+            null,
+            List.of(facts.find("service:com.example:app", "deployable-unit")),
+            List.of(claim),
+            List.of(),
+            List.of(),
+            List.of(
+                new RelationshipInput(
+                    "sends messages to",
+                    "orders",
+                    "a topic",
+                    facts.find("service:com.example:app", "PUBLISHES"))));
+    String ref =
+        question.facts().entrySet().stream()
+            .filter(e -> e.getValue().equals(claim))
+            .findFirst()
+            .orElseThrow()
+            .getKey();
+
+    Map<String, WordingAnswer.Item> items =
+        WordingPrompt.check(
+            response(
+                """
+                {"unit": {"text": "Takes orders.", "cites": ["F1", "%s"]},
+                 "relationships": {"R1": {"text": "Announces new orders", "cites": ["F1"]}}}"""
+                    .formatted(ref)),
+            question);
+
+    assertThat(items.get(WordingAnswer.UNIT).confidence()).isEqualTo(Confidence.EVIDENCED);
+    assertThat(items.get("R1").confidence()).isEqualTo(Confidence.INFERRED);
   }
 
   @Test

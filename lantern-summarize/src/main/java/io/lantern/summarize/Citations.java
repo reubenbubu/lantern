@@ -186,8 +186,9 @@ final class Citations {
    *     them, or empty if none does
    * @param uncited the sentences that cite nothing, as written, without the space after them
    * @param firstUncited whether the answer's first sentence is one of them
+   * @param kept how many sentences cite at least one reference
    */
-  record Sentences(String text, List<String> uncited, boolean firstUncited) {}
+  record Sentences(String text, List<String> uncited, boolean firstUncited, int kept) {}
 
   /**
    * Splits an answer into sentences and keeps those that cite a reference, valid or not, so that
@@ -201,6 +202,7 @@ final class Citations {
     StringBuilder kept = new StringBuilder();
     List<String> uncited = new ArrayList<>();
     boolean firstUncited = false;
+    int keptSentences = 0;
     int start = 0;
     Matcher end = SENTENCE_END.matcher(text);
     while (start < text.length()) {
@@ -214,13 +216,14 @@ final class Citations {
       String sentence = text.substring(start, to);
       if (GROUP.matcher(sentence).find()) {
         kept.append(sentence);
+        keptSentences++;
       } else {
         uncited.add(sentence.strip());
         firstUncited |= start == 0;
       }
       start = to;
     }
-    return new Sentences(kept.toString().strip(), uncited, firstUncited);
+    return new Sentences(kept.toString().strip(), uncited, firstUncited, keptSentences);
   }
 
   /**
