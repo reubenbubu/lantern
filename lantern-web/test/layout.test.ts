@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import type { Diagram } from '../src/generated/document.ts';
-import { layoutDiagram, toElkGraph } from '../src/diagram/layout.ts';
-import { composerOutput, diagrams, schemaFixture } from './fixtures.ts';
+import { edgeLabel, layoutDiagram, toElkGraph } from '../src/diagram/layout.ts';
+import { composerOutput, diagrams, schemaFixture, systemOutput } from './fixtures.ts';
 
-const containers = (): Diagram => diagrams(composerOutput()).find((d) => d.diagramKind === 'c4-container')!;
+const containers = (): Diagram => diagrams(systemOutput()).find((d) => d.diagramKind === 'c4-container')!;
 
 const node = (id: string, parent?: string): Diagram['nodes'][number] => ({
   id,
@@ -74,11 +74,22 @@ describe('layoutDiagram', () => {
   });
 
   test('gives the same layout for the same diagram, whatever the input order', async () => {
-    for (const source of [...diagrams(composerOutput()), ...diagrams(schemaFixture())]) {
+    for (const source of [...diagrams(composerOutput()), ...diagrams(systemOutput()), ...diagrams(schemaFixture())]) {
       const first = await layoutDiagram(source);
       const shuffled = { ...source, nodes: [...source.nodes].reverse(), edges: [...source.edges].reverse() };
       expect(await layoutDiagram(source)).toEqual(first);
       expect(await layoutDiagram(shuffled)).toEqual(first);
     }
+  });
+});
+
+describe('edgeLabel', () => {
+  test('shows what happens, the technology and the profiles the edge alone holds under', () => {
+    const edge = { id: 'e', from: 'a:x', to: 'b:y', facts: [] };
+    expect(edgeLabel(edge)).toBeUndefined();
+    expect(edgeLabel({ ...edge, label: 'Calls GET /orders' })).toBe('Calls GET /orders');
+    expect(edgeLabel({ ...edge, label: 'Sends', technology: 'Kafka', profiles: ['prod', 'eu'] })).toBe(
+      'Sends [Kafka] (only with prod, eu)',
+    );
   });
 });

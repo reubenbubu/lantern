@@ -118,6 +118,41 @@ public final class C4ReportRenderer {
   // The C4 kinds the diagrams draw elements as, widest first.
   private static final List<String> KINDS = List.of("system", "container", "component");
 
+  /**
+   * The kinds Lantern's types of data stores, queues and systems outside the scope are drawn as,
+   * whatever level they are drawn at.
+   */
+  private static final Map<String, String> TYPE_KINDS =
+      Map.of(
+          "database", "database",
+          "topic", "queue",
+          "queue", "queue",
+          "exchange", "queue",
+          "external-system", "external",
+          "person", "person");
+
+  /** Lantern types not shown as a tag: a component's main Java type, an external system. */
+  private static final Set<String> UNTAGGED = Set.of("type", "external-system");
+
+  /** The catalogues after a diagram: the element kinds each lists, its title and its columns. */
+  private record Catalogue(String suffix, Set<String> kinds, String title, List<String> columns) {}
+
+  private static final List<String> DEFAULT_COLUMNS = List.of("name", "description", "technology");
+
+  private static final List<Catalogue> CATALOGUES =
+      List.of(
+          new Catalogue("people", Set.of("person"), "People", DEFAULT_COLUMNS),
+          new Catalogue("systems", Set.of("system"), "Systems", DEFAULT_COLUMNS),
+          new Catalogue(
+              "containers",
+              Set.of("container"),
+              "Containers",
+              List.of("name", "description", "technology", "zoom")),
+          new Catalogue(
+              "stores", Set.of("database", "queue"), "Data Stores and Queues", DEFAULT_COLUMNS),
+          new Catalogue("components", Set.of("component"), "Components", DEFAULT_COLUMNS),
+          new Catalogue("external", Set.of("external"), "External Systems", DEFAULT_COLUMNS));
+
   /** Element kinds a parent may have, per the schema's rules. */
   private static final Map<String, Set<String>> PARENT_KINDS =
       Map.of(
@@ -351,14 +386,20 @@ public final class C4ReportRenderer {
       for (Part part : page.parts) {
         if (part.block instanceof Diagram d && d.diagramKind() != Diagram.Kind.DEPENDENCY) {
           for (EntityId box : boxes(d)) {
-            catalogue.putIfAbsent(box, new Location(page, catalogueId(page, d)));
+            Catalogue group = group(elements.get(box));
+            catalogue.putIfAbsent(box, new Location(page, catalogueId(page, d, group)));
           }
         }
       }
     }
 
-    private String catalogueId(PagePlan page, Diagram diagram) {
-      return page.sectionIds.id(diagram.id() + "-elements");
+    private static Catalogue group(Element element) {
+      String kind = element.kind();
+      return CATALOGUES.stream().filter(c -> c.kinds().contains(kind)).findFirst().orElseThrow();
+    }
+
+    private String catalogueId(PagePlan page, Diagram diagram, Catalogue group) {
+      return page.sectionIds.id(diagram.id() + "-" + group.suffix());
     }
 
     /** The diagram's boundary: the node others are drawn inside, if one is the section's entity. */
@@ -443,7 +484,8 @@ public final class C4ReportRenderer {
         node.put("parent", elementIds.find(parent.toString()));
       }
       String type = element.id.type();
-      if (!type.equals(kind)) {
+      // A queue element is a topic, queue or exchange: the tag says which.
+      if ((!type.equals(kind) || kind.equals("queue")) && !UNTAGGED.contains(type)) {
         node.put("tag", tag(type));
       }
       if (element.technology != null) {
@@ -504,6 +546,7 @@ public final class C4ReportRenderer {
                 section("callout", id, null)
                     .put("body", calloutMarkdown(c))
                     .put("tone", c.variant() == Callout.Variant.NOTE ? "info" : "warning"));
+        case Table t when isDecisions(t) -> List.of(decisions(id, t));
         case Table t -> List.of(table(id, t));
         case Metrics m -> List.of(stats(id, m));
         case Tree t -> List.of(list(id, t.title(), treeItems(t)));
@@ -561,6 +604,42 @@ public final class C4ReportRenderer {
         row.cells().forEach(cell -> cells.add(oneLine(markdown(cell))));
       }
       return node;
+    }
+
+    /** Whether every row of a table is about a decision record, so it is a decisions section. */
+    private static boolean isDecisions(Table table) {
+      return !table.rows().isEmpty()
+          && table.rows().stream()
+              .allMatch(row -> row.entity() != null && row.entity().type().equals("decision"))
+          && table.columns().stream().anyMatch(c -> c.label().equals("Decision"));
+    }
+
+    /**
+     * Decision records: each row's cells by column, ID, Decision (the title, else the entity's
+     * name), Status and Outcome (the body).
+     */
+    private ObjectNode decisions(String id, Table table) {
+      ObjectNode node = section("decisions", id, table.title());
+      ArrayNode items = node.putArray("items");
+      for (Table.Row row : table.rows()) {
+        Map<String, String> cells = new HashMap<>();
+        for (int i = 0; i < table.columns().size(); i++) {
+          cells.put(table.columns().get(i).label(), markdown(row.cells().get(i)));
+        }
+        ObjectNode item = items.addObject();
+        putNonEmpty(item, "id", oneLine(cells.getOrDefault("ID", "")));
+        String title = oneLine(cells.getOrDefault("Decision", ""));
+        item.put("title", title.isEmpty() ? entities.get(row.entity()).name() : title);
+        putNonEmpty(item, "body", cells.getOrDefault("Outcome", ""));
+        putNonEmpty(item, "status", oneLine(cells.getOrDefault("Status", "")));
+      }
+      return node;
+    }
+
+    private static void putNonEmpty(ObjectNode node, String field, String value) {
+      if (!value.isEmpty()) {
+        node.put(field, value);
+      }
     }
 
     private ObjectNode stats(String id, Metrics metrics) {
@@ -660,8 +739,19 @@ public final class C4ReportRenderer {
         ObjectNode relationship = relationships.addObject();
         relationship.put("from", elementIds.find(edge.from().toString()));
         relationship.put("to", elementIds.find(edge.to().toString()));
-        if (edge.label() != null) {
-          relationship.put("label", edge.label());
+        String label = edge.label();
+        if (!edge.profiles().isEmpty()) {
+          String only =
+              "only with the Spring profile"
+                  + (edge.profiles().size() > 1 ? "s " : " ")
+                  + String.join(", ", edge.profiles());
+          label = label == null ? "Only " + only.substring(5) : label + " (" + only + ")";
+        }
+        if (label != null) {
+          relationship.put("label", label);
+        }
+        if (edge.technology() != null) {
+          relationship.put("technology", edge.technology());
         }
         related.add(edge.from());
         related.add(edge.to());
@@ -673,11 +763,21 @@ public final class C4ReportRenderer {
       }
       node.set("relationships", relationships);
       List<ObjectNode> result = new ArrayList<>(List.of(node));
-      if (!boxes.isEmpty()) {
-        ObjectNode catalogueNode = section("elements", catalogueId(page, diagram), "Elements");
+      for (Catalogue group : CATALOGUES) {
+        List<EntityId> listed =
+            boxes.stream().filter(b -> group.kinds().contains(elements.get(b).kind())).toList();
+        if (listed.isEmpty()) {
+          continue;
+        }
+        ObjectNode catalogueNode =
+            section("elements", catalogueId(page, diagram, group), group.title());
         catalogueNode.put("eyebrow", "Catalogue");
         ArrayNode ids = catalogueNode.putObject("select").putArray("ids");
-        boxes.forEach(b -> ids.add(elementIds.find(b.toString())));
+        listed.forEach(b -> ids.add(elementIds.find(b.toString())));
+        if (!group.columns().equals(DEFAULT_COLUMNS)) {
+          ArrayNode columns = catalogueNode.putArray("columns");
+          group.columns().forEach(columns::add);
+        }
         result.add(catalogueNode);
       }
       return result;
@@ -928,9 +1028,15 @@ public final class C4ReportRenderer {
     }
 
     /**
-     * The widest kind it is drawn as; a sequence participant drawn in no diagram is a container.
+     * The kind its Lantern type is always drawn as (a data store, queue, external system or
+     * person), else the widest kind it is drawn as; a sequence participant drawn in no diagram is a
+     * container.
      */
     String kind() {
+      String byType = TYPE_KINDS.get(id.type());
+      if (byType != null) {
+        return byType;
+      }
       return rank == Integer.MAX_VALUE ? "container" : KINDS.get(rank);
     }
 

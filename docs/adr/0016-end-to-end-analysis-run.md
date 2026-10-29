@@ -1,6 +1,6 @@
 # 0016: End-to-end analysis run
 
-Status: accepted (#17), amended (#100, #58), amended by ADR 0031 (#112), pending the user's review (#24)
+Status: accepted (#17), amended (#100, #58), amended by ADR 0031 (#112) and ADR 0044 (#95), pending the user's review (#24)
 
 ## Context
 
@@ -39,14 +39,15 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
      analyzed repositories' facts in one transaction (ADR 0018);
   5. summarizes with the `SUMMARIZE` role's model through the cached summarizer (ADR 0010);
   6. composes an Architecture Explorer document (view `<repo>`), an Executive Brief (view
-     `<repo>.brief`) and, since ADR 0031, a C4 report (view `<repo>.c4`) per repository. A view
+     `<repo>.brief`) and, since ADR 0031, a C4 report (view `<repo>.c4`) per repository, and since
+     ADR 0044 a C4 report of the whole system (view `system:c4`, file `_system.c4.html`). A view
      definition stored before is used as stored; a missing one is stored with the template's
      default sections (ADR 0012, 0015);
   7. renders each as one HTML file, `<workspace>/documents/<snapshot>/<view>.html`.
 - **A fact found again stays as stored.** Extractors give facts the new snapshot as the start of
   their validity, while the same fact (same ID) is stored from an earlier snapshot. The run records
-  its facts as the snapshot's static facts (ADR 0017): a fact that still holds with the same
-  confidence keeps its stored validity, and static facts of the analyzed repositories no longer found stop holding (ADR 0018). The run
+  its facts as the snapshot's static facts, and the docs extractor's as its `readme` facts (ADR 0017, #165): a fact that still holds with the same
+  confidence keeps its stored validity, and facts of either kind of the analyzed repositories no longer found stop holding (ADR 0018). The run
   composes from the facts its extractors found, as stored, so the documents of two runs over the
   same commits differ only in their snapshot number.
 - **Zero LLM calls on a second run** follows from the above: fact IDs include the commit and

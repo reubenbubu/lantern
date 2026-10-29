@@ -49,6 +49,10 @@ class ViewDefinitionTest {
             SectionKind.RISKS,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS);
+    ViewDefinition system = ViewDefinition.c4System("system:c4", "System", TEMPLATE);
+    assertThat(ViewDefinitionJson.write(system)).contains("\"scope\":{\"kind\":\"system\"}");
+    assertThat(ViewDefinitionJson.read(ViewDefinitionJson.write(system))).isEqualTo(system);
+    assertThat(system.scope().repo()).isNull();
   }
 
   @Test
@@ -62,6 +66,7 @@ class ViewDefinitionTest {
             valid.replace("\"title\":\"T\",", "\"title\":\"T\",\"extra\":1,"),
             valid.replace("\"overview\"", "\"glossary\""),
             valid.replace("\"repo\",\"repo\"", "\"system\",\"repo\""),
+            valid.replace(",\"repo\":\"shop\"", ""),
             valid.replace("\"title\":\"T\",", ""),
             valid.replace("[\"overview\"]", "\"overview\""),
             valid.replace("\"1\"", "1"))) {

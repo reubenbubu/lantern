@@ -9,6 +9,8 @@ import io.lantern.core.snapshot.Snapshot;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.link.CrossRepoLinks;
+import io.lantern.link.DeployableUnits;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
@@ -37,9 +39,9 @@ import java.util.stream.Stream;
 
 /**
  * A snapshot of the fixture projects, extracted by the real Maven and Java extractors (without
- * builds, so modules are read from their POMs as written and parsed) and summarized by a fake
- * model. Commits are made with fixed authors and dates, so their hashes, and with them every fact
- * ID, are the same on every run.
+ * builds, so modules are read from their POMs as written and parsed), summarized by a fake model,
+ * with the linker's deployable units and links. Commits are made with fixed authors and dates, so
+ * their hashes, and with them every fact ID, are the same on every run.
  *
  * @param snapshot the snapshot of the fixture repositories
  * @param facts the extracted facts
@@ -92,6 +94,10 @@ record FixtureSnapshot(
       throw new IllegalStateException("Fixture summaries were rejected: " + result.rejected());
     }
     Map<EntityId, Summary> summaries = result.summaries();
+    // The linker's deployable units and links, derived after summarizing, as the summarizer's
+    // golden prompts were written without them.
+    facts.addAll(new DeployableUnits().derive(facts, NUMBER));
+    facts.addAll(new CrossRepoLinks().derive(facts, NUMBER));
     Snapshot snapshot = new Snapshot(NUMBER, commits, 3, "test", Instant.EPOCH);
     return new FixtureSnapshot(
         snapshot,

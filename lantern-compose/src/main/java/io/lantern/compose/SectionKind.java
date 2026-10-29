@@ -11,13 +11,19 @@ import java.util.Set;
  * with a fixed ID, title and granularity levels.
  */
 public enum SectionKind {
-  /** The repository's summary and what it builds. Shown at every level. */
+  /**
+   * The repository's summary and what it builds, or the system's repositories. Shown at every
+   * level.
+   */
   OVERVIEW("Overview", EnumSet.noneOf(Level.class)),
-  /** C4 system context: the repository and the repositories it depends on or is used by. */
+  /** C4 system context: the system, its users and the external systems it calls. */
   CONTEXT("System context", EnumSet.of(Level.L0, Level.L1)),
-  /** C4 containers: the services and libraries the repository builds and what they depend on. */
+  /**
+   * C4 containers: the deployable units in scope, the stores and queues they use and their
+   * neighbours; then links not resolved and decision records.
+   */
   CONTAINERS("Containers", EnumSet.of(Level.L1, Level.L2)),
-  /** C4 components: for each service or library, its summary and its packages. */
+  /** C4 components: inside each deployable unit in scope, its components by role. */
   COMPONENTS("Components", EnumSet.of(Level.L2, Level.L3)),
   /** The Maven dependency tree of each module. */
   DEPENDENCIES("Dependencies", EnumSet.of(Level.L2, Level.L3)),

@@ -67,8 +67,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * One analysis run over a set of local repositories, every stage in order: register the
  * repositories, take a snapshot of their checked-out commits, build them in the sandbox, extract
  * and store their facts, summarize them with the LLM, compose an Architecture Explorer document, an
- * Executive Brief and a C4 report per repository, and render each as single-file HTML (ADR 0016,
- * ADR 0031).
+ * Executive Brief and a C4 report per repository and a C4 report of the whole system, and render
+ * each as single-file HTML (ADR 0016, ADR 0031, ADR 0044).
  *
  * <p>The snapshot describes the whole system: every repository an earlier snapshot analyzed that is
  * not named in this run is carried forward at its commit in the latest snapshot that analyzed it,
@@ -89,10 +89,20 @@ public final class AnalysisRun {
   /** The template of the per-repository Executive Brief. */
   static final TemplateRef BRIEF = new TemplateRef("executive-brief", "1");
 
-  /** The template of the per-repository C4 report, the report spec of the same name (ADR 0031). */
+  /** The template of the C4 reports, the report spec of the same name (ADR 0031). */
   static final TemplateRef C4_REPORT = new TemplateRef(C4ReportRenderer.SPEC, "1");
 
+  /**
+   * The view of the system's C4 report. Its ID holds a colon, which repository names cannot, so it
+   * is never a repository's view.
+   */
+  static final String SYSTEM_C4 = "system:c4";
+
   private static final Logger LOG = LoggerFactory.getLogger(AnalysisRun.class);
+
+  /** The origin kinds of the extractors' facts, each recorded for the snapshot on its own. */
+  private static final List<Origin.Kind> EXTRACTED_KINDS =
+      List.of(Origin.Kind.STATIC, Origin.Kind.README);
 
   private final RepoRegistry registry;
   private final SnapshotStore snapshots;
@@ -274,6 +284,12 @@ public final class AnalysisRun {
           documents.add(new Rendered(document, write(out, view.id(), document)));
         }
       }
+      // The system's report shows every repository of the snapshot, carried forward ones too.
+      ViewDefinition system = view(ViewDefinition.c4System(SYSTEM_C4, "System", C4_REPORT));
+      Document document =
+          composer.compose(
+              system, snapshot, facts.findValidAt(snapshot.number()), summarized.summaries());
+      documents.add(new Rendered(document, write(out, system.id(), document)));
       documents.forEach(d -> LOG.info("Wrote {}", d.file()));
       return new Result(
           snapshot,
@@ -452,11 +468,12 @@ public final class AnalysisRun {
 
   /**
    * Records the facts found in the snapshot in one transaction, each ID once (ADR 0017). A fact
-   * that already held keeps the start of its validity, and stored static facts of the analyzed
-   * repositories that were not found stop holding; other repositories' facts are untouched. In the
-   * same transaction the analyzed repositories are marked as such in the snapshot, so later
-   * snapshots carry them forward at their commits here, and a run that fails before this point
-   * leaves its commits out of later snapshots (ADR 0018).
+   * that already held keeps the start of its validity, and stored facts of the analyzed
+   * repositories that were not found stop holding, each origin kind the extractors give (static,
+   * and readme for the docs extractor's) recorded on its own; other repositories' facts are
+   * untouched. In the same transaction the analyzed repositories are marked as such in the
+   * snapshot, so later snapshots carry them forward at their commits here, and a run that fails
+   * before this point leaves its commits out of later snapshots (ADR 0018).
    */
   private Stored store(long snapshot, Set<String> repos, List<Fact> found) {
     return transaction.execute(
@@ -464,11 +481,36 @@ public final class AnalysisRun {
           Map<String, Fact> unique = new LinkedHashMap<>();
           found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
           Linker linker = Linker.standard(facts);
-          FactRepository.SnapshotUpdate update =
-              facts.recordSnapshot(
-                  snapshot, Origin.Kind.STATIC, repos, linker.origins(), unique.values());
-          LOG.info(
-              "Facts: {} changed confidence, {} no longer hold", update.changed(), update.closed());
+          // Each origin kind is recorded on its own, so a static analysis closes only the facts of
+          // its kind; the docs extractor's facts are of kind readme (ADR 0033).
+          Map<Origin.Kind, List<Fact>> byKind = new LinkedHashMap<>();
+          EXTRACTED_KINDS.forEach(kind -> byKind.put(kind, new ArrayList<>()));
+          for (Fact fact : unique.values()) {
+            List<Fact> ofKind = byKind.get(fact.origin().kind());
+            if (ofKind == null) {
+              throw new IllegalArgumentException(
+                  "Fact "
+                      + fact.id()
+                      + " has origin kind "
+                      + fact.origin().kind()
+                      + ", which no extractor gives");
+            }
+            ofKind.add(fact);
+          }
+          List<Fact> stored = new ArrayList<>();
+          int added = 0;
+          int changed = 0;
+          int closed = 0;
+          for (Map.Entry<Origin.Kind, List<Fact>> entry : byKind.entrySet()) {
+            FactRepository.SnapshotUpdate update =
+                facts.recordSnapshot(
+                    snapshot, entry.getKey(), repos, linker.origins(), entry.getValue());
+            stored.addAll(update.facts());
+            added += update.added();
+            changed += update.changed();
+            closed += update.closed();
+          }
+          LOG.info("Facts: {} changed confidence, {} no longer hold", changed, closed);
           // The linker derives from every fact that holds in the snapshot, those of repositories
           // carried forward included, and records its facts for the whole snapshot (ADR 0039).
           Linker.Result linked = linker.link(snapshot);
@@ -478,12 +520,11 @@ public final class AnalysisRun {
               linked.changed(),
               linked.closed());
           snapshots.markAnalyzed(snapshot, repos);
-          List<Fact> stored = new ArrayList<>(update.facts());
           // The documents of the analyzed repositories show the linked facts about them.
           linked.facts().stream()
               .filter(f -> repos.contains(f.evidence().repo()))
               .forEach(stored::add);
-          return new Stored(stored, update.added() + linked.added());
+          return new Stored(stored, added + linked.added());
         });
   }
 
@@ -502,22 +543,30 @@ public final class AnalysisRun {
             ViewDefinition.perRepo(repo, repo, EXPLORER),
             ViewDefinition.executiveBrief(repo + ".brief", repo, BRIEF),
             ViewDefinition.c4Report(repo + ".c4", repo, C4_REPORT))) {
-      result.add(
-          views
-              .find(fallback.id())
-              .orElseGet(
-                  () -> {
-                    views.save(fallback);
-                    return fallback;
-                  }));
+      result.add(view(fallback));
     }
     return result;
+  }
+
+  /** The view as stored before, else the fallback, stored now. */
+  private ViewDefinition view(ViewDefinition fallback) {
+    return views
+        .find(fallback.id())
+        .orElseGet(
+            () -> {
+              views.save(fallback);
+              return fallback;
+            });
   }
 
   private Path write(Path directory, String viewId, Document document) {
     try {
       Files.createDirectories(directory);
-      Path file = directory.resolve(viewId + ".html");
+      // A view of no single repository: its colon becomes a dot, after an underscore no repository
+      // name starts with.
+      Path file =
+          directory.resolve(
+              (viewId.contains(":") ? "_" + viewId.replace(':', '.') : viewId) + ".html");
       String html =
           document.template().name().equals(C4ReportRenderer.SPEC)
               ? c4Renderer.render(document)
