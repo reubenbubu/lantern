@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -42,6 +43,9 @@ final class SequenceFlows {
 
   /** The most flows a scope shows (docs/design.md: three to seven). */
   static final int MAX_FLOWS = 7;
+
+  /** The most implementations a call is drawn into, as the operands of one frame. */
+  static final int MAX_ALTERNATIVES = 4;
 
   /** The most messages one flow shows before the trace stops. */
   static final int MAX_MESSAGES = 40;
@@ -134,10 +138,10 @@ final class SequenceFlows {
   /** One flow being traced. */
   private final class Trace {
     final Entry entry;
-    final List<Item> items = new ArrayList<>();
+    List<Item> items = new ArrayList<>();
     final Set<EntityId> participants = new LinkedHashSet<>();
-    final Set<String> visited = new HashSet<>();
-    final Deque<Later> later = new ArrayDeque<>();
+    Set<String> visited = new HashSet<>();
+    Deque<Later> later = new ArrayDeque<>();
     final Set<String> reached = new HashSet<>();
     final SortedSet<String> asyncThrough = new TreeSet<>();
     final List<String> unresolved = new ArrayList<>();
@@ -214,6 +218,21 @@ final class SequenceFlows {
   private Trace trace(Entry entry) {
     Trace trace = new Trace(entry);
     sync(trace, entry.unit, entry.method, List.of());
+    deliver(trace);
+    if (trace.truncated) {
+      trace.truncated = false;
+      trace.note(
+          List.of(),
+          "The trace stops here, after " + MAX_MESSAGES + " messages.",
+          List.of(),
+          List.of());
+      trace.truncated = true;
+    }
+    return trace;
+  }
+
+  /** Traces the deliveries of the sends so far, after the steps of the code that sent them. */
+  private void deliver(Trace trace) {
     while (!trace.later.isEmpty() && !trace.truncated) {
       Later later = trace.later.removeFirst();
       Fact link = later.link;
@@ -236,16 +255,6 @@ final class SequenceFlows {
         sync(trace, receiver, handler, later.profiles);
       }
     }
-    if (trace.truncated) {
-      trace.truncated = false;
-      trace.note(
-          List.of(),
-          "The trace stops here, after " + MAX_MESSAGES + " messages.",
-          List.of(),
-          List.of());
-      trace.truncated = true;
-    }
-    return trace;
   }
 
   /** Something a method does, in the order of the code: a call, or a step out of its unit. */
@@ -265,12 +274,7 @@ final class SequenceFlows {
         events.add(
             new Event(line(call), 0, call.id(), () -> repositoryCall(trace, unit, call, profiles)));
       } else {
-        events.add(
-            new Event(
-                line(call),
-                0,
-                call.id(),
-                () -> implementations(callee).forEach(m -> sync(trace, unit, m, profiles))));
+        events.add(new Event(line(call), 0, call.id(), () -> call(trace, unit, call, profiles)));
       }
     }
     for (Fact link : linksBySource.getOrDefault(unit + " " + method, List.of())) {
@@ -310,24 +314,135 @@ final class SequenceFlows {
     events.forEach(e -> e.action().run());
   }
 
-  /** The method, and the same method of the types implementing its type, if it is an interface. */
-  private List<EntityId> implementations(EntityId method) {
-    List<EntityId> result = new ArrayList<>(List.of(method));
-    EntityId owner = PackageDependencies.ownerType(knowledge, method);
-    String key = method.key();
-    int hash = key.indexOf('#');
-    if (owner.equals(method) || hash < 0) {
-      return result;
+  /**
+   * Follows a call into the code that runs: the method called, or, when the types implementing or
+   * extending its type declare it too, each of them as an operand of an {@code alt} frame, since
+   * the code does not say which one runs; a note when there are more than {@link
+   * #MAX_ALTERNATIVES}.
+   */
+  private void call(Trace trace, EntityId unit, Fact call, List<String> profiles) {
+    List<EntityId> bodies = bodies(Knowledge.object(call));
+    if (bodies.size() == 1) {
+      sync(trace, unit, bodies.getFirst(), profiles);
+      return;
     }
-    String signature = key.substring(hash);
-    for (Fact fact : knowledge.withPredicate(BuiltInTypes.IMPLEMENTS)) {
-      if (Knowledge.isEntity(fact) && Knowledge.object(fact).equals(owner)) {
-        EntityId implementation = new EntityId(METHOD, fact.subject().key() + signature);
-        if (!knowledge.about(implementation).isEmpty()) {
-          result.add(implementation);
+    List<String> names = bodies.stream().map(SequenceFlows::typeName).toList();
+    if (bodies.size() > MAX_ALTERNATIVES) {
+      trace.note(
+          List.of(unit),
+          "One of "
+              + list(names)
+              + " runs "
+              + methodName(Knowledge.object(call))
+              + " here; the trace does not follow them.",
+          profiles,
+          List.of(call));
+      return;
+    }
+    List<Item> outer = trace.items;
+    Deque<Later> outerLater = trace.later;
+    Set<String> outerVisited = trace.visited;
+    Set<String> visited = new HashSet<>(outerVisited);
+    List<SequenceDiagram.Operand> operands = new ArrayList<>();
+    boolean any = false;
+    for (int i = 0; i < bodies.size(); i++) {
+      trace.items = new ArrayList<>();
+      trace.later = new ArrayDeque<>();
+      trace.visited = new HashSet<>(outerVisited);
+      sync(trace, unit, bodies.get(i), profiles);
+      deliver(trace);
+      visited.addAll(trace.visited);
+      any |= !trace.items.isEmpty();
+      operands.add(
+          new SequenceDiagram.Operand("as " + names.get(i), frames(trace.items), List.of()));
+    }
+    trace.items = outer;
+    trace.later = outerLater;
+    trace.visited = visited;
+    if (any) {
+      trace.items.add(
+          new Item(
+              new SequenceDiagram.Frame(
+                  SequenceDiagram.Operator.ALT, operands, assembler.facts(List.of(call))),
+              profiles));
+    }
+  }
+
+  /**
+   * The methods that may run for a call: the method declared where the call points (or the one it
+   * inherits), unless its type is an interface or of unknown kind, and the same method declared by
+   * the types below it, through interfaces and abstract or other base classes; the called method if
+   * none.
+   */
+  private List<EntityId> bodies(EntityId callee) {
+    EntityId declared = declared(callee);
+    EntityId owner = PackageDependencies.ownerType(knowledge, declared);
+    int hash = declared.key().indexOf('#');
+    if (owner.equals(declared) || hash < 0) {
+      return List.of(declared);
+    }
+    String signature = declared.key().substring(hash);
+    List<EntityId> result = new ArrayList<>();
+    // The declared method runs only when its type is known to be a class (or enum or record).
+    String kind = knowledge.attribute(owner, "kind").orElse("interface");
+    if (!kind.equals("interface") && !kind.equals("annotation")) {
+      result.add(declared);
+    }
+    for (EntityId type : subtypes(owner)) {
+      EntityId method = new EntityId(METHOD, type.key() + signature);
+      if (!knowledge.wholes(method, BuiltInTypes.TYPE).isEmpty()) {
+        result.add(method);
+      }
+    }
+    return result.isEmpty() ? List.of(declared) : result;
+  }
+
+  /** The method, or the one its type inherits under the same signature, if it declares none. */
+  private EntityId declared(EntityId method) {
+    if (!knowledge.wholes(method, BuiltInTypes.TYPE).isEmpty()) {
+      return method;
+    }
+    int hash = method.key().indexOf('#');
+    if (hash < 0) {
+      return method;
+    }
+    String signature = method.key().substring(hash);
+    Deque<EntityId> todo =
+        new ArrayDeque<>(List.of(new EntityId(BuiltInTypes.TYPE, method.key().substring(0, hash))));
+    Set<EntityId> seen = new HashSet<>();
+    while (!todo.isEmpty()) {
+      EntityId type = todo.removeFirst();
+      if (!seen.add(type)) {
+        continue;
+      }
+      EntityId candidate = new EntityId(METHOD, type.key() + signature);
+      if (!knowledge.wholes(candidate, BuiltInTypes.TYPE).isEmpty()) {
+        return candidate;
+      }
+      for (String relation : List.of(BuiltInTypes.EXTENDS, BuiltInTypes.IMPLEMENTS)) {
+        knowledge.relations(type, relation).forEach(f -> todo.add(Knowledge.object(f)));
+      }
+    }
+    return method;
+  }
+
+  /** The types implementing or extending the type, directly or not, by ID. */
+  private SortedSet<EntityId> subtypes(EntityId type) {
+    SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
+    Deque<EntityId> todo = new ArrayDeque<>(List.of(type));
+    while (!todo.isEmpty()) {
+      EntityId supertype = todo.removeFirst();
+      for (String relation : List.of(BuiltInTypes.EXTENDS, BuiltInTypes.IMPLEMENTS)) {
+        for (Fact fact : knowledge.withPredicate(relation)) {
+          if (Knowledge.isEntity(fact)
+              && Knowledge.object(fact).equals(supertype)
+              && result.add(fact.subject())) {
+            todo.add(fact.subject());
+          }
         }
       }
     }
+    result.remove(type);
     return result;
   }
 
@@ -488,6 +603,19 @@ final class SequenceFlows {
     }
     Database database = database(unit);
     facts.addAll(database.facts);
+    if (database.entity == null) {
+      trace.note(
+          List.of(unit),
+          nameOf(unit)
+              + " "
+              + verb.toLowerCase(Locale.ROOT)
+              + " "
+              + String.join(", ", tables)
+              + database.unknown,
+          profiles,
+          facts);
+      return;
+    }
     trace.message(
         unit,
         database.entity,
@@ -506,6 +634,14 @@ final class SequenceFlows {
     facts.addAll(
         knowledge.relations(PackageDependencies.ownerType(knowledge, callee), REPOSITORY_FOR));
     facts.addAll(database.facts);
+    if (database.entity == null) {
+      trace.note(
+          List.of(unit),
+          nameOf(unit) + " calls " + methodName(callee) + database.unknown,
+          profiles,
+          facts);
+      return;
+    }
     trace.message(
         unit,
         database.entity,
@@ -517,8 +653,11 @@ final class SequenceFlows {
         facts);
   }
 
-  /** The database a unit's data access reaches, or none when it has not exactly one by default. */
-  private record Database(EntityId entity, String protocol, List<Fact> facts) {}
+  /**
+   * The database a unit's data access reaches, or none when it has not exactly one by default, with
+   * the end of a sentence saying why.
+   */
+  private record Database(EntityId entity, String protocol, List<Fact> facts, String unknown) {}
 
   private Database database(EntityId unit) {
     Map<EntityId, List<Fact>> databases = new TreeMap<>(Knowledge.BY_ID);
@@ -527,12 +666,23 @@ final class SequenceFlows {
         databases.computeIfAbsent(Knowledge.object(fact), d -> new ArrayList<>()).add(fact);
       }
     }
-    if (databases.size() != 1) {
-      return new Database(null, null, List.of());
+    if (databases.isEmpty()) {
+      return new Database(
+          null,
+          null,
+          List.of(),
+          "; no datasource of it was found, so which database is not known.");
+    }
+    if (databases.size() > 1) {
+      List<Fact> facts = new ArrayList<>();
+      databases.values().forEach(facts::addAll);
+      List<String> names = databases.keySet().stream().map(this::nameOf).toList();
+      return new Database(
+          null, null, facts, " in one of " + list(names) + "; the code does not say which.");
     }
     Map.Entry<EntityId, List<Fact>> only = databases.entrySet().iterator().next();
     return new Database(
-        only.getKey(), attribute(only.getValue().getFirst(), "protocol"), only.getValue());
+        only.getKey(), attribute(only.getValue().getFirst(), "protocol"), only.getValue(), null);
   }
 
   // Choosing the flows.
@@ -561,15 +711,8 @@ final class SequenceFlows {
     for (Trace trace : candidates) {
       String key = trace.entry.key();
       boolean partOfKept = kept.stream().anyMatch(k -> k.reached.contains(key));
-      boolean partOfOther =
-          candidates.stream()
-              .anyMatch(
-                  other ->
-                      other != trace
-                          && other.reached.contains(key)
-                          && !trace.reached.contains(other.entry.key()));
       boolean inScope = trace.participants.stream().anyMatch(scope::contains);
-      if (!partOfKept && !partOfOther && inScope && kept.size() < MAX_FLOWS) {
+      if (!partOfKept && inScope && kept.size() < MAX_FLOWS) {
         kept.add(trace);
       }
     }
@@ -774,6 +917,13 @@ final class SequenceFlows {
       name = name.substring(0, paren);
     }
     return type.substring(type.lastIndexOf('.') + 1).replace('$', '.') + "." + name;
+  }
+
+  /** The simple name of the type declaring a method. */
+  private static String typeName(EntityId method) {
+    String key = method.key();
+    String type = key.substring(0, Math.max(key.indexOf('#'), 0));
+    return type.substring(type.lastIndexOf('.') + 1).replace('$', '.');
   }
 
   private static String tableName(String table) {

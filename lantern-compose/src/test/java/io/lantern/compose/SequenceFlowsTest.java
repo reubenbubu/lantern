@@ -280,8 +280,14 @@ class SequenceFlowsTest {
                     + (m.info().isEmpty() ? "" : " (" + text(m.info()) + ")"));
         case SequenceDiagram.Note n -> lines.add("note " + n.over() + ": " + text(n.content()));
         case SequenceDiagram.Frame f -> {
-          lines.add(f.operator().jsonName() + " " + f.operands().getFirst().guard());
-          steps(f.operands().getFirst().steps()).forEach(s -> lines.add("  " + s));
+          for (int i = 0; i < f.operands().size(); i++) {
+            SequenceDiagram.Operand operand = f.operands().get(i);
+            lines.add(
+                i == 0
+                    ? f.operator().jsonName() + " " + operand.guard()
+                    : "  -- " + operand.guard());
+            steps(operand.steps()).forEach(s -> lines.add("  " + s));
+          }
         }
       }
     }
@@ -387,5 +393,151 @@ class SequenceFlowsTest {
     List<Fact> shuffled = new ArrayList<>(facts);
     Collections.shuffle(shuffled, new Random(7));
     assertThat(system(shuffled)).isEqualTo(system(facts));
+  }
+
+  /** Adds a type to a package of the repository, with its kind and methods. */
+  private void type(String repo, String pkg, String type, String kind, String... methods) {
+    String typeId = "type:" + type;
+    relate(repo, "package:x:" + repo + ":" + pkg, "CONTAINS", typeId, "{}", 0);
+    attribute(repo, typeId, "kind", kind, "{}", 0);
+    for (String method : methods) {
+      relate(repo, typeId, "CONTAINS", "method:" + type + "#" + method, "{}", 0);
+    }
+  }
+
+  private void httpCall(String repo, String unit, String source, String host, int line) {
+    relate(
+        repo,
+        unit,
+        "CALLS_HTTP",
+        "external-system:" + host,
+        "{\"protocol\": \"HTTPS\", \"httpMethod\": \"POST\", \"path\": \"/n\", \"source\": \""
+            + source
+            + "\"}",
+        line);
+  }
+
+  private Section flow(Document document, String title) {
+    return flows(document).sections().stream()
+        .filter(s -> s.title().equals(title))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void aCallWithSeveralImplementationsIsAnAltFrameOfThem() {
+    // Notifier is an interface; MailNotifier implements it, SmsNotifier extends an abstract base
+    // that implements it and does not declare the method.
+    type("front", "x.front", "x.front.Notifier", "interface", "send()");
+    type("front", "x.front", "x.front.MailNotifier", "class", "send()");
+    type("front", "x.front", "x.front.BaseNotifier", "class");
+    type("front", "x.front", "x.front.SmsNotifier", "class", "send()");
+    relate("front", "type:x.front.MailNotifier", "IMPLEMENTS", "type:x.front.Notifier", "{}", 0);
+    relate("front", "type:x.front.BaseNotifier", "IMPLEMENTS", "type:x.front.Notifier", "{}", 0);
+    relate("front", "type:x.front.SmsNotifier", "EXTENDS", "type:x.front.BaseNotifier", "{}", 0);
+    relate("front", SERVICE, "CALLS", "method:x.front.Notifier#send()", "{}", 25);
+    httpCall("front", FRONT, "method:x.front.MailNotifier#send()", "mail.example.com", 3);
+    httpCall("front", FRONT, "method:x.front.SmsNotifier#send()", "sms.example.com", 3);
+
+    List<String> steps = steps(diagram(flow(system(facts), "POST /orders on front")).steps());
+
+    assertThat(steps)
+        .containsSubsequence(
+            "alt as MailNotifier",
+            "  service:x:front > external-system:mail.example.com: Calls mail.example.com"
+                + " [POST /n] (Over HTTPS.)",
+            "  -- as SmsNotifier",
+            "  service:x:front > external-system:sms.example.com: Calls sms.example.com"
+                + " [POST /n] (Over HTTPS.)",
+            "topic:kafka:orders >> service:x:ship: Delivers to Listener.on [Kafka]");
+  }
+
+  @Test
+  void aCallWithMoreImplementationsThanAFrameHoldsIsANote() {
+    type("front", "x.front", "x.front.Notifier", "interface", "send()");
+    for (int i = 1; i <= SequenceFlows.MAX_ALTERNATIVES + 1; i++) {
+      type("front", "x.front", "x.front.N" + i, "class", "send()");
+      relate("front", "type:x.front.N" + i, "IMPLEMENTS", "type:x.front.Notifier", "{}", 0);
+    }
+    relate("front", SERVICE, "CALLS", "method:x.front.Notifier#send()", "{}", 25);
+
+    assertThat(steps(diagram(flow(system(facts), "POST /orders on front")).steps()))
+        .contains(
+            "note [service:x:front]: One of N1, N2, N3, N4 and N5 runs Notifier.send here; the"
+                + " trace does not follow them.");
+  }
+
+  @Test
+  void followsAMethodTheCalledTypeInherits() {
+    // Status.get calls Child.load, which Child inherits from Parent, which reads a table.
+    type("ship", "x.ship", "x.ship.Parent", "class", "load()");
+    type("ship", "x.ship", "x.ship.Child", "class");
+    relate("ship", "type:x.ship.Child", "EXTENDS", "type:x.ship.Parent", "{}", 0);
+    relate("ship", STATUS, "CALLS", "method:x.ship.Child#load()", "{}", 4);
+    relate("ship", "method:x.ship.Parent#load()", "READS_TABLE", "table:x:ship:stock", "{}", 9);
+
+    assertThat(steps(diagram(flow(system(facts), "GET /status on ship")).steps()))
+        .containsExactly(
+            "note []: Starts when ship receives GET /status (Status.get).",
+            "service:x:ship > database:db:5432/ship: Reads stock [JDBC]");
+  }
+
+  @Test
+  void recursiveCallsAreFollowedOnce() {
+    relate("ship", NIGHTLY, "CALLS", NIGHTLY, "{}", 5);
+    relate("ship", NIGHTLY, "CALLS", STATUS, "{}", 6);
+    relate("ship", "method:x.ship.Status#format()", "CALLS", NIGHTLY, "{}", 8);
+
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .containsExactly(
+            "note []: Starts when the schedule cron 0 0 2 * * * fires in ship (Nightly.run).",
+            "service:x:ship > database:db:5432/ship: Writes parcel [JDBC]");
+  }
+
+  @Test
+  void theTraceStopsAfterTheMostMessagesAFlowShows() {
+    for (int i = 0; i < SequenceFlows.MAX_MESSAGES + 5; i++) {
+      httpCall("ship", SHIP, NIGHTLY, "e" + i + ".example.com", 10 + i);
+    }
+
+    List<SequenceDiagram.Step> steps =
+        diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps();
+
+    assertThat(steps.stream().filter(SequenceDiagram.Message.class::isInstance))
+        .hasSize(SequenceFlows.MAX_MESSAGES);
+    assertThat(steps(List.of(steps.getLast())))
+        .containsExactly("note []: The trace stops here, after 40 messages.");
+  }
+
+  @Test
+  void dataAccessWithoutOneKnownDatabaseIsANote() {
+    relate("front", SERVICE, "READS_TABLE", "table:x:front:stock", "{}", 26);
+
+    assertThat(steps(diagram(flow(system(facts), "POST /orders on front")).steps()))
+        .contains(
+            "note [service:x:front]: front reads stock; no datasource of it was found, so which"
+                + " database is not known.");
+  }
+
+  @Test
+  void showsAtMostSevenFlowsInRankOrder() {
+    for (int i = 0; i < SequenceFlows.MAX_FLOWS + 2; i++) {
+      String method = "method:x.pay.Job" + i + "#run()";
+      type("pay", "x.pay", "x.pay.Job" + i, "class", "run()");
+      attribute("pay", method, "scheduled", "0 0 " + i + " * * *", "{}", 0);
+      httpCall("pay", PAY, method, "j" + i + ".example.com", 3);
+    }
+
+    // The order flow touches most containers; the nightly job and the jobs touch two each, by ID.
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .containsExactly(
+            "POST /orders on front",
+            "Job0.run on its schedule in pay",
+            "Job1.run on its schedule in pay",
+            "Job2.run on its schedule in pay",
+            "Job3.run on its schedule in pay",
+            "Job4.run on its schedule in pay",
+            "Job5.run on its schedule in pay");
   }
 }

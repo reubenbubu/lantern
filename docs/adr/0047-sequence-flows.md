@@ -22,9 +22,13 @@ ends (ADR 0042). Nothing may be invented.
   per flow, each a `sequence` page. `SequenceFlows` (`lantern-compose`) builds them.
 - **Entry points** are the methods of a unit's code (its module and the libraries it bundles)
   with an `endpoint`, `message-listener` or `scheduled` fact.
-- **Tracing** follows a method's `CALLS` in the order of the code (the line of each fact), into
-  the same method of the classes implementing an interface, inside the unit, each method once per
-  flow. A step is drawn for what leaves the unit at that code, found by the links' `source`:
+- **Tracing** follows a method's `CALLS` in the order of the code (the line of each fact), inside
+  the unit, each method once per flow (so recursion ends). A call goes to the method declared where
+  it points, or the one that type inherits (`EXTENDS`, `IMPLEMENTS`). When types below it, through
+  interfaces and abstract or other base classes, declare the method too, the code does not say
+  which runs: each is an operand of an `alt` frame (`as MailNotifier`), the declared one too unless
+  its type is an interface or of unknown kind; one such method is followed directly, and more than
+  four are a note naming them. Sends inside an operand are delivered inside it. A step is drawn for what leaves the unit at that code, found by the links' `source`:
   - an HTTP call (`CALLS_HTTP`), sync, to the unit or external system it reaches, labelled
     `Calls <Handler.method>` with the endpoint as code and the protocol in its walkthrough text;
     the trace goes on in the endpoint's handler (`target`). A profile alternative of the link
@@ -37,6 +41,8 @@ ends (ADR 0042). Nothing may be invented.
   - data access: `READS_TABLE` and `WRITES_TABLE` of the method, and calls to methods declared on a
     Spring Data repository (`REPOSITORY_FOR`), to the unit's database when it has exactly one by
     default; tables of another unit's schema (`ACCESSES_DATA_OF`) are named in the walkthrough.
+    With no default datasource, or several, it is a note naming the tables and saying the database
+    is not known or which it may be.
   - a call Lantern could not link (`unresolved-link`) is a note, and the trace does not follow it.
   The trace stops after 40 messages with a note.
 - **Profiles.** A step is conditional when its link holds only under a profile or its code is
@@ -48,10 +54,11 @@ ends (ADR 0042). Nothing may be invented.
   container diagram folds its queues), and external systems, in order of first appearance. The
   caller of an endpoint is not known, so the flow starts with a note naming its trigger instead
   of an actor.
-- **Choosing flows.** A candidate is every entry point whose trace has a step. One whose entry
-  point another candidate's trace reaches is part of that flow and left out. Candidates are
+- **Choosing flows.** A candidate is every entry point whose trace has a step. Candidates are
   ranked by how many participants they touch, then those handing off asynchronously first, then by
-  unit and method ID; at most seven are shown, those touching a unit in scope. Error flows and
+  unit and method ID. In that order, a candidate is shown if it touches a unit in scope, its entry
+  point is not reached by a flow already shown (it is part of that flow), and fewer than seven are
+  shown. Error flows and
   failure handling need facts about exception handling that no extractor records yet, so they do
   not rank or appear. With no flow, the section says so.
 - **Each page** has a title naming the trigger and its unit (`POST /api/orders on storefront`),
@@ -59,15 +66,20 @@ ends (ADR 0042). Nothing may be invented.
   not be followed), a table of the trigger with pre- and post-conditions "Not known from the
   code.", the diagram and the renderer's steps table. Wording for the reader, intent phrases and
   conditions are the LLM's (#97).
-- **Checks.** `SequenceFlowsTest` covers tracing, stitching, profiles, notes, choosing and scope on
-  hand-made facts; the golden `runtime.c4.json` holds two flows. `Project0C4ReportIT` (ADR 0044)
-  now builds project-0 in dependency order and checks FLOW-1 and FLOW-2 step by step.
+- **Default views are not stored.** Until now the analyze run stored each default view on first
+  use and then used it as stored (ADR 0012, ADR 0016), so a new default section, such as this
+  one, never reached a workspace that had run before. Now the defaults live in code; a stored view
+  is an override of the default and is used as stored. Migration V12 removes the rows earlier runs
+  stored that equal a default of the time, and keeps any other row as an override.
+- **Checks.** `SequenceFlowsTest` covers tracing, stitching, implementations and inherited
+  methods, recursion, the message cap, profiles, notes, choosing, the flow cap and scope on
+  hand-made facts; the golden `runtime.c4.json` holds two flows. `DefaultViewsUpgradeIT` checks
+  V12. `Project0EndToEndIT` (ADR 0029) checks FLOW-1 and FLOW-2 step by step in project-0's system
+  report, which it validates against the report spec's schema.
 
 ## Not covered
 
 Calls to Spring Data's inherited methods (`save`, `findById`) leave no `CALLS` fact (ADR 0007),
-so FLOW-1's shop-database steps are missing (#176). View definitions stored before this change
-keep their sections (ADR 0012), so a workspace that already holds `system:c4` or `<repo>.c4`
-shows no flows until those rows are removed. Replies, activations and loops are not drawn;
+so FLOW-1's shop-database steps are missing (#176). Replies, activations and loops are not drawn;
 sequences in the Architecture Explorer and the Executive Brief, and splitting a flow above 15
 participants, are left for later.

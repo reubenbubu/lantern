@@ -413,7 +413,7 @@ What the document model contains, and how its TypeScript types are generated and
 
 How the first composer builds per-repository documents from view definitions is in ADR 0012. How the composer draws the context, container and component views below, and composes the system scope's C4 report, is in ADR 0044. How it traces, stitches, ranks and caps the sequence flows is in ADR 0047.
 
-**View definitions.** A persisted spec per document: scope, audience profile, template, sections and diagrams. Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
+**View definitions.** A spec per document: scope, audience profile, template, sections and diagrams. Lantern's defaults are kept in code, so their new sections reach every workspace; a changed view is persisted (ADR 0047). Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
 **Diagrams.** Lantern uses the C4 levels with c4model.com's definitions. The software system is the scope: all repos in system scope, a group in grouped scope; a per-repo document shows its repo's containers inside that system. External systems are outbound targets the linker can't resolve to a container in scope, or come from annotations. A container is a runtime unit (an application, job, data store, or queue or topic), never a Maven module or jar; a component is a group of functionality behind an interface, never just a package. Each diagram must also pass the Quality bar. The document model holds sequence diagrams as a `sequence` diagram kind (ADR 0028).
 

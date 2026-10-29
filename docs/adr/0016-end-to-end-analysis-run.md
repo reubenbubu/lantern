@@ -41,8 +41,8 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
   6. composes an Architecture Explorer document (view `<repo>`), an Executive Brief (view
      `<repo>.brief`) and, since ADR 0031, a C4 report (view `<repo>.c4`) per repository, and since
      ADR 0044 a C4 report of the whole system (view `system:c4`, file `_system.c4.html`). A view
-     definition stored before is used as stored; a missing one is stored with the template's
-     default sections (ADR 0012, 0015);
+     definition stored to override the default is used as stored; otherwise the default, which
+     is not stored (ADR 0012, 0015, 0047);
   7. renders each as one HTML file, `<workspace>/documents/<snapshot>/<view>.html`.
 - **A fact found again stays as stored.** Extractors give facts the new snapshot as the start of
   their validity, while the same fact (same ID) is stored from an earlier snapshot. The run records

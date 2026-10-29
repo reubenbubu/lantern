@@ -540,8 +540,8 @@ public final class AnalysisRun {
 
   /**
    * The repository's three views, the Architecture Explorer document {@code <repo>}, the Executive
-   * Brief {@code <repo>.brief} and the C4 report {@code <repo>.c4}. A view stored before is used as
-   * stored; a missing one is stored with the default sections.
+   * Brief {@code <repo>.brief} and the C4 report {@code <repo>.c4}: a stored view if one was saved
+   * to override the default, else the default (ADR 0047).
    */
   private List<ViewDefinition> views(String repo) {
     List<ViewDefinition> result = new ArrayList<>();
@@ -555,15 +555,12 @@ public final class AnalysisRun {
     return result;
   }
 
-  /** The view as stored before, else the fallback, stored now. */
+  /**
+   * The view stored to override the default, else the default. Defaults are not stored, so a new
+   * default section reaches every workspace (ADR 0047).
+   */
   private ViewDefinition view(ViewDefinition fallback) {
-    return views
-        .find(fallback.id())
-        .orElseGet(
-            () -> {
-              views.save(fallback);
-              return fallback;
-            });
+    return views.find(fallback.id()).orElse(fallback);
   }
 
   private Path write(Path directory, String viewId, Document document) {
