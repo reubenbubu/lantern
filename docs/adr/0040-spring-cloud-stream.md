@@ -1,4 +1,4 @@
-# 0039: Spring Cloud Stream in the messaging extractor
+# 0040: Spring Cloud Stream in the messaging extractor
 
 Status: accepted (#139, follow-up of #129), pending the user's review (#24)
 

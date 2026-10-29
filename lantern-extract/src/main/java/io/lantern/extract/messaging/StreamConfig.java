@@ -18,7 +18,7 @@ import java.util.TreeSet;
  * What a module's config says about its Spring Cloud Stream bindings, in one view: the functions
  * bound, the binder (and so the broker) of each binding, and the binding's properties. Keys are
  * looked up as written in kebab case or in camel case, as Spring Boot binds either. See {@code
- * docs/adr/0039-spring-cloud-stream.md}.
+ * docs/adr/0040-spring-cloud-stream.md}.
  *
  * <p>Plain settings (a binder's name, an exchange type, a flag) are returned only when recording
  * them exposes no secret. Values recorded as a fact's object or named attributes are returned as

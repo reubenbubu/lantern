@@ -49,7 +49,7 @@ import tools.jackson.databind.node.ObjectNode;
  * destinations, the methods that send to them through a template or producer, and the bindings of
  * RabbitMQ queues to exchanges. See {@code docs/adr/0037-messaging-extractor.md}. Spring Cloud
  * Stream's bindings (functions, {@code StreamBridge} and the legacy annotations) give the same
- * facts, their destinations read from config; see {@code docs/adr/0039-spring-cloud-stream.md}.
+ * facts, their destinations read from config; see {@code docs/adr/0040-spring-cloud-stream.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}): through
  * javac with the build's classpath, or parsed in degraded mode, with the same confidence. Names are
