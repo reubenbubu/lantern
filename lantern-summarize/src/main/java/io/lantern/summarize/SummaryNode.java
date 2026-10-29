@@ -20,18 +20,27 @@ import java.util.Objects;
 public record SummaryNode(
     EntityId entity, SummaryLevel level, List<Fact> facts, List<SummaryNode> children) {
 
-  private static final Comparator<Fact> PROMPT_ORDER =
-      Comparator.comparing(Prompt::fact)
-          .thenComparing(f -> f.evidence().repo())
-          .thenComparing(f -> Objects.requireNonNullElse(f.evidence().path(), ""))
-          .thenComparingInt(f -> f.evidence().lines() == null ? 0 : f.evidence().lines().start())
-          .thenComparing(Fact::id);
+  /** A fact with its line as the prompt writes it, worked out once for sorting. */
+  private record Line(String text, Fact fact) {}
+
+  private static final Comparator<Line> PROMPT_ORDER =
+      Comparator.comparing(Line::text)
+          .thenComparing(l -> l.fact().evidence().repo())
+          .thenComparing(l -> Objects.requireNonNullElse(l.fact().evidence().path(), ""))
+          .thenComparingInt(
+              l -> l.fact().evidence().lines() == null ? 0 : l.fact().evidence().lines().start())
+          .thenComparing(l -> l.fact().id());
 
   public SummaryNode {
     Objects.requireNonNull(entity, "entity");
     Objects.requireNonNull(level, "level");
     facts =
-        Objects.requireNonNull(facts, "facts").stream().sorted(PROMPT_ORDER).distinct().toList();
+        Objects.requireNonNull(facts, "facts").stream()
+            .distinct()
+            .map(f -> new Line(Prompt.fact(f), f))
+            .sorted(PROMPT_ORDER)
+            .map(Line::fact)
+            .toList();
     children =
         Objects.requireNonNull(children, "children").stream()
             .sorted(Comparator.comparing(child -> child.entity().toString()))

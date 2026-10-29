@@ -52,14 +52,15 @@ import org.slf4j.LoggerFactory;
  * Prompt}).
  *
  * <p>Every summary is cached under a key that hashes what the model sees: the prompt version, the
- * model (provider and identifier), the unit's entity and level, the system prompt and the unit's
- * whole user turn, with its facts, source files and contained units' summaries. Fact IDs and
- * commits are not in the prompt, so a new commit that changes nothing a unit's prompt shows makes
- * no call for it, and a contained unit whose summary reads the same leaves its parent's key as it
- * was. A unit whose key is already in the store is not sent to the model again; the stored summary
- * is rebound to the current inputs, so it cites the facts and contained summaries of this run (the
- * same prompt lists the same inputs in the same order). When a unit's prompt changes it is
- * summarized again; its new text then changes its parent's prompt, and so on up to the repository.
+ * model (provider and identifier), the unit's entity and level, its contained units' entities
+ * (which its citations of their summaries name), the system prompt and the unit's whole user turn,
+ * with its facts, source files and contained units' summaries. Fact IDs and commits are not in the
+ * prompt, so a new commit that changes nothing a unit's prompt shows makes no call for it, and a
+ * contained unit whose summary reads the same leaves its parent's key as it was. A unit whose key
+ * is already in the store is not sent to the model again; the stored summary is rebound to the
+ * current inputs, so it cites the facts and contained summaries of this run (the same prompt lists
+ * the same inputs in the same order). When a unit's prompt changes it is summarized again; its new
+ * text then changes its parent's prompt, and so on up to the repository.
  *
  * <p>Every summary must cite the facts or contained summaries it used. An answer that cites
  * nothing, or cites a reference that was not in the prompt, is sent back once with the reason; if
@@ -237,6 +238,10 @@ public final class Summarizer {
     text.append("model ").append(oneLine(model.model())).append('\n');
     text.append("level ").append(node.level()).append('\n');
     text.append("entity ").append(node.entity()).append('\n');
+    // The prompt names a contained unit without its full entity ID, which its citation stores.
+    for (Summary child : children) {
+      text.append("child ").append(child.entity()).append('\n');
+    }
     text.append("system ").append(sha256(Prompt.SYSTEM)).append('\n');
     text.append("user ").append(sha256(Prompt.user(node, excerpts, children))).append('\n');
     return sha256(text.toString());

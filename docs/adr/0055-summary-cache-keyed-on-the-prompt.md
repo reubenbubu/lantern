@@ -15,10 +15,12 @@ to the model. The Resolve and wording caches (ADRs 0045, 0050) already key on wh
 ## Decisions
 
 - **The key hashes what the model sees**: the prompt version, provider, model, the unit's level and
-  entity ID, the system prompt and the unit's whole user turn, with its facts, source files and its
+  entity ID, its parts' entity IDs, the system prompt and the unit's whole user turn, with its facts, source files and its
   parts' summaries as the prompt shows them (without fact IDs or citation markers). Level and
-  entity ID hold no commit; they keep units whose prompts read the same, such as two modules with
-  the same artifact ID, under keys of their own, so a parent's inputs tell its parts apart. A
+  entity IDs hold no commit. The prompt names a module or package without its full entity ID, so
+  they keep units whose prompts read the same, such as two modules with the same artifact ID, under
+  keys of their own, and a parent's stored citations of its parts' summaries, which name their
+  entity IDs, always name the parts it is shown now. A
   unit too large for one prompt is keyed on its whole user turn; its parts and merges follow from
   it and the model's limits.
 - **Facts are listed in a fixed order** that does not depend on their IDs: by the fact as the
