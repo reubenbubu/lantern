@@ -1,0 +1,42 @@
+[
+  {
+    "name": "gateway-route",
+    "kind": "attribute",
+    "description": "A Spring Cloud Gateway route: requests matching its predicates go, through its filters, to its URI. The value is the route's id. The subject is the method that builds it with RouteLocatorBuilder, or the module whose config (spring.cloud.gateway.routes, or the server.webflux, server.webmvc or mvc forms) defines it. Placeholders in the URI are resolved against the config of the module; values are those of the default view unless profile is set.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "definedIn": { "type": "string", "enum": ["java", "config"], "description": "Where the route is defined: in code, with RouteLocatorBuilder, or in config." },
+        "uri": { "type": "string", "description": "The URI requests go to, such as lb://main-service, lb:ws://notification-service or http://localhost:8081; a placeholder nothing resolves is kept as written, an expression not followed is shown as its source in braces. Absent when masked." },
+        "written": { "type": "string", "description": "The URI as written, when it differs from the resolved one (it had placeholders)." },
+        "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders in the URI no config value resolved." },
+        "masked": { "type": "boolean", "description": "Present and true when a placeholder in the URI named a secret, so the URI is recorded as written, without uri." },
+        "paths": { "type": "array", "items": { "type": "string" }, "description": "The path patterns of its Path predicates, such as /api/users/**." },
+        "methods": { "type": "array", "items": { "type": "string" }, "description": "The HTTP methods of its Method predicates; absent when it takes any." },
+        "predicates": { "type": "array", "items": { "type": "string" }, "description": "Every predicate, in order, in the shortcut form config uses, such as Path=/api/files/** or Method=GET,PATCH; or for or-ed predicates in code, or between them." },
+        "filters": { "type": "array", "items": { "type": "string" }, "description": "Every route filter, in order: a built-in one in shortcut form, such as StripPrefix=1, or a filter object of the code by its type's simple name, such as AuthFilter." },
+        "filterTypes": { "type": "array", "items": { "type": "string" }, "description": "The binary names of the filter classes of the code that the route applies, for a route defined in code." },
+        "order": { "type": "string", "description": "The route's order, when one is set." },
+        "profile": { "type": "string", "description": "The profile active instead of the default one when the route was read. Absent for the default view; present only where the route differs from it." }
+      },
+      "required": ["definedIn"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "gateway-filter",
+    "kind": "attribute",
+    "parent": "entry-point",
+    "description": "The subject class filters requests on their way through a Spring Cloud Gateway or WebFlux application, so work starts in it: global (a GlobalFilter, applied to every route), gateway (a GatewayFilter, applied by the routes that name it), factory (a GatewayFilterFactory, named in route config) or web (a WebFilter, applied to every request). Only classes that are beans, or that a route applies, count.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "implements": { "type": "string", "description": "The binary name of the library type the class implements or extends, directly or through classes of the code, such as org.springframework.cloud.gateway.filter.GlobalFilter." }
+      },
+      "required": ["implements"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

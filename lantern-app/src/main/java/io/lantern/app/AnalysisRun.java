@@ -22,6 +22,7 @@ import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -309,8 +310,8 @@ public final class AnalysisRun {
       // repositories' facts are recorded.
       List<Fact> found =
           new ArrayList<>(new MavenExtractor().extract(repoBuilds, snapshot.number()));
-      // The code is read once, for the Java structure, Spring, persistence, HTTP client and
-      // messaging extractors.
+      // The code is read once, for the Java structure, Spring, persistence, HTTP client,
+      // messaging and gateway extractors.
       JavaAnalysis code = JavaExtractor.analyze(repoBuilds);
       found.addAll(new JavaExtractor().extract(code, snapshot.number()));
       found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number()));
@@ -324,6 +325,7 @@ public final class AnalysisRun {
       found.addAll(new MailExtractor().extract(code, snapshot.number()));
       found.addAll(new RedisExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));
+      found.addAll(new GatewayExtractor().extract(code, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       Stored stored =
           store(snapshot.number(), registered.keySet(), snapshot.commits().keySet(), found, client);

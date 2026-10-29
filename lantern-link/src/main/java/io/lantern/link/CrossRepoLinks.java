@@ -19,8 +19,9 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * Links the deployable units of a snapshot at runtime, matching what one exposes with what another
- * uses: HTTP calls with endpoints, messages sent with listeners, datasources with databases, and
- * config with brokers and infrastructure. See {@code docs/adr/0042-cross-repo-links.md}.
+ * uses: HTTP calls with endpoints, gateway routes with the units they send requests to, messages
+ * sent with listeners, datasources with databases, and config with brokers and infrastructure. See
+ * {@code docs/adr/0042-cross-repo-links.md}.
  *
  * <p>It runs after {@link DeployableUnits} and reads its facts with the extractors'. Each link is
  * found in every view (the default one and each profile the facts name, one profile active at a
@@ -36,7 +37,7 @@ public final class CrossRepoLinks implements LinkStep {
   public static final String NAME = "cross-repo-links";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "5";
+  public static final String VERSION = "6";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -92,6 +93,11 @@ public final class CrossRepoLinks implements LinkStep {
   /** Relationship: a unit uses service discovery, a config server or tracing. */
   public static final String USES_INFRASTRUCTURE = "USES_INFRASTRUCTURE";
 
+  /**
+   * Attribute: an endpoint of a unit a gateway routes to that none of the gateway's routes reach.
+   */
+  public static final String UNROUTED_ENDPOINT = "unrouted-endpoint";
+
   /** Attribute: a call, send or datasource of a unit that static matching cannot place. */
   public static final String UNRESOLVED_LINK = "unresolved-link";
 
@@ -135,6 +141,7 @@ public final class CrossRepoLinks implements LinkStep {
     Validity validity = Validity.from(snapshot);
     FoundLinks found = new FoundLinks();
     new HttpLinker(index, found).link();
+    new RouteLinker(index, found).link();
     new MessageLinker(index, found).link();
     new DataLinker(index, found).link(ORIGIN, validity);
     new MailLinker(index, found).link();

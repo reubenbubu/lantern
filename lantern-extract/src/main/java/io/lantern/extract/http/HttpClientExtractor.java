@@ -1724,6 +1724,7 @@ public final class HttpClientExtractor {
               + args
               + ")";
         }
+        case Expression.Lambda l -> l.source();
         case Expression.Unknown u -> u.source();
       };
     }

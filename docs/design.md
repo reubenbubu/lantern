@@ -109,6 +109,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Spring / Jakarta | Annotations, including meta-annotations (a custom annotation carrying `@RestController` or `@Service` counts as one), and bean definitions | Application main classes, controllers and endpoints, beans by stereotype, configuration, `@Scheduled` jobs, JobRunr and Quartz jobs with where they are scheduled, `@Profile` gates, `@Aspect` types with the methods their pointcuts advise |
 | HTTP clients | Feign, Spring HTTP interfaces (`@HttpExchange`), RestTemplate, RestClient, WebClient, JAX-RS and MicroProfile clients, `java.net.http`, OkHttp and Apache HttpClient | Outbound calls with target service name, URL or property key, and path. The caller of a client interface is the code that enables or injects it, not the jar that defines it |
 | Messaging | Kafka, JMS, RabbitMQ listeners and templates; Spring Cloud Stream bindings and `StreamBridge` | Topics, exchanges, queues, bindings and routing keys produced and consumed |
+| Spring Cloud Gateway | Routes built with `RouteLocatorBuilder` and routes in `spring.cloud.gateway` config; filter classes | Routes per profile with their predicates, filters and target URI (`lb://`, `lb:ws://`, a URL), and the global, gateway and web filters requests pass through, as entry points |
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
 | Redis | Redis templates and operations, `@RedisHash`, Spring Session, lock registries, the gateway's rate limiter and caches in code, config and POM dependencies; Redis images in compose files | How each module uses Redis, with the keys the code writes out, and the product and version Redis runs as |
 | People | Role checks (`@PreAuthorize`, `@Secured`, `@RolesAllowed`, `hasRole`), Keycloak realm roles, types about members and invitations, and the routes of Angular, React and Vue frontends | The evidence for who uses the system, each citing its line; the linker makes people of it |
@@ -144,6 +145,8 @@ How people are inferred from roles, memberships, invitations, sign-in and fronte
 How Redis becomes a data store, found from the code, config, dependencies and compose files and linked per server with the protocol RESP, is in ADR 0073.
 
 Which listeners, templates and bindings the Messaging extractor reads, how it follows a name from a constant, a placeholder or a `@Value` into the call that uses it, and what facts it makes of listeners, sends and RabbitMQ bindings is in ADR 0037. How it reads Spring Cloud Stream, whose destinations come from config through bindings, into the same facts is in ADR 0040.
+
+Which routes and filters the Spring Cloud Gateway extractor reads, and how lambdas in the code are read for it, is in ADR 0077.
 
 Which HTTP clients the HTTP client extractor reads, how it follows a URL one hop through the code, what facts it makes of calls and of the code that enables or injects a client, and what a recorded URL leaves out is in ADR 0038.
 
@@ -245,6 +248,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | --- | --- |
 | Library dependency | Maven coordinates of internal artifacts |
 | HTTP call | Client name (Feign `name`) against the target's `spring.application.name`, else resolved client URL or property key against service base URLs; then the path against the target's endpoints |
+| Gateway route | A load-balanced URI's name (`lb://orders`) against `spring.application.name`, else the URI's host as for an HTTP call, or for this machine its port against the target's `server.port`; endpoints of a routed unit that no route reaches are recorded for the findings |
 | Messaging | Topic, exchange or queue names and routing keys, produced vs. consumed, with AMQP topic wildcards (`order.*`) matched as the broker matches them |
 | Shared database | Datasource URLs and table names; Redis servers (`spring.data.redis.*`), one data store per server |
 | Shared config | Common property keys and config servers |
@@ -254,7 +258,7 @@ A datasource whose server or database is a placeholder is a database of its unit
 
 Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; tools to query the graph and read files come with #169, the questions queue with #170.
 
-What the links look like (one relationship per call, send, datasource or setting between units and the topics, queues, exchanges, databases, brokers, external systems and infrastructure they reach, each with the facts on both ends, its protocol, its profile and a stable link ID), how profiles are applied, and how a library's code takes the config of each unit that bundles it are in ADR 0042.
+How gateway routes become links, and which endpoints count as reached by none, is in ADR 0077. What the links look like (one relationship per call, send, datasource or setting between units and the topics, queues, exchanges, databases, brokers, external systems and infrastructure they reach, each with the facts on both ends, its protocol, its profile and a stable link ID), how profiles are applied, and how a library's code takes the config of each unit that bundles it are in ADR 0042.
 
 **Scope modes**
 
@@ -449,7 +453,7 @@ How the first composer builds per-repository documents from view definitions is 
 | Landscape | Every system in scope and the people using them; no internals | Container relationships, aggregated per system |
 | System context | One system in focus, its users and the external systems it talks to directly; no technology. Unknown users are marked unknown, not invented | Relationships leaving the system; people the code shows (sign-in, roles, a frontend); annotations for people and for external systems no code names |
 | Container | One view of the whole system, split by concern when above 15 elements. One box per deployable unit, folding in the in-set libraries it packages (a thin service and its library are one box), and one per frontend; each service's own schema as a separate data store; queues, topics and exchanges as elements or "via" labels, never one broker box | Deployable evidence (a Spring Boot main class, a repackaged executable artifact, a Dockerfile), `spring.application.name`, linked HTTP client, messaging and persistence facts, frontend and deployment facts |
-| Component | Inside one container, one component per role: each controller, message listener or scheduled job with the services and repositories reachable only from it; a bean reachable from several entry points is its own component. Domain, DTO, mapper, configuration and util classes are left out. Above 15 elements, split by groups of entry points. Drawn only when it adds value: more than one component, and not a repeat of the container diagram | Spring stereotypes (including meta-annotations), aspects that advise an entry point (shown as components with a line to what they advise, ADR 0079) and the resolved call graph |
+| Component | Inside one container, one component per role: each controller, message listener, scheduled job, gateway filter or set of gateway routes with the services and repositories reachable only from it; a bean reachable from several entry points is its own component. Domain, DTO, mapper, configuration and util classes are left out. Above 15 elements, split by groups of entry points. Drawn only when it adds value: more than one component, and not a repeat of the container diagram | Spring stereotypes (including meta-annotations), aspects that advise an entry point (shown as components with a line to what they advise, ADR 0079) and the resolved call graph |
 | Sequence | See Sequence diagrams below | Entry points and the resolved call graph, linked across containers |
 | Deployment | Nodes and container instances in one environment | The Deployment extractor's facts; omitted with a note when there are none |
 | Dependency | Modules and artifacts with their build-time dependencies; not a C4 view | Maven facts |
@@ -459,7 +463,7 @@ Build-time library dependencies are not container or component relationships; th
 
 **Sequence diagrams.** A few architecturally significant flows per scope, as the runtime view.
 
-- Traced from entry points (REST endpoints, message listeners, scheduled jobs) through the resolved call graph, keeping only steps that cross a container boundary: HTTP calls, messages, database access. Traces are stitched across containers: an HTTP call continues in the callee's endpoint, a published message in each listener bound to it.
+- Traced from entry points (REST endpoints, message listeners, scheduled jobs) through the resolved call graph, keeping only steps that cross a container boundary: HTTP calls, messages, database access. Traces are stitched across containers: an HTTP call continues in the callee's endpoint, a published message in each listener bound to it, and a method that schedules a background job in that job.
 - Participants are all at one C4 level, containers by default, with the container diagram's names: one lifeline per container (its internals collapsed), one per queue or exchange, and actors for people and external systems.
 - Labels put intent first and protocol second ("Create order [POST /orders]"). Async messages are drawn as async and followed by a note that the rest happens later. Replies are drawn only when they carry meaning. Profile-gated steps are conditional (Quality bar); at most one level of fragments.
 - Candidate flows are ranked by the containers they touch, whether they hand off asynchronously and whether they handle failure, ties broken by stable ID. As a guide, a system scope shows three to seven, plus one or two error flows; a narrower scope shows those that start in or pass through it.

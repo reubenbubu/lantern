@@ -63,4 +63,4 @@ unknown users are marked unknown, not invented.
 - The names come from the code, so they are as good as its words: a project that checks `ADMIN` has
   an Admin. A role name that is a permission in disguise, or a type named `Member` for another
   reason, makes a wrong person; it is marked inferred and cites the line.
-- The extractor is new (`people`, version 2 after the service-account rule) and `cross-repo-links` moves to version 5.
+- The extractor is new (`people`, version 2 after the service-account rule) and `cross-repo-links` moves to version 6.

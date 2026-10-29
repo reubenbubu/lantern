@@ -65,7 +65,8 @@ measurement, the assessment of snapshot-4's project-4 report, was counted by han
   `--role`/`--tier` overrides, scores each and, with `--compare-with`, writes a side-by-side
   comparison with an earlier run. With `--fake-llm` it runs every role on a free fake model: the
   Spring profile `fake-llm` adds a fake provider bean, which ADR 0009 already lets models name, so
-  a whole run of the sets costs nothing. It refuses the held-out sets unless `--held-out` is given
+  a whole run of the sets costs nothing. Every text the fake words is wrapped in `{{ }}` with a hint of what a model would write
+  (`{{placeholder: summary of class Order from its parts}}`), so a reader tells it from Lantern's own text. It refuses the held-out sets unless `--held-out` is given
   (design, Test sets); `TestSetScoreIT` likewise needs `lantern.test.held-out`. Recordings were already keyed by provider and model (ADR 0008),
   so replaying with one role switched makes new calls only for that role; a test shows it.
 - **Output.** `score.mjs` writes `<prefix>.scorecard.json` and `.md` (default: the report's path

@@ -8,6 +8,7 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -120,6 +121,7 @@ class Project0LinksIT {
     facts.addAll(new PersistenceExtractor().extract(code, 1));
     facts.addAll(new HttpClientExtractor().extract(code, 1));
     facts.addAll(new MessagingExtractor().extract(code, 1));
+    facts.addAll(new GatewayExtractor().extract(code, 1));
     facts.addAll(new DocsExtractor().extract(repos, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));

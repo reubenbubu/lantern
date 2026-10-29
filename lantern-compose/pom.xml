@@ -41,6 +41,12 @@
     </dependency>
   </dependencies>
 
+  <properties>
+    <!-- Set to the folder the development test sets project-1 to project-4 were set up in
+         (testsets/project-N/setup.sh) to run GatewayComponentsIT. -->
+    <lantern.test.projects></lantern.test.projects>
+  </properties>
+
   <build>
     <plugins>
       <plugin>
@@ -50,6 +56,18 @@
           <systemPropertyVariables>
             <!-- The fixture projects live with the extractors that were their first user. -->
             <lantern.test.fixtures>${maven.multiModuleProjectDirectory}/lantern-extract/src/test/resources/fixtures</lantern.test.fixtures>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+      <plugin>
+        <!-- Runs *IT integration tests during verify. Executions come from the Spring Boot parent. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- The folder the development test sets were set up in (testsets/project-N/setup.sh);
+                 GatewayComponentsIT runs if set. -->
+            <lantern.test.projects>${lantern.test.projects}</lantern.test.projects>
           </systemPropertyVariables>
         </configuration>
       </plugin>

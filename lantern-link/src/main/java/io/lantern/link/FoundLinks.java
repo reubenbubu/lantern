@@ -77,6 +77,18 @@ final class FoundLinks {
     }
   }
 
+  /** The links found so far in a view (null for the default view), in the order found. */
+  List<Found> found(String view) {
+    List<Found> result = new ArrayList<>();
+    for (Map<String, Found> views : found.values()) {
+      Found f = views.get(view == null ? "" : view);
+      if (f != null) {
+        result.add(f);
+      }
+    }
+    return result;
+  }
+
   /** Adds a fact that holds whatever the view. */
   void add(Fact fact) {
     plain.putIfAbsent(fact.id(), fact);

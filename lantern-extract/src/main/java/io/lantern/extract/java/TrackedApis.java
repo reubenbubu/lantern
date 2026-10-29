@@ -53,6 +53,9 @@ final class TrackedApis {
           "org.springframework.data.redis.listener.",
           "org.springframework.integration.redis.util.",
           "org.springframework.cloud.gateway.filter.ratelimit.",
+          // Spring Cloud Gateway (the gateway extractor): routes built with RouteLocatorBuilder.
+          "org.springframework.cloud.gateway.",
+
           // Jobs (the Spring extractor): JobRunr's schedulers and Quartz's builders and scheduler.
           "org.jobrunr.scheduling.",
           "org.quartz.");

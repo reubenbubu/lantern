@@ -5,6 +5,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
@@ -60,6 +61,7 @@ class FactStoreConfiguration {
     registry.apply(MailExtractor.VOCABULARY_SOURCE, MailExtractor.vocabulary());
     registry.apply(RedisExtractor.VOCABULARY_SOURCE, RedisExtractor.vocabulary());
     registry.apply(PeopleExtractor.VOCABULARY_SOURCE, PeopleExtractor.vocabulary());
+    registry.apply(GatewayExtractor.VOCABULARY_SOURCE, GatewayExtractor.vocabulary());
     registry.apply(TestExtractor.VOCABULARY_SOURCE, TestExtractor.vocabulary());
     registry.apply(DeployableUnits.VOCABULARY_SOURCE, DeployableUnits.vocabulary());
     registry.apply(CrossRepoLinks.VOCABULARY_SOURCE, CrossRepoLinks.vocabulary());
