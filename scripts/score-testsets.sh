@@ -176,11 +176,6 @@ for set in "${sets[@]}"; do
       [[ -z "$name" || "$name" == \#* ]] && continue
       path="$sets_dir/$set/$name"
       [[ -d "$path/.git" ]] || die "$path is not set up; run testsets/$set/setup.sh"
-      if [[ ! -f "$path/pom.xml" ]]; then
-        # Repositories without a Maven build fail the run until #254.
-        info "$set: leaving out $name, which has no pom.xml (#254)"
-        continue
-      fi
       repos+=("$name=$path")
     done < "$REPO/testsets/$set/pins.txt"
     [[ ${#repos[@]} -gt 0 ]] || die "$set: no repository to analyze"
