@@ -91,11 +91,10 @@ currency and ranked risks were split off to #163 and #164.
   external systems), and a table about decision records becomes a decisions section.
 - **Checks.** `C4ViewsTest` covers the views on hand-made facts, and the golden `runtime.c4.json`
   holds the system report of those facts for the composer's and the renderer's golden tests.
-  `Project0C4ReportIT` composes and renders project-0's system report from the facts the app
-  extracts and links with the repositories built, checks its pages, elements and key lines (REPO-1,
-  HTTP-1, MSG-1, SPR-4), and writes it to `lantern-app/target/project-0/` to look at. It runs when
-  `lantern.test.project0` is set, with the same command as `Project0BuildIT` (see Commands in
-  `CLAUDE.md`) but `-pl lantern-app` and `-Dit.test=Project0C4ReportIT`.
+  `Project0EndToEndIT` (ADR 0029) checks project-0's system report, as the analyze run composes it
+  with the repositories built, for its pages, elements and key lines (REPO-1, HTTP-1, MSG-1, SPR-4)
+  and against the report spec's schema, and writes it to `lantern-app/target/project-0/` to look
+  at. It replaces `Project0C4ReportIT`, which composed the same report outside the run (#167).
 
 ## Not in this issue
 
