@@ -24,7 +24,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "4";
+  static final String VERSION = "5";
 
   static final String SYSTEM =
       """

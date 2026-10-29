@@ -12,20 +12,26 @@ import java.util.Objects;
  *
  * @param entity the entity summarized
  * @param level its level in the hierarchy
- * @param facts the facts about it, sorted by ID
+ * @param facts the facts about it, in the order its prompt lists them: by the fact as the prompt
+ *     writes it, then by where it was observed (repository, file and first line) and by ID; not by
+ *     ID first, since fact IDs change with the commit while the prompt should not
  * @param children the units it contains, sorted by entity ID
  */
 public record SummaryNode(
     EntityId entity, SummaryLevel level, List<Fact> facts, List<SummaryNode> children) {
 
+  private static final Comparator<Fact> PROMPT_ORDER =
+      Comparator.comparing(Prompt::fact)
+          .thenComparing(f -> f.evidence().repo())
+          .thenComparing(f -> Objects.requireNonNullElse(f.evidence().path(), ""))
+          .thenComparingInt(f -> f.evidence().lines() == null ? 0 : f.evidence().lines().start())
+          .thenComparing(Fact::id);
+
   public SummaryNode {
     Objects.requireNonNull(entity, "entity");
     Objects.requireNonNull(level, "level");
     facts =
-        Objects.requireNonNull(facts, "facts").stream()
-            .sorted(Comparator.comparing(Fact::id))
-            .distinct()
-            .toList();
+        Objects.requireNonNull(facts, "facts").stream().sorted(PROMPT_ORDER).distinct().toList();
     children =
         Objects.requireNonNull(children, "children").stream()
             .sorted(Comparator.comparing(child -> child.entity().toString()))

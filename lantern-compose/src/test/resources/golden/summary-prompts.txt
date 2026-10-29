@@ -44,10 +44,10 @@ Summarize the Maven module greeting-lib in 1 to 3 sentences and at most 60 words
 
 Facts:
 [F1] library:com.example.greeting:greeting-lib CONTAINS module:com.example.greeting:greeting-lib
-[F2] module:com.example.greeting:greeting-lib packaging "jar"
-[F3] module:com.example.greeting:greeting-lib version "1.0.0"
-[F4] module:com.example.greeting:greeting-lib java-release "21"
-[F5] module:com.example.greeting:greeting-lib CONTAINS package:com.example.greeting:greeting-lib:com.example.greeting.lib
+[F2] module:com.example.greeting:greeting-lib CONTAINS package:com.example.greeting:greeting-lib:com.example.greeting.lib
+[F3] module:com.example.greeting:greeting-lib java-release "21"
+[F4] module:com.example.greeting:greeting-lib packaging "jar"
+[F5] module:com.example.greeting:greeting-lib version "1.0.0"
 
 Summaries of the parts it contains:
 [S1] package com.example.greeting.lib: It builds on its parts. It is described by its facts.
@@ -63,11 +63,11 @@ Summaries of the parts it contains:
 Summarize the type GreetingServiceMain in package com.example.greeting.service in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
 
 Facts:
-[F1] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#greet(java.lang.String)
-[F2] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[])
-[F3] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#<init>()
-[F4] type:com.example.greeting.service.GreetingServiceMain kind "class"
-[F5] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#<init>()
+[F1] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#<init>()
+[F2] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#greet(java.lang.String)
+[F3] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#<init>()
+[F4] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[])
+[F5] type:com.example.greeting.service.GreetingServiceMain kind "class"
 
 Source files:
 [E1] src/main/java/com/example/greeting/service/GreetingServiceMain.java:
@@ -101,12 +101,12 @@ Summarize the Maven module greeting-service in 1 to 3 sentences and at most 60 w
 
 Facts:
 [F1] module:com.example.greeting:greeting-service BUILD_DEPENDS_ON module:com.example.greeting:greeting-lib {"scope":"compile","version":"1.0.0"}
-[F2] service:com.example.greeting:greeting-service PACKAGES library:com.example.greeting:greeting-lib
-[F3] module:com.example.greeting:greeting-service version "1.0.0"
-[F4] module:com.example.greeting:greeting-service CONTAINS package:com.example.greeting:greeting-service:com.example.greeting.service
-[F5] module:com.example.greeting:greeting-service packaging "jar"
+[F2] module:com.example.greeting:greeting-service CONTAINS package:com.example.greeting:greeting-service:com.example.greeting.service
+[F3] module:com.example.greeting:greeting-service java-release "21"
+[F4] module:com.example.greeting:greeting-service packaging "jar"
+[F5] module:com.example.greeting:greeting-service version "1.0.0"
 [F6] service:com.example.greeting:greeting-service CONTAINS module:com.example.greeting:greeting-service
-[F7] module:com.example.greeting:greeting-service java-release "21"
+[F7] service:com.example.greeting:greeting-service PACKAGES library:com.example.greeting:greeting-lib
 
 Summaries of the parts it contains:
 [S1] package com.example.greeting.service: It builds on its parts. It is described by its facts.
@@ -124,8 +124,8 @@ Summarize the type Order in package com.example.orders in 2 to 4 sentences and a
 Facts:
 [F1] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#customer
 [F2] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#id
-[F3] type:com.example.orders.Order kind "class"
-[F4] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#lines
+[F3] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#lines
+[F4] type:com.example.orders.Order kind "class"
 
 Source files:
 [E1] src/main/java/com/example/orders/Order.java:
@@ -152,10 +152,10 @@ public class Order {
 Summarize the type OrderLine in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
 
 Facts:
-[F1] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#quantity
-[F2] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#productId
-[F3] type:com.example.orders.OrderLine kind "class"
-[F4] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#unitPriceCents
+[F1] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#productId
+[F2] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#quantity
+[F3] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#unitPriceCents
+[F4] type:com.example.orders.OrderLine kind "class"
 
 Source files:
 [E1] src/main/java/com/example/orders/OrderLine.java:
@@ -178,10 +178,10 @@ public class OrderLine {
 Summarize the type OrderService in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
 
 Facts:
-[F1] type:com.example.orders.OrderService kind "class"
-[F2] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#total(com.example.orders.Order)
-[F3] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#newOrder(java.lang.String,java.lang.String,java.lang.String,int)
-[F4] type:com.example.orders.OrderService CONTAINS field:com.example.orders.OrderService#currency
+[F1] type:com.example.orders.OrderService CONTAINS field:com.example.orders.OrderService#currency
+[F2] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#newOrder(java.lang.String,java.lang.String,java.lang.String,int)
+[F3] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#total(com.example.orders.Order)
+[F4] type:com.example.orders.OrderService kind "class"
 
 Source files:
 [E1] src/main/java/com/example/orders/OrderService.java:
@@ -218,9 +218,9 @@ public class OrderService {
 Summarize the package com.example.orders in 3 to 5 sentences and at most 120 words, covering what the package is for and its main parts.
 
 Facts:
-[F1] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderService
-[F2] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Order
-[F3] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderLine
+[F1] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Order
+[F2] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderLine
+[F3] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderService
 
 Summaries of the parts it contains:
 [S1] type Order in package com.example.orders: It is described by its facts.
@@ -231,12 +231,12 @@ Summaries of the parts it contains:
 Summarize the Maven module orders in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
-[F1] module:com.example.orders:orders java-release "21"
-[F2] module:com.example.orders:orders packaging "jar"
-[F3] module:com.example.orders:orders version "1.0.0"
-[F4] library:com.example.orders:orders CONTAINS module:com.example.orders:orders
-[F5] module:com.example.orders:orders CONTAINS package:com.example.orders:orders:com.example.orders
-[F6] module:com.example.orders:orders BUILD_DEPENDS_ON artifact:org.projectlombok:lombok {"scope":"provided","version":"1.18.48"}
+[F1] library:com.example.orders:orders CONTAINS module:com.example.orders:orders
+[F2] module:com.example.orders:orders BUILD_DEPENDS_ON artifact:org.projectlombok:lombok {"scope":"provided","version":"1.18.48"}
+[F3] module:com.example.orders:orders CONTAINS package:com.example.orders:orders:com.example.orders
+[F4] module:com.example.orders:orders java-release "21"
+[F5] module:com.example.orders:orders packaging "jar"
+[F6] module:com.example.orders:orders version "1.0.0"
 
 Summaries of the parts it contains:
 [S1] package com.example.orders: It builds on its parts. It is described by its facts.
@@ -280,12 +280,12 @@ Summaries of the parts it contains:
 Summarize the Maven module shop-api in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
-[F1] module:com.example.shop:shop-api parent "com.example.shop:shop-parent:1.0.0"
-[F2] module:com.example.shop:shop-api version "1.0.0"
+[F1] library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api
+[F2] module:com.example.shop:shop-api CONTAINS package:com.example.shop:shop-api:com.example.shop.api
 [F3] module:com.example.shop:shop-api java-release "21"
-[F4] module:com.example.shop:shop-api CONTAINS package:com.example.shop:shop-api:com.example.shop.api
-[F5] library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api
-[F6] module:com.example.shop:shop-api packaging "jar"
+[F4] module:com.example.shop:shop-api packaging "jar"
+[F5] module:com.example.shop:shop-api parent "com.example.shop:shop-parent:1.0.0"
+[F6] module:com.example.shop:shop-api version "1.0.0"
 
 Summaries of the parts it contains:
 [S1] package com.example.shop.api: It builds on its parts. It is described by its facts.
@@ -294,11 +294,11 @@ Summaries of the parts it contains:
 Summarize the type FixedPriceService in package com.example.shop.core in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
 
 Facts:
-[F1] type:com.example.shop.core.FixedPriceService kind "class"
-[F2] type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#priceOf(java.lang.String)
-[F3] type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#<init>(long)
+[F1] type:com.example.shop.core.FixedPriceService CONTAINS field:com.example.shop.core.FixedPriceService#cents
+[F2] type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#<init>(long)
+[F3] type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#priceOf(java.lang.String)
 [F4] type:com.example.shop.core.FixedPriceService IMPLEMENTS type:com.example.shop.api.PriceService
-[F5] type:com.example.shop.core.FixedPriceService CONTAINS field:com.example.shop.core.FixedPriceService#cents
+[F5] type:com.example.shop.core.FixedPriceService kind "class"
 
 Source files:
 [E1] core/src/main/java/com/example/shop/core/FixedPriceService.java:
@@ -336,13 +336,13 @@ Summaries of the parts it contains:
 Summarize the Maven module shop-core in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
-[F1] module:com.example.shop:shop-core version "1.0.0"
+[F1] library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core
 [F2] module:com.example.shop:shop-core BUILD_DEPENDS_ON module:com.example.shop:shop-api {"scope":"compile","version":"1.0.0"}
-[F3] module:com.example.shop:shop-core packaging "jar"
-[F4] library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core
-[F5] module:com.example.shop:shop-core java-release "21"
+[F3] module:com.example.shop:shop-core CONTAINS package:com.example.shop:shop-core:com.example.shop.core
+[F4] module:com.example.shop:shop-core java-release "21"
+[F5] module:com.example.shop:shop-core packaging "jar"
 [F6] module:com.example.shop:shop-core parent "com.example.shop:shop-parent:1.0.0"
-[F7] module:com.example.shop:shop-core CONTAINS package:com.example.shop:shop-core:com.example.shop.core
+[F7] module:com.example.shop:shop-core version "1.0.0"
 
 Summaries of the parts it contains:
 [S1] package com.example.shop.core: It builds on its parts. It is described by its facts.
@@ -352,10 +352,10 @@ Summarize the Maven module shop-parent in 3 to 6 sentences and at most 150 words
 
 Facts:
 [F1] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-api
-[F2] module:com.example.shop:shop-parent version "1.0.0"
-[F3] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-core
-[F4] module:com.example.shop:shop-parent java-release "21"
-[F5] module:com.example.shop:shop-parent packaging "pom"
+[F2] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-core
+[F3] module:com.example.shop:shop-parent java-release "21"
+[F4] module:com.example.shop:shop-parent packaging "pom"
+[F5] module:com.example.shop:shop-parent version "1.0.0"
 
 Summaries of the parts it contains:
 [S1] Maven module shop-api: It builds on its parts. It is described by its facts.

@@ -40,7 +40,7 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "3b410a144056e2bb3cdb1b7cd0a573378ff063272cfb2dc459596c9d9ac83bf1" ]
+      "facts" : [ "680e530ef746afe7b93faef5e95a4e2d4f7cabb2f669a9506c988dae0e43c982" ]
     } ],
     "facts" : [ "3b410a144056e2bb3cdb1b7cd0a573378ff063272cfb2dc459596c9d9ac83bf1", "582ae49a133aeced80db6cf83bc7afe19d90ad0982cada5aee435107f1a21cd4", "5a76da416b11264fbd154c3bd23614986310af7273710b62af533fd886edb397" ]
   }, {
@@ -63,7 +63,7 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "9f86de102ce64a625ad49375629594c4327c111e9abd5d6288d213c6cc4abed2" ]
+      "facts" : [ "ca6fcd48046c057147d600150065180c932bea7cbadbb360383cc873618f4831" ]
     } ],
     "facts" : [ "8fec80ad11d405687325266bcb18a0a98b85c8541c9141d6f0d6f8c4e1b5439f" ]
   }, {
@@ -107,7 +107,7 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "5fb6719784bc21593138ebf25bcb04e72bf1a592fcb1a64143956ee373fce112" ]
+      "facts" : [ "66200651ecad6b5fab2da904d6078819d3298c3239d68560942eb9c654abc45b" ]
     } ],
     "facts" : [ "944fe433f925d12d92e928e1557c55e3fc368adfa813aad02c0feeaedb99040b", "caa25d7227a0a8db11af01a915fae91f58efbfe1b7e55742fe7b66a874b8ce3a" ]
   }, {
@@ -119,7 +119,7 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "14bfdfeb67d5dfc66f821b964e24a0127c135c2483a01add89ec00df10dce787" ]
+      "facts" : [ "bea478b5b398b291fa407a578b0abf86fdcb028042876a812e842ddfd946747d" ]
     } ],
     "facts" : [ "14bfdfeb67d5dfc66f821b964e24a0127c135c2483a01add89ec00df10dce787", "9f86de102ce64a625ad49375629594c4327c111e9abd5d6288d213c6cc4abed2" ]
   } ],
@@ -260,12 +260,12 @@
       "from" : 1
     }
   }, {
-    "id" : "5fb6719784bc21593138ebf25bcb04e72bf1a592fcb1a64143956ee373fce112",
+    "id" : "66200651ecad6b5fab2da904d6078819d3298c3239d68560942eb9c654abc45b",
     "subject" : "type:com.example.orders.OrderLine",
     "predicate" : "CONTAINS",
     "object" : {
       "kind" : "entity",
-      "value" : "field:com.example.orders.OrderLine#quantity"
+      "value" : "field:com.example.orders.OrderLine#productId"
     },
     "attributes" : { },
     "origin" : {
@@ -278,8 +278,8 @@
       "commit" : "4748b0129140d98d98ad539e48815823536b3d40",
       "path" : "src/main/java/com/example/orders/OrderLine.java",
       "lines" : {
-        "start" : 10,
-        "end" : 10
+        "start" : 9,
+        "end" : 9
       },
       "contentHash" : "2ba04901da904296ab004a2f458e632a5b5df94b221c4ec525a4b0966938fa68"
     },
@@ -411,6 +411,34 @@
       "lines" : {
         "start" : 6,
         "end" : 26
+      },
+      "contentHash" : "12c8f0679ba2f383b08b1692505ae49dd4a6c795791a9f4e1639c361c82363dc"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "bea478b5b398b291fa407a578b0abf86fdcb028042876a812e842ddfd946747d",
+    "subject" : "type:com.example.orders.OrderService",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.OrderService#currency"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "4748b0129140d98d98ad539e48815823536b3d40",
+      "path" : "src/main/java/com/example/orders/OrderService.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 9
       },
       "contentHash" : "12c8f0679ba2f383b08b1692505ae49dd4a6c795791a9f4e1639c361c82363dc"
     },
