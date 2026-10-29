@@ -31,6 +31,14 @@ any code that changes the design. This file covers only how you work.
      short summary on the issue and make sure it is closed.
   7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
      containers, temp files or test data the task created. Leave the machine as you found it.
+- Before handing off a task, judge its complexity and set the subagent's `model` to match.
+  Never use `fable`.
+  - `haiku`: mechanical work with no judgment, e.g. a doc or config tweak, a rename, cleanup.
+  - `sonnet`: routine, well-scoped work in one module that follows an existing pattern, and
+    reviews of small diffs.
+  - `opus`: work that touches the design, the data model or several modules, needs new
+    patterns, or has failed before at a lower level; and reviews of large or tricky diffs.
+  - If a subagent struggles or its result is wrong, retry one level up.
 - Tasks may run in parallel only if each task has its own isolated environment, used by every
   subagent of that task that runs commands:
   - its own worktree, as above
