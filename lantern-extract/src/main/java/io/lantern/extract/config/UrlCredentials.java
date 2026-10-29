@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -19,6 +20,11 @@ import java.util.regex.Pattern;
  * a secret ({@code ?password=...}, {@code &api_key=...}, {@code ;user=...}). Placeholders are kept
  * whole, except those in a removed part, so a default such as {@code ${DB_PASSWORD:changeme}} in
  * the password goes with it; a URL inside a placeholder's default is cleaned the same way.
+ *
+ * <p>Outside URLs, {@code user:password@host} tokens lose their user info, and options whose name a
+ * config key would be secret by ({@link ConfigExtractor#isSecret}) are removed, as in Kafka's
+ * {@code sasl.jaas.config=... required username="app" password="x";}, which keeps {@code ...
+ * required username="app";}. See {@code docs/adr/0032-config-extractor.md}.
  */
 public final class UrlCredentials {
 
@@ -77,6 +83,32 @@ public final class UrlCredentials {
           "(?i)(?:password|passwd|secret|token|signature"
               + "|(?<![a-z0-9])(?:pwd|pass|sig|key|apikey|api_key))\\s*=");
 
+  /** An option's name, which may hold placeholders' markers ({@code ${PREFIX}_password}). */
+  private static final String NAME =
+      "(?:[A-Za-z_\\-]|\u0001\\d+\u0002)(?:[A-Za-z0-9_.\\-]|\u0001\\d+\u0002)*";
+
+  /**
+   * An option {@code name=value} outside URLs. The value is double or single quoted, a backslash
+   * escaping the next character, when the closing quote ends it; otherwise it runs up to whitespace
+   * or {@code ;}, or up to a {@code ,} or {@code &} followed by another option, so a quote or
+   * {@code )} inside it stays in it. The name starts the text or follows a character that cannot be
+   * in a name, so {@code a.password=x} is read as the option {@code a.password}.
+   */
+  private static final Pattern OPTION =
+      Pattern.compile(
+          "(?<![A-Za-z0-9_.\\-\u0001\u0002])("
+              + NAME
+              + ")\\s*=\\s*(\"(?:\\\\.|[^\"\\\\])+\"(?=[\\s;,&)]|$)"
+              + "|'(?:\\\\.|[^'\\\\])+'(?=[\\s;,&)]|$)"
+              + "|(?:[^\\s;,&]|[,&](?!\\s*"
+              + NAME
+              + "\\s*=))+)");
+
+  /** A placeholder's marker, the whole of an option's value if it is only placeholders. */
+  private static final Pattern MARKERS = Pattern.compile("(?:\u0001(\\d+)\u0002)+");
+
+  private static final Pattern MARKER = Pattern.compile("\u0001(\\d+)\u0002");
+
   /** Marks a placeholder taken out of the text while its structure is read. */
   private static final char OPEN = '\u0001';
 
@@ -91,24 +123,114 @@ public final class UrlCredentials {
    *     {@code ${DB_URL:jdbc:oracle:thin:scott/tiger@//db:1521/X}}
    */
   public static String withoutCredentials(String text) {
+    return withoutCredentials(text, placeholder -> true);
+  }
+
+  /**
+   * The text with the credentials of the URLs in it, and its secret options, removed.
+   *
+   * @param text a config value as written
+   * @param unresolved whether a placeholder, given as written between {@code ${} and {@code }}, is
+   *     one nothing resolves; a secret option whose value is only such placeholders is kept
+   */
+  static String withoutCredentials(String text, Predicate<String> unresolved) {
     List<String> placeholders = new ArrayList<>();
     String protectedText = protect(text, placeholders);
     Matcher start = URL_START.matcher(protectedText);
     StringBuilder cleaned = new StringBuilder();
     int from = 0;
     while (start.find(from)) {
-      cleaned.append(withoutSchemelessUserInfo(protectedText.substring(from, start.start())));
+      cleaned.append(
+          outsideUrls(protectedText.substring(from, start.start()), placeholders, unresolved));
       int end = end(protectedText, start.end());
       cleaned.append(cleanOne(protectedText.substring(start.start(), end)));
       from = end;
     }
-    cleaned.append(withoutSchemelessUserInfo(protectedText.substring(from)));
-    return restore(cleaned.toString(), placeholders);
+    cleaned.append(outsideUrls(protectedText.substring(from), placeholders, unresolved));
+    return restore(cleaned.toString(), placeholders, unresolved);
   }
 
-  /** Text outside URLs without the user info of {@code user:password@host} tokens. */
-  private static String withoutSchemelessUserInfo(String text) {
-    return SCHEMELESS_USER_INFO.matcher(text).replaceAll("");
+  /**
+   * Text outside URLs without secret options and without the user info of {@code
+   * user:password@host} tokens.
+   */
+  private static String outsideUrls(
+      String text, List<String> placeholders, Predicate<String> unresolved) {
+    return SCHEMELESS_USER_INFO
+        .matcher(withoutSecretOptions(text, placeholders, unresolved))
+        .replaceAll("");
+  }
+
+  /**
+   * Removes each option {@code name=value} whose name a config key would be secret by, with one
+   * separator ({@code ,} or {@code &}) or the whitespace next to it, so the options around it stay
+   * apart. An option whose value is only placeholders without defaults ({@code
+   * password="${KAFKA_PASSWORD}"}) is kept: it says where the secret comes from, as a secret key's
+   * value does.
+   */
+  private static String withoutSecretOptions(
+      String text, List<String> placeholders, Predicate<String> unresolved) {
+    Matcher option = OPTION.matcher(text);
+    StringBuilder out = new StringBuilder();
+    int from = 0;
+    while (option.find()) {
+      if (!ConfigExtractor.isSecret(option.group(1))
+          || onlyUnresolvedPlaceholders(unquoted(option.group(2)), placeholders, unresolved)) {
+        continue;
+      }
+      int start = option.start();
+      int end = option.end();
+      int before = start;
+      while (before > from && Character.isWhitespace(text.charAt(before - 1))) {
+        before--;
+      }
+      int after = end;
+      while (after < text.length() && Character.isWhitespace(text.charAt(after))) {
+        after++;
+      }
+      if (before > from && ",&".indexOf(text.charAt(before - 1)) >= 0) {
+        // "a=1, password=x" loses ", password=x".
+        start = before - 1;
+      } else if (after < text.length() && ",&".indexOf(text.charAt(after)) >= 0) {
+        // "password=x, a=1" loses "password=x, ".
+        end = after + 1;
+        while (end < text.length() && Character.isWhitespace(text.charAt(end))) {
+          end++;
+        }
+      } else if (before > 0 && before < start) {
+        // "required user=u password=x;" loses " password=x".
+        start = before;
+      } else {
+        end = after;
+      }
+      out.append(text, from, start);
+      from = end;
+    }
+    return out.append(text, from, text.length()).toString();
+  }
+
+  private static String unquoted(String value) {
+    char first = value.charAt(0);
+    return (first == '"' || first == '\'') && value.length() > 1
+        ? value.substring(1, value.length() - 1)
+        : value;
+  }
+
+  private static boolean onlyUnresolvedPlaceholders(
+      String value, List<String> placeholders, Predicate<String> unresolved) {
+    if (!MARKERS.matcher(value).matches()) {
+      return false;
+    }
+    Matcher marker = MARKER.matcher(value);
+    while (marker.find()) {
+      String placeholder = placeholders.get(Integer.parseInt(marker.group(1)));
+      if (placeholder.contains(":")
+          || placeholder.contains("${")
+          || !unresolved.test(placeholder)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -190,7 +312,8 @@ public final class UrlCredentials {
   }
 
   /** Puts the placeholders left back, each with the URLs in its default cleaned. */
-  private static String restore(String text, List<String> placeholders) {
+  private static String restore(
+      String text, List<String> placeholders, Predicate<String> unresolved) {
     StringBuilder out = new StringBuilder();
     int i = 0;
     while (i < text.length()) {
@@ -198,7 +321,9 @@ public final class UrlCredentials {
       int close = c == OPEN ? text.indexOf(CLOSE, i) : -1;
       if (close > 0) {
         int index = Integer.parseInt(text.substring(i + 1, close));
-        out.append("${").append(withoutCredentials(placeholders.get(index))).append('}');
+        out.append("${")
+            .append(withoutCredentials(placeholders.get(index), unresolved))
+            .append('}');
         i = close + 1;
       } else {
         out.append(c);

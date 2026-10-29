@@ -166,8 +166,12 @@ class UrlCredentialsTest {
         "git@github.com:org/repo.git",
         "classpath:db/migration",
         "order.created",
-        "password=x",
         "a , b",
+        "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"app\";",
+        "required username=\"app\" password=\"${KAFKA_PASSWORD}\";",
+        "password=",
+        "routing.key=order.created",
+        "${a.password}",
         ""
       })
   void textWithoutCredentialsInAUrlIsUnchanged(String text) {
@@ -190,5 +194,74 @@ class UrlCredentialsTest {
   @ValueSource(strings = {"jdbc:postgresql://db/shop?sslkey=/k", "amqp://rabbit?routingkey=a"})
   void ordinaryPropertiesAreNotReportedAsCredentials(String text) {
     assertThat(UrlCredentials.mayHoldCredential(clean(text))).isFalse();
+  }
+
+  @Test
+  void removesSecretOptionsOfJaasConfig() {
+    String module = "org.apache.kafka.common.security.plain.PlainLoginModule required";
+    assertThat(clean(module + " username=\"app\" password=\"x\";"))
+        .isEqualTo(module + " username=\"app\";");
+    assertThat(clean(module + " password='x' username='app';"))
+        .isEqualTo(module + " username='app';");
+    // An escaped quote stays inside the value.
+    assertThat(clean(module + " username=\"app\" password=\"a\\\"b c\\\"\";"))
+        .isEqualTo(module + " username=\"app\";");
+    // Several login modules, whitespace around '=', other secret names.
+    assertThat(
+            clean(
+                "a.LoginModule required password = \"x\"; "
+                    + "b.LoginModule optional user=u clientSecret=s oauth.token=t debug=true;"))
+        .isEqualTo("a.LoginModule required; b.LoginModule optional user=u debug=true;");
+    assertThat(clean("x.ScramLoginModule required\n  username=\"app\"\n  password=\"p\";"))
+        .isEqualTo("x.ScramLoginModule required\n  username=\"app\";");
+  }
+
+  @Test
+  void removesSecretOptionsOfOtherOptionStrings() {
+    assertThat(clean("password=x")).isEqualTo("");
+    assertThat(clean("password=x user=u")).isEqualTo("user=u");
+    assertThat(clean("user=u, api-key=k, region=eu")).isEqualTo("user=u, region=eu");
+    assertThat(clean("-Dtrust.store.password=x -Dfoo=bar")).isEqualTo("-Dfoo=bar");
+  }
+
+  @Test
+  void secretOptionsWithPlaceholders() {
+    // Only placeholders without defaults say where the secret comes from and stay.
+    assertThat(clean("m required password=\"${KAFKA_PASSWORD}\";"))
+        .isEqualTo("m required password=\"${KAFKA_PASSWORD}\";");
+    // A default is a secret written in the file.
+    assertThat(clean("m required username=\"${U}\" password=\"${KAFKA_PASSWORD:changeme}\";"))
+        .isEqualTo("m required username=\"${U}\";");
+    assertThat(clean("m required password=\"pre-${P}\";")).isEqualTo("m required;");
+    // Inside a placeholder's default too.
+    assertThat(clean("${JAAS:m required username=\"u\" password=\"p\";}"))
+        .isEqualTo("${JAAS:m required username=\"u\";}");
+  }
+
+  @Test
+  void anUnquotedSecretRunsToWhitespaceOrSemicolon() {
+    assertThat(clean("-Djavax.net.ssl.keyStorePassword=ab,cd -Dx=1")).isEqualTo("-Dx=1");
+    assertThat(clean("m required password=ab'cd user=u;")).isEqualTo("m required user=u;");
+    assertThat(clean("m required password=ab)cd;")).isEqualTo("m required;");
+    assertThat(clean("password=\"\"")).isEqualTo("");
+    // A quote that does not end the value is part of it.
+    assertThat(clean("m required password=\"a\"b\" user=u;")).isEqualTo("m required user=u;");
+    // A ',' or '&' followed by another option ends it.
+    assertThat(clean("password=a,b&c, user=u")).isEqualTo("user=u");
+    assertThat(clean("password=a&user=u")).isEqualTo("user=u");
+  }
+
+  @Test
+  void aNameMayHoldPlaceholders() {
+    assertThat(clean("${PREFIX}_password=x user=u")).isEqualTo("user=u");
+    assertThat(clean("m required ${P}.secret=\"x\";")).isEqualTo("m required;");
+  }
+
+  @Test
+  void aPlaceholderSomethingResolvesIsRemoved() {
+    assertThat(UrlCredentials.withoutCredentials("m required password=\"${P}\";", p -> false))
+        .isEqualTo("m required;");
+    assertThat(UrlCredentials.withoutCredentials("m required password=\"${P}\";", p -> true))
+        .isEqualTo("m required password=\"${P}\";");
   }
 }

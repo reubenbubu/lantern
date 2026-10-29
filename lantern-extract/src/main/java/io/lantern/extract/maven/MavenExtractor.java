@@ -39,6 +39,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -64,7 +65,7 @@ public final class MavenExtractor {
   public static final String NAME = "maven";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
@@ -84,6 +85,12 @@ public final class MavenExtractor {
   /** Attribute: a module's Maven packaging. */
   public static final String PACKAGING = "packaging";
 
+  /** Attribute: the coordinates of a module's parent POM. */
+  public static final String PARENT = "parent";
+
+  /** Attribute: the Java release a module compiles for. */
+  public static final String JAVA_RELEASE = "java-release";
+
   /** Confidence of facts read from an effective POM. */
   static final double EFFECTIVE_CONFIDENCE = 1.0;
 
@@ -99,6 +106,8 @@ public final class MavenExtractor {
   private static final long GIT_TIMEOUT_SECONDS = 30;
   private static final int MAX_ANCESTORS = 20;
   private static final Pattern NAME_SEPARATOR = Pattern.compile("[.\\-_]");
+  private static final Pattern JAVA_VERSION = Pattern.compile("(?:1\\.)?([0-9]{1,3})");
+  private static final String COMPILER_PLUGIN = "org.apache.maven.plugins:maven-compiler-plugin";
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
@@ -191,6 +200,28 @@ public final class MavenExtractor {
           m.evidence(xml.child("packaging").orElse(null)),
           m,
           validity);
+      String parent = parentCoordinates(m);
+      if (parent != null) {
+        add(
+            facts,
+            id,
+            PARENT,
+            FactObject.string(parent),
+            m.evidence(xml.child("parent").orElse(null)),
+            m,
+            validity);
+      }
+      JavaRelease release = javaRelease(m);
+      if (release != null) {
+        add(
+            facts,
+            id,
+            JAVA_RELEASE,
+            FactObject.string(release.version()),
+            m.evidence(release.declared()),
+            m,
+            validity);
+      }
       EntityId container = m.container();
       if (container != null) {
         add(
@@ -468,6 +499,7 @@ public final class MavenExtractor {
       boolean deployable,
       List<Dep> dependencies,
       Map<String, String> properties,
+      List<XmlElement> plugins,
       double confidence) {
 
     String key() {
@@ -548,6 +580,7 @@ public final class MavenExtractor {
         pom.deployable(packaging, properties, false),
         deps,
         writtenProperties(w, properties),
+        pom.plugins(),
         EFFECTIVE_CONFIDENCE);
   }
 
@@ -631,6 +664,7 @@ public final class MavenExtractor {
         withPlugins.deployable(packaging, properties, true),
         deps,
         properties,
+        withPlugins.plugins(),
         WRITTEN_CONFIDENCE);
   }
 
@@ -700,6 +734,89 @@ public final class MavenExtractor {
     properties.putAll(w.pom().properties());
     projectProperties(properties, w.pom());
     return properties;
+  }
+
+  /** The parent's {@code groupId:artifactId:version} as the module's POM writes them, or null. */
+  private static String parentCoordinates(Module m) {
+    Pom.Coordinates parent = m.written().pom().parent();
+    if (parent == null) {
+      return null;
+    }
+    String groupId = blankToNull(Pom.interpolate(parent.groupId(), m.properties()));
+    String artifactId = blankToNull(Pom.interpolate(parent.artifactId(), m.properties()));
+    String version = blankToNull(Pom.interpolate(parent.version(), m.properties()));
+    return groupId == null || artifactId == null || version == null
+        ? null
+        : groupId + ":" + artifactId + ":" + version;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // The Java release
+
+  /** A module's Java release and the element of its own POM that declares it, if any. */
+  private record JavaRelease(String version, XmlElement declared) {}
+
+  /**
+   * The Java release a module compiles for, or null if its POM does not say. The first of these
+   * that gives a version wins, as the sandbox chooses a build's JDK (ADR 0005): the compiler
+   * release ({@code maven.compiler.release} or the compiler plugin's {@code release}), the compiler
+   * source ({@code maven.compiler.source} or the plugin's {@code source}), and the {@code
+   * java.version} property that Spring Boot's parent POM maps to the release. The version is the
+   * major one: {@code 1.8} gives {@code 8}.
+   */
+  private static JavaRelease javaRelease(Module m) {
+    List<XmlElement> compilers =
+        m.plugins().stream().filter(p -> Pom.pluginKey(p).equals(COMPILER_PLUGIN)).toList();
+    List<String> candidates = new ArrayList<>();
+    candidates.add(m.properties().get("maven.compiler.release"));
+    compilers.forEach(c -> candidates.add(configuration(c, "release")));
+    candidates.add(m.properties().get("maven.compiler.source"));
+    compilers.forEach(c -> candidates.add(configuration(c, "source")));
+    candidates.add(m.properties().get("java.version"));
+    for (String candidate : candidates) {
+      String version = majorJavaVersion(Pom.interpolate(candidate, m.properties()));
+      if (version != null) {
+        return new JavaRelease(version, javaDeclaration(m, version));
+      }
+    }
+    return null;
+  }
+
+  private static String configuration(XmlElement plugin, String name) {
+    return plugin.child("configuration").map(c -> c.text(name)).orElse(null);
+  }
+
+  /**
+   * The element of the module's own POM that sets the release: a property among those {@link
+   * #javaRelease} reads whose value gives the same version, else the compiler plugin, else null.
+   */
+  private static XmlElement javaDeclaration(Module m, String version) {
+    XmlElement xml = m.written().pom().xml();
+    for (String key : List.of("maven.compiler.release", "maven.compiler.source", "java.version")) {
+      XmlElement property = xml.child("properties").flatMap(p -> p.child(key)).orElse(null);
+      if (property != null
+          && version.equals(majorJavaVersion(Pom.interpolate(property.text(), m.properties())))) {
+        return property;
+      }
+    }
+    return xml.child("build").map(b -> b.list("plugins", "plugin")).orElse(List.of()).stream()
+        .filter(p -> Pom.pluginKey(p).equals(COMPILER_PLUGIN))
+        .filter(p -> p.child("configuration").isPresent())
+        .findFirst()
+        .orElse(null);
+  }
+
+  /** The major Java version in a version string ({@code 17}, {@code 1.8} gives 8), or null. */
+  static String majorJavaVersion(String text) {
+    if (text == null) {
+      return null;
+    }
+    Matcher matcher = JAVA_VERSION.matcher(text.strip());
+    if (!matcher.matches() && !(matcher.lookingAt() && text.strip().charAt(matcher.end()) == '.')) {
+      return null;
+    }
+    int version = Integer.parseInt(matcher.group(1));
+    return version < 1 ? null : Integer.toString(version);
   }
 
   // ---------------------------------------------------------------------------------------------

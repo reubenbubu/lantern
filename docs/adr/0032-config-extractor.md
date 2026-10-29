@@ -66,7 +66,8 @@ what the facts look like and how a secret written in a config file is handled.
   secret comes from. Any value, under any key, that a secret was substituted into through a
   placeholder is masked the same way (`db.url=...?password=${spring.datasource.password}`). Keys
   merely ending in `key` (a routing key) are not secrets. Credentials written inside a URL are
-  removed, see the amendment below; other literal secrets under other keys are not detected.
+  removed, and so are secret options inside other values, see the amendments below; other literal
+  secrets under other keys are not detected.
 - **For other extractors**, `ConfigExtractor.read(repo)` gives each module's `ModuleConfig`:
   its profiles, its values per view, and `resolve(profile, text)` for a placeholder in code, such
   as a `@Value` or a listener's destination. These are not masked; each value and resolution lists
@@ -111,4 +112,28 @@ what the facts look like and how a secret written in a config file is handled.
   looks like it holds a credential (`password=`, `pass=`, `sig=`, `key=` ... in a form not
   understood) is recorded as `******`, masked. The extractor's version becomes 2.
 - **Not covered:** secrets in other forms, such as Kafka's
-  `sasl.jaas.config=... password="x";` (#143).
+  `sasl.jaas.config=... password="x";`, are covered by the next amendment (#143).
+
+## Amendment: secret options inside values (#143)
+
+- **An option whose name is a secret's is removed, the rest is kept.** Kafka's
+  `sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required
+  username="app" password="x";` is not a URL and its key is not a secret, so the password used to
+  be recorded. Now `UrlCredentials` also removes, outside URLs, every `name=value` option whose name
+  a config key would be secret by (`ConfigExtractor.isSecret`, the one rule): `password`,
+  `clientSecret`, `oauth.token`, `api-key`, `-Dtrust.store.password`, `${PREFIX}_password`, ...
+  The value is double or single quoted, a backslash escaping the next character, when the closing
+  quote ends it; otherwise it runs up to whitespace or `;`, or to a `,` or `&` followed by another
+  option, so a quote or `)` inside it goes too (removing too much is the safe side); whitespace may
+  surround the `=`. The option goes with one `,` or `&` separator next to it,
+  or else with the whitespace before it, so several login modules, their `;` and their other
+  options (`username`, `debug`) and the login module class stay:
+  `...PlainLoginModule required username="app";`.
+- An option whose value is only placeholders without defaults that nothing resolves
+  (`password="${KAFKA_PASSWORD}"`) is kept, as a secret key's value is, since it says where the
+  secret comes from. Secret options are removed from the written value before its placeholders
+  are resolved, so a secret substituted through a placeholder (`password=${kafka.pw}`,
+  `kafka.pw=my secret`) goes whole, whatever it holds, from both the value and `written`. A fact
+  that lost an option carries `masked: true`; a value without one is recorded byte for byte. The
+  config extractor's version becomes 3; the HTTP client and persistence extractors, which clean
+  their URLs with `UrlCredentials`, become version 2.

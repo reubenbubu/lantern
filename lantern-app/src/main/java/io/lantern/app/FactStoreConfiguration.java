@@ -12,6 +12,7 @@ import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.link.DeployableUnits;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -35,7 +36,10 @@ class FactStoreConfiguration {
     return registry;
   }
 
-  /** Applies the built-in types, then those of the extractors. Unchanged ones add no revision. */
+  /**
+   * Applies the built-in types, then those of the extractors and the linker. Unchanged ones add no
+   * revision.
+   */
   static void loadVocabulary(VocabularyRegistry registry) {
     registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
     registry.apply(MavenExtractor.VOCABULARY_SOURCE, MavenExtractor.vocabulary());
@@ -47,6 +51,7 @@ class FactStoreConfiguration {
     registry.apply(PersistenceExtractor.VOCABULARY_SOURCE, PersistenceExtractor.vocabulary());
     registry.apply(HttpClientExtractor.VOCABULARY_SOURCE, HttpClientExtractor.vocabulary());
     registry.apply(MessagingExtractor.VOCABULARY_SOURCE, MessagingExtractor.vocabulary());
+    registry.apply(DeployableUnits.VOCABULARY_SOURCE, DeployableUnits.vocabulary());
   }
 
   @Bean
