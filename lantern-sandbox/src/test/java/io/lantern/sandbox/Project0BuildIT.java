@@ -12,9 +12,7 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -25,8 +23,8 @@ import org.junit.jupiter.params.provider.CsvSource;
  * the JDK its POM asks for. Runs only when {@code lantern.test.project0} names the folder {@code
  * testsets/project-0/setup.sh} set the repositories up in, for example {@code ./mvnw verify -pl
  * lantern-sandbox -am -Dlantern.test.project0=$HOME/workspace/lantern-test-projects/project-0}.
- * Needs Docker and Maven Central; the builds share one Maven cache volume, created for this test
- * and removed after it.
+ * Needs Docker and Maven Central; the builds use the default shared Maven cache directory, which
+ * keeps downloads between runs.
  */
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0BuildIT {
@@ -37,20 +35,7 @@ class Project0BuildIT {
   private static final String RUN =
       HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
 
-  private static String volume;
-
   @TempDir static Path temp;
-
-  @BeforeAll
-  static void createVolume() {
-    volume = "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
-    DOCKER.check(TIMEOUT, List.of("volume", "create", volume));
-  }
-
-  @AfterAll
-  static void removeVolume() {
-    DOCKER.quietly(TIMEOUT, List.of("volume", "rm", "--force", volume));
-  }
 
   @AfterEach
   void nothingLeftRunning() {
@@ -88,7 +73,6 @@ class Project0BuildIT {
     Repo repo = new Repo(name, path, RepoSettings.DEFAULT);
     SandboxSettings settings =
         SandboxSettings.defaults(temp.resolve("builds"))
-            .withMavenCacheVolume(volume)
             .withOwnerLabel(RUN_LABEL, RUN)
             .withMinFreeDiskBytes(0);
 
