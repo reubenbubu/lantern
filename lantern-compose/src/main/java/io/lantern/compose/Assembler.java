@@ -36,6 +36,7 @@ final class Assembler {
 
   private final Knowledge knowledge;
   private final Map<EntityId, Summary> summaries;
+  private final Wordings wordings;
   private final Set<EntityId> described;
   private final String repo;
   private final String systemName;
@@ -59,8 +60,23 @@ final class Assembler {
       Set<EntityId> described,
       String repo,
       String systemName) {
+    this(knowledge, summaries, Wordings.NONE, described, repo, systemName);
+  }
+
+  /**
+   * @param wordings the responsibility sentences that describe units and components instead of
+   *     their summaries, and the intent phrases of links (ADR 0050)
+   */
+  Assembler(
+      Knowledge knowledge,
+      Map<EntityId, Summary> summaries,
+      Wordings wordings,
+      Set<EntityId> described,
+      String repo,
+      String systemName) {
     this.knowledge = knowledge;
     this.summaries = summaries;
+    this.wordings = wordings;
     this.described = described;
     this.repo = repo;
     this.systemName = systemName;
@@ -95,7 +111,8 @@ final class Assembler {
     }
     entities.put(id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts)));
     adding.remove(id);
-    if (described.contains(id) && summaries.containsKey(summarized(id))) {
+    if (described.contains(id)
+        && (summaries.containsKey(summarized(id)) || responsibility(id) != null)) {
       undescribed.add(id);
     }
     return id;
@@ -222,11 +239,60 @@ final class Assembler {
    * @throws IllegalArgumentException if the summary cites a fact that is not in the snapshot
    */
   Text summary(Summary summary) {
+    return rich(summary.entity(), summary.text());
+  }
+
+  /**
+   * The entity's responsibility sentence (ADR 0050), with the markers of facts that are not in the
+   * snapshot's facts left out, or {@code null} if it has none that still cites something.
+   */
+  private String responsibility(EntityId id) {
+    String text = wordings.responsibilities().get(id);
+    if (text == null) {
+      return null;
+    }
+    Matcher matcher = MARKER.matcher(text);
+    StringBuilder kept = new StringBuilder();
+    boolean cites = false;
+    while (matcher.find()) {
+      boolean known = !matcher.group(1).equals("fact") || knowledge.fact(matcher.group(2)) != null;
+      cites |= known;
+      matcher.appendReplacement(kept, known ? Matcher.quoteReplacement(matcher.group()) : "");
+    }
+    matcher.appendTail(kept);
+    return cites ? kept.toString() : null;
+  }
+
+  /**
+   * The intent phrase of a link (ADR 0050) and the facts it cites that are in the snapshot, or
+   * {@code null} if the link has none. A phrase none of whose cited facts are in the snapshot is
+   * still used: its line or message cites the link fact it words.
+   */
+  Phrased phrase(Fact link) {
+    Wordings.Phrase phrase = wordings.phrases().get(link.id());
+    if (phrase == null) {
+      return null;
+    }
+    List<Fact> facts = new ArrayList<>();
+    for (String id : phrase.facts()) {
+      Fact fact = knowledge.fact(id);
+      if (fact != null) {
+        facts.add(fact);
+      }
+    }
+    return new Phrased(phrase.text(), facts);
+  }
+
+  /** An intent phrase and the facts it cites. */
+  record Phrased(String text, List<Fact> facts) {}
+
+  /** Text with citation markers as rich text; see {@link #summary}. */
+  private Text rich(EntityId about, String text) {
     RichText out = new RichText();
-    Matcher matcher = MARKER.matcher(summary.text());
+    Matcher matcher = MARKER.matcher(text);
     int last = 0;
     while (matcher.find()) {
-      String between = summary.text().substring(last, matcher.start());
+      String between = text.substring(last, matcher.start());
       last = matcher.end();
       boolean fact = matcher.group(1).equals("fact");
       if (!(fact && out.citing() && between.isBlank())) {
@@ -238,7 +304,7 @@ final class Assembler {
         if (cited == null) {
           throw new IllegalArgumentException(
               "The summary of "
-                  + summary.entity()
+                  + about
                   + " cites fact "
                   + matcher.group(2)
                   + ", which is not in the snapshot's facts");
@@ -250,7 +316,7 @@ final class Assembler {
       }
     }
     out.flushCitation();
-    out.text(summary.text().substring(last));
+    out.text(text.substring(last));
     out.flushText();
     return new Text(out.content, facts(out.cited.stream().map(knowledge::fact).toList()));
   }
@@ -340,7 +406,11 @@ final class Assembler {
   List<DocumentEntity> entities() {
     while (!undescribed.isEmpty()) {
       DocumentEntity entity = entities.get(undescribed.removeFirst());
-      List<Inline> description = summary(summaries.get(summarized(entity.id()))).content();
+      String responsibility = responsibility(entity.id());
+      List<Inline> description =
+          responsibility != null
+              ? rich(entity.id(), responsibility).content()
+              : summary(summaries.get(summarized(entity.id()))).content();
       entities.put(
           entity.id(),
           new DocumentEntity(

@@ -64,6 +64,7 @@ final class RepoSections {
   private BriefSections brief;
 
   /**
+   * @param wordings the LLM's responsibility sentences and intent phrases (ADR 0050)
    * @param repo the repository the document is about, or {@code null} for the whole system
    * @param snapshotRepos the snapshot's repositories, which together form the system
    * @param asOf the snapshot's date, against which technology currency is judged
@@ -71,6 +72,7 @@ final class RepoSections {
   RepoSections(
       Knowledge knowledge,
       Map<EntityId, Summary> summaries,
+      Wordings wordings,
       String repo,
       SortedSet<String> snapshotRepos,
       LocalDate asOf) {
@@ -98,7 +100,8 @@ final class RepoSections {
     this.units = repo == null ? C4Views.units(knowledge) : C4Views.units(knowledge, modules);
     inScope.addAll(containers);
     inScope.addAll(units);
-    this.assembler = new Assembler(knowledge, summaries, inScope, repo, systemName(snapshotRepos));
+    this.assembler =
+        new Assembler(knowledge, summaries, wordings, inScope, repo, systemName(snapshotRepos));
     inScope.forEach(assembler::entity);
     this.c4 = new C4Views(knowledge, assembler, SYSTEM, units, repos);
   }

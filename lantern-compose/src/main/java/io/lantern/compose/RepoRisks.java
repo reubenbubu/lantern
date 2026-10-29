@@ -28,7 +28,7 @@ import java.util.function.Function;
 /**
  * Finds the risks of one repository with fixed checks of its knowledge (see ADR 0015), each a risk
  * callout with a severity, a consequence, a confidence and the facts it came from, most serious
- * first (ADR 0050). Besides those technology currency finds ({@link BriefSections}):
+ * first (ADR 0051). Besides those technology currency finds ({@link BriefSections}):
  *
  * <ul>
  *   <li>dependencies on unreleased (snapshot) versions of anything the repository does not build

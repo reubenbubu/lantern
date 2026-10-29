@@ -6,6 +6,7 @@ import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
 import io.lantern.core.repo.Git;
 import io.lantern.llm.FakeLlmProvider;
+import io.lantern.llm.Role;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
@@ -96,13 +97,20 @@ class Project0EndToEndIT {
 
   @TestConfiguration(proxyBeanMethods = false)
   static class Fake {
-    /** A fake model that cites the first fact and the first part's summary it is given. */
+    /**
+     * A fake model that cites the first fact and the first part's summary it is given, and words
+     * nothing when asked for responsibilities and intent phrases (ADR 0050), so the report keeps
+     * the static labels this test checks.
+     */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
       return new FakeLlmProvider()
           .answering(
               request -> {
                 String prompt = request.messages().getFirst().text();
+                if (request.role() == Role.INFER_INTENT) {
+                  return "{}";
+                }
                 List<String> sentences = new ArrayList<>();
                 if (prompt.contains("[S1]")) {
                   sentences.add("It builds on its parts. [S1]");
@@ -193,7 +201,8 @@ class Project0EndToEndIT {
     assertThat(first.facts()).isPositive();
     assertThat(first.newFacts()).isEqualTo(first.facts());
     assertThat(first.summariesGenerated()).isPositive();
-    assertThat(calls).isEqualTo(first.summariesGenerated());
+    assertThat(first.wordingsAsked()).isPositive();
+    assertThat(calls).isEqualTo(first.summariesGenerated() + first.wordingsAsked());
     assertThat(first.llm().calls()).isEqualTo(calls);
     List<String> files = new ArrayList<>();
     for (String name : commits.keySet()) {

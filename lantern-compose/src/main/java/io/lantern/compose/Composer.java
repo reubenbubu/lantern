@@ -25,8 +25,8 @@ import java.util.TreeSet;
  *
  * <p>Composing is deterministic: facts and entities are visited in ID order and nothing random or
  * time-dependent is used (technology currency is judged as of the snapshot's date), so the same
- * view, snapshot, facts and summaries always give the same document. The composer makes no LLM
- * calls; narrative comes from the summaries it is given.
+ * view, snapshot, facts, summaries and wordings always give the same document. The composer makes
+ * no LLM calls; narrative comes from the summaries and wordings it is given.
  */
 public final class Composer {
 
@@ -62,7 +62,25 @@ public final class Composer {
       Snapshot snapshot,
       Collection<Fact> facts,
       Map<EntityId, Summary> summaries) {
+    return compose(view, snapshot, facts, summaries, Wordings.NONE);
+  }
+
+  /**
+   * Composes the document of a view, describing deployable units and components by their
+   * responsibility sentences and labelling lines and messages with their intent phrases where the
+   * wordings have them (ADR 0050); elsewhere it is as {@link #compose(ViewDefinition, Snapshot,
+   * Collection, Map)}. Citations of facts that do not hold in the snapshot are left out.
+   *
+   * @param wordings what {@link Describer} worded
+   */
+  public Document compose(
+      ViewDefinition view,
+      Snapshot snapshot,
+      Collection<Fact> facts,
+      Map<EntityId, Summary> summaries,
+      Wordings wordings) {
     Objects.requireNonNull(view, "view");
+    Objects.requireNonNull(wordings, "wordings");
     Objects.requireNonNull(snapshot, "snapshot");
     Objects.requireNonNull(facts, "facts");
     Objects.requireNonNull(summaries, "summaries");
@@ -77,6 +95,7 @@ public final class Composer {
         new RepoSections(
             new Knowledge(valid),
             summaries,
+            wordings,
             repo,
             new TreeSet<>(snapshot.commits().keySet()),
             LocalDate.ofInstant(snapshot.createdAt(), ZoneOffset.UTC));

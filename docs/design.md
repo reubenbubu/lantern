@@ -199,6 +199,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 | Linked graph | Set of fact IDs in scope + linker version |
 | LLM summaries | Hash of input facts + child summaries + prompt version + model |
 | LLM link resolutions | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
+| LLM wordings of units | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
 | Layouts | Diagram ID; updated incrementally, never recomputed by default |
 | Document prose | Hash of the facts a section draws from + template version |
 
@@ -264,7 +265,7 @@ The LLM handles understanding that static analysis can't provide, always working
 | --- | --- | --- |
 | Summarize | A code unit's facts, source excerpts, child summaries | Hierarchical summaries at each level |
 | Resolve | Ambiguous facts plus tools to query the graph and read files | New facts with `origin=llm` and a confidence |
-| Infer intent | Service summaries, README claims, glossary | Responsibilities, domain role |
+| Infer intent | A deployable unit's facts, README claims, glossary | Responsibilities of units and components, intent of their links, domain role |
 | Name groups | Cluster members' summaries | Group name and description |
 | Propose rules | Repeated unresolved patterns | Declarative extractor rules (see Learned rules) |
 | Compose | Document model plus facts in scope | Narrative sections for an audience |
@@ -285,7 +286,7 @@ The LLM handles understanding that static analysis can't provide, always working
 - The LLM words what extraction found: names, the responsibility sentence of each element, the intent phrase of each relationship, a system's purpose and "start here". It never invents elements or relationships. Every box and line in a document comes from a static or rule fact, an annotation, or a Resolve result that picks among candidates the code shows.
 - What code can't show (business purpose, people, owners, rationale, quality goals, production topology) comes from annotations or README claims, or is stated once, plainly, as unknown.
 
-How summaries are built bottom-up, cached and cited is in ADR 0010; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025.
+How summaries are built bottom-up, cached and cited is in ADR 0010; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025. How the LLM words the responsibility sentences of units and components and the intent phrases of their links, and how documents use them, is in ADR 0050.
 
 **Cost and reliability**
 
@@ -495,7 +496,7 @@ Renderers turn the document model into a format and make no content decisions. S
 | Service Datasheet | Anyone | One page per repo or service: APIs, dependencies, data, config, owners |
 | Change Report | Reviewers | Snapshot-to-snapshot diff with the change overlay |
 
-What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0050.
+What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0051.
 
 Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository and for the whole system (ADR 0031, ADR 0044).
 
@@ -585,6 +586,6 @@ Each phase delivers something usable on real repos. The knowledge model and stab
 - [x] Which in-house frameworks or annotations are most common, so extractors and early learned rules can target them? Decided: Spring Boot first; the Spring extractors take priority and early learned rules target Spring annotations.
 - [x] Which LLM provider and models for the first deployment, and what monthly budget? Decided: Anthropic, $100/month budget. Sonnet for high-volume roles, Opus for reasoning-heavy ones (see LLM integration).
 - [x] Rough scale for sizing the VM: number of repos and total lines of code in the first target set. Decided: the first test set (OpenWMS, since dropped, #100) fits the existing development VM with up to 4 build containers at 4 GB each; its measurements are in ADR 0004.
-- [x] Where does end-of-life data for technology currency come from? Decided: a table of Java, Spring Boot and Spring Framework end-of-life dates bundled with Lantern and updated each release, so no network call or new dependency is needed (ADR 0050).
+- [x] Where does end-of-life data for technology currency come from? Decided: a table of Java, Spring Boot and Spring Framework end-of-life dates bundled with Lantern and updated each release, so no network call or new dependency is needed (ADR 0051).
 - [x] Re-layout threshold: how many new nodes in one diagram before automatic re-layout? Decided: 10 by default, configurable.
 - [x] Who are the first users, and which document do they need first? Decided: User is the first user. First outputs: C4 diagrams (context, container, component), sequence diagrams, dependency trees, and runtime environment details where the sources hold them.

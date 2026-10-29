@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** The end-of-life table bundled with Lantern (ADR 0050). */
+/** The end-of-life table bundled with Lantern (ADR 0051). */
 class EndOfLifeTest {
 
   @Test
@@ -21,6 +21,10 @@ class EndOfLifeTest {
         .isEqualTo(new Support.Until("21", LocalDate.of(2029, 12, 31)));
     assertThat(table.support(Product.JAVA, "1.8"))
         .isEqualTo(new Support.Until("8", LocalDate.of(2030, 12, 31)));
+    assertThat(table.support(Product.SPRING_BOOT, "2.7.18"))
+        .isEqualTo(new Support.Until("2.7", LocalDate.of(2023, 6, 30)));
+    assertThat(table.support(Product.SPRING_FRAMEWORK, "7.0.1"))
+        .isEqualTo(new Support.Until("7.0", LocalDate.of(2027, 7, 31)));
     assertThat(table.support(Product.SPRING_BOOT, "3.5.14"))
         .isEqualTo(new Support.Until("3.5", LocalDate.of(2026, 6, 30)));
     assertThat(table.support(Product.SPRING_BOOT, "4.0.0-RC1"))
@@ -36,9 +40,13 @@ class EndOfLifeTest {
     assertThat(table.support(Product.JAVA, "1.7")).isEqualTo(new Support.Older("7"));
     assertThat(table.support(Product.SPRING_BOOT, "1.2.0")).isEqualTo(new Support.Older("1.2"));
     assertThat(table.support(Product.JAVA, "99")).isEqualTo(new Support.Unknown());
-    // Between two lines of the table: not known, though the line may have ended.
-    assertThat(table.support(Product.JAVA, "9")).isEqualTo(new Support.Unknown());
-    assertThat(table.support(Product.SPRING_BOOT, "2.10.0")).isEqualTo(new Support.Unknown());
+    // Between two lines of the table: ended no later than the next newer line.
+    assertThat(table.support(Product.JAVA, "12"))
+        .isEqualTo(new Support.EndedBy("12", LocalDate.of(2021, 9, 30)));
+    assertThat(table.support(Product.JAVA, "9"))
+        .isEqualTo(new Support.EndedBy("9", LocalDate.of(2027, 10, 31)));
+    assertThat(table.support(Product.SPRING_FRAMEWORK, "4.2.9"))
+        .isEqualTo(new Support.Older("4.2"));
     assertThat(table.support(Product.SPRING_BOOT, "${boot.version}"))
         .isEqualTo(new Support.Unknown());
     assertThat(table.support(Product.SPRING_BOOT, null)).isEqualTo(new Support.Unknown());
@@ -61,7 +69,8 @@ class EndOfLifeTest {
             List.of("as-of,2026-10-29", "java,1.8,2030-12-31"),
             List.of("as-of,2026-10-29", "spring-boot,3.5.1,2026-06-30"),
             List.of("as-of,2026-10-29", "java,21,2029-12-31", "java,21,2029-12-31"),
-            List.of("as-of,2026-10-29", "java,21,soon"))) {
+            List.of("as-of,2026-10-29", "java,21,soon"),
+            List.of("as-of,2026-10-29", "as-of,2026-10-30"))) {
       assertThatThrownBy(() -> EndOfLife.parse(invalid))
           .as("%s", invalid)
           .isInstanceOf(RuntimeException.class);

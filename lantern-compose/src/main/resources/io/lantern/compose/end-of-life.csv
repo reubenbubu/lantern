@@ -1,14 +1,17 @@
 # End of free support of the runtimes and frameworks the Executive Brief's technology currency
-# shows (ADR 0050). Update it each release from the sources below and change the as-of date.
+# shows (ADR 0051). Update it each release from the sources below and change the as-of date (the
+# golden briefs in lantern-compose show it, so regenerate them too).
 #
-# java: Eclipse Temurin's end of availability (https://adoptium.net/support/), the day as
+# java: Eclipse Temurin's end of availability (https://adoptium.net/support/, by month), the day as
 #   https://endoflife.date/eclipse-temurin gives it.
-# spring-boot, spring-framework: end of open-source support
-#   (https://spring.io/projects/spring-boot#support, https://spring.io/projects/spring-framework#support),
-#   as https://endoflife.date/spring-boot and https://endoflife.date/spring-framework give it.
+# spring-boot, spring-framework: end of open-source support, ossSupportEndDate in
+#   https://api.spring.io/projects/spring-boot/generations and
+#   https://api.spring.io/projects/spring-framework/generations (the data behind
+#   https://spring.io/projects/spring-boot#support).
 #
-# A version older than a product's oldest line here is past its end of support; a newer one is
-# not known.
+# A version older than a product's oldest line here has ended. One between two lines (a Java
+# release Temurin never built) ended no later than the next newer line: every line missing here is
+# older than that line and not a long-term-support release. A newer one is not known.
 as-of,2026-10-29
 java,8,2030-12-31
 java,11,2027-10-31
@@ -24,14 +27,14 @@ java,24,2025-09-22
 java,25,2031-09-30
 java,26,2026-09-22
 java,27,2027-03-23
-spring-boot,1.5,2019-08-06
-spring-boot,2.0,2019-03-01
-spring-boot,2.1,2019-10-30
-spring-boot,2.2,2020-10-16
-spring-boot,2.3,2021-05-20
-spring-boot,2.4,2021-11-18
-spring-boot,2.5,2022-05-19
-spring-boot,2.6,2022-11-24
+spring-boot,1.5,2019-08-31
+spring-boot,2.0,2019-03-31
+spring-boot,2.1,2019-10-31
+spring-boot,2.2,2020-10-31
+spring-boot,2.3,2021-05-31
+spring-boot,2.4,2021-11-30
+spring-boot,2.5,2022-05-31
+spring-boot,2.6,2022-11-30
 spring-boot,2.7,2023-06-30
 spring-boot,3.0,2023-12-31
 spring-boot,3.1,2024-06-30
@@ -41,7 +44,7 @@ spring-boot,3.4,2025-12-31
 spring-boot,3.5,2026-06-30
 spring-boot,4.0,2026-12-31
 spring-boot,4.1,2027-07-31
-spring-framework,3.2,2016-12-31
+spring-boot,4.2,2027-12-31
 spring-framework,4.3,2020-12-31
 spring-framework,5.0,2020-12-31
 spring-framework,5.1,2020-12-31
@@ -51,3 +54,4 @@ spring-framework,6.0,2024-06-30
 spring-framework,6.1,2025-06-30
 spring-framework,6.2,2026-06-30
 spring-framework,7.0,2027-07-31
+spring-framework,7.1,2027-12-31

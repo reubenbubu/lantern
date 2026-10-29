@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 
 /**
  * The end of free support of each line of the runtimes and frameworks technology currency shows,
- * from the table bundled with Lantern ({@code end-of-life.csv}, ADR 0050), so no network call is
+ * from the table bundled with Lantern ({@code end-of-life.csv}, ADR 0051), so no network call is
  * needed. A line is a major Java release, or a major and minor version of Spring Boot or Spring
  * Framework.
  */
@@ -50,6 +50,12 @@ final class EndOfLife {
 
     /** Its line is older than every line of the table, so its support has ended. */
     record Older(String line) implements Support {}
+
+    /**
+     * Its line falls between two lines of the table (a Java release Temurin never built), so its
+     * support ended no later than that of the next newer line, on the date.
+     */
+    record EndedBy(String line, LocalDate by) implements Support {}
 
     /** The table does not know its line, or its version could not be read. */
     record Unknown() implements Support {}
@@ -126,7 +132,10 @@ final class EndOfLife {
     if (BY_VERSION.compare(line.get(), known.firstKey()) < 0) {
       return new Support.Older(line.get());
     }
-    return new Support.Unknown();
+    String newer = known.higherKey(line.get());
+    return newer == null
+        ? new Support.Unknown()
+        : new Support.EndedBy(line.get(), known.get(newer));
   }
 
   static EndOfLife load(String resource) {
@@ -155,6 +164,9 @@ final class EndOfLife {
       }
       String[] cells = row.split(",", -1);
       if (cells[0].equals("as-of") && cells.length == 2) {
+        if (asOf != null) {
+          throw new IllegalArgumentException("The end-of-life table has two as-of dates");
+        }
         asOf = LocalDate.parse(cells[1]);
         continue;
       }

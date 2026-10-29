@@ -30,7 +30,7 @@ import java.util.TreeSet;
 
 /**
  * The Executive Brief's sections on one repository's blast radius and technology currency, and the
- * risks technology currency finds (ADR 0050).
+ * risks technology currency finds (ADR 0051).
  *
  * <p>The blast radius is read from the linker's links (ADR 0042) of the deployable units in scope:
  * those running the repository's code. Technology currency compares the units' runtime and
@@ -465,7 +465,9 @@ final class BriefSections {
     if (units.isEmpty()) {
       for (EntityId module : modules) {
         for (Fact fact : knowledge.attributes(module)) {
-          if (fact.predicate().equals(JAVA_RELEASE)) {
+          // A pom module (a parent or aggregator) builds no code.
+          if (fact.predicate().equals(JAVA_RELEASE)
+              && !knowledge.attribute(module, "packaging").orElse("jar").equals("pom")) {
             version(found, EndOfLife.Product.JAVA, fact.object().value(), user(module), fact);
           }
         }
@@ -494,6 +496,11 @@ final class BriefSections {
       String version,
       EntityId user,
       Fact fact) {
+    // A Java release reads as its line: 1.8 and 8 are one row, shown as 8.
+    if (product == EndOfLife.Product.JAVA) {
+      version = EndOfLife.line(product, version).orElse(version);
+    }
+    String shown = version;
     String key = product.ordinal() + " " + (version == null ? "" : version);
     Version v =
         found.computeIfAbsent(
@@ -501,8 +508,8 @@ final class BriefSections {
             k ->
                 new Version(
                     product,
-                    version,
-                    table.support(product, version),
+                    shown,
+                    table.support(product, shown),
                     new TreeSet<>(Knowledge.BY_ID),
                     new ArrayList<>()));
     v.usedBy().add(user);
@@ -514,8 +521,19 @@ final class BriefSections {
     return switch (v.support()) {
       case EndOfLife.Support.Until u -> u.end().isBefore(asOf);
       case EndOfLife.Support.Older o -> true;
+      case EndOfLife.Support.EndedBy b -> b.by().isBefore(asOf);
       case EndOfLife.Support.Unknown u -> false;
     };
+  }
+
+  /** Whether the table tells whether a version's support has ended by the snapshot's date. */
+  private boolean known(Version v) {
+    return v.version() != null
+        && switch (v.support()) {
+          case EndOfLife.Support.Unknown u -> false;
+          case EndOfLife.Support.EndedBy b -> ended(v);
+          default -> true;
+        };
   }
 
   /** Whether a version's support ends within {@value #SOON_MONTHS} months of the snapshot. */
@@ -543,27 +561,43 @@ final class BriefSections {
     }
     List<Fact> facts = new ArrayList<>();
     all.forEach(v -> facts.addAll(v.facts()));
-    long ended = all.stream().filter(this::ended).count();
-    long soon = all.stream().filter(this::endsSoon).count();
+    List<Version> judged = all.stream().filter(this::known).toList();
+    long ended = judged.stream().filter(this::ended).count();
+    long soon = judged.stream().filter(this::endsSoon).count();
+    int unknown = all.size() - judged.size();
     StringBuilder text =
         new StringBuilder("As of the snapshot's date, " + DATE.format(asOf) + ", ");
-    if (all.size() == 1) {
-      text.append("the one version in use is ").append(ended == 0 ? "not " : "");
-    } else if (ended == 0) {
-      text.append("none of the ").append(all.size()).append(" versions in use is ");
+    if (judged.isEmpty()) {
+      text.append("Lantern does not know whether ")
+          .append(all.size() == 1 ? "the one version" : "any of the " + all.size() + " versions")
+          .append(" in use is past the end of free support.");
     } else {
-      text.append(ended).append(" of the ").append(all.size()).append(" versions in use ");
-      text.append(ended == 1 ? "is " : "are ");
+      String other = unknown > 0 ? " other" : "";
+      if (judged.size() == 1) {
+        text.append("the one").append(other).append(" version in use is ");
+        text.append(ended == 0 ? "not " : "");
+      } else if (ended == 0) {
+        text.append("none of the ").append(judged.size()).append(other);
+        text.append(" versions in use is ");
+      } else {
+        text.append(ended).append(" of the ").append(judged.size()).append(other);
+        text.append(" versions in use ").append(ended == 1 ? "is " : "are ");
+      }
+      text.append("past the end of free support");
+      if (soon > 0) {
+        text.append(
+            judged.size() == 1
+                ? ", but reaches it"
+                : ", and " + soon + (soon == 1 ? " reaches it" : " reach it"));
+        text.append(" within six months");
+      }
+      text.append('.');
+      if (unknown > 0) {
+        text.append(" Lantern does not know the support of ")
+            .append(unknown == 1 ? "1 version" : unknown + " versions")
+            .append('.');
+      }
     }
-    text.append("past the end of free support");
-    if (soon > 0) {
-      text.append(
-          all.size() == 1
-              ? ", but reaches it"
-              : ", and " + soon + (soon == 1 ? " reaches it" : " reach it"));
-      text.append(" within six months");
-    }
-    text.append('.');
     blocks.add(
         new Paragraph(
             assembler.id(section, "summary"),
@@ -624,7 +658,12 @@ final class BriefSections {
                   ? "Ends " + DATE.format(u.end()) + ", within six months"
                   : DATE.format(u.end());
       case EndOfLife.Support.Older o -> "Ended";
-      case EndOfLife.Support.Unknown u -> "Not in Lantern's table";
+      case EndOfLife.Support.EndedBy b ->
+          ended(v) ? "Ended by " + DATE.format(b.by()) : "Not in Lantern's table";
+      case EndOfLife.Support.Unknown u ->
+          EndOfLife.line(v.product(), v.version()).isEmpty()
+              ? "Version could not be read"
+              : "Not in Lantern's table";
     };
   }
 
@@ -633,6 +672,7 @@ final class BriefSections {
     return switch (v.support()) {
       case EndOfLife.Support.Until u ->
           (u.end().isBefore(asOf) ? "ended " : "ends ") + DATE.format(u.end());
+      case EndOfLife.Support.EndedBy b -> "ended by " + DATE.format(b.by());
       default -> "ended";
     };
   }
@@ -724,7 +764,7 @@ final class BriefSections {
     }
     String text =
         repo
-            + " uses "
+            + "'s code runs on "
             + (found.size() == 1 ? "a version" : found.size() + " versions")
             + lead
             + names(named);
