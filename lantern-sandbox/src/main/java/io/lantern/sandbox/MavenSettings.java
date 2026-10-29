@@ -5,7 +5,8 @@ import java.util.List;
 /**
  * Writes the Maven settings of builds in the sandbox: all downloads go through the egress proxy,
  * and the configured Maven repositories are added to every build as dependency repositories,
- * releases only (ADR 0023).
+ * releases only (ADR 0023). A configured mirror stands in for every repository, plugin repositories
+ * included (ADR 0030).
  */
 final class MavenSettings {
 
@@ -18,9 +19,14 @@ final class MavenSettings {
    * @param proxyHost the egress proxy's name on the build's network
    * @param proxyPort the egress proxy's port
    * @param repositories the Maven repositories, in the order Maven should try them
+   * @param mirror the mirror of every repository, or null for none
    */
   static String xml(
-      String localRepository, String proxyHost, int proxyPort, List<MavenRepository> repositories) {
+      String localRepository,
+      String proxyHost,
+      int proxyPort,
+      List<MavenRepository> repositories,
+      MavenMirror mirror) {
     StringBuilder xml = new StringBuilder();
     xml.append(
         """
@@ -35,6 +41,21 @@ final class MavenSettings {
         .append(escape(localRepository))
         .append("</localRepository>\n");
     xml.append("  <interactiveMode>false</interactiveMode>\n");
+    if (mirror != null) {
+      // User settings come before the global ones, so this mirror, not the http blocker of Maven's
+      // global settings, is the first that matches every repository, including an http mirror.
+      xml.append("  <mirrors>\n")
+          .append("    <mirror>\n")
+          .append("      <id>")
+          .append(escape(mirror.id()))
+          .append("</id>\n")
+          .append("      <mirrorOf>*</mirrorOf>\n")
+          .append("      <url>")
+          .append(escape(mirror.url().toString()))
+          .append("</url>\n")
+          .append("    </mirror>\n")
+          .append("  </mirrors>\n");
+    }
     xml.append("  <proxies>\n");
     for (String protocol : List.of("https", "http")) {
       xml.append("    <proxy>\n")

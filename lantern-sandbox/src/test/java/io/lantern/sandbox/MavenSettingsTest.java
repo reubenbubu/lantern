@@ -39,7 +39,7 @@ class MavenSettingsTest {
     Document settings =
         parse(
             MavenSettings.xml(
-                "/var/lantern/m2", "lantern-proxy", 3128, List.of(MavenRepository.CENTRAL)));
+                "/var/lantern/m2", "lantern-proxy", 3128, List.of(MavenRepository.CENTRAL), null));
 
     assertThat(values(settings, "/settings/localRepository")).containsExactly("/var/lantern/m2");
     assertThat(values(settings, "/settings/proxies/proxy/protocol"))
@@ -72,7 +72,8 @@ class MavenSettingsTest {
                 "/var/lantern/m2",
                 "lantern-proxy",
                 3128,
-                List.of(MavenRepository.CENTRAL, releases)));
+                List.of(MavenRepository.CENTRAL, releases),
+                null));
 
     assertThat(values(settings, "//repositories/repository/id"))
         .containsExactly("central", "releases");
@@ -81,5 +82,29 @@ class MavenSettingsTest {
         .containsExactly(
             "https://repo.maven.apache.org/maven2",
             "https://nexus.example.com/repository/releases");
+  }
+
+  @Test
+  void aMirrorStandsInForEveryRepositoryAndPluginRepository() throws Exception {
+    MavenMirror mirror =
+        new MavenMirror("lantern-mirror", URI.create("http://10.1.2.3:8081/repository/all"));
+
+    Document settings =
+        parse(
+            MavenSettings.xml(
+                "/var/lantern/m2",
+                "lantern-proxy",
+                3128,
+                List.of(MavenRepository.CENTRAL),
+                mirror));
+
+    assertThat(values(settings, "/settings/mirrors/mirror/id")).containsExactly("lantern-mirror");
+    assertThat(values(settings, "/settings/mirrors/mirror/mirrorOf")).containsExactly("*");
+    assertThat(values(settings, "/settings/mirrors/mirror/url"))
+        .containsExactly("http://10.1.2.3:8081/repository/all");
+    assertThat(values(settings, "//mirror/blocked")).isEmpty();
+    assertThat(values(settings, "/settings/proxies/proxy/protocol"))
+        .containsExactly("https", "http");
+    assertThat(values(settings, "//repositories/repository/id")).containsExactly("central");
   }
 }

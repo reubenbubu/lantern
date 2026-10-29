@@ -23,8 +23,8 @@ import org.junit.jupiter.params.provider.CsvSource;
  * the JDK its POM asks for. Runs only when {@code lantern.test.project0} names the folder {@code
  * testsets/project-0/setup.sh} set the repositories up in, for example {@code ./mvnw verify -pl
  * lantern-sandbox -am -Dlantern.test.project0=$HOME/workspace/lantern-test-projects/project-0}.
- * Needs Docker and Maven Central; the builds use the default shared Maven cache directory, which
- * keeps downloads between runs.
+ * Needs Docker and Maven Central, or the Maven mirror of {@link TestMirror}; the builds use the
+ * default shared Maven cache directory, which keeps downloads between runs.
  */
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0BuildIT {
@@ -74,7 +74,8 @@ class Project0BuildIT {
     SandboxSettings settings =
         SandboxSettings.defaults(temp.resolve("builds"))
             .withOwnerLabel(RUN_LABEL, RUN)
-            .withMinFreeDiskBytes(0);
+            .withMinFreeDiskBytes(0)
+            .withMavenMirror(TestMirror.configured());
 
     BuildResult result = new BuildSandbox(settings).build(repo, commit);
 

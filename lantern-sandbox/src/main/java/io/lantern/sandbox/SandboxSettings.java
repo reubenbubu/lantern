@@ -25,7 +25,10 @@ import java.util.regex.Pattern;
  * @param mavenCacheDirectory the host directory holding the local Maven repository that all builds
  *     share, bind-mounted into their containers; absolute, created if missing (ADR 0005)
  * @param mavenRepositories the Maven repositories builds download from, in this order: the only
- *     hosts they reach, through the egress proxy (ADR 0023); at least one, with distinct IDs
+ *     hosts they reach, through the egress proxy, unless a mirror is set (ADR 0023); at least one,
+ *     with distinct IDs
+ * @param mavenMirror the one Maven mirror every download of a build goes through, dependencies and
+ *     plugins alike, and then the only host builds reach (ADR 0030); none if {@code null}
  * @param buildsDirectory the directory build outputs are stored in, one directory per {@code
  *     repo@commit}
  * @param maxOutputBytes the most bytes of output a build may hand back; a larger output fails the
@@ -53,6 +56,7 @@ public record SandboxSettings(
     int maxConcurrentBuilds,
     Path mavenCacheDirectory,
     List<MavenRepository> mavenRepositories,
+    MavenMirror mavenMirror,
     Path buildsDirectory,
     long maxOutputBytes,
     long maxLogBytes,
@@ -148,7 +152,7 @@ public record SandboxSettings(
    * The default settings: JDK 17, 21 and 25 images with 21 as the default, 2 CPUs, 4 GiB of memory,
    * 8 GiB of disk and 30 minutes per build, 4 builds at once, at least 2 GiB left free on Docker's
    * storage and the Maven cache's filesystem, the Maven cache in {@link
-   * #defaultMavenCacheDirectory()}, and Maven Central as the only Maven repository.
+   * #defaultMavenCacheDirectory()}, and Maven Central as the only Maven repository, with no mirror.
    *
    * @param buildsDirectory where build outputs are stored
    */
@@ -164,6 +168,7 @@ public record SandboxSettings(
         4,
         defaultMavenCacheDirectory(),
         List.of(MavenRepository.CENTRAL),
+        null,
         buildsDirectory,
         4L * 1024 * 1024 * 1024,
         16L * 1024 * 1024,
@@ -185,6 +190,7 @@ public record SandboxSettings(
         maxConcurrentBuilds,
         mavenCacheDirectory,
         mavenRepositories,
+        mavenMirror,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -214,6 +220,7 @@ public record SandboxSettings(
         maxConcurrentBuilds,
         mavenCacheDirectory,
         mavenRepositories,
+        mavenMirror,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -235,6 +242,7 @@ public record SandboxSettings(
         maxConcurrentBuilds,
         mavenCacheDirectory,
         mavenRepositories,
+        mavenMirror,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -256,6 +264,29 @@ public record SandboxSettings(
         maxConcurrentBuilds,
         mavenCacheDirectory,
         mavenRepositories,
+        mavenMirror,
+        buildsDirectory,
+        maxOutputBytes,
+        maxLogBytes,
+        diskBytes,
+        minFreeDiskBytes,
+        ownerLabel);
+  }
+
+  /** These settings with another Maven mirror, or none if {@code null}. */
+  public SandboxSettings withMavenMirror(MavenMirror mavenMirror) {
+    return new SandboxSettings(
+        dockerCommand,
+        images,
+        defaultJdk,
+        cpus,
+        memoryBytes,
+        pidsLimit,
+        timeout,
+        maxConcurrentBuilds,
+        mavenCacheDirectory,
+        mavenRepositories,
+        mavenMirror,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -277,6 +308,7 @@ public record SandboxSettings(
         maxConcurrentBuilds,
         mavenCacheDirectory,
         mavenRepositories,
+        mavenMirror,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -298,6 +330,7 @@ public record SandboxSettings(
         maxConcurrentBuilds,
         mavenCacheDirectory,
         mavenRepositories,
+        mavenMirror,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -326,6 +359,7 @@ public record SandboxSettings(
         maxConcurrentBuilds,
         mavenCacheDirectory,
         mavenRepositories,
+        mavenMirror,
         buildsDirectory,
         maxOutputBytes,
         maxLogBytes,
@@ -335,10 +369,13 @@ public record SandboxSettings(
   }
 
   /**
-   * The {@code host:port} targets the egress proxy lets builds reach: those of the Maven
-   * repositories, each once.
+   * The {@code host:port} targets the egress proxy lets builds reach: the Maven mirror's if one is
+   * set, else those of the Maven repositories, each once.
    */
   public List<String> allowedHosts() {
+    if (mavenMirror != null) {
+      return List.of(mavenMirror.hostAndPort());
+    }
     return mavenRepositories.stream().map(MavenRepository::hostAndPort).distinct().toList();
   }
 

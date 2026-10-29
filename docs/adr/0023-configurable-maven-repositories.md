@@ -1,6 +1,6 @@
 # 0023: Configurable Maven repositories for sandbox builds
 
-Status: accepted (#30), amended (#100), pending the user's review (#24)
+Status: accepted (#30), amended (#100, #117), pending the user's review (#24)
 
 ## Context
 
@@ -73,3 +73,13 @@ how it works stay.
   transfers, so the cache is where the download shows.) The generated Maven settings are checked
   by `MavenSettingsTest`, and reading and binding the list by `MavenRepositoryTest` and
   `SandboxPropertiesTest`.
+
+## Amendment (#117): one Maven mirror
+
+The user decided that sandbox builds, and the tests that run them, may download everything through
+a caching Maven proxy on the local network, because Maven Central rate-limits this machine (#117).
+ADR 0030 adds an optional mirror for that. The rules above stay for the repositories, but when a
+mirror is set it replaces them on the network: every download, plugins included, goes through it,
+and the egress proxy allows only its host and port. For the mirror alone, `http` and IPv4
+addresses in private networks are allowed. Loopback, link-local addresses (the cloud metadata
+service among them) and every other address stay refused, for the mirror and the repositories.

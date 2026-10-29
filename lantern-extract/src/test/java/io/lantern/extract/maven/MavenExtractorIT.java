@@ -8,7 +8,6 @@ import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
-import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -28,7 +27,7 @@ class MavenExtractorIT {
   @TempDir Path temp;
 
   private List<Fact> buildAndExtract(List<Repo> repos) throws IOException {
-    BuildSandbox sandbox = new BuildSandbox(SandboxSettings.defaults(temp.resolve("builds")));
+    BuildSandbox sandbox = new BuildSandbox(Fixtures.sandboxSettings(temp.resolve("builds")));
     List<RepoBuild> inputs = new ArrayList<>();
     for (Repo repo : repos) {
       String commit = Fixtures.head(repo);

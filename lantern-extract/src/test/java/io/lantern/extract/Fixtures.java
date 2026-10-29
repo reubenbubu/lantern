@@ -11,7 +11,10 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.sandbox.MavenMirror;
+import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -29,6 +32,28 @@ import java.util.stream.Stream;
 public final class Fixtures {
 
   private Fixtures() {}
+
+  /**
+   * The default sandbox settings, with builds downloading through the Maven mirror set in the
+   * Lantern properties file that the system property {@code lantern.test.properties}, or else the
+   * environment variable {@code LANTERN_TEST_PROPERTIES}, names, and from Maven Central if there is
+   * none (ADR 0030).
+   */
+  public static SandboxSettings sandboxSettings(Path buildsDirectory) {
+    String file = System.getProperty("lantern.test.properties");
+    if (file == null || file.isBlank()) {
+      file = System.getenv("LANTERN_TEST_PROPERTIES");
+    }
+    SandboxSettings settings = SandboxSettings.defaults(buildsDirectory);
+    if (file == null || file.isBlank()) {
+      return settings;
+    }
+    try {
+      return settings.withMavenMirror(MavenMirror.from(Path.of(file)));
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot read the test properties " + file, e);
+    }
+  }
 
   /** The fixture directory, such as {@code multi-module} or {@code lib-and-service/lib}. */
   public static Path fixture(String name) {

@@ -47,11 +47,12 @@ import java.util.stream.Stream;
  * result in {@code build.json} and the log in {@code build.log}.
  *
  * <p>Each build gets its own container and its own internal Docker network, which has no route out.
- * The only other container on that network is an egress proxy that tunnels to the hosts of the
- * configured Maven repositories and nothing else. The build container gets the repository's files
- * at the commit (no {@code .git}), no host directory but the shared Maven cache, no capabilities, a
- * user that is not root, and limited CPU, memory, disk, processes and time. All builds share one
- * host directory, bind-mounted, as their local Maven repository.
+ * The only other container on that network is an egress proxy that reaches the hosts of the
+ * configured Maven repositories, or only the configured Maven mirror's, and nothing else. The build
+ * container gets the repository's files at the commit (no {@code .git}), no host directory but the
+ * shared Maven cache, no capabilities, a user that is not root, and limited CPU, memory, disk,
+ * processes and time. All builds share one host directory, bind-mounted, as their local Maven
+ * repository.
  *
  * <p>A build that fails, times out or runs out of memory is stored as {@link BuildStatus#FAILED},
  * keeping whatever outputs it left, so the repository can be analyzed in degraded mode. Problems of
@@ -655,7 +656,12 @@ public class BuildSandbox {
       }
       Files.writeString(
           lantern.resolve("settings.xml"),
-          MavenSettings.xml(CACHE_MOUNT, PROXY_ALIAS, PROXY_PORT, settings.mavenRepositories()));
+          MavenSettings.xml(
+              CACHE_MOUNT,
+              PROXY_ALIAS,
+              PROXY_PORT,
+              settings.mavenRepositories(),
+              settings.mavenMirror()));
       permit(Files.createDirectories(staging.resolve("empty-out")), true);
       return lantern;
     }

@@ -19,6 +19,7 @@ import io.lantern.llm.LlmRequest;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
+import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxException;
 import io.lantern.summarize.SummaryStore;
 import java.io.ByteArrayOutputStream;
@@ -137,9 +138,24 @@ class EndToEndIT {
     }
   }
 
+  /**
+   * The workspace, and the Maven mirror set in the Lantern properties file that the system property
+   * {@code lantern.test.properties}, or else the environment variable {@code
+   * LANTERN_TEST_PROPERTIES}, names, if any; without one, builds download from Maven Central (ADR
+   * 0030).
+   */
   @DynamicPropertySource
-  static void workspace(DynamicPropertyRegistry registry) {
+  static void workspace(DynamicPropertyRegistry registry) throws IOException {
     registry.add("lantern.workspace", WORKSPACE::toString);
+    String file = System.getProperty("lantern.test.properties");
+    if (file == null || file.isBlank()) {
+      file = System.getenv("LANTERN_TEST_PROPERTIES");
+    }
+    MavenMirror mirror = file == null || file.isBlank() ? null : MavenMirror.from(Path.of(file));
+    if (mirror != null) {
+      registry.add(MavenMirror.PROPERTY + ".id", mirror::id);
+      registry.add(MavenMirror.PROPERTY + ".url", () -> mirror.url().toString());
+    }
   }
 
   @Autowired AnalysisRun run;

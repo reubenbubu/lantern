@@ -31,6 +31,7 @@ class SandboxSettingsTest {
         d.maxConcurrentBuilds(),
         d.mavenCacheDirectory(),
         repositories,
+        null,
         builds,
         d.maxOutputBytes(),
         d.maxLogBytes(),
@@ -79,6 +80,21 @@ class SandboxSettingsTest {
     assertThat(settings.allowedHosts())
         .containsExactly(
             "repo.maven.apache.org:443", "nexus.example.com:443", "nexus.example.com:8443");
+  }
+
+  @Test
+  void allowsOnlyTheMirrorWhenOneIsSet() {
+    SandboxSettings settings =
+        SandboxSettings.defaults(BUILDS)
+            .withMavenMirror(
+                new MavenMirror(
+                    "lantern-mirror", URI.create("http://192.168.10.20/repository/all")));
+
+    assertThat(settings.mavenRepositories()).containsExactly(MavenRepository.CENTRAL);
+    assertThat(settings.allowedHosts()).containsExactly("192.168.10.20:80");
+    assertThat(settings.withMavenMirror(null).allowedHosts())
+        .containsExactly("repo.maven.apache.org:443");
+    assertThat(SandboxSettings.defaults(BUILDS).mavenMirror()).isNull();
   }
 
   @Test
