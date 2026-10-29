@@ -7,3 +7,5 @@ target/
 node_modules/
 /lantern-web/src/generated/
 .claude/worktrees/
+# jansi native library Maven extracts into the working directory when java.io.tmpdir is empty
+jansi-*-*jansi.*
