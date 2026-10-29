@@ -487,7 +487,7 @@ public final class Summarizer {
       if (parts.size() < 2) {
         answer = answer(purpose, node, whole, inputs, null);
       } else {
-        List<String> texts = new ArrayList<>();
+        List<Prompt.Tagged> texts = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
           List<Prompt.Item> part = parts.get(i);
           String prompt =
@@ -501,7 +501,7 @@ public final class Summarizer {
           Set<String> shown = new HashSet<>();
           part.forEach(item -> shown.add(item.ref()));
           String label = " (part " + (i + 1) + " of " + parts.size() + ")";
-          texts.add(answer(purpose + label, node, prompt, inputs, shown).text());
+          texts.add(answer(purpose + label, node, prompt, inputs, shown).tagged());
         }
         answer = merge(purpose, node, inputs, texts, budget);
       }
@@ -526,35 +526,35 @@ public final class Summarizer {
      * first, and so on.
      */
     private Answer merge(
-        String purpose, SummaryNode node, Inputs inputs, List<String> texts, long budget) {
+        String purpose, SummaryNode node, Inputs inputs, List<Prompt.Tagged> texts, long budget) {
       for (int round = 1; ; round++) {
         String prompt = Prompt.merge(node, texts);
-        List<List<String>> groups =
+        List<List<Prompt.Tagged>> groups =
             Tokens.estimate(prompt) <= budget
                 ? List.of(texts)
                 : pack(
                     texts,
-                    text -> Tokens.estimate(text) + 5,
+                    text -> Tokens.estimate(text.text()) + 10,
                     Tokens.estimate(Prompt.merge(node, List.of())),
                     budget);
         if (groups.size() == 1 || groups.size() == texts.size()) {
           return answer(purpose + " (merge)", node, prompt, inputs, cited(texts));
         }
-        List<String> merged = new ArrayList<>();
+        List<Prompt.Tagged> merged = new ArrayList<>();
         for (int i = 0; i < groups.size(); i++) {
           String label = " (merge " + round + "." + (i + 1) + " of " + groups.size() + ")";
-          List<String> group = groups.get(i);
+          List<Prompt.Tagged> group = groups.get(i);
           merged.add(
               answer(purpose + label, node, Prompt.merge(node, group), inputs, cited(group))
-                  .text());
+                  .tagged());
         }
         texts = merged;
       }
     }
 
-    private static Set<String> cited(List<String> texts) {
+    private static Set<String> cited(List<Prompt.Tagged> texts) {
       Set<String> refs = new HashSet<>();
-      texts.forEach(text -> refs.addAll(Citations.references(text)));
+      texts.forEach(text -> refs.addAll(Citations.references(text.text())));
       return refs;
     }
 
@@ -652,7 +652,13 @@ public final class Summarizer {
    * @param checked the answer with references rewritten to stable IDs
    * @param purpose where its first sentence takes the unit's purpose from, as checked
    */
-  private record Answer(String text, Citations.Checked checked, Summary.Purpose purpose) {}
+  private record Answer(String text, Citations.Checked checked, Summary.Purpose purpose) {
+
+    /** The answer's text with its checked purpose mark, as a merge prompt shows it. */
+    Prompt.Tagged tagged() {
+      return new Prompt.Tagged(purpose, text);
+    }
+  }
 
   /** A unit's inputs as prompt items, with what their references stand for. */
   private static final class Inputs {

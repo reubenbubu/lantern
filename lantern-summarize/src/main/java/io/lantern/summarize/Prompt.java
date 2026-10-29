@@ -96,7 +96,8 @@ final class Prompt {
    */
   private static final Pattern PURPOSE_LINE =
       Pattern.compile(
-          "\\A[#*_\\s]*purpose[*_\\s]*:[*_\\s]*(evidenced|inferred)(?![^*_.,;:\\s])[*_.,;:\\s]*",
+          "\\A[#*_\\s]*purpose[*_\\s]*:[*_\\s]*(evidenced|inferred)(?![^*_.,;:\\s(])"
+              + "[*_]*[.,;:]?[*_]*(?:[ \\t]*\\([^)\\n]*\\))?[.,;:]?\\s*",
           Pattern.CASE_INSENSITIVE);
 
   private Prompt() {}
@@ -284,9 +285,9 @@ final class Prompt {
   /**
    * The user turn that merges summaries of parts of a unit's inputs into one.
    *
-   * @param parts the parts' summaries, with the references they cite
+   * @param parts the parts' summaries, with the references they cite and their purpose marks
    */
-  static String merge(SummaryNode node, List<String> parts) {
+  static String merge(SummaryNode node, List<Tagged> parts) {
     StringBuilder text = new StringBuilder();
     text.append("What is known about the ")
         .append(describe(node.level(), node.entity()))
@@ -301,10 +302,13 @@ final class Prompt {
     }
     text.append("\nSummaries of the parts:\n");
     for (int i = 0; i < parts.size(); i++) {
+      Tagged part = parts.get(i);
       text.append("Part ")
           .append(i + 1)
-          .append(": ")
-          .append(parts.get(i).strip().replace('\n', ' '))
+          .append(" (purpose ")
+          .append(part.purpose().name().toLowerCase(Locale.ROOT))
+          .append("): ")
+          .append(part.text().strip().replace('\n', ' '))
           .append('\n');
     }
     return text.toString();

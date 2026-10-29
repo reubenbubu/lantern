@@ -1066,6 +1066,27 @@ class SummarizerTest {
     return "Part of it%s. [%s]".formatted("x".repeat(filler), String.join(", ", cited));
   }
 
+  @Test
+  void aMergeIsShownThePartsMarksAndKeepsAnEvidencedPurpose() {
+    SummaryNode large = largeType(400);
+    List<Fact> facts = new ArrayList<>(large.facts());
+    facts.add(TestFacts.claim("r", "README.md", 1, "Big does everything."));
+    SummaryNode big = new SummaryNode(large.entity(), large.level(), facts, List.of());
+    fake.answering(request -> "Purpose: evidenced\n" + citingWhatItSees(request, 0));
+
+    Summary summary =
+        new Summarizer(smallWindowClient(4_000), store)
+            .summarize(List.of(big))
+            .summaries()
+            .get(big.entity());
+
+    // Only the first part cites the README claim [F1] in its first sentence.
+    String merge = fake.sent().getLast().request().messages().getFirst().text();
+    assertThat(fake.sent().getLast().request().purpose()).endsWith("(merge)");
+    assertThat(merge).contains("\nPart 1 (purpose evidenced): ", "\nPart 2 (purpose inferred): ");
+    assertThat(summary.purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
+  }
+
   private LlmClient smallWindowClient(int contextWindow) {
     ModelConfig small =
         new ModelConfig(

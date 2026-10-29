@@ -18,16 +18,19 @@ evidenced or inferred, and for documents to show inferred ones as such.
   source file, or a part's summary whose purpose is evidenced. Inferred means worked out from names,
   annotations and code, or not stated at all (a first sentence that says what the unit is and
   contains). Lantern's own annotations will count as evidence when they reach prompts (Phase 3).
-- **A repository's prompt shows its README.** The repository's facts are the first 8 claims, in
-  the order written, of its README with the fewest folders in its path (the same README and number
-  the Describer shows, ADR 0050). They are listed as its facts, so they are cited, ordered and
-  rebound like any other fact (ADR 0055). Modules, packages and types show no README claims.
+- **A repository's prompt shows its README.** The repository's facts are the first 8 claims, as
+  written, of its README with the fewest folders in its path (the same README and number the
+  Describer shows, ADR 0050). They are listed as its facts, so they are cited, ordered and rebound
+  like any other fact (ADR 0055): the prompt lists them in its fact order, by the line as written
+  into the prompt, not in the README's order. Modules, packages and types show no README claims.
 - **The model marks its answer.** The system prompt asks it to take the purpose from what people
   wrote where the input has it, else to infer it as before, and to start its answer with a line
   `Purpose: evidenced` or `Purpose: inferred`. Each part's summary is shown with its mark
   (`[S1] module shop-core (purpose evidenced): ...`) so a parent can carry an evidenced purpose up.
-  The line is read and left out of the text; Markdown around it and the summary on the same line
-  are allowed. An answer without the line counts as inferred, with no retry.
+  The line is read and left out of the text; Markdown around it, a note in brackets after it and
+  the summary on the same line are allowed. An answer without the line counts as inferred, with no
+  retry. A unit summarized in parts (ADR 0024) shows each part's checked mark in the merge prompt
+  (`Part 1 (purpose evidenced): ...`), and the merged answer is marked and checked like any other.
 - **The mark is checked.** An answer marked evidenced keeps that mark only if its first citation,
   the one that ends its first sentence, cites a README claim, a source file containing `/**`, or a
   part's summary marked evidenced; otherwise it counts as inferred. The check is a bound, not
@@ -44,6 +47,9 @@ evidenced or inferred, and for documents to show inferred ones as such.
   `Purpose inferred from the code:` as emphasized text, wherever it shows the summary: the overview
   paragraph (the Brief's first sentence) and entity descriptions. An evidenced summary is shown as
   written.
+- **The design follows.** Its Grounding now says business purpose comes from what people wrote
+  where there is any, and otherwise is inferred from the code and shown as inferred, rather than
+  stated as unknown; ADR 0025 is amended to match.
 - **`Prompt.VERSION` is 8**, so every cached summary is made again once.
 
 ## Not verified

@@ -29,9 +29,9 @@ import java.util.TreeMap;
  * unit itself does. A module's or repository's prompt also shows some facts of its parts, its
  * {@link FactSheet}, which is worked out from the tree when it is summarized.
  *
- * <p>A repository's facts are the first {@value #README_CLAIMS} claims of its README with the
- * fewest folders in its path, in the order written, so its summary can take its purpose from what
- * people wrote about it.
+ * <p>A repository's facts are the first {@value #README_CLAIMS} claims, as written, of its README
+ * with the fewest folders in its path (listed in the prompt in its usual fact order), so its
+ * summary can take its purpose from what people wrote about it.
  */
 public final class SummaryTree {
 
