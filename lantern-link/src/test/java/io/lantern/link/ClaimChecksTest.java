@@ -9,8 +9,13 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
+import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.extract.spring.SpringExtractor;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -504,5 +509,456 @@ class ClaimChecksTest {
     assertThat(new ClaimChecks.Version(List.of(3, 2), true).holdsFor("3.5.14")).isTrue();
     assertThat(new ClaimChecks.Version(List.of(17), true).holdsFor("11")).isFalse();
     assertThat(new ClaimChecks.Version(List.of(8), false).holdsFor("8")).isTrue();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Ports, endpoints, destinations and named services (#160)
+
+  /** A unit {@code service:g:<artifact>} with its module and application name. */
+  private void service(String repo, String artifact) {
+    add(
+        Origin.Kind.STATIC,
+        MavenExtractor.NAME,
+        "service:g:" + artifact,
+        BuiltInTypes.CONTAINS,
+        FactObject.entity(EntityId.parse("module:g:" + artifact)),
+        null,
+        repo,
+        "pom.xml",
+        1.0);
+    unit(repo, artifact, "pom.xml");
+    add(
+        Origin.Kind.STATIC,
+        DeployableUnits.NAME,
+        "service:g:" + artifact,
+        DeployableUnits.APPLICATION_NAME,
+        FactObject.string(artifact),
+        null,
+        repo,
+        "src/main/resources/application.yml",
+        1.0);
+  }
+
+  private Fact config(String repo, String module, String file, String key, String value) {
+    return add(
+        Origin.Kind.STATIC,
+        ConfigExtractor.NAME,
+        "module:g:" + module,
+        ConfigExtractor.CONFIG_VALUE,
+        FactObject.string(value),
+        "{\"key\":\""
+            + key
+            + "\""
+            + (file.contains("-")
+                ? ",\"profile\":\"" + file.replaceAll(".*-|\\..*", "") + "\""
+                : "")
+            + "}",
+        repo,
+        "src/main/resources/" + file,
+        1.0);
+  }
+
+  /** A REST endpoint of a controller in a module. */
+  private Fact endpoint(String repo, String module, String httpMethod, String path) {
+    String controller = "g." + module.replace("-", "") + ".Controller";
+    add(
+        Origin.Kind.STATIC,
+        "java",
+        "module:g:" + module,
+        BuiltInTypes.CONTAINS,
+        FactObject.entity(EntityId.parse("package:g:" + module + ":g")),
+        null,
+        repo,
+        "src/main/java",
+        1.0);
+    add(
+        Origin.Kind.STATIC,
+        "java",
+        "package:g:" + module + ":g",
+        BuiltInTypes.CONTAINS,
+        FactObject.entity(EntityId.parse("type:" + controller)),
+        null,
+        repo,
+        "src/main/java/g/Controller.java",
+        1.0);
+    return add(
+        Origin.Kind.STATIC,
+        SpringExtractor.NAME,
+        "method:" + controller + "#m" + facts.size() + "()",
+        SpringExtractor.ENDPOINT,
+        FactObject.string(httpMethod + " " + path),
+        "{\"controller\":\""
+            + controller
+            + "\",\"httpMethod\":\""
+            + httpMethod
+            + "\",\"path\":\""
+            + path
+            + "\"}",
+        repo,
+        "src/main/java/g/Controller.java",
+        1.0);
+  }
+
+  private List<String> checks() {
+    return derive().stream()
+        .map(
+            f ->
+                f.object().value()
+                    + (f.attributes().has("stated")
+                        ? " " + f.attributes().get("stated").asString()
+                        : ""))
+        .toList();
+  }
+
+  @Test
+  void aStatedPortIsComparedWithServerPortInEveryView() {
+    service("orders", "orders");
+    Fact port = config("orders", "orders", "application.yml", "server.port", "8080");
+    claim("orders", "README.md", "Orders runs on port 8081.");
+    claim("orders", "README.md", "Kafka listens on port 9092.");
+    claim("orders", "README.md", "The management port is 8082.");
+    claim("orders", "README.md", "Run it locally on port 8083.");
+    claim("orders", "README.md", "Billing listens on port 8084.");
+
+    List<Fact> derived = derive();
+
+    assertThat(derived).hasSize(1);
+    Fact f = derived.getFirst();
+    assertThat(f.object().value()).isEqualTo(ClaimChecks.PORT);
+    assertThat(f.attributes().get("stated").asString()).isEqualTo("port 8081");
+    assertThat(f.attributes().get("found").toString()).isEqualTo("[\"port 8080\"]");
+    assertThat(contradictedBy(f)).containsExactly(port.id());
+  }
+
+  @Test
+  void aPortSetUnderAProfileOrNotKnownIsNotFlagged() {
+    service("orders", "orders");
+    config("orders", "orders", "application.yml", "server.port", "8080");
+    config("orders", "orders", "application-prod.yml", "server.port", "8081");
+    claim("orders", "README.md", "It listens on port 8081.");
+    service("billing", "billing");
+    config("billing", "billing", "application.yml", "server.port", "${PORT:9000}");
+    claim("billing", "README.md", "Billing runs on port 9001.");
+    service("catalog", "catalog");
+    claim("catalog", "README.md", "The HTTP port is 9002.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void endpointsAreComparedWithTheUnitsEndpointsBehindTheirContextPath() {
+    service("orders", "orders");
+    config("orders", "orders", "application.yml", "server.servlet.context-path", "/api");
+    Fact get = endpoint("orders", "orders", "GET", "/orders/{id}");
+    Fact post = endpoint("orders", "orders", "POST", "/orders");
+    endpoint("orders", "orders", "GET", "/health-checks");
+    claim("orders", "README.md", "It exposes `GET /orders/{id}` and `POST /orders`.");
+    claim("orders", "README.md", "It serves `GET /shop/api/orders/42` behind the gateway.");
+    claim("orders", "README.md", "It exposes its REST API under /api.");
+    claim("orders", "README.md", "It exposes a REST API and writes reports to /reports.");
+    claim("orders", "README.md", "Our mobile app exposes `GET /app-only`.");
+    claim("orders", "README.md", "It exposes `DELETE /orders/{id}` and the endpoint `/refunds`.");
+    claim("orders", "README.md", "It serves files from /data.");
+    claim("orders", "README.md", "It exposes /actuator/health.");
+    claim("orders", "README.md", "Billing exposes `POST /charges`.");
+    claim("orders", "README.md", "Tests serve `GET /stub`.");
+
+    List<Fact> derived = derive();
+
+    assertThat(derived).hasSize(1);
+    Fact f = derived.getFirst();
+    assertThat(f.object().value()).isEqualTo(ClaimChecks.ENDPOINT);
+    assertThat(f.attributes().get("stated").asString()).isEqualTo("DELETE /orders/{id}, /refunds");
+    // The endpoints nearest the path stated, or all of them when none shares its first segment.
+    assertThat(contradictedBy(f)).contains(get.id(), post.id()).hasSize(3);
+  }
+
+  @Test
+  void aUnitWithoutKnownEndpointsHasNoEndpointClaimChecked() {
+    service("orders", "orders");
+    claim("orders", "README.md", "It exposes `GET /orders`.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void namedDestinationsAreComparedWithWhatTheUnitsPublishAndConsume() {
+    service("orders", "orders");
+    Fact kafka =
+        link(
+            "orders",
+            "orders",
+            CrossRepoLinks.PUBLISHES,
+            "topic:kafka:orders.created",
+            "{\"protocol\":\"Kafka\"}",
+            1.0);
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.PUBLISHES,
+        "exchange:rabbitmq:shop.orders",
+        "{\"protocol\":\"AMQP\",\"routingKey\":\"order.paid\"}",
+        1.0);
+    add(
+        Origin.Kind.STATIC,
+        CrossRepoLinks.NAME,
+        "exchange:rabbitmq:shop.orders",
+        CrossRepoLinks.ROUTES_TO,
+        FactObject.entity(EntityId.parse("queue:rabbitmq:payments.orders")),
+        "{\"protocol\":\"AMQP\"}",
+        "payments",
+        "src/main/java/g/Config.java",
+        1.0);
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.PUBLISHES,
+        "topic:kafka:orders.send",
+        "{\"protocol\":\"Kafka\"}",
+        1.0);
+    claim("orders", "README.md", "It publishes to the orders.created topic.");
+    // A verb inside a name does not end it.
+    claim("orders", "README.md", "It publishes to the topic orders.send.");
+    claim("orders", "README.md", "Orders publishes to the RabbitMQ topic exchange `shop.orders`.");
+    claim("orders", "README.md", "Paid orders reach the payments.orders queue: it sends them.");
+    claim("orders", "README.md", "It sends paid orders to the payments.orders queue.");
+    claim("orders", "README.md", "It publishes an `order.created` event to RabbitMQ.");
+    claim("orders", "README.md", "It sends failures to the dead-letter queue.");
+    claim("orders", "README.md", "It publishes to a fan-out exchange.");
+    claim("orders", "README.md", "It publishes to a topic e.g. orders.created.");
+    claim(
+        "orders",
+        "README.md",
+        "It consumes payment events and publishes to the shop.orders exchange.");
+    claim("orders", "README.md", "It consumes from the shipments.ready queue.");
+    claim("orders", "README.md", "It publishes order events to the Kafka topic orders.placed.");
+
+    List<Fact> derived = derive();
+
+    assertThat(derived).hasSize(1);
+    Fact f = derived.getFirst();
+    assertThat(f.object().value()).isEqualTo(ClaimChecks.DESTINATION);
+    assertThat(f.attributes().get("stated").asString()).isEqualTo("orders.placed");
+    assertThat(f.attributes().get("found").toString())
+        .isEqualTo("[\"orders.created\",\"orders.send\",\"shop.orders\"]");
+    assertThat(contradictedBy(f)).contains(kafka.id()).hasSize(3);
+  }
+
+  @Test
+  void aDestinationIsNotFlaggedWhenAnySendOfTheUnitsIsNotKnown() {
+    service("orders", "orders");
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.PUBLISHES,
+        "topic:kafka:orders.created",
+        "{\"protocol\":\"Kafka\"}",
+        1.0);
+    value(
+        "orders",
+        "service:g:orders",
+        CrossRepoLinks.UNRESOLVED_LINK,
+        "orders.${x}",
+        "{\"kind\":\"message\",\"reason\":\"unresolved-placeholder\"}");
+    claim("orders", "README.md", "It publishes to the orders.placed topic.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void namedServicesAreComparedWithTheUnitsHttpCalls() {
+    service("orders", "orders");
+    service("billing", "billing-service");
+    service("catalog", "catalog");
+    Fact billing =
+        link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing-service", null, 1.0);
+    claim("orders", "README.md", "Orders never calls billing.");
+    claim("orders", "README.md", "It does not call catalog over HTTP.");
+    claim("orders", "README.md", "Orders calls the billing service to charge orders.");
+    claim("orders", "README.md", "Billing never calls catalog.");
+    claim("orders", "README.md", "Billing charges orders. It calls catalog.");
+    claim("orders", "README.md", "Tests call catalog.");
+
+    List<Fact> derived = derive();
+
+    assertThat(derived).hasSize(1);
+    Fact f = derived.getFirst();
+    assertThat(f.object().value()).isEqualTo(ClaimChecks.NAMED_SERVICES);
+    assertThat(f.attributes().get("stated").asString()).isEqualTo("no calls to billing-service");
+    assertThat(contradictedBy(f)).containsExactly(billing.id());
+  }
+
+  @Test
+  void aServiceSaidToBeCalledThatTheUnitsDoNotCallIsFlaggedOnlyWhenEveryCallIsLinked() {
+    service("orders", "orders");
+    service("billing", "billing");
+    service("catalog", "catalog");
+    Fact billing =
+        link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    claim("orders", "README.md", "Orders calls catalog for prices.");
+    claim("orders", "README.md", "It only calls billing.");
+
+    assertThat(checks()).containsExactly("named-services calls catalog");
+    assertThat(derive().getFirst().attributes().get("found").toString())
+        .isEqualTo("[\"calls billing\"]");
+    assertThat(contradictedBy(derive().getFirst())).containsExactly(billing.id());
+
+    value(
+        "orders",
+        "service:g:orders",
+        CrossRepoLinks.UNRESOLVED_LINK,
+        "GET ${CATALOG_URL}/prices",
+        "{\"kind\":\"http\",\"reason\":\"unresolved-placeholder\"}");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void onlyCallingANamedServiceIsContradictedByCallsToOthers() {
+    service("orders", "orders");
+    service("billing", "billing");
+    service("catalog", "catalog");
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    Fact catalog =
+        link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:catalog", null, 1.0);
+    claim("orders", "README.md", "It only calls billing.");
+
+    List<Fact> derived = derive();
+
+    assertThat(checks()).containsExactly("named-services calls only billing");
+    assertThat(contradictedBy(derived.getFirst())).containsExactly(catalog.id());
+  }
+
+  @Test
+  void onlyCommunicatingAsynchronouslyIsContradictedByHttpCalls() {
+    service("orders", "orders");
+    service("catalog", "catalog");
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:catalog", null, 1.0);
+    claim("orders", "README.md", "Orders only communicates asynchronously.");
+    claim("orders", "README.md", "All communication with other services is asynchronous.");
+    claim("orders", "README.md", "It talks to other services only through Kafka events.");
+    claim("orders", "README.md", "It only communicates with catalog through events.");
+    claim(
+        "orders", "README.md", "It only talks to Stripe over REST and publishes events to Kafka.");
+    claim("orders", "README.md", "Catalog calls billing. It only communicates asynchronously.");
+    claim("orders", "README.md", "Consumers only communicate with it through Kafka events.");
+    claim("orders", "README.md", "It does not only communicate asynchronously.");
+    claim("orders", "README.md", "Orders is event-driven.");
+
+    assertThat(checks())
+        .containsExactly(
+            ClaimChecks.SYNCHRONOUS_CALLS,
+            ClaimChecks.SYNCHRONOUS_CALLS,
+            ClaimChecks.SYNCHRONOUS_CALLS);
+  }
+
+  @Test
+  void portsAreReadOnlyWithTheUnitsAsSubjectAndNotForHostMappings() {
+    service("orders", "orders");
+    service("billing", "billing");
+    config("orders", "orders", "application.yml", "server.port", "8080");
+    claim("orders", "README.md", "The HTTP port is 8081.");
+    claim("orders", "README.md", "server.port=8082");
+    claim("orders", "README.md", "The service is available on port 8083.");
+    claim("orders", "README.md", "Billing charges orders. It listens on port 8084.");
+    claim("orders", "README.md", "Billing handles payments. Its HTTP port is 8086.");
+    claim("orders", "README.md", "When it fails, the watchdog runs on port 8085.");
+
+    assertThat(checks()).containsExactlyInAnyOrder("port port 8081", "port port 8082");
+  }
+
+  @Test
+  void anEndpointClaimNeedsEveryUnitOfTheReadmeToHaveEndpoints() {
+    service("shop", "orders");
+    service("shop", "billing");
+    endpoint("shop", "orders", "GET", "/orders");
+    claim("shop", "README.md", "It exposes `GET /invoices`.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void consumedDestinationsAreComparedWithListenersRoutesAndPatterns() {
+    service("orders", "orders");
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.CONSUMES,
+        "queue:rabbitmq:orders.inbox",
+        "{\"protocol\":\"AMQP\"}",
+        1.0);
+    add(
+        Origin.Kind.STATIC,
+        CrossRepoLinks.NAME,
+        "exchange:rabbitmq:shop.payments",
+        CrossRepoLinks.ROUTES_TO,
+        FactObject.entity(EntityId.parse("queue:rabbitmq:orders.inbox")),
+        "{\"protocol\":\"AMQP\"}",
+        "payments",
+        "src/main/java/g/Config.java",
+        1.0);
+    endpoint("orders", "orders", "GET", "/orders");
+    add(
+        Origin.Kind.STATIC,
+        MessagingExtractor.NAME,
+        "method:g.orders.Controller#listen()",
+        MessagingExtractor.LISTENER,
+        FactObject.string("payments\\..*"),
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic-pattern\"}",
+        "orders",
+        "src/main/java/g/Controller.java",
+        1.0);
+    claim("orders", "README.md", "It consumes from the shop.payments exchange.");
+    claim("orders", "README.md", "It listens on the payments.settled topic.");
+    claim("orders", "README.md", "It reads from queue shipments.ready.");
+
+    assertThat(checks()).containsExactly("destination shipments.ready");
+  }
+
+  @Test
+  void aMaskedSendLeavesDestinationsAlone() {
+    service("orders", "orders");
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.PUBLISHES,
+        "topic:kafka:orders.created",
+        "{\"protocol\":\"Kafka\"}",
+        1.0);
+    endpoint("orders", "orders", "GET", "/orders");
+    add(
+        Origin.Kind.STATIC,
+        MessagingExtractor.NAME,
+        "method:g.orders.Controller#send()",
+        MessagingExtractor.SEND,
+        FactObject.string("${secret.topic}"),
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\",\"masked\":true}",
+        "orders",
+        "src/main/java/g/Controller.java",
+        1.0);
+    claim("orders", "README.md", "It publishes to the orders.placed topic.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void namedServiceListsAndQualifiedCallsAreReadPlainlyOrNotAtAll() {
+    service("orders", "orders");
+    service("billing", "billing");
+    service("catalog", "catalog");
+    service("search-a", "search");
+    service("search-b", "search-service");
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:catalog", null, 1.0);
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:search", null, 1.0);
+    claim("orders", "README.md", "It never calls billing or catalog.");
+    claim("orders", "README.md", "It never calls billing or PayGate.");
+    claim("orders", "README.md", "It never calls search.");
+    claim("orders", "README.md", "It calls search-service via RabbitMQ.");
+    claim("orders", "README.md", "It calls search-service asynchronously.");
+    claim("orders", "README.md", "It only calls billing when an order is paid.");
+    claim("orders", "README.md", "It only calls billing for invoices and catalog for prices.");
+
+    assertThat(checks()).containsExactly("named-services no calls to billing; no calls to catalog");
   }
 }
