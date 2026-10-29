@@ -288,19 +288,19 @@ class Project0EndToEndIT {
     Map<String, Long> kinds = new TreeMap<>();
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
     // Four units; the catalog and shop databases (the local profile's localhost one is a note);
-    // the shop.orders exchange (its queues folded into its lines), two JMS queues and a Kafka
-    // topic; PayGate, by its default sandbox host (HTTP-4); and the components by role. catalog's
-    // ProductRepository is reached only from ProductController (through Spring Data's findById),
-    // so catalog has one component and no component page.
+    // the shop.orders and shop.returns exchanges (their queues folded into their lines), two JMS
+    // queues and a Kafka topic; PayGate, by its default sandbox host (HTTP-4); and the components
+    // by role. catalog's ProductRepository is reached only from ProductController (through Spring
+    // Data's findById), so catalog has one component and no component page.
     assertThat(kinds)
         .containsExactlyEntriesOf(
             new TreeMap<>(
                 Map.of(
-                    "component", 8L,
+                    "component", 14L,
                     "container", 4L,
                     "database", 2L,
                     "external", 1L,
-                    "queue", 4L,
+                    "queue", 5L,
                     "system", 1L)));
     List<String> pages = new ArrayList<>();
     data.get("pages").forEach(page -> pages.add(page.get("id").asString()));
