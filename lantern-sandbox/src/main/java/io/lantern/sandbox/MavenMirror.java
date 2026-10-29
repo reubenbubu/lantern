@@ -11,8 +11,8 @@ import java.util.regex.Pattern;
 
 /**
  * The one Maven mirror every download of a build goes through, when one is configured: Maven gets
- * it as the mirror of every repository ({@code *}), dependencies and plugins alike, and the egress
- * proxy lets builds reach its host and port and nothing else (ADR 0030).
+ * it as the mirror of every external repository ({@code external:*}), dependencies and plugins
+ * alike, and the egress proxy lets builds reach its host and port and nothing else (ADR 0030).
  *
  * @param id the ID Maven knows the mirror by
  * @param url the mirror's base URL: {@code http} or {@code https}, an exact host name or an IPv4

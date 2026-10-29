@@ -23,7 +23,8 @@ more are configured, and that downloaded code is used only to compile, never ana
 - **The proxy allows hosts, Maven gets the URLs.** The proxy only tunnels `CONNECT host:port`, so
   it cannot see paths: it allows the host and port of each configured repository. The URL prefix
   is what Maven uses. Code in a build that bypasses Maven can therefore fetch other paths on an
-  allowed host, but no other host (#81).
+  allowed host, but no other host (#81). (Since ADR 0030 the proxy also forwards plain HTTP `GET`
+  and `HEAD`, checking the host and port the same way; it still allows hosts, not paths.)
 - **Maven settings are generated per build** instead of copied from a fixed file. Besides the
   proxy settings of ADR 0005 they hold an always-active profile, `lantern-repositories`, listing
   every configured repository, in order, as a dependency repository, releases only (snapshots

@@ -99,7 +99,7 @@ class MavenSettingsTest {
                 mirror));
 
     assertThat(values(settings, "/settings/mirrors/mirror/id")).containsExactly("lantern-mirror");
-    assertThat(values(settings, "/settings/mirrors/mirror/mirrorOf")).containsExactly("*");
+    assertThat(values(settings, "/settings/mirrors/mirror/mirrorOf")).containsExactly("external:*");
     assertThat(values(settings, "/settings/mirrors/mirror/url"))
         .containsExactly("http://10.1.2.3:8081/repository/all");
     assertThat(values(settings, "//mirror/blocked")).isEmpty();

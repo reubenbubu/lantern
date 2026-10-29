@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
@@ -181,7 +182,8 @@ class BuildSandboxIT {
           new BuildSandbox(
               SandboxSettings.defaults(builds)
                   .withOwnerLabel(RUN_LABEL, RUN)
-                  .withMinFreeDiskBytes(0));
+                  .withMinFreeDiskBytes(0)
+                  .withMavenMirror(MIRROR));
 
       BuildResult result = sandbox.build(repo, TestRepos.head(repo));
 
@@ -637,31 +639,49 @@ class BuildSandboxIT {
 
   /**
    * Installs a fixture project into a Maven cache, as if it came from the repository. Runs as the
-   * image's root user; the next build hands what it wrote to the build user.
+   * image's root user, outside the sandbox, downloading through the test mirror if there is one;
+   * the next build hands what it wrote to the build user.
    */
-  private void installIntoCache(Path cache, Path project) {
+  private void installIntoCache(Path cache, Path project) throws IOException {
     String name =
         "lantern-test-install-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
+    List<String> args =
+        new ArrayList<>(
+            List.of(
+                "create",
+                "--name",
+                name,
+                "--mount",
+                "type=bind,source=" + cache + ",target=/var/lantern/m2",
+                "--workdir",
+                "/project",
+                "--entrypoint",
+                "mvn",
+                SandboxSettings.DEFAULT_IMAGES.get(21),
+                "--batch-mode",
+                "--no-transfer-progress",
+                "-Dmaven.repo.local=/var/lantern/m2",
+                "-DskipTests"));
+    Path settings = null;
+    if (MIRROR != null) {
+      settings = temp.resolve("install-settings.xml");
+      Files.writeString(
+          settings,
+          "<settings><mirrors><mirror><id>"
+              + MIRROR.id()
+              + "</id><mirrorOf>external:*</mirrorOf><url>"
+              + MIRROR.url()
+              + "</url></mirror></mirrors></settings>\n");
+      args.addAll(List.of("--settings", "/tmp/install-settings.xml"));
+    }
+    args.add("install");
     try {
-      DOCKER.check(
-          TIMEOUT,
-          List.of(
-              "create",
-              "--name",
-              name,
-              "--mount",
-              "type=bind,source=" + cache + ",target=/var/lantern/m2",
-              "--workdir",
-              "/project",
-              "--entrypoint",
-              "mvn",
-              SandboxSettings.DEFAULT_IMAGES.get(21),
-              "--batch-mode",
-              "--no-transfer-progress",
-              "-Dmaven.repo.local=/var/lantern/m2",
-              "-DskipTests",
-              "install"));
+      DOCKER.check(TIMEOUT, args);
       DOCKER.check(TIMEOUT, List.of("cp", project + "/.", name + ":/project"));
+      if (settings != null) {
+        DOCKER.check(
+            TIMEOUT, List.of("cp", settings.toString(), name + ":/tmp/install-settings.xml"));
+      }
       Docker.Result run = DOCKER.run(Duration.ofMinutes(10), List.of("start", "--attach", name));
       assertThat(run.exitCode()).as(run.out()).isZero();
     } finally {

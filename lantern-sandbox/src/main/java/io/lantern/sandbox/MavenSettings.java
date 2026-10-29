@@ -42,14 +42,15 @@ final class MavenSettings {
         .append("</localRepository>\n");
     xml.append("  <interactiveMode>false</interactiveMode>\n");
     if (mirror != null) {
-      // User settings come before the global ones, so this mirror, not the http blocker of Maven's
-      // global settings, is the first that matches every repository, including an http mirror.
+      // Every repository but file: and localhost ones, which stay local. User settings come before
+      // the global ones, so this mirror, not the http blocker of Maven's global settings, is the
+      // first that matches, and an http mirror is not blocked.
       xml.append("  <mirrors>\n")
           .append("    <mirror>\n")
           .append("      <id>")
           .append(escape(mirror.id()))
           .append("</id>\n")
-          .append("      <mirrorOf>*</mirrorOf>\n")
+          .append("      <mirrorOf>external:*</mirrorOf>\n")
           .append("      <url>")
           .append(escape(mirror.url().toString()))
           .append("</url>\n")

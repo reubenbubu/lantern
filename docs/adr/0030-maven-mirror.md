@@ -17,9 +17,11 @@ for `https` but not for `http`.
   default, and then nothing changes. In the sandbox it is `SandboxSettings.mavenMirror`, a
   `MavenMirror`, null for none.
 - **The mirror stands in for every repository.** The generated Maven settings (ADR 0023) get a
-  `<mirror>` of `*` with the mirror's URL, so dependencies and plugins alike, from the configured
-  repositories, from Maven Central and from repositories a POM names itself, are downloaded through
-  it. The repositories stay in the settings, all mirrored. Maven merges the global settings of the
+  `<mirror>` of `external:*` with the mirror's URL, so dependencies and plugins alike, from the
+  configured repositories, from Maven Central and from repositories a POM names itself, are
+  downloaded through it. The repositories stay in the settings, all mirrored. `file:` and
+  `localhost` repositories, such as a repository inside the project, are not mirrored and keep
+  working as before. Maven merges the global settings of the
   build image after the generated ones, so the image's `maven-default-http-blocker` mirror
   (`external:http:*`) never matches first and does not block an `http` mirror.
 - **The egress proxy then allows only the mirror's host and port** (port 80 or 443 if the URL
@@ -36,13 +38,16 @@ for `https` but not for `http`.
   sends the request on with the path alone, without the proxy and connection headers, and with
   `Connection: close`, so each connection carries one request to the checked target. Other methods
   are refused with 405 and other targets with 403. Whatever a client sends after that request goes
-  to the same checked target, as through a `CONNECT` tunnel.
+  to the same checked target, as through a `CONNECT` tunnel. This holds with or without a mirror:
+  without one, a plain request to a host that is not allowed now gets 403 instead of 405, and one
+  to an allowed repository's host and port is forwarded to that same target, which `CONNECT`
+  reaches anyway. Nothing else changes when no mirror is set.
 - **The address stays out of the repository.** It is the host's own setting, in a properties file
   outside the repository, passed to Lantern with `--spring.config.additional-location`. The
   integration tests that run sandbox builds (`BuildSandboxIT`, `Project0BuildIT`,
   `MavenExtractorIT`, `JavaExtractorIT`, `EndToEndIT`) read the mirror from the Lantern properties
-  file named by the system property `lantern.test.properties`, or else the environment variable
-  `LANTERN_TEST_PROPERTIES`, and use Maven Central without one.
+  file named, by absolute path, by the system property `lantern.test.properties`, or else the
+  environment variable `LANTERN_TEST_PROPERTIES`, and use Maven Central without one.
 
 ## Consequences
 
@@ -51,7 +56,11 @@ for `https` but not for `http`.
   they run.
 - A private-network address is the one way a build can reach the local network, and only the
   mirror's host and port. Code in a build that bypasses Maven can fetch any path from the mirror,
-  as ADR 0023 allows for a repository's host.
+  as ADR 0023 allows for a repository's host. The mirror must be a Maven repository manager (such
+  as Nexus, Artifactory or Reposilite), not a general forward proxy: builds can send it any
+  request, so a forward proxy would let them reach whatever it reaches.
+- Only IP literals are checked against address ranges. A host name, for the mirror or a
+  repository, is not checked after it resolves, as under ADR 0023.
 - The shared Maven cache records which repository each file came from. Files downloaded from
   Maven Central are fetched again through the mirror, and the other way round, the first time a
   build needs them after the setting changes.
@@ -59,8 +68,8 @@ for `https` but not for `http`.
   Central is refused and, on a cache of its own, that the `lombok` fixture's dependency and the
   compiler and dependency plugins came through the mirror, and nothing from anywhere else. The
   tests of configured repositories (ADR 0023) clear the mirror and still use Maven Central. The
-  test that installs a fixture into a cache with a plain `mvn install`, outside the sandbox, still
-  downloads from Maven Central.
+  test that installs a fixture into a cache with a plain `mvn install`, outside the sandbox, gives
+  that `mvn` the same mirror.
 - The mirror's URL rules are checked by `MavenMirrorTest`, the generated mirror by
   `MavenSettingsTest`, the allowed host by `SandboxSettingsTest`, the binding by
   `SandboxPropertiesTest`, and the forwarding by `EgressProxyTest`.
