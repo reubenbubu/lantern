@@ -429,6 +429,41 @@ class DescriberTest {
   }
 
   @Test
+  void aRepositorysFlowsAreTracedFromTheFactsItsDocumentsAreComposedFrom() {
+    // The repository's documents leave out the worker's listener, so its flows end at the topic.
+    List<Fact> repoFacts =
+        facts.list().stream().filter(f -> !f.predicate().equals("SENDS_MESSAGES_TO")).toList();
+    Function<Wordings, Section> repoFlow =
+        wordings ->
+            flowSection(
+                new Composer("1")
+                    .compose(
+                        ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                        SNAPSHOT,
+                        repoFacts,
+                        Map.of(),
+                        wordings),
+                LIST_FLOW);
+
+    Wordings systemOnly =
+        new Describer(client(new FakeLlmProvider().answering(DescriberTest::answer)), store)
+            .describe(facts.list())
+            .wordings();
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    Wordings both = new Describer(client(fake), store).describe(facts.list(), repoFacts).wordings();
+
+    assertThat(text(((Paragraph) repoFlow.apply(systemOnly).blocks().getFirst()).content()))
+        .startsWith("Starts when shop-app receives GET /orders");
+    assertThat(fake.sent())
+        .extracting(s -> s.request().messages().getFirst().text())
+        .anyMatch(p -> p.startsWith("The flow") && p.contains("No listener for it was found"));
+    Section flow = repoFlow.apply(both);
+    assertThat(text(((Paragraph) flow.blocks().getFirst()).content()))
+        .isEqualTo("Lists the orders and announces them for background work.");
+    assertThat(text(overview(flow).cells().get(2))).isEqualTo("The orders are announced.");
+  }
+
+  @Test
   void aFlowNotWordedAsTracedOrCitingNoFactOfTheSnapshotKeepsItsProse() {
     Wordings worded = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
     String unknown = " [fact:" + "f".repeat(64) + "]";

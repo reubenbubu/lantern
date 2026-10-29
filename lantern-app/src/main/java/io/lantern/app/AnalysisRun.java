@@ -295,7 +295,9 @@ public final class AnalysisRun {
       // of their links, and narrates the main flows, from every fact that holds in it, carried
       // forward repositories included (ADR 0050, ADR 0058).
       List<Fact> system = facts.findValidAt(snapshot.number());
-      Describer.Result described = new Describer(client, wordings).describe(system);
+      // Each repository's documents are composed from its extracted facts, so its flows are traced
+      // from those.
+      Describer.Result described = new Describer(client, wordings).describe(system, extracted);
 
       List<Rendered> documents = new ArrayList<>();
       Composer composer = new Composer(toolVersion);

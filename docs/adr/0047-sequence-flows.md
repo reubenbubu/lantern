@@ -66,7 +66,7 @@ ends (ADR 0042). Nothing may be invented.
   a few sentences from the trace (what starts it, what it reaches, where it hands off, what could
   not be followed), a table of the trigger with pre- and post-conditions "Not known from the
   code.", the diagram and the renderer's steps table. Wording for the reader, intent phrases and
-  conditions are the LLM's (#97).
+  conditions are the LLM's (#97); ADR 0058 has the LLM word the prose and conditions.
 - **Default views are not stored.** Until now the analyze run stored each default view on first
   use and then used it as stored (ADR 0012, ADR 0016), so a new default section, such as this
   one, never reached a workspace that had run before. Now the defaults live in code; a stored view

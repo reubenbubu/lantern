@@ -155,7 +155,21 @@ public final class Describer {
    * @param facts the facts that hold in a snapshot, the linker's included
    */
   public Result describe(Collection<Fact> facts) {
+    return describe(facts, facts);
+  }
+
+  /**
+   * As {@link #describe(Collection)}, with the repositories' documents composed from other facts
+   * than the system's: their flows are traced from those facts, as the composer will trace them.
+   *
+   * @param facts the facts that hold in a snapshot, the linker's included, which the system's
+   *     documents are composed from
+   * @param repoFacts the facts the repositories' documents are composed from; their repositories
+   *     are the ones whose flows are narrated
+   */
+  public Result describe(Collection<Fact> facts, Collection<Fact> repoFacts) {
     Objects.requireNonNull(facts, "facts");
+    Objects.requireNonNull(repoFacts, "repoFacts");
     Knowledge knowledge = new Knowledge(facts);
     Assembler assembler = new Assembler(knowledge, Map.of(), Set.of(), null, "The system");
     C4Views c4 =
@@ -168,7 +182,7 @@ public final class Describer {
     for (EntityId element : c4.destinations()) {
       questions.add(question(element, knowledge, assembler, c4));
     }
-    questions.addAll(flows(facts, knowledge, assembler, c4));
+    questions.addAll(flows(repoFacts, knowledge, assembler, c4));
     List<Outcome> outcomes = new ArrayList<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       List<Future<Outcome>> futures = new ArrayList<>();
@@ -337,25 +351,28 @@ public final class Describer {
 
   /**
    * The prompts about the main flows that the system's documents and each repository's show (ADR
-   * 0058), each once: the same trace gives the same prompt whichever scope shows it.
+   * 0058), each once: the same trace gives the same prompt whichever scope shows it. A repository's
+   * flows are traced from the facts its documents are composed from.
    */
   private static List<Question> flows(
-      Collection<Fact> facts, Knowledge knowledge, Assembler assembler, C4Views c4) {
+      Collection<Fact> repoFacts, Knowledge knowledge, Assembler assembler, C4Views c4) {
     SortedSet<EntityId> all = C4Views.units(knowledge);
     Map<String, Question> questions = new LinkedHashMap<>();
     new SequenceFlows(knowledge, assembler, c4, all)
         .questions()
         .forEach(q -> questions.putIfAbsent(q.user(), q));
+    Knowledge repoKnowledge = new Knowledge(repoFacts);
+    Assembler repoAssembler = new Assembler(repoKnowledge, Map.of(), Set.of(), null, "The system");
     SortedSet<String> repos = new TreeSet<>();
-    facts.forEach(f -> repos.add(f.evidence().repo()));
+    repoFacts.forEach(f -> repos.add(f.evidence().repo()));
     for (String repo : repos) {
-      SortedSet<EntityId> units = C4Views.units(knowledge, knowledge.modules(repo));
+      SortedSet<EntityId> units = C4Views.units(repoKnowledge, repoKnowledge.modules(repo));
       if (units.isEmpty()) {
         continue;
       }
       C4Views repoViews =
-          new C4Views(knowledge, assembler, RepoSections.SYSTEM, units, Set.of(repo));
-      new SequenceFlows(knowledge, assembler, repoViews, units)
+          new C4Views(repoKnowledge, repoAssembler, RepoSections.SYSTEM, units, Set.of(repo));
+      new SequenceFlows(repoKnowledge, repoAssembler, repoViews, units)
           .questions()
           .forEach(q -> questions.putIfAbsent(q.user(), q));
     }

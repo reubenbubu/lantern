@@ -20,7 +20,10 @@ the model sees, as the Describer does for units (ADRs 0050, 0056).
 - **One call per flow, in the Describer.** After the units, data stores and destinations,
   `Describer` asks about each flow that the system's documents and each repository's show: the
   flows `SequenceFlows` chooses for the system scope and for each repository's units, each once,
-  since the same trace gives the same prompt whichever scope shows it. It reuses the Describer's
+  since the same trace gives the same prompt whichever scope shows it. The system's flows are
+  traced from every fact that holds in the snapshot and each repository's from the facts its
+  documents are composed from (the analyze run's extracted facts, which leave out repositories
+  carried forward), so each is traced as its document will trace it. It reuses the Describer's
   asking, checking, retrying, caching and counting. Role `COMPOSE`, the design's role for narrative
   for a reader (high-volume tier), not `INFER_INTENT`.
 - **Facts only.** The prompt (`WordingPrompt.flow`) names the flow by its title and what starts it,
