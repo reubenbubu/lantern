@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * What an analyzer found in the sources of one module, before it becomes facts: the named types
@@ -79,8 +80,17 @@ public final class ModuleStructure {
    * @param predicate {@code EXTENDS} or {@code IMPLEMENTS}
    * @param binaryName the supertype's binary name
    * @param where the declaration
+   * @param typeArguments the erasures of the type arguments written for it, as in a member ID (a
+   *     type variable as its bound), such as {@code com.example.Order} and {@code java.lang.Long}
+   *     for {@code JpaRepository<Order, Long>}; empty if none are written
    */
-  public record Supertype(String predicate, String binaryName, Location where) {}
+  public record Supertype(
+      String predicate, String binaryName, Location where, List<String> typeArguments) {
+
+    public Supertype {
+      typeArguments = List.copyOf(typeArguments);
+    }
+  }
 
   /**
    * A member: a {@code method:} or {@code field:} entity, its declaration and the annotations
@@ -126,8 +136,23 @@ public final class ModuleStructure {
    *     initializer blocks)
    * @param callee the method or constructor called, as resolved
    * @param where the call
+   * @param arguments the {@code String} constants passed, by position, with constants folded as for
+   *     annotation values; null for an argument that is not one; empty when none is
    */
-  public record Call(EntityId caller, EntityId callee, Location where) {}
+  public record Call(EntityId caller, EntityId callee, Location where, List<String> arguments) {
+
+    public Call {
+      arguments =
+          arguments.stream().allMatch(Objects::isNull)
+              ? List.of()
+              : Collections.unmodifiableList(new ArrayList<>(arguments));
+    }
+
+    /** The {@code String} constant passed at a position, or null if there is none. */
+    public String argument(int index) {
+      return index < arguments.size() ? arguments.get(index) : null;
+    }
+  }
 
   final List<TypeDecl> types = new ArrayList<>();
   final List<Call> calls = new ArrayList<>();
@@ -174,6 +199,27 @@ public final class ModuleStructure {
   /** A {@code field:} entity: {@code <type>#<name>}. */
   static EntityId fieldId(String typeBinaryName, String name) {
     return entity(FIELD, typeBinaryName + "#" + name);
+  }
+
+  /**
+   * Whether an argument of a call is passed to a {@code String} parameter of the callee: one
+   * declared {@code java.lang.String}, or a last one declared {@code java.lang.String[]} (varargs).
+   * Only these arguments are folded into {@link Call#arguments}.
+   */
+  static boolean stringParameter(EntityId callee, int index) {
+    String key = callee.key();
+    int open = key.lastIndexOf('(');
+    String list = key.substring(open + 1, key.length() - 1);
+    if (list.isEmpty()) {
+      return false;
+    }
+    String[] parameters = list.split(",");
+    if (index < parameters.length - 1) {
+      return parameters[index].equals("java.lang.String");
+    }
+    String last = parameters[parameters.length - 1];
+    return last.equals("java.lang.String[]")
+        || (index == parameters.length - 1 && last.equals("java.lang.String"));
   }
 
   private static EntityId entity(String type, String key) {
