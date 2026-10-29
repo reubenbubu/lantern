@@ -84,4 +84,57 @@ class MailExtractorTest {
         .isEqualTo("org.springframework.mail.javamail.JavaMailSender");
     assertThat(new MailExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
   }
+
+  @Test
+  void transportSendAndSendsWrappedInLambdasAreRecorded() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("mail2"),
+            "mail2",
+            Map.of(
+                "pom.xml",
+                "<project xmlns=\"http://maven.apache.org/POM/4.0.0\"><modelVersion>4.0.0"
+                    + "</modelVersion><groupId>com.example</groupId><artifactId>mailer"
+                    + "</artifactId><version>1</version></project>",
+                "src/main/java/com/example/Statics.java",
+                """
+                package com.example;
+
+                import jakarta.mail.Message;
+                import jakarta.mail.Transport;
+
+                public class Statics {
+                  public void direct(Message message) throws Exception {
+                    Transport.send(message);
+                  }
+                }
+                """,
+                "src/main/java/com/example/Async.java",
+                """
+                package com.example;
+
+                import java.util.concurrent.CompletableFuture;
+                import org.springframework.mail.MailSender;
+                import org.springframework.mail.SimpleMailMessage;
+
+                public class Async {
+                  private final MailSender mailSender;
+
+                  public Async(MailSender mailSender) {
+                    this.mailSender = mailSender;
+                  }
+
+                  public void later(SimpleMailMessage message) {
+                    CompletableFuture.runAsync(() -> mailSender.send(message));
+                  }
+                }
+                """));
+    List<RepoBuild> inputs = List.of(new RepoBuild(repo, Fixtures.head(repo), null));
+    List<Fact> facts = new MailExtractor().extract(inputs, SNAPSHOT);
+
+    assertThat(facts)
+        .extracting(f -> f.subject().toString())
+        .anyMatch(s -> s.startsWith("method:com.example.Statics#direct("))
+        .anyMatch(s -> s.startsWith("method:com.example.Async#later("));
+  }
 }

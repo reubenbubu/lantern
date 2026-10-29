@@ -1200,6 +1200,12 @@ class CrossRepoLinksTest {
     type("n", "notification", "n.EmailService");
     config("n", "notification", "application.properties", "spring.mail.host", "mailhog", null);
     mailSend("n", "n.EmailService#send()", 12);
+    for (String local :
+        List.of("localhost", "127.0.0.1", "10.0.0.5", "mail.internal", "smtp.corp.local")) {
+      config("n", "notification", "application.properties", "spring.mail.host", local, null);
+      assertThat(derive(CrossRepoLinks.SENDS_MAIL)).as(local).isEmpty();
+      facts.removeIf(f -> f.object().value().equals(local));
+    }
     unit("m", "mailer", "mailer");
     config(
         "m",

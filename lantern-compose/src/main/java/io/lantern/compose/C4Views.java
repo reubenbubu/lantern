@@ -297,7 +297,7 @@ final class C4Views {
 
   /** The relationships whose profile-only links may replace a default link of their unit. */
   private static final List<String> REPLACEABLE =
-      List.of(CALLS_HTTP, PUBLISHES, CONSUMES, USES_DATABASE, ACCESSES_DATA_OF);
+      List.of(CALLS_HTTP, SENDS_MAIL, PUBLISHES, CONSUMES, USES_DATABASE, ACCESSES_DATA_OF);
 
   /**
    * The profile-only links that stand in for a default link of the same unit, relationship and code
@@ -363,6 +363,7 @@ final class C4Views {
       String verb =
           switch (profiled.predicate()) {
             case CALLS_HTTP -> "calls";
+            case SENDS_MAIL -> "sends mail through";
             case PUBLISHES -> "sends to";
             case CONSUMES -> "listens on";
             case USES_DATABASE -> "connects to";

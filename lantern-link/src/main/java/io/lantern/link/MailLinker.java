@@ -51,8 +51,7 @@ final class MailLinker {
     }
     Fact host = hosts.getFirst();
     String name = host.object().value().trim().toLowerCase(Locale.ROOT);
-    // A name without a domain is a compose or Kubernetes service or this machine, not a system.
-    if (!name.contains(".") || name.contains("${")) {
+    if (!isExternal(name)) {
       return;
     }
     List<Fact> ports = DataLinker.values(index, unit, view, PORT);
@@ -82,6 +81,25 @@ final class MailLinker {
       facts.add(send.id());
       add(unit, view, system, send, send, name, port, secure, facts, host);
     }
+  }
+
+  /**
+   * Whether a host names a system outside: not this machine, an IP address, a name without a domain
+   * (a compose or Kubernetes service) or one under a private suffix.
+   */
+  static boolean isExternal(String host) {
+    if (!host.contains(".") || host.contains(":") || host.startsWith("[")) {
+      return false;
+    }
+    if (host.matches("[0-9.]+")) {
+      return false;
+    }
+    for (String suffix : List.of(".local", ".localhost", ".internal", ".svc", ".cluster.local")) {
+      if (host.endsWith(suffix)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private void add(
