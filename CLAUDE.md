@@ -59,6 +59,10 @@ any code that changes the design. This file covers only how you work.
     with `docker port`. The local database (Commands) is the exception: its port is fixed, so
     only one task at a time may run it.
   - reviewer subagents only read; they run nothing that builds or starts containers
+- Running subagents share a budget of 100 agent tokens: `opus` costs 20, `sonnet` 10,
+  `haiku` 4. The subagents running at any moment, reviewers included, must cost 100 or
+  less in total. The budget only caps parallelism: tasks that could clash (same files,
+  the local database, shared resources) still never run together, whatever is left.
 - Keep issues current. If scope changes, a task is blocked, or you find new work, update or
   open an issue right away. An issue's state must always match reality.
 
