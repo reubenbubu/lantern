@@ -12,11 +12,21 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
+import io.lantern.link.InMemoryResolutionStore;
+import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
+import io.lantern.llm.BudgetGuard;
+import io.lantern.llm.FakeLlmProvider;
+import io.lantern.llm.InMemoryLlmCallLog;
+import io.lantern.llm.LlmClient;
+import io.lantern.llm.ModelSettings;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -31,7 +41,8 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The linker records its facts for the whole snapshot: a derived fact stops holding when the facts
- * it came from change, even when only another repository was analyzed (ADR 0039).
+ * it came from change, even when only another repository was analyzed (ADR 0039). The LLM
+ * resolver's links are recorded the same way, with its answers reused (ADR 0044).
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -204,6 +215,118 @@ class LinkerIT {
     assertThat(fourth.added()).isZero();
     assertThat(fourth.closed()).isZero();
     assertThat(linked(4)).isEqualTo(before);
+  }
+
+  /** A service whose module has a Spring Boot main class, the given name and one more type. */
+  private static List<Fact> service(long snapshot, String name, String type) {
+    String repo = name + ":";
+    String module = "module:g:" + name;
+    String app = "type:" + name + ".App";
+    return List.of(
+        fact(
+            MavenExtractor.NAME,
+            "service:g:" + name,
+            BuiltInTypes.CONTAINS,
+            entity(module),
+            repo + "pom.xml",
+            snapshot),
+        fact(
+            JavaExtractor.NAME,
+            module,
+            BuiltInTypes.CONTAINS,
+            entity(app),
+            repo + "App.java",
+            snapshot),
+        fact(
+            SpringExtractor.NAME,
+            app,
+            SpringExtractor.MAIN_CLASS,
+            FactObject.string(SpringExtractor.SPRING_BOOT),
+            repo + "App.java",
+            snapshot),
+        fact(
+            ConfigExtractor.NAME,
+            module,
+            ConfigExtractor.CONFIG_VALUE,
+            FactObject.string(name),
+            "{\"key\":\"spring.application.name\"}",
+            repo + "application.yml",
+            snapshot),
+        fact(
+            JavaExtractor.NAME,
+            module,
+            BuiltInTypes.CONTAINS,
+            entity("type:" + type),
+            repo + type + ".java",
+            snapshot));
+  }
+
+  /** Orders calls a URL from an environment variable that only tax serves, as HTTP-5 would. */
+  private static List<Fact> openCall(long snapshot) {
+    List<Fact> all = new ArrayList<>(service(snapshot, "orders", "o.TaxClient"));
+    all.add(
+        fact(
+            HttpClientExtractor.NAME,
+            "method:o.TaxClient#quote()",
+            HttpClientExtractor.HTTP_CALL,
+            FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
+            "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\","
+                + "\"unresolved\":[\"TAX_SERVICE_URL\"]}",
+            "orders:o.TaxClient.java",
+            snapshot));
+    all.addAll(service(snapshot, "tax", "t.TaxController"));
+    all.add(
+        fact(
+            SpringExtractor.NAME,
+            "method:t.TaxController#quotes()",
+            SpringExtractor.ENDPOINT,
+            FactObject.string("GET /v2/quotes"),
+            "{\"annotation\":\"GetMapping\",\"controller\":\"t.TaxController\",\"framework\":\"spring-mvc\","
+                + "\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\"}",
+            "tax:t.TaxController.java",
+            snapshot));
+    return all;
+  }
+
+  @Test
+  void theResolversLinksAreRecordedForTheSnapshotAndItsAnswersReused() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                "{\"target\": \"C1\", \"confidence\": \"medium\", \"cites\": [\"C1\"],"
+                    + " \"rationale\": \"Only tax serves the path.\"}");
+    LlmClient client =
+        new LlmClient(
+            ModelSettings.single(fake.model("m")),
+            List.of(fake),
+            BudgetGuard.unlimited("test"),
+            new InMemoryLlmCallLog(),
+            Clock.systemUTC());
+    linker = Linker.standard(facts, new LinkResolver(client, new InMemoryResolutionStore()));
+
+    for (long snapshot : List.of(1L, 2L)) {
+      facts.recordSnapshot(
+          snapshot,
+          Origin.Kind.STATIC,
+          Set.of("orders", "tax"),
+          linker.origins(),
+          openCall(snapshot));
+      linker.link(snapshot);
+    }
+
+    for (long snapshot : List.of(1L, 2L)) {
+      assertThat(facts.findValidAt(snapshot))
+          .filteredOn(f -> f.origin().kind() == Origin.Kind.LLM)
+          .singleElement()
+          .satisfies(
+              f -> {
+                assertThat(f.origin().name()).isEqualTo(LinkResolver.NAME);
+                assertThat(f.subject() + " " + f.predicate() + " " + f.object().value())
+                    .isEqualTo("service:g:orders " + CrossRepoLinks.CALLS_HTTP + " service:g:tax");
+                assertThat(f.confidence()).isEqualTo(0.35);
+              });
+    }
+    assertThat(fake.sent()).hasSize(1);
   }
 
   private List<Fact> linked(long snapshot) {

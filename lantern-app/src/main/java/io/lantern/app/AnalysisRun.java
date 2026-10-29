@@ -26,7 +26,9 @@ import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
+import io.lantern.link.ResolutionStore;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildOrder;
 import io.lantern.sandbox.BuildResult;
@@ -103,6 +105,7 @@ public final class AnalysisRun {
   private final LlmAccess llm;
   private final JdbcLlmCallLog callLog;
   private final SummaryStore summaries;
+  private final ResolutionStore resolutions;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
   private final C4ReportRenderer c4Renderer;
@@ -122,6 +125,7 @@ public final class AnalysisRun {
       LlmAccess llm,
       JdbcLlmCallLog callLog,
       SummaryStore summaries,
+      ResolutionStore resolutions,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
@@ -136,6 +140,7 @@ public final class AnalysisRun {
     this.llm = Objects.requireNonNull(llm, "llm");
     this.callLog = Objects.requireNonNull(callLog, "callLog");
     this.summaries = Objects.requireNonNull(summaries, "summaries");
+    this.resolutions = Objects.requireNonNull(resolutions, "resolutions");
     this.views = Objects.requireNonNull(views, "views");
     this.renderer = Objects.requireNonNull(renderer, "renderer");
     this.c4Renderer = Objects.requireNonNull(c4Renderer, "c4Renderer");
@@ -245,7 +250,7 @@ public final class AnalysisRun {
       found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
       found.addAll(new MessagingExtractor().extract(code, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
-      Stored stored = store(snapshot.number(), registered.keySet(), found);
+      Stored stored = store(snapshot.number(), registered.keySet(), found, client);
       List<Fact> extracted = stored.facts();
       int newFacts = stored.added();
       LOG.info("Extracted {} facts, {} of them new", extracted.size(), newFacts);
@@ -458,12 +463,14 @@ public final class AnalysisRun {
    * snapshots carry them forward at their commits here, and a run that fails before this point
    * leaves its commits out of later snapshots (ADR 0018).
    */
-  private Stored store(long snapshot, Set<String> repos, List<Fact> found) {
+  private Stored store(long snapshot, Set<String> repos, List<Fact> found, LlmClient client) {
     return transaction.execute(
         status -> {
           Map<String, Fact> unique = new LinkedHashMap<>();
           found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
-          Linker linker = Linker.standard(facts);
+          // The LLM resolver is the linker's last step: it picks among the candidates of the links
+          // the static steps leave open, with cached answers reused (ADR 0044).
+          Linker linker = Linker.standard(facts, new LinkResolver(client, resolutions));
           FactRepository.SnapshotUpdate update =
               facts.recordSnapshot(
                   snapshot, Origin.Kind.STATIC, repos, linker.origins(), unique.values());

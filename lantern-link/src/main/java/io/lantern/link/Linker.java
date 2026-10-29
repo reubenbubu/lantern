@@ -57,6 +57,15 @@ public final class Linker {
         store, List.of(new DeployableUnits(), new CrossRepoLinks(), new ClaimChecks()));
   }
 
+  /**
+   * The linker of this version of Lantern with the LLM resolver as its last step, picking among the
+   * candidates of the links the steps before it leave open (ADR 0044).
+   */
+  public static Linker standard(FactRepository store, LinkResolver resolver) {
+    return new Linker(
+        store, List.of(new DeployableUnits(), new CrossRepoLinks(), new ClaimChecks(), resolver));
+  }
+
   /** The origin names of the steps' facts. */
   public Set<String> origins() {
     Set<String> names = new LinkedHashSet<>();
