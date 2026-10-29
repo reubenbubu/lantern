@@ -1,4 +1,5 @@
-# Local development database. Start with `docker compose up -d`.
+# Local development database. Start with `docker compose up -d`, or with scripts/launch.sh.
+# The host port is LANTERN_DB_PORT, 5432 by default.
 # The credentials are local-only defaults, not secrets.
 name: lantern
 
@@ -10,7 +11,7 @@ services:
       POSTGRES_USER: lantern
       POSTGRES_PASSWORD: lantern
     ports:
-      - "5432:5432"
+      - "${LANTERN_DB_PORT:-5432}:5432"
     volumes:
       - lantern-postgres:/var/lib/postgresql
     healthcheck:
