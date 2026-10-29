@@ -810,10 +810,24 @@ class BuildSandboxIT {
     Files.writeString(source.resolve("README.md"), "Not a Maven project\n");
     Repo repo = repo(source, "no-pom", RepoSettings.DEFAULT);
 
+    assertThat(BuildSandbox.hasMavenBuild(repo, TestRepos.head(repo))).isFalse();
+
     BuildResult result = new BuildSandbox(settings()).build(repo, TestRepos.head(repo));
 
     assertThat(result.status()).isEqualTo(BuildStatus.FAILED);
     assertThat(result.failure()).isEqualTo("No pom.xml at the top of the repository");
+  }
+
+  @Test
+  void hasAMavenBuildOnlyWithAPomFileAtTheTop() throws IOException {
+    Path source = Files.createDirectories(temp.resolve("nested-pom"));
+    Files.createDirectories(source.resolve("pom.xml"));
+    Files.writeString(source.resolve("pom.xml").resolve("README.md"), "A folder\n");
+    Repo folder = repo(source, "nested-pom", RepoSettings.DEFAULT);
+    Repo maven = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+
+    assertThat(BuildSandbox.hasMavenBuild(folder, TestRepos.head(folder))).isFalse();
+    assertThat(BuildSandbox.hasMavenBuild(maven, TestRepos.head(maven))).isTrue();
   }
 
   @Test

@@ -181,8 +181,11 @@ public final class AnalysisRun {
    * @param system the name of the system it analyzed
    * @param title the system's title, which its documents carry (ADR 0071)
    * @param snapshot the snapshot it analyzed, which also has the repositories carried forward
-   * @param builds the build of each repository it analyzed, by name
+   * @param builds the build of each repository it analyzed that has a Maven build, by name
    * @param reusedBuilds the names of the repositories whose stored build was reused
+   * @param withoutBuild the names of the repositories it analyzed without a build, because they
+   *     have no Maven build (no top {@code pom.xml}), such as a frontend or deployment files; that
+   *     is not degraded mode
    * @param facts how many facts the extractors found, with the linker's facts about the analyzed
    *     repositories
    * @param newFacts how many facts did not hold in the previous snapshot, the linker's about any
@@ -205,6 +208,7 @@ public final class AnalysisRun {
       Snapshot snapshot,
       Map<String, BuildResult> builds,
       List<String> reusedBuilds,
+      List<String> withoutBuild,
       int facts,
       int newFacts,
       int linksAsked,
@@ -221,6 +225,7 @@ public final class AnalysisRun {
       summariesRejected = List.copyOf(summariesRejected);
       builds = Collections.unmodifiableMap(new TreeMap<>(builds));
       reusedBuilds = List.copyOf(reusedBuilds);
+      withoutBuild = List.copyOf(withoutBuild);
       documents = List.copyOf(documents);
     }
   }
@@ -275,8 +280,9 @@ public final class AnalysisRun {
           .forEach(name -> LOG.info("Carried forward without analyzing: {}", name));
 
       List<String> reused = new ArrayList<>();
+      List<String> withoutBuild = new ArrayList<>();
       List<RepoBuild> carried = carriedForward(snapshot, registered.keySet());
-      Map<String, BuildResult> builds = build(registered, carried, snapshot, reused);
+      Map<String, BuildResult> builds = build(registered, carried, snapshot, reused, withoutBuild);
       List<RepoBuild> repoBuilds = new ArrayList<>();
       registered.forEach(
           (name, repo) ->
@@ -392,6 +398,7 @@ public final class AnalysisRun {
           snapshot,
           builds,
           reused,
+          withoutBuild,
           extracted.size(),
           newFacts,
           stored.linksAsked(),
@@ -442,8 +449,9 @@ public final class AnalysisRun {
 
   /**
    * The repositories the snapshot carries forward, for the extractors to see as context: each at
-   * its commit with its stored build, if any, and none built again. One whose working tree no
-   * longer has the commit is left out, with a warning.
+   * its commit with its stored build, if any, and none built again; one without a Maven build with
+   * none, even if an earlier run stored a failed build of it. One whose working tree no longer has
+   * the commit is left out, with a warning.
    */
   private List<RepoBuild> carriedForward(Snapshot snapshot, Set<String> analyzed) {
     List<RepoBuild> result = new ArrayList<>();
@@ -467,7 +475,11 @@ public final class AnalysisRun {
                     e.getMessage());
                 return;
               }
-              result.add(new RepoBuild(repo, commit, sandbox.find(name, commit).orElse(null)));
+              BuildResult build =
+                  BuildSandbox.hasMavenBuild(repo, commit)
+                      ? sandbox.find(name, commit).orElse(null)
+                      : null;
+              result.add(new RepoBuild(repo, commit, build));
             });
     return result;
   }
@@ -479,10 +491,16 @@ public final class AnalysisRun {
    * stored builds are used. A stored successful build of the same commit is reused if it was given
    * the same builds of other repositories, at the same commits; a stored failed one is built again,
    * since its failure may have been transient or fixed by a settings change (ADR 0016, #58). If the
-   * sandbox cannot build it again, the stored failed build is used, as before #58.
+   * sandbox cannot build it again, the stored failed build is used, as before #58. A repository
+   * without a Maven build is not built, nor given a stored build, and is added to {@code
+   * withoutBuild} instead of the builds returned.
    */
   private Map<String, BuildResult> build(
-      Map<String, Repo> repos, List<RepoBuild> carried, Snapshot snapshot, List<String> reused) {
+      Map<String, Repo> repos,
+      List<RepoBuild> carried,
+      Snapshot snapshot,
+      List<String> reused,
+      List<String> withoutBuild) {
     Map<String, Repo> all = new TreeMap<>(repos);
     carried.forEach(c -> all.put(c.repo().name(), c.repo()));
     BuildOrder order = BuildOrder.of(all, snapshot.commits());
@@ -503,6 +521,12 @@ public final class AnalysisRun {
           continue;
         }
         String commit = snapshot.commits().get(name);
+        if (!BuildSandbox.hasMavenBuild(repo, commit)) {
+          // Nothing builds what it would provide, so no build waits for it.
+          LOG.info("{}@{} has no pom.xml, so it is analyzed without a build", name, commit);
+          running.put(name, CompletableFuture.completedFuture(null));
+          continue;
+        }
         List<Future<BuildResult>> before = order.upstream(name).stream().map(running::get).toList();
         List<String> upstreamNames = List.copyOf(order.upstream(name));
         BuildResult stored = sandbox.find(name, commit).orElse(null);
@@ -555,6 +579,10 @@ public final class AnalysisRun {
           continue;
         }
         BuildResult result = entry.getValue().get();
+        if (result == null) {
+          withoutBuild.add(name);
+          continue;
+        }
         if (result == storedBuilds.get(name)) {
           reused.add(name);
         }

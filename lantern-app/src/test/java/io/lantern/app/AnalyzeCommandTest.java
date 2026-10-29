@@ -171,13 +171,30 @@ class AnalyzeCommandTest {
         .contains("LLM calls: 9 (SUMMARIZE=6, RESOLVE=2, COMPOSE=1), tokens: 100, cost: $0.25\n");
   }
 
+  @Test
+  void listsARepositoryWithoutAMavenBuildAsAnalyzedWithoutABuild() {
+    String printed =
+        printed(
+            result(new JdbcLlmCallLog.Spending(0, 0, BigDecimal.ZERO, Map.of()), List.of("shop")));
+
+    assertThat(printed)
+        .contains("  shop@abc: analyzed without a build (no pom.xml)\n")
+        .doesNotContain("degraded")
+        .doesNotContain("carried forward");
+  }
+
   private static AnalysisRun.Result result(JdbcLlmCallLog.Spending llm) {
+    return result(llm, List.of());
+  }
+
+  private static AnalysisRun.Result result(JdbcLlmCallLog.Spending llm, List<String> withoutBuild) {
     return new AnalysisRun.Result(
         "clones",
         "shop",
         new Snapshot(1, Map.of("shop", "abc"), 0, "test", Instant.EPOCH),
         Map.of(),
         List.of(),
+        withoutBuild,
         10,
         10,
         2,

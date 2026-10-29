@@ -1,6 +1,6 @@
 # 0016: End-to-end analysis run
 
-Status: accepted (#17), amended (#100, #58, #245), amended by ADR 0031 (#112), ADR 0044 (#95) and ADR 0071 (#253), pending the user's review (#24)
+Status: accepted (#17), amended (#100, #58, #245, #254), amended by ADR 0031 (#112), ADR 0044 (#95) and ADR 0071 (#253), pending the user's review (#24)
 
 ## Context
 
@@ -122,3 +122,22 @@ whatever it answered, and how many answers were reused, and splits the "LLM call
 and answers rejected twice stay in their role's count (ADR 0021), so only with no retries or
 rejections do a role's calls equal what the run asked of it; `EndToEndIT` checks that equality
 with the fake model.
+
+## Amendment (#254): a repository without a Maven build is not built
+
+A repository needs no Maven build (design, Repository registry). Before this, step 3 sent every
+repository to the sandbox, which stored a failed build for one without a `pom.xml` (ADR 0005), so
+it was analyzed in degraded mode and reported as such. Now step 3 first asks
+`BuildSandbox.hasMavenBuild`: whether the repository has a `pom.xml` file at its top at the
+snapshot's commit. A repository without one is not built and gets no build, not even a stored
+failed one from an earlier run; nothing waits for it, since it builds no Maven artifact another
+repository could use. The extractors then see it without a build, as they see a carried-forward
+repository that has none: the docs and config extractors read its files from git, and the Maven
+and Java extractors find no POMs or Java modules in it. A carried-forward repository without one is
+likewise given no build. Its facts are not lower-confidence, since nothing failed.
+
+The run's result lists these repositories apart from its builds (`withoutBuild`), and `analyze`
+prints each as `<repo>@<commit>: analyzed without a build (no pom.xml)`, with no degraded-mode
+warning. Only the top `pom.xml` counts, as the sandbox builds from there: a repository with POMs
+only in subfolders still has no Maven build. The sandbox itself is unchanged: asked to build a
+repository without a `pom.xml`, it still stores a failed build (ADR 0005).

@@ -262,6 +262,22 @@ public class BuildSandbox {
     return ended;
   }
 
+  /**
+   * Whether the repository has a Maven build at the commit: a {@code pom.xml} file at its top. A
+   * repository without one, such as a frontend or a repository of deployment files, is not built;
+   * the extractors that apply read its files, and that is not degraded mode (design, Repository
+   * registry; ADR 0005). {@link #build} still records a failed build for one, if asked.
+   *
+   * @param repo a registered repository
+   * @param commit a commit in the repository
+   */
+  public static boolean hasMavenBuild(Repo repo, String commit) {
+    Objects.requireNonNull(repo, "repo");
+    Objects.requireNonNull(commit, "commit");
+    Git.Result type = Git.run(repo.path(), "cat-file", "-t", commit + ":pom.xml");
+    return type.ok() && type.out().equals("blob");
+  }
+
   /** The stored result of building the repository at the commit, if there is one. */
   public Optional<BuildResult> find(String repo, String commit) {
     Objects.requireNonNull(repo, "repo");
