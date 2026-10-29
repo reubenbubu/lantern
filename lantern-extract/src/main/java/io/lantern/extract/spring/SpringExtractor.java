@@ -49,7 +49,7 @@ import tools.jackson.databind.node.ObjectNode;
  * stereotype, request handlers with their paths, scheduled jobs, {@code @Bean} methods and
  * {@code @Profile} gates. Annotations count directly or through meta-annotations, so a custom
  * annotation carrying {@code @RestController} makes a controller. See {@code
- * docs/adr/0033-spring-extractor.md}.
+ * docs/adr/0035-spring-extractor.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}): through
  * javac with the build's classpath, or parsed in degraded mode, with the same confidence.
