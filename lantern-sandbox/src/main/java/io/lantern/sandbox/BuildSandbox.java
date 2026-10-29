@@ -81,6 +81,10 @@ public class BuildSandbox {
   static final String HELP_PLUGIN = "org.apache.maven.plugins:maven-help-plugin:3.5.2";
   static final String DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.10.0";
 
+  /** The names of Gradle's build and settings files. */
+  private static final Set<String> GRADLE_FILES =
+      Set.of("build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts");
+
   private static final String PROXY_ALIAS = "lantern-proxy";
 
   /** The directory under {@code /lantern} that holds other repositories' artifacts. */
@@ -270,12 +274,59 @@ public class BuildSandbox {
    *
    * @param repo a registered repository
    * @param commit a commit in the repository
+   * @throws IllegalStateException if git cannot read the commit's files
    */
   public static boolean hasMavenBuild(Repo repo, String commit) {
     Objects.requireNonNull(repo, "repo");
     Objects.requireNonNull(commit, "commit");
-    Git.Result type = Git.run(repo.path(), "cat-file", "-t", commit + ":pom.xml");
-    return type.ok() && type.out().equals("blob");
+    // Lists nothing, successfully, when there is no such path; fails only when git cannot read.
+    Git.Result top = Git.run(repo.path(), "ls-tree", commit, "--", "pom.xml");
+    if (!top.ok()) {
+      throw new IllegalStateException(
+          "Cannot read the files of " + repo.name() + "@" + commit + ": " + top.err());
+    }
+    // "<mode> <type> <object>\t<path>"
+    String[] entry = top.out().split("\\s+", 3);
+    return entry.length == 3 && entry[1].equals("blob");
+  }
+
+  /**
+   * What a repository without a Maven build ({@link #hasMavenBuild}) has at the commit that only a
+   * build would let Lantern analyze: Java sources, Gradle build files, or POMs below the top. None
+   * of these is read without a top {@code pom.xml}, so the run warns about them (ADR 0016,
+   * amendment for #254).
+   *
+   * @return what it has, in that order; empty if none of them
+   * @throws IllegalStateException if git cannot read the commit's files
+   */
+  public static List<String> codeWithoutMavenBuild(Repo repo, String commit) {
+    Objects.requireNonNull(repo, "repo");
+    Objects.requireNonNull(commit, "commit");
+    Git.Result files = Git.run(repo.path(), "ls-tree", "-r", "--name-only", "-z", commit);
+    if (!files.ok()) {
+      throw new IllegalStateException(
+          "Cannot read the files of " + repo.name() + "@" + commit + ": " + files.err());
+    }
+    boolean java = false;
+    boolean gradle = false;
+    boolean poms = false;
+    for (String path : files.out().split("\0")) {
+      String name = path.substring(path.lastIndexOf('/') + 1);
+      java |= name.endsWith(".java");
+      gradle |= GRADLE_FILES.contains(name);
+      poms |= name.equals("pom.xml") && path.contains("/");
+    }
+    List<String> found = new ArrayList<>();
+    if (java) {
+      found.add("Java sources");
+    }
+    if (gradle) {
+      found.add("Gradle build files");
+    }
+    if (poms) {
+      found.add("POMs below the top");
+    }
+    return found;
   }
 
   /** The stored result of building the repository at the commit, if there is one. */

@@ -517,21 +517,39 @@ class EndToEndIT {
     git.commit("package.json", "{\"name\": \"web-frontend\"}\n");
     String commit =
         git.commit("README.md", "# Web Frontend\n\nThe frontend shows the greetings.\n");
+    // A run before #254 stored a failed build of it, which is not used.
+    Repo registered =
+        context
+            .getBean(RepoRegistry.class)
+            .register("web-frontend", frontend, RepoSettings.DEFAULT);
+    BuildResult failed = sandbox.build(registered, commit);
+    assertThat(failed.failure()).isEqualTo("No pom.xml at the top of the repository");
+    // Java code built with Gradle, which Lantern cannot analyze without a top pom.xml.
+    Path gradle = Files.createDirectories(temp.resolve("web-gradle"));
+    TestGitRepo gradleGit = TestGitRepo.init(gradle);
+    gradleGit.commit("settings.gradle", "rootProject.name = 'web-gradle'\n");
+    String gradleCommit = gradleGit.commit("src/main/java/web/App.java", "class App {}\n");
 
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     AnalyzeCommand command =
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
     command.run(
         new DefaultApplicationArguments(
-            "analyze", "--system=web", lib.toString(), frontend.toString()));
+            "analyze", "--system=web", lib.toString(), frontend.toString(), gradle.toString()));
     String output = bytes.toString(StandardCharsets.UTF_8);
     assertThat(command.getExitCode()).as(output).isZero();
     assertThat(output)
         .contains("  web-frontend@" + commit + ": analyzed without a build (no pom.xml)\n")
+        .contains(
+            "  web-gradle@"
+                + gradleCommit
+                + ": warning: has Java sources, Gradle build files but no top-level pom.xml: its"
+                + " code is not analyzed\n")
         .contains("web-lib@")
         .doesNotContain("degraded mode");
-    // Nothing was built for it, and its README was read.
-    assertThat(sandbox.find("web-frontend", commit)).isEmpty();
+    // Its README was read, and its stored failed build is not used.
+    assertThat(sandbox.find("web-frontend", commit)).contains(failed);
+    assertThat(AnalysisRun.storedBuild(sandbox, registered, commit)).isNull();
     long snapshot = context.getBean(SnapshotStore.class).latest().orElseThrow().number();
     assertThat(validIn(snapshot, "web-frontend"))
         .filteredOn(f -> f.predicate().equals(DocsExtractor.CLAIM))
@@ -540,8 +558,11 @@ class EndToEndIT {
 
     // Again, for the run's result: the library's build is reused and nothing is new.
     AnalysisRun.Result again =
-        run.run("web", null, Map.of("web-lib", lib, "web-frontend", frontend));
-    assertThat(again.withoutBuild()).containsExactly("web-frontend");
+        run.run(
+            "web", null, Map.of("web-lib", lib, "web-frontend", frontend, "web-gradle", gradle));
+    assertThat(again.withoutBuild()).containsExactlyInAnyOrder("web-frontend", "web-gradle");
+    assertThat(again.codeNotAnalyzed())
+        .isEqualTo(Map.of("web-gradle", List.of("Java sources", "Gradle build files")));
     assertThat(again.builds()).containsOnlyKeys("web-lib");
     assertThat(again.reusedBuilds()).containsExactly("web-lib");
     assertThat(again.newFacts()).isZero();
@@ -554,7 +575,6 @@ class EndToEndIT {
     assertThat(carried.snapshot().commits()).containsEntry("web-frontend", commit);
     assertThat(carried.withoutBuild()).isEmpty();
     assertThat(carried.builds()).containsOnlyKeys("web-lib");
-    assertThat(sandbox.find("web-frontend", commit)).isEmpty();
     assertThat(validIn(carried, "web-frontend")).isEqualTo(validIn(again, "web-frontend"));
   }
 

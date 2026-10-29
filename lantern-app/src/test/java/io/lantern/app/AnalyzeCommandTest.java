@@ -183,11 +183,34 @@ class AnalyzeCommandTest {
         .doesNotContain("carried forward");
   }
 
+  @Test
+  void warnsThatTheCodeOfARepositoryWithoutATopPomIsNotAnalyzed() {
+    String printed =
+        printed(
+            result(
+                new JdbcLlmCallLog.Spending(0, 0, BigDecimal.ZERO, Map.of()),
+                List.of("shop"),
+                Map.of("shop", List.of("Java sources", "Gradle build files"))));
+
+    assertThat(printed)
+        .contains(
+            "  shop@abc: warning: has Java sources, Gradle build files but no top-level pom.xml:"
+                + " its code is not analyzed\n")
+        .doesNotContain("analyzed without a build");
+  }
+
   private static AnalysisRun.Result result(JdbcLlmCallLog.Spending llm) {
     return result(llm, List.of());
   }
 
   private static AnalysisRun.Result result(JdbcLlmCallLog.Spending llm, List<String> withoutBuild) {
+    return result(llm, withoutBuild, Map.of());
+  }
+
+  private static AnalysisRun.Result result(
+      JdbcLlmCallLog.Spending llm,
+      List<String> withoutBuild,
+      Map<String, List<String>> codeNotAnalyzed) {
     return new AnalysisRun.Result(
         "clones",
         "shop",
@@ -195,6 +218,7 @@ class AnalyzeCommandTest {
         Map.of(),
         List.of(),
         withoutBuild,
+        codeNotAnalyzed,
         10,
         10,
         2,

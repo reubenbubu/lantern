@@ -134,10 +134,17 @@ failed one from an earlier run; nothing waits for it, since it builds no Maven a
 repository could use. The extractors then see it without a build, as they see a carried-forward
 repository that has none: the docs and config extractors read its files from git, and the Maven
 and Java extractors find no POMs or Java modules in it. A carried-forward repository without one is
-likewise given no build. Its facts are not lower-confidence, since nothing failed.
+likewise given no build. Its facts are not lower-confidence, since nothing failed. `hasMavenBuild`
+reads the commit's top folder with `git ls-tree`: only a missing `pom.xml` means no Maven build;
+git failing to read the commit fails the run instead of quietly skipping the build.
 
 The run's result lists these repositories apart from its builds (`withoutBuild`), and `analyze`
 prints each as `<repo>@<commit>: analyzed without a build (no pom.xml)`, with no degraded-mode
-warning. Only the top `pom.xml` counts, as the sandbox builds from there: a repository with POMs
-only in subfolders still has no Maven build. The sandbox itself is unchanged: asked to build a
+warning. A repository without a top `pom.xml` that has what only a Maven build would let Lantern
+read (Java sources, Gradle build files, or POMs below the top) is treated the same, but its code is
+not analyzed: the Java extractors find modules only from a top `pom.xml`, and Gradle is not
+supported. The run logs a warning and lists it in `codeNotAnalyzed`, and `analyze` prints
+`<repo>@<commit>: warning: has <what> but no top-level pom.xml: its code is not analyzed` instead
+of the line above, so a reader does not take its documents for an analysis of its code. Only the top `pom.xml` counts, as the sandbox builds from there: a repository with POMs
+only in subfolders still has no Maven build, and gets the warning. The sandbox itself is unchanged: asked to build a
 repository without a `pom.xml`, it still stores a failed build (ADR 0005).

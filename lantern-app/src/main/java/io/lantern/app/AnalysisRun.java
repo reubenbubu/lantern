@@ -186,6 +186,9 @@ public final class AnalysisRun {
    * @param withoutBuild the names of the repositories it analyzed without a build, because they
    *     have no Maven build (no top {@code pom.xml}), such as a frontend or deployment files; that
    *     is not degraded mode
+   * @param codeNotAnalyzed of those, the ones that have what only a Maven build would let Lantern
+   *     analyze (Java sources, Gradle build files, POMs below the top), with what they have; their
+   *     code is not analyzed
    * @param facts how many facts the extractors found, with the linker's facts about the analyzed
    *     repositories
    * @param newFacts how many facts did not hold in the previous snapshot, the linker's about any
@@ -211,6 +214,7 @@ public final class AnalysisRun {
       Map<String, BuildResult> builds,
       List<String> reusedBuilds,
       List<String> withoutBuild,
+      Map<String, List<String>> codeNotAnalyzed,
       int facts,
       int newFacts,
       int linksAsked,
@@ -229,6 +233,9 @@ public final class AnalysisRun {
       builds = Collections.unmodifiableMap(new TreeMap<>(builds));
       reusedBuilds = List.copyOf(reusedBuilds);
       withoutBuild = List.copyOf(withoutBuild);
+      Map<String, List<String>> code = new TreeMap<>();
+      codeNotAnalyzed.forEach((repo, kinds) -> code.put(repo, List.copyOf(kinds)));
+      codeNotAnalyzed = Collections.unmodifiableMap(code);
       documents = List.copyOf(documents);
     }
   }
@@ -284,8 +291,10 @@ public final class AnalysisRun {
 
       List<String> reused = new ArrayList<>();
       List<String> withoutBuild = new ArrayList<>();
+      Map<String, List<String>> codeNotAnalyzed = new TreeMap<>();
       List<RepoBuild> carried = carriedForward(snapshot, registered.keySet());
-      Map<String, BuildResult> builds = build(registered, carried, snapshot, reused, withoutBuild);
+      Map<String, BuildResult> builds =
+          build(registered, carried, snapshot, reused, withoutBuild, codeNotAnalyzed);
       List<RepoBuild> repoBuilds = new ArrayList<>();
       registered.forEach(
           (name, repo) ->
@@ -408,6 +417,7 @@ public final class AnalysisRun {
           builds,
           reused,
           withoutBuild,
+          codeNotAnalyzed,
           extracted.size(),
           newFacts,
           stored.linksAsked(),
@@ -485,13 +495,19 @@ public final class AnalysisRun {
                     e.getMessage());
                 return;
               }
-              BuildResult build =
-                  BuildSandbox.hasMavenBuild(repo, commit)
-                      ? sandbox.find(name, commit).orElse(null)
-                      : null;
-              result.add(new RepoBuild(repo, commit, build));
+              result.add(new RepoBuild(repo, commit, storedBuild(sandbox, repo, commit)));
             });
     return result;
+  }
+
+  /**
+   * The stored build of a repository at a commit, or null if there is none or the repository has no
+   * Maven build there: a failed build stored for it before #254 would put it in degraded mode.
+   */
+  static BuildResult storedBuild(BuildSandbox sandbox, Repo repo, String commit) {
+    return BuildSandbox.hasMavenBuild(repo, commit)
+        ? sandbox.find(repo.name(), commit).orElse(null)
+        : null;
   }
 
   /**
@@ -503,14 +519,16 @@ public final class AnalysisRun {
    * since its failure may have been transient or fixed by a settings change (ADR 0016, #58). If the
    * sandbox cannot build it again, the stored failed build is used, as before #58. A repository
    * without a Maven build is not built, nor given a stored build, and is added to {@code
-   * withoutBuild} instead of the builds returned.
+   * withoutBuild} instead of the builds returned, and to {@code codeNotAnalyzed}, with a warning,
+   * if it has code only a build would let the extractors read.
    */
   private Map<String, BuildResult> build(
       Map<String, Repo> repos,
       List<RepoBuild> carried,
       Snapshot snapshot,
       List<String> reused,
-      List<String> withoutBuild) {
+      List<String> withoutBuild,
+      Map<String, List<String>> codeNotAnalyzed) {
     Map<String, Repo> all = new TreeMap<>(repos);
     carried.forEach(c -> all.put(c.repo().name(), c.repo()));
     BuildOrder order = BuildOrder.of(all, snapshot.commits());
@@ -533,7 +551,18 @@ public final class AnalysisRun {
         String commit = snapshot.commits().get(name);
         if (!BuildSandbox.hasMavenBuild(repo, commit)) {
           // Nothing builds what it would provide, so no build waits for it.
-          LOG.info("{}@{} has no pom.xml, so it is analyzed without a build", name, commit);
+          List<String> code = BuildSandbox.codeWithoutMavenBuild(repo, commit);
+          if (code.isEmpty()) {
+            LOG.info("{}@{} has no pom.xml, so it is analyzed without a build", name, commit);
+          } else {
+            LOG.warn(
+                "{}@{} has {} but no top-level pom.xml, so it is not built and its code is not"
+                    + " analyzed",
+                name,
+                commit,
+                String.join(", ", code));
+            codeNotAnalyzed.put(name, code);
+          }
           running.put(name, CompletableFuture.completedFuture(null));
           continue;
         }

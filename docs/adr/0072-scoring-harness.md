@@ -1,6 +1,6 @@
 # 0072: Scoring harness: a report against a reference, and the models of a run
 
-Status: accepted (#252), pending the user's review (#24)
+Status: accepted (#252), amended (#254), pending the user's review (#24)
 
 ## Context
 
@@ -74,8 +74,8 @@ measurement, the assessment of snapshot-4's project-4 report, was counted by han
 ## Not in this issue
 
 Replaying recordings in `analyze` itself, so a real-model run can be repeated for free, is #202's.
-The judge (#277). Repositories without a Maven build are left out of the script's runs until #254,
-so project-3's and project-4's frontends and deployment repositories are not analyzed yet.
+The judge (#277). Repositories without a Maven build were left out of the script's runs until #254
+(see the amendment below).
 
 ## Recounts against the assessment
 
@@ -83,3 +83,9 @@ Scoring snapshot-4's report reproduces the assessment of ADR 0070 except where i
 differently: the reference now has 16 risks, not 13, since its second pass added three; and HTTP
 connections are 6 of 10, not 6 of 8, because frontend to gateway and gateway to Eureka count as
 HTTP here.
+
+## Amendment (#254): every repository of a set is analyzed
+
+Since #254 a repository without a Maven build is analyzed without a build (ADR 0016, amendment for
+#254), so `score-testsets.sh` and `TestSetScoreIT` analyze every repository a set's pins name,
+project-3's and project-4's frontends and deployment repositories included.
