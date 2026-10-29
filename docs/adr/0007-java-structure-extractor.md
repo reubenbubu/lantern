@@ -1,6 +1,6 @@
 # 0007: Java structure extractor
 
-Status: accepted (#9), amended by ADR 0048 (#176), pending the user's review (#24)
+Status: accepted (#9), amended by ADR 0049 (#176), pending the user's review (#24)
 
 ## Context
 
@@ -70,7 +70,7 @@ where, which calls are kept and how the fallback relates to the compiler.
   superclass (not `Object`, `Enum` or `Record`) or an interface's superinterfaces,
   `type IMPLEMENTS type` for a class's interfaces (supertypes may be third-party types), and
   `method CALLS method` for method calls, constructor calls (`new`, `this(...)`, `super(...)`) and
-  method references whose target is declared in the analyzed sources (or, since ADR 0048, is
+  method references whose target is declared in the analyzed sources (or, since ADR 0049, is
   inherited from third-party code by a type the sources declare that the call is written on).
   Calls in field initializers and initializer blocks have the type as subject. Calls into the JDK
   and third-party code are left out, to keep the graph to the system's own code. There is one `CALLS` fact per caller and

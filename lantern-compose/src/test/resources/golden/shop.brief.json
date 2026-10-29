@@ -943,6 +943,16 @@
         "text" : "No deployable unit was found in the code."
       } ],
       "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "containers.decisions",
+      "variant" : "note",
+      "title" : "Decisions",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No decision records were found in shop, so the reasons for its design are not known."
+      } ],
+      "facts" : [ ]
     } ],
     "sections" : [ ]
   }, {

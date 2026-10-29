@@ -392,6 +392,37 @@ class QualityBarTest {
   }
 
   @Test
+  void theExplorersStartHereAndCatalogMustListSomething() {
+    Callout nothing =
+        new Callout("n", Callout.Variant.NOTE, null, null, List.of(TextRun.of("None.")), List.of());
+    Document document =
+        document(
+            QualityBar.EXPLORER,
+            "a",
+            section(
+                "overview", "Overview", new Paragraph("p", List.of(TextRun.of("Hi.")), List.of())),
+            section("start_here", "Start here", nothing),
+            section(
+                "catalog",
+                "Catalog",
+                new Callout(
+                    "m",
+                    Callout.Variant.NOTE,
+                    null,
+                    null,
+                    List.of(TextRun.of("None.")),
+                    List.of())));
+
+    assertThat(QualityBar.failures(document))
+        .extracting(QualityReport.Failure::check, QualityReport.Failure::target)
+        .contains(
+            org.assertj.core.groups.Tuple.tuple(
+                QualityBar.START_HERE, CrossReference.Target.section("start_here")),
+            org.assertj.core.groups.Tuple.tuple(
+                QualityBar.CATALOG, CrossReference.Target.section("catalog")));
+  }
+
+  @Test
   void theBriefsRisksAreRankedByImpact() {
     Callout low =
         new Callout(

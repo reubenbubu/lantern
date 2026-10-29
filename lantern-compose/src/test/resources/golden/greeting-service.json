@@ -622,6 +622,59 @@
     } ],
     "sections" : [ ]
   }, {
+    "id" : "start_here",
+    "title" : "Start here",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "repo:greeting-service",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "start_here.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No entry point, main class, readme or decision record was found, so there is no obvious place to start reading."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "containers",
+    "title" : "Containers",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "repo:greeting-service",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "diagram",
+      "id" : "containers.diagram",
+      "diagramKind" : "c4-container",
+      "title" : "Containers of greeting-lib, greeting-service, orders and shop",
+      "nodes" : [ {
+        "id" : "service:com.example.greeting:greeting-service",
+        "label" : "greeting-service",
+        "technology" : "Java 21",
+        "parent" : "system:snapshot",
+        "facts" : [ "4ba717064d2be139c89090f8f4ca3bdc46f158bf388dffb83d76c15462d431b8", "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e", "5bed7a741309d6a1609fa12182361b528fa4d76fdaeb44a38f32c921b4833329" ]
+      }, {
+        "id" : "system:snapshot",
+        "label" : "greeting-lib, greeting-service, orders and shop",
+        "facts" : [ ]
+      } ],
+      "edges" : [ ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "containers.decisions",
+      "variant" : "note",
+      "title" : "Decisions",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No decision records were found in greeting-service, so the reasons for its design are not known."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "context",
     "title" : "System context",
     "levels" : [ "L0", "L1" ],
@@ -672,38 +725,86 @@
     } ],
     "sections" : [ ]
   }, {
-    "id" : "containers",
-    "title" : "Containers",
-    "levels" : [ "L1", "L2" ],
-    "entity" : "repo:greeting-service",
-    "facts" : [ ],
-    "blocks" : [ {
-      "kind" : "diagram",
-      "id" : "containers.diagram",
-      "diagramKind" : "c4-container",
-      "title" : "Containers of greeting-lib, greeting-service, orders and shop",
-      "nodes" : [ {
-        "id" : "service:com.example.greeting:greeting-service",
-        "label" : "greeting-service",
-        "technology" : "Java 21",
-        "parent" : "system:snapshot",
-        "facts" : [ "4ba717064d2be139c89090f8f4ca3bdc46f158bf388dffb83d76c15462d431b8", "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e", "5bed7a741309d6a1609fa12182361b528fa4d76fdaeb44a38f32c921b4833329" ]
-      }, {
-        "id" : "system:snapshot",
-        "label" : "greeting-lib, greeting-service, orders and shop",
-        "facts" : [ ]
-      } ],
-      "edges" : [ ],
-      "facts" : [ ]
-    } ],
-    "sections" : [ ]
-  }, {
     "id" : "components",
     "title" : "Components",
     "levels" : [ "L2", "L3" ],
     "entity" : "repo:greeting-service",
     "facts" : [ ],
     "blocks" : [ ],
+    "sections" : [ ]
+  }, {
+    "id" : "sequences",
+    "title" : "Main flows",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "repo:greeting-service",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "sequences.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No entry point (HTTP endpoint, message listener or scheduled job) was found whose code reaches another container."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "catalog",
+    "title" : "Catalog",
+    "levels" : [ "L2", "L3" ],
+    "entity" : "repo:greeting-service",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "table",
+      "id" : "catalog.containers",
+      "title" : "Containers",
+      "columns" : [ {
+        "label" : "Container"
+      }, {
+        "label" : "Kind"
+      }, {
+        "label" : "Technology"
+      }, {
+        "label" : "Used by"
+      } ],
+      "rows" : [ {
+        "entity" : "service:com.example.greeting:greeting-service",
+        "cells" : [ [ {
+          "kind" : "ref",
+          "text" : "greeting-service",
+          "target" : {
+            "kind" : "entity",
+            "id" : "service:com.example.greeting:greeting-service"
+          }
+        } ], [ {
+          "kind" : "text",
+          "text" : "Deployable unit"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Java 21"
+        } ], [ ] ],
+        "facts" : [ "4ba717064d2be139c89090f8f4ca3bdc46f158bf388dffb83d76c15462d431b8", "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e", "5bed7a741309d6a1609fa12182361b528fa4d76fdaeb44a38f32c921b4833329" ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "change_guidance",
+    "title" : "Change guidance",
+    "levels" : [ "L2", "L3" ],
+    "entity" : "repo:greeting-service",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "change_guidance.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The code has no endpoint, listener, scheduled job, send, call to another service, schema or configuration to follow as an example."
+      } ],
+      "facts" : [ ]
+    } ],
     "sections" : [ ]
   }, {
     "id" : "dependencies",
@@ -764,7 +865,7 @@
         "check" : "A legend for every shape, color, line style and arrowhead used",
         "target" : {
           "kind" : "block",
-          "id" : "context.diagram"
+          "id" : "containers.diagram"
         },
         "detail" : [ {
           "kind" : "text",
@@ -775,11 +876,18 @@
         "check" : "A legend for every shape, color, line style and arrowhead used",
         "target" : {
           "kind" : "block",
-          "id" : "containers.diagram"
+          "id" : "context.diagram"
         },
         "detail" : [ {
           "kind" : "text",
           "text" : "The template draws no legend."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Acronyms are explained in the glossary",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document has no glossary; it uses HTTP."
         } ],
         "facts" : [ ]
       }, {
@@ -800,22 +908,11 @@
         "check" : "A \"start here\" list of the entry points and files to read first",
         "target" : {
           "kind" : "section",
-          "id" : "overview"
+          "id" : "start_here"
         },
         "detail" : [ {
           "kind" : "text",
-          "text" : "There is none."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "The container diagram first",
-        "target" : {
-          "kind" : "block",
-          "id" : "context.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The first diagram is not the container diagram."
+          "text" : "It lists nothing."
         } ],
         "facts" : [ ]
       }, {
@@ -823,20 +920,6 @@
         "detail" : [ {
           "kind" : "text",
           "text" : "The document has no sequence diagram."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "A catalog of containers, components, endpoints, queues, tables and config",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document has no catalog section."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Observed decisions, with rationale or marked unknown",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "No decision records are listed, and none are marked unknown."
         } ],
         "facts" : [ ]
       } ],

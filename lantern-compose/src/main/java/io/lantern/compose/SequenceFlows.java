@@ -69,6 +69,9 @@ final class SequenceFlows {
   private final Set<EntityId> scope;
   private final Set<Fact> alternatives;
 
+  /** The flows shown, once chosen. */
+  private List<Trace> chosen;
+
   /** The links of each unit, by the code on the unit's end. */
   private final Map<String, List<Fact>> linksBySource = new HashMap<>();
 
@@ -94,7 +97,7 @@ final class SequenceFlows {
   // Entry points.
 
   /** What starts a flow: an endpoint, a listener or a scheduled job of a unit. */
-  private record Entry(EntityId unit, EntityId method, Fact fact) {
+  record Entry(EntityId unit, EntityId method, Fact fact) {
 
     String key() {
       return unit + " " + method;
@@ -688,14 +691,20 @@ final class SequenceFlows {
 
   // Choosing the flows.
 
-  /**
-   * One subsection per flow shown, each holding its prose, its trigger and its sequence diagram;
-   * none when no entry point reaches outside its unit.
-   *
-   * @param section the section's ID
-   * @param blocks receives the section's own blocks: a paragraph when there is no flow
-   */
-  List<Section> flows(String section, List<Block> blocks) {
+  /** The entry points of the flows shown, in the order they are shown. */
+  List<Entry> mainEntries() {
+    return chosen().stream().map(t -> t.entry).toList();
+  }
+
+  /** The flows shown: the highest ranked candidates in scope, none part of another. */
+  private List<Trace> chosen() {
+    if (chosen == null) {
+      chosen = choose();
+    }
+    return chosen;
+  }
+
+  private List<Trace> choose() {
     List<Trace> candidates = new ArrayList<>();
     for (Entry entry : entries()) {
       Trace trace = trace(entry);
@@ -717,6 +726,18 @@ final class SequenceFlows {
         kept.add(trace);
       }
     }
+    return kept;
+  }
+
+  /**
+   * One subsection per flow shown, each holding its prose, its trigger and its sequence diagram;
+   * none when no entry point reaches outside its unit.
+   *
+   * @param section the section's ID
+   * @param blocks receives the section's own blocks: a paragraph when there is no flow
+   */
+  List<Section> flows(String section, List<Block> blocks) {
+    List<Trace> kept = chosen();
     if (kept.isEmpty()) {
       // A note: what the code does not show cites no fact (Quality bar, ADR 0046).
       blocks.add(

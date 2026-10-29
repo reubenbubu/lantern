@@ -57,6 +57,8 @@ final class RepoSections {
   private final Assembler assembler;
   private final C4Views c4;
   private final SortedSet<EntityId> units;
+  private SequenceFlows flows;
+  private ExplorerSections explorer;
 
   /**
    * @param repo the repository the document is about, or {@code null} for the whole system
@@ -125,8 +127,10 @@ final class RepoSections {
       case CONTEXT -> blocks.addAll(c4.context(id));
       case CONTAINERS -> c4.containers(id, blocks, subsections);
       case COMPONENTS -> subsections.addAll(c4.components(id));
-      case SEQUENCES ->
-          subsections.addAll(new SequenceFlows(knowledge, assembler, c4, units).flows(id, blocks));
+      case START_HERE -> blocks.addAll(explorer().startHere(id));
+      case SEQUENCES -> subsections.addAll(flows().flows(id, blocks));
+      case CATALOG -> blocks.addAll(explorer().catalog(id));
+      case CHANGE_GUIDANCE -> blocks.addAll(explorer().changeGuidance(id));
       case DEPENDENCIES -> dependencies(id, blocks);
       case STRUCTURE -> structure(id, blocks);
       case HEADLINES -> blocks.add(headlines(id));
@@ -142,6 +146,21 @@ final class RepoSections {
                   .callouts(id));
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
+  }
+
+  /** The main flows, built once per document: the start-here list and the flows both use them. */
+  private SequenceFlows flows() {
+    if (flows == null) {
+      flows = new SequenceFlows(knowledge, assembler, c4, units);
+    }
+    return flows;
+  }
+
+  private ExplorerSections explorer() {
+    if (explorer == null) {
+      explorer = new ExplorerSections(knowledge, assembler, c4, flows(), units, repos);
+    }
+    return explorer;
   }
 
   // Overview: the repository's summary and what it builds.

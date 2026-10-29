@@ -29,6 +29,15 @@ class DefaultViewsUpgradeIT {
           SectionKind.CONTAINERS,
           SectionKind.COMPONENTS);
 
+  private static final List<SectionKind> OLD_EXPLORER =
+      List.of(
+          SectionKind.OVERVIEW,
+          SectionKind.CONTEXT,
+          SectionKind.CONTAINERS,
+          SectionKind.COMPONENTS,
+          SectionKind.DEPENDENCIES,
+          SectionKind.STRUCTURE);
+
   @Test
   void removesStoredDefaultViewsAndKeepsOverrides() {
     try (PostgreSQLContainer postgres =
@@ -42,7 +51,9 @@ class DefaultViewsUpgradeIT {
       JdbcViewDefinitionStore store = new JdbcViewDefinitionStore(JdbcClient.create(dataSource));
 
       // What runs before this change stored: the defaults of the time.
-      store.save(ViewDefinition.perRepo("shop", "shop", AnalysisRun.EXPLORER));
+      store.save(
+          new ViewDefinition(
+              "shop", "shop", Scope.repo("shop"), null, AnalysisRun.EXPLORER, OLD_EXPLORER));
       store.save(ViewDefinition.executiveBrief("shop.brief", "shop", AnalysisRun.BRIEF));
       store.save(
           new ViewDefinition(

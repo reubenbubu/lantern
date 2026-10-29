@@ -77,9 +77,13 @@ class ComposerTest {
         .extracting(Section::id)
         .containsExactly(
             "overview",
-            "context",
+            "start_here",
             "containers",
+            "context",
             "components",
+            "sequences",
+            "catalog",
+            "change_guidance",
             "dependencies",
             "structure",
             "quality");
@@ -346,7 +350,7 @@ class ComposerTest {
     assertThat(document.entities())
         .extracting(e -> e.id().toString())
         .containsExactly("repo:empty", "system:snapshot");
-    assertThat(document.sections()).hasSize(7);
+    assertThat(document.sections()).hasSize(11);
   }
 
   @Test

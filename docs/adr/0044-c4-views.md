@@ -1,6 +1,7 @@
 # 0044: Context, container and component views, and the system's C4 report
 
-Status: accepted (#95), amended by ADR 0046 (#163) and ADR 0048 (#176), pending the user's review (#24)
+Status: accepted (#95), amended by ADR 0046 (#163), ADR 0048 (#97) and ADR 0049 (#176), pending
+the user's review (#24)
 
 ## Context
 
