@@ -1,0 +1,812 @@
+package io.lantern.compose;
+
+import io.lantern.core.document.Block;
+import io.lantern.core.document.Inline;
+import io.lantern.core.document.Paragraph;
+import io.lantern.core.document.Section;
+import io.lantern.core.document.SequenceDiagram;
+import io.lantern.core.document.Table;
+import io.lantern.core.document.TextRun;
+import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.vocabulary.BuiltInTypes;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+/**
+ * The main flows of a scope as sequence diagrams, by {@code docs/design.md} (Composition, Sequence
+ * diagrams): each traced from an entry point (an HTTP endpoint, a message listener or a scheduled
+ * job) through the call graph inside its deployable unit, keeping only the steps that cross a
+ * container boundary (HTTP calls, sends and data access), and stitched across units through the
+ * linker's links (ADR 0042): an HTTP call goes on in the endpoint it reaches, a send in each
+ * listener it reaches, after the sender's own steps, since it happens later.
+ *
+ * <p>Nothing is invented: a step is drawn only for a fact, and a call Lantern could not link ends
+ * there with a note. Participants are containers: deployable units, databases, topics, queues and
+ * exchanges, and external systems, named as on the container diagram. Labels say what the facts say
+ * (the endpoint, the routing key, the tables); intent phrases worded for the reader are the LLM's
+ * (#97).
+ */
+final class SequenceFlows {
+
+  /** The most flows a scope shows (docs/design.md: three to seven). */
+  static final int MAX_FLOWS = 7;
+
+  /** The most messages one flow shows before the trace stops. */
+  static final int MAX_MESSAGES = 40;
+
+  private static final String METHOD = "method";
+  private static final String ENDPOINT = "endpoint";
+  private static final String MESSAGE_LISTENER = "message-listener";
+  private static final String SCHEDULED = "scheduled";
+  private static final String PROFILE_GATE = "profile-gate";
+  private static final String SENDS_MESSAGES_TO = "SENDS_MESSAGES_TO";
+  private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
+  private static final String READS_TABLE = "READS_TABLE";
+  private static final String WRITES_TABLE = "WRITES_TABLE";
+
+  private static final String UNKNOWN = "Not known from the code.";
+
+  private final Knowledge knowledge;
+  private final Assembler assembler;
+  private final C4Views c4;
+  private final Set<EntityId> scope;
+  private final Set<Fact> alternatives;
+
+  /** The links of each unit, by the code on the unit's end. */
+  private final Map<String, List<Fact>> linksBySource = new HashMap<>();
+
+  /**
+   * @param units the deployable units in scope; flows that start in or pass through one are shown
+   */
+  SequenceFlows(Knowledge knowledge, Assembler assembler, C4Views c4, Set<EntityId> units) {
+    this.knowledge = knowledge;
+    this.assembler = assembler;
+    this.c4 = c4;
+    this.scope = units;
+    this.alternatives = c4.alternativeLinks().keySet();
+    for (EntityId unit : C4Views.units(knowledge)) {
+      for (Fact fact : knowledge.about(unit)) {
+        String source = attribute(fact, "source");
+        if (source != null && !alternatives.contains(fact)) {
+          linksBySource.computeIfAbsent(unit + " " + source, k -> new ArrayList<>()).add(fact);
+        }
+      }
+    }
+  }
+
+  // Entry points.
+
+  /** What starts a flow: an endpoint, a listener or a scheduled job of a unit. */
+  private record Entry(EntityId unit, EntityId method, Fact fact) {
+
+    String key() {
+      return unit + " " + method;
+    }
+  }
+
+  /** Every entry point of every unit, by unit and method ID. */
+  private List<Entry> entries() {
+    List<Entry> result = new ArrayList<>();
+    for (EntityId unit : C4Views.units(knowledge)) {
+      SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
+      for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+        code.addAll(knowledge.typesWithin(module));
+        for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+          code.addAll(knowledge.typesWithin(pkg));
+        }
+      }
+      for (EntityId type : code) {
+        for (EntityId method : knowledge.parts(type, METHOD)) {
+          knowledge.attributes(method).stream()
+              .filter(
+                  f ->
+                      f.predicate().equals(ENDPOINT)
+                          || f.predicate().equals(MESSAGE_LISTENER)
+                          || f.predicate().equals(SCHEDULED))
+              .findFirst()
+              .ifPresent(f -> result.add(new Entry(unit, method, f)));
+        }
+      }
+    }
+    return result;
+  }
+
+  // Tracing.
+
+  /** A step with the Spring profiles under which alone it happens. */
+  private record Item(SequenceDiagram.Step step, List<String> profiles) {}
+
+  /** A send's delivery to a listener, traced after the sender's own steps. */
+  private record Later(EntityId from, Fact link, List<String> profiles) {}
+
+  /** One flow being traced. */
+  private final class Trace {
+    final Entry entry;
+    final List<Item> items = new ArrayList<>();
+    final Set<EntityId> participants = new LinkedHashSet<>();
+    final Set<String> visited = new HashSet<>();
+    final Deque<Later> later = new ArrayDeque<>();
+    final Set<String> reached = new HashSet<>();
+    final SortedSet<String> asyncThrough = new TreeSet<>();
+    final List<String> unresolved = new ArrayList<>();
+    int messages;
+    boolean truncated;
+
+    Trace(Entry entry) {
+      this.entry = entry;
+      participants.add(entry.unit);
+    }
+
+    boolean full() {
+      if (messages >= MAX_MESSAGES) {
+        truncated = true;
+      }
+      return truncated;
+    }
+
+    void message(
+        EntityId from,
+        EntityId to,
+        String label,
+        String code,
+        SequenceDiagram.MessageKind kind,
+        List<String> profiles,
+        String info,
+        List<Fact> facts) {
+      if (full()) {
+        return;
+      }
+      messages++;
+      if (from != null) {
+        participants.add(from);
+      }
+      if (to != null) {
+        participants.add(to);
+      }
+      items.add(
+          new Item(
+              new SequenceDiagram.Message(
+                  from,
+                  to,
+                  label,
+                  code,
+                  kind,
+                  false,
+                  null,
+                  profiles,
+                  info == null ? List.of() : List.of(TextRun.of(info)),
+                  assembler.facts(facts)),
+              profiles));
+    }
+
+    void note(List<EntityId> over, String text, List<String> profiles, List<Fact> facts) {
+      if (truncated) {
+        return;
+      }
+      participants.addAll(over);
+      items.add(
+          new Item(
+              new SequenceDiagram.Note(
+                  List.copyOf(new LinkedHashSet<>(over)),
+                  List.of(TextRun.of(text)),
+                  assembler.facts(facts)),
+              profiles));
+    }
+
+    /** The units, stores, queues and external systems the flow touches. */
+    int touches() {
+      return participants.size();
+    }
+  }
+
+  private Trace trace(Entry entry) {
+    Trace trace = new Trace(entry);
+    sync(trace, entry.unit, entry.method, List.of());
+    while (!trace.later.isEmpty() && !trace.truncated) {
+      Later later = trace.later.removeFirst();
+      Fact link = later.link;
+      EntityId receiver = Knowledge.object(link);
+      EntityId handler = parse(attribute(link, "target"));
+      String queue = attribute(link, "queue");
+      String protocol = attribute(link, "protocol");
+      String through = queue == null ? null : nameOf(parse(queue));
+      trace.message(
+          later.from,
+          receiver,
+          handler == null ? "Delivers the message" : "Delivers to " + methodName(handler),
+          through == null ? protocol : join(protocol, through),
+          SequenceDiagram.MessageKind.ASYNC,
+          later.profiles,
+          bindingInfo(link),
+          withEnds(link));
+      if (handler != null) {
+        trace.reached.add(receiver + " " + handler);
+        sync(trace, receiver, handler, later.profiles);
+      }
+    }
+    if (trace.truncated) {
+      trace.truncated = false;
+      trace.note(
+          List.of(),
+          "The trace stops here, after " + MAX_MESSAGES + " messages.",
+          List.of(),
+          List.of());
+      trace.truncated = true;
+    }
+    return trace;
+  }
+
+  /** Something a method does, in the order of the code: a call, or a step out of its unit. */
+  private record Event(int line, int order, String id, Runnable action) {}
+
+  /** Follows the method's code inside the unit, adding the steps that leave it. */
+  private void sync(Trace trace, EntityId unit, EntityId method, List<String> outer) {
+    if (trace.truncated || !trace.visited.add(unit + " " + method)) {
+      return;
+    }
+    List<String> profiles = gate(method, outer);
+    List<Event> events = new ArrayList<>();
+    for (Fact call : knowledge.relations(method, BuiltInTypes.CALLS)) {
+      EntityId callee = Knowledge.object(call);
+      EntityId owner = PackageDependencies.ownerType(knowledge, callee);
+      if (!knowledge.relations(owner, REPOSITORY_FOR).isEmpty()) {
+        events.add(
+            new Event(line(call), 0, call.id(), () -> repositoryCall(trace, unit, call, profiles)));
+      } else {
+        events.add(
+            new Event(
+                line(call),
+                0,
+                call.id(),
+                () -> implementations(callee).forEach(m -> sync(trace, unit, m, profiles))));
+      }
+    }
+    for (Fact link : linksBySource.getOrDefault(unit + " " + method, List.of())) {
+      Runnable action =
+          switch (link.predicate()) {
+            case C4Views.CALLS_HTTP -> () -> httpCall(trace, unit, link, profiles);
+            case C4Views.PUBLISHES -> () -> send(trace, unit, method, link, profiles);
+            case C4Views.UNRESOLVED_LINK -> () -> unresolved(trace, unit, link, profiles);
+            default -> null;
+          };
+      if (action != null) {
+        events.add(new Event(line(link), 1, link.id(), action));
+      }
+    }
+    List<Fact> reads = knowledge.relations(method, READS_TABLE);
+    if (!reads.isEmpty()) {
+      events.add(
+          new Event(
+              reads.stream().mapToInt(SequenceFlows::line).min().orElseThrow(),
+              2,
+              reads.getFirst().id(),
+              () -> dataAccess(trace, unit, "Reads", reads, profiles)));
+    }
+    List<Fact> writes = knowledge.relations(method, WRITES_TABLE);
+    if (!writes.isEmpty()) {
+      events.add(
+          new Event(
+              writes.stream().mapToInt(SequenceFlows::line).min().orElseThrow(),
+              3,
+              writes.getFirst().id(),
+              () -> dataAccess(trace, unit, "Writes", writes, profiles)));
+    }
+    events.sort(
+        Comparator.comparingInt(Event::line)
+            .thenComparingInt(Event::order)
+            .thenComparing(Event::id));
+    events.forEach(e -> e.action().run());
+  }
+
+  /** The method, and the same method of the types implementing its type, if it is an interface. */
+  private List<EntityId> implementations(EntityId method) {
+    List<EntityId> result = new ArrayList<>(List.of(method));
+    EntityId owner = PackageDependencies.ownerType(knowledge, method);
+    String key = method.key();
+    int hash = key.indexOf('#');
+    if (owner.equals(method) || hash < 0) {
+      return result;
+    }
+    String signature = key.substring(hash);
+    for (Fact fact : knowledge.withPredicate(BuiltInTypes.IMPLEMENTS)) {
+      if (Knowledge.isEntity(fact) && Knowledge.object(fact).equals(owner)) {
+        EntityId implementation = new EntityId(METHOD, fact.subject().key() + signature);
+        if (!knowledge.about(implementation).isEmpty()) {
+          result.add(implementation);
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * The profiles under which the method's code runs: those of a {@code @Profile} gate on it or its
+   * type naming profiles to be active, else those of the code calling it. A negated gate ({@code
+   * !local}) is not a step's condition: the links it changes say which profiles they miss.
+   */
+  private List<String> gate(EntityId method, List<String> outer) {
+    List<EntityId> gated = new ArrayList<>(List.of(method));
+    gated.add(PackageDependencies.ownerType(knowledge, method));
+    for (EntityId entity : gated) {
+      for (Fact fact : knowledge.attributes(entity)) {
+        if (fact.predicate().equals(PROFILE_GATE) && !fact.object().value().contains("!")) {
+          List<String> profiles = C4Views.strings(fact, "profiles");
+          if (!profiles.isEmpty()) {
+            return new ArrayList<>(new TreeSet<>(profiles));
+          }
+        }
+      }
+    }
+    return outer;
+  }
+
+  private List<String> profiles(Fact link, List<String> outer) {
+    String profile = attribute(link, "profile");
+    return profile == null ? outer : List.of(profile);
+  }
+
+  private void httpCall(Trace trace, EntityId unit, Fact link, List<String> outer) {
+    EntityId to = Knowledge.object(link);
+    List<String> profiles = profiles(link, outer);
+    EntityId handler = parse(attribute(link, "target"));
+    String endpoint = attribute(link, "endpoint");
+    if (endpoint == null) {
+      String method = attribute(link, "httpMethod");
+      String path = attribute(link, "path");
+      endpoint = path == null ? null : method == null ? path : method + " " + path;
+    }
+    List<String> info = new ArrayList<>();
+    String protocol = attribute(link, "protocol");
+    if (protocol != null) {
+      info.add("Over " + protocol + ".");
+    }
+    List<Fact> facts = withEnds(link);
+    for (Map.Entry<Fact, Fact> alternative : c4.alternativeLinks().entrySet()) {
+      if (alternative.getValue().equals(link)) {
+        Fact other = alternative.getKey();
+        info.add(
+            "Under the Spring profile "
+                + attribute(other, "profile")
+                + " it calls "
+                + nameOf(Knowledge.object(other))
+                + " instead.");
+        facts.add(other);
+      }
+    }
+    trace.message(
+        unit,
+        to,
+        "Calls " + (handler == null ? nameOf(to) : methodName(handler)),
+        endpoint,
+        null,
+        profiles,
+        info.isEmpty() ? null : String.join(" ", info),
+        facts);
+    if (handler != null && !to.type().equals(C4Views.EXTERNAL_SYSTEM)) {
+      trace.reached.add(to + " " + handler);
+      sync(trace, to, handler, profiles);
+    }
+  }
+
+  private void send(Trace trace, EntityId unit, EntityId method, Fact link, List<String> outer) {
+    EntityId destination = Knowledge.object(link);
+    List<String> profiles = profiles(link, outer);
+    String key = attribute(link, "routingKey");
+    trace.message(
+        unit,
+        destination,
+        key == null ? "Sends a message" : "Sends " + key,
+        attribute(link, "protocol"),
+        SequenceDiagram.MessageKind.ASYNC,
+        profiles,
+        null,
+        withEnds(link));
+    trace.asyncThrough.add(nameOf(destination));
+    List<Fact> deliveries =
+        linksBySource.getOrDefault(unit + " " + method, List.of()).stream()
+            .filter(
+                f ->
+                    f.predicate().equals(SENDS_MESSAGES_TO)
+                        && destination.toString().equals(attribute(f, "destination")))
+            .toList();
+    if (deliveries.isEmpty()) {
+      trace.note(
+          List.of(destination),
+          "No listener for it was found in the code.",
+          profiles,
+          List.of(link));
+      return;
+    }
+    SortedSet<String> receivers = new TreeSet<>();
+    for (Fact delivery : deliveries) {
+      receivers.add(nameOf(Knowledge.object(delivery)));
+      trace.later.add(new Later(destination, delivery, profiles(delivery, profiles)));
+    }
+    trace.note(
+        List.of(unit, destination),
+        nameOf(unit)
+            + " does not wait: "
+            + String.join(" and ", receivers)
+            + (receivers.size() == 1 ? " takes" : " take")
+            + " the message later.",
+        profiles,
+        deliveries);
+  }
+
+  private void unresolved(Trace trace, EntityId unit, Fact fact, List<String> profiles) {
+    String reason = attribute(fact, "reason");
+    StringBuilder text =
+        new StringBuilder(nameOf(unit)).append(" calls ").append(fact.object().value());
+    text.append(", which Lantern could not link");
+    if (reason != null) {
+      text.append(" (").append(reason.replace('-', ' '));
+      List<String> keys = C4Views.strings(fact, "unresolved");
+      if (!keys.isEmpty()) {
+        text.append(" ").append(String.join(", ", keys));
+      }
+      text.append(")");
+    }
+    text.append("; the trace does not follow it.");
+    trace.unresolved.add(fact.object().value());
+    trace.note(List.of(), text.toString(), profiles, List.of(fact));
+  }
+
+  private void dataAccess(
+      Trace trace, EntityId unit, String verb, List<Fact> accesses, List<String> profiles) {
+    SortedSet<String> tables = new TreeSet<>();
+    accesses.forEach(f -> tables.add(tableName(Knowledge.object(f).toString())));
+    List<Fact> facts = new ArrayList<>(accesses);
+    List<String> info = new ArrayList<>();
+    for (Fact shared : knowledge.relations(unit, C4Views.ACCESSES_DATA_OF)) {
+      if (alternatives.contains(shared)) {
+        continue;
+      }
+      SortedSet<String> theirs = new TreeSet<>();
+      C4Views.strings(shared, verb.equals("Reads") ? "reads" : "writes")
+          .forEach(t -> theirs.add(tableName(t)));
+      theirs.retainAll(tables);
+      if (!theirs.isEmpty()) {
+        facts.add(shared);
+        info.add(
+            String.join(", ", theirs)
+                + (theirs.size() == 1 ? " is a table of " : " are tables of ")
+                + nameOf(Knowledge.object(shared))
+                + ".");
+      }
+    }
+    Database database = database(unit);
+    facts.addAll(database.facts);
+    trace.message(
+        unit,
+        database.entity,
+        verb + " " + String.join(", ", tables),
+        database.protocol,
+        null,
+        profiles,
+        info.isEmpty() ? null : String.join(" ", info),
+        facts);
+  }
+
+  private void repositoryCall(Trace trace, EntityId unit, Fact call, List<String> profiles) {
+    EntityId callee = Knowledge.object(call);
+    Database database = database(unit);
+    List<Fact> facts = new ArrayList<>(List.of(call));
+    facts.addAll(
+        knowledge.relations(PackageDependencies.ownerType(knowledge, callee), REPOSITORY_FOR));
+    facts.addAll(database.facts);
+    trace.message(
+        unit,
+        database.entity,
+        "Calls " + methodName(callee),
+        database.protocol,
+        null,
+        profiles,
+        null,
+        facts);
+  }
+
+  /** The database a unit's data access reaches, or none when it has not exactly one by default. */
+  private record Database(EntityId entity, String protocol, List<Fact> facts) {}
+
+  private Database database(EntityId unit) {
+    Map<EntityId, List<Fact>> databases = new TreeMap<>(Knowledge.BY_ID);
+    for (Fact fact : knowledge.relations(unit, C4Views.USES_DATABASE)) {
+      if (attribute(fact, "profile") == null) {
+        databases.computeIfAbsent(Knowledge.object(fact), d -> new ArrayList<>()).add(fact);
+      }
+    }
+    if (databases.size() != 1) {
+      return new Database(null, null, List.of());
+    }
+    Map.Entry<EntityId, List<Fact>> only = databases.entrySet().iterator().next();
+    return new Database(
+        only.getKey(), attribute(only.getValue().getFirst(), "protocol"), only.getValue());
+  }
+
+  // Choosing the flows.
+
+  /**
+   * One subsection per flow shown, each holding its prose, its trigger and its sequence diagram;
+   * none when no entry point reaches outside its unit.
+   *
+   * @param section the section's ID
+   * @param blocks receives the section's own blocks: a paragraph when there is no flow
+   */
+  List<Section> flows(String section, List<Block> blocks) {
+    List<Trace> candidates = new ArrayList<>();
+    for (Entry entry : entries()) {
+      Trace trace = trace(entry);
+      if (trace.messages > 0 || !trace.unresolved.isEmpty()) {
+        candidates.add(trace);
+      }
+    }
+    candidates.sort(
+        Comparator.comparingInt(Trace::touches)
+            .reversed()
+            .thenComparing(t -> t.asyncThrough.isEmpty())
+            .thenComparing(t -> t.entry.key()));
+    List<Trace> kept = new ArrayList<>();
+    for (Trace trace : candidates) {
+      String key = trace.entry.key();
+      boolean partOfKept = kept.stream().anyMatch(k -> k.reached.contains(key));
+      boolean partOfOther =
+          candidates.stream()
+              .anyMatch(
+                  other ->
+                      other != trace
+                          && other.reached.contains(key)
+                          && !trace.reached.contains(other.entry.key()));
+      boolean inScope = trace.participants.stream().anyMatch(scope::contains);
+      if (!partOfKept && !partOfOther && inScope && kept.size() < MAX_FLOWS) {
+        kept.add(trace);
+      }
+    }
+    if (kept.isEmpty()) {
+      blocks.add(
+          new Paragraph(
+              assembler.id(section, "none"),
+              List.of(
+                  TextRun.of(
+                      "No entry point (HTTP endpoint, message listener or scheduled job) was found"
+                          + " whose code reaches another container.")),
+              List.of()));
+      return List.of();
+    }
+    List<Section> result = new ArrayList<>();
+    for (Trace trace : kept) {
+      result.add(flowSection(section, trace));
+    }
+    return result;
+  }
+
+  private Section flowSection(String section, Trace trace) {
+    Entry entry = trace.entry;
+    String handler = methodName(entry.method);
+    String id = assembler.id(section, nameOf(entry.unit) + "." + handler);
+    String value = entry.fact.object().value();
+    String title;
+    String trigger;
+    String starts;
+    switch (entry.fact.predicate()) {
+      case ENDPOINT -> {
+        title = value + " on " + nameOf(entry.unit);
+        trigger = value + " (" + handler + ")";
+        starts = nameOf(entry.unit) + " receives " + value;
+      }
+      case MESSAGE_LISTENER -> {
+        title = "Message on " + value + " to " + nameOf(entry.unit);
+        trigger = "A message on " + value + " (" + handler + ")";
+        starts = "a message arrives on " + value + " for " + nameOf(entry.unit);
+      }
+      default -> {
+        String kind = attribute(entry.fact, "trigger");
+        String schedule = (kind == null ? "" : kind + " ") + value;
+        title = handler + " on its schedule in " + nameOf(entry.unit);
+        trigger = "The schedule " + schedule + " (" + handler + ")";
+        starts = "the schedule " + schedule + " fires in " + nameOf(entry.unit);
+      }
+    }
+    List<Block> blocks = new ArrayList<>();
+    blocks.add(
+        new Paragraph(
+            assembler.id(id, "prose"), List.of(TextRun.of(prose(trace, starts))), List.of()));
+    blocks.add(
+        new Table(
+            assembler.id(id, "trigger"),
+            "Overview",
+            List.of(
+                new Table.Column("Trigger"),
+                new Table.Column("Pre-conditions"),
+                new Table.Column("Post-conditions")),
+            List.of(
+                new Table.Row(
+                    null,
+                    List.of(
+                        List.of(TextRun.of(trigger)),
+                        List.<Inline>of(TextRun.of(UNKNOWN)),
+                        List.<Inline>of(TextRun.of(UNKNOWN))),
+                    assembler.facts(List.of(entry.fact)))),
+            List.of()));
+    List<SequenceDiagram.Step> steps = new ArrayList<>();
+    steps.add(
+        new SequenceDiagram.Note(
+            List.of(),
+            List.of(TextRun.of("Starts when " + starts + " (" + handler + ").")),
+            assembler.facts(List.of(entry.fact))));
+    steps.addAll(frames(trace.items));
+    List<SequenceDiagram.Participant> participants = new ArrayList<>();
+    for (EntityId participant : trace.participants) {
+      assembler.entity(participant);
+      participants.add(
+          new SequenceDiagram.Participant(
+              participant,
+              null,
+              c4.technology(participant),
+              null,
+              assembler.facts(c4.containerFacts(participant))));
+    }
+    blocks.add(
+        new SequenceDiagram(
+            assembler.id(id, "diagram"),
+            title,
+            participants,
+            steps,
+            assembler.facts(List.of(entry.fact))));
+    return new Section(
+        id, title, SectionKind.SEQUENCES.levels(), null, List.of(), blocks, List.of());
+  }
+
+  /** Two to four sentences of what the flow does, from what the trace found. */
+  private String prose(Trace trace, String starts) {
+    StringBuilder text =
+        new StringBuilder("Starts when ")
+            .append(starts)
+            .append(", handled by ")
+            .append(methodName(trace.entry.method))
+            .append('.');
+    List<String> others = new ArrayList<>();
+    trace.participants.stream()
+        .filter(p -> !p.equals(trace.entry.unit))
+        .forEach(p -> others.add(nameOf(p)));
+    if (!others.isEmpty()) {
+      text.append(" It reaches ").append(list(others)).append('.');
+    }
+    if (!trace.asyncThrough.isEmpty()) {
+      text.append(" It hands work on asynchronously through ")
+          .append(list(new ArrayList<>(trace.asyncThrough)))
+          .append('.');
+    }
+    if (!trace.unresolved.isEmpty()) {
+      text.append(trace.unresolved.size() == 1 ? " One call" : " " + trace.unresolved.size())
+          .append(trace.unresolved.size() == 1 ? " could" : " calls could")
+          .append(" not be followed: ")
+          .append(list(trace.unresolved))
+          .append('.');
+    }
+    return text.toString();
+  }
+
+  /**
+   * The steps, with each run of steps that happen only under the same profiles in an {@code opt}
+   * frame naming them (one level of fragments, as the design asks).
+   */
+  private static List<SequenceDiagram.Step> frames(List<Item> items) {
+    List<SequenceDiagram.Step> result = new ArrayList<>();
+    int i = 0;
+    while (i < items.size()) {
+      List<String> profiles = items.get(i).profiles();
+      if (profiles.isEmpty()) {
+        result.add(items.get(i).step());
+        i++;
+        continue;
+      }
+      List<SequenceDiagram.Step> inside = new ArrayList<>();
+      Set<String> facts = new TreeSet<>();
+      while (i < items.size() && items.get(i).profiles().equals(profiles)) {
+        inside.add(items.get(i).step());
+        facts.addAll(items.get(i).step().facts());
+        i++;
+      }
+      result.add(
+          new SequenceDiagram.Frame(
+              SequenceDiagram.Operator.OPT,
+              List.of(
+                  new SequenceDiagram.Operand(
+                      "Spring profile" + (profiles.size() > 1 ? "s " : " ") + list(profiles),
+                      inside,
+                      List.of())),
+              List.copyOf(facts)));
+    }
+    return result;
+  }
+
+  // Helpers.
+
+  private String nameOf(EntityId entity) {
+    assembler.entity(entity);
+    return assembler.name(entity);
+  }
+
+  /** A link's fact with the facts on both its ends. */
+  private List<Fact> withEnds(Fact link) {
+    List<Fact> facts = new ArrayList<>(List.of(link));
+    for (String id : C4Views.strings(link, "facts")) {
+      Fact end = knowledge.fact(id);
+      if (end != null) {
+        facts.add(end);
+      }
+    }
+    return facts;
+  }
+
+  private static String bindingInfo(Fact link) {
+    String key = attribute(link, "routingKey");
+    String binding = attribute(link, "bindingKey");
+    if (key == null || binding == null) {
+      return null;
+    }
+    return "Routing key " + key + ", bound with " + binding + ".";
+  }
+
+  /** {@code Type.method} of a method ID, without parameters or package. */
+  static String methodName(EntityId method) {
+    String key = method.key();
+    int hash = key.indexOf('#');
+    if (hash < 0) {
+      return key.substring(key.lastIndexOf('.') + 1);
+    }
+    String type = key.substring(0, hash);
+    String name = key.substring(hash + 1);
+    int paren = name.indexOf('(');
+    if (paren >= 0) {
+      name = name.substring(0, paren);
+    }
+    return type.substring(type.lastIndexOf('.') + 1).replace('$', '.') + "." + name;
+  }
+
+  private static String tableName(String table) {
+    return table.substring(table.lastIndexOf(':') + 1);
+  }
+
+  private static EntityId parse(String id) {
+    if (id == null) {
+      return null;
+    }
+    try {
+      return EntityId.parse(id);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
+  private static int line(Fact fact) {
+    return fact.evidence().lines() == null ? Integer.MAX_VALUE : fact.evidence().lines().start();
+  }
+
+  private static String join(String a, String b) {
+    return a == null ? b : a + " · " + b;
+  }
+
+  private static String list(List<String> names) {
+    if (names.size() == 1) {
+      return names.getFirst();
+    }
+    return String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.getLast();
+  }
+
+  private static String attribute(Fact fact, String name) {
+    return RepoSections.attribute(fact, name, null);
+  }
+}

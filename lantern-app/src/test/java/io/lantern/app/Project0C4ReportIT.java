@@ -24,10 +24,13 @@ import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
+import io.lantern.sandbox.BuildOrder;
+import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxSettings;
+import io.lantern.sandbox.UpstreamBuild;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -35,6 +38,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -57,7 +61,8 @@ class Project0C4ReportIT {
   private static final Map<String, String> COMMITS =
       new TreeMap<>(
           Map.of(
-              "catalog", "8637326f638af796f242548b68216c8729e1a5f7",
+              "catalog", "fc39b6e72803baa33b9e0e3d7ac8cf32fabce394",
+              "catalog-lib", "5bc5ec4ba4ffec38da7c0aaf3596be3365ec192f",
               "fulfilment", "d7a159078e44f5de32d3b3f4aa5fa0ef9cb24921",
               "payments", "871bf725e98d45d11ea093749943bb555b65bae8",
               "storefront", "fa592e452e659d26597defe3519ba0ec3bfc5014"));
@@ -75,17 +80,29 @@ class Project0C4ReportIT {
         .as("lantern.test.project0 must be an absolute path: " + setUp)
         .isTrue();
     BuildSandbox sandbox = new BuildSandbox(sandboxSettings(temp.resolve("builds")));
-    List<RepoBuild> repos = new ArrayList<>();
+    Map<String, Repo> project = new TreeMap<>();
     for (Map.Entry<String, String> e : COMMITS.entrySet()) {
       Path path = Path.of(setUp).resolve(e.getKey()).toRealPath();
       assertThat(Git.run(path, "rev-parse", "HEAD").out())
           .as("%s is not at the pinned commit; run testsets/project-0/setup.sh again", e.getKey())
           .isEqualTo(e.getValue());
-      Repo repo = new Repo(e.getKey(), path, RepoSettings.DEFAULT);
-      RepoBuild build = new RepoBuild(repo, e.getValue(), sandbox.build(repo, e.getValue()));
-      assertThat(build.build().status()).as(e.getKey()).isEqualTo(BuildStatus.SUCCEEDED);
-      repos.add(build);
+      project.put(e.getKey(), new Repo(e.getKey(), path, RepoSettings.DEFAULT));
     }
+    // In dependency order, each build given the builds of those it uses (ADR 0041).
+    BuildOrder order = BuildOrder.of(project, COMMITS);
+    Map<String, BuildResult> results = new HashMap<>();
+    for (String name : order.order()) {
+      List<UpstreamBuild> upstream =
+          order.upstream(name).stream()
+              .map(u -> new UpstreamBuild(project.get(u), results.get(u)))
+              .toList();
+      BuildResult result = sandbox.build(project.get(name), COMMITS.get(name), upstream);
+      assertThat(result.status()).as(name).isEqualTo(BuildStatus.SUCCEEDED);
+      results.put(name, result);
+    }
+    List<RepoBuild> repos = new ArrayList<>();
+    project.forEach(
+        (name, repo) -> repos.add(new RepoBuild(repo, COMMITS.get(name), results.get(name))));
     facts = new ArrayList<>(new MavenExtractor().extract(repos, 1));
     JavaAnalysis code = JavaExtractor.analyze(repos);
     facts.addAll(new JavaExtractor().extract(code, 1));
@@ -158,7 +175,9 @@ class Project0C4ReportIT {
             "components-service-com-acme-shop-catalog-service",
             "components-service-com-acme-shop-fulfilment",
             "components-service-com-acme-shop-payments",
-            "components-service-com-acme-shop-storefront-app");
+            "components-service-com-acme-shop-storefront-app",
+            "sequences-storefront-ordercontroller-place",
+            "sequences-payments-settlementjob-settle");
     JsonNode containers = data.get("pages").get(1).get("sections").get(0);
     assertThat(containers.get("relationships").toString())
         // HTTP-1: Feign by client name, with the endpoint and protocol.
@@ -182,6 +201,98 @@ class Project0C4ReportIT {
         .contains(
             "Under the Spring profile prod, payments calls api.paygate.example.com instead of"
                 + " sandbox.paygate.example.com.");
+
+    // FLOW-1: placing an order, stitched across every unit through HTTP-1, HTTP-2, HTTP-4,
+    // MSG-2, MSG-4, HTTP-3 and MSG-1, the tax call (HTTP-5) a note, the audit send (SPR-4) in a
+    // frame of its profile. The shop database steps are missing: calls to Spring Data's own
+    // methods are not in the call graph (#176).
+    assertThat(steps(data.get("pages").get(6)))
+        .containsExactly(
+            "note all: Starts when storefront receives POST /api/orders"
+                + " (OrderController.place).",
+            "storefront-app > catalog-service: Calls ProductController.product"
+                + " [GET /api/products/{id}]",
+            "note all: storefront calls GET ${TAX_SERVICE_URL}/v2/quotes, which Lantern"
+                + " could not link (unresolved placeholder TAX_SERVICE_URL); the trace does not"
+                + " follow it.",
+            "storefront-app > payments: Calls PaymentController.charge [POST /api/payments]",
+            "payments > external-system-sandbox-paygate-example-com:"
+                + " Calls sandbox.paygate.example.com [POST /v1/charges]",
+            "storefront-app >> exchange-rabbitmq-shop-orders: Sends order.created [AMQP]",
+            "note storefront-app, exchange-rabbitmq-shop-orders: storefront does not wait:"
+                + " payments takes the message later.",
+            "opt Spring profile audit",
+            "storefront-app >> queue-jms-audit-orders: Sends a message [JMS]",
+            "note storefront-app, queue-jms-audit-orders: storefront does not wait: fulfilment"
+                + " takes the message later.",
+            "end",
+            "exchange-rabbitmq-shop-orders >> payments: Delivers to OrderEventsListener.orderEvent"
+                + " [AMQP · payments.order-events]",
+            "payments >> topic-kafka-payments-completed: Sends a message [Kafka]",
+            "note payments, topic-kafka-payments-completed: payments does not wait: fulfilment"
+                + " takes the message later.",
+            "opt Spring profile audit",
+            "queue-jms-audit-orders >> fulfilment: Delivers to AuditListener.orderPlaced [JMS]",
+            "end",
+            "topic-kafka-payments-completed >> fulfilment:"
+                + " Delivers to PaymentCompletedListener.paymentCompleted [Kafka]",
+            "fulfilment > catalog-service: Calls ProductController.stock"
+                + " [GET /api/products/{id}/stock]",
+            "fulfilment >> queue-jms-shipments-dispatched: Sends a message [JMS]",
+            "note fulfilment, queue-jms-shipments-dispatched: fulfilment does not wait:"
+                + " storefront takes the message later.",
+            "queue-jms-shipments-dispatched >> storefront-app:"
+                + " Delivers to ShipmentListener.dispatched [JMS]");
+    // FLOW-2: the nightly settlement (ENTRY-1) reads and writes the shared shop database (DB-2),
+    // one of its tables storefront's (DB-5).
+    assertThat(steps(data.get("pages").get(7)))
+        .containsExactly(
+            "note all: Starts when the schedule cron 0 0 2 * * * fires in payments"
+                + " (SettlementJob.settle).",
+            "payments > database-shop-db-5432-shop: Reads orders, payment [JDBC]",
+            "payments > database-shop-db-5432-shop: Writes payment [JDBC]");
+  }
+
+  /** The steps of a sequence page, one line each, units by their artifact ID. */
+  private static List<String> steps(JsonNode page) {
+    List<String> lines = new ArrayList<>();
+    for (JsonNode section : page.get("sections")) {
+      if (!section.get("type").asString().equals("sequence")) {
+        continue;
+      }
+      for (JsonNode step : section.get("steps")) {
+        String line;
+        if (step.has("note")) {
+          List<String> over = new ArrayList<>();
+          step.get("over").forEach(o -> over.add(o.asString()));
+          List<String> all = new ArrayList<>();
+          section.get("participants").forEach(p -> all.add(p.asString()));
+          line =
+              "note "
+                  + (over.equals(all) ? "all" : String.join(", ", over))
+                  + ": "
+                  + step.get("note").asString();
+        } else if (step.has("frame")) {
+          line = step.get("frame").asString() + " " + step.get("label").asString();
+        } else if (step.has("end")) {
+          line = "end";
+        } else {
+          String arrow =
+              step.has("type") && step.get("type").asString().equals("async") ? ">>" : ">";
+          line =
+              step.get("from").asString()
+                  + " "
+                  + arrow
+                  + " "
+                  + step.get("to").asString()
+                  + ": "
+                  + step.get("message").asString()
+                  + (step.has("code") ? " [" + step.get("code").asString() + "]" : "");
+        }
+        lines.add(line.replace("service-com-acme-shop-", ""));
+      }
+    }
+    return lines;
   }
 
   /** The sandbox settings of the extractors' tests, with the Maven mirror if one is set. */

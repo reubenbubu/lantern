@@ -77,8 +77,8 @@ public record ViewDefinition(
   }
 
   /**
-   * A view of one repository for a C4 report: overview, context, containers and components, the
-   * sections whose diagrams the C4 report spec draws (ADR 0031).
+   * A view of one repository for a C4 report: overview, context, containers, components and main
+   * flows, the sections whose diagrams the C4 report spec draws (ADR 0031).
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -91,12 +91,13 @@ public record ViewDefinition(
             SectionKind.OVERVIEW,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
-            SectionKind.COMPONENTS));
+            SectionKind.COMPONENTS,
+            SectionKind.SEQUENCES));
   }
 
   /**
-   * A view of the whole system for a C4 report: overview, context, containers and components (ADR
-   * 0031).
+   * A view of the whole system for a C4 report: overview, context, containers, components and main
+   * flows (ADR 0031).
    */
   public static ViewDefinition c4System(String id, String title, TemplateRef template) {
     return new ViewDefinition(
@@ -109,7 +110,8 @@ public record ViewDefinition(
             SectionKind.OVERVIEW,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
-            SectionKind.COMPONENTS));
+            SectionKind.COMPONENTS,
+            SectionKind.SEQUENCES));
   }
 
   /**

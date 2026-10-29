@@ -410,7 +410,7 @@ Composition decides what a document says and shows; rendering only formats it. C
 
 What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011; sequence diagrams and the quality report block are in ADR 0028. How templates show a summary's citations of other summaries is in ADR 0027.
 
-How the first composer builds per-repository documents from view definitions is in ADR 0012. How the composer draws the context, container and component views below, and composes the system scope's C4 report, is in ADR 0044.
+How the first composer builds per-repository documents from view definitions is in ADR 0012. How the composer draws the context, container and component views below, and composes the system scope's C4 report, is in ADR 0044. How it traces, stitches, ranks and caps the sequence flows is in ADR 0047.
 
 **View definitions.** A persisted spec per document: scope, audience profile, template, sections and diagrams. Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 

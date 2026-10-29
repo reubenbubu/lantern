@@ -25,6 +25,10 @@ public enum SectionKind {
   CONTAINERS("Containers", EnumSet.of(Level.L1, Level.L2)),
   /** C4 components: inside each deployable unit in scope, its components by role. */
   COMPONENTS("Components", EnumSet.of(Level.L2, Level.L3)),
+  /**
+   * The main flows as sequence diagrams: traced from entry points and stitched across containers.
+   */
+  SEQUENCES("Main flows", EnumSet.of(Level.L1, Level.L2)),
   /** The Maven dependency tree of each module. */
   DEPENDENCIES("Dependencies", EnumSet.of(Level.L2, Level.L3)),
   /** The modules and packages, as a tree. */
