@@ -42,6 +42,10 @@
     <node.version>v24.21.0</node.version>
     <!-- 1.37.0 fails under spotless-maven-plugin 3.10.4 (IllegalAccessError into jdk.compiler). -->
     <google-java-format.version>1.36.1</google-java-format.version>
+    <!-- The Lantern properties file whose Maven mirror the tests' sandbox builds use (ADR 0030).
+         Empty means none, so they use Maven Central. Set it in a profile of Maven's settings, or
+         with -Dlantern.test.properties=<absolute path>. -->
+    <lantern.test.properties></lantern.test.properties>
   </properties>
 
   <dependencyManagement>
@@ -124,6 +128,25 @@
           <artifactId>maven-compiler-plugin</artifactId>
           <configuration>
             <proc>none</proc>
+          </configuration>
+        </plugin>
+        <plugin>
+          <!-- A property from Maven's settings does not reach the test JVMs by itself. -->
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <systemPropertyVariables>
+              <lantern.test.properties>${lantern.test.properties}</lantern.test.properties>
+            </systemPropertyVariables>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <configuration>
+            <systemPropertyVariables>
+              <lantern.test.properties>${lantern.test.properties}</lantern.test.properties>
+            </systemPropertyVariables>
           </configuration>
         </plugin>
       </plugins>
