@@ -67,9 +67,7 @@ for `https` but not for `http`.
 - `BuildSandboxIT` builds through the mirror when one is set, and then checks that even Maven
   Central is refused and, on a cache of its own, that the `lombok` fixture's dependency and the
   compiler and dependency plugins came through the mirror, and nothing from anywhere else. The
-  tests of configured repositories (ADR 0023) clear the mirror and still use Maven Central. The
-  test that installs a fixture into a cache with a plain `mvn install`, outside the sandbox, gives
-  that `mvn` the same mirror.
+  tests of configured repositories (ADR 0023) clear the mirror and still use Maven Central.
 - The mirror's URL rules are checked by `MavenMirrorTest`, the generated mirror by
   `MavenSettingsTest`, the allowed host by `SandboxSettingsTest`, the binding by
   `SandboxPropertiesTest`, and the forwarding by `EgressProxyTest`.

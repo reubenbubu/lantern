@@ -10,32 +10,46 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 /**
  * Builds the fixture projects in real build containers. Needs Docker and network access to Maven
  * Central, or to the Maven mirror of {@link TestMirror}, which the builds then download through,
  * except those of the tests of configured repositories, which use Maven Central. Builds use the
- * default shared Maven cache directory, which keeps downloads between runs; the tests of the cache
- * itself use caches of their own in their temporary directory, and delete them as the user running
- * the tests can.
+ * default shared Maven cache directory, which keeps downloads between runs. The tests that need a
+ * cache of their own use one in their temporary directory, and delete it as the user running the
+ * tests can; it starts seeded from the shared cache unless the test must see the downloads, so that
+ * the tests download little.
+ *
+ * <p>The tests run at the same time, as many as the failsafe configuration of this module allows,
+ * which is the number of builds a sandbox runs at once by default. Each has its own temporary
+ * directory, sandbox and owner label.
  */
+@Execution(ExecutionMode.CONCURRENT)
 class BuildSandboxIT {
 
   private static final Docker DOCKER = new Docker("docker");
@@ -52,11 +66,11 @@ class BuildSandboxIT {
   private static final String RUN_LABEL = "lantern.test.run";
 
   /**
-   * The owner label value of this test class, so leftover checks see only its own resources and not
-   * those of other sandboxes on the same Docker.
+   * The owner label value of this test, so its leftover checks see only its own resources and not
+   * those of the tests running at the same time or of other sandboxes on the same Docker. JUnit
+   * creates an instance per test, so each test has its own.
    */
-  private static final String RUN =
-      HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
+  private final String run = HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
 
   /** The Maven mirror the builds download through, or null for Maven Central. */
   private static final MavenMirror MIRROR = TestMirror.configured();
@@ -89,18 +103,18 @@ class BuildSandboxIT {
         .isEmpty();
   }
 
-  /** The Docker filter for the containers and networks of this test class's sandboxes. */
-  private static String ownFilter() {
-    return "label=" + RUN_LABEL + "=" + RUN;
+  /** The Docker filter for the containers and networks of this test's sandboxes. */
+  private String ownFilter() {
+    return "label=" + RUN_LABEL + "=" + run;
   }
 
   /**
-   * The default settings, with this test class's owner label, no free space required on Docker's
-   * storage, and the test mirror if there is one.
+   * The default settings, with this test's owner label, no free space required on Docker's storage,
+   * and the test mirror if there is one.
    */
   private SandboxSettings settings() {
     return SandboxSettings.defaults(temp.resolve("builds"))
-        .withOwnerLabel(RUN_LABEL, RUN)
+        .withOwnerLabel(RUN_LABEL, run)
         .withMinFreeDiskBytes(0)
         .withMavenMirror(MIRROR);
   }
@@ -181,7 +195,7 @@ class BuildSandboxIT {
       BuildSandbox sandbox =
           new BuildSandbox(
               SandboxSettings.defaults(builds)
-                  .withOwnerLabel(RUN_LABEL, RUN)
+                  .withOwnerLabel(RUN_LABEL, run)
                   .withMinFreeDiskBytes(0)
                   .withMavenMirror(MIRROR));
 
@@ -218,9 +232,11 @@ class BuildSandboxIT {
     Path source = fixtures.resolve("lib-and-service");
     Repo lib = repo(source.resolve("lib"), "greeting-lib", RepoSettings.DEFAULT);
     Repo service = repo(source.resolve("service"), "greeting-service", RepoSettings.DEFAULT);
-    // A cache of its own, which the library is installed into, so it is in no other cache.
-    Path cache = temp.resolve("lib-cache");
+    // A cache of its own, which the library is put into, so it is in no other cache. It starts
+    // seeded from the shared cache, without the library, so the builds download little.
+    Path cache = seededCache("lib-cache");
     try {
+      assertThat(cache.resolve("com/example/greeting")).doesNotExist();
       BuildSandbox sandbox = new BuildSandbox(settings().withMavenCacheDirectory(cache));
 
       BuildResult libResult = sandbox.build(lib, TestRepos.head(lib));
@@ -237,7 +253,11 @@ class BuildSandboxIT {
           .contains("<artifactId>greeting-service</artifactId>");
 
       // ...until the library is in the artifact repository, here the Maven cache.
-      installIntoCache(cache, source.resolve("lib"));
+      putIntoCache(
+          cache,
+          "com/example/greeting/greeting-lib/1.0.0/greeting-lib-1.0.0",
+          source.resolve("lib/pom.xml"),
+          libResult.resolve(libResult.modules().getFirst().classes()));
       BuildResult built = sandbox.build(service, TestRepos.head(service));
       assertThat(built.status()).as(log(built)).isEqualTo(BuildStatus.SUCCEEDED);
       assertThat(built.modules().getFirst().classpath())
@@ -330,8 +350,9 @@ class BuildSandboxIT {
 
   @Test
   void givesTheCacheToTheBuildUserAndKeepsItDeletable() throws IOException {
-    // A cache of its own, which does not exist yet: the sandbox creates it.
-    Path cache = temp.resolve("own-cache");
+    // A cache of its own, seeded from the shared cache, so the builds download little. That the
+    // sandbox creates a cache that does not exist yet shows in a test of configured repositories.
+    Path cache = seededCache("own-cache");
     String mount = "type=bind,source=" + cache + ",target=/m2";
     String image = SandboxSettings.DEFAULT_IMAGES.get(21);
     try {
@@ -564,7 +585,8 @@ class BuildSandboxIT {
 
   @Test
   void downloadsDependenciesFromAConfiguredRepository() throws IOException {
-    // A cache of its own, so the dependency is not there yet and must be downloaded.
+    // A cache of its own, which does not exist yet, so the sandbox creates it, and the dependency
+    // is not there yet and must be downloaded.
     Path cache = temp.resolve("extra-cache");
     try {
       Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
@@ -638,54 +660,77 @@ class BuildSandboxIT {
   }
 
   /**
-   * Installs a fixture project into a Maven cache, as if it came from the repository. Runs as the
-   * image's root user, outside the sandbox, downloading through the test mirror if there is one;
-   * the next build hands what it wrote to the build user.
+   * A new Maven cache in the test's temporary directory, holding a copy of the artifacts of the
+   * shared Maven cache that {@code /sandbox/seed-cache.txt} lists, so builds of the fixtures
+   * download only what that lacks. Not the whole shared cache, which grows with every analysis.
+   * Files that cannot be read, or that builds remove meanwhile, are left out too: a build downloads
+   * them if it needs them.
    */
-  private void installIntoCache(Path cache, Path project) throws IOException {
-    String name =
-        "lantern-test-install-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
-    List<String> args =
-        new ArrayList<>(
-            List.of(
-                "create",
-                "--name",
-                name,
-                "--mount",
-                "type=bind,source=" + cache + ",target=/var/lantern/m2",
-                "--workdir",
-                "/project",
-                "--entrypoint",
-                "mvn",
-                SandboxSettings.DEFAULT_IMAGES.get(21),
-                "--batch-mode",
-                "--no-transfer-progress",
-                "-Dmaven.repo.local=/var/lantern/m2",
-                "-DskipTests"));
-    Path settings = null;
-    if (MIRROR != null) {
-      settings = temp.resolve("install-settings.xml");
-      Files.writeString(
-          settings,
-          "<settings><mirrors><mirror><id>"
-              + MIRROR.id()
-              + "</id><mirrorOf>external:*</mirrorOf><url>"
-              + MIRROR.url()
-              + "</url></mirror></mirrors></settings>\n");
-      args.addAll(List.of("--settings", "/tmp/install-settings.xml"));
+  private Path seededCache(String name) throws IOException {
+    Path shared = SandboxSettings.defaultMavenCacheDirectory();
+    Path cache = Files.createDirectories(temp.resolve(name));
+    List<String> artifacts;
+    try (InputStream in = BuildSandboxIT.class.getResourceAsStream("/sandbox/seed-cache.txt")) {
+      artifacts =
+          new String(in.readAllBytes(), StandardCharsets.UTF_8)
+              .lines()
+              .map(String::strip)
+              .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+              .toList();
     }
-    args.add("install");
-    try {
-      DOCKER.check(TIMEOUT, args);
-      DOCKER.check(TIMEOUT, List.of("cp", project + "/.", name + ":/project"));
-      if (settings != null) {
-        DOCKER.check(
-            TIMEOUT, List.of("cp", settings.toString(), name + ":/tmp/install-settings.xml"));
+    SimpleFileVisitor<Path> copy =
+        new SimpleFileVisitor<>() {
+          @Override
+          public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
+              throws IOException {
+            Files.createDirectories(cache.resolve(shared.relativize(dir).toString()));
+            return FileVisitResult.CONTINUE;
+          }
+
+          @Override
+          public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+            if (attrs.isRegularFile()) {
+              try {
+                Files.copy(file, cache.resolve(shared.relativize(file).toString()));
+              } catch (IOException e) {
+                // Not readable, or removed meanwhile: left out.
+              }
+            }
+            return FileVisitResult.CONTINUE;
+          }
+
+          @Override
+          public FileVisitResult visitFileFailed(Path file, IOException e) {
+            return FileVisitResult.CONTINUE;
+          }
+        };
+    for (String artifact : artifacts) {
+      Path dir = shared.resolve(artifact);
+      if (Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
+        Files.walkFileTree(dir, copy);
       }
-      Docker.Result run = DOCKER.run(Duration.ofMinutes(10), List.of("start", "--attach", name));
-      assertThat(run.exitCode()).as(run.out()).isZero();
-    } finally {
-      DOCKER.quietly(TIMEOUT, List.of("rm", "--force", "--volumes", name));
+    }
+    return cache;
+  }
+
+  /**
+   * Puts a library into a Maven cache, as if it came from the repository: its POM, and a jar of its
+   * compiled classes, at the cache path of the artifact (without extension).
+   */
+  private static void putIntoCache(Path cache, String artifact, Path pom, Path classes)
+      throws IOException {
+    Path base = cache.resolve(artifact);
+    Files.createDirectories(base.getParent());
+    Files.copy(pom, base.resolveSibling(base.getFileName() + ".pom"));
+    try (JarOutputStream jar =
+            new JarOutputStream(
+                Files.newOutputStream(base.resolveSibling(base.getFileName() + ".jar")));
+        Stream<Path> files = Files.walk(classes)) {
+      for (Path file : files.filter(Files::isRegularFile).sorted().toList()) {
+        jar.putNextEntry(new JarEntry(classes.relativize(file).toString()));
+        Files.copy(file, jar);
+        jar.closeEntry();
+      }
     }
   }
 

@@ -46,6 +46,17 @@
             <lantern.test.fixtures>${maven.multiModuleProjectDirectory}/lantern-extract/src/test/resources/fixtures</lantern.test.fixtures>
             <lantern.test.project0>${lantern.test.project0}</lantern.test.project0>
           </systemPropertyVariables>
+          <properties>
+            <!-- Lets the classes marked concurrent, BuildSandboxIT, run their tests at the same
+                 time: at most 4, the builds a sandbox runs at once by default. Other classes, and
+                 the classes among themselves, still run one at a time. -->
+            <configurationParameters>
+              junit.jupiter.execution.parallel.enabled=true
+              junit.jupiter.execution.parallel.config.strategy=fixed
+              junit.jupiter.execution.parallel.config.fixed.parallelism=4
+              junit.jupiter.execution.parallel.config.fixed.max-pool-size=4
+            </configurationParameters>
+          </properties>
         </configuration>
       </plugin>
     </plugins>
