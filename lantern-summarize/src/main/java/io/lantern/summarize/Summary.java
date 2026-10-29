@@ -11,15 +11,16 @@ import java.util.regex.Pattern;
  * <p>The text cites what it is based on with markers: {@code [fact:<fact ID>]} for a fact and
  * {@code [summary:<entity ID>]} for the summary of a contained unit.
  *
- * @param key the cache key: a SHA-256 of the inputs, prompt version and model (see {@link
- *     Summarizer})
+ * @param key the cache key: a SHA-256 of the prompt the model was given, its version and the model
+ *     (see {@link Summarizer})
  * @param entity the entity summarized
  * @param level its level
  * @param text the summary, with citation markers
  * @param citedFacts the IDs of the facts the text cites, in order of first citation
  * @param citedSummaries the keys of the contained units' summaries the text cites, in order of
  *     first citation
- * @param inputFacts the IDs of every fact the summary was made from, sorted
+ * @param inputFacts the IDs of every fact the summary was made from, in the order its prompt listed
+ *     them
  * @param inputSummaries the keys of every contained unit's summary it was made from, sorted by
  *     entity ID
  * @param promptVersion the version of the prompt that made it

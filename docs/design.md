@@ -197,7 +197,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 | Build outputs | Repo commit + JDK image + `settings.xml` hash |
 | Static facts | File content hash + extractor name and version |
 | Linked graph | Set of fact IDs in scope + linker version |
-| LLM summaries | Hash of input facts + child summaries + prompt version + model |
+| LLM summaries | Hash of the prompt (the facts, source files and child summaries it shows, without fact IDs) + prompt version + model |
 | LLM link resolutions | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
 | LLM wordings of units | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
 | Layouts | Diagram ID; updated incrementally, never recomputed by default |
@@ -209,7 +209,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 2. Rebuild only repos whose commit changed, or whose stored build failed (ADR 0016).
 3. Re-run extractors only on changed files. Unchanged files reuse cached facts.
 4. Re-link the graph and find which entities changed.
-5. Invalidate summaries whose input facts changed, then walk up the hierarchy (class to package to module to service to group to system), regenerating only invalidated nodes.
+5. Invalidate summaries whose prompt changed (their facts, source files or child summaries), then walk up the hierarchy (class to package to module to service to group to system), regenerating only invalidated nodes.
 6. Recompose only document sections whose inputs changed. Unchanged sections keep their exact text.
 
 **Architecture diff.** Because both snapshots are fully materialized, comparing them is a query: entities and relationships added, removed or changed. This feeds the Change Report template and the change overlay on diagrams.
@@ -286,7 +286,7 @@ The LLM handles understanding that static analysis can't provide, always working
 - The LLM words what extraction found: names, the responsibility sentence of each element, the intent phrase of each relationship, a system's purpose and "start here". It never invents elements or relationships. Every box and line in a document comes from a static or rule fact, an annotation, or a Resolve result that picks among candidates the code shows.
 - What code can't show (business purpose, people, owners, rationale, quality goals, production topology) comes from annotations or README claims, or is stated once, plainly, as unknown.
 
-How summaries are built bottom-up, cached and cited is in ADR 0010; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how secrets are masked in those files before they are sent is in ADR 0054; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025. How the LLM words the responsibility sentences of units and components and the intent phrases of their links, and how documents use them, is in ADR 0050; the responsibility sentences of databases, topics, queues, exchanges and external systems are in ADR 0056.
+How summaries are built bottom-up, cached and cited is in ADR 0010, and how their cache keys on the prompt in ADR 0055; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how secrets are masked in those files before they are sent is in ADR 0054; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025. How the LLM words the responsibility sentences of units and components and the intent phrases of their links, and how documents use them, is in ADR 0050; the responsibility sentences of databases, topics, queues, exchanges and external systems are in ADR 0056.
 
 **Cost and reliability**
 
