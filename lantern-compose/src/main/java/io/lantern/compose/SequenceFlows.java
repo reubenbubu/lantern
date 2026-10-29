@@ -693,7 +693,7 @@ final class SequenceFlows {
   /**
    * A message pushed to STOMP subscribers: a note over the unit, since the subscribers are clients
    * (a browser) that no fact of the code names; the WebSocket endpoints of the unit say where they
-   * connect (ADR 0072).
+   * connect (ADR 0080).
    */
   private void stompPush(Trace trace, EntityId unit, Fact push, List<String> profiles) {
     List<Fact> facts = new ArrayList<>(List.of(push));

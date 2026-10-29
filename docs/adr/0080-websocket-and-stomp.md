@@ -1,4 +1,4 @@
-# 0072: WebSocket and STOMP endpoints and messages
+# 0080: WebSocket and STOMP endpoints and messages
 
 Status: accepted (#262, part of 2B), pending the user's review (#24)
 

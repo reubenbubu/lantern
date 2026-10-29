@@ -42,7 +42,7 @@ import tools.jackson.databind.node.ObjectNode;
  * Turns Spring's WebSocket and STOMP code into facts: the endpoints clients connect to, the
  * broker's destination prefixes, the {@code @MessageMapping} handlers, the messages pushed to
  * subscribers through {@code SimpMessagingTemplate}, and the interceptors on the client channel.
- * See {@code docs/adr/0072-websocket-and-stomp.md}.
+ * See {@code docs/adr/0080-websocket-and-stomp.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}): through
  * javac with the build's classpath, or parsed in degraded mode, with the same confidence.
