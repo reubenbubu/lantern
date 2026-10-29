@@ -872,6 +872,77 @@ class CrossRepoLinksTest {
     assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK)).isEmpty();
   }
 
+  private void ownDatasource(
+      String repo, String module, String url, String technology, String key) {
+    add(
+        PersistenceExtractor.NAME,
+        "module:g:" + module,
+        PersistenceExtractor.DATASOURCE,
+        FactObject.string(url),
+        "{\"key\":\""
+            + key
+            + "\""
+            + (technology == null ? "" : ",\"technology\":\"" + technology + "\"")
+            + ",\"unresolved\":[\"db.host\"]}",
+        repo + ":src/main/resources/application.properties#4",
+        1.0);
+  }
+
+  @Test
+  void aUnitsOwnDatabaseGetsADisplayNameWhateverItsTechnologyOrKey() {
+    unit("a", "auth", "auth-service");
+    config("a", "auth", "application.properties", "x.y", "z", null);
+    ownDatasource(
+        "a", "auth", "jdbc:postgresql://${db.host}/x", "PostgreSQL", "spring.datasource.url");
+    unit("f", "files", "files");
+    config("f", "files", "application.properties", "x.y", "z", null);
+    ownDatasource(
+        "f", "files", "jdbc:sqlserver://${db.host}", "SQL Server", "spring.datasource.url");
+    unit("n", "notes", "notes");
+    config("n", "notes", "application.properties", "x.y", "z", null);
+    ownDatasource("n", "notes", "jdbc:x://${db.host}", null, "spring.datasource.url");
+    unit("r", "reports", "reports");
+    config("r", "reports", "application.properties", "x.y", "z", null);
+    ownDatasource(
+        "r", "reports", "jdbc:postgresql://${db.host}/x", "PostgreSQL", "app.reporting.url");
+    unit("m", "main", "main");
+    config("m", "main", "application.properties", "x.y", "z", null);
+    datasource(
+        "m",
+        "main",
+        "application.properties",
+        "jdbc:postgresql://${db.host}:5432/orders",
+        "\"server\":\"${db.host}:5432\",\"database\":\"orders\",\"unresolved\":[\"db.host\"]");
+    // Embedded: the unit's own, named by its database.
+    unit("e", "embedded", "embedded");
+    config("e", "embedded", "application.properties", "x.y", "z", null);
+    datasource(
+        "e", "embedded", "application.properties", "jdbc:h2:mem:cache", "\"database\":\"cache\"");
+
+    assertThat(derive("display-name"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth/postgresql:g:auth display-name auth-service database 1.0",
+            "database:g:files/sql-server:g:files display-name files database 1.0",
+            "database:g:notes/g:notes display-name notes database 1.0",
+            "database:g:reports/postgresql:g:reports@app.reporting.url display-name"
+                + " reports database (app.reporting.url) 1.0",
+            "database:g:main/postgresql:orders display-name orders 1.0",
+            "database:g:embedded/postgresql:cache display-name cache 1.0");
+  }
+
+  @Test
+  void aDatabaseOnAServerHasNoDisplayName() {
+    unit("s", "shop", "shop");
+    datasource(
+        "s",
+        "shop",
+        "application.yml",
+        "jdbc:postgresql://shop-db:5432/shop",
+        "\"server\":\"shop-db:5432\",\"database\":\"shop\"");
+
+    assertThat(derive("display-name")).isEmpty();
+  }
+
   @Test
   void twoPlaceholderDatasourcesOfOneUnitAreSeparateDatabases() {
     unit("a", "app", "app");

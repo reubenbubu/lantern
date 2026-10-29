@@ -79,14 +79,18 @@ its path is known, and what is matched when.
   server and database share the entity, which gets a `technology` fact (the attribute type now
   describes containers, not only units). An embedded database without a server is the unit's own
   (keyed by the unit), and so is one whose server or database is a placeholder no config resolves
-  (#255): it is named by its database when that is written out, else by the unit, and is never
-  shared. The link lists the schemas the unit's migrations build. A unit whose code
-  reads or writes (`READS_TABLE`, `WRITES_TABLE`, ADR 0036) a table, by name, that another unit's
-  schema declares and that it does not declare itself, `ACCESSES_DATA_OF` that unit, with the
-  tables in `reads` and `writes` (DB-5), when in the view the database of the first unit's main
-  datasource (`spring.datasource.url`, `jdbc-url`, Hikari's, else `spring.r2dbc.url`) is the one
-  the second's migrations run on (`spring.flyway.url` or `spring.liquibase.url`, else its main
-  datasource). Two units that merely both reach some database do not share each other's tables.
+  (#255): it is never shared. The linker gives it a `display-name` attribute (#291): its database when
+  that is written out, else "<unit name> database", with the datasource key in parentheses when it is
+  not the main one; views show that name, with the technology as technology, never the key (which is
+  `<unit>/<technology>:<name>`, the technology lowercased with spaces as dashes). A database on a
+  server has none and is shown as `<database> on <server>`. The link lists the schemas the unit's
+  migrations build. A unit whose code reads or writes (`READS_TABLE`, `WRITES_TABLE`, ADR 0036) a
+  table, by name, that another unit's schema declares and that it does not declare itself,
+  `ACCESSES_DATA_OF` that unit, with the tables in `reads` and `writes` (DB-5), when in the view the
+  database of the first unit's main datasource (`spring.datasource.url`, `jdbc-url`, Hikari's, else
+  `spring.r2dbc.url`) is the one the second's migrations run on (`spring.flyway.url` or
+  `spring.liquibase.url`, else its main datasource). Two units that merely both reach some database do
+  not share each other's tables.
 - **Shared config** is matched where it names a shared server: message brokers from
   `spring.kafka*.bootstrap-servers`, `spring.cloud.stream.kafka.binder.brokers`,
   `spring.rabbitmq.addresses` or `host` (and `port`), and `spring.artemis` or `spring.activemq`
@@ -116,7 +120,7 @@ its path is known, and what is matched when.
   `cross-repo-links`: entity types `topic`, `queue`, `exchange`, `database`, `message-broker`,
   `external-system` and `infrastructure`; relationship types `CALLS_HTTP`, `PUBLISHES`,
   `CONSUMES`, `ROUTES_TO`, `SENDS_MESSAGES_TO`, `USES_DATABASE`, `ACCESSES_DATA_OF`, `USES_BROKER`
-  and `USES_INFRASTRUCTURE`; attribute type `unresolved-link`.
+  and `USES_INFRASTRUCTURE`; attribute types `unresolved-link` and `display-name`.
 - **Not covered:** profile combinations (`@Profile("a & b")` never matches one active profile, so
   such code links nowhere), env vars and deploy-time overrides, JPA entities as table access
   (only SQL in code), a Feign client's placeholder name, a request's port compared with the

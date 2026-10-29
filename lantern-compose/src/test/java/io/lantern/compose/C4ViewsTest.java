@@ -325,6 +325,22 @@ class C4ViewsTest {
   }
 
   @Test
+  void aDatabaseWithADisplayNameShowsItAndOneWithoutKeepsItsServerAndDatabase() {
+    TestFacts more = TestFacts.runtime();
+    String own = "database:com.example:app/sql-server:com.example:app";
+    more.relate("shop", "service:com.example:app", "USES_DATABASE", own, "{\"protocol\": \"JDBC\"}")
+        .attribute("shop", own, "technology", "SQL Server", "{}")
+        .attribute("shop", own, "display-name", "shop-app database", "{}");
+
+    Diagram diagram = block(section(repo(more.list()), "containers"), Diagram.class);
+
+    assertThat(nodes(diagram))
+        .contains(
+            own + " \"shop-app database\" [SQL Server] in system:snapshot",
+            "database:db:5432/shop \"shop on db\" [PostgreSQL] in system:snapshot");
+  }
+
+  @Test
   void aProfileOnlyAlternativeOfADefaultLinkIsANoteNotABox() {
     TestFacts more = TestFacts.runtime();
     more.relate(
