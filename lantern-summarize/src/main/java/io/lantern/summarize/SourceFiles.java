@@ -1,5 +1,11 @@
 package io.lantern.summarize;
 
+import io.lantern.core.fact.Evidence;
+import io.lantern.extract.config.SourceSecrets;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Optional;
 
 /**
@@ -21,4 +27,29 @@ public interface SourceFiles {
    * @param path the file path relative to the repository root
    */
   Optional<byte[]> read(String repo, String commit, String path);
+
+  /**
+   * The text of the file of a fact's evidence as prompts show it (ADR 0024, ADR 0054): read at the
+   * evidence's commit, only if its SHA-256 matches the evidence's content hash, with its secrets
+   * masked or removed by {@link SourceSecrets}; empty if it has no path or hash, cannot be read or
+   * is another version.
+   *
+   * @param evidence where a fact was observed
+   */
+  default Optional<String> shown(Evidence evidence) {
+    if (evidence.path() == null || evidence.contentHash() == null) {
+      return Optional.empty();
+    }
+    return read(evidence.repo(), evidence.commit(), evidence.path())
+        .filter(content -> sha256(content).equals(evidence.contentHash()))
+        .map(content -> SourceSecrets.scrub(new String(content, StandardCharsets.UTF_8)));
+  }
+
+  private static String sha256(byte[] bytes) {
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 is not available", e);
+    }
+  }
 }

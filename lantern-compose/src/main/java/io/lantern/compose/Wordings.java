@@ -8,6 +8,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * What the LLM worded for the elements and relationships of the C4 views (ADR 0050) and for the
@@ -21,9 +22,14 @@ import java.util.Objects;
  * @param phrases the intent phrase of each link, by the ID of the link fact
  * @param flows the walkthrough and conditions of each flow, by {@link #flowKey} of the prompt that
  *     asked about it, so a flow is worded only when it is traced as the model saw it
+ * @param documented the IDs of the facts that a prompt showed code holding Javadoc under, which
+ *     count as evidence, as README claims do, when a responsibility sentence cites them (ADR 0066)
  */
 public record Wordings(
-    Map<EntityId, String> responsibilities, Map<String, Phrase> phrases, Map<String, Flow> flows) {
+    Map<EntityId, String> responsibilities,
+    Map<String, Phrase> phrases,
+    Map<String, Flow> flows,
+    Set<String> documented) {
 
   /** No wording: documents keep summaries as descriptions and static labels. */
   public static final Wordings NONE = new Wordings(Map.of(), Map.of());
@@ -32,6 +38,15 @@ public record Wordings(
     responsibilities = Map.copyOf(responsibilities);
     phrases = Map.copyOf(phrases);
     flows = Map.copyOf(flows);
+    documented = Set.copyOf(documented);
+  }
+
+  /** Responsibility sentences, intent phrases and flows, citing no code with Javadoc. */
+  public Wordings(
+      Map<EntityId, String> responsibilities,
+      Map<String, Phrase> phrases,
+      Map<String, Flow> flows) {
+    this(responsibilities, phrases, flows, Set.of());
   }
 
   /** Responsibility sentences and intent phrases, without flows. */

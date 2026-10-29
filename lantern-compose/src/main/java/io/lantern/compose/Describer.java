@@ -5,6 +5,7 @@ import io.lantern.compose.WordingPrompt.Question;
 import io.lantern.compose.WordingPrompt.RelationshipInput;
 import io.lantern.compose.WordingPrompt.UseInput;
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.llm.LlmClient;
@@ -14,6 +15,7 @@ import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.Role;
+import io.lantern.summarize.SourceFiles;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -35,6 +37,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,18 +45,18 @@ import org.slf4j.LoggerFactory;
  * Has the LLM word what extraction found in the C4 views (ADR 0050, docs/design.md: LLM
  * integration, Grounding): a responsibility sentence for each deployable unit and each of its
  * components, and an intent phrase for each of its links to other containers. One call per unit
- * shows extracted facts only: those that make it a unit, its README's claims, its components (when
- * it has more than one, as the component diagram draws them) with their facts, or else its entry
- * points, and its links; the answer cites them. Nothing is added: a unit, component or link the
- * model leaves out keeps its summary or static label. One call per data store, topic, queue,
- * exchange and external system the container diagrams draw asks for its responsibility sentence
- * from its facts, the tables built in it and how the units use it (ADR 0056); one the model leaves
- * out has no description, as before. One call per main flow the documents show asks for its
- * walkthrough and pre- and post-conditions from what starts it and the facts behind its steps (ADR
- * 0058); what the model leaves out keeps its static prose or "Not known from the code.". Last, one
- * call asks for the system's purpose from the units' sentences, with the facts they cite, and the
- * README claims of its repositories (ADR 0060); without a purpose the system's report states it as
- * unknown.
+ * shows what extraction found: the facts that make it a unit, its README's claims, its components
+ * (when it has more than one, as the component diagram draws them) with their facts and the start
+ * of their main type's code (ADR 0066), or else its entry points, and its links; the answer cites
+ * them. Nothing is added: a unit, component or link the model leaves out keeps its summary or
+ * static label. One call per data store, topic, queue, exchange and external system the container
+ * diagrams draw asks for its responsibility sentence from its facts, the tables built in it and how
+ * the units use it (ADR 0056); one the model leaves out has no description, as before. One call per
+ * main flow the documents show asks for its walkthrough and pre- and post-conditions from what
+ * starts it and the facts behind its steps (ADR 0058); what the model leaves out keeps its static
+ * prose or "Not known from the code.". Last, one call asks for the system's purpose from the units'
+ * sentences, with the facts they cite, and the README claims of its repositories (ADR 0060);
+ * without a purpose the system's report states it as unknown.
  *
  * <p>Answers are cached by the hash of the prompt, which shows no fact IDs, so a run over unchanged
  * facts makes no call. It never fails the run: an answer rejected twice, and a call refused by a
@@ -77,6 +80,12 @@ public final class Describer {
 
   /** The most README claims the prompt shows per repository. */
   static final int MAX_CLAIMS = 8;
+
+  /** The most characters of one component's code the prompt shows. */
+  static final int MAX_CODE_CHARS = 4_000;
+
+  /** The most characters of code, of all its components, the prompt about a unit shows. */
+  static final int MAX_UNIT_CODE_CHARS = 40_000;
 
   /** The most relationships of one unit the prompt shows. */
   static final int MAX_RELATIONSHIPS = 40;
@@ -116,6 +125,7 @@ public final class Describer {
 
   private static final String METHOD = "method";
   private static final String CLAIM = "claim";
+  private static final String KIND = "kind";
   private static final String TABLE = "table";
   private static final Set<String> ENTRY_POINTS =
       Set.of("endpoint", "message-listener", "scheduled");
@@ -150,14 +160,28 @@ public final class Describer {
 
   private final LlmClient client;
   private final WordingStore store;
+  private final SourceFiles sources;
 
   /**
+   * A describer whose prompts show no code.
+   *
    * @param client the LLM, with the budgets the run's calls count against
    * @param store where answers are cached
    */
   public Describer(LlmClient client, WordingStore store) {
+    this(client, store, SourceFiles.NONE);
+  }
+
+  /**
+   * @param client the LLM, with the budgets the run's calls count against
+   * @param store where answers are cached
+   * @param sources where the files the facts were observed in are read from, for the code of
+   *     components
+   */
+  public Describer(LlmClient client, WordingStore store, SourceFiles sources) {
     this.client = Objects.requireNonNull(client, "client");
     this.store = Objects.requireNonNull(store, "store");
+    this.sources = Objects.requireNonNull(sources, "sources");
   }
 
   /**
@@ -188,8 +212,16 @@ public final class Describer {
         new C4Views(knowledge, assembler, RepoSections.SYSTEM, C4Views.units(knowledge), Set.of());
     Set<Fact> alternatives = c4.alternativeLinks().keySet();
     List<Question> questions = new ArrayList<>();
+    Map<String, Optional<String>> read = new HashMap<>();
+    Function<Evidence, Optional<String>> files =
+        evidence ->
+            read.computeIfAbsent(
+                evidence.repo() + '\u0000' + evidence.commit() + '\u0000' + evidence.path(),
+                f -> sources.shown(evidence));
+    Set<String> documented = new TreeSet<>();
     for (EntityId unit : C4Views.units(knowledge)) {
-      question(unit, knowledge, assembler, c4, alternatives).ifPresent(questions::add);
+      question(unit, knowledge, assembler, c4, alternatives, files, documented)
+          .ifPresent(questions::add);
     }
     for (EntityId element : c4.destinations()) {
       questions.add(question(element, knowledge, assembler, c4));
@@ -229,7 +261,7 @@ public final class Describer {
         tally.rejected.size(),
         tally.skipped.size());
     return new Result(
-        new Wordings(tally.responsibilities, tally.phrases, tally.flows),
+        new Wordings(tally.responsibilities, tally.phrases, tally.flows, documented),
         tally.asked,
         tally.reused,
         tally.rejected,
@@ -274,22 +306,43 @@ public final class Describer {
 
   /**
    * The prompt about a unit, or none when it would show nothing to word beyond the facts that make
-   * it a unit: no README claims, entry points, components or links.
+   * it a unit: no README claims, entry points, components or links. Each component shows the start
+   * of its main type's code while the unit's share of code lasts (ADR 0066).
+   *
+   * @param files the text of the file of a fact's evidence as prompts show it, or empty
+   * @param documented gets the IDs of the facts above code that holds Javadoc, which count as
+   *     evidence when a sentence cites them
    */
   private static Optional<Question> question(
-      EntityId unit, Knowledge knowledge, Assembler assembler, C4Views c4, Set<Fact> alternatives) {
+      EntityId unit,
+      Knowledge knowledge,
+      Assembler assembler,
+      C4Views c4,
+      Set<Fact> alternatives,
+      Function<Evidence, Optional<String>> files,
+      Set<String> documented) {
     List<ComponentInput> components = new ArrayList<>();
     List<C4Views.Component> found = c4.components(unit);
     // Components are drawn only for a unit with more than one (docs/design.md, Diagrams).
     if (found.size() > 1) {
+      int codeLeft = MAX_UNIT_CODE_CHARS;
       for (C4Views.Component component : found.subList(0, Math.min(MAX_COMPONENTS, found.size()))) {
         List<Fact> shown = byLine(c4.componentFacts(component));
+        WordingPrompt.Code code =
+            code(component.main(), knowledge, files, Math.min(MAX_CODE_CHARS, codeLeft));
+        if (code != null) {
+          codeLeft -= code.text().length();
+          if (code.documented()) {
+            documented.add(code.declaration().id());
+          }
+        }
         components.add(
             new ComponentInput(
                 component.main(),
                 assembler.name(component.main()),
                 component.technology().isEmpty() ? null : component.technology(),
-                shown.subList(0, Math.min(MAX_COMPONENT_FACTS, shown.size()))));
+                shown.subList(0, Math.min(MAX_COMPONENT_FACTS, shown.size())),
+                code));
       }
     }
     List<Fact> entryPoints = components.isEmpty() ? entryPoints(unit, knowledge) : List.of();
@@ -456,6 +509,30 @@ public final class Describer {
       return Optional.empty();
     }
     return Optional.of(WordingPrompt.purpose(RepoSections.SYSTEM, units, claims));
+  }
+
+  /**
+   * The start of the type's code, from the file its {@code kind} fact was observed in (ADR 0024),
+   * or null when no such file can be read or nothing of it fits. A type declared in two files shows
+   * the first, by repository and path, that can be read.
+   */
+  private static WordingPrompt.Code code(
+      EntityId type, Knowledge knowledge, Function<Evidence, Optional<String>> files, int max) {
+    List<Fact> declarations =
+        knowledge.attributes(type).stream()
+            .filter(f -> f.predicate().equals(KIND) && f.evidence().path() != null)
+            .sorted(
+                Comparator.comparing((Fact f) -> f.evidence().repo())
+                    .thenComparing(f -> f.evidence().path())
+                    .thenComparing(Fact::id))
+            .toList();
+    for (Fact declaration : declarations) {
+      Optional<String> text = files.apply(declaration.evidence());
+      if (text.isPresent()) {
+        return WordingPrompt.code(declaration, text.get(), max);
+      }
+    }
+    return null;
   }
 
   /** The facts by ID, each once. */

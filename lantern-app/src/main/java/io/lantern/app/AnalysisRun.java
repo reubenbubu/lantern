@@ -299,7 +299,17 @@ public final class AnalysisRun {
       List<Fact> system = facts.findValidAt(snapshot.number());
       // Each repository's documents are composed from its extracted facts, so its flows are traced
       // from those.
-      Describer.Result described = new Describer(client, wordings).describe(system, extracted);
+      // Their prompts show the code of components, read from every registered repository, carried
+      // forward ones included, so a run gives the same prompts whichever repositories it names
+      // (ADR 0066).
+      GitSourceFiles allSources =
+          new GitSourceFiles(
+              name ->
+                  Optional.ofNullable(registered.get(name))
+                      .or(() -> registry.find(name))
+                      .map(Repo::path));
+      Describer.Result described =
+          new Describer(client, wordings, allSources).describe(system, extracted);
 
       List<Rendered> documents = new ArrayList<>();
       Composer composer = new Composer(toolVersion);

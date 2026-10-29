@@ -42,7 +42,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class WordingPrompt {
 
   /** The version of the prompt about a unit, part of every answer's cache key. */
-  static final String VERSION = "1";
+  static final String VERSION = "2";
 
   /** The version of the prompt about a data store or destination, part of its cache key. */
   static final String ELEMENT_VERSION = "1";
@@ -86,10 +86,13 @@ final class WordingPrompt {
       know its code. You are given one deployable unit with facts that static analysis \
       extracted from its code, configuration and README, each with a reference such as [F1]: \
       the facts that make it a unit, what its README claims, its entry points, its components, \
-      each with a reference such as [C1], and its relationships with other containers, each \
-      with a reference such as [R1].
-      Word only what the facts show. Never invent a responsibility, an element or a \
-      relationship. Infer purpose from names, paths, routing keys, tables and README claims.
+      each with a reference such as [C1] and, where it could be read, the start of its main \
+      type's code under the fact that declares the type, and its relationships with other \
+      containers, each with a reference such as [R1].
+      Word only what the facts and the code show. Never invent a responsibility, an element or \
+      a relationship. Infer purpose from names, paths, routing keys, tables, README claims and \
+      the components' code and comments; for what a component's code shows, cite the fact \
+      above it.
       For the unit, and for each component, write a responsibility sentence: one plain sentence \
       of at most 25 words saying what it is responsible for, in words a non-engineer \
       understands. Do not restate its name or its kind; say what it does for the system.
@@ -196,6 +199,12 @@ final class WordingPrompt {
           "reads",
           "writes");
 
+  /** What heads a component's code in the prompt, with the file's path. */
+  static final String CODE = "Code of %s, without its package and imports";
+
+  /** What follows {@link #CODE} when the code is cut, with how many lines are left out. */
+  static final String CODE_CUT = ", the last %d lines left out";
+
   private static final Pattern REFERENCE = Pattern.compile("F[1-9][0-9]*");
 
   private WordingPrompt() {}
@@ -207,8 +216,28 @@ final class WordingPrompt {
    * @param name its name
    * @param role what kind of component it is, or null
    * @param facts the facts shown about it
+   * @param code the start of its main type's code, or null when none is shown
    */
-  record ComponentInput(EntityId type, String name, String role, List<Fact> facts) {}
+  record ComponentInput(EntityId type, String name, String role, List<Fact> facts, Code code) {}
+
+  /**
+   * The start of a type's code as the prompt shows it (ADR 0024, ADR 0054): its file with its
+   * secrets masked, without the package declaration, imports and a licence comment above them, cut
+   * at a line once it reaches the most characters allowed.
+   *
+   * @param declaration the type's {@code kind} fact, whose evidence is the file, which citing it
+   *     cites
+   * @param path the file, relative to its repository
+   * @param text the code shown
+   * @param cut how many lines are left out at the end
+   */
+  record Code(Fact declaration, String path, String text, int cut) {
+
+    /** Whether the code shown holds Javadoc, which people wrote (ADR 0059). */
+    boolean documented() {
+      return text.contains("/**");
+    }
+  }
 
   /**
    * A relationship as the prompt shows it.
@@ -333,6 +362,17 @@ final class WordingPrompt {
         }
         user.append('\n');
         component.facts().forEach(f -> user.append(fact(f, facts, "  ")).append('\n'));
+        Code code = component.code();
+        if (code != null) {
+          user.append(fact(code.declaration(), facts, "  ")).append('\n');
+          user.append("  ").append(CODE.formatted(oneLine(code.path())));
+          if (code.cut() > 0) {
+            user.append(CODE_CUT.formatted(code.cut()));
+          }
+          String fence = fence(code.text());
+          user.append(":\n").append(fence).append("java\n").append(code.text());
+          user.append('\n').append(fence).append('\n');
+        }
       }
     }
     if (!relationships.isEmpty()) {
@@ -507,6 +547,70 @@ final class WordingPrompt {
         Map.of(),
         Map.of(),
         Map.of(PURPOSE, SENTENCE_WORDS));
+  }
+
+  /**
+   * The start of a type's code as the prompt shows it, or null when nothing is left to show.
+   *
+   * @param declaration the type's {@code kind} fact
+   * @param file the text of its file, secrets masked
+   * @param maxChars the most characters to show; the code is cut after the last whole line that
+   *     fits, and nothing is shown when not even its first line fits
+   */
+  static Code code(Fact declaration, String file, int maxChars) {
+    List<String> lines = new ArrayList<>(List.of(file.replace("\r\n", "\n").split("\n", -1)));
+    int start = 0;
+    // A licence comment above the package declaration, not Javadoc, says nothing about the type.
+    if (!lines.isEmpty()
+        && lines.getFirst().strip().startsWith("/*")
+        && !lines.getFirst().strip().startsWith("/**")) {
+      while (start < lines.size() && !lines.get(start).contains("*/")) {
+        start++;
+      }
+      start++;
+    }
+    List<String> kept = new ArrayList<>();
+    for (String line : lines.subList(Math.min(start, lines.size()), lines.size())) {
+      String bare = line.strip();
+      if (bare.startsWith("package ") || bare.startsWith("import ")) {
+        continue;
+      }
+      if (bare.isEmpty() && (kept.isEmpty() || kept.getLast().isBlank())) {
+        continue;
+      }
+      kept.add(line.stripTrailing());
+    }
+    while (!kept.isEmpty() && kept.getLast().isBlank()) {
+      kept.removeLast();
+    }
+    StringBuilder text = new StringBuilder();
+    int shown = 0;
+    for (String line : kept) {
+      if (text.length() + line.length() + 1 > maxChars) {
+        break;
+      }
+      text.append(line).append('\n');
+      shown++;
+    }
+    if (shown == 0) {
+      return null;
+    }
+    return new Code(
+        declaration,
+        declaration.evidence().path(),
+        text.toString().stripTrailing(),
+        kept.size() - shown);
+  }
+
+  /** A code fence longer than any run of backticks in the code, at least three. */
+  private static String fence(String code) {
+    int longest = 0;
+    int run = 0;
+    for (int i = 0; i < code.length(); i++) {
+      run = code.charAt(i) == '`' ? run + 1 : 0;
+      longest = Math.max(longest, run);
+    }
+    return "`".repeat(Math.max(3, longest + 1));
   }
 
   /** What an element is, with an article, such as {@code a deployable unit}. */

@@ -42,7 +42,11 @@ class WordingPromptTest {
             Integer.toString(Describer.MAX_COMPONENT_FACTS),
             Integer.toString(Describer.MAX_ENTRY_POINTS),
             Integer.toString(Describer.MAX_CLAIMS),
-            Integer.toString(Describer.MAX_RELATIONSHIPS));
+            Integer.toString(Describer.MAX_RELATIONSHIPS),
+            WordingPrompt.CODE,
+            WordingPrompt.CODE_CUT,
+            Integer.toString(Describer.MAX_CODE_CHARS),
+            Integer.toString(Describer.MAX_UNIT_CODE_CHARS));
     String fingerprint =
         HexFormat.of()
             .formatHex(
@@ -51,7 +55,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.VERSION and update this fingerprint")
-        .isEqualTo("1 81abfde38fb1eac342e9044851484f7cc4c058f89fad435b5020514b0a32c207");
+        .isEqualTo("2 78a2b9009579660a4ee24be5823fea463eb3e06af2d6fe91416eca745b3b04bb");
   }
 
   /**
@@ -287,7 +291,8 @@ class WordingPromptTest {
                 EntityId.parse("type:com.example.web.Controller"),
                 "Controller",
                 null,
-                List.of(facts.find("type:com.example.web.Controller", "stereotype")))),
+                List.of(facts.find("type:com.example.web.Controller", "stereotype")),
+                null)),
         List.of(
             new RelationshipInput(
                 "sends messages to",
@@ -377,5 +382,39 @@ class WordingPromptTest {
                     new LlmResponse("{", LlmResponse.MAX_TOKENS, new TokenUsage(1, 1, 0, 0)),
                     question()))
         .hasMessage("it was cut off at the length limit; write shorter texts.");
+  }
+
+  @Test
+  void codeLeavesOutTheLicenceCommentPackageAndImportsAndIsCutAtALine() {
+    io.lantern.core.fact.Fact declaration =
+        facts.find("service:com.example:app", "application-name");
+    String file =
+        """
+        /* Copyright. */
+        package a;
+
+        import b.C;
+        import d.E;
+
+        /** Does things. */
+        class A {
+          int one;
+          int two;
+        }
+        """;
+
+    WordingPrompt.Code whole = WordingPrompt.code(declaration, file, 1_000);
+    WordingPrompt.Code cut = WordingPrompt.code(declaration, file, 35);
+
+    assertThat(whole.text()).isEqualTo("/** Does things. */\nclass A {\n  int one;\n  int two;\n}");
+    assertThat(whole.cut()).isZero();
+    assertThat(whole.documented()).isTrue();
+    assertThat(cut.text()).isEqualTo("/** Does things. */\nclass A {");
+    assertThat(cut.cut()).isEqualTo(3);
+    assertThat(cut.documented()).isTrue();
+    assertThat(WordingPrompt.code(declaration, file, 10)).isNull();
+    // Javadoc at the top is kept.
+    assertThat(WordingPrompt.code(declaration, "/** Kept. */\nclass A {}", 100).text())
+        .isEqualTo("/** Kept. */\nclass A {}");
   }
 }
