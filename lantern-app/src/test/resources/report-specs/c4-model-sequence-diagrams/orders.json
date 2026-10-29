@@ -2,8 +2,9 @@
   "document" : {
     "id" : "orders",
     "title" : "orders",
-    "subtitle" : "*Purpose inferred from the code:* It builds on its parts. It is described by its facts.\n\n- orders, a library\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Containers**\nNo deployable unit was found in the code.\n\n**Decisions**\nNo decision records were found in orders, so the reasons for its design are not known.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener or scheduled job) was found whose code reaches another container.\n\n**Catalog**\nNo deployable unit, component, entry point, topic, queue, table or configuration was found in the code.\n\n**Change guidance**\nThe code has no endpoint, listener, scheduled job, send, call to another service, schema or configuration to follow as an example.",
-    "version" : "1"
+    "subtitle" : "*Purpose inferred from the code:* It builds on its parts. It is described by its facts.\n\n- orders, a library\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Containers**\nNo deployable unit was found in the code.\n\n**Decisions**\nNo decision records were found in orders, so the reasons for its design are not known.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener or scheduled job) was found whose code reaches another container.\n\n**Catalog**\nNo deployable unit, component, entry point, topic, queue, table or configuration was found in the code.\n\n**Change guidance**\nThe code has no endpoint, listener, scheduled job, send, call to another service, schema or configuration to follow as an example.\n\nFor architects and senior engineers. Pinned to commit orders `4748b0129140`, as of 1970-01-01.",
+    "version" : "1",
+    "updated" : "1970-01-01"
   },
   "elements" : {
     "system-snapshot" : {
@@ -55,7 +56,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([System context of greeting-lib, greeting-service, orders and shop](#/context/context-diagram)): The template draws no legend.", "**Acronyms are explained in the glossary**: The document has no glossary; it uses HTTP.", "**It states its reader**: The document names no audience; the view definition it was composed from has none.", "**It pins its snapshot (commits) and date**: The document names its snapshot's number but not its commits or a date; the document model holds neither.", "**A \"start here\" list of the entry points and files to read first** (Start here): It lists nothing.", "**The container diagram first** ([System context of greeting-lib, greeting-service, orders and shop](#/context/context-diagram)): The first diagram is not the container diagram.", "**The main flows as sequence diagrams**: The document has no sequence diagram.", "**A catalog of containers, components, endpoints, queues, tables and config** (Catalog): It lists nothing." ]
+      "items" : [ "**A \"start here\" list of the entry points and files to read first** (Start here): It lists nothing.", "**The container diagram first** ([System context of greeting-lib, greeting-service, orders and shop](#/context/context-diagram)): The first diagram is not the container diagram.", "**The main flows as sequence diagrams**: The document has no sequence diagram.", "**A catalog of containers, components, endpoints, queues, tables and config** (Catalog): It lists nothing." ]
     } ]
   } ]
 }

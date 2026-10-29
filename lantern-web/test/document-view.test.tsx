@@ -1,10 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, test } from 'vitest';
 import { citationLabel, DocumentView } from '../src/DocumentView.tsx';
-import { DiagramSvg } from '../src/diagram/DiagramView.tsx';
+import { DiagramLegend, DiagramSvg } from '../src/diagram/DiagramView.tsx';
 import { layoutDiagram } from '../src/diagram/layout.ts';
 import type { Block, Section } from '../src/generated/document.ts';
-import { composerOutput, diagrams, schemaFixture } from './fixtures.ts';
+import { composerOutput, diagrams, schemaFixture, systemOutput } from './fixtures.ts';
 
 function allSections(sections: Section[]): Section[] {
   return sections.flatMap((s) => [s, ...allSections(s.sections)]);
@@ -33,6 +33,21 @@ describe('DocumentView', () => {
     expect(html).toContain('unknown → unknown</li>');
     expect(html).toContain('Note over orders-lib, orders-db: Nothing is saved.');
     expect(html).toContain('Note: The rest happens later.');
+  });
+
+  test('keys the marks a sequence uses', () => {
+    expect(html).toContain('<strong>Key:</strong> A → B: A calls B or sends it a message');
+    expect(html).toContain('(async): sent without waiting for an answer');
+    expect(html).toContain('(reply): the answer to an earlier step');
+    expect(html).toContain('(only with profile …)');
+    expect(html).toContain('alt [condition] … else: only the branch whose condition holds runs');
+    expect(html).toContain('Note: a remark on the flow, not a step.');
+  });
+
+  test('states its reader and pins its commits and date', () => {
+    expect(html).toContain(
+      `For ${document.audience}. Pinned to commit <span>orders <code title="${'a'.repeat(40)}">${'a'.repeat(12)}</code></span>, as of 2026-01-15.`,
+    );
   });
 
   test('lists the failed quality checks, or says none failed', () => {
@@ -99,6 +114,27 @@ describe('DiagramSvg', () => {
         expect(svg).toContain(`data-edge="${edge.id}"`);
       }
     }
+  });
+});
+
+describe('DiagramLegend', () => {
+  test('explains the boxes, boundary, arrows and colors a diagram uses', () => {
+    const containers = diagrams(systemOutput()).find((d) => d.diagramKind === 'c4-container')!;
+    const legend = renderToStaticMarkup(<DiagramLegend diagram={containers} />);
+    expect(legend).toContain('aria-label="Legend"');
+    expect(legend).toContain('Box: an element (database, external system, service, topic); [in brackets] its technology');
+    expect(legend).toContain('Dashed outline: a boundary');
+    expect(legend).toContain('Arrow: a one-way relationship, read from tail to head with its label; [in brackets] its protocol');
+    expect(legend).toContain('(only with …) the Spring profiles');
+    expect(legend).not.toContain('Colored');
+
+    const colored = { ...containers, nodes: containers.nodes.map((n) => ({ ...n, style: { color: '#ff8000' } })) };
+    expect(renderToStaticMarkup(<DiagramLegend diagram={colored} />)).toContain('Colored #ff8000: set by a presentation rule');
+  });
+
+  test('is drawn under every diagram of the templates', () => {
+    const page = renderToStaticMarkup(<DocumentView document={composerOutput()} />);
+    expect(page.match(/class="diagram-legend"/g)?.length).toBe(diagrams(composerOutput()).length);
   });
 });
 

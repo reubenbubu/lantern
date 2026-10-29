@@ -28,6 +28,7 @@ import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.extract.test.TestExtractor;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
 import io.lantern.link.ResolutionStore;
@@ -266,6 +267,7 @@ public final class AnalysisRun {
       found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new SqlExtractor().extract(repoBuilds, snapshot.number()));
+      found.addAll(new TestExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new SpringExtractor().extract(code, snapshot.number()));
       found.addAll(new PersistenceExtractor().extract(code, snapshot.number()));
       found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));

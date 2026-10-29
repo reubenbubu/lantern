@@ -2,6 +2,7 @@
   "schemaVersion" : 1,
   "id" : "system:c4",
   "title" : "System",
+  "audience" : "architects and new engineers",
   "template" : {
     "name" : "c4-model-sequence-diagrams",
     "version" : "1"
@@ -9,7 +10,12 @@
   "source" : {
     "snapshot" : 1,
     "vocabularyRevision" : 3,
-    "toolVersion" : "0.1.0-test"
+    "toolVersion" : "0.1.0-test",
+    "commits" : {
+      "base" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "shop" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "date" : "1970-01-01"
   },
   "entities" : [ {
     "id" : "database:db:5432/shop",
@@ -80,7 +86,7 @@
     "id" : "service:com.example:worker",
     "name" : "worker",
     "parent" : "repo:base",
-    "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "679166264b3a042a38f479ee7460b4f8586b94b25ba0eeaea0365c212a9d0222" ]
+    "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "679166264b3a042a38f479ee7460b4f8586b94b25ba0eeaea0365c212a9d0222", "6cf21158bcc172cbaf1bce92151fad662fc2e91e0084c97b3a7405baa9c41254" ]
   }, {
     "id" : "system:snapshot",
     "name" : "base and shop",
@@ -465,6 +471,29 @@
     },
     "evidence" : {
       "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "6cf21158bcc172cbaf1bce92151fad662fc2e91e0084c97b3a7405baa9c41254",
+    "subject" : "service:com.example:worker",
+    "predicate" : "technology",
+    "object" : {
+      "kind" : "string",
+      "value" : "Spring Boot 3.5.0 / Java 21"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "base",
       "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "path" : "pom.xml"
     },
@@ -1264,7 +1293,7 @@
       "items" : [ {
         "label" : "Deployable units",
         "value" : 2,
-        "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668", "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5", "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd" ]
+        "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668", "6cf21158bcc172cbaf1bce92151fad662fc2e91e0084c97b3a7405baa9c41254", "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5", "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd" ]
       }, {
         "label" : "Databases",
         "value" : 1,
@@ -1344,8 +1373,9 @@
       }, {
         "id" : "service:com.example:worker",
         "label" : "worker",
+        "technology" : "Spring Boot 3.5.0 / Java 21",
         "parent" : "system:snapshot",
-        "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a" ]
+        "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "6cf21158bcc172cbaf1bce92151fad662fc2e91e0084c97b3a7405baa9c41254" ]
       }, {
         "id" : "system:snapshot",
         "label" : "base and shop",
@@ -1548,7 +1578,8 @@
         }, {
           "id" : "service:com.example:worker",
           "label" : "worker",
-          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a" ]
+          "technology" : "Spring Boot 3.5.0 / Java 21",
+          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "6cf21158bcc172cbaf1bce92151fad662fc2e91e0084c97b3a7405baa9c41254" ]
         }, {
           "id" : "topic:kafka:orders",
           "label" : "orders",
@@ -1692,7 +1723,8 @@
           "facts" : [ ]
         }, {
           "id" : "service:com.example:worker",
-          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a" ]
+          "technology" : "Spring Boot 3.5.0 / Java 21",
+          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "6cf21158bcc172cbaf1bce92151fad662fc2e91e0084c97b3a7405baa9c41254" ]
         } ],
         "steps" : [ {
           "kind" : "note",
@@ -1818,7 +1850,8 @@
           "facts" : [ "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
         }, {
           "id" : "service:com.example:worker",
-          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a" ]
+          "technology" : "Spring Boot 3.5.0 / Java 21",
+          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "6cf21158bcc172cbaf1bce92151fad662fc2e91e0084c97b3a7405baa9c41254" ]
         } ],
         "steps" : [ {
           "kind" : "note",
@@ -1885,17 +1918,6 @@
         } ],
         "facts" : [ ]
       }, {
-        "check" : "Containers and components have a technology",
-        "target" : {
-          "kind" : "block",
-          "id" : "containers.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "No technology for worker."
-        } ],
-        "facts" : [ ]
-      }, {
         "check" : "Every line is labelled with an intent phrase",
         "target" : {
           "kind" : "block",
@@ -1915,17 +1937,6 @@
         "detail" : [ {
           "kind" : "text",
           "text" : "The template's legend has no entry for the dashed boundary."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Containers and components have a technology",
-        "target" : {
-          "kind" : "block",
-          "id" : "components.service:com.example:app.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "No technology for worker."
         } ],
         "facts" : [ ]
       }, {
@@ -1966,20 +1977,6 @@
         "detail" : [ {
           "kind" : "text",
           "text" : "The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "It states its reader",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document names no audience; the view definition it was composed from has none."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "It pins its snapshot (commits) and date",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
         } ],
         "facts" : [ ]
       }, {

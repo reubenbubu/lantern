@@ -18,6 +18,7 @@ import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.extract.test.TestExtractor;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
@@ -143,7 +144,8 @@ public final class Fixtures {
             SpringExtractor.vocabulary(),
             PersistenceExtractor.vocabulary(),
             HttpClientExtractor.vocabulary(),
-            MessagingExtractor.vocabulary())) {
+            MessagingExtractor.vocabulary(),
+            TestExtractor.vocabulary())) {
       vocabulary.changes(extractor).forEach(t -> types.put(t.name(), t));
       vocabulary = new Vocabulary(vocabulary.revision() + 1, types.values());
     }

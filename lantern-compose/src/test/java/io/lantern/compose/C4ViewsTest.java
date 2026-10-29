@@ -131,7 +131,7 @@ class C4ViewsTest {
             "database:db:5432/shop \"shop on db\" [PostgreSQL] in system:snapshot",
             "external-system:pay.example.com \"pay.example.com\"",
             "service:com.example:app \"shop-app\" [Spring Boot 3.5.0 / Java 21] in system:snapshot",
-            "service:com.example:worker \"worker\" in system:snapshot",
+            "service:com.example:worker \"worker\" [Spring Boot 3.5.0 / Java 21] in system:snapshot",
             "system:snapshot \"base and shop\"",
             "topic:kafka:orders \"orders\" [Kafka topic] in system:snapshot");
     assertThat(edges(diagram))
@@ -200,7 +200,7 @@ class C4ViewsTest {
             "database:db:5432/shop \"shop on db\" [PostgreSQL]",
             "external-system:pay.example.com \"pay.example.com\"",
             "service:com.example:app \"shop-app\" [Spring Boot 3.5.0 / Java 21]",
-            "service:com.example:worker \"worker\"",
+            "service:com.example:worker \"worker\" [Spring Boot 3.5.0 / Java 21]",
             "topic:kafka:orders \"orders\" [Kafka topic]",
             "type:com.example.domain.JpaOrders \"JpaOrders\" [Spring repository]"
                 + " in service:com.example:app",

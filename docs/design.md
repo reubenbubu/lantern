@@ -100,7 +100,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 
 | Extractor | Reads | Produces |
 | --- | --- | --- |
-| Maven | Effective POM and reactor (POMs as written when there is no effective POM) | Modules, artifacts, internal vs. third-party dependencies, deployable vs. library, the library a thin service packages, and each module's parent and Java release |
+| Maven | Effective POM and reactor (POMs as written when there is no effective POM) | Modules, artifacts, internal vs. third-party dependencies, deployable vs. library, the library a thin service packages, each module's parent and Java release, and the coverage tools its build runs |
 | Java structure | javac Tree API with symbol resolution (JavaParser as fallback) | Packages, types, members, inheritance, resolved call graph |
 | Spring / Jakarta | Annotations, including meta-annotations (a custom annotation carrying `@RestController` or `@Service` counts as one), and bean definitions | Application main classes, controllers and endpoints, beans by stereotype, configuration, `@Scheduled` jobs, `@Profile` gates |
 | HTTP clients | Feign, Spring HTTP interfaces (`@HttpExchange`), RestTemplate, RestClient, WebClient, JAX-RS and MicroProfile clients, `java.net.http`, OkHttp and Apache HttpClient | Outbound calls with target service name, URL or property key, and path. The caller of a client interface is the code that enables or injects it, not the jar that defines it |
@@ -108,6 +108,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
 | Config | `.properties`, `.yml` (`application*` and `bootstrap*`), Spring profiles, env-var placeholders | Resolved and unresolved config values per profile, including `spring.application.name` |
 | SQL | Flyway and Liquibase migrations, `.sql` files (JSqlParser) | Schema as of the commit: tables, columns, keys |
+| Tests | Test sources, parsed without compiling or running them | Test classes per module, how many tests each declares, and which are architecture tests (ArchUnit and similar) |
 | README and ADR | Markdown READMEs and architecture decision records in the repo | Low-trust "documented claims", checked against code; observed decisions with title, status, date and rationale |
 
 **Following values.** Paths, queue, exchange and topic names and routing keys are rarely literals where they are used. Extractors resolve `${...}` placeholders against config per profile, fold constants, and follow a value one hop from a `@Value` field or constructor argument into the template or client call that uses it. A value that can't be resolved keeps its placeholder key, which still says what it is.
@@ -117,6 +118,8 @@ Later: Dockerfiles, Helm and Kubernetes manifests, OpenAPI and AsyncAPI specs, T
 How the Maven extractor names entities, tells internal from third-party dependencies and links a thin service to its library is in ADR 0006.
 
 How the Java structure extractor names packages, types and members, which annotation processors it runs, which calls it keeps and how its parsing fallback matches the compiler is in ADR 0007; calls to methods a type inherits from third-party code, such as a Spring Data repository's `save`, are in ADR 0049.
+
+Which test sources the Tests extractor reads, what counts as a test and an architecture test, and how the Maven extractor records coverage tools and their thresholds is in ADR 0063.
 
 Which config files the Config extractor reads, in what order, how it models profiles and placeholders, and how it keeps secrets out of its facts is in ADR 0032.
 
@@ -410,9 +413,9 @@ Composition decides what a document says and shows; rendering only formats it. C
 
 **Composer inputs:** knowledge in scope (at the snapshot), the view definition, presentation rules, and the previous rendition (layout state, prior prose, color assignments). **Output:** a format-neutral document model of sections, diagrams, tables, callouts and cross-references, each element linked to the fact IDs it came from.
 
-What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011; sequence diagrams and the quality report block are in ADR 0028. How templates show a summary's citations of other summaries is in ADR 0027.
+What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011; sequence diagrams and the quality report block are in ADR 0028; the commits and date that pin a document are in ADR 0063. How templates show a summary's citations of other summaries is in ADR 0027.
 
-How the first composer builds per-repository documents from view definitions is in ADR 0012. How the composer draws the context, container and component views below, and composes the system scope's C4 report, is in ADR 0044. How it traces, stitches, ranks and caps the sequence flows is in ADR 0047, and how it uses the LLM's walkthrough and conditions of each in ADR 0058. Which Quality bar checks the composer makes, and how it reports them, is in ADR 0046. How it composes the Architecture Explorer's start-here list, catalog, change guidance and decisions with their rationale, and orders the Explorer's sections, is in ADR 0048.
+How the first composer builds per-repository documents from view definitions is in ADR 0012. How the composer draws the context, container and component views below, and composes the system scope's C4 report, is in ADR 0044. How it traces, stitches, ranks and caps the sequence flows is in ADR 0047, and how it uses the LLM's walkthrough and conditions of each in ADR 0058. Which Quality bar checks the composer makes, and how it reports them, is in ADR 0046. How it composes the Architecture Explorer's start-here list, catalog, change guidance and decisions with their rationale, and orders the Explorer's sections, is in ADR 0048. How each default view names its reader, how the composer builds the glossary and how Lantern's templates draw legends is in ADR 0063.
 
 **View definitions.** A spec per document: scope, audience profile, template, sections and diagrams. Lantern's defaults are kept in code, so their new sections reach every workspace; a changed view is persisted (ADR 0047). Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
@@ -496,7 +499,7 @@ Renderers turn the document model into a format and make no content decisions. S
 | Service Datasheet | Anyone | One page per repo or service: APIs, dependencies, data, config, owners |
 | Change Report | Reviewers | Snapshot-to-snapshot diff with the change overlay |
 
-What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0052, and its quality evidence in ADR 0062.
+What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0052, and its quality evidence in ADR 0062 and ADR 0063.
 
 Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository and for the whole system (ADR 0031, ADR 0044).
 

@@ -324,6 +324,7 @@ final class TestFacts {
         .relate("base", worker, "CONTAINS", "module:com.example:worker")
         .attribute("base", "module:com.example:worker", "packaging", "jar")
         .attribute("base", worker, "deployable-unit", "spring-boot", "{}")
+        .attribute("base", worker, "technology", "Spring Boot 3.5.0 / Java 21", "{}")
         .relate(
             "base",
             worker,

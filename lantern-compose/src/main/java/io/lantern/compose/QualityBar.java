@@ -55,10 +55,17 @@ final class QualityBar {
   static final String BRIEF = "executive-brief";
 
   /**
-   * The templates that draw a legend of the element kinds and line styles their diagrams use; their
-   * legend has no entry for boundaries or asynchronous arrowheads.
+   * The report-spec templates that draw a legend of the element kinds and line styles their
+   * diagrams use; their legend has no entry for boundaries or asynchronous arrowheads.
    */
   private static final Set<String> LEGEND_TEMPLATES = Set.of("c4-model-sequence-diagrams");
+
+  /**
+   * Lantern's own templates, which draw under each diagram a legend of the element types, the
+   * boundary and the arrow it uses, and under each sequence the meaning of its arrows and marks;
+   * not of colors, whose meaning the document model does not hold (ADR 0063).
+   */
+  private static final Set<String> OWN_TEMPLATES = Set.of(EXPLORER, BRIEF);
 
   /** The top-level sections the Brief's rows need. */
   static final String BLAST_RADIUS = SectionKind.BLAST_RADIUS.jsonName();
@@ -79,7 +86,6 @@ final class QualityBar {
   static final String FRAGMENTS = "At most one level of fragments";
   static final String ACRONYMS = "Acronyms are explained in the glossary";
   static final String READER = "It states its reader";
-  static final String PINNED = "It pins its snapshot (commits) and date";
   static final String CLAIMS = "Every specific claim links to a fact or source";
   static final String REPEATED = "No diagram repeated across sections";
   static final String ORIENTATION = "An orientation section of at most 300 words";
@@ -142,7 +148,7 @@ final class QualityBar {
    * Two or more capitals, digits between them, and a plural s: AMQP, JDBC, APIs, B2B; not part of a
    * constant or version such as TAX_SERVICE_URL or 1.0-SNAPSHOT.
    */
-  private static final Pattern ACRONYM =
+  static final Pattern ACRONYM =
       Pattern.compile(
           "(?<![\\p{L}\\p{N}_-])(\\p{Lu}[\\p{Lu}\\p{N}]*\\p{Lu})s?(?![\\p{L}\\p{N}_-])");
 
@@ -174,6 +180,10 @@ final class QualityBar {
     List<Diagram> diagrams = new ArrayList<>();
     List<Block> all = new ArrayList<>();
     forEachBlock(document.sections(), all::add);
+    // A glossary defines words; it says nothing about the system, so it needs no facts.
+    Set<Block> definitions = new HashSet<>();
+    forEachBlock(
+        document.sections().stream().filter(QualityBar::isGlossary).toList(), definitions::add);
     Map<Set<String>, Block> seen = new HashMap<>();
     for (Block block : all) {
       switch (block) {
@@ -188,7 +198,9 @@ final class QualityBar {
         }
         default -> {}
       }
-      claims(block);
+      if (!definitions.contains(block)) {
+        claims(block);
+      }
     }
     acronyms();
     if (document.audience() == null) {
@@ -197,11 +209,6 @@ final class QualityBar {
           null,
           "The document names no audience; the view definition it was composed from has none.");
     }
-    fail(
-        PINNED,
-        null,
-        "The document names its snapshot's number but not its commits or a date; the"
-            + " document model holds neither.");
     switch (document.template().name()) {
       case EXPLORER -> explorer(all);
       case BRIEF -> brief(all);
@@ -215,7 +222,11 @@ final class QualityBar {
     CrossReference.Target target = CrossReference.Target.block(diagram.id());
     Set<EntityId> boundaries = boundaries(diagram);
     title(diagram, target, boundaries);
-    if (!LEGEND_TEMPLATES.contains(document.template().name())) {
+    if (OWN_TEMPLATES.contains(document.template().name())) {
+      if (diagram.nodes().stream().anyMatch(n -> n.style() != null && n.style().color() != null)) {
+        fail(LEGEND, target, "The template's legend does not say what the colors mean.");
+      }
+    } else if (!LEGEND_TEMPLATES.contains(document.template().name())) {
       fail(LEGEND, target, "The template draws no legend.");
     } else if (!boundaries.isEmpty()) {
       fail(LEGEND, target, "The template's legend has no entry for the dashed boundary.");
@@ -317,10 +328,11 @@ final class QualityBar {
     if (diagram.title() == null) {
       fail(TITLE, target, "It has no title.");
     }
-    boolean async = hasAsync(diagram.steps());
-    if (!LEGEND_TEMPLATES.contains(document.template().name())) {
+    // Lantern's own templates show a sequence as a list of its steps, under a key to its marks.
+    String template = document.template().name();
+    if (!OWN_TEMPLATES.contains(template) && !LEGEND_TEMPLATES.contains(template)) {
       fail(LEGEND, target, "The template draws no legend.");
-    } else if (async) {
+    } else if (LEGEND_TEMPLATES.contains(template) && hasAsync(diagram.steps())) {
       fail(LEGEND, target, "The template's legend has no arrowhead for asynchronous messages.");
     }
     if (diagram.participants().size() > C4Views.MAX_ELEMENTS) {
@@ -589,24 +601,15 @@ final class QualityBar {
 
   /**
    * The acronyms the document uses outside code that its glossary does not explain: a top-level
-   * section titled Glossary, which none composes yet.
+   * section titled Glossary (ADR 0063).
    */
   private void acronyms() {
-    SortedSet<String> used = new TreeSet<>();
+    SortedSet<String> used = acronymsUsed(document);
     StringBuilder glossary = new StringBuilder();
-    Consumer<String> scan = text -> acronyms(text, used);
-    scan.accept(document.title());
     for (Section section : document.sections()) {
-      if (section.title().strip().equalsIgnoreCase("glossary")) {
+      if (isGlossary(section)) {
         texts(List.of(section), text -> glossary.append(text).append(' '));
-      } else {
-        texts(List.of(section), scan);
       }
-    }
-    // Templates show every entity of the document, with its description, in their navigation.
-    for (DocumentEntity entity : document.entities()) {
-      scan.accept(entity.name());
-      entity.description().forEach(inline -> inlineText(inline, scan));
     }
     if (glossary.isEmpty()) {
       if (!used.isEmpty()) {
@@ -620,6 +623,28 @@ final class QualityBar {
     if (!used.isEmpty()) {
       fail(ACRONYMS, null, "The glossary does not explain " + names(used) + ".");
     }
+  }
+
+  /**
+   * The acronyms a reader of the document sees outside code, its glossary aside: in its title, its
+   * sections and the names and descriptions of its entities.
+   */
+  static SortedSet<String> acronymsUsed(Document document) {
+    SortedSet<String> used = new TreeSet<>();
+    Consumer<String> scan = text -> acronyms(text, used);
+    scan.accept(document.title());
+    texts(document.sections().stream().filter(s -> !isGlossary(s)).toList(), scan);
+    // Templates show every entity of the document, with its description, in their navigation.
+    for (DocumentEntity entity : document.entities()) {
+      scan.accept(entity.name());
+      entity.description().forEach(inline -> inlineText(inline, scan));
+    }
+    return used;
+  }
+
+  /** Whether a top-level section is the glossary. */
+  private static boolean isGlossary(Section section) {
+    return section.title().strip().equalsIgnoreCase("glossary");
   }
 
   private static void acronyms(String text, Set<String> into) {

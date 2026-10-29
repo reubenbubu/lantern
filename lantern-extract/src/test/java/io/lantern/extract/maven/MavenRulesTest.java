@@ -266,6 +266,91 @@ class MavenRulesTest {
             "module:g:source java-release 8 @source:pom.xml#1-1 0.7");
   }
 
+  private static final String JACOCO =
+      "<build><plugins><plugin><groupId>org.jacoco</groupId>"
+          + "<artifactId>jacoco-maven-plugin</artifactId><executions>"
+          + "<execution><goals><goal>prepare-agent</goal></goals></execution>"
+          + "<execution><id>check</id><goals><goal>check</goal></goals><configuration><rules>"
+          + "<rule><limits><limit><counter>LINE</counter><minimum>${line.minimum}</minimum></limit>"
+          + "<limit><counter>BRANCH</counter><minimum>${unset}</minimum></limit></limits></rule>"
+          + "<rule><element>CLASS</element><limits><limit><value>MISSEDCOUNT</value>"
+          + "<maximum>0</maximum></limit></limits></rule>"
+          + "</rules></configuration></execution></executions></plugin></plugins></build>";
+
+  @Test
+  void coverageToolsTheBuildRuns() throws IOException {
+    Repo parent =
+        repo(
+            "parent",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "parent",
+                    "<packaging>pom</packaging><properties><line.minimum>0.80</line.minimum>"
+                        + "</properties>"
+                        + JACOCO)));
+    String child =
+        "<project><parent><groupId>g</groupId><artifactId>parent</artifactId>"
+            + "<version>1</version></parent><artifactId>%s</artifactId>%s</project>";
+    Repo inherits = repo("inherits", Map.of("pom.xml", child.formatted("inherits", "")));
+    Repo skipped =
+        repo(
+            "skipped",
+            Map.of(
+                "pom.xml",
+                child.formatted(
+                    "skipped", "<properties><jacoco.skip>true</jacoco.skip></properties>")));
+    Repo cobertura =
+        repo(
+            "cobertura",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "cobertura",
+                    "<build><plugins><plugin><groupId>org.codehaus.mojo</groupId>"
+                        + "<artifactId>cobertura-maven-plugin</artifactId></plugin>"
+                        + "<plugin><groupId>org.jacoco</groupId>"
+                        + "<artifactId>jacoco-maven-plugin</artifactId><configuration>"
+                        + "<skip>true</skip></configuration></plugin></plugins></build>")));
+
+    List<String> facts =
+        extract(parent, inherits, skipped, cobertura).stream()
+            .filter(f -> f.contains(" coverage-tool "))
+            .toList();
+
+    // Inherited, the plugin points at the child's POM without lines.
+    String limits =
+        "{\"goals\":[\"check\",\"prepare-agent\"],\"limits\":["
+            + "{\"counter\":\"LINE\",\"element\":\"BUNDLE\",\"minimum\":\"0.80\","
+            + "\"value\":\"COVEREDRATIO\"},"
+            + "{\"counter\":\"INSTRUCTION\",\"element\":\"CLASS\",\"maximum\":\"0\","
+            + "\"value\":\"MISSEDCOUNT\"}]}";
+    assertThat(facts)
+        .containsExactly(
+            "module:g:cobertura coverage-tool org.codehaus.mojo:cobertura-maven-plugin"
+                + " @cobertura:pom.xml#1-1 0.7",
+            "module:g:inherits coverage-tool org.jacoco:jacoco-maven-plugin "
+                + limits
+                + " @inherits:pom.xml 0.7",
+            "module:g:parent coverage-tool org.jacoco:jacoco-maven-plugin "
+                + limits
+                + " @parent:pom.xml#1-1 0.7");
+  }
+
+  @Test
+  void directoriesRelativeToTheModule() {
+    assertThat(MavenExtractor.moduleRelative("${basedir}/a/./b/")).isEqualTo("a/b");
+    assertThat(MavenExtractor.moduleRelative("${project.basedir}/tests")).isEqualTo("tests");
+    assertThat(MavenExtractor.moduleRelative("src/it/java")).isEqualTo("src/it/java");
+    assertThat(MavenExtractor.moduleRelative("../shared/tests")).isNull();
+    assertThat(MavenExtractor.moduleRelative("/abs/tests")).isNull();
+    assertThat(MavenExtractor.moduleRelative("${tests.dir}")).isNull();
+    assertThat(MavenExtractor.moduleRelative("${project.basedir}")).isNull();
+    assertThat(MavenExtractor.moduleRelative(null)).isNull();
+  }
+
   @Test
   void majorJavaVersions() {
     assertThat(MavenExtractor.majorJavaVersion("21")).isEqualTo("21");

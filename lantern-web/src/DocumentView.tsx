@@ -92,6 +92,7 @@ export const DocumentView = memo(function DocumentView({ document }: { document:
             {document.template.name} {document.template.version} · snapshot {document.source.snapshot} ·
             Lantern {document.source.toolVersion}
           </p>
+          <Pinned document={document} className="document-pinned" />
         </header>
         {document.sections.map((section) => (
           <SectionView key={section.id} section={section} depth={0} />
@@ -151,6 +152,33 @@ export function BlockView({ block }: { block: Block }) {
   }
 }
 
+/** Abbreviates a full commit hash, as git does in its short form. */
+export function shortCommit(commit: string): string {
+  return commit.slice(0, 12);
+}
+
+/**
+ * Who the document is for and what pins it: the commit of each repository it covers and the day of
+ * their snapshot (docs/adr/0063).
+ */
+export function Pinned({ document, className }: { document: LanternDocument; className?: string }) {
+  const { audience, source } = document;
+  const commits = Object.entries(source.commits);
+  return (
+    <p className={className}>
+      {audience && <>For {audience}. </>}
+      Pinned to {commits.length === 1 ? 'commit' : 'commits'}{' '}
+      {commits.map(([repo, commit], i) => (
+        <span key={repo}>
+          {i > 0 && ', '}
+          {repo} <code title={commit}>{shortCommit(commit)}</code>
+        </span>
+      ))}
+      , as of {source.date}.
+    </p>
+  );
+}
+
 /**
  * A sequence diagram as a plain list of its steps. These templates do not draw sequence diagrams;
  * report-spec templates do (docs/adr/0028).
@@ -164,7 +192,60 @@ function SequenceView({ diagram }: { diagram: SequenceDiagram }) {
     <figure id={diagram.id} className="sequence">
       {diagram.title && <figcaption>{diagram.title}</figcaption>}
       <SequenceSteps steps={diagram.steps} name={name} />
+      <SequenceKey steps={diagram.steps} />
     </figure>
+  );
+}
+
+function allSteps(steps: SequenceStep[]): SequenceStep[] {
+  return steps.flatMap((step) =>
+    step.kind === 'frame' ? [step, ...step.operands.flatMap((o) => allSteps(o.steps))] : [step],
+  );
+}
+
+/** What each kind of block of steps means, in the words of UML's combined fragments. */
+const OPERATOR_KEYS = {
+  alt: 'alt [condition] … else: only the branch whose condition holds runs',
+  opt: 'opt [condition]: the steps run only when the condition holds',
+  loop: 'loop [condition]: the steps repeat while the condition holds',
+  par: 'par: the branches run at the same time',
+  break: 'break [condition]: when the condition holds, these steps run and the rest of the flow is skipped',
+  critical: 'critical: the steps run without being interleaved with others',
+} as const;
+
+/** The meaning of each mark the steps use, the legend of a sequence shown as a list. */
+function SequenceKey({ steps }: { steps: SequenceStep[] }) {
+  const all = allSteps(steps);
+  const messages = all.filter((s) => s.kind === 'message');
+  const entries: string[] = [];
+  if (messages.length > 0) {
+    entries.push('A → B: A calls B or sends it a message, and waits for the answer unless marked');
+  }
+  if (messages.some((m) => m.messageKind === 'async')) {
+    entries.push('(async): sent without waiting for an answer');
+  }
+  if (messages.some((m) => m.messageKind === 'return')) {
+    entries.push('(reply): the answer to an earlier step');
+  }
+  if (messages.some((m) => m.profiles)) {
+    entries.push('(only with profile …): happens only under those Spring profiles');
+  }
+  const operators = new Set(all.flatMap((s) => (s.kind === 'frame' ? [s.operator] : [])));
+  for (const [operator, meaning] of Object.entries(OPERATOR_KEYS)) {
+    if (operators.has(operator as keyof typeof OPERATOR_KEYS)) {
+      entries.push(meaning);
+    }
+  }
+  if (all.some((s) => s.kind === 'note')) {
+    entries.push('Note: a remark on the flow, not a step');
+  }
+  if (entries.length === 0) {
+    return null;
+  }
+  return (
+    <p className="sequence-key">
+      <strong>Key:</strong> {entries.join('; ')}.
+    </p>
   );
 }
 

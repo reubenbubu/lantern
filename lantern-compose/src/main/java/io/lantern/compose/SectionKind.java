@@ -60,7 +60,12 @@ public enum SectionKind {
    * The test, architecture test and coverage libraries the repository's modules declare, and what
    * is not known: the tests themselves, coverage and quality goals.
    */
-  QUALITY_EVIDENCE("Quality evidence", EnumSet.of(Level.L0, Level.L1));
+  QUALITY_EVIDENCE("Quality evidence", EnumSet.of(Level.L0, Level.L1)),
+  /**
+   * What the acronyms the rest of the document uses stand for, from the table bundled with Lantern.
+   * Shown at every level; the composer builds it last, from the other sections (ADR 0063).
+   */
+  GLOSSARY("Glossary", EnumSet.noneOf(Level.class));
 
   private final String title;
   private final EnumSet<Level> levels;
