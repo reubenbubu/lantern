@@ -1,0 +1,546 @@
+[
+  {
+    "name": "topic",
+    "kind": "entity",
+    "parent": "container",
+    "description": "A Kafka topic, a container of the system. Its key is the broker kind, ':' and the topic name, such as kafka:payments.completed.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "queue",
+    "kind": "entity",
+    "parent": "container",
+    "description": "A message queue, a container of the system. Its key is the broker kind (rabbitmq or jms), ':' and the queue or JMS destination name, such as rabbitmq:payments.order-events.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "exchange",
+    "kind": "entity",
+    "parent": "container",
+    "description": "A RabbitMQ exchange, a container of the system, routing messages to the queues bound to it. Its key is rabbitmq, ':' and the exchange name, such as rabbitmq:shop.orders.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "database",
+    "kind": "entity",
+    "parent": "container",
+    "description": "A database that units' datasources point to, a data store and so a container. Its key is the server (host and port, as the URL gives them), '/' and the database name, such as shop-db:5432/shop, so units on the same database share it; an embedded database without a server is keyed by its unit's key instead.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "message-broker",
+    "kind": "entity",
+    "description": "A message broker server a unit's config connects to, such as a Kafka cluster or a RabbitMQ server. Its key is the broker technology, ':' and its addresses, such as kafka:kafka:9092. It has no C4 level: containers diagrams show its topics, queues and exchanges, never one broker box.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "external-system",
+    "kind": "entity",
+    "parent": "system",
+    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host names no unit. Its key is the host, such as sandbox.paygate.example.com; the URLs of other profiles of the same call are the same system.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "infrastructure",
+    "kind": "entity",
+    "description": "A service discovery, config or tracing server outside the snapshot that a unit's config connects to. Its key is its host and port, such as config:8888. It has no C4 level: infrastructure is kept apart from the business dependencies.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CALLS_HTTP",
+    "kind": "relationship",
+    "parent": "CALLS",
+    "description": "The subject unit calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the code on the subject's side: the method making the call, sending or listening, or declaring the binding."
+        },
+        "target": {
+          "type": "string",
+          "description": "The entity ID of the code on the object's side: the endpoint's handler method, or the listener method."
+        },
+        "client": {
+          "type": "string",
+          "description": "The HTTP client: feign, rest-template, rest-client, web-client, and so on."
+        },
+        "httpMethod": {
+          "type": "string",
+          "description": "The HTTP method, if known."
+        },
+        "path": {
+          "type": "string",
+          "description": "The request path, after the URL's authority or a leading placeholder."
+        },
+        "url": {
+          "type": "string",
+          "description": "The URL the call goes to in the view the link was found in, when its host is known."
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "The endpoint matched, such as GET /api/products/{id}."
+        },
+        "matchedBy": {
+          "type": "string",
+          "description": "How the target was found: service-name (a Feign client's name against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone) or external (no unit)."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "PUBLISHES",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "The subject unit sends messages to the object topic, queue or exchange.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the code on the subject's side: the method making the call, sending or listening, or declaring the binding."
+        },
+        "routingKey": {
+          "type": "string",
+          "description": "The routing key a RabbitMQ send gives."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CONSUMES",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "The subject unit listens on the object topic or queue.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the code on the subject's side: the method making the call, sending or listening, or declaring the binding."
+        },
+        "group": {
+          "type": "string",
+          "description": "The Kafka consumer group."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "The topic pattern the listener names, when the object topic matches it."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ROUTES_TO",
+    "kind": "relationship",
+    "description": "The subject exchange routes messages to the object queue, by a binding declared in a unit's code.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the code on the subject's side: the method making the call, sending or listening, or declaring the binding."
+        },
+        "bindingKey": {
+          "type": "string",
+          "description": "The binding's routing key or pattern, AMQP wildcards included."
+        },
+        "exchangeType": {
+          "type": "string",
+          "description": "The exchange's type, if known: topic, direct, fanout or headers."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDS_MESSAGES_TO",
+    "kind": "relationship",
+    "description": "Messages the subject unit sends reach a listener of the object unit, asynchronously: the link between containers a queue or topic carries. One fact per send and listener matched.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the code on the subject's side: the method making the call, sending or listening, or declaring the binding."
+        },
+        "target": {
+          "type": "string",
+          "description": "The entity ID of the code on the object's side: the endpoint's handler method, or the listener method."
+        },
+        "destination": {
+          "type": "string",
+          "description": "The entity ID of the topic, queue or exchange sent to."
+        },
+        "queue": {
+          "type": "string",
+          "description": "The entity ID of the queue the listener receives from, when an exchange routes to it."
+        },
+        "routingKey": {
+          "type": "string",
+          "description": "The routing key sent with."
+        },
+        "bindingKey": {
+          "type": "string",
+          "description": "The binding pattern the routing key matched."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "The topic pattern the listener names, when the topic matched it."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "USES_DATABASE",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "The subject unit connects to the object database through a datasource in its config.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "technology": {
+          "type": "string",
+          "description": "The database, such as PostgreSQL."
+        },
+        "url": {
+          "type": "string",
+          "description": "The datasource URL, without credentials."
+        },
+        "key": {
+          "type": "string",
+          "description": "The config key that sets it."
+        },
+        "schemas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The entity IDs of the schemas the unit's migrations build."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ACCESSES_DATA_OF",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "The subject unit's code reads or writes tables that the object unit's schema declares, on a database both use: the two share data, not only a server.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "database": {
+          "type": "string",
+          "description": "The entity ID of the database they share."
+        },
+        "reads": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The entity IDs of the object's tables the subject reads."
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The entity IDs of the object's tables the subject writes."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "USES_BROKER",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "The subject unit's config connects it to the object message broker.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "technology": {
+          "type": "string",
+          "description": "The broker, such as Kafka or RabbitMQ."
+        },
+        "key": {
+          "type": "string",
+          "description": "The config key that sets the address."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "USES_INFRASTRUCTURE",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "The subject unit uses the object service for infrastructure, not business: service discovery, a config server or tracing.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+        },
+        "role": {
+          "type": "string",
+          "description": "service-discovery, config-server or tracing."
+        },
+        "technology": {
+          "type": "string",
+          "description": "Such as Eureka, Consul, ZooKeeper, Spring Cloud Config, Zipkin or OpenTelemetry."
+        },
+        "key": {
+          "type": "string",
+          "description": "The config key that names it."
+        },
+        "value": {
+          "type": "string",
+          "description": "The config value naming it."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "unresolved-link",
+    "kind": "attribute",
+    "description": "A call, send or datasource of the subject unit that static matching cannot link: a URL or destination with a placeholder nothing resolves, a call that several units could serve, or a routing key not known. The value is the call, destination or URL as far as it is known. The LLM resolver picks among the candidates; what stays open goes to the questions queue.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "http, message or database."
+        },
+        "reason": {
+          "type": "string",
+          "description": "unresolved-placeholder, unknown-url, ambiguous, no-match (a call to this machine no unit serves) or unknown-routing-key."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the code or module it is written in."
+        },
+        "unresolved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The keys of the placeholders nothing resolved."
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The entity IDs of the units it might link to."
+        },
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]
