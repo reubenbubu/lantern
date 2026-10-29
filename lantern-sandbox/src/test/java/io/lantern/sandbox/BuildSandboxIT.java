@@ -279,12 +279,16 @@ class BuildSandboxIT {
           .contains("not using the artifacts of greeting-service@" + missing.commit());
       assertThat(sandbox.find("greeting-service", built.commit())).contains(built);
       // ...while the library never gets into the Maven cache, where other builds could use it.
-      // (The service's build alone left only notes there that the download failed.)
-      try (Stream<Path> files = Files.walk(cache.resolve("com/example/greeting"))) {
-        assertThat(files.filter(Files::isRegularFile).map(p -> p.getFileName().toString()))
-            .isNotEmpty()
-            .allMatch(name -> name.endsWith(".lastUpdated"), "only download failure notes");
-      }
+      // (Builds forget the notes about failed downloads, so nothing is left of the library.)
+      assertThat(markers(cache)).isEmpty();
+      assertThat(cache.resolve("com/example/greeting"))
+          .satisfiesAnyOf(
+              dir -> assertThat(dir).doesNotExist(),
+              dir -> {
+                try (Stream<Path> files = Files.walk(dir)) {
+                  assertThat(files.filter(Files::isRegularFile)).isEmpty();
+                }
+              });
     } finally {
       deleteIfExists(cache);
     }
