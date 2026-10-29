@@ -54,11 +54,11 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>Runs only when {@code lantern.test.set} names, as an absolute path, a folder a set's {@code
  * setup.sh} set up, such as {@code ~/workspace/lantern-test-projects/project-4}; the set is the
- * folder's name, and {@code testsets/<set>/} must have pins and a reference. Repositories without a
- * {@code pom.xml} are left out until #254. A held-out set (project-5 to project-7) fails the test
- * unless {@code lantern.test.held-out} is {@code true} (docs/design.md, Test sets). Both runs share
- * one database, so the second makes new calls only for the switched role: everything else is
- * reused.
+ * folder's name, and {@code testsets/<set>/} must have pins and a reference. Every repository the
+ * pins name is analyzed, those without a {@code pom.xml} without a build (#254). A held-out set
+ * (project-5 to project-7) fails the test unless {@code lantern.test.held-out} is {@code true}
+ * (docs/design.md, Test sets). Both runs share one database, so the second makes new calls only for
+ * the switched role: everything else is reused.
  *
  * <p>Writes to {@code target/test-sets/<set>/}: for each model, the system report and the run
  * record in {@code <model>/}, the scorecard as {@code <model>.scorecard.json} and {@code .md}, and
@@ -143,7 +143,7 @@ class TestSetScoreIT {
                 + " (docs/design.md, Test sets); set lantern.test.held-out=true only then")
         .isFalse();
     assertThat(testset.resolve("reference/reference.c4.json")).isRegularFile();
-    Map<String, Path> repos = mavenRepos(testset.resolve("pins.txt"), setFolder);
+    Map<String, Path> repos = repos(testset.resolve("pins.txt"), setFolder);
     Path out = Path.of("target", "test-sets", set).toAbsolutePath();
     deleteRecursively(out);
 
@@ -273,11 +273,8 @@ class TestSetScoreIT {
     assertThat(process.exitValue()).as(output).isZero();
   }
 
-  /**
-   * The set's repositories, by name, from its pins, in the folder setup.sh put them in; those
-   * without a pom.xml are left out until #254.
-   */
-  private static Map<String, Path> mavenRepos(Path pins, Path folder) throws IOException {
+  /** The set's repositories, by name, from its pins, in the folder setup.sh put them in. */
+  private static Map<String, Path> repos(Path pins, Path folder) throws IOException {
     Map<String, Path> repos = new LinkedHashMap<>();
     for (String line : Files.readAllLines(pins)) {
       if (line.isBlank() || line.startsWith("#")) {
@@ -286,9 +283,7 @@ class TestSetScoreIT {
       String name = line.trim().split("\\s+")[0];
       Path repo = folder.resolve(name);
       assertThat(repo.resolve(".git")).as(repo + " is set up").exists();
-      if (Files.isRegularFile(repo.resolve("pom.xml"))) {
-        repos.put(name, repo);
-      }
+      repos.put(name, repo);
     }
     assertThat(repos).isNotEmpty();
     return repos;

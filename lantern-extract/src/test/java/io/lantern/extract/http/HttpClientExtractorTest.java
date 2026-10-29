@@ -81,6 +81,17 @@ class HttpClientExtractorTest {
     assertThat(rendered)
         .contains("http://alerts:8080/alerts")
         .contains("http://stock:8080/api/stock");
+    // A client bean is followed only when the choice is certain: duplicate bean names, and a
+    // qualifier no bean has, give no base URL.
+    assertThat(rendered).doesNotContain("dup-a").doesNotContain("dup-b");
+    assertThat(rendered.lines().filter(l -> l.contains("AcrossModules#duplicate(")))
+        .singleElement(InstanceOfAssertFactories.STRING)
+        .contains("GET /dup")
+        .doesNotContain("\"url\"");
+    assertThat(rendered.lines().filter(l -> l.contains("ClientCallers#lost(")))
+        .singleElement(InstanceOfAssertFactories.STRING)
+        .contains("GET /lost")
+        .doesNotContain("\"url\"");
     // A base URL's unfollowed parts are listed only where the base is part of the URL: not for a
     // method whose own URL is a whole URL.
     assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#quote(")))
