@@ -1,4 +1,4 @@
-# 0053: Secrets in the source files shown to the LLM
+# 0054: Secrets in the source files shown to the LLM
 
 Status: accepted (#189), pending the user's review (#24)
 

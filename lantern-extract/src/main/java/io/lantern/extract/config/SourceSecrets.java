@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 /**
  * Removes secrets from Java source code before it is shown to an LLM, with the rules the config
- * extractor uses for config values. See {@code docs/adr/0053-secrets-in-source-files.md}.
+ * extractor uses for config values. See {@code docs/adr/0054-secrets-in-source-files.md}.
  *
  * <p>A string literal or text block is replaced by {@link ConfigExtractor#MASK} when a name a
  * config key would be secret by ({@link ConfigExtractor#isSecret}, or {@code authorization} or
