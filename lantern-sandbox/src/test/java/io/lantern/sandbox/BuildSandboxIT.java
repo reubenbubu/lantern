@@ -870,6 +870,9 @@ class BuildSandboxIT {
 
   @Test
   void reachesAConfiguredRepositoryAndStillNoOtherHost() throws IOException, URISyntaxException {
+    // These two tests need Maven Central itself, so they are skipped where a mirror is set: there
+    // every download goes through the mirror and nothing reaches Maven Central (#212).
+    assumeTrue(MIRROR == null, "a test mirror is configured");
     Repo repo = repo(sandboxFixture("probe"), "probe", RepoSettings.DEFAULT);
     SandboxSettings settings =
         settings()
@@ -897,6 +900,7 @@ class BuildSandboxIT {
 
   @Test
   void downloadsDependenciesFromAConfiguredRepository() throws IOException {
+    assumeTrue(MIRROR == null, "a test mirror is configured; see the test above");
     // A cache of its own, which does not exist yet, so the sandbox creates it, and the dependency
     // is not there yet and must be downloaded.
     Path cache = temp.resolve("extra-cache");
