@@ -1,6 +1,6 @@
 # 0015: Executive Brief template v1
 
-Status: accepted (#16), amended by ADR 0026 (#86), ADR 0044 (#95) and ADR 0051 (#164), pending the user's review (#24)
+Status: accepted (#16), amended by ADR 0026 (#86), ADR 0044 (#95) and ADR 0052 (#164), pending the user's review (#24)
 
 ## Context
 

@@ -1,5 +1,5 @@
 # End of free support of the runtimes and frameworks the Executive Brief's technology currency
-# shows (ADR 0051). Update it each release from the sources below and change the as-of date (the
+# shows (ADR 0052). Update it each release from the sources below and change the as-of date (the
 # golden briefs in lantern-compose show it, so regenerate them too).
 #
 # java: Eclipse Temurin's end of availability (https://adoptium.net/support/, by month), the day as

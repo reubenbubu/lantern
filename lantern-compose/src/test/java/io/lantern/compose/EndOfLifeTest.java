@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** The end-of-life table bundled with Lantern (ADR 0051). */
+/** The end-of-life table bundled with Lantern (ADR 0052). */
 class EndOfLifeTest {
 
   @Test

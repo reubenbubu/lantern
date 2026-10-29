@@ -33,7 +33,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The Executive Brief's own sections: headline numbers and risks (ADR 0015), blast radius and
- * technology currency (ADR 0051).
+ * technology currency (ADR 0052).
  */
 class ExecutiveBriefTest {
 
@@ -306,7 +306,7 @@ class ExecutiveBriefTest {
             "[package:m:a, package:m:b, package:m:c]", "[package:m:d, package:m:e]");
   }
 
-  // Blast radius and technology currency (ADR 0051).
+  // Blast radius and technology currency (ADR 0052).
 
   private static final Instant OCTOBER_2026 = Instant.parse("2026-10-29T10:00:00Z");
 

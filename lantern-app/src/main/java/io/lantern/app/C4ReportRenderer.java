@@ -667,7 +667,7 @@ public final class C4ReportRenderer {
         title = (title == null ? "Risk" : title) + " (" + severity + ")";
       }
       String body = markdown(callout.content());
-      // A risk's consequence and confidence (ADR 0051) follow its text.
+      // A risk's consequence and confidence (ADR 0052) follow its text.
       if (callout.consequence() != null) {
         body += "\n" + markdown(List.of(TextRun.of("Consequence: " + callout.consequence())));
       }

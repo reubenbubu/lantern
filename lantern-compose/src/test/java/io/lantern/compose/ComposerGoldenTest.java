@@ -80,7 +80,8 @@ class ComposerGoldenTest {
 
   /**
    * The C4 report of the system the hand-made runtime facts describe, {@code runtime.c4.json}:
-   * every element kind and line the views draw, for the C4 report renderer's golden tests too.
+   * every element kind and line the views draw, and a README claim the code contradicts, for the C4
+   * report renderer's golden tests too.
    */
   @Test
   void systemReportMatchesGolden() throws IOException {
@@ -97,7 +98,7 @@ class ComposerGoldenTest {
                 ViewDefinition.c4System(
                     "system:c4", "System", new TemplateRef("c4-model-sequence-diagrams", "1")),
                 snapshot,
-                TestFacts.runtime().list(),
+                TestFacts.runtimeWithContradictedClaim(),
                 Map.of());
     assertMatchesGolden(document, "runtime.c4.json");
   }

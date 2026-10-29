@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 
 /**
  * The end of free support of each line of the runtimes and frameworks technology currency shows,
- * from the table bundled with Lantern ({@code end-of-life.csv}, ADR 0051), so no network call is
+ * from the table bundled with Lantern ({@code end-of-life.csv}, ADR 0052), so no network call is
  * needed. A line is a major Java release, or a major and minor version of Spring Boot or Spring
  * Framework.
  */

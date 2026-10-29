@@ -1,4 +1,4 @@
-# 0051: Executive Brief blast radius, technology currency and ranked risks
+# 0052: Executive Brief blast radius, technology currency and ranked risks
 
 Status: accepted (#164), pending the user's review (#24)
 
