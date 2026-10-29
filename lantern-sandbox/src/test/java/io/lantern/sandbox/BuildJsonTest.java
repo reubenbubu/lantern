@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class BuildJsonTest {
@@ -63,5 +64,35 @@ class BuildJsonTest {
             DIR);
 
     assertThat(BuildJson.read(BuildJson.write(result), DIR)).isEqualTo(result);
+  }
+
+  @Test
+  void roundTripsTheBuildsOfOtherRepositoriesItWasGiven() {
+    BuildResult result =
+        new BuildResult(
+            "service",
+            "c".repeat(40),
+            BuildStatus.SUCCEEDED,
+            null,
+            21,
+            "default",
+            "maven:3.9.16-eclipse-temurin-21",
+            0,
+            Instant.parse("2026-10-28T10:15:30Z"),
+            Duration.ofSeconds(3),
+            null,
+            List.of(),
+            DIR,
+            Set.of("lib@" + "d".repeat(40), "base@" + "e".repeat(40)),
+            List.of("com.example:lib:1.0"));
+
+    String json = BuildJson.write(result);
+
+    assertThat(BuildJson.read(json, DIR)).isEqualTo(result);
+    // A build stored before ADR 0041 records neither.
+    BuildResult old =
+        BuildJson.read(json.replaceAll("(?s),\\s*\"upstream\".*\\]\\s*}", "\n}"), DIR);
+    assertThat(old.upstream()).isEmpty();
+    assertThat(old.shadowed()).isEmpty();
   }
 }

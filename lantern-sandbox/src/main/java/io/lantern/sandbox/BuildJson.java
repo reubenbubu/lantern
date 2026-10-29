@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -47,6 +48,8 @@ final class BuildJson {
       m.put("generatedSources", module.generatedSources());
       m.put("dependencyTree", module.dependencyTree());
     }
+    result.upstream().stream().sorted().forEach(json.putArray("upstream")::add);
+    result.shadowed().forEach(json.putArray("shadowed")::add);
     return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(json) + "\n";
   }
 
@@ -83,7 +86,10 @@ final class BuildJson {
         Duration.parse(json.get("duration").stringValue()),
         string(json.get("effectivePom")),
         modules,
-        directory);
+        directory,
+        // Builds stored before ADR 0041 record neither.
+        Set.copyOf(strings(json.get("upstream"))),
+        strings(json.get("shadowed")));
   }
 
   private static String string(JsonNode node) {
