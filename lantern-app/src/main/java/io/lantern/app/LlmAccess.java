@@ -5,14 +5,19 @@ import io.lantern.llm.CallLimiter;
 import io.lantern.llm.LlmCallLog;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmProvider;
+import io.lantern.llm.ModelConfig;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.RetryPolicy;
+import io.lantern.llm.Role;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -131,6 +136,22 @@ public final class LlmAccess implements AutoCloseable {
     if (failure != null) {
       throw failure;
     }
+  }
+
+  /**
+   * The model each role uses, in the roles' order.
+   *
+   * @throws LlmNotConfiguredException if the LLM is not configured
+   */
+  public Map<Role, ModelConfig> models() {
+    if (settings == null) {
+      throw new LlmNotConfiguredException(notConfigured);
+    }
+    Map<Role, ModelConfig> models = new EnumMap<>(Role.class);
+    for (Role role : Role.values()) {
+      models.put(role, settings.forRole(role));
+    }
+    return Collections.unmodifiableMap(models);
   }
 
   /** Whether the LLM can be used. */

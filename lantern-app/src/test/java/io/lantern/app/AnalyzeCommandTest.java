@@ -188,7 +188,8 @@ class AnalyzeCommandTest {
         1,
         0,
         llm,
-        List.of());
+        List.of(),
+        null);
   }
 
   /** What a successful run with the given result prints. */
