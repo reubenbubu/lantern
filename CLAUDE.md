@@ -36,8 +36,10 @@ any code that changes the design. This file covers only how you work.
   - its own worktree, as above
   - its own temp folder under the session scratchpad, named after its branch with `/` replaced
     by `-` (e.g. `<scratchpad>/feature-12-maven-extractor`), with `TMPDIR` and
-    `java.io.tmpdir` pointed at it; never a shared scratch root, and it deletes only what it
-    created
+    `java.io.tmpdir` pointed at it in every command that runs Maven or Java, since shell
+    variables do not carry over between commands and an empty `java.io.tmpdir` makes Maven
+    write its jansi native library into the working directory; never a shared scratch root,
+    and it deletes only what it created
   - Docker containers, volumes and networks it starts by hand named `lantern-<number>-<purpose>`
     and started with `--label lantern.task=<number>`; compose runs with
     `COMPOSE_PROJECT_NAME=lantern-<number>`; cleanup removes only resources with that label or

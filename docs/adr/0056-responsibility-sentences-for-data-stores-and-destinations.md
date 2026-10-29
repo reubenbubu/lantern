@@ -50,7 +50,7 @@ them from their facts, with citations and caching as in ADR 0050.
 - **Counts.** `Describer.Result`, `AnalysisRun.Result.wordingsAsked` and `wordingsReused` count
   data stores and destinations with units, so `EndToEndIT`'s checks that every call is counted and
   that the second run reuses every wording cover them; the analyze run prints "units, data stores
-  and destinations worded by the LLM".
+  and destinations worded by the LLM" (with flows since ADR 0058).
 
 ## Not verified
 

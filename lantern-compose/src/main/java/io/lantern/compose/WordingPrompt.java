@@ -5,6 +5,7 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.llm.LlmResponse;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,7 +22,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The prompt that asks the LLM to word a deployable unit's responsibility sentence, its components'
  * and the intent phrases of its relationships (ADR 0050), the prompt that asks for a data store's
- * or destination's responsibility sentence (ADR 0056), and the check of their answers. The prompt
+ * or destination's responsibility sentence (ADR 0056), the prompt that asks for a sequence flow's
+ * walkthrough and pre- and post-conditions (ADR 0058), and the check of their answers. The prompt
  * shows extracted facts only, listed as {@code [F1]}, ...; components are listed as {@code [C1]}
  * and relationships as {@code [R1]}. Fact IDs and line numbers are not shown, since they change
  * with every commit and every edit above the code; so the same unit gives the same prompt, and the
@@ -30,9 +32,9 @@ import tools.jackson.databind.node.ObjectNode;
  * on which repositories a run names.
  *
  * <p>Change {@link #VERSION}, or {@link #ELEMENT_VERSION} for the prompt about a data store or
- * destination, whenever the text of the prompt or the way inputs are written into it changes, so
- * answers cached for the old prompt are not reused. {@code WordingPromptTest} fails until it is
- * changed.
+ * destination, or {@link #FLOW_VERSION} for the prompt about a flow, whenever the text of the
+ * prompt or the way inputs are written into it changes, so answers cached for the old prompt are
+ * not reused. {@code WordingPromptTest} fails until it is changed.
  */
 final class WordingPrompt {
 
@@ -42,11 +44,29 @@ final class WordingPrompt {
   /** The version of the prompt about a data store or destination, part of its cache key. */
   static final String ELEMENT_VERSION = "1";
 
+  /** The version of the prompt about a sequence flow, part of its cache key. */
+  static final String FLOW_VERSION = "1";
+
   /** The field of the answer about a data store or destination that holds its sentence. */
   static final String ELEMENT = "element";
 
+  /** The field of the answer about a flow that holds its walkthrough. */
+  static final String WALKTHROUGH = "walkthrough";
+
+  /** The field of the answer about a flow that holds its pre-conditions. */
+  static final String PRECONDITIONS = "preconditions";
+
+  /** The field of the answer about a flow that holds its post-conditions. */
+  static final String POSTCONDITIONS = "postconditions";
+
   /** The most words a responsibility sentence may have. */
   static final int SENTENCE_WORDS = 30;
+
+  /** The most words a flow's walkthrough may have. */
+  static final int WALKTHROUGH_WORDS = 100;
+
+  /** The most words a flow's pre- or post-conditions may have. */
+  static final int CONDITION_WORDS = 30;
 
   /** The most words an intent phrase may have. */
   static final int PHRASE_WORDS = 10;
@@ -97,6 +117,33 @@ final class WordingPrompt {
       or {} to leave it out. cites lists the references of the facts the text rests on, each on \
       its own; the text cites at least one. Cite only [F...] references from the input. Write \
       no references inside the text.""";
+
+  static final String FLOW_SYSTEM =
+      """
+      You help document the architecture of a system of Java services for readers who do not \
+      know its code. You are given one flow through the system that static analysis traced from \
+      an entry point: what starts it, and the steps that leave a deployable unit, in the order \
+      of the code, each with the facts static analysis extracted from code and configuration, \
+      each fact with a reference such as [F1]. A synchronous step waits for its answer; an \
+      asynchronous one hands work on, and what follows it happens later.
+      Word only what the facts show. Never invent a step, an element, a check or an outcome. \
+      Infer purpose from names, paths, routing keys and tables.
+      Write a walkthrough: two to four plain sentences, at most 80 words in all, telling a \
+      reader who does not know the code what the flow does for the system, in the order it \
+      happens, naming the containers as the steps name them, and saying where it hands work on \
+      asynchronously.
+      Write the pre-conditions: at most 25 words saying what must hold before the flow starts, \
+      as the facts show it. Write the post-conditions: at most 25 words saying what has changed \
+      when the flow ends, such as data written or messages sent.
+      Leave out the walkthrough, the pre-conditions or the post-conditions when the facts do \
+      not show them, rather than guessing.
+      Answer with one JSON object and nothing else, in this form:
+      {"walkthrough": {"text": "Sentences.", "cites": ["F1", "F2"]}, \
+      "preconditions": {"text": "Conditions.", "cites": ["F1"]}, \
+      "postconditions": {"text": "Conditions.", "cites": ["F3"]}}
+      or {} to leave them all out. cites lists the references of the facts each text rests on, \
+      each on its own; every text cites at least one. Cite only [F...] references from the \
+      input. Write no references inside the texts.""";
 
   static final String RETRY =
       """
@@ -155,7 +202,8 @@ final class WordingPrompt {
   /**
    * One prompt and what its references stand for.
    *
-   * @param element the deployable unit, data store or destination it asks about
+   * @param element the deployable unit, data store or destination it asks about, or the entry point
+   *     of the flow
    * @param name the element's name
    * @param about the field of the answer that holds the element's sentence: {@link
    *     WordingAnswer#UNIT} or {@link #ELEMENT}
@@ -166,6 +214,8 @@ final class WordingPrompt {
    * @param components the main type of each component shown, by reference
    * @param componentNames the name of each component shown, by reference
    * @param relationships the link fact of each relationship shown, by reference
+   * @param texts the fields of the answer that hold a text about the element itself, each with the
+   *     most words it may have
    */
   record Question(
       EntityId element,
@@ -177,7 +227,18 @@ final class WordingPrompt {
       Map<String, Fact> facts,
       Map<String, EntityId> components,
       Map<String, String> componentNames,
-      Map<String, Fact> relationships) {}
+      Map<String, Fact> relationships,
+      Map<String, Integer> texts) {}
+
+  /**
+   * A step of a flow as the prompt shows it: what the facts say it does, without the LLM's intent
+   * phrases, so the prompt rests on facts only.
+   *
+   * @param depth how deep in frames it is, 0 at the top
+   * @param text what it does, such as {@code shop-app to orders, async: Sends order.created}
+   * @param facts the facts it rests on
+   */
+  record FlowStep(int depth, String text, List<Fact> facts) {}
 
   /**
    * Writes the prompt for a unit.
@@ -262,7 +323,8 @@ final class WordingPrompt {
         facts,
         componentRefs,
         componentNames,
-        relationshipRefs);
+        relationshipRefs,
+        Map.of(WordingAnswer.UNIT, SENTENCE_WORDS));
   }
 
   /**
@@ -316,7 +378,62 @@ final class WordingPrompt {
         facts,
         Map.of(),
         Map.of(),
-        Map.of());
+        Map.of(),
+        Map.of(ELEMENT, SENTENCE_WORDS));
+  }
+
+  /**
+   * Writes the prompt for a sequence flow: its title, what starts it with the entry point's fact,
+   * and its steps in order, each with the facts it rests on.
+   *
+   * @param method the entry point's method, which the flow is asked about as
+   * @param title the flow's title, such as {@code POST /orders on storefront}
+   * @param starts what starts it, such as {@code storefront receives POST /orders (Api.place)}
+   * @param entry the fact that makes the method an entry point
+   * @param steps the steps
+   */
+  static Question flow(
+      EntityId method, String title, String starts, Fact entry, List<FlowStep> steps) {
+    Map<String, Fact> facts = new LinkedHashMap<>();
+    StringBuilder user = new StringBuilder();
+    user.append("The flow \"").append(oneLine(title)).append("\".\n");
+    user.append("It starts when ").append(oneLine(starts)).append(".\n");
+    user.append(fact(entry, facts, "")).append('\n');
+    user.append("\nIts steps, in order:\n");
+    for (FlowStep step : steps) {
+      String indent = "  ".repeat(step.depth());
+      user.append(indent).append("- ").append(oneLine(step.text())).append('\n');
+      step.facts().forEach(f -> user.append(fact(f, facts, indent + "  ")).append('\n'));
+    }
+    Map<String, Integer> texts = new LinkedHashMap<>();
+    texts.put(WALKTHROUGH, WALKTHROUGH_WORDS);
+    texts.put(PRECONDITIONS, CONDITION_WORDS);
+    texts.put(POSTCONDITIONS, CONDITION_WORDS);
+    return new Question(
+        method,
+        title,
+        WALKTHROUGH,
+        FLOW_VERSION,
+        FLOW_SYSTEM,
+        user.toString(),
+        facts,
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        texts);
+  }
+
+  /** What an element is, with an article, such as {@code a deployable unit}. */
+  static String kind(EntityId element) {
+    return switch (element.type()) {
+      case BuiltInTypes.SERVICE -> "a deployable unit";
+      case C4Views.DATABASE -> "a database";
+      case C4Views.TOPIC -> "a topic";
+      case C4Views.QUEUE -> "a queue";
+      case C4Views.EXCHANGE -> "an exchange";
+      case C4Views.EXTERNAL_SYSTEM -> "an external system";
+      default -> "a " + element.type();
+    };
   }
 
   /** A fact's line with its reference, a new one unless the prompt shows it already. */
@@ -376,10 +493,13 @@ final class WordingPrompt {
   }
 
   /**
-   * Checks an answer: one JSON object whose unit, components and relationships, each optional, are
-   * texts citing at least one fact the prompt shows, for components and relationships the prompt
-   * shows; sentences of at most {@link #SENTENCE_WORDS} words that are not just the element's name,
-   * and phrases of at most {@link #PHRASE_WORDS} words that are not just "uses" or the like.
+   * Checks an answer: one JSON object whose texts about the element (the unit, the data store or
+   * destination, or a flow's walkthrough and conditions), components and relationships, each
+   * optional, are texts citing at least one fact the prompt shows, for components and relationships
+   * the prompt shows; sentences of at most {@link #SENTENCE_WORDS} words that are not just the
+   * element's name, a walkthrough of at most {@link #WALKTHROUGH_WORDS} and conditions of at most
+   * {@link #CONDITION_WORDS}, and phrases of at most {@link #PHRASE_WORDS} words that are not just
+   * "uses" or the like.
    *
    * @return the texts, by reference ({@link WordingAnswer#UNIT}, {@code C1}, {@code R1}, ...)
    * @throws Rejected if it does not meet the rules
@@ -401,10 +521,21 @@ final class WordingPrompt {
       throw new Rejected("it is not one JSON object.");
     }
     Map<String, WordingAnswer.Item> items = new TreeMap<>();
-    JsonNode element = json.get(question.about());
-    if (element != null && !element.isNull()) {
-      String what = question.about().equals(WordingAnswer.UNIT) ? "the unit" : "the element";
-      items.put(question.about(), item(element, what, question, question.name(), false));
+    for (Map.Entry<String, Integer> field : question.texts().entrySet()) {
+      JsonNode element = json.get(field.getKey());
+      if (element != null && !element.isNull()) {
+        String what =
+            switch (field.getKey()) {
+              case WordingAnswer.UNIT -> "the unit";
+              case ELEMENT -> "the element";
+              case PRECONDITIONS -> "the pre-conditions text";
+              case POSTCONDITIONS -> "the post-conditions text";
+              default -> "the " + field.getKey();
+            };
+        items.put(
+            field.getKey(),
+            item(element, what, question, question.name(), false, field.getValue()));
+      }
     }
     group(json, "components", question.components().keySet(), question, false, items);
     group(json, "relationships", question.relationships().keySet(), question, true, items);
@@ -435,12 +566,12 @@ final class WordingPrompt {
         continue;
       }
       String name = phrases ? null : question.componentNames().get(ref);
-      items.put(ref, item(entry.getValue(), ref, question, name, phrases));
+      items.put(ref, item(entry.getValue(), ref, question, name, phrases, SENTENCE_WORDS));
     }
   }
 
   private static WordingAnswer.Item item(
-      JsonNode node, String what, Question question, String name, boolean phrase) {
+      JsonNode node, String what, Question question, String name, boolean phrase, int maxWords) {
     if (!node.isObject()) {
       throw new Rejected("the text of " + what + " is not an object with text and cites.");
     }
@@ -466,16 +597,16 @@ final class WordingPrompt {
             "the intent phrase of " + what + " is just \"" + text + "\"; say what it is for.");
       }
     } else {
-      if (words > SENTENCE_WORDS) {
+      boolean flow = question.about().equals(WALKTHROUGH);
+      if (words > maxWords) {
         throw new Rejected(
-            "the responsibility sentence of "
-                + what
+            (flow ? what : "the responsibility sentence of " + what)
                 + " has more than "
-                + SENTENCE_WORDS
+                + maxWords
                 + " words.");
       }
       String bare = text.endsWith(".") ? text.substring(0, text.length() - 1).strip() : text;
-      if (name != null && bare.equalsIgnoreCase(name)) {
+      if (!flow && name != null && bare.equalsIgnoreCase(name)) {
         throw new Rejected(
             "the responsibility sentence of "
                 + what

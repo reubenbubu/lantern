@@ -8,16 +8,17 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 /**
- * The LLM's checked answer about one deployable unit, data store or destination, as cached (ADR
- * 0050, ADR 0056): a text for each reference it worded, citing the references it rests on. The
- * references stand for what the prompt of the same key shows, so they are resolved against that
- * prompt when used.
+ * The LLM's checked answer about one deployable unit, data store, destination or flow, as cached
+ * (ADR 0050, ADR 0056, ADR 0058): a text for each reference it worded, citing the references it
+ * rests on. The references stand for what the prompt of the same key shows, so they are resolved
+ * against that prompt when used.
  *
  * @param key the cache key: a SHA-256 of the prompt version, provider, model and prompt
- * @param unit the deployable unit, data store or destination asked about
+ * @param unit the deployable unit, data store or destination asked about, or a flow's entry point
  * @param items the texts, by reference: {@link #UNIT} for the unit, {@code C1}, ... for its
  *     components and {@code R1}, ... for its relationships; {@link WordingPrompt#ELEMENT} for a
- *     data store or destination
+ *     data store or destination; {@link WordingPrompt#WALKTHROUGH}, {@link
+ *     WordingPrompt#PRECONDITIONS} and {@link WordingPrompt#POSTCONDITIONS} for a flow
  * @param promptVersion the version of the prompt that asked
  * @param provider the provider of the model that answered
  * @param model the model that answered
