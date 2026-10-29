@@ -93,7 +93,7 @@ stay as general Maven rules: the `PACKAGES` link from a thin service to its libr
 accepting any classifier on that dependency. The `lib-and-service` fixture and `MavenRulesTest`
 cover the link, and `MavenRulesTest` a dependency with classifier `all`.
 
-## Amendment (#93): the Java release
+## Amendment (#93): the Java release and the parent
 
 - A container's technology names its Java release (ADR 0039), so each module gets a
   `java-release` attribute fact (object kind `string`): the major release, `21`, or `8` for `1.8`,
@@ -102,3 +102,7 @@ cover the link, and `MavenRulesTest` a dependency with classifier `all`.
   build's JDK (ADR 0005). Values come from the effective POM, or the POM as written with its
   parents in the snapshot. Evidence is the property or compiler plugin in the module's own POM
   that sets it, else the POM without lines. The extractor's version becomes 2.
+- Each module with a `<parent>` also gets a `parent` attribute fact (object kind `string`):
+  `groupId:artifactId:version` as its POM writes them, properties resolved, with the `<parent>`
+  element as evidence. The linker reads it to find Spring Boot's version without a build
+  (ADR 0039).

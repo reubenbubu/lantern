@@ -237,18 +237,24 @@ class Project0DeployableUnitsIT {
             technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#28"),
             technology.formatted(
                 SHOP + "storefront-app ", "21", "storefront:storefront-model/pom.xml#17"));
-    // Without builds the versions Spring Boot's parent POM manages are not known.
+    // Without builds, the version comes from Spring Boot's parent POM, which each repository's
+    // top POM names.
     assertThat(unbuilt)
         .contains(
-            SHOP
-                + "payments technology Spring Boot / Java 17"
-                + " {\"framework\":\"Spring Boot\",\"java\":\"17\"} @payments:pom.xml#20");
+            technology.formatted(SHOP + "catalog-service ", "21", "catalog:pom.xml#7"),
+            technology.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#7"),
+            technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#7"),
+            technology.formatted(SHOP + "storefront-app ", "21", "storefront:pom.xml#7"));
   }
 
   @Test
-  void withAndWithoutBuildsOnlyTheTechnologyDiffers() {
-    assertThat(unbuilt.stream().filter(f -> !f.contains(" technology ")))
+  void withAndWithoutBuildsOnlyTheTechnologysEvidenceDiffers() {
+    assertThat(unbuilt.stream().map(Project0DeployableUnitsIT::withoutTechnologyEvidence))
         .containsExactlyElementsOf(
-            built.stream().filter(f -> !f.contains(" technology ")).toList());
+            built.stream().map(Project0DeployableUnitsIT::withoutTechnologyEvidence).toList());
+  }
+
+  private static String withoutTechnologyEvidence(String fact) {
+    return fact.contains(" technology ") ? fact.substring(0, fact.lastIndexOf(" @")) : fact;
   }
 }

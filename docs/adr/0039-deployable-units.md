@@ -17,15 +17,25 @@ are decided.
 ## Decisions
 
 - **The linker's first step, in a new module.** `DeployableUnits` in `lantern-link` derives facts
-  from the facts the extractors made for the whole snapshot; `AnalysisRun` runs it right after them
-  and stores its facts with theirs. It belongs to the design's "linker and grouping" stage, not to
-  an extractor, because it reads no files: it combines facts of several extractors across
-  repositories (a service in one repository may bundle a library from another), so its result
-  depends on the snapshot's set of facts, which is the cache key the design gives the linked graph,
-  not file hashes. The linker (#94) builds on it in the same module: it needs the units to tell
-  which container makes a call and to match a client name to a `spring.application.name`. Its
-  facts have origin kind `static` (they follow from static facts by fixed rules, and the store
-  records one kind per run), extractor name `deployable-units`, version 1.
+  from the facts that hold in the snapshot. It belongs to the design's "linker and grouping"
+  stage, not to an extractor, because it reads no files: it combines facts of several extractors
+  across repositories (a service in one repository may bundle a library from another), so its
+  result depends on the snapshot's set of facts, which is the cache key the design gives the
+  linked graph, not file hashes. The linker (#94) builds on it in the same module: it needs the
+  units to tell which container makes a call and to match a client name to a
+  `spring.application.name`. Its facts have origin kind `static` (they follow from static facts by
+  fixed rules), extractor name `deployable-units`, version 1.
+- **The linker records for the whole snapshot.** A derived fact must stop holding when the facts
+  it came from change, even if only another repository was analyzed: a library that a newly
+  analyzed service now bundles is no longer a unit of its own, and a name changed in a library
+  renames the carried-forward service that bundles it. So the linker does not record its facts the
+  way extractors do, per analyzed repository (ADR 0017). `Linker` runs its steps (`LinkStep`) in
+  order, in the transaction that recorded the extracted facts: each step derives from every fact
+  that holds in the snapshot (carried-forward repositories' included, the linker's own left out,
+  the earlier steps' added), and `FactRepository.recordDerived` records its facts so that every
+  open fact of the step's origin that it did not derive again stops holding, in any repository.
+  `recordSnapshot` is told the steps' origin names and leaves their facts alone, so analyzing a
+  repository never closes and reopens them. #94's steps follow the same pattern.
 - **A unit is a `service:` entity**, the built-in container type, so no new entity type is needed
   and libraries and modules keep no C4 level (#90). Each service the Maven extractor finds (a war,
   an ear or a jar Spring Boot's plugin repackages) is a unit. So is a library with a Spring Boot
@@ -43,19 +53,22 @@ are decided.
   thin service, or the library with its application class) is marked `main`.
 - **Its application class** is the Spring Boot one in the unit's own module, else in the nearest
   library it bundles; of several there, the first by ID.
-- **Its name** is the `spring.application.name` of the config Spring Boot loads: that of the
-  unit's own module if the module has any config, else that of the nearest bundled library that
-  has some, since a library's `application.yml` is only found on the classpath when the
-  application has none. This is decided per module, not per file. The default view's name, then
-  one fact per profile whose name differs (ADR 0032). With no name in the default view the unit is
-  named by its artifact ID, marked `defaulted`, with half the unit's confidence.
-- **Its technology** is Spring Boot, with the version of the nearest module's
-  `org.springframework.boot` dependency if one is known, when the unit has an application class or
-  such a dependency; and the Java release of its own module, else of its main library. The Maven
-  extractor now records that release (`java-release`, amendment to ADR 0006). The value reads
-  "Spring Boot 3.5.14 / Java 21"; the parts are also attributes, so a view can shorten it. Without
-  a build the version Spring Boot's parent POM manages is unknown, and the value reads "Spring
-  Boot / Java 21".
+- **Its name** is the `spring.application.name` Spring Boot finds on the classpath. It loads the
+  `application` files and the `bootstrap` files each from the first module on the classpath that
+  has any: the unit's own module, else the nearest bundled library. So a service's
+  `application.yml` hides a library's, but not the library's `bootstrap.yml`. Which files a module
+  has is read from the paths of its config facts. A name in the `application` files wins over one
+  in the `bootstrap` files, in every profile (ADR 0032). The default view's name, then one fact per
+  profile whose name differs. With no name in the default view the unit is named by its artifact
+  ID, marked `defaulted`, with half the unit's confidence.
+- **Its technology** is Spring Boot, when the unit has an application class, an
+  `org.springframework.boot` dependency or Spring Boot's parent POM; with the version of the
+  nearest module's `org.springframework.boot` dependency, else of the `spring-boot-starter-parent`
+  (or `spring-boot-parent`) the nearest module inherits from, through parents in the snapshot, so
+  no build is needed; and the Java release of its own module, else of its main library. The Maven
+  extractor now records each module's parent and Java release (`parent`, `java-release`; amendment
+  to ADR 0006). The value reads "Spring Boot 3.5.14 / Java 21"; the parts are also attributes, so a
+  view can shorten it. A version that only a BOM import manages is not found without a build.
 - **Facts**, all about the unit: `deployable-unit` (`spring-boot`, `war`, `ear` or
   `executable-jar`, with `mainClass` and `packaging`), `application-name` (with `module`,
   `profile`, `unresolved` and `defaulted`), `technology` (with `framework`, `frameworkVersion` and
@@ -65,9 +78,8 @@ are decided.
   derived here; the summarizer writes it.
 - **Evidence stays in the unit's repository.** Each fact's evidence is the input fact it comes
   from when that is in the unit's repository (the application class, the config line, the
-  dependency), else the unit's own POM. The store ends a repository's facts by their evidence
-  (ADR 0017), so a unit's facts are derived again whenever its repository is analyzed, and a
-  repository analyzed alone or with others gets the same facts.
+  dependency, the parent), else the unit's own POM, so a document of the unit's repository shows
+  its unit.
 - **Left to the linker (#94):** a library's code runs with the config of each unit that bundles
   it, so its placeholders resolve per unit, and the unit that calls through an HTTP client in a
   library bundled by several is the one that enables or injects it (ADR 0038). Applying both needs
@@ -84,3 +96,5 @@ are decided.
   `bootstrap.yml`, `storefront`, `payments`, `fulfilment`) and MVN-3 (Spring Boot 3.5.14 with Java
   21, or 17 for payments), with the repositories built in the sandbox and read without builds. It
   runs when `lantern.test.project0` is set (see Commands in `CLAUDE.md`).
+  `LinkerIT` checks both cases where a derived fact must stop holding: a library bundled by a
+  service analyzed later, and a name changed in a carried-forward service's library.
