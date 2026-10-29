@@ -20,6 +20,7 @@ class CitationsTest {
           EntityId.parse("type:p.A"),
           SummaryLevel.TYPE,
           "A thing. [fact:" + F1 + "]",
+          Summary.Purpose.INFERRED,
           List.of(F1),
           List.of(),
           List.of(F1),
@@ -173,6 +174,7 @@ class CitationsTest {
             EntityId.parse("type:p.B"),
             SummaryLevel.TYPE,
             "B. [fact:" + F1 + "]",
+            Summary.Purpose.INFERRED,
             List.of(F1),
             List.of(),
             List.of(F1),
@@ -186,6 +188,7 @@ class CitationsTest {
             EntityId.parse("type:p.C"),
             SummaryLevel.TYPE,
             "C. [fact:" + F1 + "]",
+            Summary.Purpose.INFERRED,
             List.of(F1),
             List.of(),
             List.of(F1),
@@ -305,5 +308,12 @@ class CitationsTest {
   void referencesListEveryReferenceInARange() {
     assertThat(Citations.references("A [F2-F4, S1]. B [F3\u2014F5]."))
         .containsExactly("F2", "F3", "F4", "S1", "F5");
+  }
+
+  @Test
+  void theFirstReferencesAreThoseOfTheFirstCitation() {
+    assertThat(Citations.firstReferences("Sells books. [F2, S1-S3] Ships them. [F1]"))
+        .containsExactly("F2", "S1", "S2", "S3");
+    assertThat(Citations.firstReferences("No citation at all.")).isEmpty();
   }
 }

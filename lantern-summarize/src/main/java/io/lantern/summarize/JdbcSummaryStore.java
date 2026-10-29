@@ -27,7 +27,7 @@ public final class JdbcSummaryStore implements SummaryStore {
     Objects.requireNonNull(key, "key");
     return jdbc.sql(
             """
-            SELECT cache_key, entity, level, text, cited_facts::text AS cited_facts,
+            SELECT cache_key, entity, level, text, purpose, cited_facts::text AS cited_facts,
                    cited_summaries::text AS cited_summaries, input_facts::text AS input_facts,
                    input_summaries::text AS input_summaries, prompt_version, provider, model
             FROM summaries WHERE cache_key = :key
@@ -42,9 +42,10 @@ public final class JdbcSummaryStore implements SummaryStore {
     Objects.requireNonNull(summary, "summary");
     jdbc.sql(
             """
-            INSERT INTO summaries (cache_key, entity, level, text, cited_facts, cited_summaries,
-                                   input_facts, input_summaries, prompt_version, provider, model)
-            VALUES (:key, :entity, :level, :text, CAST(:citedFacts AS jsonb),
+            INSERT INTO summaries (cache_key, entity, level, text, purpose, cited_facts,
+                                   cited_summaries, input_facts, input_summaries, prompt_version,
+                                   provider, model)
+            VALUES (:key, :entity, :level, :text, :purpose, CAST(:citedFacts AS jsonb),
                     CAST(:citedSummaries AS jsonb), CAST(:inputFacts AS jsonb),
                     CAST(:inputSummaries AS jsonb), :promptVersion, :provider, :model)
             ON CONFLICT (cache_key) DO NOTHING
@@ -53,6 +54,7 @@ public final class JdbcSummaryStore implements SummaryStore {
         .param("entity", summary.entity().toString())
         .param("level", summary.level().name())
         .param("text", summary.text())
+        .param("purpose", summary.purpose().name())
         .param("citedFacts", JSON.writeValueAsString(summary.citedFacts()))
         .param("citedSummaries", JSON.writeValueAsString(summary.citedSummaries()))
         .param("inputFacts", JSON.writeValueAsString(summary.inputFacts()))
@@ -69,6 +71,7 @@ public final class JdbcSummaryStore implements SummaryStore {
         EntityId.parse(rs.getString("entity")),
         SummaryLevel.valueOf(rs.getString("level")),
         rs.getString("text"),
+        Summary.Purpose.valueOf(rs.getString("purpose")),
         strings(rs.getString("cited_facts")),
         strings(rs.getString("cited_summaries")),
         strings(rs.getString("input_facts")),
