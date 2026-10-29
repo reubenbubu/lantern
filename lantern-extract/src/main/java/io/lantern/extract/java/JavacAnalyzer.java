@@ -1020,8 +1020,48 @@ final class JavacAnalyzer {
                     : null);
           }
           structure.calls.add(
-              new Call(caller, target, lines(unit, file, start, end, null), constants));
+              new Call(
+                  caller,
+                  target,
+                  lines(unit, file, start, end, null),
+                  constants,
+                  receiver(path, callee, declaring)));
         }
+      }
+
+      /**
+       * The binary name of the static type of what a method call or method reference is written on,
+       * when it is a named type other than the one declaring the method; null otherwise.
+       */
+      private String receiver(TreePath path, ExecutableElement callee, TypeElement declaring) {
+        if (callee.getKind() != ElementKind.METHOD) {
+          return null;
+        }
+        ExpressionTree on =
+            switch (path.getLeaf()) {
+              case MethodInvocationTree invocation
+                  when invocation.getMethodSelect() instanceof MemberSelectTree select ->
+                  select.getExpression();
+              case MemberReferenceTree reference -> reference.getQualifierExpression();
+              default -> null;
+            };
+        if (on == null) {
+          return null;
+        }
+        TreePath onPath = new TreePath(path, on);
+        TypeElement type;
+        if (trees.getElement(onPath) instanceof TypeElement named) {
+          type = named;
+        } else {
+          TypeMirror mirror = trees.getTypeMirror(onPath);
+          if (mirror == null
+              || mirror.getKind() != TypeKind.DECLARED
+              || !(types.asElement(mirror) instanceof TypeElement named)) {
+            return null;
+          }
+          type = named;
+        }
+        return type.equals(declaring) || !isNamed(type) ? null : binaryName(type);
       }
 
       /**

@@ -207,14 +207,34 @@ public final class ModuleStructure {
    * @param where the call
    * @param arguments the {@code String} constants passed, by position, with constants folded as for
    *     annotation values; null for an argument that is not one; empty when none is
+   * @param receiver the binary name of the static type of what a method call or method reference is
+   *     written on ({@code orders} in {@code orders.save(o)}, {@code Orders} in {@code
+   *     Orders::save}) when it is a named type other than the callee's, else null
    */
-  public record Call(EntityId caller, EntityId callee, Location where, List<String> arguments) {
+  public record Call(
+      EntityId caller, EntityId callee, Location where, List<String> arguments, String receiver) {
 
     public Call {
       arguments =
           arguments.stream().allMatch(Objects::isNull)
               ? List.of()
               : Collections.unmodifiableList(new ArrayList<>(arguments));
+    }
+
+    public Call(EntityId caller, EntityId callee, Location where, List<String> arguments) {
+      this(caller, callee, where, arguments, null);
+    }
+
+    /**
+     * The callee as a member of the receiver's type ({@code method:<receiver>#<name>(<parameters as
+     * declared>)}), or null without a receiver.
+     */
+    public EntityId calleeOfReceiver() {
+      if (receiver == null) {
+        return null;
+      }
+      String key = callee.key();
+      return new EntityId(callee.type(), receiver + key.substring(key.indexOf('#')));
     }
 
     /** The {@code String} constant passed at a position, or null if there is none. */

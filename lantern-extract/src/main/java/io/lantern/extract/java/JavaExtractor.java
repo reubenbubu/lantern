@@ -280,9 +280,14 @@ public final class JavaExtractor {
   /** The facts of a whole extraction, and the calls kept until every module is read. */
   private static final class Facts {
 
+    /** Types whose methods every class, enum or record inherits. */
+    private static final Set<String> UNIVERSAL_SUPERTYPES =
+        Set.of("java.lang.Object", "java.lang.Enum", "java.lang.Record");
+
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
     private final Set<EntityId> methods = new HashSet<>();
+    private final Set<String> types = new HashSet<>();
     private final List<PendingCall> calls = new ArrayList<>();
 
     /** Per module and package, the evidence of the package with the smallest path. */
@@ -304,6 +309,7 @@ public final class JavaExtractor {
         if (type == null) {
           continue;
         }
+        types.add(t.binaryName());
         EntityId container;
         if (t.outer() != null) {
           container = ModuleStructure.typeId(t.outer());
@@ -370,18 +376,18 @@ public final class JavaExtractor {
               .thenComparingInt(p -> p.call().where().start())
               .thenComparingInt(p -> p.call().where().end());
       for (PendingCall p : calls) {
-        if (methods.contains(p.call().callee())) {
+        EntityId callee = callee(p.call());
+        if (callee != null) {
           first.merge(
-              List.of(p.call().caller(), p.call().callee()),
-              p,
-              (a, b) -> order.compare(a, b) <= 0 ? a : b);
+              List.of(p.call().caller(), callee), p, (a, b) -> order.compare(a, b) <= 0 ? a : b);
         }
       }
-      for (PendingCall p : first.values()) {
+      for (Map.Entry<List<EntityId>, PendingCall> e : first.entrySet()) {
+        PendingCall p = e.getValue();
         fact(
             p.call().caller(),
             BuiltInTypes.CALLS,
-            FactObject.entity(p.call().callee()),
+            FactObject.entity(e.getKey().get(1)),
             p.repo(),
             p.call().where(),
             p.confidence());
@@ -393,6 +399,27 @@ public final class JavaExtractor {
                   .thenComparing(f -> f.object().value())
                   .thenComparing(Fact::id))
           .toList();
+    }
+
+    /**
+     * What a call is recorded against: the method called when the sources declare it; when it is
+     * inherited from a type outside them (not {@code Object}, {@code Enum} or {@code Record}) and
+     * the call is written on a type the sources declare, the method as a member of that type, as in
+     * {@code orders.save(o)} on a Spring Data repository; otherwise null.
+     */
+    private EntityId callee(Call call) {
+      EntityId callee = call.callee();
+      if (methods.contains(callee)) {
+        return callee;
+      }
+      String declaring = callee.key().substring(0, Math.max(callee.key().indexOf('#'), 0));
+      if (call.receiver() == null
+          || !types.contains(call.receiver())
+          || types.contains(declaring)
+          || UNIVERSAL_SUPERTYPES.contains(declaring)) {
+        return null;
+      }
+      return call.calleeOfReceiver();
     }
 
     private void fact(

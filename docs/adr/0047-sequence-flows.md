@@ -79,7 +79,6 @@ ends (ADR 0042). Nothing may be invented.
 
 ## Not covered
 
-Calls to Spring Data's inherited methods (`save`, `findById`) leave no `CALLS` fact (ADR 0007),
-so FLOW-1's shop-database steps are missing (#176). Replies, activations and loops are not drawn;
+Replies, activations and loops are not drawn;
 sequences in the Architecture Explorer and the Executive Brief, and splitting a flow above 15
 participants, are left for later.

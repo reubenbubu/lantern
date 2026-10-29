@@ -116,7 +116,7 @@ Later: Dockerfiles, Helm and Kubernetes manifests, OpenAPI and AsyncAPI specs, T
 
 How the Maven extractor names entities, tells internal from third-party dependencies and links a thin service to its library is in ADR 0006.
 
-How the Java structure extractor names packages, types and members, which annotation processors it runs, which calls it keeps and how its parsing fallback matches the compiler is in ADR 0007.
+How the Java structure extractor names packages, types and members, which annotation processors it runs, which calls it keeps and how its parsing fallback matches the compiler is in ADR 0007; calls to methods a type inherits from third-party code, such as a Spring Data repository's `save`, are in ADR 0048.
 
 Which config files the Config extractor reads, in what order, how it models profiles and placeholders, and how it keeps secrets out of its facts is in ADR 0032.
 

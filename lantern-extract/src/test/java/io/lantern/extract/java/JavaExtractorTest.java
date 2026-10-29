@@ -149,6 +149,49 @@ class JavaExtractorTest {
             String name();
           }
           """,
+          "src/main/java/com/example/sample/Names.java",
+          """
+          package com.example.sample;
+
+          import java.util.ArrayList;
+          import java.util.function.Predicate;
+
+          public class Names extends ArrayList<String> {
+            static Names of(String name) {
+              Names names = new Names();
+              names.add(name);
+              names.forEach(Names::check);
+              Predicate<Names> empty = Names::isEmpty;
+              names.getClass();
+              return names;
+            }
+
+            static void check(String name) {}
+
+            void reset() {
+              this.clear();
+              size();
+            }
+          }
+          """,
+          "src/main/java/com/example/sample/Ticks.java",
+          """
+          package com.example.sample;
+
+          import java.time.Clock;
+          import java.time.Instant;
+
+          public abstract class Ticks extends Clock {
+            static Clock utc() {
+              return Ticks.systemUTC();
+            }
+
+            @Override
+            public Instant instant() {
+              return utc().instant();
+            }
+          }
+          """,
           "src/main/java/com/example/sample/Shapes.java",
           """
           package com.example.sample;

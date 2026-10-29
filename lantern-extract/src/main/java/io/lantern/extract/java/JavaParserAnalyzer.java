@@ -48,6 +48,7 @@ import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.expr.TextBlockLiteralExpr;
 import com.github.javaparser.ast.expr.ThisExpr;
+import com.github.javaparser.ast.expr.TypeExpr;
 import com.github.javaparser.ast.expr.UnaryExpr;
 import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithSimpleName;
@@ -70,6 +71,7 @@ import com.github.javaparser.ast.type.TypeParameter;
 import com.github.javaparser.ast.type.UnknownType;
 import com.github.javaparser.resolution.TypeSolver;
 import com.github.javaparser.resolution.declarations.AssociableToAST;
+import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedMethodLikeDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedParameterDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclaration;
@@ -78,6 +80,7 @@ import com.github.javaparser.resolution.model.SymbolReference;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.JavaSymbolSolver;
 import com.github.javaparser.symbolsolver.javaparsermodel.JavaParserFacade;
+import com.github.javaparser.symbolsolver.javaparsermodel.JavaParserFactory;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.JarTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeSolver;
@@ -229,20 +232,20 @@ final class JavaParserAnalyzer {
       }
       for (MethodCallExpr call : unit.findAll(MethodCallExpr.class)) {
         Position name = call.getName().getBegin().orElse(null);
-        call(call, () -> call.resolve(), name, call.getArguments());
+        call(call, () -> call.resolve(), name, call.getArguments(), call.getScope().orElse(null));
       }
       for (ObjectCreationExpr creation : unit.findAll(ObjectCreationExpr.class)) {
         // An anonymous class is not an entity; calls in its body count for the enclosing code.
         if (creation.getAnonymousClassBody().isEmpty()) {
-          call(creation, () -> creation.resolve(), null, creation.getArguments());
+          call(creation, () -> creation.resolve(), null, creation.getArguments(), null);
         }
       }
       for (ExplicitConstructorInvocationStmt invocation :
           unit.findAll(ExplicitConstructorInvocationStmt.class)) {
-        call(invocation, () -> invocation.resolve(), null, invocation.getArguments());
+        call(invocation, () -> invocation.resolve(), null, invocation.getArguments(), null);
       }
       for (MethodReferenceExpr reference : unit.findAll(MethodReferenceExpr.class)) {
-        call(reference, () -> reference.resolve(), null, List.of());
+        call(reference, () -> reference.resolve(), null, List.of(), reference.getScope());
       }
       for (MethodCallExpr call : unit.findAll(MethodCallExpr.class)) {
         chain(call);
@@ -808,14 +811,23 @@ final class JavaParserAnalyzer {
         Node node,
         Supplier<? extends ResolvedMethodLikeDeclaration> resolve,
         Position name,
-        List<com.github.javaparser.ast.expr.Expression> arguments) {
+        List<com.github.javaparser.ast.expr.Expression> arguments,
+        com.github.javaparser.ast.expr.Expression on) {
       EntityId caller = owner(node);
       if (caller == null) {
         return;
       }
       EntityId callee;
+      String receiver = null;
       try {
-        callee = calleeId(resolve.get());
+        ResolvedMethodLikeDeclaration method = resolve.get();
+        callee = calleeId(method);
+        if (on != null && method instanceof ResolvedMethodDeclaration) {
+          receiver = receiver(on);
+          if (receiver != null && receiver.equals(binaryName(method.declaringType()))) {
+            receiver = null;
+          }
+        }
       } catch (RuntimeException | StackOverflowError e) {
         // Not resolvable without the classpath the build would have given.
         return;
@@ -833,7 +845,50 @@ final class JavaParserAnalyzer {
                 ? s
                 : null);
       }
-      structure.calls.add(new Call(caller, callee, Location.of(file, start, end), constants));
+      structure.calls.add(
+          new Call(caller, callee, Location.of(file, start, end), constants, receiver));
+    }
+
+    /**
+     * The binary name of the static type of what a method call or method reference is written on,
+     * when it is a named type: a value's type, or the type itself for a type name; null otherwise.
+     */
+    private String receiver(com.github.javaparser.ast.expr.Expression on) {
+      ResolvedReferenceTypeDeclaration type = null;
+      try {
+        if (on instanceof TypeExpr t) {
+          ResolvedType resolved = t.getType().resolve();
+          type =
+              resolved.isReferenceType()
+                  ? resolved.asReferenceType().getTypeDeclaration().orElse(null)
+                  : null;
+        } else {
+          ResolvedType resolved = on.calculateResolvedType();
+          type =
+              resolved.isReferenceType()
+                  ? resolved.asReferenceType().getTypeDeclaration().orElse(null)
+                  : null;
+        }
+      } catch (RuntimeException | StackOverflowError e) {
+        // Not a value, or not resolvable: a type name is tried next.
+      }
+      if (type == null && (on instanceof NameExpr || on instanceof FieldAccessExpr)) {
+        try {
+          var reference = JavaParserFactory.getContext(on, solver).solveType(on.toString());
+          if (reference.isSolved()
+              && reference.getCorrespondingDeclaration()
+                  instanceof ResolvedReferenceTypeDeclaration r) {
+            type = r;
+          }
+        } catch (RuntimeException | StackOverflowError e) {
+          // Not resolvable without the classpath the build would have given.
+        }
+      }
+      try {
+        return type == null ? null : binaryName(type);
+      } catch (RuntimeException e) {
+        return null;
+      }
     }
 
     private static EntityId calleeId(ResolvedMethodLikeDeclaration method) {
