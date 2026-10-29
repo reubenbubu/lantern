@@ -108,6 +108,34 @@ class WordingPromptTest {
         .isEqualTo("1 ac2d234d87f5b4c912e95c1a2414daa57a19853b88767f61b7e8adbdf7ca7bd3");
   }
 
+  /**
+   * The fingerprint of the texts and limits of the prompt about the system's purpose for {@link
+   * WordingPrompt#PURPOSE_VERSION} (ADR 0060), as above. The way units and claims are written into
+   * it is checked by {@code DescriberTest}.
+   */
+  @Test
+  void thePurposeVersionIsRaisedWhenItsPromptChanges() throws Exception {
+    String texts =
+        String.join(
+            "\n--\n",
+            WordingPrompt.PURPOSE_SYSTEM,
+            WordingPrompt.RETRY,
+            Integer.toString(WordingPrompt.SENTENCE_WORDS),
+            Integer.toString(Describer.MAX_PURPOSE_OUTPUT_TOKENS),
+            Integer.toString(Describer.MAX_PURPOSE_UNITS),
+            Integer.toString(Describer.MAX_PURPOSE_UNIT_FACTS),
+            Integer.toString(Describer.MAX_CLAIMS));
+    String fingerprint =
+        HexFormat.of()
+            .formatHex(
+                MessageDigest.getInstance("SHA-256")
+                    .digest(texts.getBytes(StandardCharsets.UTF_8)));
+
+    assertThat(WordingPrompt.PURPOSE_VERSION + " " + fingerprint)
+        .as("The prompt changed: raise WordingPrompt.PURPOSE_VERSION and update this fingerprint")
+        .isEqualTo("1 a50f6b9d7ff281cf681e7bf396d31fcadd83c170d4bd75fda9d2904cac8d57a3");
+  }
+
   private Question flow() {
     return WordingPrompt.flow(
         EntityId.parse("method:com.example.web.Controller#list()"),

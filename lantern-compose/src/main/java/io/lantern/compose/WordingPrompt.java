@@ -23,18 +23,21 @@ import tools.jackson.databind.node.ObjectNode;
  * The prompt that asks the LLM to word a deployable unit's responsibility sentence, its components'
  * and the intent phrases of its relationships (ADR 0050), the prompt that asks for a data store's
  * or destination's responsibility sentence (ADR 0056), the prompt that asks for a sequence flow's
- * walkthrough and pre- and post-conditions (ADR 0058), and the check of their answers. The prompt
- * shows extracted facts only, listed as {@code [F1]}, ...; components are listed as {@code [C1]}
- * and relationships as {@code [R1]}. Fact IDs and line numbers are not shown, since they change
- * with every commit and every edit above the code; so the same unit gives the same prompt, and the
- * same cache key, until what the prompt shows changes. Summaries are not shown: they exist only for
- * the repositories a run analyzes, so showing them would make the prompt, and so the calls, depend
- * on which repositories a run names.
+ * walkthrough and pre- and post-conditions (ADR 0058), the prompt that asks for the system's
+ * purpose from its units' sentences and README claims (ADR 0060), and the check of their answers.
+ * The prompts show extracted facts only, the one about the purpose with the units' sentences that
+ * cite them, listed as {@code [F1]}, ...; components are listed as {@code [C1]} and relationships
+ * as {@code [R1]}. Fact IDs and line numbers are not shown, since they change with every commit and
+ * every edit above the code; so the same unit gives the same prompt, and the same cache key, until
+ * what the prompt shows changes. Summaries are not shown: they exist only for the repositories a
+ * run analyzes, so showing them would make the prompt, and so the calls, depend on which
+ * repositories a run names.
  *
  * <p>Change {@link #VERSION}, or {@link #ELEMENT_VERSION} for the prompt about a data store or
- * destination, or {@link #FLOW_VERSION} for the prompt about a flow, whenever the text of the
- * prompt or the way inputs are written into it changes, so answers cached for the old prompt are
- * not reused. {@code WordingPromptTest} fails until it is changed.
+ * destination, {@link #FLOW_VERSION} for the prompt about a flow, or {@link #PURPOSE_VERSION} for
+ * the prompt about the system's purpose, whenever the text of the prompt or the way inputs are
+ * written into it changes, so answers cached for the old prompt are not reused. {@code
+ * WordingPromptTest} fails until it is changed.
  */
 final class WordingPrompt {
 
@@ -46,6 +49,12 @@ final class WordingPrompt {
 
   /** The version of the prompt about a sequence flow, part of its cache key. */
   static final String FLOW_VERSION = "1";
+
+  /** The version of the prompt about the system's purpose, part of its cache key. */
+  static final String PURPOSE_VERSION = "1";
+
+  /** The field of the answer about the system that holds its purpose. */
+  static final String PURPOSE = "purpose";
 
   /** The field of the answer about a data store or destination that holds its sentence. */
   static final String ELEMENT = "element";
@@ -145,6 +154,26 @@ final class WordingPrompt {
       each on its own; every text cites at least one. Cite only [F...] references from the \
       input. Write no references inside the texts.""";
 
+  static final String PURPOSE_SYSTEM =
+      """
+      You help document the architecture of a system of Java services for readers who do not \
+      know its code. You are given the system's deployable units, each with a sentence saying \
+      what it does, worded earlier from facts that static analysis extracted, followed by those \
+      facts, and what the READMEs of its repositories claim, each fact with a reference such as \
+      [F1].
+      Write the system's purpose: one plain sentence of at most 25 words saying what the system \
+      as a whole is for, in words a non-engineer understands, such as what it lets its users do \
+      or the business it serves. Do not list its units or restate their names.
+      Take the purpose from the README claims when they state it. Otherwise infer it from what \
+      the units do together, citing the facts behind their sentences. Never invent a business, \
+      a user or a capability the facts do not show.
+      Leave the purpose out when neither the claims nor the units show it, rather than guessing.
+      Answer with one JSON object and nothing else, in this form:
+      {"purpose": {"text": "Sentence.", "cites": ["F1", "F2"]}}
+      or {} to leave it out. cites lists the references of the facts the text rests on, each on \
+      its own; the text cites at least one. Cite only [F...] references from the input. Write \
+      no references inside the text.""";
+
   static final String RETRY =
       """
       Your answer was rejected: %s
@@ -206,7 +235,8 @@ final class WordingPrompt {
    *     of the flow
    * @param name the element's name
    * @param about the field of the answer that holds the element's sentence: {@link
-   *     WordingAnswer#UNIT} or {@link #ELEMENT}
+   *     WordingAnswer#UNIT}, {@link #ELEMENT}, {@link #WALKTHROUGH} for a flow or {@link #PURPOSE}
+   *     for the system
    * @param version the prompt's version
    * @param system the system prompt
    * @param user the user turn
@@ -229,6 +259,16 @@ final class WordingPrompt {
       Map<String, String> componentNames,
       Map<String, Fact> relationships,
       Map<String, Integer> texts) {}
+
+  /**
+   * A deployable unit as the prompt about the system's purpose shows it: its responsibility
+   * sentence, as the model worded it from the unit's facts, and the facts it cites.
+   *
+   * @param name the unit's name
+   * @param sentence its responsibility sentence, without citation markers
+   * @param facts the facts the sentence cites
+   */
+  record UnitSentence(String name, String sentence, List<Fact> facts) {}
 
   /**
    * A step of a flow as the prompt shows it: what the facts say it does, without the LLM's intent
@@ -423,6 +463,52 @@ final class WordingPrompt {
         texts);
   }
 
+  /**
+   * Writes the prompt for the system's purpose: its deployable units' responsibility sentences,
+   * each with the facts it cites, and its repositories' README claims. The system's name is not
+   * shown: it lists the snapshot's repositories, which the units and claims already show.
+   *
+   * @param system the system
+   * @param units the units with a responsibility sentence
+   * @param claims what the READMEs claim, by repository and README path
+   */
+  static Question purpose(
+      EntityId system, List<UnitSentence> units, Map<String, List<Fact>> claims) {
+    Map<String, Fact> facts = new LinkedHashMap<>();
+    StringBuilder user = new StringBuilder();
+    user.append("The software system.\n");
+    if (!units.isEmpty()) {
+      user.append("\nIts deployable units, each with what it does as worded from its facts:\n");
+      for (UnitSentence unit : units) {
+        user.append("- ")
+            .append(oneLine(unit.name()))
+            .append(": ")
+            .append(oneLine(unit.sentence()))
+            .append('\n');
+        unit.facts().forEach(f -> user.append(fact(f, facts, "  ")).append('\n'));
+      }
+    }
+    if (!claims.isEmpty()) {
+      user.append("\nWhat the READMEs of its repositories claim:\n");
+      for (Map.Entry<String, List<Fact>> readme : claims.entrySet()) {
+        user.append(oneLine(readme.getKey())).append(":\n");
+        readme.getValue().forEach(f -> user.append(fact(f, facts, "  ")).append('\n'));
+      }
+    }
+    return new Question(
+        system,
+        "the system",
+        PURPOSE,
+        PURPOSE_VERSION,
+        PURPOSE_SYSTEM,
+        user.toString(),
+        facts,
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(PURPOSE, SENTENCE_WORDS));
+  }
+
   /** What an element is, with an article, such as {@code a deployable unit}. */
   static String kind(EntityId element) {
     return switch (element.type()) {
@@ -528,6 +614,7 @@ final class WordingPrompt {
             switch (field.getKey()) {
               case WordingAnswer.UNIT -> "the unit";
               case ELEMENT -> "the element";
+              case PURPOSE -> "the system's purpose";
               case PRECONDITIONS -> "the pre-conditions text";
               case POSTCONDITIONS -> "the post-conditions text";
               default -> "the " + field.getKey();
@@ -598,15 +685,18 @@ final class WordingPrompt {
       }
     } else {
       boolean flow = question.about().equals(WALKTHROUGH);
+      // A flow's texts and the system's purpose are named as they are, not as an element's
+      // responsibility sentence, and have no name to restate.
+      boolean element = !flow && !question.about().equals(PURPOSE);
       if (words > maxWords) {
         throw new Rejected(
-            (flow ? what : "the responsibility sentence of " + what)
+            (element ? "the responsibility sentence of " + what : what)
                 + " has more than "
                 + maxWords
                 + " words.");
       }
       String bare = text.endsWith(".") ? text.substring(0, text.length() - 1).strip() : text;
-      if (!flow && name != null && bare.equalsIgnoreCase(name)) {
+      if (element && name != null && bare.equalsIgnoreCase(name)) {
         throw new Rejected(
             "the responsibility sentence of "
                 + what

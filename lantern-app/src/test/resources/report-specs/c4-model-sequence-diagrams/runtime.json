@@ -2,7 +2,7 @@
   "document" : {
     "id" : "system:c4",
     "title" : "System",
-    "subtitle" : "- base: runs [worker](#/containers/el-service-com-example-worker)\n- shop: runs [shop-app](#/containers/el-service-com-example-app)\n\n**Start here**\n- GET /orders on [shop-app](#/containers/el-service-com-example-app): Controller.list in `pom.xml`.\n- Scheduled job (0 0 * * * *) on [shop-app](#/containers/el-service-com-example-app): Jobs.run in `pom.xml`.\n- Read `README.md` in shop.\n- The decision records of shop are in `docs/adr/` (1 record).",
+    "subtitle" : "The system's purpose is not known.\n\n- base: runs [worker](#/containers/el-service-com-example-worker)\n- shop: runs [shop-app](#/containers/el-service-com-example-app)\n\n**Start here**\n- GET /orders on [shop-app](#/containers/el-service-com-example-app): Controller.list in `pom.xml`.\n- Scheduled job (0 0 * * * *) on [shop-app](#/containers/el-service-com-example-app): Jobs.run in `pom.xml`.\n- Read `README.md` in shop.\n- The decision records of shop are in `docs/adr/` (1 record).",
     "version" : "1"
   },
   "elements" : {

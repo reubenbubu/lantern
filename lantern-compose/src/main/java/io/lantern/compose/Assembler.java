@@ -33,6 +33,9 @@ final class Assembler {
 
   private static final Pattern MARKER = Pattern.compile("\\[(fact|summary):([^\\]\\s]+)\\]");
 
+  /** The predicate of a README claim (ADR 0033). */
+  private static final String CLAIM = "claim";
+
   /** What opens a summary whose purpose is inferred from the code (ADR 0059). */
   static final String INFERRED = "Purpose inferred from the code:";
 
@@ -250,14 +253,7 @@ final class Assembler {
    */
   Text summary(Summary summary) {
     Text text = rich(summary.entity(), summary.text());
-    if (summary.purpose() == Summary.Purpose.EVIDENCED) {
-      return text;
-    }
-    List<Inline> content = new ArrayList<>();
-    content.add(new TextRun(INFERRED, TextRun.Style.EMPHASIS));
-    content.add(TextRun.of(" "));
-    content.addAll(text.content());
-    return new Text(List.copyOf(content), text.facts());
+    return summary.purpose() == Summary.Purpose.EVIDENCED ? text : inferred(text);
   }
 
   /**
@@ -274,6 +270,34 @@ final class Assembler {
    */
   Wordings.Flow flow(String key) {
     return wordings.flows().get(key);
+  }
+
+  /**
+   * The system's purpose (ADR 0060) as rich text citing the facts that are in the snapshot, or
+   * {@code null} if the LLM worded none or none of its citations is in the snapshot. A purpose that
+   * cites no README claim is inferred from the code, through the units' sentences, and opens with
+   * {@value #INFERRED}, emphasized, as an inferred summary does (ADR 0059).
+   */
+  Text purpose() {
+    String kept = known(wordings.responsibilities().get(RepoSections.SYSTEM));
+    return kept == null ? null : purpose(rich(RepoSections.SYSTEM, kept));
+  }
+
+  private Text purpose(Text text) {
+    boolean evidenced =
+        text.facts().stream()
+            .map(knowledge::fact)
+            .anyMatch(f -> f != null && f.predicate().equals(CLAIM));
+    return evidenced ? text : inferred(text);
+  }
+
+  /** The text opened with {@value #INFERRED}, emphasized. */
+  private static Text inferred(Text text) {
+    List<Inline> content = new ArrayList<>();
+    content.add(new TextRun(INFERRED, TextRun.Style.EMPHASIS));
+    content.add(TextRun.of(" "));
+    content.addAll(text.content());
+    return new Text(List.copyOf(content), text.facts());
   }
 
   /**
@@ -450,9 +474,11 @@ final class Assembler {
       DocumentEntity entity = entities.get(undescribed.removeFirst());
       String responsibility = responsibility(entity.id());
       List<Inline> description =
-          responsibility != null
-              ? rich(entity.id(), responsibility).content()
-              : summary(summaries.get(summarized(entity.id()))).content();
+          entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+              ? purpose().content()
+              : responsibility != null
+                  ? rich(entity.id(), responsibility).content()
+                  : summary(summaries.get(summarized(entity.id()))).content();
       entities.put(
           entity.id(),
           new DocumentEntity(

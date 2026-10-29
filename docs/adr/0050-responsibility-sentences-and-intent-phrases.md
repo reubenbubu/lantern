@@ -1,7 +1,7 @@
 # 0050: Responsibility sentences and intent phrases
 
-Status: accepted (#181), amends ADR 0044, ADR 0047 and ADR 0048, amended by ADR 0056 (#194) and
-ADR 0058 (#195), pending the user's review (#24)
+Status: accepted (#181), amends ADR 0044, ADR 0047 and ADR 0048, amended by ADR 0056 (#194),
+ADR 0058 (#195) and ADR 0060 (#196), pending the user's review (#24)
 
 ## Context
 
