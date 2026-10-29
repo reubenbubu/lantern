@@ -55,7 +55,12 @@ public enum SectionKind {
    */
   BLAST_RADIUS("Blast radius", EnumSet.of(Level.L0, Level.L1)),
   /** Runtime and framework versions against the end of their free support. */
-  TECHNOLOGY_CURRENCY("Technology currency", EnumSet.of(Level.L0, Level.L1));
+  TECHNOLOGY_CURRENCY("Technology currency", EnumSet.of(Level.L0, Level.L1)),
+  /**
+   * The test, architecture test and coverage libraries the repository's modules declare, and what
+   * is not known: the tests themselves, coverage and quality goals.
+   */
+  QUALITY_EVIDENCE("Quality evidence", EnumSet.of(Level.L0, Level.L1));
 
   private final String title;
   private final EnumSet<Level> levels;

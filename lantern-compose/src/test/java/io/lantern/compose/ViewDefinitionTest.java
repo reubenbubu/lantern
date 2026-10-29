@@ -53,6 +53,7 @@ class ViewDefinitionTest {
             SectionKind.RISKS,
             SectionKind.BLAST_RADIUS,
             SectionKind.TECHNOLOGY_CURRENCY,
+            SectionKind.QUALITY_EVIDENCE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS);
     ViewDefinition system = ViewDefinition.c4System("system:c4", "System", TEMPLATE);
