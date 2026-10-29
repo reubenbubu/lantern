@@ -48,7 +48,9 @@ for `https` but not for `http`.
   `MavenExtractorIT`, `JavaExtractorIT`, `EndToEndIT`, and the project-0 tests of `lantern-extract`,
   `lantern-link` and `lantern-app` that build) read the mirror from the Lantern properties
   file named, by absolute path, by the system property `lantern.test.properties`, or else the
-  environment variable `LANTERN_TEST_PROPERTIES`, and use Maven Central without one.
+  environment variable `LANTERN_TEST_PROPERTIES`, and use Maven Central without one. Since #225
+  the build passes the Maven property of that name to the test JVMs, so it can be set in Maven's
+  settings (see the amendment for #225).
 
 ## Consequences
 
@@ -96,3 +98,20 @@ properties file was named (every test that runs a sandbox build reads it, as lis
   name). They still run on machines without a mirror; the generated settings and the allowed hosts
   stay covered there and by `MavenSettingsTest` and `SandboxSettingsTest` everywhere. On a mirrored
   machine, no real build exercises the egress path for configured repositories any more.
+
+## Amendment (#225): the test mirror is set in Maven's settings
+
+The user wants the machine's proxy set up in Maven's settings, not the shell profile. The
+amendment for #212 changes as follows:
+
+- **The tests' properties file is a Maven property.** The root POM declares
+  `lantern.test.properties`, empty by default, and Surefire and Failsafe pass it to the test JVMs
+  as the system property of the same name. A machine sets it in an always-active profile of
+  `~/.m2/settings.xml`, next to the `*` mirror, so a plain `./mvnw verify` uses the mirror with no
+  flags or environment variables. `-Dlantern.test.properties=<path>` on the command line overrides
+  the profile. The environment variable `LANTERN_TEST_PROPERTIES` still works when the property is
+  empty: the tests treat an empty value as unset, so a machine without the property uses Maven
+  Central as before.
+- **`MVNW_REPOURL` is no longer advised.** The wrapper downloads Maven once and keeps it in
+  `~/.m2/wrapper`, so after the first run it does not reach Maven Central. A machine that must
+  avoid even that first download can still export it.
