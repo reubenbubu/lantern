@@ -26,10 +26,10 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
   warning is logged. The file is fenced with more backticks than it contains. The app reads from each registered
   repository's directory; `Summarizer` without a `SourceFiles` shows none. Units run in parallel
   (ADR 0021), so the small cache of read files is locked, but not while a file is read.
-- **The cache key includes each file** (its fact, path and the SHA-256 of its text), so the
-  same facts summarized with and without files are not mixed up. Since ADR 0055 the key holds the file as the
-  prompt shows it (path and text), without its fact ID. `Prompt.VERSION` was raised to
-  2 (and to 3 by ADR 0025).
+- **The cache key includes each file** (its fact, path and the SHA-256 of its text), so the same
+  facts summarized with and without files are not mixed up. Since ADR 0055 the key holds the file as
+  the prompt shows it (path and text), without its fact ID. `Prompt.VERSION` was raised to 2 (and to
+  3 by ADR 0025).
 - **Cost.** On the fixture projects the type prompts grow from 3,299 to 6,159 characters and all
   prompts from 10,119 to 12,979 (+28%). Not measured on OpenWMS: its main code is about 57,000
   non-blank lines (design.md, Open questions), roughly 2.5 million characters or 600,000 tokens,
