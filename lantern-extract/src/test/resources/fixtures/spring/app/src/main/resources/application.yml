@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: shop
+shop:
+  api: /api
+  report-cron: "0 0 3 * * *"
+  api-token: s3cret
+---
+spring:
+  config:
+    activate:
+      on-profile: late
+shop:
+  report-cron: "0 0 5 * * *"

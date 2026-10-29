@@ -1,0 +1,101 @@
+[
+  {
+    "name": "stereotype",
+    "kind": "attribute",
+    "description": "The Spring stereotype of the subject type, a bean class: controller, service, repository, configuration or component, the most specific its annotations carry, directly or through meta-annotations. A Jakarta REST resource (a class with @Path, on it or a supertype) is a controller.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "annotation": { "type": "string", "description": "The binary name of the annotation written on the type that makes it one, such as a custom annotation carrying @RestController." },
+        "via": { "type": "array", "items": { "type": "string" }, "description": "The meta-annotations leading from that annotation to the stereotype, in order. Absent when the stereotype is written directly." },
+        "rest": { "type": "boolean", "description": "Present and true for a controller whose handler methods write their response to the body (@RestController or @ResponseBody), or a Jakarta REST resource." }
+      },
+      "required": ["annotation"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "main-class",
+    "kind": "attribute",
+    "description": "The subject type is an application's main class: spring-boot for a Spring Boot application class (@SpringBootApplication or @EnableAutoConfiguration, directly or through meta-annotations), java for another class with a main(String[]) method.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "main": { "type": "string", "description": "The entity ID of the type's main(String[]) method. Absent for a Spring Boot application class without one." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "entry-point",
+    "kind": "attribute",
+    "description": "The subject method is where work starts in a running application, such as a request handler, a scheduled job or a message listener. Its subtypes say which kind. Values resolved from config are those of the default view unless profile is set.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "profile": { "type": "string", "description": "The profile active instead of the default one when the value was resolved. Absent for the default view; present only where the value differs from it." },
+        "written": { "type": "string", "description": "The value as written in the code, when it differs from the resolved value (it had placeholders)." },
+        "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders no config value resolved." },
+        "masked": { "type": "boolean", "description": "Present and true when a placeholder named a secret, so the value is recorded as written, not resolved." }
+      }
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "endpoint",
+    "kind": "attribute",
+    "parent": "entry-point",
+    "description": "The subject method handles HTTP requests: the HTTP method and path, such as POST /api/orders, or the path alone when it takes any method. The path joins the controller's and the method's mappings, with placeholders resolved against the config of the controller's module.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "httpMethod": { "type": "string", "description": "The HTTP method, such as GET. Absent when the mapping takes any method." },
+        "path": { "type": "string", "description": "The full path, starting with /." },
+        "controller": { "type": "string", "description": "The binary name of the controller class, which differs from the method's own type when the method is inherited." },
+        "annotation": { "type": "string", "description": "The binary name of the mapping annotation on the method, such as org.springframework.web.bind.annotation.GetMapping." },
+        "framework": { "type": "string", "enum": ["spring-mvc", "jakarta-rest"], "description": "Which annotations map the request: Spring MVC or WebFlux request mappings, or Jakarta (or javax) REST." }
+      },
+      "required": ["path", "controller", "annotation", "framework"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "scheduled",
+    "kind": "attribute",
+    "parent": "entry-point",
+    "description": "The subject method runs on a schedule (@Scheduled): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "trigger": { "type": "string", "enum": ["cron", "fixed-delay", "fixed-rate"], "description": "What the value is." },
+        "timeUnit": { "type": "string", "description": "The unit of a delay or rate when written, such as SECONDS. Milliseconds when absent." }
+      },
+      "required": ["trigger"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "profile-gate",
+    "kind": "attribute",
+    "description": "The subject bean class or @Bean method is only registered when the profile expression matches the active profiles (@Profile, directly or through a meta-annotation), such as audit, !prod or (a) | (b) for several.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "profiles": { "type": "array", "items": { "type": "string" }, "description": "The profile expressions as written; any one matching is enough." },
+        "annotation": { "type": "string", "description": "The binary name of the custom annotation carrying @Profile, when it is not written directly." }
+      },
+      "required": ["profiles"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "bean",
+    "kind": "attribute",
+    "description": "The subject method defines a Spring bean (@Bean); the value is the bean's name, the first name the annotation gives or else the method's name.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  }
+]

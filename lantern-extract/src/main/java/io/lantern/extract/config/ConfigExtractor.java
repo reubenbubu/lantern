@@ -104,6 +104,18 @@ public final class ConfigExtractor {
   }
 
   /**
+   * Resolves the {@code ${...}} placeholders in a text, such as an annotation's value, for code
+   * that no module's config applies to: a placeholder with a default takes it, and any other is
+   * kept as written.
+   *
+   * @param text the text
+   */
+  public static Resolution resolveWithoutConfig(String text) {
+    Objects.requireNonNull(text, "text");
+    return Placeholders.resolve(text, key -> null);
+  }
+
+  /**
    * Extracts the config facts of a snapshot's repositories.
    *
    * @param repos the repositories of the snapshot, each at its commit with its build, if any

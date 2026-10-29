@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Fixture for the Spring extractor, never built: API interfaces another repository serves. -->
+  <groupId>com.example.api</groupId>
+  <artifactId>shop-api</artifactId>
+  <version>1.0.0</version>
+</project>
