@@ -743,7 +743,8 @@ final class JavacAnalyzer {
         for (TreePath[] value : fieldValues) {
           VariableElement field = (VariableElement) trees.getElement(value[0]);
           if (!(field.getEnclosingElement() instanceof TypeElement declaring)
-              || !isNamed(declaring)) {
+              || !isNamed(declaring)
+              || !TrackedApis.isFollowed(describe(field.asType()))) {
             continue;
           }
           String type = binaryName(declaring);

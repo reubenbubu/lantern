@@ -202,8 +202,9 @@ public final class ModuleStructure {
   public record Invocation(EntityId caller, Expression.Invoke expression, Location where) {}
 
   /**
-   * A value given to a field of a named type: its initializer, or an assignment to it in a
-   * constructor or initializer block of its type.
+   * A value given to a {@code String} field or a field of a tracked API's type ({@link
+   * TrackedApis}) of a named type: its initializer, or an assignment to it in a constructor or
+   * initializer block of its type.
    *
    * @param field the field
    * @param in the constructor the assignment is in, or the type for an initializer; a {@link

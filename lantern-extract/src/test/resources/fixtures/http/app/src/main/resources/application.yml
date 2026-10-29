@@ -11,7 +11,7 @@ clients:
 catalog:
   base-url: http://catalog-service:8080
 inventory:
-  url: http://inventory:8080
+  url: inventory:8080
 audit:
   url: https://audit.example.com/${audit.api-token}
   api-token: s3cret

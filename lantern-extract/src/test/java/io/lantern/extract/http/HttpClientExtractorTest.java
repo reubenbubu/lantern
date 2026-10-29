@@ -196,10 +196,18 @@ class HttpClientExtractorTest {
         .containsExactly("${TAX_URL}", "/v2/quotes", false);
     assertThat(HttpClientExtractor.split("{url}"))
         .extracting("base", "path", "absolute")
-        .containsExactly("{url}", "/", false);
+        .containsExactly("{url}", null, false);
     assertThat(HttpClientExtractor.split("/api/x"))
         .extracting("base", "path", "absolute")
         .containsExactly(null, "/api/x", false);
+  }
+
+  @Test
+  void feignUrlsWithoutASchemeGetHttp() {
+    assertThat(HttpClientExtractor.withScheme("inventory:8080/stock"))
+        .isEqualTo("http://inventory:8080/stock");
+    assertThat(HttpClientExtractor.withScheme("https://h/x")).isEqualTo("https://h/x");
+    assertThat(HttpClientExtractor.withScheme("${X}/x")).isEqualTo("${X}/x");
   }
 
   @Test

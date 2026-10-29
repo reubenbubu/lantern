@@ -56,7 +56,7 @@ import tools.jackson.databind.node.ObjectNode;
  * MicroProfile REST client interfaces, {@code RestTemplate}, {@code RestClient}, {@code WebClient}
  * and the Jakarta REST client API; and which code enables or injects a client interface, since that
  * code, not the library that declares the interface, makes the calls. See {@code
- * docs/adr/0036-http-client-extractor.md}.
+ * docs/adr/0038-http-client-extractor.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}). URLs are
  * followed one hop from a {@code @Value} field or constructor argument, and their placeholders
@@ -1002,7 +1002,9 @@ public final class HttpClientExtractor {
           object = value.written();
         } else {
           Split split = split(value.url());
-          attributes.put("path", split.path());
+          if (split.path() != null) {
+            attributes.put("path", split.path());
+          }
           if (split.absolute()) {
             attributes.put("url", value.url());
             attributes.put("baseUrl", split.base());
@@ -1042,6 +1044,11 @@ public final class HttpClientExtractor {
       Resolution url = config.resolve(profile, written);
       SortedSet<String> unresolved = new TreeSet<>(url.unresolved());
       SortedSet<String> used = new TreeSet<>(url.used());
+      String resolved = clean(url.value());
+      if (call.client().equals(FEIGN)) {
+        // Spring Cloud OpenFeign adds http:// to a url without a scheme, once resolved.
+        resolved = withScheme(resolved);
+      }
       String service = null;
       if (call.service() != null) {
         Resolution s = config.resolve(profile, call.service());
@@ -1049,8 +1056,7 @@ public final class HttpClientExtractor {
         used.addAll(s.used());
         service = s.value();
       }
-      CodeConfig.CodeValue value =
-          CodeConfig.CodeValue.of(clean(url.value()), written, unresolved, used);
+      CodeConfig.CodeValue value = CodeConfig.CodeValue.of(resolved, written, unresolved, used);
       return new Recorded(
           value.value(),
           value.written(),
@@ -1175,7 +1181,22 @@ public final class HttpClientExtractor {
     return UrlCredentials.withoutCredentials(cut);
   }
 
-  /** A URL's base (scheme and authority, or a leading placeholder or expression) and path. */
+  /** A URL with {@code http://} in front if it names a host without a scheme. */
+  static String withScheme(String url) {
+    if (url.isEmpty()
+        || ABSOLUTE.matcher(url).find()
+        || url.startsWith("$")
+        || url.startsWith("{")
+        || url.startsWith("/")) {
+      return url;
+    }
+    return "http://" + url;
+  }
+
+  /**
+   * A URL's base (scheme and authority, or a leading placeholder or expression) and path; the path
+   * is null when a placeholder or expression stands for the whole URL.
+   */
   record Split(String base, String path, boolean absolute) {}
 
   static Split split(String url) {
@@ -1199,7 +1220,7 @@ public final class HttpClientExtractor {
     }
     if (end > 0 && (end == url.length() || url.charAt(end) == '/')) {
       String path = url.substring(end);
-      return new Split(url.substring(0, end), path.isEmpty() ? "/" : path, false);
+      return new Split(url.substring(0, end), path.isEmpty() ? null : path, false);
     }
     return new Split(null, url.isEmpty() ? "/" : url, false);
   }

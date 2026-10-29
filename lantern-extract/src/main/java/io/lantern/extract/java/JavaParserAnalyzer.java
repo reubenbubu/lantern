@@ -847,7 +847,10 @@ final class JavaParserAnalyzer {
         }
         EntityId in = ModuleStructure.typeId(type);
         for (VariableDeclarator v : f.getVariables()) {
-          if (v.getInitializer().isEmpty() || in == null || isConstant(f, v)) {
+          if (v.getInitializer().isEmpty()
+              || in == null
+              || isConstant(f, v)
+              || !TrackedApis.isFollowed(describe(v.getType(), v))) {
             continue;
           }
           EntityId field = ModuleStructure.fieldId(type, v.getNameAsString());
@@ -874,7 +877,9 @@ final class JavaParserAnalyzer {
         }
         Binding binding =
             a.getTarget() instanceof NameExpr ? bind(a.getTarget(), name) : field(a, name);
-        if (!(binding instanceof Binding.Field field) || field.declarator() == null) {
+        if (!(binding instanceof Binding.Field field)
+            || field.declarator() == null
+            || !TrackedApis.isFollowed(describe(field.fieldType(), a))) {
           continue;
         }
         EntityId in = owner(a);

@@ -24,6 +24,14 @@ final class TrackedApis {
 
   private TrackedApis() {}
 
+  /**
+   * Whether the values given to a field of this type are recorded: a {@code String}, which may hold
+   * a URL or name, or a tracked type, which may be a client built in a constructor.
+   */
+  static boolean isFollowed(String binaryName) {
+    return "java.lang.String".equals(binaryName) || isTracked(binaryName);
+  }
+
   /** Whether calls on a value of this type are recorded. */
   static boolean isTracked(String binaryName) {
     if (binaryName == null) {

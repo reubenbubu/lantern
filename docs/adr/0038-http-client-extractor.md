@@ -26,8 +26,9 @@ without what must not be.
     `RestTemplateBuilder`, WebClient and the Jakarta and javax REST client packages), a chain
     being a call that is not itself what another call is made on and whose innermost receiver has
     a tracked type, read as an `Expression`;
-  - every value given to a field: its initializer (unless a constant) and assignments to the
-    type's own fields in its constructors and initializer blocks.
+  - the values given to `String` fields and fields of a tracked type: their initializers (unless
+    a constant) and assignments to the type's own fields in its constructors and initializer
+    blocks.
 
   An `Expression` folds constants and joins string concatenations, replaces a local variable
   declared in a block and never assigned again by its initializer, and names fields
@@ -46,7 +47,8 @@ without what must not be.
   meta-annotations; their methods mapped with Spring request mappings (as ADR 0035 reads them,
   inherited from interfaces in the analyzed sources, an unmapped HTTP method being `GET` as Feign
   sends it), Feign's `@RequestLine` or Jakarta REST annotations. A Feign client goes to its `url`,
-  else to `http://<name>` as Spring Cloud LoadBalancer sends it; a MicroProfile client to its
+  with `http://` in front of the resolved value when it has no scheme, as Spring Cloud OpenFeign
+  adds it, else to `http://<name>` as Spring Cloud LoadBalancer sends it; a MicroProfile client to its
   `baseUri`, else to `${quarkus.rest-client.<configKey>.url:${<configKey>/mp-rest/url}}`.
   Imperative clients: `RestTemplate` (`getForObject` to `optionsForAllow`, `exchange` and
   `execute` with an `HttpMethod`, a `RequestEntity`, and a `rootUri` of its builder), `RestClient`
@@ -58,7 +60,8 @@ without what must not be.
   - `http-call` on the method sending the request (the type for code outside methods; the nearest
     declaration for an inherited client method): `POST http://payments:8080/api/payments`, the
     URL alone when the HTTP method is not known, with `httpMethod`, `path` (after the scheme and
-    authority, or after a leading placeholder or expression), `url` and `baseUrl` when the URL
+    authority, or after a leading placeholder or expression; absent when one stands for the whole
+    URL), `url` and `baseUrl` when the URL
     starts with a scheme, `service` (a Feign client's name, for matching against
     `spring.application.name`), `client` (`feign`, `microprofile-rest-client`, `rest-template`,
     `rest-client`, `web-client` or `jakarta-rest-client`), `clientType` and `annotation` for a

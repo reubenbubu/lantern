@@ -7,7 +7,7 @@
       "type": "object",
       "properties": {
         "httpMethod": { "type": "string", "description": "The HTTP method, such as GET. Absent when the code does not say which." },
-        "path": { "type": "string", "description": "The URL's path, starting with /: everything after the scheme and authority, or after a leading placeholder or expression that stands for them." },
+        "path": { "type": "string", "description": "The URL's path, starting with /: everything after the scheme and authority, or after a leading placeholder or expression that stands for them. Absent when a placeholder or expression stands for the whole URL." },
         "url": { "type": "string", "description": "The whole URL, when it starts with a scheme." },
         "baseUrl": { "type": "string", "description": "The URL's scheme and authority, such as http://payments:8080, when it starts with a scheme." },
         "service": { "type": "string", "description": "The client name the request is sent to, matched against a service's spring.application.name: a Feign client's name." },
