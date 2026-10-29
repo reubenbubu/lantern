@@ -1,0 +1,216 @@
+package io.lantern.extract.config;
+
+import io.lantern.core.fact.Evidence;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
+import io.lantern.core.fact.Validity;
+import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.RepoBuild;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * Turns the {@code application*} and {@code bootstrap*} config of each Maven module into facts: the
+ * module's config values as Spring Boot sees them by default, and those that differ with each
+ * profile the config names active, with placeholders resolved. See {@code
+ * docs/adr/0032-config-extractor.md}.
+ *
+ * <p>Other extractors use {@link #read} to resolve placeholders against a module's config.
+ */
+public final class ConfigExtractor {
+
+  /** The extractor's name, recorded as the origin of its facts. */
+  public static final String NAME = "config";
+
+  /** The extractor's version; change it whenever the facts it produces change. */
+  public static final String VERSION = "1";
+
+  /** The source recorded on the vocabulary revision that adds this extractor's types. */
+  public static final String VOCABULARY_SOURCE = "config-extractor";
+
+  /** Attribute: a config value of the subject module. */
+  public static final String CONFIG_VALUE = "config-value";
+
+  /** The value recorded in place of a secret. */
+  public static final String MASK = "******";
+
+  /** Facts are read from the files exactly. */
+  static final double CONFIDENCE = 1.0;
+
+  private static final String RESOURCE = "/vocabulary/config-types.json";
+
+  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
+
+  /**
+   * The last part of a key that holds a secret, without hyphens and underscores: ending in a
+   * password, secret, token or a kind of key that is secret, or naming credentials. Keys that only
+   * end in "key" are not secrets as a rule (a routing key, a cache key).
+   */
+  private static final Pattern SECRET =
+      Pattern.compile(
+          ".*(password|passwd|secret|credential).*"
+              + "|.*(pwd|token|apikey|accesskey|privatekey|signingkey|encryptionkey)s?");
+
+  /** Whole keys that hold a secret though their last part does not say so. */
+  private static final Set<String> SECRET_KEYS = Set.of("encrypt.key");
+
+  /** A value that is only placeholders without defaults, which says where a secret comes from. */
+  private static final Pattern ONLY_PLACEHOLDERS = Pattern.compile("(\\$\\{[^:{}]+})+");
+
+  /** The vocabulary types this extractor's facts use besides the built-in ones. */
+  public static List<VocabularyType> vocabulary() {
+    try (InputStream in = ConfigExtractor.class.getResourceAsStream(RESOURCE)) {
+      if (in == null) {
+        throw new IllegalStateException("Missing resource " + RESOURCE);
+      }
+      JsonNode array = FactJson.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+      List<VocabularyType> types = new ArrayList<>();
+      for (JsonNode node : array) {
+        types.add(VocabularyType.fromJson(node));
+      }
+      return List.copyOf(types);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot read " + RESOURCE, e);
+    }
+  }
+
+  /**
+   * The config of a repository's Maven modules at its commit, for resolving placeholders.
+   *
+   * @param repo the repository at its commit, with its build if there is one
+   * @return the modules that have config, ordered by directory
+   * @throws IllegalStateException if git fails or times out
+   */
+  public static List<ModuleConfig> read(RepoBuild repo) {
+    Objects.requireNonNull(repo, "repo");
+    return ConfigReader.read(repo);
+  }
+
+  /**
+   * Extracts the config facts of a snapshot's repositories.
+   *
+   * @param repos the repositories of the snapshot, each at its commit with its build, if any
+   * @param snapshot the snapshot number the facts hold from
+   * @return the facts, without duplicates, ordered by subject, predicate, object and ID
+   * @throws IllegalStateException if git fails or times out
+   */
+  public List<Fact> extract(List<RepoBuild> repos, long snapshot) {
+    Objects.requireNonNull(repos, "repos");
+    Validity validity = Validity.from(snapshot);
+    Map<String, Fact> facts = new LinkedHashMap<>();
+    for (RepoBuild repo : repos) {
+      for (ModuleConfig config : read(repo)) {
+        SortedMap<String, ConfigValue> defaults = config.values(null);
+        for (ConfigValue value : defaults.values()) {
+          add(facts, config, value, null, validity);
+        }
+        for (String profile : config.profiles()) {
+          for (ConfigValue value : config.values(profile).values()) {
+            ConfigValue byDefault = defaults.get(value.key());
+            if (byDefault == null
+                || !byDefault.value().equals(value.value())
+                || !byDefault.unresolved().equals(value.unresolved())) {
+              add(facts, config, value, profile, validity);
+            }
+          }
+        }
+      }
+    }
+    return facts.values().stream()
+        .sorted(
+            Comparator.comparing((Fact f) -> f.subject().toString())
+                .thenComparing(Fact::predicate)
+                .thenComparing(f -> f.object().value())
+                .thenComparing(Fact::id))
+        .toList();
+  }
+
+  private static void add(
+      Map<String, Fact> facts,
+      ModuleConfig config,
+      ConfigValue value,
+      String profile,
+      Validity validity) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("key", value.key());
+    if (profile != null) {
+      attributes.put("profile", profile);
+    }
+    String object = value.value();
+    if (exposesSecret(value)) {
+      object = MASK;
+      attributes.put("masked", true);
+    } else {
+      if (!value.written().equals(value.value())) {
+        attributes.put("written", value.written());
+      }
+      if (!value.unresolved().isEmpty()) {
+        ArrayNode unresolved = attributes.putArray("unresolved");
+        value.unresolved().forEach(unresolved::add);
+      }
+    }
+    ConfigValue.Where where = value.where();
+    Evidence evidence =
+        new Evidence(
+            config.repo().repo().name(),
+            config.repo().commit(),
+            where.path(),
+            where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
+            where.contentHash());
+    Fact fact =
+        Fact.create(
+            config.module(),
+            CONFIG_VALUE,
+            FactObject.string(object),
+            attributes,
+            ORIGIN,
+            evidence,
+            CONFIDENCE,
+            validity);
+    facts.putIfAbsent(fact.id(), fact);
+  }
+
+  /**
+   * Whether recording the value would expose a secret: a value that a secret was substituted into,
+   * or a secret's value unless it is only placeholders nothing resolves (environment variables),
+   * which say where the secret comes from.
+   */
+  private static boolean exposesSecret(ConfigValue value) {
+    if (value.used().stream().anyMatch(ConfigExtractor::isSecret)) {
+      return true;
+    }
+    return isSecret(value.key())
+        && !(ONLY_PLACEHOLDERS.matcher(value.written()).matches() && value.used().isEmpty());
+  }
+
+  /**
+   * Whether a config key names a secret, judged by its last part without list indexes, hyphens and
+   * underscores: one naming a password, secret or credentials, or ending in a token or a kind of
+   * key that is secret, singular or plural; or a key such as {@code encrypt.key} that holds one.
+   */
+  public static boolean isSecret(String key) {
+    String plain = key.replaceAll("\\[\\d+]", "").toLowerCase(Locale.ROOT);
+    if (SECRET_KEYS.contains(plain)) {
+      return true;
+    }
+    String last = plain.substring(plain.lastIndexOf('.') + 1);
+    return SECRET.matcher(last.replace("-", "").replace("_", "")).matches();
+  }
+}
