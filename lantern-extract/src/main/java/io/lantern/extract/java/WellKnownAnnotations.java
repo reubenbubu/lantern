@@ -14,11 +14,12 @@ import java.util.Set;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Well-known library annotations (Spring's stereotypes, request mappings and scheduling, Jakarta
- * REST, and the JPA and Spring Data annotations the persistence extractor reads) with their
- * meta-annotations, and the enums they take, for when the classpath cannot be read: in degraded
- * mode the parser names an annotation imported by a wildcard import from this list, and {@link
- * JavaAnalysis#metaAnnotations} falls back to it. The compiler path reads the real ones.
+ * Well-known library annotations (Spring's stereotypes, request mappings, HTTP interface exchanges
+ * and scheduling, Jakarta REST, and the JPA and Spring Data annotations the persistence extractor
+ * reads) with their meta-annotations, and the enums they take, for when the classpath cannot be
+ * read: in degraded mode the parser names an annotation imported by a wildcard import from this
+ * list, and {@link JavaAnalysis#metaAnnotations} falls back to it. The compiler path reads the real
+ * ones.
  */
 final class WellKnownAnnotations {
 
@@ -46,7 +47,8 @@ final class WellKnownAnnotations {
 
   /**
    * String constants well-known annotations take, by type and name, so the parser can fold one
-   * ({@code @Exchange(type = ExchangeTypes.TOPIC)}) when no jar resolves it.
+   * ({@code @Exchange(type = ExchangeTypes.TOPIC)}, {@code @StreamListener(Sink.INPUT)}) when no
+   * jar resolves it.
    */
   private static final Map<String, Map<String, String>> CONSTANTS =
       Map.of(
@@ -56,7 +58,13 @@ final class WellKnownAnnotations {
               "TOPIC", "topic",
               "FANOUT", "fanout",
               "HEADERS", "headers",
-              "SYSTEM", "system"));
+              "SYSTEM", "system"),
+          "org.springframework.cloud.stream.messaging.Sink",
+          Map.of("INPUT", "input"),
+          "org.springframework.cloud.stream.messaging.Source",
+          Map.of("OUTPUT", "output"),
+          "org.springframework.cloud.stream.messaging.Processor",
+          Map.of("INPUT", "input", "OUTPUT", "output"));
 
   /** The value of a well-known string constant, or null if it is not one. */
   static String knownConstant(String type, String name) {

@@ -11,7 +11,7 @@
         "url": { "type": "string", "description": "The whole URL, when it starts with a scheme." },
         "baseUrl": { "type": "string", "description": "The URL's scheme and authority, such as http://payments:8080, when it starts with a scheme." },
         "service": { "type": "string", "description": "The client name the request is sent to, matched against a service's spring.application.name: a Feign client's name." },
-        "client": { "type": "string", "enum": ["feign", "microprofile-rest-client", "rest-template", "rest-client", "web-client", "jakarta-rest-client"], "description": "What sends the request: a Spring Cloud OpenFeign or MicroProfile REST client interface, RestTemplate, RestClient, WebClient or the Jakarta (or javax) REST client API." },
+        "client": { "type": "string", "enum": ["feign", "microprofile-rest-client", "http-interface", "rest-template", "rest-client", "web-client", "jakarta-rest-client", "java-http-client", "okhttp", "apache-http-client"], "description": "What sends the request: a Spring Cloud OpenFeign or MicroProfile REST client interface, a Spring HTTP interface (@HttpExchange), RestTemplate, RestClient, WebClient, the Jakarta (or javax) REST client API, java.net.http, OkHttp or Apache HttpClient." },
         "clientType": { "type": "string", "description": "The binary name of the client interface, for a declarative client; it may differ from the method's own type when the method is inherited." },
         "annotation": { "type": "string", "description": "The binary name of the mapping annotation on a client interface's method, such as org.springframework.web.bind.annotation.GetMapping." },
         "expressions": { "type": "array", "items": { "type": "string" }, "description": "The source of the parts of the URL the extractor did not follow, as they appear in braces in it." },
@@ -28,11 +28,11 @@
   {
     "name": "http-client",
     "kind": "attribute",
-    "description": "The subject interface is a declarative HTTP client: feign for a Spring Cloud OpenFeign client (@FeignClient), microprofile-rest-client for a MicroProfile REST client (@RegisterRestClient). Its methods carry the http-call facts. The code that enables or injects it, not the library that declares it, makes its calls (ENABLES, INJECTS).",
+    "description": "The subject interface is a declarative HTTP client: feign for a Spring Cloud OpenFeign client (@FeignClient), microprofile-rest-client for a MicroProfile REST client (@RegisterRestClient), http-interface for a Spring HTTP interface (@HttpExchange on the interface or its methods). Its methods carry the http-call facts. The code that enables or injects it, not the library that declares it, makes its calls (ENABLES, INJECTS).",
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "annotation": { "type": "string", "description": "The binary name of the annotation written on the interface that makes it a client, which may carry @FeignClient as a meta-annotation." }
+        "annotation": { "type": "string", "description": "The binary name of the annotation written on the interface that makes it a client, which may carry @FeignClient as a meta-annotation; for an HTTP interface without one on the interface, the annotation on its first mapped method, such as org.springframework.web.service.annotation.GetExchange." }
       },
       "required": ["annotation"],
       "additionalProperties": false
@@ -42,13 +42,13 @@
   {
     "name": "ENABLES",
     "kind": "relationship",
-    "description": "The subject type turns on the object client interface, as @EnableFeignClients does for the clients it lists or that are in its packages, so the application the subject belongs to makes the client's calls.",
+    "description": "The subject type turns on the object client interface, as @EnableFeignClients does for the clients it lists or that are in its packages, or as code that makes an HTTP interface's proxy does (HttpServiceProxyFactory.createClient), so the application the subject belongs to makes the client's calls.",
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "annotation": { "type": "string", "description": "The binary name of the annotation written on the subject, which may carry @EnableFeignClients as a meta-annotation." }
+        "annotation": { "type": "string", "description": "The binary name of the annotation written on the subject, which may carry @EnableFeignClients as a meta-annotation. Absent when member is set." },
+        "member": { "type": "string", "description": "The entity ID of the method, constructor or type whose code makes an HTTP interface's proxy. Absent when annotation is set." }
       },
-      "required": ["annotation"],
       "additionalProperties": false
     }
   },

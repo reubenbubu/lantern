@@ -463,13 +463,20 @@ final class JavaParserAnalyzer {
                     p.getNameAsString(), annotations(p.getAnnotations())));
           }
         }
+        String returns =
+            switch (declaration) {
+              case MethodDeclaration m -> describe(m.getType(), m);
+              case AnnotationMemberDeclaration m -> describe(m.getType(), m);
+              default -> null;
+            };
         members.add(
             new Member(
                 id,
                 location(declaration),
                 annotations(declaration.getAnnotations()),
                 null,
-                parameters));
+                parameters,
+                returns));
       }
     }
 
@@ -1193,6 +1200,9 @@ final class JavaParserAnalyzer {
                   : null;
           return new Expression.Invoke(
               receiver, call.getNameAsString(), arguments(call.getArguments(), owner, depth));
+        }
+        case ClassExpr c when c.getType() instanceof ClassOrInterfaceType -> {
+          return new Expression.TypeRef(describe(c.getType(), c));
         }
         case ObjectCreationExpr created -> {
           return new Expression.Invoke(

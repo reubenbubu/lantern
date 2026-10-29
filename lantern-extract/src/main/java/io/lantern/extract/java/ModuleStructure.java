@@ -112,17 +112,31 @@ public final class ModuleStructure {
    * @param parameters for a method or constructor written in the source, its parameters in order;
    *     empty for a field, for a member the compiler declares implicitly and for a record's
    *     constructor
+   * @param returns for a method written in the source, its erased return type as in a member ID
+   *     ({@code void} for none); null for a field, a constructor and a member the compiler declares
+   *     implicitly
    */
   public record Member(
       EntityId id,
       Location where,
       List<Annotation> annotations,
       String type,
-      List<Parameter> parameters) {
+      List<Parameter> parameters,
+      String returns) {
 
     public Member {
       annotations = List.copyOf(annotations);
       parameters = List.copyOf(parameters);
+    }
+
+    /** A member without a return type. */
+    public Member(
+        EntityId id,
+        Location where,
+        List<Annotation> annotations,
+        String type,
+        List<Parameter> parameters) {
+      this(id, where, annotations, type, parameters, null);
     }
 
     /** A member without annotations, type or parameters. */

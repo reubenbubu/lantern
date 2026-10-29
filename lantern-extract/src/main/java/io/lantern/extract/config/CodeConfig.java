@@ -2,9 +2,11 @@ package io.lantern.extract.config;
 
 import io.lantern.extract.RepoBuild;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -35,6 +37,14 @@ public final class CodeConfig {
         views.addAll(config.profiles());
       }
       return views;
+    }
+
+    /**
+     * The config's values with a profile active (null for the default view), empty without config.
+     * They are not masked: see {@link ModuleConfig#values}.
+     */
+    public SortedMap<String, ConfigValue> values(String profile) {
+      return config == null ? Collections.emptySortedMap() : config.values(profile);
     }
 
     /**

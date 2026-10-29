@@ -50,7 +50,10 @@ public sealed interface Expression {
    */
   record Param(int index) implements Expression {}
 
-  /** A type named as the receiver of a static call ({@code WebClient.create(...)}). */
+  /**
+   * A type named as the receiver of a static call ({@code WebClient.create(...)}), or by a class
+   * literal ({@code PaymentsClient.class}).
+   */
   record TypeRef(String binaryName) implements Expression {}
 
   /**

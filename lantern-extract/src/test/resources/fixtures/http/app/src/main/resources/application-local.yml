@@ -1,3 +1,5 @@
 clients:
   payments:
     url: http://localhost:8082
+  shipping:
+    url: http://localhost:8083
