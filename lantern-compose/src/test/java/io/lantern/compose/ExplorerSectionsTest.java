@@ -54,7 +54,6 @@ class ExplorerSectionsTest {
                 "CONTAINS",
                 "type:com.example.App")
             .relate("shop", APP_MODULE, "CONTAINS", SCHEMA)
-            .attribute("shop", SCHEMA, "kind", "flyway")
             .attribute(
                 "shop",
                 DECISION,
@@ -68,6 +67,16 @@ class ExplorerSectionsTest {
             FactObject.string("spring-boot"),
             "{}",
             "src/main/java/com/example/App.java"));
+    // A schema migrated by Flyway and plain SQL: the guidance follows Flyway, in its folder.
+    facts.add(
+        fact(SCHEMA, "kind", FactObject.string("sql"), "{}", "src/main/resources/schema.sql"));
+    facts.add(
+        fact(
+            SCHEMA,
+            "kind",
+            FactObject.string("flyway"),
+            "{}",
+            "src/main/resources/db/migration/V1__orders.sql"));
     facts.add(
         fact(
             SCHEMA,

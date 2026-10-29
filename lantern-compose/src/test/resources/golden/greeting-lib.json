@@ -750,6 +750,17 @@
         } ],
         "facts" : [ ]
       }, {
+        "check" : "A \"start here\" list of the entry points and files to read first",
+        "target" : {
+          "kind" : "section",
+          "id" : "start_here"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "It lists nothing."
+        } ],
+        "facts" : [ ]
+      }, {
         "check" : "The main flows as sequence diagrams",
         "detail" : [ {
           "kind" : "text",

@@ -789,6 +789,17 @@
         } ],
         "facts" : [ ]
       }, {
+        "check" : "A \"start here\" list of the entry points and files to read first",
+        "target" : {
+          "kind" : "section",
+          "id" : "start_here"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "It lists nothing."
+        } ],
+        "facts" : [ ]
+      }, {
         "check" : "The container diagram first",
         "target" : {
           "kind" : "block",
@@ -804,6 +815,17 @@
         "detail" : [ {
           "kind" : "text",
           "text" : "The document has no sequence diagram."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "A catalog of containers, components, endpoints, queues, tables and config",
+        "target" : {
+          "kind" : "section",
+          "id" : "catalog"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "It lists nothing."
         } ],
         "facts" : [ ]
       } ],

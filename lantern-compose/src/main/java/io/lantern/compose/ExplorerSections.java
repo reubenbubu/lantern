@@ -604,44 +604,46 @@ final class ExplorerSections {
     return new ListBlock.Item(content, assembler.facts(List.of(fact)));
   }
 
-  /** Where a schema of the units' code is migrated: the folder of its last migration by path. */
+  /** How a schema is migrated, most specific first, as the SQL extractor names it (ADR 0034). */
+  private static final List<String> MIGRATION_KINDS = List.of("flyway", "liquibase", "sql");
+
+  /**
+   * Where a schema of the units' code is migrated: the folder of the first file of its most
+   * specific kind (Flyway, then Liquibase, then plain SQL), which the kind fact points at (ADR
+   * 0034).
+   */
   private Optional<ListBlock.Item> migrationExample() {
     for (EntityId unit : units) {
       for (EntityId module : C4Views.codeModules(knowledge, unit)) {
         for (EntityId schema : knowledge.parts(module, SCHEMA)) {
           Optional<Fact> kind =
               knowledge.attributes(schema).stream()
-                  .filter(f -> f.predicate().equals("kind"))
-                  .findFirst();
-          Optional<Fact> placed =
-              knowledge.parts(schema, TABLE).stream()
-                  .flatMap(t -> knowledge.containsFacts(schema, t).stream())
-                  .filter(f -> f.evidence().path() != null)
-                  .max(Comparator.comparing((Fact f) -> f.evidence().path()));
-          if (placed.isEmpty()) {
+                  .filter(f -> f.predicate().equals("kind") && f.evidence().path() != null)
+                  .filter(f -> MIGRATION_KINDS.contains(f.object().value()))
+                  .min(
+                      Comparator.comparingInt(
+                          (Fact f) -> MIGRATION_KINDS.indexOf(f.object().value())));
+          if (kind.isEmpty()) {
             continue;
           }
-          String path = placed.get().evidence().path();
-          String folder = path.contains("/") ? path.substring(0, path.lastIndexOf('/') + 1) : path;
+          String path = kind.get().evidence().path();
           String how =
-              kind.map(Fact::object)
-                  .map(o -> o.value())
-                  .map(
-                      k ->
-                          switch (k) {
-                            case "flyway" -> "a Flyway migration";
-                            case "liquibase" -> "a Liquibase change set";
-                            default -> "an SQL script";
-                          })
-                  .orElse("a migration");
-          List<Fact> facts = new ArrayList<>(List.of(placed.get()));
-          kind.ifPresent(facts::add);
+              switch (kind.get().object().value()) {
+                case "flyway" -> "a Flyway migration";
+                case "liquibase" -> "a Liquibase change set";
+                default -> "an SQL script";
+              };
           List<Inline> content = new ArrayList<>();
-          content.add(
-              TextRun.of("To change a table of " + assembler.name(unit) + ", add " + how + " in "));
-          content.add(code(folder));
+          content.add(TextRun.of("To change a table of " + assembler.name(unit) + ", add " + how));
+          if (path.contains("/")) {
+            content.add(TextRun.of(" in "));
+            content.add(code(path.substring(0, path.lastIndexOf('/') + 1)));
+          } else {
+            content.add(TextRun.of(" next to "));
+            content.add(code(path));
+          }
           content.add(TextRun.of("."));
-          return Optional.of(new ListBlock.Item(content, assembler.facts(facts)));
+          return Optional.of(new ListBlock.Item(content, assembler.facts(List.of(kind.get()))));
         }
       }
     }
@@ -733,8 +735,12 @@ final class ExplorerSections {
    */
   private static String path(EntityId entity) {
     String key = entity.key();
-    return URLDecoder.decode(
-        key.substring(key.indexOf(':') + 1).replace("+", "%2B"), StandardCharsets.UTF_8);
+    String encoded = key.substring(key.indexOf(':') + 1);
+    try {
+      return URLDecoder.decode(encoded.replace("+", "%2B"), StandardCharsets.UTF_8);
+    } catch (IllegalArgumentException e) {
+      return encoded;
+    }
   }
 
   private static Optional<String> file(Fact fact) {

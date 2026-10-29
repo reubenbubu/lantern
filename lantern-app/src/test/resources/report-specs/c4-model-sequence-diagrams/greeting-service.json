@@ -49,7 +49,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Containers of greeting-lib, greeting-service, orders and shop](#/containers/containers-diagram)): The template draws no legend.", "**Acronyms are explained in the glossary**: The document has no glossary; it uses HTTP.", "**It states its reader**: The document names no audience; the view definition it was composed from has none.", "**It pins its snapshot (commits) and date**: The document names its snapshot's number but not its commits or a date; the document model holds neither.", "**The main flows as sequence diagrams**: The document has no sequence diagram." ]
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Containers of greeting-lib, greeting-service, orders and shop](#/containers/containers-diagram)): The template draws no legend.", "**Acronyms are explained in the glossary**: The document has no glossary; it uses HTTP.", "**It states its reader**: The document names no audience; the view definition it was composed from has none.", "**It pins its snapshot (commits) and date**: The document names its snapshot's number but not its commits or a date; the document model holds neither.", "**A \"start here\" list of the entry points and files to read first** (Start here): It lists nothing.", "**The main flows as sequence diagrams**: The document has no sequence diagram." ]
     } ]
   }, {
     "id" : "context",

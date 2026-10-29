@@ -510,14 +510,17 @@ public final class C4ReportRenderer {
       ObjectNode node = MAPPER.createObjectNode();
       node.put("id", document.id());
       node.put("title", document.title());
-      // A later section's title heads its first block, as on a page.
+      // A later section's title heads its first block, as on a page, unless the block has its own.
       Section first = document.sections().isEmpty() ? null : document.sections().getFirst();
       String intro =
           loose.stream()
               .map(
                   part -> {
                     String markdown = looseMarkdown(part.block);
-                    return markdown.isEmpty() || part.heading == null || part.owner == first
+                    return markdown.isEmpty()
+                            || markdown.startsWith("**")
+                            || part.heading == null
+                            || part.owner == first
                         ? markdown
                         : "**" + oneLine(part.heading) + "**\n" + markdown;
                   })

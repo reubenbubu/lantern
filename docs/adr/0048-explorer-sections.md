@@ -1,6 +1,6 @@
 # 0048: The Architecture Explorer's start-here list, catalog, change guidance and decisions
 
-Status: accepted (#97, composer part), pending the user's review (#24)
+Status: accepted (#97, composer part), amends ADR 0046's Explorer checks, pending the user's review (#24)
 
 ## Context
 
@@ -37,8 +37,9 @@ deployable units (ADR 0039), links (ADR 0042) and README claims and decision rec
     alternatives (ADR 0044) are left out, as on the diagrams.
   - `change_guidance` ("Change guidance", L2 and L3): "To add an endpoint, follow `Type.method` in
     `file`", and the same for a message listener, a scheduled job, a send and an HTTP call, a schema
-    change (the folder of the latest migration by path, named by how the schema is migrated) and a
-    setting (the file holding most default keys). Each uses an example the code has: an entry point
+    change (the folder of the first file of the schema's most specific migration kind, Flyway, then
+    Liquibase, then plain SQL, which its `kind` fact points at) and a setting (the file holding most
+    default keys). Each uses an example the code has: an entry point
     in the type with most entry points of its kind, else the first by ID, and the first link of a
     unit whose code is known. Kinds without an example are left out.
 - **Decisions get a rationale.** The decision records table (ADR 0044) gains a column "Rationale",
@@ -60,6 +61,12 @@ deployable units (ADR 0039), links (ADR 0042) and README claims and decision rec
   queue, table and config tables belong is #182.
 - **The C4 report renderer** writes a decision's rationale after its outcome in the decisions
   section's body, as `**Rationale:** <text>`.
+- **The Explorer's start-here and catalog checks** (ADR 0046) now pass only when the start-here
+  section holds a list and the catalog a table: a note that nothing was found does not meet them.
+  A decisions note does meet its check, since the Quality bar allows decisions marked unknown.
+- **Acronyms.** The new sections use HTTP and SQL where they are the plain words. No glossary is
+  composed yet, so Explorers fail "Acronyms are explained in the glossary" as other documents
+  already do (ADR 0046).
 - **Checks.** `ExplorerSectionsTest` covers the three sections, the rationale, the no-records note
   and that an Explorer of the runtime facts no longer fails the orientation, start-here, container
   first, flows, catalog and decisions checks. The composer's and the renderer's golden files show

@@ -69,6 +69,9 @@ final class SequenceFlows {
   private final Set<EntityId> scope;
   private final Set<Fact> alternatives;
 
+  /** The flows shown, once chosen. */
+  private List<Trace> chosen;
+
   /** The links of each unit, by the code on the unit's end. */
   private final Map<String, List<Fact>> linksBySource = new HashMap<>();
 
@@ -695,6 +698,13 @@ final class SequenceFlows {
 
   /** The flows shown: the highest ranked candidates in scope, none part of another. */
   private List<Trace> chosen() {
+    if (chosen == null) {
+      chosen = choose();
+    }
+    return chosen;
+  }
+
+  private List<Trace> choose() {
     List<Trace> candidates = new ArrayList<>();
     for (Entry entry : entries()) {
       Trace trace = trace(entry);

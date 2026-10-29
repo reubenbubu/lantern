@@ -57,6 +57,8 @@ final class RepoSections {
   private final Assembler assembler;
   private final C4Views c4;
   private final SortedSet<EntityId> units;
+  private SequenceFlows flows;
+  private ExplorerSections explorer;
 
   /**
    * @param repo the repository the document is about, or {@code null} for the whole system
@@ -146,12 +148,19 @@ final class RepoSections {
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
   }
 
+  /** The main flows, built once per document: the start-here list and the flows both use them. */
   private SequenceFlows flows() {
-    return new SequenceFlows(knowledge, assembler, c4, units);
+    if (flows == null) {
+      flows = new SequenceFlows(knowledge, assembler, c4, units);
+    }
+    return flows;
   }
 
   private ExplorerSections explorer() {
-    return new ExplorerSections(knowledge, assembler, c4, flows(), units, repos);
+    if (explorer == null) {
+      explorer = new ExplorerSections(knowledge, assembler, c4, flows(), units, repos);
+    }
+    return explorer;
   }
 
   // Overview: the repository's summary and what it builds.
