@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    Fixture for the Spring extractor, never built: app uses only Spring's context, scheduling and
+    Boot annotations (on Lantern's own test classpath, so a test can compile it), web uses Spring
+    MVC and Jakarta REST and has no config of its own.
+  -->
+  <groupId>com.example.shop</groupId>
+  <artifactId>shop-parent</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+
+  <modules>
+    <module>app</module>
+    <module>web</module>
+  </modules>
+</project>

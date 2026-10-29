@@ -1,5 +1,6 @@
 package io.lantern.extract.java;
 
+import com.sun.source.tree.AnnotationTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.IdentifierTree;
@@ -282,36 +283,78 @@ final class JavacAnalyzer {
     private List<Annotation> annotations(Element e, Location fallback, SourceFile file) {
       List<Annotation> annotations = new ArrayList<>();
       for (AnnotationMirror m : e.getAnnotationMirrors()) {
-        TreePath path = trees.getPath(e, m);
-        Location where = path == null ? fallback : location(path, file, fallback);
-        annotation(m, where, annotations);
+        annotation(m, where(e, m, fallback, file), annotations, e, file);
       }
       return annotations;
+    }
+
+    /** Where an annotation of a source element is written, or the fallback if javac cannot say. */
+    private Location where(Element e, AnnotationMirror m, Location fallback, SourceFile file) {
+      TreePath path = trees.getPath(e, m);
+      return path == null ? fallback : location(path, file, fallback);
     }
 
     /**
      * Adds an annotation, or the annotations a container of repeated annotations holds, and records
      * the meta-annotations of its type.
+     *
+     * @param element the source element it is written on, or null for a meta-annotation
      */
-    private void annotation(AnnotationMirror m, Location where, List<Annotation> annotations) {
+    private void annotation(
+        AnnotationMirror m,
+        Location where,
+        List<Annotation> annotations,
+        Element element,
+        SourceFile file) {
       TypeElement type = (TypeElement) m.getAnnotationType().asElement();
       Map<String, List<String>> values = new LinkedHashMap<>();
       List<AnnotationMirror> nested = new ArrayList<>();
       for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e :
           m.getElementValues().entrySet()) {
-        String element = e.getKey().getSimpleName().toString();
+        String name = e.getKey().getSimpleName().toString();
         List<String> list = new ArrayList<>();
-        value(e.getValue().getValue(), list, element.equals(VALUE) ? nested : null);
-        values.put(element, List.copyOf(list));
+        value(e.getValue().getValue(), list, name.equals(VALUE) ? nested : null);
+        values.put(name, List.copyOf(list));
       }
       if (!nested.isEmpty() && values.size() == 1 && values.get(VALUE).isEmpty()) {
-        for (AnnotationMirror n : nested) {
-          annotation(n, where, annotations);
+        // javac makes up the container of repeated annotations; each has its own place.
+        List<Location> places = element == null ? List.of() : repeated(element, nested, file);
+        for (int i = 0; i < nested.size(); i++) {
+          Location own = i < places.size() && places.get(i) != null ? places.get(i) : where;
+          annotation(nested.get(i), own, annotations, element, file);
         }
         return;
       }
       annotations.add(new Annotation(binaryName(type), values, where));
       metaAnnotations(type);
+    }
+
+    /**
+     * Where repeated annotations are written on an element, in order: the annotations of their type
+     * among those written on it, since javac gives the ones it collected into a container no place.
+     */
+    private List<Location> repeated(
+        Element element, List<AnnotationMirror> nested, SourceFile file) {
+      TreePath path = trees.getPath(element);
+      List<? extends AnnotationTree> written =
+          switch (path == null ? null : path.getLeaf()) {
+            case ClassTree c -> c.getModifiers().getAnnotations();
+            case MethodTree m -> m.getModifiers().getAnnotations();
+            case VariableTree v -> v.getModifiers().getAnnotations();
+            case null, default -> List.of();
+          };
+      String type = binaryName((TypeElement) nested.getFirst().getAnnotationType().asElement());
+      List<Location> places = new ArrayList<>();
+      for (AnnotationTree a : written) {
+        TreePath at = new TreePath(path, a);
+        TypeMirror mirror = trees.getTypeMirror(at);
+        if (mirror != null
+            && mirror.getKind() == TypeKind.DECLARED
+            && describe(mirror).equals(type)) {
+          places.add(location(at, file, null));
+        }
+      }
+      return places.size() == nested.size() ? places : List.of();
     }
 
     /** Records the annotations on an annotation type, and on theirs, once each. */
@@ -324,7 +367,7 @@ final class JavacAnalyzer {
       structure.annotationTypes.put(name, List.of());
       List<Annotation> meta = new ArrayList<>();
       for (AnnotationMirror m : type.getAnnotationMirrors()) {
-        annotation(m, null, meta);
+        annotation(m, null, meta, null, null);
       }
       structure.annotationTypes.put(name, List.copyOf(meta));
     }
