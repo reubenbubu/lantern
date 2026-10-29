@@ -2,7 +2,7 @@
 # Checked by GoldenVersionGuardTest. A changed hash must come with a changed VERSION; the test cannot
 # enforce that, so review checks it.
 docs docs 1 0ca285b85389857e4f1dd6a74c4b77bcea9f54cb1aabde822827324a1b3d0d7a
-http http-client 3 b6955111a0f262a5f786561ebfd022b06feb3596996f1d0792c9b8b43bde7a58
+http http-client 4 ade517a6cca21af6a7ce1f0e0ac0071c63d7b0b844883eb59c596695c0c7d35f
 java java 2 4055545611cb288bfadbb846ffa7c4c80d78422280c7c22fc0f11355cf1822f8
 maven maven 3 a140e8c610b31f515c60b04867ec7880b52c6f9371fd41c3308dc1cdd6148661
 messaging messaging 3 e2f0e0e87e9eb0bd907fd74441b2ea12f76c735a29f18a954d387b302556c0a8
