@@ -125,6 +125,8 @@ Which migrations and SQL files the SQL extractor reads, in what order, and how i
 
 How the Spring / Jakarta extractor reads annotations and meta-annotations through the Java extractor's reading of the code, what facts it makes of stereotypes, main classes, endpoints, scheduled jobs and profile gates, and which config resolves their placeholders is in ADR 0035.
 
+How the Persistence extractor finds entities, repositories and SQL in code, names the tables they touch, and records datasource URLs per profile without credentials is in ADR 0036.
+
 **Why javac instead of only a parser:** production Spring code relies on Lombok, MapStruct and generated OpenAPI or Protobuf clients. Analyzing through the compiler, with annotation processing on, sees generated members and resolves calls exactly as the build does.
 
 ## Knowledge model and schema evolution
