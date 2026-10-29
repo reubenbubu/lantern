@@ -96,8 +96,10 @@ choices.
   `vocabulary_types` tables, so nothing is stored or migrated and type names are unchanged.
 - **Only the owner changes a type.** Applying a definition that differs from the current one of a
   type another source owns is refused, even if the change is additive, with an error naming the
-  type, its owner and the other source; nothing in that change is stored. Another source may apply
-  the identical definition, which changes nothing and creates no revision. The owner's changes
+  type, its owner, the other source and both definitions; nothing in that change is stored.
+  Another source may apply the identical definition, which changes nothing and creates no
+  revision, but sources must not repeat another source's types even unchanged: once the owner
+  changes the type, the copy differs and the other source is refused. The owner's changes
   still follow the rules above. Built-in types belong to `built-in`.
 - **Clashes fail at startup.** The app applies the built-in types and then each extractor's and
   the linker's types when it starts, so two sources defining the same name differently stop the

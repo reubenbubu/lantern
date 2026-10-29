@@ -130,27 +130,28 @@ public class VocabularyRegistry implements FactValidator {
 
   /** Refuses definitions that differ from the current ones of types other sources own. */
   private void checkOwners(String source, Vocabulary current, List<VocabularyType> definitions) {
-    List<String> differing =
-        definitions.stream()
-            .filter(d -> current.find(d.name()).filter(t -> !t.equals(d)).isPresent())
-            .map(VocabularyType::name)
-            .toList();
+    Map<String, VocabularyType> differing = new TreeMap<>();
+    for (VocabularyType d : definitions) {
+      current.find(d.name()).filter(t -> !t.equals(d)).ifPresent(t -> differing.put(d.name(), d));
+    }
     if (differing.isEmpty()) {
       return;
     }
     List<String> problems = new ArrayList<>();
-    owners(differing)
+    owners(List.copyOf(differing.keySet()))
         .forEach(
             (name, owner) -> {
               if (!owner.equals(source)) {
                 problems.add(
-                    "'"
-                        + name
-                        + "' belongs to '"
-                        + owner
-                        + "' and '"
-                        + source
-                        + "' defines it differently");
+                    "'%s' belongs to '%s' and '%s' defines it differently (%s's: %s, %s's: %s)"
+                        .formatted(
+                            name,
+                            owner,
+                            source,
+                            owner,
+                            current.find(name).orElseThrow().toJson(),
+                            source,
+                            differing.get(name).toJson()));
               }
             });
     if (!problems.isEmpty()) {

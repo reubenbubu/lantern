@@ -212,7 +212,8 @@ class VocabularyRegistryIT {
                     "test-b", List.of(entity(other, null, null, AttributeSchema.NONE), additive)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'" + name + "' belongs to 'test-a'")
-        .hasMessageContaining("'test-b' defines it differently");
+        .hasMessageContaining("'test-b' defines it differently")
+        .hasMessageContaining("\"icon\":\"lock\"");
     assertThat(registry.current().revision()).isEqualTo(added);
     assertThat(registry.current().find(name)).contains(original);
     assertThat(registry.current().find(other)).isEmpty();
