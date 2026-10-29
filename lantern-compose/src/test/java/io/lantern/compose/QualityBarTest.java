@@ -22,6 +22,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -443,9 +444,46 @@ class QualityBarTest {
     Document document = document(QualityBar.BRIEF, "a", section("risks", "Risks", low, high));
 
     assertThat(failed(document, QualityBar.RISKS))
-        .containsExactly("risks: The risks are not in order of impact.");
+        .containsExactly(
+            "risks: No consequence or confidence for Small and Big.",
+            "risks: The risks are not in order of impact.");
     assertThat(checks(document))
         .contains(QualityBar.BLAST, QualityBar.CURRENCY, QualityBar.EVIDENCE)
         .doesNotContain(QualityBar.CATALOG);
+  }
+
+  @Test
+  void theBriefPassesWithItsSectionsAndExplainedRisksInOrder() {
+    Callout high =
+        new Callout(
+            "r1",
+            Callout.Variant.RISK,
+            Callout.Severity.HIGH,
+            "Big",
+            List.of(TextRun.of("y")),
+            List.of(CALL.id()),
+            "It breaks.",
+            BigDecimal.ONE);
+    Callout low =
+        new Callout(
+            "r2",
+            Callout.Variant.RISK,
+            Callout.Severity.LOW,
+            "Small",
+            List.of(TextRun.of("x")),
+            List.of(CALL.id()),
+            "It bends.",
+            new BigDecimal("0.5"));
+    Document document =
+        document(
+            QualityBar.BRIEF,
+            "a",
+            section("risks", "Risks", high, low),
+            section("blast_radius", "Blast radius"),
+            section("technology_currency", "Technology currency"));
+
+    assertThat(checks(document))
+        .doesNotContain(QualityBar.RISKS, QualityBar.BLAST, QualityBar.CURRENCY)
+        .contains(QualityBar.EVIDENCE);
   }
 }

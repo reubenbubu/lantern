@@ -675,7 +675,83 @@
       "title" : "No risks found",
       "content" : [ {
         "kind" : "text",
-        "text" : "Lantern checks for dependencies on unreleased versions, inconsistent dependency versions and packages that depend on each other in a cycle, and found none."
+        "text" : "Lantern checks for runtime and framework versions past or near the end of their free support, dependencies on unreleased versions, inconsistent dependency versions and packages that depend on each other in a cycle, and found none."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "blast_radius",
+    "title" : "Blast radius",
+    "levels" : [ "L0", "L1" ],
+    "entity" : "repo:greeting-service",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "blast_radius.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "Lantern found no container in the snapshot that depends on greeting-service, and nothing it depends on. Dependents outside the snapshot are not known."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "technology_currency",
+    "title" : "Technology currency",
+    "levels" : [ "L0", "L1" ],
+    "entity" : "repo:greeting-service",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "paragraph",
+      "id" : "technology_currency.summary",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "As of the snapshot's date, 1 Jan 1970, the one version in use is not past the end of free support."
+      } ],
+      "facts" : [ "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e" ]
+    }, {
+      "kind" : "table",
+      "id" : "technology_currency.versions",
+      "title" : "Runtime and framework versions",
+      "columns" : [ {
+        "label" : "Technology"
+      }, {
+        "label" : "Version"
+      }, {
+        "label" : "Used by"
+      }, {
+        "label" : "End of free support"
+      } ],
+      "rows" : [ {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "Java"
+        } ], [ {
+          "kind" : "text",
+          "text" : "21"
+        } ], [ {
+          "kind" : "ref",
+          "text" : "greeting-service",
+          "target" : {
+            "kind" : "entity",
+            "id" : "service:com.example.greeting:greeting-service"
+          }
+        } ], [ {
+          "kind" : "text",
+          "text" : "31 Dec 2029"
+        } ] ],
+        "facts" : [ "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e" ]
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "technology_currency.source",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "End-of-life dates come from the table bundled with this version of Lantern, checked on 29 Oct 2026: Eclipse Temurin's for Java, and the end of open-source support for Spring Boot and Spring Framework. The Java version is the release the code is compiled for; the Java runtime it runs on is not recorded and may be newer."
       } ],
       "facts" : [ ]
     } ],
@@ -807,20 +883,6 @@
         "detail" : [ {
           "kind" : "text",
           "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Who depends on it and what it depends on (blast radius)",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The brief has no section on who depends on it and what it depends on."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Technology currency",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The brief has no section on runtime and framework versions."
         } ],
         "facts" : [ ]
       }, {

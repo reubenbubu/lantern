@@ -15,7 +15,7 @@ describe('the Executive Brief', () => {
 
   test('is composer output for the brief', () => {
     expect(document.template.name).toBe('executive-brief');
-    expect(document.sections.map((s) => s.id)).toEqual(['overview', 'headlines', 'risks', 'context', 'containers', 'quality']);
+    expect(document.sections.map((s) => s.id)).toEqual(['overview', 'headlines', 'risks', 'blast_radius', 'technology_currency', 'context', 'containers', 'quality']);
   });
 
   test('opens with the title and links every section from its header', () => {
@@ -80,5 +80,16 @@ describe('risk severity', () => {
     expect(html).toContain(`class="callout callout-risk callout-severity-high"`);
     expect(html).toContain('<span class="severity severity-high">High</span>');
     expect(html).not.toContain('callout-severity-undefined');
+  });
+
+  test('is shown with its consequence and confidence', () => {
+    const fixture = schemaFixture();
+    const risk = allSections(fixture.sections)
+      .flatMap((s) => s.blocks)
+      .find((b): b is Callout => b.kind === 'callout' && b.variant === 'risk')!;
+    expect(risk.consequence).toBeDefined();
+    const html = renderToStaticMarkup(<DocumentView document={fixture} />);
+    expect(html).toContain(`<p class="callout-consequence"><strong>Consequence:</strong> ${risk.consequence}</p>`);
+    expect(html).toContain(`<p class="callout-confidence">Confidence: ${Math.round(risk.confidence! * 100)}%</p>`);
   });
 });

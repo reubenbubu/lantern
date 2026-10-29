@@ -8,6 +8,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -26,7 +27,8 @@ import java.util.function.Function;
 
 /**
  * Finds the risks of one repository with fixed checks of its knowledge (see ADR 0015), each a risk
- * callout with a severity and the facts it came from, most serious first:
+ * callout with a severity, a consequence, a confidence and the facts it came from, most serious
+ * first (ADR 0052). Besides those technology currency finds ({@link BriefSections}):
  *
  * <ul>
  *   <li>dependencies on unreleased (snapshot) versions of anything the repository does not build
@@ -67,9 +69,14 @@ final class RepoRisks {
     this.packageEdges = packageEdges;
   }
 
-  /** The risk callouts, or a note that none was found. */
-  List<Block> callouts(String section) {
-    List<Callout> risks = new ArrayList<>();
+  /**
+   * The risk callouts, or a note that none was found.
+   *
+   * @param currency the risks technology currency found, which come first among those of the same
+   *     severity
+   */
+  List<Block> callouts(String section, List<Callout> currency) {
+    List<Callout> risks = new ArrayList<>(currency);
     unreleased(section, risks);
     inconsistentVersions(section, risks);
     for (EntityId container : containers) {
@@ -87,9 +94,10 @@ final class RepoRisks {
               "No risks found",
               List.of(
                   TextRun.of(
-                      "Lantern checks for dependencies on unreleased versions, inconsistent"
-                          + " dependency versions and packages that depend on each other in a"
-                          + " cycle, and found none.")),
+                      "Lantern checks for runtime and framework versions past or near the end of"
+                          + " their free support, dependencies on unreleased versions,"
+                          + " inconsistent dependency versions and packages that depend on each"
+                          + " other in a cycle, and found none.")),
               List.of()));
     }
     return List.copyOf(risks);
@@ -149,17 +157,16 @@ final class RepoRisks {
                 + (named.size() == 1
                     ? "1 dependency on an unreleased (snapshot) version"
                     : named.size() + " dependencies on unreleased (snapshot) versions")
-                + ", so a release of it cannot be rebuilt"
-                + " exactly and may change without notice: "));
+                + ": "));
     content.addAll(names(named));
     risks.add(
-        new Callout(
+        risk(
             assembler.id(section, "unreleased"),
-            Callout.Variant.RISK,
             Callout.Severity.MEDIUM,
             "Depends on unreleased versions",
             content,
-            assembler.facts(facts)));
+            facts,
+            "A release of it cannot be rebuilt exactly and may change without notice."));
   }
 
   // The same dependency at different versions.
@@ -189,16 +196,16 @@ final class RepoRisks {
             repo
                 + " uses different versions of "
                 + count(named.size(), "dependency", "dependencies")
-                + ", which can lead to conflicts when they run together: "));
+                + ": "));
     content.addAll(names(named));
     risks.add(
-        new Callout(
+        risk(
             assembler.id(section, "inconsistent-versions"),
-            Callout.Variant.RISK,
             Callout.Severity.MEDIUM,
             "Inconsistent dependency versions",
             content,
-            assembler.facts(facts)));
+            facts,
+            "The versions can conflict when they run together."));
   }
 
   // Packages that depend on each other in a cycle.
@@ -243,19 +250,38 @@ final class RepoRisks {
                 + (cycles.size() == 1
                     ? " depend on each other in a cycle"
                     : " depend on each other in " + cycles.size() + " cycles")
-                + ", so none of them can be changed, tested or split out on its own. "
+                + ". "
                 + (cycles.size() == 1 ? "The cycle: " : "The largest: ")));
     List<Named> named = new ArrayList<>();
     cycles.getFirst().forEach(pkg -> named.add(new Named(pkg, "")));
     content.addAll(names(named));
     risks.add(
-        new Callout(
+        risk(
             assembler.id(section, "cycles", container.toString()),
-            Callout.Variant.RISK,
             Callout.Severity.LOW,
             "Tangled packages in " + name,
             content,
-            assembler.facts(facts)));
+            facts,
+            "None of them can be changed, tested or split out on its own."));
+  }
+
+  /** A risk whose confidence is the lowest of its facts'. */
+  private Callout risk(
+      String id,
+      Callout.Severity severity,
+      String title,
+      List<Inline> content,
+      List<Fact> facts,
+      String consequence) {
+    return new Callout(
+        id,
+        Callout.Variant.RISK,
+        severity,
+        title,
+        content,
+        assembler.facts(facts),
+        consequence,
+        BriefSections.confidence(facts, BigDecimal.ONE));
   }
 
   /**

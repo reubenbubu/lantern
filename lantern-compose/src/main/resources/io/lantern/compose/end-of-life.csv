@@ -1,0 +1,65 @@
+# End of free support of the runtimes and frameworks the Executive Brief's technology currency
+# shows (ADR 0052). Update it each release from the sources below and change the as-of date (the
+# golden briefs in lantern-compose show it, so regenerate them too).
+#
+# java: Eclipse Temurin's end of availability (https://adoptium.net/support/, by month), the day as
+#   https://endoflife.date/eclipse-temurin gives it. Java 9, 10 and 12 to 15, which Temurin never
+#   built: the end of their public updates, when the next feature release came out
+#   (https://openjdk.org/projects/jdk/ lists the releases and their dates).
+# spring-boot, spring-framework: end of open-source support, ossSupportEndDate in
+#   https://api.spring.io/projects/spring-boot/generations and
+#   https://api.spring.io/projects/spring-framework/generations (the data behind
+#   https://spring.io/projects/spring-boot#support).
+#
+# A version older than a product's oldest line here has ended. One between two lines (a Java
+# release before 9) ended no later than the next newer line: every line missing here is older than
+# that line and not a long-term-support release. A newer one is not known.
+as-of,2026-10-29
+java,8,2030-12-31
+java,9,2018-03-20
+java,10,2018-09-25
+java,11,2027-10-31
+java,12,2019-09-17
+java,13,2020-03-17
+java,14,2020-09-15
+java,15,2021-03-16
+java,16,2021-09-30
+java,17,2027-10-31
+java,18,2022-09-30
+java,19,2023-03-31
+java,20,2023-09-19
+java,21,2029-12-31
+java,22,2024-09-17
+java,23,2025-03-18
+java,24,2025-09-22
+java,25,2031-09-30
+java,26,2026-09-22
+java,27,2027-03-23
+spring-boot,1.5,2019-08-31
+spring-boot,2.0,2019-03-31
+spring-boot,2.1,2019-10-31
+spring-boot,2.2,2020-10-31
+spring-boot,2.3,2021-05-31
+spring-boot,2.4,2021-11-30
+spring-boot,2.5,2022-05-31
+spring-boot,2.6,2022-11-30
+spring-boot,2.7,2023-06-30
+spring-boot,3.0,2023-12-31
+spring-boot,3.1,2024-06-30
+spring-boot,3.2,2024-12-31
+spring-boot,3.3,2025-06-30
+spring-boot,3.4,2025-12-31
+spring-boot,3.5,2026-06-30
+spring-boot,4.0,2026-12-31
+spring-boot,4.1,2027-07-31
+spring-boot,4.2,2027-12-31
+spring-framework,4.3,2020-12-31
+spring-framework,5.0,2020-12-31
+spring-framework,5.1,2020-12-31
+spring-framework,5.2,2021-12-31
+spring-framework,5.3,2024-08-31
+spring-framework,6.0,2024-06-30
+spring-framework,6.1,2025-06-30
+spring-framework,6.2,2026-06-30
+spring-framework,7.0,2027-07-31
+spring-framework,7.1,2027-12-31

@@ -60,10 +60,12 @@ final class QualityBar {
    */
   private static final Set<String> LEGEND_TEMPLATES = Set.of("c4-model-sequence-diagrams");
 
-  /** The top-level sections the Brief's rows need that no section kind composes yet (#164). */
-  static final String BLAST_RADIUS = "blast_radius";
+  /** The top-level sections the Brief's rows need. */
+  static final String BLAST_RADIUS = SectionKind.BLAST_RADIUS.jsonName();
 
-  static final String TECHNOLOGY_CURRENCY = "technology_currency";
+  static final String TECHNOLOGY_CURRENCY = SectionKind.TECHNOLOGY_CURRENCY.jsonName();
+
+  /** The quality evidence section, which no section kind composes yet. */
   static final String QUALITY_EVIDENCE = "quality_evidence";
 
   static final String TITLE = "A title naming its type and scope";
@@ -91,7 +93,7 @@ final class QualityBar {
   static final String DECISIONS = "Observed decisions, with rationale or marked unknown";
   static final String BLAST = "Who depends on it and what it depends on (blast radius)";
   static final String CURRENCY = "Technology currency";
-  static final String RISKS = "Risks ranked by impact";
+  static final String RISKS = "Risks ranked by impact, each with its consequence and confidence";
   static final String EVIDENCE = "Quality evidence";
 
   private static final int ORIENTATION_WORDS = 300;
@@ -842,11 +844,16 @@ final class QualityBar {
     }
     Callout.Severity last = Callout.Severity.HIGH;
     List<String> unranked = new ArrayList<>();
+    List<String> unexplained = new ArrayList<>();
     boolean ordered = true;
     for (Block block : risks.blocks()) {
       if (block instanceof Callout c && c.variant() == Callout.Variant.RISK) {
+        String name = c.title() == null ? oneLine(plain(c.content())) : c.title();
+        if (c.consequence() == null || c.confidence() == null) {
+          unexplained.add(name);
+        }
         if (c.severity() == null) {
-          unranked.add(c.title() == null ? oneLine(plain(c.content())) : c.title());
+          unranked.add(name);
         } else {
           ordered &= c.severity().compareTo(last) >= 0;
           last = c.severity();
@@ -858,6 +865,12 @@ final class QualityBar {
           RISKS,
           CrossReference.Target.section(risks.id()),
           "No impact for " + names(unranked) + ".");
+    }
+    if (!unexplained.isEmpty()) {
+      fail(
+          RISKS,
+          CrossReference.Target.section(risks.id()),
+          "No consequence or confidence for " + names(unexplained) + ".");
     }
     if (!ordered) {
       fail(
