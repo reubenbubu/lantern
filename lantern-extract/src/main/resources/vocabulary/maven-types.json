@@ -43,5 +43,12 @@
     "description": "The Maven packaging of the subject module, such as jar, war or pom.",
     "attributeSchema": { "additionalProperties": false },
     "objectKind": "string"
+  },
+  {
+    "name": "java-release",
+    "kind": "attribute",
+    "description": "The major Java release the subject module compiles for, such as 21, from maven.compiler.release, the compiler plugin's release or source, maven.compiler.source or java.version, in that order.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
   }
 ]

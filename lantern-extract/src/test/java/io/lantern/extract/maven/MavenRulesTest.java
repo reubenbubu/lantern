@@ -226,4 +226,55 @@ class MavenRulesTest {
             "module:g:top packaging pom @broken:pom.xml#1-1 0.7",
             "module:g:top version 1 @broken:pom.xml#1-1 0.7");
   }
+
+  @Test
+  void theJavaReleaseComesFromTheReleaseBeforeTheSourceAndJavaVersion() throws IOException {
+    Repo release =
+        repo(
+            "release",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "release",
+                    "<properties><java.version>11</java.version>"
+                        + "<maven.compiler.source>1.8</maven.compiler.source></properties>"
+                        + "<build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>"
+                        + "<configuration><release>${jdk}</release></configuration></plugin>"
+                        + "</plugins></build>"),
+                "jdk.txt",
+                ""));
+    Repo source =
+        repo(
+            "source",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "source",
+                    "<properties><v>1.8</v><java.version>11</java.version>"
+                        + "<maven.compiler.source>${v}</maven.compiler.source></properties>")));
+    Repo none = repo("none", Map.of("pom.xml", pom("g", "none", "")));
+
+    List<String> facts =
+        extract(release, source, none).stream().filter(f -> f.contains(" java-release ")).toList();
+
+    // The release names a property nothing sets, so the source wins over java.version.
+    assertThat(facts)
+        .containsExactly(
+            "module:g:release java-release 8 @release:pom.xml#1-1 0.7",
+            "module:g:source java-release 8 @source:pom.xml#1-1 0.7");
+  }
+
+  @Test
+  void majorJavaVersions() {
+    assertThat(MavenExtractor.majorJavaVersion("21")).isEqualTo("21");
+    assertThat(MavenExtractor.majorJavaVersion("1.8")).isEqualTo("8");
+    assertThat(MavenExtractor.majorJavaVersion(" 17.0.2 ")).isEqualTo("17");
+    assertThat(MavenExtractor.majorJavaVersion("1.8.0_202")).isEqualTo("8");
+    assertThat(MavenExtractor.majorJavaVersion("21-ea")).isNull();
+    assertThat(MavenExtractor.majorJavaVersion("${java.version}")).isNull();
+    assertThat(MavenExtractor.majorJavaVersion("")).isNull();
+    assertThat(MavenExtractor.majorJavaVersion(null)).isNull();
+  }
 }
