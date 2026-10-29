@@ -47,7 +47,7 @@
     "name": "external-system",
     "kind": "entity",
     "parent": "system",
-    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host has a domain and names no unit. Its key is the host, such as sandbox.paygate.example.com; the hosts the same call reaches under other profiles are separate systems, named by the call's alternates.",
+    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host has a domain and names no unit, or from the mail server a unit's config names (spring.mail.host). Its key is the host, such as sandbox.paygate.example.com or smtp.gmail.com; the hosts the same call reaches under other profiles are separate systems, named by the call's alternates.",
     "attributeSchema": {
       "additionalProperties": false
     }
@@ -558,6 +558,60 @@
             "type": "string"
           },
           "description": "The entity IDs of the object's tables the subject writes."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "SENDS_MAIL",
+    "kind": "relationship",
+    "parent": "CALLS",
+    "description": "The subject unit sends mail through the object external system, the mail server its config names (spring.mail.host). One fact per method that sends mail; a unit whose config names a mail server but whose code sends none the extractor recognises has one without source.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on the subject's side and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from: the mail-send fact and the config values, in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "SMTP, or SMTPS when spring.mail.protocol says smtps or the port is 465."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the method that sends the mail. Absent when only the config shows mail is sent."
+        },
+        "host": {
+          "type": "string",
+          "description": "The mail server's host, from spring.mail.host."
+        },
+        "port": {
+          "type": "string",
+          "description": "The mail server's port, from spring.mail.port, if set."
+        },
+        "key": {
+          "type": "string",
+          "description": "The config key that names the host."
         },
         "exceptProfiles": {
           "type": "array",

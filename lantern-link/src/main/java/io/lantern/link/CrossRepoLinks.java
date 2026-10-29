@@ -65,6 +65,9 @@ public final class CrossRepoLinks implements LinkStep {
   /** Relationship: a unit calls another unit or an external system over HTTP. */
   public static final String CALLS_HTTP = "CALLS_HTTP";
 
+  /** Relationship: a unit sends mail through an external mail server. */
+  public static final String SENDS_MAIL = "SENDS_MAIL";
+
   /** Relationship: a unit sends messages to a topic, queue or exchange. */
   public static final String PUBLISHES = "PUBLISHES";
 
@@ -134,6 +137,7 @@ public final class CrossRepoLinks implements LinkStep {
     new HttpLinker(index, found).link();
     new MessageLinker(index, found).link();
     new DataLinker(index, found).link(ORIGIN, validity);
+    new MailLinker(index, found).link();
     new RedisLinker(index, found).link(ORIGIN, validity);
     new PeopleLinker(index, found).link(ORIGIN, validity);
     Map<String, Fact> derived = new LinkedHashMap<>();

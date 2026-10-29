@@ -36,6 +36,7 @@ final class FactSheet {
         "Links",
         List.of(
             "CALLS_HTTP",
+            "SENDS_MAIL",
             "SENDS_MESSAGES_TO",
             "PUBLISHES",
             "CONSUMES",
@@ -43,6 +44,7 @@ final class FactSheet {
             "USES_INFRASTRUCTURE",
             "http-call",
             "message-send",
+            "mail-send",
             "http-client")),
     DATA_STORES(
         "Data stores",
