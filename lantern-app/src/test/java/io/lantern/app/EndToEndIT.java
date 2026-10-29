@@ -10,10 +10,12 @@ import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.sandbox.BuildResult;
@@ -210,10 +212,17 @@ class EndToEndIT {
     // Two repositories, the service depending on the library.
     Path lib = fixtureRepo("lib-and-service/lib", "greeting-lib");
     Path service = fixtureRepo("lib-and-service/service", "greeting-service");
+    // A README, whose claims the docs extractor gives origin kind readme, not static (#165).
+    TestGitRepo.init(lib).commit("README.md", "# Greeting\n\nThe library greets people.\n");
 
     AnalysisRun.Result first = run.run(Map.of("greeting-lib", lib));
     List<Fact> libFacts = validIn(first, "greeting-lib");
     assertThat(libFacts).hasSize(first.facts());
+    List<Fact> readmeFacts =
+        libFacts.stream().filter(f -> f.origin().kind() == Origin.Kind.README).toList();
+    assertThat(readmeFacts)
+        .extracting(f -> f.predicate() + " " + f.object().value())
+        .containsExactly(DocsExtractor.CLAIM + " The library greets people.");
 
     // The second run analyzes only the service; the library is carried forward, its facts keep
     // holding, and the service's dependency on it is found as internal. The service builds, with
@@ -291,7 +300,8 @@ class EndToEndIT {
     // facts nor the mark that the library was analyzed, so the next run carries the library
     // forward at the commit its facts come from, not at the failed run's commit (#61).
     String analyzedLib = first.snapshot().commits().get("greeting-lib");
-    String failedLib = TestGitRepo.init(lib).commit("NOTES.txt", "A change never analyzed.");
+    String failedLib =
+        TestGitRepo.init(lib).commit("README.md", "# Greeting\n\nThe library says hello.\n");
     assertThatThrownBy(() -> failingToStoreFacts().run(Map.of("greeting-lib", lib)))
         .hasMessage(STORE_FAILED);
     AnalysisRun.Result afterFailure = run.run(Map.of("greeting-service", service));
@@ -314,6 +324,18 @@ class EndToEndIT {
     assertThat(rebuiltService.status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(rebuiltService.upstream()).containsExactly("greeting-lib@" + failedLib);
     assertThat(rebuiltService.startedAt()).isAfter(serviceBuild.startedAt());
+    // The README claim of the old commit stops holding, and the new commit's holds.
+    List<Fact> movedLib = validIn(moved, "greeting-lib");
+    assertThat(movedLib).doesNotContainAnyElementsOf(readmeFacts);
+    assertThat(movedLib)
+        .filteredOn(f -> f.origin().kind() == Origin.Kind.README)
+        .extracting(f -> f.object().value())
+        .containsExactly("The library says hello.");
+    for (Fact fact : readmeFacts) {
+      assertThat(facts.findById(fact.id()).orElseThrow().validity().to())
+          .as("end of %s", fact.id())
+          .isEqualTo(moved.snapshot().number());
+    }
   }
 
   @Test
