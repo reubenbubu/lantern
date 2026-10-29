@@ -392,7 +392,8 @@ public final class AnalysisRun {
       Path runRecord =
           RunRecord.write(
               out,
-              RunRecord.of(snapshot.number(), llm.models(), callLog.spentByModelSince(started)));
+              RunRecord.of(
+                  system, snapshot.number(), llm.models(), callLog.spentByModelSince(started)));
       LOG.info("Wrote {}", runRecord);
       return new Result(
           system,

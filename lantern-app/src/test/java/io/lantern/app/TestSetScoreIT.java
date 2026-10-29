@@ -7,6 +7,7 @@ import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.RepoRegistry;
+import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.link.ResolutionStore;
 import io.lantern.llm.FakeLlmProvider;
@@ -138,7 +139,7 @@ class TestSetScoreIT {
     Path out = Path.of("target", "test-sets", set).toAbsolutePath();
     deleteRecursively(out);
 
-    AnalysisRun.Result first = run.run(repos);
+    AnalysisRun.Result first = run.run(set, null, repos);
     first
         .builds()
         .forEach(
@@ -161,7 +162,7 @@ class TestSetScoreIT {
     AnalysisRun.Result second;
     try (LlmAccess access =
         LlmConfiguration.create(switched, List.of(fake), callLog, Clock.systemUTC())) {
-      second = withLlm(access).run(repos);
+      second = withLlm(access).run(set, null, repos);
     }
     Path secondCard = keep(second, out, "fake-priced");
 
@@ -194,6 +195,7 @@ class TestSetScoreIT {
     return new AnalysisConfiguration()
         .analysisRun(
             context.getBean(RepoRegistry.class),
+            context.getBean(SystemRegistry.class),
             context.getBean(SnapshotStore.class),
             context.getBean(AnalysisLock.class),
             context.getBean(BuildSandbox.class),

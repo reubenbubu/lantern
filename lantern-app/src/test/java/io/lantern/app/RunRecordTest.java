@@ -48,10 +48,11 @@ class RunRecordTest {
             new JdbcLlmCallLog.ModelSpending(
                 Role.INFER_INTENT, "anthropic", "sonnet", 2, 500, new BigDecimal("0.0150")));
 
-    Path file = RunRecord.write(directory, RunRecord.of(7, models(settings), spent));
+    Path file = RunRecord.write(directory, RunRecord.of("shop", 7, models(settings), spent));
 
     assertThat(file.getFileName().toString()).isEqualTo("run.json");
     JsonNode record = JsonMapper.builder().build().readTree(Files.readString(file));
+    assertThat(record.get("system").asString()).isEqualTo("shop");
     assertThat(record.get("snapshot").asLong()).isEqualTo(7);
     assertThat(record.get("calls").asLong()).isEqualTo(6);
     assertThat(record.get("tokens").asLong()).isEqualTo(1500);

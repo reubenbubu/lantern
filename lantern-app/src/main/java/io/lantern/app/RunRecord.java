@@ -34,15 +34,20 @@ final class RunRecord {
   /**
    * The record of a run.
    *
+   * @param system the system the run analyzed
    * @param snapshot the snapshot the run made
    * @param models the model each role was configured with
    * @param spent the run's calls by role, provider and model
    */
   static ObjectNode of(
-      long snapshot, Map<Role, ModelConfig> models, List<JdbcLlmCallLog.ModelSpending> spent) {
+      String system,
+      long snapshot,
+      Map<Role, ModelConfig> models,
+      List<JdbcLlmCallLog.ModelSpending> spent) {
     Objects.requireNonNull(models, "models");
     Objects.requireNonNull(spent, "spent");
     ObjectNode root = MAPPER.createObjectNode();
+    root.put("system", system);
     root.put("snapshot", snapshot);
     long calls = 0;
     long tokens = 0;
