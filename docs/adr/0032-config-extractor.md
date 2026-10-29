@@ -84,15 +84,31 @@ what the facts look like and how a secret written in a config file is handled.
 
 - **Every URL in a value loses its credentials, the rest is kept.** A literal credential inside a
   URL under a key that is not a secret (`spring.datasource.url=jdbc:postgresql://user:pass@db/shop`)
-  used to be recorded as written. Now the value and its `written` form go through the persistence
-  extractor's `UrlCredentials` (ADR 0036), extended to every URL shape: a URL starts with `jdbc:`,
-  `r2dbc:` or any `scheme://` (`amqp://`, `redis://`, `mongodb+srv://`, `https://`, ...), also
-  inside a placeholder default (`${DB_URL:jdbc:...}`), and ends at whitespace or at a comma before
-  another URL, so a value may hold several. Each loses the user info before the host
-  (`//user:password@`, `redis://:password@`), Oracle's `thin:user/password@`, and every `?`, `&`
-  or `;` property naming a user or a secret (judged by name as keys are: `password`, `pwd`,
-  `token`, `apikey`, `access_key`, ..., any case); a `#fragment` is kept. Host, port, path and
-  other properties stay, as the linker needs them. A value a placeholder resolves into such a URL
-  is cleaned the same way. A fact that lost a credential carries `masked: true`. A value with a URL
-  that still looks like it holds a credential (`password=` in a form not understood) is recorded
-  as `******`, masked. Values without URLs are unchanged. The extractor's version becomes 2.
+  used to be recorded as written. Now the value and its `written` form go through
+  `UrlCredentials`, shared with the persistence extractor (ADR 0036):
+  - A URL starts with `jdbc:`, `r2dbc:` or any `scheme://` (`amqp://`, `redis://`,
+    `mongodb+srv://`, `https://`, ...); a placeholder may be the scheme or a subprotocol
+    (`${PROTO:https}://`, `jdbc:${DB_VENDOR:postgresql}://`), and a URL inside a placeholder's
+    default (`${DB_URL:jdbc:...}`) is cleaned too. It ends at whitespace, or at a comma before
+    another URL or before `user:password@host`, so a value may hold several.
+  - It loses its user info: there is some if an `@` comes before the first `/ ? #` of the
+    authority, or if the authority starts with `user:` and what follows the colon up to the first
+    `/ ? #` is not a port (so `amqp://u:p#ss@rabbit` loses it, `https://medium.com/@team` and
+    `http://host:8080/@team` keep their path). It ends at the last `@` before the first
+    `/ ? # ,` after its first `@`, so a password holding `@` goes too, and Mongo's further hosts
+    stay. Oracle's `thin:user/password@` goes too.
+  - It loses every `?`, `&` or `;` property naming a user (`user`, `username`, `uid`, ...) or a
+    secret, any case, `-` and `_` ignored: a name a config key would be secret by, one holding
+    `password`, `passwd`, `secret`, `credential`, `signature` or `token`, or one of `pass`, `pw`,
+    `sig`, `key`, `auth`, `authorization`, `passphrase` (so `api_key`, `access_key`, Azure's
+    `sig`, `X-Amz-Signature`). Other properties, separators and a `#fragment` are kept as
+    written; only when the property after `?` goes does the next `&` become `?`.
+  - Outside URLs, a `user:password@host` token (`spring.rabbitmq.addresses=guest:guest@r1,...`)
+    loses its user info.
+- Host, port, path and other properties stay, as the linker needs them. A value a placeholder
+  resolves into such a URL is cleaned the same way. A fact that lost a credential carries
+  `masked: true`; a value without one is recorded byte for byte. A value with a URL that still
+  looks like it holds a credential (`password=`, `pass=`, `sig=`, `key=` ... in a form not
+  understood) is recorded as `******`, masked. The extractor's version becomes 2.
+- **Not covered:** secrets in other forms, such as Kafka's
+  `sasl.jaas.config=... password="x";` (#143).

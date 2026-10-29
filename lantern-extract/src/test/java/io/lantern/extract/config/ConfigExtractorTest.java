@@ -290,6 +290,9 @@ class ConfigExtractorTest {
                 cache.base=redis://:pw@cache:6379
                 odd.url=jdbc:mysql://address=(host=db)(password=p)/shop
                 plain.url=http://localhost:8080/api
+                spring.rabbitmq.addresses=guest:guest@r1:5672,guest:guest@r2
+                api.url=${PROTO:https}://bot:tok@api.example.com/v1
+                blog.url=https://medium.com/@team/post?a=1?b=2
                 """));
 
     assertThat(extract(repo))
@@ -313,6 +316,17 @@ class ConfigExtractorTest {
             "module:g:app config-value redis://cache:6379/0"
                 + " {\"key\":\"cache.url\",\"masked\":true,\"written\":\"${cache.base}/0\"}"
                 + " @app:src/main/resources/application.properties#4-4 1.0",
+            "module:g:app config-value r1:5672,r2"
+                + " {\"key\":\"spring.rabbitmq.addresses\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#8-8 1.0",
+            "module:g:app config-value https://api.example.com/v1"
+                + " {\"key\":\"api.url\",\"masked\":true,"
+                + "\"written\":\"${PROTO:https}://api.example.com/v1\"}"
+                + " @app:src/main/resources/application.properties#9-9 1.0",
+            // A URL without credentials is recorded byte for byte, not marked masked.
+            "module:g:app config-value https://medium.com/@team/post?a=1?b=2"
+                + " {\"key\":\"blog.url\"}"
+                + " @app:src/main/resources/application.properties#10-10 1.0",
             // A credential in a form not understood masks the whole value.
             "module:g:app config-value ****** {\"key\":\"odd.url\",\"masked\":true}"
                 + " @app:src/main/resources/application.properties#6-6 1.0");

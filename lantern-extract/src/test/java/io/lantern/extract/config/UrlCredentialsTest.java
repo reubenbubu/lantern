@@ -118,6 +118,26 @@ class UrlCredentialsTest {
           jdbc:postgresql://${DB_USER}:${DB_PASS}@${DB_HOST:db}/shop?password=${PW} | jdbc:postgresql://${DB_HOST:db}/shop
           # Several URLs in one value
           amqp://a:1@r1,amqp://b:2@r2                               | amqp://r1,amqp://r2
+          # A placeholder as the scheme or subprotocol
+          jdbc:${DB_VENDOR:postgresql}://user:pass@db/shop          | jdbc:${DB_VENDOR:postgresql}://db/shop
+          ${PROTO:https}://u:p@h/x                                  | ${PROTO:https}://h/x
+          # A password holding # ? / or @
+          amqp://u:p#ss@rabbit/vh                                   | amqp://rabbit/vh
+          amqp://u:p?ss@rabbit                                      | amqp://rabbit
+          amqp://u:p/ss@rabbit/vh                                   | amqp://rabbit/vh
+          amqp://u:p@ss@rabbit/vh?heartbeat=10                      | amqp://rabbit/vh?heartbeat=10
+          # Secret property names beyond config keys'
+          https://acct.blob.core.windows.net/c?sv=2020&sig=abc&se=1 | https://acct.blob.core.windows.net/c?sv=2020&se=1
+          https://s3.example.com/b?X-Amz-Credential=c&X-Amz-Signature=s&x=1 | https://s3.example.com/b?x=1
+          https://api.example.com/v1?key=k&q=1                      | https://api.example.com/v1?q=1
+          https://api.example.com/v1?q=1&pass=p&auth=a              | https://api.example.com/v1?q=1
+          # User info without a scheme
+          guest:guest@r1:5672,guest:guest@r2                        | r1:5672,r2
+          user:p@ss@host                                            | host
+          amqp://a:1@r1,b:2@r2                                      | amqp://r1,r2
+          # Separators are copied as written
+          https://x.example/a?a=1?password=p&b=2;c=3                | https://x.example/a?a=1?b=2;c=3
+          jdbc:h2:mem:t;PASSWORD=x;                                 | jdbc:h2:mem:t;
           primary=jdbc:postgresql://u:p@db1/shop backup=redis://:p@c | primary=jdbc:postgresql://db1/shop backup=redis://c
           """)
   void removesCredentialsOfEachShapeAndKeepsTheRest(String written, String expected) {
@@ -136,7 +156,14 @@ class UrlCredentialsTest {
         "file:///var/data",
         "${TAX_SERVICE_URL}",
         "orders@example.com",
-        "user:pass@host",
+        "jdbc:postgresql://db/shop?sslkey=/k&sslmode=require",
+        "https://medium.com/@team/post",
+        "http://host:8080/@team/post",
+        "https://x.example/a?a=1?b=2",
+        "https://x.example/a?",
+        "https://x.example/a;p=1?q=2&&r=3",
+        "jdbc:h2:mem:t;",
+        "git@github.com:org/repo.git",
         "classpath:db/migration",
         "order.created",
         "password=x",
@@ -151,9 +178,17 @@ class UrlCredentialsTest {
   @ValueSource(
       strings = {
         "jdbc:mysql://address=(host=db)(user=u)(password=p)/shop",
-        "jdbc:db2://db:50000/shop:password=p;"
+        "jdbc:db2://db:50000/shop:password=p;",
+        "jdbc:mysql://address=(host=db)(pass=p)/shop",
+        "jdbc:mysql://address=(host=db)(key=k)/shop"
       })
   void aCredentialInAFormNotUnderstoodIsReported(String text) {
     assertThat(UrlCredentials.mayHoldCredential(clean(text))).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"jdbc:postgresql://db/shop?sslkey=/k", "amqp://rabbit?routingkey=a"})
+  void ordinaryPropertiesAreNotReportedAsCredentials(String text) {
+    assertThat(UrlCredentials.mayHoldCredential(clean(text))).isFalse();
   }
 }
