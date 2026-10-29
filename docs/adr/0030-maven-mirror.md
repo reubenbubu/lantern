@@ -1,6 +1,6 @@
 # 0030: One Maven mirror for every sandbox download
 
-Status: accepted (#117), pending the user's review (#24)
+Status: accepted (#117), amended (#212), pending the user's review (#24)
 
 ## Context
 
@@ -45,7 +45,8 @@ for `https` but not for `http`.
 - **The address stays out of the repository.** It is the host's own setting, in a properties file
   outside the repository, passed to Lantern with `--spring.config.additional-location`. The
   integration tests that run sandbox builds (`BuildSandboxIT`, `Project0BuildIT`,
-  `MavenExtractorIT`, `JavaExtractorIT`, `EndToEndIT`) read the mirror from the Lantern properties
+  `MavenExtractorIT`, `JavaExtractorIT`, `EndToEndIT`, and the project-0 tests of `lantern-extract`,
+  `lantern-link` and `lantern-app` that build) read the mirror from the Lantern properties
   file named, by absolute path, by the system property `lantern.test.properties`, or else the
   environment variable `LANTERN_TEST_PROPERTIES`, and use Maven Central without one.
 
@@ -67,7 +68,31 @@ for `https` but not for `http`.
 - `BuildSandboxIT` builds through the mirror when one is set, and then checks that even Maven
   Central is refused and, on a cache of its own, that the `lombok` fixture's dependency and the
   compiler and dependency plugins came through the mirror, and nothing from anywhere else. The
-  tests of configured repositories (ADR 0023) clear the mirror and still use Maven Central.
+  tests of configured repositories (ADR 0023) clear the mirror and still use Maven Central
+  (since #212 they are skipped when a test mirror is set; see the amendment below).
 - The mirror's URL rules are checked by `MavenMirrorTest`, the generated mirror by
   `MavenSettingsTest`, the allowed host by `SandboxSettingsTest`, the binding by
   `SandboxPropertiesTest`, and the forwarding by `EgressProxyTest`.
+
+## Amendment (#212): nothing from Maven Central where a proxy is set up
+
+Parallel tasks on the development machine were still rate-limited by Maven Central (HTTP 429),
+because a full `./mvnw verify` reached it in three places: the Maven wrapper's download of Maven,
+the two `BuildSandboxIT` tests of configured repositories (ADR 0023), which clear the mirror and
+build against Maven Central and `repo1.maven.org` on purpose, and every sandbox build when no test
+properties file was named (every test that runs a sandbox build reads it, as listed above). Host Maven already goes through the machine's own `~/.m2/settings.xml`.
+
+- **One local proxy, set up per machine and never in the repository.** A machine with a Maven
+  repository manager that proxies Maven Central mirrors `*` to it in `~/.m2/settings.xml`, exports
+  `MVNW_REPOURL` with its URL (the wrapper then downloads Maven from it instead of the
+  `distributionUrl` host), and exports `LANTERN_TEST_PROPERTIES` naming a properties file that sets
+  the mirror above. The sandbox's mirror cannot be `localhost`, which build containers do not
+  reach and which stays refused, so it is the host's private-network IPv4 address and the proxy
+  must listen on it. CLAUDE.md's Commands section says how. A machine without a proxy sets none
+  of this, and everything uses Maven Central as before.
+- **The tests of configured repositories are skipped when a test mirror is set.** They exist to
+  show that builds reach Maven Central and `repo1.maven.org`, which a mirrored machine must not
+  contact, and a configured repository cannot be the mirror (it must be `https` with a host
+  name). They still run on machines without a mirror; the generated settings and the allowed hosts
+  stay covered there and by `MavenSettingsTest` and `SandboxSettingsTest` everywhere. On a mirrored
+  machine, no real build exercises the egress path for configured repositories any more.
