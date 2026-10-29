@@ -1,6 +1,6 @@
 # 0070: Course correction: measured against references, and the LLM may find
 
-Status: accepted (#250), amends ADRs 0018, 0026, 0031, 0042, 0043, 0044, 0047 and 0050 and the
+Status: accepted (#250), amends ADRs 0010, 0018, 0026, 0031, 0042, 0043, 0044, 0047 and 0050 and the
 design's Grounding, pending the user's review (#24)
 
 ## Context
@@ -56,13 +56,13 @@ The user's decisions, recorded here; the design says what follows from them.
    "Accepted when" for every issue, stated as output on named test sets; every PR carries evidence
    (scores before and after, and an excerpt or screenshot of the generated document); reviewers
    check the evidence against the criteria. Each milestone ends with one test drop, outside the
-   repository, that the user tests; the user's verdict closes the milestone. How is in `CLAUDE.md`
+   repository, that the user tests, tracked by a "Test drop <milestone>" issue; the user's verdict closes the milestone. How is in `CLAUDE.md`
    (How work is organized).
 4. **Test sets** (design, Phasing). project-1 to project-4 are for development and PR evidence,
    each with a hand-made reference (#251). project-5, project-6 and project-7
    (booking-microservices, spring-petclinic-microservices, piggymetrics) are held out: nobody
-   reads their code or analyzes them until 2D's acceptance. project-8 (FleetCare), synthetic and
-   larger than project-0, is a development set.
+   reads their code or analyzes them until 2D's acceptance. project-8 (FleetCare, #285), synthetic and
+   larger than project-0, is a development set, like project-0; synthetic sets are never held out.
 5. **Systems and repositories.** One analysis covers one named system (#253). Repositories without
    a Maven build are accepted (#254). Deployment descriptors and frontends move from Phase 5 into
    Phase 2 (#266, #267).
@@ -81,6 +81,9 @@ The user's decisions, recorded here; the design says what follows from them.
 - **Design, LLM integration, Grounding:** "The LLM never invents elements or relationships" is
   superseded. Boxes, lines and risks may now also come from verified Investigate proposals; the
   guard rails are in the design. Wording roles (Summarize, Infer intent, Compose) still only word.
+- **ADR 0010** (amended): its rule that every LLM output cites the facts or summaries it used has
+  one exception: Investigate's proposals cite file:line ranges, which Lantern verifies (design,
+  Grounding). Summaries still cite as before.
 - **ADR 0018** (amended): carrying forward is now within one named system. A snapshot belongs to a
   system and carries forward only that system's repositories; a repository can be removed from a
   system and is then not carried forward, replacing "Removing a repository from the system is not
@@ -95,15 +98,15 @@ The user's decisions, recorded here; the design says what follows from them.
 - **ADR 0031** (amended): content that is not at a C4 level no longer goes onto C4 pages. Decisions
   (until now a section after the container diagram, ADR 0044), risks, unknowns, the glossary, the
   catalog and the sources become documentation pages after the sequence diagrams once the spec has
-  them (#249). Elements and lines that Investigate found are marked as found by the LLM within what
-  the spec allows. `person` and `external` elements may now come from the code and Investigate,
+  them (#249). Elements, lines and risks that Investigate found are marked as found by the LLM; the
+  marker is C4 content, and the spec gains it with #249. `person` and `external` elements may now come from the code and Investigate,
   not only annotations. The renderer's mapping, IDs and checks stand.
 - **ADR 0042** (amended): a datasource whose server or database is a placeholder no longer stays an
   `unresolved-link` of kind `database`; it becomes a database of its unit alone (keyed by unit and
   key, never shared), named from what is known, with the technology from the URL (#255). Shared
   databases between units still need the same resolved server and database.
 - **ADR 0043** (amended): the README claim checks are frozen as they are. No new fixed readings of
-  words are added in Phase 2, whose effort goes to finding the system (#250). Claims none of them
+  words are added in Phase 2 (fixing bugs in the existing checks is still allowed), whose effort goes to finding the system (#250). Claims none of them
   reads stay unjudged until #221 (LLM judgment), which stays in Later.
 - **ADR 0044** (amended): the system is the analysis's named system, and its report is named after
   it, not after its repositories (#253). The container view is one view of the whole system, split

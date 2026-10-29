@@ -16,8 +16,9 @@ any code that changes the design. This file covers only how you work.
 - Tasks are GitHub issues in `reubenbubu/lantern`. Phases, or their parts (2A to 2E), are
   milestones.
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
-  which test sets (`docs/design.md`, Test sets). The coordinator writes it. A PR runs Lantern on
-  those sets only; the milestone's test drop runs all of them.
+  which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The coordinator
+  writes it. A PR runs Lantern on those sets only; the milestone's test drop runs all development
+  sets, and held-out ones only at 2D's acceptance.
 - Held-out test sets (`docs/design.md`, Test sets) are only pinned: no session reads their code,
   analyzes them or looks at their output until 2D's acceptance, where they are scored and judged
   once.
@@ -30,9 +31,11 @@ any code that changes the design. This file covers only how you work.
      branch named `<prefix>/<number>-<short-slug>`, e.g. `feature/12-maven-extractor`. The
      prefix is `feature/`, `bugfix/` or `chore/`, chosen by the issue type.
   3. Build and test until everything passes. Commits carry no `Co-Authored-By` trailer.
-  4. Open a PR whose description says `Closes #<number>` and carries the evidence the "Accepted
-     when" asks for: the scores before and after on the named test sets, and an excerpt or
-     screenshot of the generated document. A PR without evidence is not mergeable.
+  4. Open a PR whose description says `Closes #<number>` and carries the evidence its issue's
+     "Accepted when" names. A change to Lantern's output shows the scores before and after on the
+     named test sets and an excerpt or screenshot of the generated document; until the scoring
+     command exists (#252), excerpts before and after stand in for scores. A docs or chore issue
+     names its own evidence. A PR without evidence is not mergeable.
   5. A separate reviewer subagent reviews the PR diff and checks the evidence against the
      "Accepted when". Give it the diff, the evidence and the issue, not the implementer's
      reasoning. Fix what it finds.
@@ -73,13 +76,14 @@ any code that changes the design. This file covers only how you work.
   `haiku` 4. The subagents running at any moment, reviewers included, must cost 100 or
   less in total. The budget only caps parallelism: tasks that could clash (same files,
   the local database, shared resources) still never run together, whatever is left.
-- Each milestone ends with one test drop, which the user tests. When its last issue is merged, a
-  subagent writes it to `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's
+- Each milestone ends with one test drop, which the user tests, tracked by an issue titled "Test
+  drop <milestone>" in that milestone and linked from its description. When the milestone's other
+  issues are merged, a subagent writes the drop to `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's
   documents and the reference side by side, the scorecards (from 2D also the judge's verdicts),
   and a README with what the milestone set out to do, a checklist of what to try, the known gaps,
-  and the commits and models used. Add its path to the milestone's description and tell the user.
-  The user's verdict, added to the milestone's description, closes the milestone; what the user
-  rejects reopens its issue or becomes a new one.
+  and the commits and models used. Its path goes on the test-drop issue, and the user is told.
+  The user's verdict, recorded on that issue, closes it and the milestone; what the user rejects
+  reopens its issue or becomes a new one.
 - Keep issues current. If scope changes, a task is blocked, or you find new work, update or
   open an issue right away. An issue's state must always match reality.
 
