@@ -1,6 +1,6 @@
 # 0025: Summary prompt wording and length
 
-Status: accepted (#71), amended by ADR 0058 (#193), pending the user's review (#24)
+Status: accepted (#71), amended by ADR 0059 (#193), pending the user's review (#24)
 
 ## Context
 
@@ -25,7 +25,7 @@ asks for audiences up to executives (Composition, granularity table) and keeps e
   `@RestController`, `@Entity`, `@KafkaListener`), Javadoc and code, or from the parts' summaries,
   and forbids sentences saying the input does not show something; what cannot be told is left
   out. Where the purpose is not clear, the first sentence says what the unit is and contains
-  instead, so the model is not pushed to invent one. Since ADR 0058 the model takes the purpose
+  instead, so the model is not pushed to invent one. Since ADR 0059 the model takes the purpose
   from README claims, Javadoc or an evidenced part's summary where the input has them, infers it
   only otherwise, and marks which it did; documents show an inferred purpose as such.
 - **Citation rules are unchanged.** The prompt still asks for references at the end of every
@@ -46,7 +46,7 @@ asks for audiences up to executives (Composition, granularity table) and keeps e
   system prompt also asks every unit not to restate its parts' summaries sentence by sentence.
 - **Repository summaries are written for the business reader**: role and main capabilities first,
   frameworks and libraries briefly if at all, also when its summary is merged from parts (ADR
-  0024). Since ADR 0058 a repository's prompt also shows its README's first claims.
+  0024). Since ADR 0059 a repository's prompt also shows its README's first claims.
 - **Each level says how much to write and what to cover**, in the user turn, with the numbers
   kept in `SummaryLevel` next to the word limits (about 20 words a sentence, which a test checks).
   The system prompt's first-sentence rule applies at every level.

@@ -13,6 +13,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
@@ -38,7 +39,9 @@ import java.util.TreeSet;
  * there with a note. Participants are containers: deployable units, databases, topics, queues and
  * exchanges, and external systems, named as on the container diagram. An HTTP call or a send is
  * labelled with the LLM's intent phrase for its link where there is one (ADR 0050), the endpoint or
- * protocol after it; other labels say what the facts say (the handler, the routing key).
+ * protocol after it; other labels say what the facts say (the handler, the routing key). A flow's
+ * walkthrough and pre- and post-conditions are the LLM's where it worded the flow as traced here
+ * (ADR 0058), else the prose says what the trace found and the conditions are not known.
  */
 final class SequenceFlows {
 
@@ -149,6 +152,11 @@ final class SequenceFlows {
     final Set<String> reached = new HashSet<>();
     final SortedSet<String> asyncThrough = new TreeSet<>();
     final List<String> unresolved = new ArrayList<>();
+
+    /** The steps as the LLM's prompt shows them: by their facts, without intent phrases. */
+    List<WordingPrompt.FlowStep> outline = new ArrayList<>();
+
+    int depth;
     int messages;
     boolean truncated;
 
@@ -173,10 +181,47 @@ final class SequenceFlows {
         List<String> profiles,
         String info,
         List<Fact> facts) {
+      message(from, to, label, code, kind, profiles, info, facts, label, facts);
+    }
+
+    /**
+     * Adds a message.
+     *
+     * @param plain the label the facts alone give, for the LLM's prompt
+     * @param plainFacts the facts behind it, without those the LLM's intent phrase cites
+     */
+    void message(
+        EntityId from,
+        EntityId to,
+        String label,
+        String code,
+        SequenceDiagram.MessageKind kind,
+        List<String> profiles,
+        String info,
+        List<Fact> facts,
+        String plain,
+        List<Fact> plainFacts) {
       if (full()) {
         return;
       }
       messages++;
+      StringBuilder line =
+          new StringBuilder(nameOf(from))
+              .append(" to ")
+              .append(nameOf(to))
+              .append(" (")
+              .append(WordingPrompt.kind(to))
+              .append("), ")
+              .append(kind == SequenceDiagram.MessageKind.ASYNC ? "async" : "sync")
+              .append(": ")
+              .append(plain);
+      if (code != null) {
+        line.append(" [").append(code).append(']');
+      }
+      if (info != null) {
+        line.append(". ").append(info);
+      }
+      outline(line, profiles, plainFacts);
       if (from != null) {
         participants.add(from);
       }
@@ -204,6 +249,7 @@ final class SequenceFlows {
         return;
       }
       participants.addAll(over);
+      outline(new StringBuilder("Note: ").append(text), profiles, facts);
       items.add(
           new Item(
               new SequenceDiagram.Note(
@@ -211,6 +257,17 @@ final class SequenceFlows {
                   List.of(TextRun.of(text)),
                   assembler.facts(facts)),
               profiles));
+    }
+
+    private void outline(StringBuilder line, List<String> profiles, List<Fact> facts) {
+      if (!profiles.isEmpty()) {
+        line.append(line.toString().endsWith(".") ? " " : ". ")
+            .append("Only under the Spring profile")
+            .append(profiles.size() > 1 ? "s " : " ")
+            .append(list(profiles))
+            .append('.');
+      }
+      outline.add(new WordingPrompt.FlowStep(depth, line.toString(), List.copyOf(facts)));
     }
 
     /** The units, stores, queues and external systems the flow touches. */
@@ -344,13 +401,17 @@ final class SequenceFlows {
       return;
     }
     List<Item> outer = trace.items;
+    List<WordingPrompt.FlowStep> outerOutline = trace.outline;
     Deque<Later> outerLater = trace.later;
     Set<String> outerVisited = trace.visited;
     Set<String> visited = new HashSet<>(outerVisited);
     List<SequenceDiagram.Operand> operands = new ArrayList<>();
+    List<WordingPrompt.FlowStep> alternatives = new ArrayList<>();
     boolean any = false;
+    trace.depth += 2;
     for (int i = 0; i < bodies.size(); i++) {
       trace.items = new ArrayList<>();
+      trace.outline = new ArrayList<>();
       trace.later = new ArrayDeque<>();
       trace.visited = new HashSet<>(outerVisited);
       sync(trace, unit, bodies.get(i), profiles);
@@ -359,11 +420,24 @@ final class SequenceFlows {
       any |= !trace.items.isEmpty();
       operands.add(
           new SequenceDiagram.Operand("as " + names.get(i), frames(trace.items), List.of()));
+      alternatives.add(
+          new WordingPrompt.FlowStep(trace.depth - 1, "As " + names.get(i) + ":", List.of()));
+      alternatives.addAll(trace.outline);
     }
+    trace.depth -= 2;
     trace.items = outer;
+    trace.outline = outerOutline;
     trace.later = outerLater;
     trace.visited = visited;
     if (any) {
+      trace.outline.add(
+          new WordingPrompt.FlowStep(
+              trace.depth,
+              "One of these runs "
+                  + methodName(Knowledge.object(call))
+                  + " here; the code does not say which:",
+              List.of(call)));
+      trace.outline.addAll(alternatives);
       trace.items.add(
           new Item(
               new SequenceDiagram.Frame(
@@ -504,6 +578,8 @@ final class SequenceFlows {
         facts.add(other);
       }
     }
+    List<Fact> plainFacts = List.copyOf(facts);
+    String plain = "Calls " + (handler == null ? nameOf(to) : methodName(handler));
     Assembler.Phrased phrase = assembler.phrase(link);
     if (phrase != null) {
       facts.addAll(phrase.facts());
@@ -511,14 +587,14 @@ final class SequenceFlows {
     trace.message(
         unit,
         to,
-        phrase != null
-            ? phrase.text()
-            : "Calls " + (handler == null ? nameOf(to) : methodName(handler)),
+        phrase != null ? phrase.text() : plain,
         endpoint,
         null,
         profiles,
         info.isEmpty() ? null : String.join(" ", info),
-        facts);
+        facts,
+        plain,
+        plainFacts);
     if (handler != null && !to.type().equals(C4Views.EXTERNAL_SYSTEM)) {
       trace.reached.add(to + " " + handler);
       sync(trace, to, handler, profiles);
@@ -531,18 +607,22 @@ final class SequenceFlows {
     String key = attribute(link, "routingKey");
     Assembler.Phrased phrase = assembler.phrase(link);
     List<Fact> facts = withEnds(link);
+    List<Fact> plainFacts = List.copyOf(facts);
+    String plain = key == null ? "Sends a message" : "Sends " + key;
     if (phrase != null) {
       facts.addAll(phrase.facts());
     }
     trace.message(
         unit,
         destination,
-        phrase != null ? phrase.text() : key == null ? "Sends a message" : "Sends " + key,
+        phrase != null ? phrase.text() : plain,
         attribute(link, "protocol"),
         SequenceDiagram.MessageKind.ASYNC,
         profiles,
         null,
-        facts);
+        facts,
+        plain,
+        plainFacts);
     trace.asyncThrough.add(nameOf(destination));
     List<Fact> deliveries =
         linksBySource.getOrDefault(unit + " " + method, List.of()).stream()
@@ -771,31 +851,74 @@ final class SequenceFlows {
     return result;
   }
 
+  /** A flow's title, its trigger as the overview names it, and the clause saying what starts it. */
+  private record Heading(String title, String trigger, String starts) {}
+
+  private Heading heading(Entry entry) {
+    String handler = methodName(entry.method);
+    String value = entry.fact.object().value();
+    return switch (entry.fact.predicate()) {
+      case ENDPOINT ->
+          new Heading(
+              value + " on " + nameOf(entry.unit),
+              value + " (" + handler + ")",
+              nameOf(entry.unit) + " receives " + value);
+      case MESSAGE_LISTENER ->
+          new Heading(
+              "Message on " + value + " to " + nameOf(entry.unit),
+              "A message on " + value + " (" + handler + ")",
+              "a message arrives on " + value + " for " + nameOf(entry.unit));
+      default -> {
+        String kind = attribute(entry.fact, "trigger");
+        String schedule = (kind == null ? "" : kind + " ") + value;
+        yield new Heading(
+            handler + " on its schedule in " + nameOf(entry.unit),
+            "The schedule " + schedule + " (" + handler + ")",
+            "the schedule " + schedule + " fires in " + nameOf(entry.unit));
+      }
+    };
+  }
+
+  /**
+   * The prompt asking the LLM to word the flow (ADR 0058): what starts it and its steps by the
+   * facts behind them, without the LLM's intent phrases, so it rests on facts only and does not
+   * change with them.
+   */
+  private WordingPrompt.Question question(Trace trace) {
+    Entry entry = trace.entry;
+    Heading heading = heading(entry);
+    return WordingPrompt.flow(
+        entry.method,
+        heading.title(),
+        heading.starts() + " (" + methodName(entry.method) + ")",
+        entry.fact,
+        trace.outline);
+  }
+
+  /** The prompts asking the LLM to word the flows shown (ADR 0058), in the order shown. */
+  List<WordingPrompt.Question> questions() {
+    return chosen().stream().map(this::question).toList();
+  }
+
   private Section flowSection(String section, Trace trace) {
     Entry entry = trace.entry;
     String handler = methodName(entry.method);
     String id = assembler.id(section, nameOf(entry.unit) + "." + handler);
-    String value = entry.fact.object().value();
-    String title;
-    String trigger;
-    String starts;
-    switch (entry.fact.predicate()) {
-      case ENDPOINT -> {
-        title = value + " on " + nameOf(entry.unit);
-        trigger = value + " (" + handler + ")";
-        starts = nameOf(entry.unit) + " receives " + value;
-      }
-      case MESSAGE_LISTENER -> {
-        title = "Message on " + value + " to " + nameOf(entry.unit);
-        trigger = "A message on " + value + " (" + handler + ")";
-        starts = "a message arrives on " + value + " for " + nameOf(entry.unit);
-      }
-      default -> {
-        String kind = attribute(entry.fact, "trigger");
-        String schedule = (kind == null ? "" : kind + " ") + value;
-        title = handler + " on its schedule in " + nameOf(entry.unit);
-        trigger = "The schedule " + schedule + " (" + handler + ")";
-        starts = "the schedule " + schedule + " fires in " + nameOf(entry.unit);
+    Heading heading = heading(entry);
+    String title = heading.title();
+    String starts = heading.starts();
+    // The LLM's walkthrough and conditions, where it worded this flow as traced here (ADR 0058).
+    Wordings.Flow worded = assembler.flow(Wordings.flowKey(question(trace).user()));
+    Assembler.Text walkthrough =
+        worded == null ? null : assembler.worded(entry.method, worded.walkthrough());
+    Assembler.Text preconditions =
+        worded == null ? null : assembler.worded(entry.method, worded.preconditions());
+    Assembler.Text postconditions =
+        worded == null ? null : assembler.worded(entry.method, worded.postconditions());
+    List<Fact> rowFacts = new ArrayList<>(List.of(entry.fact));
+    for (Assembler.Text text : Arrays.asList(preconditions, postconditions)) {
+      if (text != null) {
+        text.facts().forEach(f -> rowFacts.add(knowledge.fact(f)));
       }
     }
     List<Block> blocks = new ArrayList<>();
@@ -813,10 +936,14 @@ final class SequenceFlows {
                 new Table.Row(
                     null,
                     List.of(
-                        List.of(TextRun.of(trigger)),
-                        List.<Inline>of(TextRun.of(UNKNOWN)),
-                        List.<Inline>of(TextRun.of(UNKNOWN))),
-                    assembler.facts(List.of(entry.fact)))),
+                        List.of(TextRun.of(heading.trigger())),
+                        preconditions == null
+                            ? List.<Inline>of(TextRun.of(UNKNOWN))
+                            : preconditions.content(),
+                        postconditions == null
+                            ? List.<Inline>of(TextRun.of(UNKNOWN))
+                            : postconditions.content()),
+                    assembler.facts(rowFacts))),
             List.of()));
     List<SequenceDiagram.Step> steps = new ArrayList<>();
     steps.add(
@@ -828,7 +955,12 @@ final class SequenceFlows {
     // The prose says what the steps show, so it cites their facts (Quality bar, ADR 0046).
     Set<String> proseFacts = new TreeSet<>();
     collectFacts(steps, proseFacts);
-    blocks.addFirst(new Paragraph(proseId, List.of(TextRun.of(prose)), List.copyOf(proseFacts)));
+    if (walkthrough == null) {
+      blocks.addFirst(new Paragraph(proseId, List.of(TextRun.of(prose)), List.copyOf(proseFacts)));
+    } else {
+      proseFacts.addAll(walkthrough.facts());
+      blocks.addFirst(new Paragraph(proseId, walkthrough.content(), List.copyOf(proseFacts)));
+    }
     List<SequenceDiagram.Participant> participants = new ArrayList<>();
     for (EntityId participant : trace.participants) {
       assembler.entity(participant);

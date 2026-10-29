@@ -1,4 +1,4 @@
-# 0058: Evidenced and inferred purpose in summaries
+# 0059: Evidenced and inferred purpose in summaries
 
 Status: accepted (#193), amends ADRs 0010 and 0025, pending the user's review (#24)
 

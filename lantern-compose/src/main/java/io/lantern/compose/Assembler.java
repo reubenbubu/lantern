@@ -33,7 +33,7 @@ final class Assembler {
 
   private static final Pattern MARKER = Pattern.compile("\\[(fact|summary):([^\\]\\s]+)\\]");
 
-  /** What opens a summary whose purpose is inferred from the code (ADR 0058). */
+  /** What opens a summary whose purpose is inferred from the code (ADR 0059). */
   static final String INFERRED = "Purpose inferred from the code:";
 
   private static final Pattern NOT_ID_CHAR = Pattern.compile("[^A-Za-z0-9._:-]");
@@ -265,7 +265,31 @@ final class Assembler {
    * snapshot's facts left out, or {@code null} if it has none that still cites something.
    */
   private String responsibility(EntityId id) {
-    String text = wordings.responsibilities().get(id);
+    return known(wordings.responsibilities().get(id));
+  }
+
+  /**
+   * The LLM's walkthrough and conditions of the flow whose prompt has the key (ADR 0058), or {@code
+   * null} if it has none.
+   */
+  Wordings.Flow flow(String key) {
+    return wordings.flows().get(key);
+  }
+
+  /**
+   * A text the LLM worded, with citation markers, as rich text citing the facts that are in the
+   * snapshot, or {@code null} if it is {@code null} or none of its citations is in the snapshot.
+   */
+  Text worded(EntityId about, String text) {
+    String kept = known(text);
+    return kept == null ? null : rich(about, kept);
+  }
+
+  /**
+   * The text with the markers of facts that are not in the snapshot's facts left out, or {@code
+   * null} if it is {@code null} or has none left that cites something.
+   */
+  private String known(String text) {
     if (text == null) {
       return null;
     }
