@@ -1,5 +1,6 @@
 package io.lantern.app;
 
+import io.lantern.compose.JdbcWordingStore;
 import io.lantern.link.JdbcResolutionStore;
 import io.lantern.summarize.JdbcSummaryStore;
 import org.springframework.context.annotation.Bean;
@@ -7,7 +8,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 
-/** Wires the caches of LLM results, summaries and link resolutions, to the app's database. */
+/**
+ * Wires the caches of LLM results, summaries, link resolutions and wordings, to the app's database.
+ */
 @Configuration(proxyBeanMethods = false)
 class SummaryConfiguration {
 
@@ -20,5 +23,10 @@ class SummaryConfiguration {
   JdbcResolutionStore resolutionStore(
       JdbcClient jdbcClient, PlatformTransactionManager transactionManager) {
     return new JdbcResolutionStore(jdbcClient, transactionManager);
+  }
+
+  @Bean
+  JdbcWordingStore wordingStore(JdbcClient jdbcClient) {
+    return new JdbcWordingStore(jdbcClient);
   }
 }

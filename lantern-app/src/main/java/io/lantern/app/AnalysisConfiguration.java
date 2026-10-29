@@ -1,6 +1,7 @@
 package io.lantern.app;
 
 import io.lantern.compose.ViewDefinitionStore;
+import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.RepoRegistry;
@@ -62,6 +63,7 @@ class AnalysisConfiguration {
       JdbcLlmCallLog callLog,
       SummaryStore summaries,
       ResolutionStore resolutions,
+      WordingStore wordings,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
@@ -78,6 +80,7 @@ class AnalysisConfiguration {
         callLog,
         summaries,
         resolutions,
+        wordings,
         views,
         renderer,
         c4Renderer,

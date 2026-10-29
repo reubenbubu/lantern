@@ -1,8 +1,10 @@
 package io.lantern.app;
 
 import io.lantern.compose.Composer;
+import io.lantern.compose.Describer;
 import io.lantern.compose.ViewDefinition;
 import io.lantern.compose.ViewDefinitionStore;
+import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.TemplateRef;
@@ -68,9 +70,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * One analysis run over a set of local repositories, every stage in order: register the
  * repositories, take a snapshot of their checked-out commits, build them in the sandbox, extract
- * and store their facts, summarize them with the LLM, compose an Architecture Explorer document, an
- * Executive Brief and a C4 report per repository and a C4 report of the whole system, and render
- * each as single-file HTML (ADR 0016, ADR 0031, ADR 0044).
+ * and store their facts, summarize them with the LLM, have it word the responsibilities of units
+ * and components and the intent of their links (ADR 0049), compose an Architecture Explorer
+ * document, an Executive Brief and a C4 report per repository and a C4 report of the whole system,
+ * and render each as single-file HTML (ADR 0016, ADR 0031, ADR 0044).
  *
  * <p>The snapshot describes the whole system: every repository an earlier snapshot analyzed that is
  * not named in this run is carried forward at its commit in the latest snapshot that analyzed it,
@@ -116,6 +119,7 @@ public final class AnalysisRun {
   private final JdbcLlmCallLog callLog;
   private final SummaryStore summaries;
   private final ResolutionStore resolutions;
+  private final WordingStore wordings;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
   private final C4ReportRenderer c4Renderer;
@@ -136,6 +140,7 @@ public final class AnalysisRun {
       JdbcLlmCallLog callLog,
       SummaryStore summaries,
       ResolutionStore resolutions,
+      WordingStore wordings,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
@@ -151,6 +156,7 @@ public final class AnalysisRun {
     this.callLog = Objects.requireNonNull(callLog, "callLog");
     this.summaries = Objects.requireNonNull(summaries, "summaries");
     this.resolutions = Objects.requireNonNull(resolutions, "resolutions");
+    this.wordings = Objects.requireNonNull(wordings, "wordings");
     this.views = Objects.requireNonNull(views, "views");
     this.renderer = Objects.requireNonNull(renderer, "renderer");
     this.c4Renderer = Objects.requireNonNull(c4Renderer, "c4Renderer");
@@ -172,6 +178,8 @@ public final class AnalysisRun {
    * @param summariesReused how many summaries came from the cache
    * @param summariesRejected the units left without a summary because the LLM's answer was rejected
    *     twice
+   * @param wordingsAsked how many deployable units the LLM was asked to word (ADR 0049)
+   * @param wordingsReused how many deployable units' wordings came from the cache
    * @param llm the LLM calls made during the run, whatever their outcome
    * @param documents the rendered documents, in the order written
    */
@@ -184,6 +192,8 @@ public final class AnalysisRun {
       int summariesGenerated,
       int summariesReused,
       List<EntityId> summariesRejected,
+      int wordingsAsked,
+      int wordingsReused,
       JdbcLlmCallLog.Spending llm,
       List<Rendered> documents) {
 
@@ -280,21 +290,29 @@ public final class AnalysisRun {
             summarized.rejected().size());
       }
 
+      // The LLM words the responsibilities of the snapshot's units and components and the intent
+      // of their links, from every fact that holds in it, carried forward repositories included
+      // (ADR 0049).
+      List<Fact> system = facts.findValidAt(snapshot.number());
+      Describer.Result described = new Describer(client, wordings).describe(system);
+
       List<Rendered> documents = new ArrayList<>();
       Composer composer = new Composer(toolVersion);
       Path out = documentsDirectory.resolve(Long.toString(snapshot.number()));
       for (String name : registered.keySet()) {
         for (ViewDefinition view : views(name)) {
-          Document document = composer.compose(view, snapshot, extracted, summarized.summaries());
+          Document document =
+              composer.compose(
+                  view, snapshot, extracted, summarized.summaries(), described.wordings());
           documents.add(new Rendered(document, write(out, view.id(), document)));
         }
       }
       // The system's report shows every repository of the snapshot, carried forward ones too.
-      ViewDefinition system = view(ViewDefinition.c4System(SYSTEM_C4, "System", C4_REPORT));
+      ViewDefinition systemView = view(ViewDefinition.c4System(SYSTEM_C4, "System", C4_REPORT));
       Document document =
           composer.compose(
-              system, snapshot, facts.findValidAt(snapshot.number()), summarized.summaries());
-      documents.add(new Rendered(document, write(out, system.id(), document)));
+              systemView, snapshot, system, summarized.summaries(), described.wordings());
+      documents.add(new Rendered(document, write(out, systemView.id(), document)));
       documents.forEach(d -> LOG.info("Wrote {}", d.file()));
       return new Result(
           snapshot,
@@ -305,6 +323,8 @@ public final class AnalysisRun {
           summarized.generated(),
           summarized.reused(),
           summarized.rejected(),
+          described.asked(),
+          described.reused(),
           callLog.spentSince(started),
           documents);
     }

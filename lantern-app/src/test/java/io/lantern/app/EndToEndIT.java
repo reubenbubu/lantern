@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.lantern.compose.ViewDefinitionStore;
+import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
@@ -103,8 +104,9 @@ class EndToEndIT {
   @TestConfiguration(proxyBeanMethods = false)
   static class Fake {
     /**
-     * A fake model that cites the first fact and the first part's summary it is given, and picks
-     * the first candidate of a link left open, citing it.
+     * A fake model that cites the first fact and the first part's summary it is given, picks the
+     * first candidate of a link left open, citing it, and words a unit, its first component and its
+     * first relationship, citing the first fact (ADR 0049).
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -115,6 +117,21 @@ class EndToEndIT {
                 if (request.role() == Role.RESOLVE) {
                   return "{\"target\": \"C1\", \"confidence\": \"low\", \"cites\": [\"C1\"],"
                       + " \"rationale\": \"The first candidate.\"}";
+                }
+                if (request.role() == Role.INFER_INTENT) {
+                  String cite = "{\"text\": \"%s\", \"cites\": [\"F1\"]}";
+                  String answer = "{\"unit\": " + cite.formatted("It greets its callers.");
+                  if (prompt.contains("[C1]")) {
+                    answer +=
+                        ", \"components\": {\"C1\": " + cite.formatted("It takes requests.") + "}";
+                  }
+                  if (prompt.contains("[R1]")) {
+                    answer +=
+                        ", \"relationships\": {\"R1\": "
+                            + cite.formatted("Hands over its work")
+                            + "}";
+                  }
+                  return answer + "}";
                 }
                 List<String> sentences = new ArrayList<>();
                 if (prompt.contains("[S1]")) {
@@ -473,6 +490,7 @@ class EndToEndIT {
         context.getBean(JdbcLlmCallLog.class),
         context.getBean(SummaryStore.class),
         context.getBean(ResolutionStore.class),
+        context.getBean(WordingStore.class),
         context.getBean(ViewDefinitionStore.class),
         context.getBean(HtmlRenderer.class),
         context.getBean(C4ReportRenderer.class),
@@ -529,7 +547,7 @@ class EndToEndIT {
     assertThat(first.newFacts()).isEqualTo(first.facts());
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.summariesReused()).isZero();
-    assertThat(calls).isEqualTo(first.summariesGenerated());
+    assertThat(calls).isEqualTo(first.summariesGenerated() + first.wordingsAsked());
     assertThat(first.llm().calls()).isEqualTo(calls);
     assertThat(first.documents()).hasSize(4);
     assertThat(first.documents())
@@ -567,6 +585,8 @@ class EndToEndIT {
     assertThat(second.newFacts()).isZero();
     assertThat(second.summariesGenerated()).isZero();
     assertThat(second.summariesReused()).isEqualTo(first.summariesGenerated());
+    assertThat(second.wordingsAsked()).isZero();
+    assertThat(second.wordingsReused()).isEqualTo(first.wordingsAsked());
     // The documents differ only in the snapshot they are of.
     for (int i = 0; i < 4; i++) {
       Document before = first.documents().get(i).document();
@@ -602,7 +622,9 @@ class EndToEndIT {
     for (FakeLlmProvider.Sent call : sent) {
       LlmRequest request = call.request();
       String[] purpose = request.purpose().split(" ", 3);
-      long[] level = byLevel.computeIfAbsent(purpose[1].toLowerCase(Locale.ROOT), k -> new long[3]);
+      long[] level =
+          byLevel.computeIfAbsent(
+              request.role() + " " + purpose[1].toLowerCase(Locale.ROOT), k -> new long[3]);
       level[0]++;
       level[1] += request.estimatedInputTokens();
       level[2] += request.maxOutputTokens();
@@ -614,7 +636,7 @@ class EndToEndIT {
     report
         .append("LLM calls a run of ")
         .append(name)
-        .append(" makes (all role SUMMARIZE, high-volume tier):\n");
+        .append(" makes (role SUMMARIZE, high-volume tier, and INFER_INTENT, reasoning tier):\n");
     report.append("calls: ").append(sent.size()).append('\n');
     report.append("input tokens (estimated): ").append(input).append('\n');
     report.append("output tokens (at most): ").append(outputLimit).append('\n');

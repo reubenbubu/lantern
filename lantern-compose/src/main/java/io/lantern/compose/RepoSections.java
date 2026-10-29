@@ -69,6 +69,18 @@ final class RepoSections {
       Map<EntityId, Summary> summaries,
       String repo,
       SortedSet<String> snapshotRepos) {
+    this(knowledge, summaries, Wordings.NONE, repo, snapshotRepos);
+  }
+
+  /**
+   * @param wordings the LLM's responsibility sentences and intent phrases (ADR 0049)
+   */
+  RepoSections(
+      Knowledge knowledge,
+      Map<EntityId, Summary> summaries,
+      Wordings wordings,
+      String repo,
+      SortedSet<String> snapshotRepos) {
     this.knowledge = knowledge;
     this.summaries = summaries;
     this.repo = repo;
@@ -92,7 +104,8 @@ final class RepoSections {
     this.units = repo == null ? C4Views.units(knowledge) : C4Views.units(knowledge, modules);
     inScope.addAll(containers);
     inScope.addAll(units);
-    this.assembler = new Assembler(knowledge, summaries, inScope, repo, systemName(snapshotRepos));
+    this.assembler =
+        new Assembler(knowledge, summaries, wordings, inScope, repo, systemName(snapshotRepos));
     inScope.forEach(assembler::entity);
     this.c4 = new C4Views(knowledge, assembler, SYSTEM, units, repos);
   }

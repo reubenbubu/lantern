@@ -96,6 +96,8 @@ class AnalyzeCommandTest {
                 5,
                 0,
                 List.of(EntityId.parse("type:com.example.Order")),
+                1,
+                0,
                 new JdbcLlmCallLog.Spending(7, 100, BigDecimal.ZERO),
                 List.of()));
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
