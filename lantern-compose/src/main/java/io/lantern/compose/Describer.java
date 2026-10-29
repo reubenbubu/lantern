@@ -339,7 +339,7 @@ public final class Describer {
         components.add(
             new ComponentInput(
                 component.main(),
-                assembler.name(component.main()),
+                c4.componentName(component),
                 component.technology().isEmpty() ? null : component.technology(),
                 shown.subList(0, Math.min(MAX_COMPONENT_FACTS, shown.size())),
                 code));

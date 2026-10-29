@@ -279,6 +279,21 @@ final class LinkIndex {
     return null;
   }
 
+  /**
+   * What a unit's endpoints are served behind in a view: its {@code server.servlet.context-path}
+   * and {@code spring.mvc.servlet.path} joined, {@code ""} for none.
+   */
+  String servletPrefix(Unit unit, String view) {
+    String prefix = "";
+    for (String key : List.of("server.servlet.context-path", "spring.mvc.servlet.path")) {
+      Fact value = config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
+      if (value != null && !flag(value, "masked")) {
+        prefix = LinkText.join(prefix, value.object().value());
+      }
+    }
+    return prefix;
+  }
+
   /** The keys of a predicate's config facts that a unit's config files set, in any view; sorted. */
   Set<String> configKeys(Unit unit, String predicate) {
     Set<String> keys = new TreeSet<>();

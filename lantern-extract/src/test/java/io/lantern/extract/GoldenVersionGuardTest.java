@@ -3,6 +3,7 @@ package io.lantern.extract;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
@@ -41,6 +42,7 @@ class GoldenVersionGuardTest {
   private static final Map<String, String[]> EXTRACTORS =
       Map.ofEntries(
           Map.entry("docs", new String[] {DocsExtractor.NAME, DocsExtractor.VERSION}),
+          Map.entry("gateway", new String[] {GatewayExtractor.NAME, GatewayExtractor.VERSION}),
           Map.entry("http", new String[] {HttpClientExtractor.NAME, HttpClientExtractor.VERSION}),
           Map.entry("java", new String[] {JavaExtractor.NAME, JavaExtractor.VERSION}),
           Map.entry("maven", new String[] {MavenExtractor.NAME, MavenExtractor.VERSION}),

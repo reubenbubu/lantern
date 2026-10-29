@@ -79,6 +79,12 @@ final class C4Views {
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
   private static final String SCHEDULED = "scheduled";
+  private static final String GATEWAY_ROUTE = "gateway-route";
+  private static final String GATEWAY_FILTER = "gateway-filter";
+
+  /** The name of a component of the routes a gateway's config defines. */
+  static final String CONFIG_ROUTES = "Gateway routes";
+
   private static final String HTTP_CLIENT = "http-client";
   private static final String HTTP_CALL = "http-call";
   private static final String MESSAGE_SEND = "message-send";
@@ -404,14 +410,16 @@ final class C4Views {
     List<Link> result = new ArrayList<>();
     for (EntityId unit : units(knowledge)) {
       for (Fact fact : knowledge.relations(unit, CALLS_HTTP)) {
+        List<String> paths = strings(fact, "paths");
+        boolean route = attribute(fact, "route") != null;
         result.add(
             link(
                 unit,
                 CALLS_HTTP,
                 Knowledge.object(fact),
-                "Calls",
-                "Calls",
-                endpoint(fact),
+                route ? "Routes requests" : "Calls",
+                route ? "Routes" : "Calls",
+                route ? (paths.isEmpty() ? null : paths.getFirst()) : endpoint(fact),
                 protocol(fact),
                 fact));
       }
@@ -1148,6 +1156,13 @@ final class C4Views {
       }
     }
     List<Component> components = new ArrayList<>();
+    // The routes a gateway's config defines, one component per module that defines any.
+    for (EntityId module : codeModules(knowledge, unit)) {
+      if (knowledge.attributes(module).stream()
+          .anyMatch(f -> f.predicate().equals(GATEWAY_ROUTE))) {
+        components.add(new Component(module, only(module), CONFIG_ROUTES));
+      }
+    }
     for (EntityId entry : entries) {
       SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
       types.add(entry);
@@ -1169,9 +1184,33 @@ final class C4Views {
     return components;
   }
 
-  /** The roles that make a type an entry point: web controller, listener, scheduled job. */
+  /**
+   * A component's name: its main type's, or {@value #CONFIG_ROUTES} for the routes a gateway's
+   * config defines.
+   */
+  String componentName(Component component) {
+    return component.main.type().equals(BuiltInTypes.MODULE)
+        ? CONFIG_ROUTES
+        : assembler.name(component.main);
+  }
+
+  /**
+   * The roles that make a type an entry point: web controller, listener, scheduled job, gateway
+   * filter, or the routes of a gateway built in its code.
+   */
   private List<String> entryKinds(EntityId type) {
     Set<String> kinds = new LinkedHashSet<>();
+    knowledge.attributes(type).stream()
+        .filter(f -> f.predicate().equals(GATEWAY_FILTER))
+        .forEach(
+            f ->
+                kinds.add(
+                    switch (f.object().value()) {
+                      case "global" -> "Global gateway filter";
+                      case "factory" -> "Gateway filter factory";
+                      case "web" -> "Web filter";
+                      default -> "Gateway filter";
+                    }));
     knowledge.attributes(type).stream()
         .filter(f -> f.predicate().equals(STEREOTYPE) && f.object().value().equals("controller"))
         .forEach(
@@ -1192,6 +1231,7 @@ final class C4Views {
               kinds.add(
                   brokerName(RepoSections.attribute(fact, "broker", "message")) + " listener");
           case SCHEDULED -> kinds.add("Scheduled job");
+          case GATEWAY_ROUTE -> kinds.add("Gateway routes");
           default -> {}
         }
       }
@@ -1292,12 +1332,40 @@ final class C4Views {
     nodes.put(unit, node(unit, technology(unit), null, containerFacts(unit)));
     Map<EntityId, EntityId> componentOf = new TreeMap<>(Knowledge.BY_ID);
     for (Component component : components) {
+      Diagram.Node node =
+          node(component.main, component.technology, unit, componentFacts(component));
       nodes.put(
           component.main,
-          node(component.main, component.technology, unit, componentFacts(component)));
+          new Diagram.Node(
+              node.id(),
+              componentName(component),
+              node.technology(),
+              node.parent(),
+              node.style(),
+              node.position(),
+              node.facts()));
       component.types.forEach(t -> componentOf.put(t, component.main));
     }
     Edges edges = new Edges();
+    // Routes to the filters they apply.
+    for (Component component : components) {
+      for (EntityId member : withMethods(component.main)) {
+        for (Fact route : knowledge.attributes(member)) {
+          if (!route.predicate().equals(GATEWAY_ROUTE)) {
+            continue;
+          }
+          for (String filter : strings(route, "filterTypes")) {
+            EntityId to = componentOf.get(new EntityId(BuiltInTypes.TYPE, filter));
+            if (to != null && !to.equals(component.main)) {
+              EdgeBuilder edge = edges.get(component.main, BuiltInTypes.CALLS, to);
+              edge.add("Applies", "Applies on routes", route.object().value(), null, null);
+              edge.facts.add(route);
+              edge.phrased(null);
+            }
+          }
+        }
+      }
+    }
     // Calls between components, labelled with the methods called.
     for (Component component : components) {
       for (EntityId type : component.types) {
@@ -1414,7 +1482,14 @@ final class C4Views {
     for (EntityId member : withMethods(component.main)) {
       for (Fact fact : knowledge.attributes(member)) {
         switch (fact.predicate()) {
-          case STEREOTYPE, HTTP_CLIENT, ENDPOINT, MESSAGE_LISTENER, SCHEDULED -> facts.add(fact);
+          case STEREOTYPE,
+              HTTP_CLIENT,
+              ENDPOINT,
+              MESSAGE_LISTENER,
+              SCHEDULED,
+              GATEWAY_ROUTE,
+              GATEWAY_FILTER ->
+              facts.add(fact);
           default -> {}
         }
       }

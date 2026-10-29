@@ -9,6 +9,7 @@ import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.CompoundAssignmentTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
+import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.LineMap;
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MemberReferenceTree;
@@ -17,6 +18,7 @@ import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.ParenthesizedTree;
+import com.sun.source.tree.ReturnTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.UnaryTree;
@@ -866,8 +868,8 @@ final class JavacAnalyzer {
             String method;
             if (call.getMethodSelect() instanceof MemberSelectTree select) {
               TreePath selected = new TreePath(path, select);
-              receiver =
-                  expression(new TreePath(selected, select.getExpression()), owner, depth + 1);
+              // A chain's receivers are not nesting: a long chain of calls is read whole.
+              receiver = expression(new TreePath(selected, select.getExpression()), owner, depth);
               method = select.getIdentifier().toString();
             } else if (call.getMethodSelect() instanceof IdentifierTree id) {
               method = id.getName().toString();
@@ -890,8 +892,34 @@ final class JavacAnalyzer {
                     arguments(path, created.getArguments(), owner, depth),
                     parameterTypes(path));
           }
+          case LambdaExpressionTree lambda -> lambda(path, lambda, owner, depth);
           default -> unknown(path);
         };
+      }
+
+      /** A lambda: its source, and what its body returns when that is one expression. */
+      private Expression lambda(
+          TreePath path, LambdaExpressionTree lambda, EntityId owner, int depth) {
+        TreePath body = new TreePath(path, lambda.getBody());
+        Expression value;
+        if (lambda.getBodyKind() == LambdaExpressionTree.BodyKind.EXPRESSION) {
+          value = expression(body, owner, depth + 1);
+        } else if (lambda.getBody() instanceof BlockTree block
+            && block.getStatements().size() == 1
+            && block.getStatements().getFirst() instanceof ReturnTree returned
+            && returned.getExpression() != null) {
+          value =
+              expression(
+                  new TreePath(new TreePath(body, returned), returned.getExpression()),
+                  owner,
+                  depth + 1);
+        } else {
+          value = unknown(body);
+        }
+        String source = ((Expression.Unknown) unknown(path)).source();
+        Location where =
+            lines(unit, file, positions.getStartPosition(unit, lambda), end(unit, lambda), null);
+        return new Expression.Lambda(source, value, where.start(), where.end());
       }
 
       /** The erased parameter types of the method or constructor called, or none if unknown. */

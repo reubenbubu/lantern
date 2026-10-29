@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: edge
+  cloud:
+    gateway:
+      routes:
+        - id: orders
+          uri: ${ORDERS_URL:http://localhost:8081}
+          order: 1
+          predicates:
+            - Path=/orders/**,/carts/**
+            - Method=GET,POST
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+        - id: legacy
+          uri: https://legacy.example.com
+          predicates:
+            - name: Path
+              args:
+                pattern: /legacy/**
+app:
+  inventory: inventory
+  secret-token: s3cret
+---
+spring.config.activate.on-profile: local
+spring.cloud.gateway.routes[0].uri: http://localhost:9091

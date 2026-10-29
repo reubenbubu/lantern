@@ -41,9 +41,6 @@ final class HttpLinker {
   /** Factor for a target found without an endpoint that matches the path. */
   static final double WITHOUT_ENDPOINT = 0.8;
 
-  private static final String CONTEXT_PATH = "server.servlet.context-path";
-  private static final String SERVLET_PATH = "spring.mvc.servlet.path";
-
   /** An endpoint a unit serves. */
   private record Endpoint(Fact fact, Unit unit) {}
 
@@ -449,13 +446,7 @@ final class HttpLinker {
     if (path == null) {
       return List.of();
     }
-    String prefix = "";
-    for (String key : List.of(CONTEXT_PATH, SERVLET_PATH)) {
-      Fact value = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
-      if (value != null && !LinkIndex.flag(value, "masked")) {
-        prefix = LinkText.join(prefix, value.object().value());
-      }
-    }
+    String prefix = index.servletPrefix(unit, view);
     List<Map.Entry<Endpoint, Integer>> scored = new ArrayList<>();
     for (Endpoint endpoint : endpoints) {
       if (!endpoint.unit().equals(unit) || !index.active(endpoint.fact().subject(), view)) {

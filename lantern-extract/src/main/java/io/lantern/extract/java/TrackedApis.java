@@ -42,7 +42,9 @@ final class TrackedApis {
           "org.springframework.jms.core.",
           "org.springframework.amqp.",
           // Spring Cloud Stream: StreamBridge, and the legacy Source and Processor bindings.
-          "org.springframework.cloud.stream.");
+          "org.springframework.cloud.stream.",
+          // Spring Cloud Gateway (the gateway extractor): routes built with RouteLocatorBuilder.
+          "org.springframework.cloud.gateway.");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";

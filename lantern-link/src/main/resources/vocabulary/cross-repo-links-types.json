@@ -64,7 +64,7 @@
     "name": "CALLS_HTTP",
     "kind": "relationship",
     "parent": "CALLS",
-    "description": "The subject unit calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched.",
+    "description": "The subject unit calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched, and one per gateway route that sends requests to it (route set).",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -85,11 +85,11 @@
         },
         "protocol": {
           "type": "string",
-          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC."
+          "description": "The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS, HTTP, HTTPS, WebSocket (a gateway route to ws://, wss:// or lb:ws://), AMQP, Kafka, JMS, JDBC or R2DBC."
         },
         "source": {
           "type": "string",
-          "description": "The entity ID of the code on the subject's side: the method making the call, sending or listening, or declaring the binding."
+          "description": "The entity ID of the code on the subject's side: the method making the call, sending or listening, or declaring the binding; for a gateway route, the method that builds it or the module whose config defines it."
         },
         "target": {
           "type": "string",
@@ -115,9 +115,27 @@
           "type": "string",
           "description": "The endpoint matched, such as GET /api/products/{id}."
         },
+        "route": {
+          "type": "string",
+          "description": "The id of the gateway route the link is, for a link from a Spring Cloud Gateway route."
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The path patterns of the gateway route, such as /api/users/**."
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The HTTP methods the gateway route takes; absent when it takes any."
+        },
         "matchedBy": {
           "type": "string",
-          "description": "How the target was found: service-name (a Feign client's name against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone), external (a host with a domain that names no unit) or llm (picked by the LLM resolver among the candidates of a link static matching left open)."
+          "description": "How the target was found: service-name (a Feign client's name, or a gateway route's lb:// name, against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone), port (a gateway route to this machine, by its port against the unit's server.port), external (a host with a domain that names no unit) or llm (picked by the LLM resolver among the candidates of a link static matching left open)."
         },
         "exceptProfiles": {
           "type": "array",
@@ -603,7 +621,7 @@
       "properties": {
         "kind": {
           "type": "string",
-          "description": "http, message or database."
+          "description": "http, message, database or route (a gateway route)."
         },
         "reason": {
           "type": "string",
@@ -611,7 +629,7 @@
         },
         "source": {
           "type": "string",
-          "description": "The entity ID of the code or module it is written in."
+          "description": "The entity ID of the code or module it is written in: for a gateway route, the method that builds it or the module whose config defines it."
         },
         "unresolved": {
           "type": "array",
@@ -650,6 +668,59 @@
           "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "unrouted-endpoint",
+    "kind": "attribute",
+    "description": "An endpoint of a unit the subject gateway routes requests to that none of the gateway's routes to that unit reaches, by path (after StripPrefix and PrefixPath) and HTTP method, so a request to it through the gateway finds no route. The value is the endpoint, such as GET /api/organizations/{id}/preview. Not recorded for a unit a route reaches through a filter that rewrites paths otherwise.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "The entity ID of the unit that serves the endpoint."
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "The entity ID of the endpoint's handler method."
+        },
+        "calledBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The entity IDs of the units whose HTTP calls the linker matched to the endpoint, so it is reached inside the system; absent when none."
+        },
+        "link": {
+          "type": "string",
+          "description": "The finding's stable ID: the first 16 hex digits of the SHA-256 of the gateway, the endpoint and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts it comes from: the endpoint and the gateway's routes to the unit, in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone it holds. Absent when it holds in the default view."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which it does not hold. Absent when it holds under every profile."
+        }
+      },
+      "required": [
+        "target",
+        "endpoint"
+      ],
       "additionalProperties": false
     },
     "objectKind": "string"
