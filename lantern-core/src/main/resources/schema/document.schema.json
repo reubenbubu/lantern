@@ -349,11 +349,25 @@
           "description": "A node of the same diagram.",
           "$ref": "#/$defs/entityId"
         },
-        "label": { "$ref": "#/$defs/nonBlankText" },
+        "label": {
+          "description": "What happens along the edge, intent first.",
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "technology": {
+          "description": "How it happens, e.g. JSON/HTTPS or JDBC.",
+          "$ref": "#/$defs/nonBlankText"
+        },
         "relationship": {
           "description": "The relationship type the edge shows, e.g. CALLS.",
           "type": "string",
           "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+        },
+        "profiles": {
+          "description": "The Spring profiles under which alone the edge holds; any one of them is enough. Absent: always.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonBlankText" }
         },
         "facts": { "$ref": "#/$defs/factIds" }
       }

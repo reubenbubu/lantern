@@ -1,6 +1,6 @@
 # 0012: Composer v1, per-repository documents
 
-Status: accepted (#13), C4 mapping replaced by ADR 0026 (#86), amended by ADR 0027 (#70), pending the user's review (#24)
+Status: accepted (#13), C4 mapping replaced by ADR 0026 (#86) and ADR 0044 (#95), amended by ADR 0027 (#70), pending the user's review (#24)
 
 ## Context
 

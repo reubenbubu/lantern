@@ -2,137 +2,55 @@
   "document" : {
     "id" : "shop",
     "title" : "shop",
-    "subtitle" : "It builds on its parts.\n\n- [shop-api](#/containers/el-library-com-example-shop-shop-api), a library\n- [shop-core](#/containers/el-library-com-example-shop-shop-core), a library",
+    "subtitle" : "It builds on its parts.\n\n- shop-api, a library\n- shop-core, a library\n\nNo deployable unit was found in the code.",
     "version" : "1"
   },
   "elements" : {
-    "library-com-example-shop-shop-api" : {
-      "kind" : "container",
-      "name" : "shop-api",
-      "parent" : "repo-shop",
-      "tag" : "Library",
-      "technology" : "Library, jar"
-    },
-    "library-com-example-shop-shop-core" : {
-      "kind" : "container",
-      "name" : "shop-core",
-      "parent" : "repo-shop",
-      "tag" : "Library",
-      "technology" : "Library, jar"
-    },
-    "package-com-example-shop-shop-api-com-example-shop-api" : {
-      "kind" : "component",
-      "name" : "com.example.shop.api",
-      "parent" : "library-com-example-shop-shop-api",
-      "tag" : "Package",
-      "description" : "It builds on its parts. It is described by its facts."
-    },
-    "package-com-example-shop-shop-core-com-example-shop-core" : {
-      "kind" : "component",
-      "name" : "com.example.shop.core",
-      "parent" : "library-com-example-shop-shop-core",
-      "tag" : "Package",
-      "description" : "It builds on its parts. It is described by its facts."
-    },
-    "repo-shop" : {
+    "system-snapshot" : {
       "kind" : "system",
-      "name" : "shop",
-      "tag" : "Repository",
-      "description" : "It builds on its parts."
+      "name" : "greeting-lib, greeting-service, orders and shop"
     }
   },
   "pages" : [ {
     "id" : "context",
     "level" : "context",
     "title" : "System context",
-    "element" : "repo-shop",
     "sections" : [ {
-      "type" : "diagram",
-      "id" : "context-diagram",
-      "title" : "System context of shop",
-      "caption" : "System context of shop",
-      "focus" : "repo-shop",
-      "elements" : [ "repo-shop" ],
-      "relationships" : [ ]
-    }, {
-      "type" : "elements",
-      "id" : "context-diagram-elements",
-      "title" : "Elements",
-      "eyebrow" : "Catalogue",
-      "select" : {
-        "ids" : [ "repo-shop" ]
-      }
-    } ]
-  }, {
-    "id" : "containers",
-    "level" : "containers",
-    "title" : "Containers",
-    "element" : "repo-shop",
-    "sections" : [ {
-      "type" : "diagram",
-      "id" : "containers-diagram",
-      "title" : "Containers of shop",
-      "caption" : "Containers of shop",
-      "boundary" : "repo-shop",
-      "relationships" : [ {
-        "from" : "library-com-example-shop-shop-core",
-        "to" : "library-com-example-shop-shop-api",
-        "label" : "depends on"
+      "type" : "stats",
+      "id" : "context-counts",
+      "items" : [ {
+        "label" : "Deployable units",
+        "value" : "0"
+      }, {
+        "label" : "Databases",
+        "value" : "0"
+      }, {
+        "label" : "Topics, queues and exchanges",
+        "value" : "0"
+      }, {
+        "label" : "External systems",
+        "value" : "0"
       } ]
     }, {
-      "type" : "elements",
-      "id" : "containers-diagram-elements",
-      "title" : "Elements",
-      "eyebrow" : "Catalogue",
-      "select" : {
-        "ids" : [ "library-com-example-shop-shop-api", "library-com-example-shop-shop-core" ]
-      }
-    } ]
-  }, {
-    "id" : "components-library-com-example-shop-shop-api",
-    "level" : "components",
-    "title" : "shop-api",
-    "summary" : "It builds on its parts. It is described by its facts.",
-    "element" : "library-com-example-shop-shop-api",
-    "sections" : [ {
       "type" : "diagram",
-      "id" : "components-library-com-example-shop-shop-api-diagram",
-      "title" : "Components of shop-api",
-      "caption" : "Components of shop-api",
-      "boundary" : "library-com-example-shop-shop-api",
-      "elements" : [ "package-com-example-shop-shop-api-com-example-shop-api" ],
+      "id" : "context-diagram",
+      "title" : "System context of greeting-lib, greeting-service, orders and shop",
+      "caption" : "System context of greeting-lib, greeting-service, orders and shop",
+      "elements" : [ "system-snapshot" ],
       "relationships" : [ ]
     }, {
       "type" : "elements",
-      "id" : "components-library-com-example-shop-shop-api-diagram-elements",
-      "title" : "Elements",
+      "id" : "context-diagram-systems",
+      "title" : "Systems",
       "eyebrow" : "Catalogue",
       "select" : {
-        "ids" : [ "package-com-example-shop-shop-api-com-example-shop-api" ]
+        "ids" : [ "system-snapshot" ]
       }
-    } ]
-  }, {
-    "id" : "components-library-com-example-shop-shop-core",
-    "level" : "components",
-    "title" : "shop-core",
-    "summary" : "It builds on its parts. It is described by its facts.",
-    "element" : "library-com-example-shop-shop-core",
-    "sections" : [ {
-      "type" : "diagram",
-      "id" : "components-library-com-example-shop-shop-core-diagram",
-      "title" : "Components of shop-core",
-      "caption" : "Components of shop-core",
-      "boundary" : "library-com-example-shop-shop-core",
-      "elements" : [ "package-com-example-shop-shop-core-com-example-shop-core" ],
-      "relationships" : [ ]
     }, {
-      "type" : "elements",
-      "id" : "components-library-com-example-shop-shop-core-diagram-elements",
-      "title" : "Elements",
-      "eyebrow" : "Catalogue",
-      "select" : {
-        "ids" : [ "package-com-example-shop-shop-core-com-example-shop-core" ]
-      }
+      "type" : "callout",
+      "id" : "context-people",
+      "body" : "The code names no people or user roles, so who uses greeting-lib, greeting-service, orders and shop is not known.",
+      "tone" : "info"
     } ]
   } ]
 }

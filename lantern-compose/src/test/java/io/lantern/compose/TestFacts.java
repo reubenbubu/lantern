@@ -60,6 +60,30 @@ final class TestFacts {
             Validity.from(1)));
   }
 
+  /** Adds {@code subject predicate object-entity} with attributes given as JSON. */
+  TestFacts relate(String repo, String subject, String predicate, String object, String json) {
+    return add(
+        fact(
+            repo,
+            subject,
+            predicate,
+            FactObject.entity(EntityId.parse(object)),
+            (ObjectNode) FactJson.parse(json),
+            Validity.from(1)));
+  }
+
+  /** Adds {@code subject predicate "value"} with attributes given as JSON. */
+  TestFacts attribute(String repo, String subject, String predicate, String value, String json) {
+    return add(
+        fact(
+            repo,
+            subject,
+            predicate,
+            FactObject.string(value),
+            (ObjectNode) FactJson.parse(json),
+            Validity.from(1)));
+  }
+
   TestFacts add(Fact fact) {
     facts.add(fact);
     return this;
@@ -143,5 +167,98 @@ final class TestFacts {
         .relate("base", "library:com.example:common", "CONTAINS", common)
         .dependency("base", common, "artifact:org.slf4j:slf4j-api", "compile", false)
         .dependency("base", common, "artifact:org.assertj:assertj", "test", false);
+  }
+
+  /**
+   * {@link #shop()} with what runs: {@code app} is a deployable unit named {@code shop-app} whose
+   * database is {@code shop} on {@code db}; {@code web.Controller} serves {@code GET /orders} and,
+   * only under the profile {@code prod}, calls {@code pay.example.com}; {@code web.Jobs} runs on a
+   * schedule; both call {@code domain.Orders#all()}, which {@code domain.JpaOrders} implements,
+   * reading the {@code orders} table and sending to the Kafka topic {@code orders}. The unit {@code
+   * worker} of repository {@code base} consumes that topic and calls {@code GET /orders}. A call to
+   * a tax service could not be linked. The repository {@code shop} has one decision record.
+   */
+  static TestFacts runtime() {
+    String app = "service:com.example:app";
+    String worker = "service:com.example:worker";
+    String list = "method:com.example.web.Controller#list()";
+    String all = "method:com.example.domain.JpaOrders#all()";
+    String run = "method:com.example.web.Jobs#run()";
+    String web = "package:com.example:app:com.example.web";
+    TestFacts facts = shop();
+    return facts
+        .attribute("shop", app, "deployable-unit", "spring-boot", "{}")
+        .attribute("shop", app, "application-name", "shop-app", "{}")
+        .attribute("shop", app, "application-name", "shop-local", "{\"profile\": \"local\"}")
+        .attribute("shop", app, "technology", "Spring Boot 3.5.0 / Java 21", "{}")
+        .attribute(
+            "shop",
+            "type:com.example.web.Controller",
+            "stereotype",
+            "controller",
+            "{\"rest\": true}")
+        .attribute("shop", list, "endpoint", "GET /orders", "{}")
+        .relate("shop", web, "CONTAINS", "type:com.example.web.Jobs")
+        .relate("shop", "type:com.example.web.Jobs", "CONTAINS", run)
+        .attribute("shop", run, "scheduled", "0 0 * * * *", "{}")
+        .relate("shop", run, "CALLS", "method:com.example.domain.Orders#all()")
+        .attribute("shop", "type:com.example.domain.JpaOrders", "stereotype", "repository", "{}")
+        .relate("shop", "type:com.example.domain.JpaOrders", "CONTAINS", all)
+        .relate("shop", all, "READS_TABLE", "table:com.example:app:orders", "{}")
+        .relate(
+            "shop",
+            app,
+            "USES_DATABASE",
+            "database:db:5432/shop",
+            "{\"protocol\": \"JDBC\", \"schemas\": [\"schema:com.example:app\"]}")
+        .attribute("shop", "database:db:5432/shop", "technology", "PostgreSQL", "{}")
+        .relate(
+            "shop",
+            app,
+            "CALLS_HTTP",
+            "external-system:pay.example.com",
+            "{\"protocol\": \"HTTPS\", \"httpMethod\": \"POST\", \"path\": \"/charges\","
+                + " \"profile\": \"prod\", \"source\": \""
+                + list
+                + "\"}")
+        .relate(
+            "shop",
+            app,
+            "PUBLISHES",
+            "topic:kafka:orders",
+            "{\"protocol\": \"Kafka\", \"source\": \"" + all + "\"}")
+        .attribute(
+            "shop",
+            app,
+            "unresolved-link",
+            "GET ${TAX_URL}/quotes",
+            "{\"reason\": \"unresolved-placeholder\", \"unresolved\": [\"TAX_URL\"]}")
+        .relate("base", worker, "CONTAINS", "module:com.example:worker")
+        .attribute("base", "module:com.example:worker", "packaging", "jar")
+        .attribute("base", worker, "deployable-unit", "spring-boot", "{}")
+        .relate(
+            "base",
+            worker,
+            "CONSUMES",
+            "topic:kafka:orders",
+            "{\"protocol\": \"Kafka\", \"source\": \"method:com.example.worker.L#on()\"}")
+        .relate(
+            "base",
+            worker,
+            "CALLS_HTTP",
+            app,
+            "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"GET /orders\", \"target\": \""
+                + list
+                + "\"}")
+        .attribute("shop", "decision:shop:docs/adr/0001-kafka.md", "title", "Use Kafka", "{}")
+        .attribute("shop", "decision:shop:docs/adr/0001-kafka.md", "decision-number", "1", "{}")
+        .attribute(
+            "shop", "decision:shop:docs/adr/0001-kafka.md", "decision-status", "Accepted", "{}")
+        .attribute(
+            "shop",
+            "decision:shop:docs/adr/0001-kafka.md",
+            "decision-outcome",
+            "Orders go to Kafka.",
+            "{}");
   }
 }

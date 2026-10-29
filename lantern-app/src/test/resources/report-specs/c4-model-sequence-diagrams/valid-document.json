@@ -7,9 +7,8 @@
   },
   "elements" : {
     "database-orders-db" : {
-      "kind" : "container",
-      "name" : "orders-db",
-      "tag" : "Database"
+      "kind" : "database",
+      "name" : "orders-db"
     },
     "library-orders-lib" : {
       "kind" : "container",
@@ -40,18 +39,28 @@
       "relationships" : [ {
         "from" : "library-orders-lib",
         "to" : "database-orders-db",
-        "label" : "reads"
+        "label" : "reads (only with the Spring profile prod)",
+        "technology" : "JDBC"
       }, {
         "from" : "service-orders",
         "to" : "database-orders-db"
       } ]
     }, {
       "type" : "elements",
-      "id" : "containers-elements",
-      "title" : "Elements",
+      "id" : "containers-containers",
+      "title" : "Containers",
       "eyebrow" : "Catalogue",
       "select" : {
-        "ids" : [ "database-orders-db", "library-orders-lib" ]
+        "ids" : [ "library-orders-lib" ]
+      },
+      "columns" : [ "name", "description", "technology", "zoom" ]
+    }, {
+      "type" : "elements",
+      "id" : "containers-stores",
+      "title" : "Data Stores and Queues",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "database-orders-db" ]
       }
     }, {
       "type" : "table",

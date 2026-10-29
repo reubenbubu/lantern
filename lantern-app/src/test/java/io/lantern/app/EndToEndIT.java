@@ -190,7 +190,7 @@ class EndToEndIT {
     assertThat(twice.first().builds().get("shop").status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(twice.first().documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly("shop.html", "shop.brief.html", "shop.c4.html");
+        .containsExactly("shop.html", "shop.brief.html", "shop.c4.html", "_system.c4.html");
 
     // The same pipeline through the command line: everything is reused again.
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -204,7 +204,8 @@ class EndToEndIT {
         .contains("Summaries: 0 written by the LLM")
         .contains("LLM calls: 0, tokens: 0, cost: $0")
         .contains("shop.brief.html")
-        .contains("shop.c4.html");
+        .contains("shop.c4.html")
+        .contains("_system.c4.html");
   }
 
   @Test
@@ -288,7 +289,11 @@ class EndToEndIT {
     assertThat(third.summariesGenerated()).isZero();
     assertThat(third.documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly("greeting-lib.html", "greeting-lib.brief.html", "greeting-lib.c4.html");
+        .containsExactly(
+            "greeting-lib.html",
+            "greeting-lib.brief.html",
+            "greeting-lib.c4.html",
+            "_system.c4.html");
     assertThat(validIn(third, "greeting-lib")).isEqualTo(libFacts);
     assertThat(validIn(third, "greeting-service")).isEqualTo(serviceFacts);
     for (Fact fact : libFacts) {
@@ -497,7 +502,8 @@ class EndToEndIT {
         .isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(twice.first().documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly(name + ".html", name + ".brief.html", name + ".c4.html");
+        .containsExactly(
+            name + ".html", name + ".brief.html", name + ".c4.html", "_system.c4.html");
     writeCallReport(name, sent);
   }
 
@@ -515,10 +521,15 @@ class EndToEndIT {
     assertThat(first.summariesReused()).isZero();
     assertThat(calls).isEqualTo(first.summariesGenerated());
     assertThat(first.llm().calls()).isEqualTo(calls);
-    assertThat(first.documents()).hasSize(3);
+    assertThat(first.documents()).hasSize(4);
     assertThat(first.documents())
         .extracting(d -> d.document().template().name())
-        .containsExactly("architecture-explorer", "executive-brief", C4ReportRenderer.SPEC);
+        .containsExactly(
+            "architecture-explorer",
+            "executive-brief",
+            C4ReportRenderer.SPEC,
+            C4ReportRenderer.SPEC);
+    assertThat(first.documents().get(3).document().id()).isEqualTo(AnalysisRun.SYSTEM_C4);
     for (AnalysisRun.Rendered rendered : first.documents().subList(0, 2)) {
       String html = Files.readString(rendered.file());
       assertThat(html)
@@ -547,7 +558,7 @@ class EndToEndIT {
     assertThat(second.summariesGenerated()).isZero();
     assertThat(second.summariesReused()).isEqualTo(first.summariesGenerated());
     // The documents differ only in the snapshot they are of.
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
       Document before = first.documents().get(i).document();
       Document after = second.documents().get(i).document();
       assertThat(after.source().snapshot()).isEqualTo(second.snapshot().number());

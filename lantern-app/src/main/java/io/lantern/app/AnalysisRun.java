@@ -67,8 +67,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * One analysis run over a set of local repositories, every stage in order: register the
  * repositories, take a snapshot of their checked-out commits, build them in the sandbox, extract
  * and store their facts, summarize them with the LLM, compose an Architecture Explorer document, an
- * Executive Brief and a C4 report per repository, and render each as single-file HTML (ADR 0016,
- * ADR 0031).
+ * Executive Brief and a C4 report per repository and a C4 report of the whole system, and render
+ * each as single-file HTML (ADR 0016, ADR 0031, ADR 0044).
  *
  * <p>The snapshot describes the whole system: every repository an earlier snapshot analyzed that is
  * not named in this run is carried forward at its commit in the latest snapshot that analyzed it,
@@ -89,8 +89,14 @@ public final class AnalysisRun {
   /** The template of the per-repository Executive Brief. */
   static final TemplateRef BRIEF = new TemplateRef("executive-brief", "1");
 
-  /** The template of the per-repository C4 report, the report spec of the same name (ADR 0031). */
+  /** The template of the C4 reports, the report spec of the same name (ADR 0031). */
   static final TemplateRef C4_REPORT = new TemplateRef(C4ReportRenderer.SPEC, "1");
+
+  /**
+   * The view of the system's C4 report. Its ID holds a colon, which repository names cannot, so it
+   * is never a repository's view.
+   */
+  static final String SYSTEM_C4 = "system:c4";
 
   private static final Logger LOG = LoggerFactory.getLogger(AnalysisRun.class);
 
@@ -278,6 +284,12 @@ public final class AnalysisRun {
           documents.add(new Rendered(document, write(out, view.id(), document)));
         }
       }
+      // The system's report shows every repository of the snapshot, carried forward ones too.
+      ViewDefinition system = view(ViewDefinition.c4System(SYSTEM_C4, "System", C4_REPORT));
+      Document document =
+          composer.compose(
+              system, snapshot, facts.findValidAt(snapshot.number()), summarized.summaries());
+      documents.add(new Rendered(document, write(out, system.id(), document)));
       documents.forEach(d -> LOG.info("Wrote {}", d.file()));
       return new Result(
           snapshot,
@@ -531,22 +543,30 @@ public final class AnalysisRun {
             ViewDefinition.perRepo(repo, repo, EXPLORER),
             ViewDefinition.executiveBrief(repo + ".brief", repo, BRIEF),
             ViewDefinition.c4Report(repo + ".c4", repo, C4_REPORT))) {
-      result.add(
-          views
-              .find(fallback.id())
-              .orElseGet(
-                  () -> {
-                    views.save(fallback);
-                    return fallback;
-                  }));
+      result.add(view(fallback));
     }
     return result;
+  }
+
+  /** The view as stored before, else the fallback, stored now. */
+  private ViewDefinition view(ViewDefinition fallback) {
+    return views
+        .find(fallback.id())
+        .orElseGet(
+            () -> {
+              views.save(fallback);
+              return fallback;
+            });
   }
 
   private Path write(Path directory, String viewId, Document document) {
     try {
       Files.createDirectories(directory);
-      Path file = directory.resolve(viewId + ".html");
+      // A view of no single repository: its colon becomes a dot, after an underscore no repository
+      // name starts with.
+      Path file =
+          directory.resolve(
+              (viewId.contains(":") ? "_" + viewId.replace(':', '.') : viewId) + ".html");
       String html =
           document.template().name().equals(C4ReportRenderer.SPEC)
               ? c4Renderer.render(document)

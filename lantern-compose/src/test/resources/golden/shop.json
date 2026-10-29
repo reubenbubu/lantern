@@ -153,6 +153,10 @@
     } ],
     "facts" : [ ]
   }, {
+    "id" : "system:snapshot",
+    "name" : "greeting-lib, greeting-service, orders and shop",
+    "facts" : [ ]
+  }, {
     "id" : "type:com.example.shop.api.PriceService",
     "name" : "PriceService",
     "parent" : "package:com.example.shop:shop-api:com.example.shop.api",
@@ -853,16 +857,46 @@
     "entity" : "repo:shop",
     "facts" : [ ],
     "blocks" : [ {
+      "kind" : "metrics",
+      "id" : "context.counts",
+      "items" : [ {
+        "label" : "Deployable units",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Databases",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Topics, queues and exchanges",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "External systems",
+        "value" : 0,
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    }, {
       "kind" : "diagram",
       "id" : "context.diagram",
       "diagramKind" : "c4-context",
-      "title" : "System context of shop",
+      "title" : "System context of greeting-lib, greeting-service, orders and shop",
       "nodes" : [ {
-        "id" : "repo:shop",
-        "label" : "shop",
+        "id" : "system:snapshot",
+        "label" : "greeting-lib, greeting-service, orders and shop",
         "facts" : [ ]
       } ],
       "edges" : [ ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "context.people",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The code names no people or user roles, so who uses greeting-lib, greeting-service, orders and shop is not known."
+      } ],
       "facts" : [ ]
     } ],
     "sections" : [ ]
@@ -873,34 +907,11 @@
     "entity" : "repo:shop",
     "facts" : [ ],
     "blocks" : [ {
-      "kind" : "diagram",
-      "id" : "containers.diagram",
-      "diagramKind" : "c4-container",
-      "title" : "Containers of shop",
-      "nodes" : [ {
-        "id" : "library:com.example.shop:shop-api",
-        "label" : "shop-api",
-        "technology" : "Library, jar",
-        "parent" : "repo:shop",
-        "facts" : [ "fd9fdea1eb9a2b8fd9b82b30e536d04e7bdc8dc1b55851a38db5862bae156669", "ff80ab4b5389dc119afa8e3832459ab5ad82f9f296910193184a9586160ad2e0" ]
-      }, {
-        "id" : "library:com.example.shop:shop-core",
-        "label" : "shop-core",
-        "technology" : "Library, jar",
-        "parent" : "repo:shop",
-        "facts" : [ "7b168833e6e0cd18ff05b4eb491c2aa160bc12e217c38d76bb2c4d69efeaedad", "91eebcbe1a08eb9237eaf55f859c23b61ba0ec853f3433a189a495afaf2300dc" ]
-      }, {
-        "id" : "repo:shop",
-        "label" : "shop",
-        "facts" : [ ]
-      } ],
-      "edges" : [ {
-        "id" : "library:com.example.shop:shop-core--BUILD_DEPENDS_ON--library:com.example.shop:shop-api",
-        "from" : "library:com.example.shop:shop-core",
-        "to" : "library:com.example.shop:shop-api",
-        "label" : "depends on",
-        "relationship" : "BUILD_DEPENDS_ON",
-        "facts" : [ "5ce3d1d31615d76b53dcfcea7bd667023a076f85f6a986e0f204d1ede8420ba5" ]
+      "kind" : "paragraph",
+      "id" : "containers.none",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No deployable unit was found in the code."
       } ],
       "facts" : [ ]
     } ],
@@ -912,103 +923,7 @@
     "entity" : "repo:shop",
     "facts" : [ ],
     "blocks" : [ ],
-    "sections" : [ {
-      "id" : "components.library:com.example.shop:shop-api",
-      "title" : "shop-api",
-      "levels" : [ "L2", "L3" ],
-      "entity" : "library:com.example.shop:shop-api",
-      "facts" : [ ],
-      "blocks" : [ {
-        "kind" : "paragraph",
-        "id" : "components.library:com.example.shop:shop-api.summary",
-        "content" : [ {
-          "kind" : "text",
-          "text" : "It builds on its parts."
-        }, {
-          "kind" : "ref",
-          "text" : "com.example.shop.api",
-          "target" : {
-            "kind" : "entity",
-            "id" : "package:com.example.shop:shop-api:com.example.shop.api"
-          },
-          "citation" : true
-        }, {
-          "kind" : "text",
-          "text" : " It is described by its facts."
-        }, {
-          "kind" : "citation",
-          "facts" : [ "01bea95436b75747806745f4d4ea8f14e58653b1b4b7c956a36787d441e1a3f1" ]
-        } ],
-        "facts" : [ "01bea95436b75747806745f4d4ea8f14e58653b1b4b7c956a36787d441e1a3f1" ]
-      }, {
-        "kind" : "diagram",
-        "id" : "components.library:com.example.shop:shop-api.diagram",
-        "diagramKind" : "c4-component",
-        "title" : "Components of shop-api",
-        "nodes" : [ {
-          "id" : "library:com.example.shop:shop-api",
-          "label" : "shop-api",
-          "technology" : "Library, jar",
-          "facts" : [ "fd9fdea1eb9a2b8fd9b82b30e536d04e7bdc8dc1b55851a38db5862bae156669", "ff80ab4b5389dc119afa8e3832459ab5ad82f9f296910193184a9586160ad2e0" ]
-        }, {
-          "id" : "package:com.example.shop:shop-api:com.example.shop.api",
-          "label" : "com.example.shop.api",
-          "parent" : "library:com.example.shop:shop-api",
-          "facts" : [ "c8ac9cba31d6ad7e6e8ea930662f73b73f25b2988e7b2e0df1cb3f05ad3518f8" ]
-        } ],
-        "edges" : [ ],
-        "facts" : [ ]
-      } ],
-      "sections" : [ ]
-    }, {
-      "id" : "components.library:com.example.shop:shop-core",
-      "title" : "shop-core",
-      "levels" : [ "L2", "L3" ],
-      "entity" : "library:com.example.shop:shop-core",
-      "facts" : [ ],
-      "blocks" : [ {
-        "kind" : "paragraph",
-        "id" : "components.library:com.example.shop:shop-core.summary",
-        "content" : [ {
-          "kind" : "text",
-          "text" : "It builds on its parts."
-        }, {
-          "kind" : "ref",
-          "text" : "com.example.shop.core",
-          "target" : {
-            "kind" : "entity",
-            "id" : "package:com.example.shop:shop-core:com.example.shop.core"
-          },
-          "citation" : true
-        }, {
-          "kind" : "text",
-          "text" : " It is described by its facts."
-        }, {
-          "kind" : "citation",
-          "facts" : [ "55b874ba943abe02d3ef818539584a231cafb395604f0869b548406c32f28ae7" ]
-        } ],
-        "facts" : [ "55b874ba943abe02d3ef818539584a231cafb395604f0869b548406c32f28ae7" ]
-      }, {
-        "kind" : "diagram",
-        "id" : "components.library:com.example.shop:shop-core.diagram",
-        "diagramKind" : "c4-component",
-        "title" : "Components of shop-core",
-        "nodes" : [ {
-          "id" : "library:com.example.shop:shop-core",
-          "label" : "shop-core",
-          "technology" : "Library, jar",
-          "facts" : [ "7b168833e6e0cd18ff05b4eb491c2aa160bc12e217c38d76bb2c4d69efeaedad", "91eebcbe1a08eb9237eaf55f859c23b61ba0ec853f3433a189a495afaf2300dc" ]
-        }, {
-          "id" : "package:com.example.shop:shop-core:com.example.shop.core",
-          "label" : "com.example.shop.core",
-          "parent" : "library:com.example.shop:shop-core",
-          "facts" : [ "ebdb72b7c0c94325115a54d319c918d4d211641bfdbdbc4ae331dbc96cf3fdab" ]
-        } ],
-        "edges" : [ ],
-        "facts" : [ ]
-      } ],
-      "sections" : [ ]
-    } ]
+    "sections" : [ ]
   }, {
     "id" : "dependencies",
     "title" : "Dependencies",

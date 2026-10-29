@@ -129,7 +129,14 @@ final class SampleDocument {
                     List.of())),
             List.of(
                 new Diagram.Edge(
-                    "orders-lib-reads-db", LIB, DB, "reads", "READS_TABLE", facts(READS)),
+                    "orders-lib-reads-db",
+                    LIB,
+                    DB,
+                    "reads",
+                    "JDBC",
+                    "READS_TABLE",
+                    List.of("prod"),
+                    facts(READS)),
                 new Diagram.Edge("orders-to-db", ORDERS, DB, null, null, List.of())),
             facts(BUILDS, READS));
     Table dependencies =

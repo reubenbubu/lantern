@@ -7,6 +7,7 @@ import io.lantern.core.document.DocumentJson;
 import io.lantern.core.document.TemplateRef;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.snapshot.Snapshot;
 import io.lantern.llm.LlmRequest;
 import io.lantern.summarize.Summary;
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -74,6 +76,30 @@ class ComposerGoldenTest {
                 fixtures.facts(),
                 fixtures.summaries());
     assertMatchesGolden(document, repo + ".brief.json");
+  }
+
+  /**
+   * The C4 report of the system the hand-made runtime facts describe, {@code runtime.c4.json}:
+   * every element kind and line the views draw, for the C4 report renderer's golden tests too.
+   */
+  @Test
+  void systemReportMatchesGolden() throws IOException {
+    Snapshot snapshot =
+        new Snapshot(
+            1,
+            Map.of("shop", TestFacts.COMMIT, "base", TestFacts.COMMIT),
+            3,
+            "test",
+            Instant.EPOCH);
+    Document document =
+        new Composer("0.1.0-test")
+            .compose(
+                ViewDefinition.c4System(
+                    "system:c4", "System", new TemplateRef("c4-model-sequence-diagrams", "1")),
+                snapshot,
+                TestFacts.runtime().list(),
+                Map.of());
+    assertMatchesGolden(document, "runtime.c4.json");
   }
 
   /**

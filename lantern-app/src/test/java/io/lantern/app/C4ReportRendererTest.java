@@ -50,7 +50,8 @@ class C4ReportRendererTest {
     "valid-document, ../lantern-core/src/test/resources/schema/document/valid-document.json",
     "shop, ../lantern-compose/src/test/resources/golden/shop.json",
     "greeting-service, ../lantern-compose/src/test/resources/golden/greeting-service.json",
-    "orders, ../lantern-compose/src/test/resources/golden/orders.json"
+    "orders, ../lantern-compose/src/test/resources/golden/orders.json",
+    "runtime, ../lantern-compose/src/test/resources/golden/runtime.c4.json"
   })
   void rendersDocumentsAsTheGoldenFilesSay(String name, Path source) throws IOException {
     Document document = DocumentJson.read(Files.readString(source));
@@ -83,27 +84,57 @@ class C4ReportRendererTest {
   }
 
   @Test
-  void drawsElementsAsTheKindTheDiagramsDrawThemAs() throws IOException {
-    Document document =
-        DocumentJson.read(Files.readString(COMPOSED.resolve("greeting-service.json")));
+  void drawsElementsAsTheKindTheirTypeOrTheDiagramsDrawThemAs() throws IOException {
+    Document document = DocumentJson.read(Files.readString(COMPOSED.resolve("runtime.c4.json")));
 
-    JsonNode elements = C4ReportRenderer.toJson(document).data().get("elements");
+    JsonNode data = C4ReportRenderer.toJson(document).data();
+    JsonNode elements = data.get("elements");
 
-    // The repository is the system around the containers; a service is a container inside it,
-    // tagged with its Lantern type; a package on a component diagram is a component.
-    assertThat(elements.get("repo-greeting-service").get("kind").asString()).isEqualTo("system");
-    assertThat(elements.get("repo-greeting-service").get("tag").asString()).isEqualTo("Repository");
-    JsonNode service = elements.get("service-com-example-greeting-greeting-service");
-    assertThat(service.get("kind").asString()).isEqualTo("container");
-    assertThat(service.get("parent").asString()).isEqualTo("repo-greeting-service");
-    assertThat(service.get("tag").asString()).isEqualTo("Service");
-    assertThat(elements.properties())
-        .filteredOn(e -> e.getKey().startsWith("package-"))
-        .allSatisfy(
-            e -> {
-              assertThat(e.getValue().get("kind").asString()).isEqualTo("component");
-              assertThat(e.getValue().get("tag").asString()).isEqualTo("Package");
-            });
+    // The system is around the containers; a unit is a container inside it, tagged with its
+    // Lantern type; data stores, topics and external systems are drawn as what they are; a
+    // component is its main type, inside its unit.
+    assertThat(elements.get("system-snapshot").get("kind").asString()).isEqualTo("system");
+    JsonNode app = elements.get("service-com-example-app");
+    assertThat(app.get("kind").asString()).isEqualTo("container");
+    assertThat(app.get("parent").asString()).isEqualTo("system-snapshot");
+    assertThat(app.get("tag").asString()).isEqualTo("Service");
+    JsonNode database = elements.get("database-db-5432-shop");
+    assertThat(database.get("kind").asString()).isEqualTo("database");
+    assertThat(database.get("parent").asString()).isEqualTo("system-snapshot");
+    assertThat(database.get("technology").asString()).isEqualTo("PostgreSQL");
+    JsonNode topic = elements.get("topic-kafka-orders");
+    assertThat(topic.get("kind").asString()).isEqualTo("queue");
+    assertThat(topic.get("tag").asString()).isEqualTo("Topic");
+    JsonNode external = elements.get("external-system-pay-example-com");
+    assertThat(external.get("kind").asString()).isEqualTo("external");
+    assertThat(external.has("tag")).isFalse();
+    assertThat(external.has("parent")).isFalse();
+    JsonNode controller = elements.get("type-com-example-web-controller");
+    assertThat(controller.get("kind").asString()).isEqualTo("component");
+    assertThat(controller.get("parent").asString()).isEqualTo("service-com-example-app");
+    assertThat(controller.has("tag")).isFalse();
+
+    // Lines carry their technology, and a profile they alone hold under in their label.
+    JsonNode containers = data.get("pages").get(1).get("sections").get(0);
+    assertThat(containers.get("boundary").asString()).isEqualTo("system-snapshot");
+    assertThat(containers.get("relationships").toString())
+        .contains(
+            "{\"from\":\"service-com-example-app\",\"to\":\"external-system-pay-example-com\","
+                + "\"label\":\"Calls POST /charges (only with the Spring profile prod)\","
+                + "\"technology\":\"HTTPS\"}");
+    // Each kind has its own catalogue; decision records become a decisions section.
+    assertThat(data.get("pages").get(1).get("sections").findValuesAsString("title"))
+        .contains("Containers", "Data Stores and Queues", "External Systems", "Decisions");
+    JsonNode decision =
+        data.get("pages").get(1).findValues("items").stream()
+            .filter(items -> items.get(0).has("status"))
+            .findFirst()
+            .orElseThrow()
+            .get(0);
+    assertThat(decision.toString())
+        .isEqualTo(
+            "{\"id\":\"ADR 1\",\"title\":\"Use Kafka\",\"body\":\"Orders go to Kafka.\","
+                + "\"status\":\"Accepted\"}");
   }
 
   @Test
@@ -215,8 +246,7 @@ class C4ReportRendererTest {
         C4ReportRenderer.toJson(document).data().get("pages").get(0).get("sections");
 
     assertThat(sections.findValuesAsString("id"))
-        .containsExactly(
-            "context-diagram", "context-diagram-elements", "context-see", "notes-text");
+        .containsExactly("context-diagram", "context-diagram-systems", "context-see", "notes-text");
     assertThat(sections.get(2).get("body").asString())
         .isEqualTo("See [the notes](#/context/notes-text).");
     assertThat(sections.get(3).get("title").asString()).isEqualTo("Notes");
