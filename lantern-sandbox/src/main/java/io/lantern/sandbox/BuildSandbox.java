@@ -150,7 +150,7 @@ public class BuildSandbox {
   /**
    * Builds the repository at the commit, as {@link #build(Repo, String)} does, giving the build the
    * artifacts of other repositories' successful builds as a read-only tail of its local Maven
-   * repository, so it can use the libraries and parent POMs they build (ADR 0031). They are copied
+   * repository, so it can use the libraries and parent POMs they build (ADR 0041). They are copied
    * into the build's container, never into the shared Maven cache, so builds of other snapshots
    * cannot pick them up.
    *

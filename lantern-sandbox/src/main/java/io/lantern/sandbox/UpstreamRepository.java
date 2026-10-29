@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 
 /**
  * Writes the artifacts of other repositories' builds as a Maven repository, which a build gets as a
- * read-only tail of its local repository (ADR 0031). Each module gets its POM as written at the
+ * read-only tail of its local repository (ADR 0041). Each module gets its POM as written at the
  * build's commit, and each module that is not a {@code pom} gets a jar of its compiled classes, so
  * a build can use the libraries and parent POMs other repositories of the snapshot build without
  * them being installed into the shared Maven cache.

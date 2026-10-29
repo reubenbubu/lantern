@@ -21,6 +21,7 @@ import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxException;
+import io.lantern.sandbox.UpstreamBuild;
 import io.lantern.summarize.SummaryStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -215,7 +216,8 @@ class EndToEndIT {
     assertThat(libFacts).hasSize(first.facts());
 
     // The second run analyzes only the service; the library is carried forward, its facts keep
-    // holding, and the service's dependency on it is found as internal.
+    // holding, and the service's dependency on it is found as internal. The service builds, with
+    // the artifacts of the library's stored build (ADR 0041).
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     AnalyzeCommand command =
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
@@ -245,12 +247,14 @@ class EndToEndIT {
             "service:com.example.greeting:greeting-service application-name greeting-service");
 
     // Analyzing the library again at the same commit reuses everything and starts no new fact
-    // version, and the service's facts keep holding. The service's build fails, since the
-    // library is not in a Maven repository, but it is carried forward, so it is not built again.
+    // version, and the service's facts keep holding. The service is carried forward, so it is not
+    // built again.
     String serviceCommit =
         context.getBean(RepoRegistry.class).resolve("greeting-service", RepoRegistry.HEAD);
     BuildResult serviceBuild = sandbox.find("greeting-service", serviceCommit).orElseThrow();
-    assertThat(serviceBuild.status()).isEqualTo(BuildStatus.FAILED);
+    assertThat(serviceBuild.status()).as(serviceBuild.failure()).isEqualTo(BuildStatus.SUCCEEDED);
+    assertThat(serviceBuild.modules().getFirst().classpath())
+        .contains("lib/com/example/greeting/greeting-lib/1.0.0/greeting-lib-1.0.0.jar");
     int sent = fake.sent().size();
     AnalysisRun.Result third = run.run(Map.of("greeting-lib", lib));
     assertThat(sandbox.find("greeting-service", serviceCommit))
@@ -279,7 +283,7 @@ class EndToEndIT {
     AnalysisRun.Result together = run.run(Map.of("greeting-lib", lib, "greeting-service", service));
     assertThat(fake.sent()).as("LLM requests when analyzed together").hasSize(sent);
     assertThat(together.newFacts()).isZero();
-    assertThat(together.reusedBuilds()).containsExactly("greeting-lib");
+    assertThat(together.reusedBuilds()).containsExactly("greeting-lib", "greeting-service");
     assertThat(validIn(together, "greeting-lib")).isEqualTo(libFacts);
     assertThat(validIn(together, "greeting-service")).isEqualTo(serviceFacts);
 
@@ -365,7 +369,7 @@ class EndToEndIT {
         AnalysisConfiguration.sandboxSettings(WORKSPACE, context.getBean(SandboxProperties.class))
             .withOwnerLabel(RUN_LABEL, RUN)) {
       @Override
-      public BuildResult build(Repo repo, String commit) {
+      public BuildResult build(Repo repo, String commit, List<UpstreamBuild> upstream) {
         throw new SandboxException("Docker is unavailable");
       }
     };

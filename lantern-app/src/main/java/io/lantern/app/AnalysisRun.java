@@ -28,10 +28,12 @@ import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.link.Linker;
 import io.lantern.llm.LlmClient;
+import io.lantern.sandbox.BuildOrder;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.SandboxException;
+import io.lantern.sandbox.UpstreamBuild;
 import io.lantern.summarize.GitSourceFiles;
 import io.lantern.summarize.Summarizer;
 import io.lantern.summarize.SummaryStore;
@@ -217,12 +219,13 @@ public final class AnalysisRun {
           .forEach(name -> LOG.info("Carried forward without analyzing: {}", name));
 
       List<String> reused = new ArrayList<>();
-      Map<String, BuildResult> builds = build(registered, snapshot, reused);
+      List<RepoBuild> carried = carriedForward(snapshot, registered.keySet());
+      Map<String, BuildResult> builds = build(registered, carried, snapshot, reused);
       List<RepoBuild> repoBuilds = new ArrayList<>();
       registered.forEach(
           (name, repo) ->
               repoBuilds.add(new RepoBuild(repo, snapshot.commits().get(name), builds.get(name))));
-      repoBuilds.addAll(carriedForward(snapshot, registered.keySet()));
+      repoBuilds.addAll(carried);
 
       // The extractors see the whole snapshot, so whether a dependency or call reaches another
       // repository does not depend on which repositories this run names. Only the named
@@ -319,54 +322,95 @@ public final class AnalysisRun {
 
   /**
    * Builds every repository at its snapshot commit, in parallel up to the sandbox's limit, each at
-   * most once. A stored successful build of the same commit is reused; a stored failed one is built
-   * again, since its failure may have been transient or fixed by a settings change (ADR 0016, #58).
-   * If the sandbox cannot build it again, the stored failed build is used, as before #58.
+   * most once, and each after the repositories of the snapshot whose modules it uses, with their
+   * successful builds' artifacts (ADR 0041). Repositories carried forward are not built; their
+   * stored builds are used. A stored successful build of the same commit is reused; a stored failed
+   * one is built again, since its failure may have been transient or fixed by a settings change
+   * (ADR 0016, #58). If the sandbox cannot build it again, the stored failed build is used, as
+   * before #58.
    */
   private Map<String, BuildResult> build(
-      Map<String, Repo> repos, Snapshot snapshot, List<String> reused) {
+      Map<String, Repo> repos, List<RepoBuild> carried, Snapshot snapshot, List<String> reused) {
+    Map<String, Repo> all = new TreeMap<>(repos);
+    carried.forEach(c -> all.put(c.repo().name(), c.repo()));
+    BuildOrder order = BuildOrder.of(all, snapshot.commits());
+    for (List<String> cycle : order.cycles()) {
+      LOG.warn(
+          "Repositories {} use each other's modules, so each is built without the others'"
+              + " artifacts",
+          cycle);
+    }
     Map<String, Future<BuildResult>> running = new LinkedHashMap<>();
     Map<String, BuildResult> storedBuilds = new HashMap<>();
+    carried.forEach(
+        c -> running.put(c.repo().name(), CompletableFuture.completedFuture(c.build())));
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-      for (Map.Entry<String, Repo> entry : repos.entrySet()) {
-        String name = entry.getKey();
-        String commit = snapshot.commits().get(name);
-        BuildResult stored = sandbox.find(name, commit).orElse(null);
-        if (stored == null) {
-          LOG.info("Building {}@{}", name, commit);
-          running.put(name, executor.submit(() -> sandbox.build(entry.getValue(), commit)));
+      for (String name : order.order()) {
+        Repo repo = repos.get(name);
+        if (repo == null) {
           continue;
         }
-        storedBuilds.put(name, stored);
-        if (stored.status() == BuildStatus.SUCCEEDED) {
-          running.put(name, CompletableFuture.completedFuture(stored));
-        } else {
-          LOG.info("Building {}@{} again: its stored build failed", name, commit);
-          running.put(name, executor.submit(() -> rebuild(entry.getValue(), commit, stored)));
+        String commit = snapshot.commits().get(name);
+        List<Future<BuildResult>> before = order.upstream(name).stream().map(running::get).toList();
+        List<String> upstreamNames = List.copyOf(order.upstream(name));
+        BuildResult stored = sandbox.find(name, commit).orElse(null);
+        if (stored != null) {
+          storedBuilds.put(name, stored);
         }
+        if (stored != null && stored.status() == BuildStatus.SUCCEEDED) {
+          running.put(name, CompletableFuture.completedFuture(stored));
+          continue;
+        }
+        running.put(
+            name,
+            executor.submit(
+                () -> {
+                  List<UpstreamBuild> upstream = new ArrayList<>();
+                  for (int i = 0; i < before.size(); i++) {
+                    BuildResult build = before.get(i).get();
+                    if (build != null) {
+                      upstream.add(new UpstreamBuild(all.get(upstreamNames.get(i)), build));
+                    }
+                  }
+                  if (stored == null) {
+                    LOG.info("Building {}@{}", name, commit);
+                    return sandbox.build(repo, commit, upstream);
+                  }
+                  LOG.info("Building {}@{} again: its stored build failed", name, commit);
+                  return rebuild(repo, commit, upstream, stored);
+                }));
       }
       Map<String, BuildResult> builds = new TreeMap<>();
       for (Map.Entry<String, Future<BuildResult>> entry : running.entrySet()) {
+        String name = entry.getKey();
+        if (!repos.containsKey(name)) {
+          continue;
+        }
         BuildResult result = entry.getValue().get();
-        if (result == storedBuilds.get(entry.getKey())) {
-          reused.add(entry.getKey());
+        if (result == storedBuilds.get(name)) {
+          reused.add(name);
         }
         LOG.info(
             "Build of {}: {}{}",
-            entry.getKey(),
+            name,
             result.status(),
             result.failure() == null ? "" : " (" + result.failure() + "), degraded mode");
-        builds.put(entry.getKey(), result);
+        builds.put(name, result);
       }
       return builds;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while building", e);
     } catch (ExecutionException e) {
-      if (e.getCause() instanceof RuntimeException runtime) {
+      Throwable cause = e.getCause();
+      // A build that waited for a failed one fails with that one's failure.
+      while (cause instanceof ExecutionException nested && nested.getCause() != null) {
+        cause = nested.getCause();
+      }
+      if (cause instanceof RuntimeException runtime) {
         throw runtime;
       }
-      throw new IllegalStateException("A build failed", e.getCause());
+      throw new IllegalStateException("A build failed", cause);
     }
   }
 
@@ -375,9 +419,10 @@ public final class AnalysisRun {
    * cannot run the build: a stored result is better than none, and the run went ahead with it
    * before #58.
    */
-  private BuildResult rebuild(Repo repo, String commit, BuildResult failed) {
+  private BuildResult rebuild(
+      Repo repo, String commit, List<UpstreamBuild> upstream, BuildResult failed) {
     try {
-      return sandbox.build(repo, commit);
+      return sandbox.build(repo, commit, upstream);
     } catch (SandboxException e) {
       LOG.warn(
           "Could not build {}@{} again, so its stored failed build is used: {}",

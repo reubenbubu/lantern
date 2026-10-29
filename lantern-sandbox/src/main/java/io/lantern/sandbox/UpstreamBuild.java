@@ -4,7 +4,7 @@ import io.lantern.core.repo.Repo;
 import java.util.Objects;
 
 /**
- * The build of another repository of the snapshot, whose artifacts a build may use (ADR 0031).
+ * The build of another repository of the snapshot, whose artifacts a build may use (ADR 0041).
  *
  * @param repo the repository that was built
  * @param build its stored build, at the commit of the snapshot; only a successful one is used

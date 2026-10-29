@@ -25,7 +25,7 @@ import org.xml.sax.SAXException;
 
 /**
  * The order in which a snapshot's repositories are built, so a repository can use the artifacts of
- * libraries other repositories of the snapshot build (ADR 0031).
+ * libraries other repositories of the snapshot build (ADR 0041).
  *
  * <p>A repository depends on another when one of its POMs names, as a parent, dependency, plugin or
  * extension, the {@code groupId:artifactId} of a module the other builds, whatever the version, as
