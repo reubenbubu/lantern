@@ -50,7 +50,10 @@ import org.slf4j.LoggerFactory;
  * from its facts, the tables built in it and how the units use it (ADR 0056); one the model leaves
  * out has no description, as before. One call per main flow the documents show asks for its
  * walkthrough and pre- and post-conditions from what starts it and the facts behind its steps (ADR
- * 0058); what the model leaves out keeps its static prose or "Not known from the code.".
+ * 0058); what the model leaves out keeps its static prose or "Not known from the code.". Last, one
+ * call asks for the system's purpose from the units' sentences, with the facts they cite, and the
+ * README claims of its repositories (ADR 0060); without a purpose the system's report states it as
+ * unknown.
  *
  * <p>Answers are cached by the hash of the prompt, which shows no fact IDs, so a run over unchanged
  * facts makes no call. It never fails the run: an answer rejected twice, and a call refused by a
@@ -93,6 +96,15 @@ public final class Describer {
   /** The most tokens an answer about a flow may take. */
   static final int MAX_FLOW_OUTPUT_TOKENS = 1_500;
 
+  /** The most tokens an answer about the system's purpose may take. */
+  static final int MAX_PURPOSE_OUTPUT_TOKENS = 1_000;
+
+  /** The most units the prompt about the system's purpose shows. */
+  static final int MAX_PURPOSE_UNITS = 30;
+
+  /** The most facts the prompt about the system's purpose shows under one unit's sentence. */
+  static final int MAX_PURPOSE_UNIT_FACTS = 8;
+
   /** The links a unit's relationships are drawn from, as the container diagram draws them. */
   private static final List<String> LINKS =
       List.of(
@@ -117,14 +129,14 @@ public final class Describer {
    * What a run did.
    *
    * @param wordings the responsibility sentences and intent phrases, for the composer
-   * @param asked how many units, data stores, destinations and flows the model was asked about in
-   *     this run
+   * @param asked how many units, data stores, destinations and flows, and the system for its
+   *     purpose, the model was asked about in this run
    * @param reused how many answers came from the cache
-   * @param rejected the units, data stores and destinations, and the entry points of the flows,
-   *     whose answer was rejected twice
-   * @param skipped the units, data stores and destinations, and the entry points of the flows, the
-   *     model could not be asked about, because a budget or the model's capabilities refused the
-   *     call or the provider failed
+   * @param rejected the units, data stores and destinations, the entry points of the flows, and the
+   *     system for its purpose, whose answer was rejected twice
+   * @param skipped the units, data stores and destinations, the entry points of the flows, and the
+   *     system for its purpose, the model could not be asked about, because a budget or the model's
+   *     capabilities refused the call or the provider failed
    */
   public record Result(
       Wordings wordings, int asked, int reused, List<EntityId> rejected, List<EntityId> skipped) {
@@ -150,7 +162,7 @@ public final class Describer {
 
   /**
    * Words the deployable units of the facts, the data stores and destinations their diagrams draw,
-   * and the main flows of the system's and each repository's documents.
+   * the main flows of the system's and each repository's documents, and the system's purpose.
    *
    * @param facts the facts that hold in a snapshot, the linker's included
    */
@@ -202,16 +214,39 @@ public final class Describer {
       }
       throw new IllegalStateException(e.getCause());
     }
-    Map<EntityId, String> responsibilities = new HashMap<>();
-    Map<String, Wordings.Phrase> phrases = new HashMap<>();
-    Map<String, Wordings.Flow> flows = new HashMap<>();
-    int asked = 0;
-    int reused = 0;
-    List<EntityId> rejected = new ArrayList<>();
-    List<EntityId> skipped = new ArrayList<>();
+    Tally tally = new Tally();
     for (int i = 0; i < questions.size(); i++) {
-      Question question = questions.get(i);
-      Outcome outcome = outcomes.get(i);
+      tally.add(questions.get(i), outcomes.get(i));
+    }
+    // The system's purpose rests on the units' sentences, so it is asked about after them.
+    Optional<Question> purpose = purpose(knowledge, questions, outcomes);
+    purpose.ifPresent(q -> tally.add(q, answer(q, client.model(role(q)))));
+    LOG.info(
+        "Wordings: {} units, data stores, destinations, flows and the system asked, {} cached,"
+            + " {} rejected, {} skipped",
+        tally.asked,
+        tally.reused,
+        tally.rejected.size(),
+        tally.skipped.size());
+    return new Result(
+        new Wordings(tally.responsibilities, tally.phrases, tally.flows),
+        tally.asked,
+        tally.reused,
+        tally.rejected,
+        tally.skipped);
+  }
+
+  /** What the answers of a run add up to. */
+  private static final class Tally {
+    final Map<EntityId, String> responsibilities = new HashMap<>();
+    final Map<String, Wordings.Phrase> phrases = new HashMap<>();
+    final Map<String, Wordings.Flow> flows = new HashMap<>();
+    final List<EntityId> rejected = new ArrayList<>();
+    final List<EntityId> skipped = new ArrayList<>();
+    int asked;
+    int reused;
+
+    void add(Question question, Outcome outcome) {
       switch (outcome.kind()) {
         case SKIPPED -> skipped.add(question.element());
         case REJECTED -> {
@@ -232,15 +267,6 @@ public final class Describer {
         }
       }
     }
-    LOG.info(
-        "Wordings: {} units, data stores, destinations and flows asked, {} cached, {} rejected,"
-            + " {} skipped",
-        asked,
-        reused,
-        rejected.size(),
-        skipped.size());
-    return new Result(
-        new Wordings(responsibilities, phrases, flows), asked, reused, rejected, skipped);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -379,6 +405,59 @@ public final class Describer {
     return new ArrayList<>(questions.values());
   }
 
+  /**
+   * The prompt about the system's purpose (ADR 0060): the responsibility sentence of each unit the
+   * model worded, with the facts it cites, and the claims of each repository's README with the
+   * fewest folders; or none when there is neither, so the purpose is stated as unknown without a
+   * call. Units are listed by name and READMEs by repository, so the order does not depend on fact
+   * IDs.
+   */
+  private static Optional<Question> purpose(
+      Knowledge knowledge, List<Question> questions, List<Outcome> outcomes) {
+    List<WordingPrompt.UnitSentence> units = new ArrayList<>();
+    for (int i = 0; i < questions.size(); i++) {
+      Question question = questions.get(i);
+      Outcome outcome = outcomes.get(i);
+      if (!question.about().equals(WordingAnswer.UNIT) || outcome.kind() != Kind.ANSWERED) {
+        continue;
+      }
+      WordingAnswer.Item item = outcome.answer().items().get(WordingAnswer.UNIT);
+      if (item == null) {
+        continue;
+      }
+      List<Fact> cited = new ArrayList<>();
+      for (String cite : item.cites()) {
+        Fact fact = question.facts().get(cite);
+        if (fact != null && !cited.contains(fact)) {
+          cited.add(fact);
+        }
+      }
+      cited = byLine(cited);
+      units.add(
+          new WordingPrompt.UnitSentence(
+              question.name(),
+              item.text(),
+              cited.subList(0, Math.min(MAX_PURPOSE_UNIT_FACTS, cited.size()))));
+    }
+    units.sort(
+        Comparator.comparing(WordingPrompt.UnitSentence::name)
+            .thenComparing(WordingPrompt.UnitSentence::sentence));
+    units = units.subList(0, Math.min(MAX_PURPOSE_UNITS, units.size()));
+    SortedSet<String> repos = new TreeSet<>();
+    knowledge.withPredicate(CLAIM).forEach(f -> repos.add(f.evidence().repo()));
+    Map<String, List<Fact>> claims = new LinkedHashMap<>();
+    for (String repo : repos) {
+      List<Fact> readme = readmeClaims(repo, knowledge);
+      if (!readme.isEmpty()) {
+        claims.put(repo + " (" + readme.getFirst().evidence().path() + ")", readme);
+      }
+    }
+    if (units.isEmpty() && claims.isEmpty()) {
+      return Optional.empty();
+    }
+    return Optional.of(WordingPrompt.purpose(RepoSections.SYSTEM, units, claims));
+  }
+
   /** The facts by ID, each once. */
   private static Map<String, Fact> byId(List<Fact> facts) {
     Map<String, Fact> result = new LinkedHashMap<>();
@@ -449,27 +528,35 @@ public final class Describer {
     knowledge.parts(unit, BuiltInTypes.MODULE).forEach(m -> repos.addAll(knowledge.repos(m)));
     List<Fact> result = new ArrayList<>();
     for (String repo : repos) {
-      List<Fact> claims =
-          knowledge.withPredicate(CLAIM).stream()
-              .filter(f -> f.evidence().repo().equals(repo) && f.evidence().path() != null)
-              .toList();
-      Optional<String> readme =
-          claims.stream()
-              .map(f -> f.evidence().path())
-              .min(
-                  Comparator.comparingLong(
-                          (String path) -> path.chars().filter(c -> c == '/').count())
-                      .thenComparing(Comparator.naturalOrder()));
-      claims.stream()
-          .filter(f -> f.evidence().path().equals(readme.orElse(null)))
-          .sorted(
-              Comparator.comparingInt(
-                      (Fact f) -> f.evidence().lines() == null ? 0 : f.evidence().lines().start())
-                  .thenComparing(Fact::id))
-          .limit(MAX_CLAIMS)
-          .forEach(result::add);
+      result.addAll(readmeClaims(repo, knowledge));
     }
     return result;
+  }
+
+  /**
+   * The claims of the repository's README with the fewest folders in its path, in the order
+   * written, at most some.
+   */
+  private static List<Fact> readmeClaims(String repo, Knowledge knowledge) {
+    List<Fact> claims =
+        knowledge.withPredicate(CLAIM).stream()
+            .filter(f -> f.evidence().repo().equals(repo) && f.evidence().path() != null)
+            .toList();
+    Optional<String> readme =
+        claims.stream()
+            .map(f -> f.evidence().path())
+            .min(
+                Comparator.comparingLong(
+                        (String path) -> path.chars().filter(c -> c == '/').count())
+                    .thenComparing(Comparator.naturalOrder()));
+    return claims.stream()
+        .filter(f -> f.evidence().path().equals(readme.orElse(null)))
+        .sorted(
+            Comparator.comparingInt(
+                    (Fact f) -> f.evidence().lines() == null ? 0 : f.evidence().lines().start())
+                .thenComparing(Fact::id))
+        .limit(MAX_CLAIMS)
+        .toList();
   }
 
   private static String verb(String predicate) {
@@ -513,6 +600,7 @@ public final class Describer {
         switch (question.about()) {
           case WordingAnswer.UNIT -> "word unit " + question.element();
           case WordingPrompt.WALKTHROUGH -> "narrate flow " + question.name();
+          case WordingPrompt.PURPOSE -> "word the system's purpose";
           default -> "word element " + question.element();
         };
     try {
@@ -558,6 +646,7 @@ public final class Describer {
         switch (question.about()) {
           case WordingAnswer.UNIT -> MAX_OUTPUT_TOKENS;
           case WordingPrompt.WALKTHROUGH -> MAX_FLOW_OUTPUT_TOKENS;
+          case WordingPrompt.PURPOSE -> MAX_PURPOSE_OUTPUT_TOKENS;
           default -> MAX_ELEMENT_OUTPUT_TOKENS;
         };
     return client.call(
