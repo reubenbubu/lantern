@@ -75,6 +75,12 @@ class HttpClientExtractorTest {
         .doesNotContain("abc123");
     // A fluent request made but not executed where it is made is not a call there.
     assertThat(rendered).doesNotContain("drafts:8080");
+    // A RestClient group configurer does not set a WebClient group's base URL, and a method that
+    // is not a @Bean does not make the adapter injected.
+    assertThat(rendered).doesNotContain("not-alerts").doesNotContain("not-stock");
+    assertThat(rendered)
+        .contains("http://alerts:8080/alerts")
+        .contains("http://stock:8080/api/stock");
     // A base URL's unfollowed parts are listed only where the base is part of the URL: not for a
     // method whose own URL is a whole URL.
     assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#quote(")))

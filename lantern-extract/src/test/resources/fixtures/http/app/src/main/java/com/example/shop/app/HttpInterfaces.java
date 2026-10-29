@@ -76,8 +76,13 @@ public class HttpInterfaces {
   }
 
   @Bean
-  StockApi stockApi(RestClientAdapter stockAdapter) {
-    return HttpServiceProxyFactory.builderFor(stockAdapter).build().createClient(StockApi.class);
+  StockApi stockApi(RestClientAdapter adapter) {
+    return HttpServiceProxyFactory.builderFor(adapter).build().createClient(StockApi.class);
+  }
+
+  /** Not a bean, so not what the stock API's adapter is. */
+  static RestClientAdapter testAdapter(RestClient.Builder builder) {
+    return RestClientAdapter.create(builder.baseUrl("http://not-stock:8080").build());
   }
 
   private static String region() {

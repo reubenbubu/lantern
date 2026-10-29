@@ -119,6 +119,7 @@ public final class HttpClientExtractor {
   private static final List<String> REST_HTTP_METHODS =
       List.of("jakarta.ws.rs.HttpMethod", "javax.ws.rs.HttpMethod");
   private static final String VALUE = SPRING + "beans.factory.annotation.Value";
+  private static final String BEAN = SPRING + "context.annotation.Bean";
   private static final String HTTP_EXCHANGE = SPRING + "web.service.annotation.HttpExchange";
 
   /** The types an HTTP interface's proxy is made with, and the adapters they take. */
@@ -550,8 +551,9 @@ public final class HttpClientExtractor {
 
     /**
      * The base URL behind a proxy factory or adapter injected as a parameter or field: that of the
-     * bean of its type made by a method in the same repository's code, the only one or the one
-     * named as the parameter or field, as Spring picks it; null if none or several match.
+     * bean of its type made by a {@code @Bean} method in the same repository's code, the only one
+     * or the one named as the parameter or field, as Spring picks it; null if none or several
+     * match.
      */
     private Text injected(Expression e, Scope scope, Set<String> types, int depth) {
       Expression root = e instanceof Expression.Invoke i ? i.root() : e;
@@ -574,7 +576,9 @@ public final class HttpClientExtractor {
         }
         for (TypeDecl type : m.structure().types()) {
           for (Member member : type.members()) {
-            if (member.returns() != null && types.contains(member.returns())) {
+            if (member.returns() != null
+                && types.contains(member.returns())
+                && code.annotationPath(member.annotations(), BEAN) != null) {
               beans.put(member.id().toString(), beanBase(member, m, depth + 1));
             }
           }
@@ -619,10 +623,13 @@ public final class HttpClientExtractor {
      * A base URL an HTTP service group configurer sets.
      *
      * @param groups the groups it names ({@code filterByName}), empty for all
+     * @param builder the client builder it configures: a RestClient configurer's applies to
+     *     RestClient groups, a WebClient configurer's to WebClient groups
      * @param base the base URL
      * @param module the module of the configurer
      */
-    private record GroupBase(Set<String> groups, Text base, JavaAnalysis.Module module) {}
+    private record GroupBase(
+        Set<String> groups, String builder, Text base, JavaAnalysis.Module module) {}
 
     /**
      * Reads the group configurers of a module: a chain on the groups ({@code
@@ -656,6 +663,7 @@ public final class HttpClientExtractor {
           continue;
         }
         Text base = null;
+        String builder = null;
         for (Invocation inner : invocations) {
           if (inner == outer
               || !CLIENT_BUILDERS.contains(inner.rootType())
@@ -666,11 +674,12 @@ public final class HttpClientExtractor {
           for (Expression.Invoke call : inner.expression().chain()) {
             if (call.method().equals("baseUrl") && call.arguments().size() == 1) {
               base = text(call.arguments().getFirst(), new Scope(m, inner.caller()));
+              builder = inner.rootType();
             }
           }
         }
         if (base != null) {
-          groupBases.add(new GroupBase(Set.copyOf(groups), base, m));
+          groupBases.add(new GroupBase(Set.copyOf(groups), builder, base, m));
         }
       }
     }
@@ -701,7 +710,12 @@ public final class HttpClientExtractor {
             TypeDecl t = code.type(c);
             packages.add(t != null ? t.packageName() : packageOf(c));
           }
-          List<Text> bases = groupBaseUrls(group, m);
+          // A group's clients are WebClients if it says so, else RestClients.
+          String builder =
+              "WEB_CLIENT".equals(firstOf(a, "clientType"))
+                  ? REACTIVE + "WebClient$Builder"
+                  : WEB + "RestClient$Builder";
+          List<Text> bases = groupBaseUrls(group, builder, m);
           for (Map.Entry<String, Client> c : clients.entrySet()) {
             if (!c.getValue().kind().equals(HTTP_INTERFACE)) {
               continue;
@@ -733,14 +747,15 @@ public final class HttpClientExtractor {
     }
 
     /**
-     * The base URLs of a group's clients: those its configurers in the same repository set, those
-     * naming it before those for all groups, else Spring Boot's property for it.
+     * The base URLs of a group's clients: those its configurers of the group's client type in the
+     * same repository set, those naming it before those for all groups, else Spring Boot's property
+     * for it.
      */
-    private List<Text> groupBaseUrls(String group, JavaAnalysis.Module m) {
+    private List<Text> groupBaseUrls(String group, String builder, JavaAnalysis.Module m) {
       List<Text> named = new ArrayList<>();
       List<Text> all = new ArrayList<>();
       for (GroupBase g : groupBases) {
-        if (!g.module().repo().equals(m.repo())) {
+        if (!g.module().repo().equals(m.repo()) || !g.builder().equals(builder)) {
           continue;
         }
         List<Text> into = g.groups().isEmpty() ? all : g.groups().contains(group) ? named : null;

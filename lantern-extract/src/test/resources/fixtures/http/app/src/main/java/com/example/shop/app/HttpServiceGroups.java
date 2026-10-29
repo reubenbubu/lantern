@@ -29,4 +29,13 @@ public class HttpServiceGroups {
             .filterByName("reviews")
             .forEachClient((group, builder) -> builder.baseUrl(reviewsUrl));
   }
+
+  /** A RestClient configurer naming the alerts group, whose clients are WebClients: no effect. */
+  @Bean
+  RestClientHttpServiceGroupConfigurer alertsRestConfigurer() {
+    return groups ->
+        groups
+            .filterByName("alerts")
+            .forEachClient((group, builder) -> builder.baseUrl("http://not-alerts:8080"));
+  }
 }

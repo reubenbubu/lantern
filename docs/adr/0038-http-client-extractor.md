@@ -76,7 +76,7 @@ without what must not be.
   itself stands alone, as Spring sends it, without the base's `expressions`.
 - **Beans made in another method** (#149): a proxy factory (or its builder) or an adapter that the
   code making the proxy takes as a parameter or field, rather than making it, is the bean of its
-  type that a method of the same repository's code returns (by its declared return type; an
+  type that a `@Bean` method of the same repository's code returns (by its declared return type; an
   `HttpExchangeAdapter` matches any adapter): the only one, else the one whose method is named as
   the parameter or field, as Spring picks it; none if several match otherwise. Its base URL is read
   from that method's code as above, so the chain may run through a factory bean to an adapter
@@ -88,7 +88,8 @@ without what must not be.
   the one the group configurers of the same repository's code set: a chain on the configurer's
   `Groups`, `filterByName("a", ...)` with constant names or nothing (all groups), then
   `forEachClient` or `forEachGroup` with a lambda that calls `baseUrl(url)` on the client builder,
-  the URL followed as above. Configurers naming the group win over those for all groups, as a
+  the URL followed as above. A RestClient configurer applies to the groups whose `clientType` is
+  `REST_CLIENT` or unspecified, a WebClient one to `WEB_CLIENT` groups. Configurers naming the group win over those for all groups, as a
   configurer runs after Spring Boot's properties, a call per distinct base URL; one with another
   filter (`filter(predicate)`) is not read. Without a configurer it is Spring Boot 4's property
   `${spring.http.serviceclient.<group>.base-url}` (Boot's `HttpServiceClientProperties`),
