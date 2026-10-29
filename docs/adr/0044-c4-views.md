@@ -1,4 +1,4 @@
-# 0043: Context, container and component views, and the system's C4 report
+# 0044: Context, container and component views, and the system's C4 report
 
 Status: accepted (#95), pending the user's review (#24)
 
@@ -41,7 +41,9 @@ currency and ranked risks were split off to #163 and #164.
   to directly is not a box: the line runs from the exchange to the consumer with the queue in its
   technology (`AMQP · payments.order-events`), the design's "via" label, so a broker never becomes
   one box and the diagram stays small. A diagram of more than 15 elements is split into one per unit
-  with its neighbours, each its own subsection and so its own page. Service discovery, config
+  with its neighbours, each its own subsection and so its own page. A diagram still above 15
+  elements (one unit with more neighbours, or a scope of one unit) is drawn whole and listed in a
+  quality-report block, "At most 15 elements", until #163 checks every document. Service discovery, config
   servers, tracing and brokers (`USES_INFRASTRUCTURE`, `USES_BROKER`) are left out, and
   `SENDS_MESSAGES_TO` is drawn through the topic or queue it goes through.
 - **Lines** are one per pair of elements and relationship, built from the link facts: the label
@@ -49,7 +51,15 @@ currency and ranked risks were split off to #163 and #164.
   order.created`, `Delivers order.*`, `Stores its data in` for a unit whose migrations build a schema
   there, else `Connects to`, `Reads tables of`), naming two details and counting the rest; the
   technology is the link's protocol. A line all of whose links hold only under profiles lists them;
-  a line that holds by default is unmarked, even where a profile changes its target. Intent phrases
+  a line that holds by default is unmarked.
+- **Profile alternatives are a note, not boxes.** A profile-only link that stands in for a default
+  link of the same unit and relationship (the same calling method, listener or datasource key, or
+  an alternate host the linker names, ADR 0042), the default not holding under that profile, is left
+  out of the diagrams and the headline counts and listed in an "Under other profiles" note on the
+  context (external systems only), container and component pages: project-0's `local` datasource on
+  `localhost`, PayGate's `prod` host. So one real system or database is one box, named by its default
+  target. A profile-only link that replaces nothing, such as SPR-4's `audit` send, stays a line
+  marked with its profile. Intent phrases
   worded for the reader are the LLM's (#97); these labels are what static facts say.
 - **Components**, inside each unit: each controller, message listener or scheduled job is a
   component (named after its class) with the beans (stereotyped classes, Spring Data repositories,

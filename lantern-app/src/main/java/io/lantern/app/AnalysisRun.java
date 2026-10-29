@@ -68,7 +68,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * repositories, take a snapshot of their checked-out commits, build them in the sandbox, extract
  * and store their facts, summarize them with the LLM, compose an Architecture Explorer document, an
  * Executive Brief and a C4 report per repository and a C4 report of the whole system, and render
- * each as single-file HTML (ADR 0016, ADR 0031, ADR 0043).
+ * each as single-file HTML (ADR 0016, ADR 0031, ADR 0044).
  *
  * <p>The snapshot describes the whole system: every repository an earlier snapshot analyzed that is
  * not named in this run is carried forward at its commit in the latest snapshot that analyzed it,

@@ -1,6 +1,6 @@
 # 0011: Document model
 
-Status: accepted (#12), amended by ADR 0027 (#70), ADR 0028 (#91) and ADR 0043 (#95), pending the user's review (#24)
+Status: accepted (#12), amended by ADR 0027 (#70), ADR 0028 (#91) and ADR 0044 (#95), pending the user's review (#24)
 
 ## Context
 

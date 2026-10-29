@@ -2,10 +2,12 @@ package io.lantern.compose;
 
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
+import io.lantern.core.document.CrossReference;
 import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.Metrics;
 import io.lantern.core.document.Paragraph;
+import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
 import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
@@ -89,6 +91,9 @@ final class C4Views {
   private final Set<String> repos;
   private final List<Link> links;
 
+  /** Each profile-only link that replaces a default one under its profile, with that default. */
+  private final Map<Fact, Fact> alternatives;
+
   /**
    * @param system the software system the scope's containers belong to
    * @param units the deployable units in scope
@@ -105,7 +110,9 @@ final class C4Views {
     this.system = system;
     this.units = units;
     this.repos = repos;
+    this.alternatives = alternatives();
     this.links = containerLinks();
+    links.removeIf(link -> alternatives.containsKey(link.facts.getFirst()));
   }
 
   // The deployable units and their names.
@@ -217,6 +224,146 @@ final class C4Views {
       return new Link(
           from, relationship, to, plain, prefix, detail, technology, through, profile, both);
     }
+  }
+
+  /** The relationships whose profile-only links may replace a default link of their unit. */
+  private static final List<String> REPLACEABLE =
+      List.of(CALLS_HTTP, PUBLISHES, CONSUMES, USES_DATABASE, ACCESSES_DATA_OF);
+
+  /**
+   * The profile-only links that stand in for a default link of the same unit, relationship and code
+   * or config (the same calling method, listener or datasource key, or a linked alternate host),
+   * the default one not holding under that profile: a datasource the {@code local} profile points
+   * at {@code localhost}, PayGate's production host. They are left out of the diagrams and counts,
+   * which show the default, and are listed in a note instead. A profile-only link without such a
+   * default, such as a send only the {@code audit} profile makes, stays a line of its own.
+   */
+  private Map<Fact, Fact> alternatives() {
+    Map<Fact, Fact> result = new java.util.LinkedHashMap<>();
+    for (EntityId unit : units(knowledge)) {
+      for (String relationship : REPLACEABLE) {
+        List<Fact> facts = knowledge.relations(unit, relationship);
+        for (Fact profiled : facts) {
+          String profile = attribute(profiled, "profile");
+          if (profile == null) {
+            continue;
+          }
+          for (Fact fallback : facts) {
+            if (attribute(fallback, "profile") == null
+                && strings(fallback, "exceptProfiles").contains(profile)
+                && sameOrigin(profiled, fallback)) {
+              result.put(profiled, fallback);
+              break;
+            }
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /** Whether two links come from the same code or config, or name each other as alternates. */
+  private static boolean sameOrigin(Fact a, Fact b) {
+    if (strings(a, "alternates").contains(Knowledge.object(b).toString())) {
+      return true;
+    }
+    for (String anchor : List.of("source", "key")) {
+      String x = attribute(a, anchor);
+      if (x != null) {
+        return x.equals(attribute(b, anchor));
+      }
+    }
+    return false;
+  }
+
+  /**
+   * A note listing the alternatives of the units' default links under profiles, those to external
+   * systems only if asked.
+   */
+  private Optional<Callout> alternativesNote(String id, Set<EntityId> of, boolean externalOnly) {
+    List<Inline> content = new ArrayList<>();
+    List<Fact> facts = new ArrayList<>();
+    for (Map.Entry<Fact, Fact> entry : alternatives.entrySet()) {
+      Fact profiled = entry.getKey();
+      Fact fallback = entry.getValue();
+      EntityId target = Knowledge.object(profiled);
+      if (!of.contains(profiled.subject())
+          || (externalOnly && !target.type().equals(EXTERNAL_SYSTEM))) {
+        continue;
+      }
+      String verb =
+          switch (profiled.predicate()) {
+            case CALLS_HTTP -> "calls";
+            case PUBLISHES -> "sends to";
+            case CONSUMES -> "listens on";
+            case USES_DATABASE -> "connects to";
+            default -> "reads tables of";
+          };
+      assembler.entity(target);
+      content.add(
+          TextRun.of(
+              (content.isEmpty() ? "" : " ")
+                  + "Under the Spring profile "
+                  + attribute(profiled, "profile")
+                  + ", "
+                  + assembler.name(profiled.subject())
+                  + " "
+                  + verb
+                  + " "
+                  + assembler.name(target)
+                  + " instead of "
+                  + assembler.name(Knowledge.object(fallback))
+                  + "."));
+      facts.add(profiled);
+      facts.add(fallback);
+    }
+    if (content.isEmpty()) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        new Callout(
+            id,
+            Callout.Variant.NOTE,
+            null,
+            "Under other profiles",
+            content,
+            assembler.facts(facts)));
+  }
+
+  /**
+   * The diagrams that show more than {@link #MAX_ELEMENTS} elements, boundaries not counted, as
+   * failures of the Quality bar's check (#163 makes the checks of every document).
+   */
+  private Optional<QualityReport> tooLarge(String id, List<Diagram> diagrams) {
+    List<QualityReport.Failure> failures = new ArrayList<>();
+    for (Diagram diagram : diagrams) {
+      Set<EntityId> boundaries = new HashSet<>();
+      diagram
+          .nodes()
+          .forEach(
+              n -> {
+                if (n.parent() != null) {
+                  boundaries.add(n.parent());
+                }
+              });
+      int elements = diagram.nodes().size() - boundaries.size();
+      if (elements > MAX_ELEMENTS) {
+        failures.add(
+            new QualityReport.Failure(
+                "At most " + MAX_ELEMENTS + " elements",
+                CrossReference.Target.block(diagram.id()),
+                List.of(
+                    TextRun.of(
+                        "It shows "
+                            + elements
+                            + " elements, and one unit's direct neighbours cannot be split"
+                            + " further.")),
+                List.of()));
+      }
+    }
+    return failures.isEmpty()
+        ? Optional.empty()
+        : Optional.of(new QualityReport(id, "Quality gaps", failures, List.of()));
   }
 
   /** The links of every unit, with RabbitMQ queues an exchange routes to folded into the line. */
@@ -542,6 +689,7 @@ final class C4Views {
             List.copyOf(nodes.values()),
             edges.build(assembler, false),
             List.of()));
+    alternativesNote(assembler.id(section, "profiles"), units, true).ifPresent(blocks::add);
     blocks.add(
         new Callout(
             assembler.id(section, "people"),
@@ -621,8 +769,10 @@ final class C4Views {
               List.of()));
     } else {
       Diagram whole = containerDiagram(assembler.id(section, "diagram"), units, "Containers");
+      List<Diagram> drawn = new ArrayList<>();
       if (whole.nodes().size() - 1 <= MAX_ELEMENTS || units.size() == 1) {
         blocks.add(whole);
+        drawn.add(whole);
       } else {
         for (EntityId unit : units) {
           String id = assembler.id(section, unit.toString());
@@ -631,6 +781,7 @@ final class C4Views {
                   assembler.id(id, "diagram"),
                   only(unit),
                   "Containers around " + assembler.name(unit));
+          drawn.add(around);
           subsections.add(
               new Section(
                   id,
@@ -642,7 +793,9 @@ final class C4Views {
                   List.of()));
         }
       }
+      tooLarge(assembler.id(section, "quality"), drawn).ifPresent(blocks::add);
     }
+    alternativesNote(assembler.id(section, "profiles"), units, false).ifPresent(blocks::add);
     unresolved(section).ifPresent(blocks::add);
     decisions(section).ifPresent(blocks::add);
   }
@@ -811,6 +964,10 @@ final class C4Views {
         continue;
       }
       String id = assembler.id(section, unit.toString());
+      Diagram diagram = componentDiagram(assembler.id(id, "diagram"), unit, components);
+      List<Block> blocks = new ArrayList<>(List.of(diagram));
+      alternativesNote(assembler.id(id, "profiles"), only(unit), false).ifPresent(blocks::add);
+      tooLarge(assembler.id(id, "quality"), List.of(diagram)).ifPresent(blocks::add);
       result.add(
           new Section(
               id,
@@ -818,7 +975,7 @@ final class C4Views {
               SectionKind.COMPONENTS.levels(),
               unit,
               List.of(),
-              List.of(componentDiagram(assembler.id(id, "diagram"), unit, components)),
+              blocks,
               List.of()));
     }
     return result;

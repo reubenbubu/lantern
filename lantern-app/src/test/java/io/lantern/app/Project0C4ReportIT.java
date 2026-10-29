@@ -30,6 +30,7 @@ import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -45,7 +46,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * The C4 report of the synthetic test set project-0 (docs/adr/0029) as one system, composed with
- * the views of ADR 0043 from the facts the app extracts and links, with the repositories built in
+ * the views of ADR 0044 from the facts the app extracts and links, with the repositories built in
  * the sandbox. Runs only when {@code lantern.test.project0} names the folder {@code
  * testsets/project-0/setup.sh} set it up in; see Commands in {@code CLAUDE.md}.
  */
@@ -104,7 +105,7 @@ class Project0C4ReportIT {
    * target/project-0}, to look at, and checks the elements, pages and lines it shows.
    */
   @Test
-  void rendersTheSystemAsTheC4Report() throws IOException {
+  void rendersTheSystemAsTheC4Report() throws IOException, InterruptedException {
     Files.createDirectories(OUT);
     Snapshot snapshot = new Snapshot(1, COMMITS, 1, "test", Instant.EPOCH);
     Document document =
@@ -122,19 +123,30 @@ class Project0C4ReportIT {
         OUT.resolve("system.c4.html"), C4ReportRenderer.fromClassPath().render(document));
 
     JsonNode data = C4ReportRenderer.toJson(document).data();
+    // Valid for the report spec, as lantern-web's tests check the renderer's golden files.
+    Process check =
+        new ProcessBuilder(
+                Path.of("../lantern-web/target/node/node").toAbsolutePath().toString(),
+                "../lantern-web/scripts/report-spec-check.mjs",
+                C4ReportRenderer.SPEC,
+                OUT.resolve("system.c4.json").toString())
+            .redirectErrorStream(true)
+            .start();
+    String problems = new String(check.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    assertThat(check.waitFor()).as(problems).isZero();
     Map<String, Long> kinds = new TreeMap<>();
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
-    // Four units; the catalog, shop and local shop databases; the shop.orders exchange (its
-    // queues folded into its lines), two JMS queues and a Kafka topic; PayGate's two hosts; and
-    // the components by role (REPO-1, DB-*, MSG-*, HTTP-4).
+    // Four units; the catalog and shop databases (the local profile's localhost one is a note);
+    // the shop.orders exchange (its queues folded into its lines), two JMS queues and a Kafka
+    // topic; PayGate, by its default sandbox host (HTTP-4); and the components by role.
     assertThat(kinds)
         .containsExactlyEntriesOf(
             new TreeMap<>(
                 Map.of(
                     "component", 10L,
                     "container", 4L,
-                    "database", 3L,
-                    "external", 2L,
+                    "database", 2L,
+                    "external", 1L,
                     "queue", 4L,
                     "system", 1L)));
     List<String> pages = new ArrayList<>();
@@ -163,6 +175,13 @@ class Project0C4ReportIT {
             "{\"from\":\"exchange-rabbitmq-shop-orders\",\"to\":\"service-com-acme-shop-payments\","
                 + "\"label\":\"Delivers order.*, refund.#\","
                 + "\"technology\":\"AMQP · payments.order-events, payments.refunds\"}");
+    assertThat(data.get("pages").get(1).toString())
+        .contains(
+            "Under the Spring profile local, storefront connects to shop on localhost instead of"
+                + " shop on shop-db.")
+        .contains(
+            "Under the Spring profile prod, payments calls api.paygate.example.com instead of"
+                + " sandbox.paygate.example.com.");
   }
 
   /** The sandbox settings of the extractors' tests, with the Maven mirror if one is set. */

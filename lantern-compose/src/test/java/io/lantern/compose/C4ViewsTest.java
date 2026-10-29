@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
+import io.lantern.core.document.CrossReference;
 import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
@@ -11,6 +12,7 @@ import io.lantern.core.document.Inline;
 import io.lantern.core.document.ListBlock;
 import io.lantern.core.document.Metrics;
 import io.lantern.core.document.Paragraph;
+import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
 import io.lantern.core.document.Table;
 import io.lantern.core.document.TemplateRef;
@@ -26,7 +28,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
-/** The C4 context, container and component views (docs/design.md, Diagrams; ADR 0043). */
+/** The C4 context, container and component views (docs/design.md, Diagrams; ADR 0044). */
 class C4ViewsTest {
 
   private static final TemplateRef TEMPLATE = new TemplateRef("c4-model-sequence-diagrams", "1");
@@ -273,6 +275,54 @@ class C4ViewsTest {
         .containsExactly("shop-app", "worker");
     Diagram worker = block(containers.sections().get(1), Diagram.class);
     assertThat(worker.title()).isEqualTo("Containers around worker of base and shop");
+    // shop-app's own neighbourhood still has more than 15 elements: a quality gap, not hidden.
+    QualityReport gaps = block(containers, QualityReport.class);
+    assertThat(gaps.failures())
+        .singleElement()
+        .satisfies(
+            f -> {
+              assertThat(f.check()).isEqualTo("At most 15 elements");
+              assertThat(f.target())
+                  .isEqualTo(
+                      CrossReference.Target.block("containers.service:com.example:app.diagram"));
+            });
+  }
+
+  @Test
+  void aProfileOnlyAlternativeOfADefaultLinkIsANoteNotABox() {
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "USES_DATABASE",
+            "database:localhost:5432/shop",
+            "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
+                + " \"profile\": \"local\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "USES_DATABASE",
+            "database:db:5432/shop",
+            "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
+                + " \"exceptProfiles\": [\"local\"]}");
+
+    Section containers = section(repo(more.list()), "containers");
+
+    assertThat(nodes(block(containers, Diagram.class)))
+        .noneMatch(n -> n.startsWith("database:localhost"));
+    Callout note =
+        containers.blocks().stream()
+            .filter(b -> b instanceof Callout c && "Under other profiles".equals(c.title()))
+            .map(Callout.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(note.content()))
+        .isEqualTo(
+            "Under the Spring profile local, shop-app connects to shop on localhost instead of"
+                + " shop on db.");
+    assertThat(block(section(repo(more.list()), "context"), Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains("Databases 1");
   }
 
   @Test
