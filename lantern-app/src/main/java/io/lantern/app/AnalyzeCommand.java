@@ -253,6 +253,9 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     for (AnalysisRun.Rendered document : result.documents()) {
       out.println("Wrote " + document.file());
     }
+    if (result.runRecord() != null) {
+      out.println("Wrote " + result.runRecord());
+    }
   }
 
   /** The calls under each role, such as " (SUMMARIZE=5, COMPOSE=2)", or nothing without calls. */

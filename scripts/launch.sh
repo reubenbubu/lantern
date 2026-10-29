@@ -24,6 +24,9 @@ Options:
   --system NAME             The system the repositories belong to. Default: the name of
                             the folder they are all in.
   --title TITLE             The system's title, kept for later runs (blank clears it).
+  --set PROPERTY=VALUE      Set an app property for this run, e.g. --set
+                            lantern.llm.roles.summarize=haiku to serve one role with another
+                            model named in the LLM settings. Repeatable.
   --auto-port               If the database port is taken, use the next free port instead
                             of failing.
   --rebuild                 Build the app jar even if one exists. An existing jar is not
@@ -60,6 +63,7 @@ title_given=false
 rebuild=false
 db_only=false
 assume_yes=false
+app_options=()
 args=()
 
 while [[ $# -gt 0 ]]; do
@@ -89,6 +93,12 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --title=*) title="${1#*=}"; title_given=true; shift ;;
+    --set)
+      [[ $# -ge 2 && "$2" == ?*=* ]] || die "--set needs PROPERTY=VALUE"
+      app_options+=("--$2")
+      shift 2
+      ;;
+    --set=?*=*) app_options+=("--${1#--set=}"); shift ;;
     --auto-port) auto_port=true; shift ;;
     --rebuild) rebuild=true; shift ;;
     --db-only) db_only=true; shift ;;
@@ -254,4 +264,5 @@ info "documents go to $LANTERN_WORKSPACE/documents/<system>"
 options=()
 [[ -n "$system" ]] && options+=("--system=$system")
 $title_given && options+=("--title=$title")
-exec java -jar "$jar" --spring.config.additional-location="$locations" analyze ${options[@]+"${options[@]}"} "${args[@]}"
+exec java -jar "$jar" --spring.config.additional-location="$locations" \
+  ${app_options[@]+"${app_options[@]}"} analyze ${options[@]+"${options[@]}"} "${args[@]}"

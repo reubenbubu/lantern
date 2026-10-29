@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.List;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -126,5 +127,45 @@ class RecordReplayLlmProviderTest {
                 .complete(plain.withThinking(new Thinking(true, 0)), request))
         .extracting(LlmResponse::text)
         .isEqualTo("An order.");
+  }
+
+  /**
+   * Recordings are keyed by model: replaying a run with one role switched to another model makes
+   * new calls only for that role, to the new model, and replays the other roles (#252).
+   */
+  @Test
+  void switchingOneRolesModelMakesNewCallsOnlyForIt() {
+    FakeLlmProvider real = new FakeLlmProvider("anthropic").answering("An answer.");
+    RecordReplayLlmProvider recorder = RecordReplayLlmProvider.recording(real, recordings);
+    ModelSettings first = ModelSettings.byTier(real.model("haiku"), real.model("sonnet"));
+    ModelSettings switched = first.with(Role.SUMMARIZE, real.model("opus"));
+    List<LlmRequest> requests =
+        List.of(
+            request,
+            LlmRequest.of(Role.COMPOSE, "narrate", "You narrate.", "a flow", 200),
+            LlmRequest.of(Role.RESOLVE, "resolve", "You resolve.", "a link", 200));
+    InMemoryLlmCallLog log = new InMemoryLlmCallLog();
+    LlmClient once =
+        new LlmClient(
+            first, List.of(recorder), BudgetGuard.unlimited("run"), log, Clock.systemUTC());
+    requests.forEach(once::call);
+    assertThat(real.sent())
+        .extracting(FakeLlmProvider.Sent::model)
+        .containsExactly("haiku", "haiku", "sonnet");
+
+    LlmClient again =
+        new LlmClient(
+            switched, List.of(recorder), BudgetGuard.unlimited("run"), log, Clock.systemUTC());
+    requests.forEach(again::call);
+
+    assertThat(real.sent())
+        .extracting(FakeLlmProvider.Sent::model)
+        .containsExactly("haiku", "haiku", "sonnet", "opus");
+    assertThat(log.calls().subList(3, 6))
+        .extracting(LlmCall::role, LlmCall::model)
+        .containsExactly(
+            Tuple.tuple(Role.SUMMARIZE, "opus"),
+            Tuple.tuple(Role.COMPOSE, "haiku"),
+            Tuple.tuple(Role.RESOLVE, "sonnet"));
   }
 }
