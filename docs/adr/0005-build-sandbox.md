@@ -37,7 +37,8 @@ code (plugins, annotation processors, Maven extensions), so isolation matters mo
   all, and external names do not resolve (Docker 26 and later do not forward DNS from internal
   networks; older versions would leak DNS lookups). The proxy is also reachable from other
   containers on the default bridge network, which can use it to reach the same allowed hosts.
-  Plain-HTTP repositories are not supported yet.
+  Plain-HTTP repositories are not supported yet. (Amended by ADR 0030: the proxy also forwards
+  plain HTTP `GET` and `HEAD` to allowed targets, and an `http` Maven mirror is supported.)
 - **No host files in the container** but the shared Maven cache. The repo's files at the commit
   are streamed in with `git archive` (no `.git`, no uncommitted changes, no build output on the
   host) and `docker cp`. Only the Maven cache folder is bind-mounted, and the Docker socket is not

@@ -15,8 +15,8 @@ import java.util.regex.Pattern;
  * 0023). Only release artifacts are downloaded from it.
  *
  * @param id the repository ID Maven knows it by, such as {@code central}
- * @param url the repository's base URL: {@code https}, an exact host name (no wildcards), no user
- *     information, query or fragment; a trailing slash is dropped
+ * @param url the repository's base URL: {@code https}, an exact host name (no wildcards, no IP
+ *     address), no user information, query or fragment; a trailing slash is dropped
  */
 public record MavenRepository(String id, URI url) {
 
@@ -26,6 +26,9 @@ public record MavenRepository(String id, URI url) {
   private static final Pattern HOST =
       Pattern.compile(
           "([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+(?=[a-z0-9-]*[a-z])[a-z0-9]([a-z0-9-]*[a-z0-9])?");
+  private static final Pattern IPV4 =
+      Pattern.compile(
+          "(0|[1-9][0-9]{0,2})\\.(0|[1-9][0-9]{0,2})\\.(0|[1-9][0-9]{0,2})\\.(0|[1-9][0-9]{0,2})");
   private static final Pattern PATH = Pattern.compile("(/[A-Za-z0-9._~-]+)*/?");
   private static final Pattern ENTRY = Pattern.compile("\\[([0-9]{1,4})]\\.(id|url)");
 
@@ -42,11 +45,27 @@ public record MavenRepository(String id, URI url) {
     if (!ID.matcher(id).matches()) {
       throw new IllegalArgumentException("Invalid Maven repository ID: " + id);
     }
+    url = checkedUrl("Maven repository " + id, url, false);
+  }
+
+  /**
+   * Checks a repository or mirror URL and returns it normalized: lower-case host, no trailing
+   * slash. It must have an exact host name (no wildcard), an optional port, a plain path, and no
+   * user information, query or fragment. A repository URL must be {@code https} with a host name; a
+   * mirror URL may also be {@code http}, and its host may also be an IPv4 address in a private
+   * network: 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16 (ADR 0030).
+   *
+   * @param what what the URL is of, for the error message
+   * @param url the URL
+   * @param mirror whether the URL is a mirror's
+   */
+  static URI checkedUrl(String what, URI url, boolean mirror) {
+    String scheme = url.getScheme() == null ? null : url.getScheme().toLowerCase(Locale.ROOT);
     String host = url.getHost() == null ? null : url.getHost().toLowerCase(Locale.ROOT);
     String path = url.getRawPath() == null ? "" : url.getRawPath();
-    if (!"https".equals(url.getScheme())
+    if (!("https".equals(scheme) || (mirror && "http".equals(scheme)))
         || host == null
-        || !HOST.matcher(host).matches()
+        || !(HOST.matcher(host).matches() || (mirror && isPrivateIpv4(host)))
         || url.getPort() == 0
         || url.getPort() > 65535
         || url.getRawUserInfo() != null
@@ -58,21 +77,52 @@ public record MavenRepository(String id, URI url) {
         || path.contains("/./")
         || path.endsWith("/.")) {
       throw new IllegalArgumentException(
-          "Maven repository "
-              + id
-              + " needs an https URL with an exact host name (no IP address or wildcard) and"
-              + " a plain path, and no user, query or fragment: "
+          what
+              + (mirror
+                  ? " needs an http or https URL with an exact host name or a private-network"
+                      + " IPv4 address (no wildcard)"
+                  : " needs an https URL with an exact host name (no IP address or wildcard)")
+              + " and a plain path, and no user, query or fragment: "
               + url);
     }
     if (path.endsWith("/")) {
       path = path.substring(0, path.length() - 1);
     }
-    url = URI.create("https://" + host + (url.getPort() == -1 ? "" : ":" + url.getPort()) + path);
+    return URI.create(
+        scheme + "://" + host + (url.getPort() == -1 ? "" : ":" + url.getPort()) + path);
+  }
+
+  /**
+   * Whether a host is an IPv4 address, written as four decimal numbers without leading zeros, in
+   * 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16. Loopback, link-local (such as the cloud metadata
+   * service) and every other address are not.
+   */
+  private static boolean isPrivateIpv4(String host) {
+    Matcher matcher = IPV4.matcher(host);
+    if (!matcher.matches()) {
+      return false;
+    }
+    int[] octets = new int[4];
+    for (int i = 0; i < 4; i++) {
+      octets[i] = Integer.parseInt(matcher.group(i + 1));
+      if (octets[i] > 255) {
+        return false;
+      }
+    }
+    return octets[0] == 10
+        || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
+        || (octets[0] == 192 && octets[1] == 168);
   }
 
   /** The {@code host:port} the egress proxy lets builds reach for this repository. */
   public String hostAndPort() {
-    return url.getHost() + ":" + (url.getPort() == -1 ? 443 : url.getPort());
+    return hostAndPort(url);
+  }
+
+  /** The {@code host:port} of a checked URL, with the scheme's default port if it names none. */
+  static String hostAndPort(URI url) {
+    int port = url.getPort();
+    return url.getHost() + ":" + (port != -1 ? port : "http".equals(url.getScheme()) ? 80 : 443);
   }
 
   /**
