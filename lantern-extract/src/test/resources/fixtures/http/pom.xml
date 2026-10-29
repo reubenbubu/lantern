@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    Fixture for the HTTP client extractor, never built: app has the config and enables and injects
+    the clients; clients is a library with no config of its own, holding Feign and MicroProfile
+    client interfaces and classes that use RestTemplate, RestClient, WebClient and the Jakarta REST
+    client API.
+  -->
+  <groupId>com.example.shop</groupId>
+  <artifactId>shop-parent</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+
+  <modules>
+    <module>app</module>
+    <module>clients</module>
+  </modules>
+</project>
