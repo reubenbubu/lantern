@@ -31,6 +31,18 @@ class CitationsTest {
           "m");
 
   @Test
+  void theFakeModelsPlaceholderTextIsTwoCitedSentences() {
+    // The text of FakeLlmConfiguration (lantern-app), which words one sentence per reference.
+    Citations.Sentences sentences =
+        Citations.cited(
+            "{{placeholder: summary of class A in package p.q from its parts}}. [S1]"
+                + " {{placeholder: description of class A in package p.q from its facts}}. [F1]");
+
+    assertThat(sentences.kept()).isEqualTo(2);
+    assertThat(sentences.uncited()).isEmpty();
+  }
+
+  @Test
   void rewritesReferencesToStableIds() {
     Citations.Checked checked =
         Citations.check(
