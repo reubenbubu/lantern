@@ -5,6 +5,8 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -16,19 +18,24 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>A module's or repository's prompt also shows its fact sheet ({@link FactSheet}): facts about
  * its parts, listed after its own facts and cited as facts.
  *
+ * <p>An answer starts with a line saying whether its first sentence takes the unit's purpose from
+ * what people wrote (a README claim, Javadoc, a part's evidenced summary) or infers it ({@link
+ * #tagged}); each part's summary is shown with that mark.
+ *
  * <p>A unit whose inputs do not fit one prompt is summarized in parts, each prompt showing some of
  * the inputs under their usual references, and the parts' summaries are then merged into one, which
  * keeps the references they cite.
  *
  * <p>Change {@link #VERSION} whenever the text of the prompt or the way inputs are written into it
  * changes (including which source files {@link Excerpts} shows, what is masked in them, and which
- * facts {@link FactSheet} lists), so cached summaries made with the old prompt are not reused.
- * {@code PromptTest} fails until it is changed.
+ * facts {@link FactSheet} lists and which README claims {@link SummaryTree} gives a repository), so
+ * cached summaries made with the old prompt are not reused. {@code PromptTest} fails until it is
+ * changed.
  */
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "7";
+  static final String VERSION = "8";
 
   static final String SYSTEM =
       """
@@ -40,11 +47,18 @@ final class Prompt {
       Begin with one sentence that says plainly what the unit is for: what it does for the \
       system or its users, in words a non-engineer understands. Then say how it does that, and \
       name only the dependencies that matter for understanding it.
-      Work out what the unit is for from its names, annotations (such as @RestController, \
-      @Entity or @KafkaListener), Javadoc and code, or from the summaries of its parts, and \
-      state it directly. If the input does not make its purpose clear, begin instead with what \
-      the unit is and what it contains. Never write that the input does not show something or \
-      that a purpose cannot be determined; leave out what you cannot tell.
+      Take what the unit is for from what people wrote about it, where the input has it: the \
+      claims of a README (facts with the predicate claim), Javadoc in the source files, or the \
+      summary of a part whose purpose is marked as evidenced. Otherwise work it out from its \
+      names, annotations (such as @RestController, @Entity or @KafkaListener) and code, or from \
+      the summaries of its parts, and state it directly. If the input does not make its purpose \
+      clear, begin instead with what the unit is and what it contains. Never write that the \
+      input does not show something or that a purpose cannot be determined; leave out what you \
+      cannot tell.
+      Start your answer with a line of its own saying where the first sentence takes the \
+      purpose from: "Purpose: evidenced" if it takes it from a README claim, Javadoc or a part's \
+      summary marked as evidenced, and cites it; otherwise "Purpose: inferred". The summary \
+      follows on the next line.
       Call things by their plain names, such as the class Order, the package \
       com.example.orders or the module shop-core, never by the identifiers the facts use, \
       which start with a kind and a colon.
@@ -63,8 +77,9 @@ final class Prompt {
   static final String RETRY =
       """
       Your summary was rejected: %s
-      Write it again. End every sentence with the references it is based on, in square brackets, \
-      and cite only references from the input, each one on its own, never a range.""";
+      Write it again, starting with the Purpose line. End every sentence with the references it \
+      is based on, in square brackets, and cite only references from the input, each one on its \
+      own, never a range.""";
 
   /** What a repository's prompt adds about its reader. */
   private static final String BUSINESS_READER =
@@ -73,6 +88,17 @@ final class Prompt {
           + " libraries briefly, if at all.\n";
 
   private static final Pattern MARKER = Pattern.compile("\\s*\\[(?:fact|summary):[^\\]\\s]+\\]");
+
+  /**
+   * The line an answer starts with to say where its purpose sentence takes the purpose from, such
+   * as {@code Purpose: evidenced}, with what follows it up to the summary. Markdown emphasis or a
+   * heading mark around it is allowed, and so is the summary on the same line.
+   */
+  private static final Pattern PURPOSE_LINE =
+      Pattern.compile(
+          "\\A[#*_\\s]*purpose[*_\\s]*:[*_\\s]*(evidenced|inferred)(?![^*_.,;:\\s(])"
+              + "[*_]*[.,;:]?[*_]*(?:[ \\t]*\\([^)\\n]*\\))?[.,;:]?\\s*",
+          Pattern.CASE_INSENSITIVE);
 
   private Prompt() {}
 
@@ -154,7 +180,11 @@ final class Prompt {
       items.add(
           new Item(
               "S" + (i + 1),
-              describe(child.level(), child.entity()) + ": " + withoutMarkers(child.text())));
+              describe(child.level(), child.entity())
+                  + " (purpose "
+                  + child.purpose().name().toLowerCase(Locale.ROOT)
+                  + "): "
+                  + withoutMarkers(child.text())));
     }
     return items;
   }
@@ -255,9 +285,9 @@ final class Prompt {
   /**
    * The user turn that merges summaries of parts of a unit's inputs into one.
    *
-   * @param parts the parts' summaries, with the references they cite
+   * @param parts the parts' summaries, with the references they cite and their purpose marks
    */
-  static String merge(SummaryNode node, List<String> parts) {
+  static String merge(SummaryNode node, List<Tagged> parts) {
     StringBuilder text = new StringBuilder();
     text.append("What is known about the ")
         .append(describe(node.level(), node.entity()))
@@ -272,10 +302,13 @@ final class Prompt {
     }
     text.append("\nSummaries of the parts:\n");
     for (int i = 0; i < parts.size(); i++) {
+      Tagged part = parts.get(i);
       text.append("Part ")
           .append(i + 1)
-          .append(": ")
-          .append(parts.get(i).strip().replace('\n', ' '))
+          .append(" (purpose ")
+          .append(part.purpose().name().toLowerCase(Locale.ROOT))
+          .append("): ")
+          .append(part.text().strip().replace('\n', ' '))
           .append('\n');
     }
     return text.toString();
@@ -334,6 +367,27 @@ final class Prompt {
       line.append(' ').append(attributes);
     }
     return line.toString().replace('\n', ' ');
+  }
+
+  /**
+   * An answer without the line it starts with to say where its purpose sentence takes the purpose
+   * from.
+   *
+   * @param purpose what that line says, or {@link Summary.Purpose#INFERRED} if the answer has none
+   * @param text the rest of the answer
+   */
+  record Tagged(Summary.Purpose purpose, String text) {}
+
+  /** The answer's purpose line and the rest of it; see {@link Tagged}. */
+  static Tagged tagged(String answer) {
+    String text = answer == null ? "" : answer;
+    Matcher line = PURPOSE_LINE.matcher(text);
+    if (!line.find()) {
+      return new Tagged(Summary.Purpose.INFERRED, text);
+    }
+    return new Tagged(
+        Summary.Purpose.valueOf(line.group(1).toUpperCase(Locale.ROOT)),
+        text.substring(line.end()));
   }
 
   /** A child's text as the parent's prompt shows it: its own citations would only confuse. */

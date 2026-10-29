@@ -4,6 +4,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.extract.config.SourceSecrets;
+import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
@@ -51,6 +52,10 @@ import org.slf4j.LoggerFactory;
  * not fit the model's context window is summarized in parts that are then merged (see {@link
  * Prompt}). A module's or repository's prompt also shows its fact sheet ({@link FactSheet}): the
  * entry points, links, data stores and technology of its parts, cited like its own facts.
+ *
+ * <p>Each summary says whether its purpose is evidenced or inferred ({@link Summary.Purpose}). The
+ * model marks its answer; a mark of evidenced is kept only if the answer's first citation cites a
+ * README claim, a source file with Javadoc, or a contained summary whose purpose is evidenced.
  *
  * <p>Every summary is cached under a key that hashes what the model sees: the prompt version, the
  * model (provider and identifier), the unit's entity and level, its contained units' entities
@@ -284,6 +289,7 @@ public final class Summarizer {
         stored.entity(),
         stored.level(),
         text,
+        stored.purpose(),
         stored.citedFacts().stream().map(id -> facts.getOrDefault(id, id)).toList(),
         stored.citedSummaries().stream().map(key -> summaries.getOrDefault(key, key)).toList(),
         factIds,
@@ -475,13 +481,13 @@ public final class Summarizer {
       long budget = promptBudget(node, model);
       String whole =
           Prompt.user(node, inputs.facts, inputs.sheet, inputs.excerpts, inputs.children, null);
-      Citations.Checked checked;
+      Answer answer;
       List<List<Prompt.Item>> parts =
           Tokens.estimate(whole) <= budget ? List.of() : inputs.parts(budget);
       if (parts.size() < 2) {
-        checked = answer(purpose, node, whole, inputs, null).checked();
+        answer = answer(purpose, node, whole, inputs, null);
       } else {
-        List<String> texts = new ArrayList<>();
+        List<Prompt.Tagged> texts = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
           List<Prompt.Item> part = parts.get(i);
           String prompt =
@@ -495,15 +501,17 @@ public final class Summarizer {
           Set<String> shown = new HashSet<>();
           part.forEach(item -> shown.add(item.ref()));
           String label = " (part " + (i + 1) + " of " + parts.size() + ")";
-          texts.add(answer(purpose + label, node, prompt, inputs, shown).text());
+          texts.add(answer(purpose + label, node, prompt, inputs, shown).tagged());
         }
-        checked = merge(purpose, node, inputs, texts, budget);
+        answer = merge(purpose, node, inputs, texts, budget);
       }
+      Citations.Checked checked = answer.checked();
       return new Summary(
           key,
           node.entity(),
           node.level(),
           checked.text(),
+          answer.purpose(),
           checked.facts(),
           checked.summaries(),
           inputs.factIds,
@@ -517,36 +525,36 @@ public final class Summarizer {
      * Merges the parts' summaries into one; if they do not fit one prompt, merges them in groups
      * first, and so on.
      */
-    private Citations.Checked merge(
-        String purpose, SummaryNode node, Inputs inputs, List<String> texts, long budget) {
+    private Answer merge(
+        String purpose, SummaryNode node, Inputs inputs, List<Prompt.Tagged> texts, long budget) {
       for (int round = 1; ; round++) {
         String prompt = Prompt.merge(node, texts);
-        List<List<String>> groups =
+        List<List<Prompt.Tagged>> groups =
             Tokens.estimate(prompt) <= budget
                 ? List.of(texts)
                 : pack(
                     texts,
-                    text -> Tokens.estimate(text) + 5,
+                    text -> Tokens.estimate(text.text()) + 10,
                     Tokens.estimate(Prompt.merge(node, List.of())),
                     budget);
         if (groups.size() == 1 || groups.size() == texts.size()) {
-          return answer(purpose + " (merge)", node, prompt, inputs, cited(texts)).checked();
+          return answer(purpose + " (merge)", node, prompt, inputs, cited(texts));
         }
-        List<String> merged = new ArrayList<>();
+        List<Prompt.Tagged> merged = new ArrayList<>();
         for (int i = 0; i < groups.size(); i++) {
           String label = " (merge " + round + "." + (i + 1) + " of " + groups.size() + ")";
-          List<String> group = groups.get(i);
+          List<Prompt.Tagged> group = groups.get(i);
           merged.add(
               answer(purpose + label, node, Prompt.merge(node, group), inputs, cited(group))
-                  .text());
+                  .tagged());
         }
         texts = merged;
       }
     }
 
-    private static Set<String> cited(List<String> texts) {
+    private static Set<String> cited(List<Prompt.Tagged> texts) {
       Set<String> refs = new HashSet<>();
-      texts.forEach(text -> refs.addAll(Citations.references(text)));
+      texts.forEach(text -> refs.addAll(Citations.references(text.text())));
       return refs;
     }
 
@@ -563,7 +571,7 @@ public final class Summarizer {
       messages.add(LlmMessage.user(prompt));
       LlmResponse first = ask(purpose, node, messages);
       try {
-        return new Answer(first.text(), check(first, inputs, allowed));
+        return answer(first, inputs, allowed);
       } catch (Citations.Rejected rejected) {
         logRejected(purpose, rejected, first);
         if (first.text().isBlank()) {
@@ -580,7 +588,7 @@ public final class Summarizer {
         }
         LlmResponse second = ask(purpose + " (retry)", node, messages);
         try {
-          return new Answer(second.text(), check(second, inputs, allowed));
+          return answer(second, inputs, allowed);
         } catch (Citations.Rejected again) {
           logRejected(purpose + " (retry)", again, second);
           throw new SummaryRejectedException(
@@ -604,12 +612,24 @@ public final class Summarizer {
           text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n"));
     }
 
-    private Citations.Checked check(LlmResponse response, Inputs inputs, Set<String> allowed) {
+    /**
+     * The answer without its purpose line, checked. It keeps an evidenced purpose only if its first
+     * sentence cites what can show one; otherwise its purpose counts as inferred.
+     */
+    private static Answer answer(LlmResponse response, Inputs inputs, Set<String> allowed) {
       if (response.cutOff()) {
         throw new Citations.Rejected("it was cut off at the length limit; write a shorter one.");
       }
-      return Citations.check(
-          response.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
+      Prompt.Tagged tagged = Prompt.tagged(response.text());
+      Citations.Checked checked =
+          Citations.check(
+              tagged.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
+      boolean evidenced =
+          tagged.purpose() == Summary.Purpose.EVIDENCED
+              && Citations.firstReferences(tagged.text()).stream()
+                  .anyMatch(inputs.evidence::contains);
+      return new Answer(
+          tagged.text(), checked, evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED);
     }
 
     private LlmResponse ask(String purpose, SummaryNode node, List<LlmMessage> messages) {
@@ -628,10 +648,17 @@ public final class Summarizer {
   /**
    * A checked answer.
    *
-   * @param text the answer as the model wrote it, with its references
+   * @param text the answer as the model wrote it, with its references, without its purpose line
    * @param checked the answer with references rewritten to stable IDs
+   * @param purpose where its first sentence takes the unit's purpose from, as checked
    */
-  private record Answer(String text, Citations.Checked checked) {}
+  private record Answer(String text, Citations.Checked checked, Summary.Purpose purpose) {
+
+    /** The answer's text with its checked purpose mark, as a merge prompt shows it. */
+    Prompt.Tagged tagged() {
+      return new Prompt.Tagged(purpose, text);
+    }
+  }
 
   /** A unit's inputs as prompt items, with what their references stand for. */
   private static final class Inputs {
@@ -642,6 +669,13 @@ public final class Summarizer {
     final List<Prompt.Item> sheet;
     final List<Prompt.Item> excerpts;
     final List<Prompt.Item> children;
+
+    /**
+     * The references that can show what a unit is for, as people wrote it: README claims, source
+     * files with Javadoc, and parts' summaries whose purpose is evidenced.
+     */
+    final Set<String> evidence = new HashSet<>();
+
     private final SummaryNode node;
 
     Inputs(SummaryNode node, List<Excerpts.Excerpt> excerpts, List<Summary> children) {
@@ -654,6 +688,22 @@ public final class Summarizer {
       this.sheet = Prompt.sheet(sheet, node.facts().size());
       this.excerpts = Prompt.excerpts(excerpts);
       this.children = Prompt.children(children);
+      List<Fact> facts = promptFacts(node);
+      for (int i = 0; i < facts.size(); i++) {
+        if (facts.get(i).predicate().equals(DocsExtractor.CLAIM)) {
+          evidence.add("F" + (i + 1));
+        }
+      }
+      for (int i = 0; i < excerpts.size(); i++) {
+        if (excerpts.get(i).code().contains("/**")) {
+          evidence.add("E" + (i + 1));
+        }
+      }
+      for (int i = 0; i < children.size(); i++) {
+        if (children.get(i).purpose() == Summary.Purpose.EVIDENCED) {
+          evidence.add("S" + (i + 1));
+        }
+      }
     }
 
     /** All items split into parts that each fit the budget with a part prompt's own text. */

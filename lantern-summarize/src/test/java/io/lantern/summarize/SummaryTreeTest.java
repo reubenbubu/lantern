@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -103,5 +104,36 @@ class SummaryTreeTest {
     assertThatThrownBy(() -> SummaryTree.fromFacts(facts))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("cycle");
+  }
+
+  @Test
+  void aRepositoryHasTheFirstClaimsOfItsTopReadmeInTheOrderWritten() {
+    List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
+    for (int line = 30; line > 0; line -= 3) {
+      facts.add(TestFacts.claim("shop", "README.md", line, "Claim on line " + line));
+    }
+    facts.add(TestFacts.claim("shop", "docs/README.md", 1, "A deeper README"));
+    facts.add(TestFacts.claim("other", "README.md", 1, "Another repository's README"));
+
+    assertThat(SummaryTree.readmeClaims(facts, "shop"))
+        .extracting(f -> f.object().value())
+        .containsExactly(
+            "Claim on line 3",
+            "Claim on line 6",
+            "Claim on line 9",
+            "Claim on line 12",
+            "Claim on line 15",
+            "Claim on line 18",
+            "Claim on line 21",
+            "Claim on line 24");
+    SummaryNode repo =
+        SummaryTree.fromFacts(facts).stream()
+            .filter(node -> node.entity().key().equals("shop"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(repo.facts())
+        .containsExactlyInAnyOrderElementsOf(SummaryTree.readmeClaims(facts, "shop"));
+    // Modules and the rest of the tree do not get README claims.
+    assertThat(repo.children().getFirst().facts()).noneMatch(f -> f.predicate().equals("claim"));
   }
 }

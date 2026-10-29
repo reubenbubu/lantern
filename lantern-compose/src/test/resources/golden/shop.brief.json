@@ -27,6 +27,13 @@
     "parent" : "module:com.example.shop:shop-parent",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
@@ -49,6 +56,13 @@
     "name" : "shop-core",
     "parent" : "module:com.example.shop:shop-parent",
     "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
       "kind" : "text",
       "text" : "It builds on its parts."
     }, {
@@ -73,6 +87,13 @@
     "parent" : "repo:shop",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
@@ -95,6 +116,13 @@
     "name" : "com.example.shop.api",
     "parent" : "module:com.example.shop:shop-api",
     "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
       "kind" : "text",
       "text" : "It builds on its parts."
     }, {
@@ -119,6 +147,13 @@
     "parent" : "module:com.example.shop:shop-core",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
@@ -140,6 +175,13 @@
     "id" : "repo:shop",
     "name" : "shop",
     "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
       "kind" : "text",
       "text" : "It builds on its parts."
     }, {
@@ -168,6 +210,13 @@
     "parent" : "package:com.example.shop:shop-api:com.example.shop.api",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
@@ -179,6 +228,13 @@
     "name" : "FixedPriceService",
     "parent" : "package:com.example.shop:shop-core:com.example.shop.core",
     "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
       "kind" : "text",
       "text" : "It is described by its facts."
     }, {
@@ -807,6 +863,13 @@
       "kind" : "paragraph",
       "id" : "overview.summary",
       "content" : [ {
+        "kind" : "text",
+        "text" : "Purpose inferred from the code:",
+        "style" : "emphasis"
+      }, {
+        "kind" : "text",
+        "text" : " "
+      }, {
         "kind" : "text",
         "text" : "It builds on its parts."
       }, {

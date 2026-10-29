@@ -180,6 +180,29 @@ class ComposerTest {
   }
 
   @Test
+  void aSummaryWhosePurposeIsInferredSaysSo() {
+    Fact packaging = facts.find("module:com.example:app", "packaging");
+    EntityId module = EntityId.parse("repo:shop");
+    Summary summary =
+        summary(
+            module,
+            "Sells books. [fact:" + packaging.id() + "]",
+            List.of(packaging.id()),
+            Summary.Purpose.INFERRED);
+
+    Document document = compose(facts.list(), Map.of(module, summary));
+
+    Paragraph paragraph = block(section(document, "overview"), Paragraph.class);
+    assertThat(paragraph.content())
+        .containsExactly(
+            new TextRun("Purpose inferred from the code:", TextRun.Style.EMPHASIS),
+            TextRun.of(" "),
+            TextRun.of("Sells books."),
+            new Citation(List.of(packaging.id())));
+    assertThat(entity(document, "repo:shop").description()).isEqualTo(paragraph.content());
+  }
+
+  @Test
   void summaryCitationsOpeningASummaryOrInARowAreMarkersWithoutSpaces() {
     Fact packaging = facts.find("module:com.example:app", "packaging");
     EntityId module = EntityId.parse("repo:shop");
@@ -374,12 +397,19 @@ class ComposerTest {
         .orElseThrow();
   }
 
+  /** A summary whose purpose is evidenced, so its text is shown as written. */
   static Summary summary(EntityId entity, String text, List<String> cited) {
+    return summary(entity, text, cited, Summary.Purpose.EVIDENCED);
+  }
+
+  static Summary summary(
+      EntityId entity, String text, List<String> cited, Summary.Purpose purpose) {
     return new Summary(
         "0".repeat(64),
         entity,
         SummaryLevel.of(entity),
         text,
+        purpose,
         cited,
         List.of(),
         cited,

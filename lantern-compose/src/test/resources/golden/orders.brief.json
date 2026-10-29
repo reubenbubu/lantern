@@ -22,6 +22,13 @@
     "parent" : "repo:orders",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
@@ -45,6 +52,13 @@
     "parent" : "module:com.example.orders:orders",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
@@ -66,6 +80,13 @@
     "id" : "repo:orders",
     "name" : "orders",
     "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
       "kind" : "text",
       "text" : "It builds on its parts."
     }, {
@@ -94,6 +115,13 @@
     "parent" : "package:com.example.orders:orders:com.example.orders",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
@@ -106,6 +134,13 @@
     "parent" : "package:com.example.orders:orders:com.example.orders",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
@@ -117,6 +152,13 @@
     "name" : "OrderService",
     "parent" : "package:com.example.orders:orders:com.example.orders",
     "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
       "kind" : "text",
       "text" : "It is described by its facts."
     }, {
@@ -545,6 +587,13 @@
       "kind" : "paragraph",
       "id" : "overview.summary",
       "content" : [ {
+        "kind" : "text",
+        "text" : "Purpose inferred from the code:",
+        "style" : "emphasis"
+      }, {
+        "kind" : "text",
+        "text" : " "
+      }, {
         "kind" : "text",
         "text" : "It builds on its parts."
       }, {
