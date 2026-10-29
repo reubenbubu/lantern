@@ -236,7 +236,9 @@ class MessagingExtractorTest {
   void compiledGivesTheSameFactsAsParsed() throws IOException {
     Repo repo = fixture();
     String commit = Fixtures.head(repo);
-    RepoBuild built = new RepoBuild(repo, commit, build(repo, commit));
+    RepoBuild built =
+        new RepoBuild(
+            repo, commit, build(temp, repo, commit, "com.example.events", "events", List.of()));
 
     JavaAnalysis code = JavaExtractor.analyze(List.of(built));
     List<Fact> compiled = new MessagingExtractor().extract(code, SNAPSHOT);
@@ -262,28 +264,24 @@ class MessagingExtractorTest {
   }
 
   /**
-   * A successful build of the fixture, with Lantern's test classpath and, for what that lacks,
-   * stand-ins for Spring Kafka, JMS, AMQP and Messaging compiled here.
+   * A successful build of a one-module fixture, with Lantern's test classpath and, for what that
+   * lacks, stand-ins for Spring Kafka, JMS, AMQP, Messaging and Cloud Stream compiled here.
+   *
+   * @param jars further classpath entries, such as a binder's jar name
    */
-  private BuildResult build(Repo repo, String commit) throws IOException {
+  static BuildResult build(
+      Path temp, Repo repo, String commit, String groupId, String artifactId, List<String> jars)
+      throws IOException {
     List<String> classpath =
         new ArrayList<>(
             Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
                 .filter(entry -> entry.endsWith(".jar"))
                 .toList());
-    classpath.add(compileStubs().toString());
+    classpath.add(compileStubs(temp).toString());
+    classpath.addAll(jars);
     BuildModule module =
         new BuildModule(
-            "",
-            "com.example.events",
-            "events",
-            "jar",
-            "1.0.0",
-            List.of(),
-            classpath,
-            null,
-            null,
-            null);
+            "", groupId, artifactId, "jar", "1.0.0", List.of(), classpath, null, null, null);
     Path directory = Files.createDirectories(temp.resolve("builds").resolve(repo.name()));
     return new BuildResult(
         repo.name(),
@@ -301,7 +299,7 @@ class MessagingExtractorTest {
         directory);
   }
 
-  private Path compileStubs() throws IOException {
+  private static Path compileStubs(Path temp) throws IOException {
     List<Path> sources;
     try (Stream<Path> files = Files.walk(Fixtures.fixture("messaging-stubs"))) {
       sources = files.filter(f -> f.toString().endsWith(".java")).toList();
