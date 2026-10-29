@@ -208,7 +208,10 @@ class LinkResolverTest {
 
     LlmRequest request = fake.sent().getFirst().request();
     assertThat(request.role()).isEqualTo(Role.RESOLVE);
-    assertThat(request.system()).isEqualTo(ResolvePrompt.SYSTEM);
+    assertThat(request.system()).isEqualTo(ResolvePrompt.system(true));
+    assertThat(request.tools())
+        .extracting(io.lantern.llm.LlmTool::name)
+        .containsExactly("facts_about", "search_facts");
     assertThat(request.purpose())
         .isEqualTo("resolve http link GET ${TAX_SERVICE_URL}/v2/quotes of service:g:orders");
     assertThat(user(request))
@@ -270,7 +273,7 @@ class LinkResolverTest {
     assertThat(link.subject()).isEqualTo(EntityId.parse("service:g:orders"));
     assertThat(link.predicate()).isEqualTo(CrossRepoLinks.CALLS_HTTP);
     assertThat(link.object().value()).isEqualTo("service:g:tax");
-    assertThat(link.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "link-resolver", "3"));
+    assertThat(link.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "link-resolver", "4"));
     assertThat(link.confidence()).isEqualTo(0.5);
     assertThat(link.evidence()).isEqualTo(unresolved.evidence());
     ObjectNode attributes = link.attributes().deepCopy();
@@ -605,5 +608,224 @@ class LinkResolverTest {
     assertThat(fake.sent()).hasSize(1);
     assertThat(replayed.asked()).isEqualTo(1);
     assertThat(replayed.facts()).isEqualTo(recorded.facts());
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Tools (ADR 0080)
+
+  private static final String TAX_CONTROLLER =
+      """
+      package t;
+
+      @RestController
+      class TaxController {
+        private String apiKey = "sk-live-123";
+        @GetMapping("/v2/quotes") List<Quote> quotes() { return rates.quotes(); }
+      }
+      """;
+
+  private static final GraphTools.RepoFiles FILES =
+      (repo, path) ->
+          repo.equals("t") && path.equals("src/main/java/t/TaxController.java")
+              ? java.util.Optional.of(
+                  TAX_CONTROLLER.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+              : java.util.Optional.empty();
+
+  private static io.lantern.llm.LlmToolCall toolCall(String id, String name, String input) {
+    return new io.lantern.llm.LlmToolCall(id, name, FactJson.parse(input));
+  }
+
+  /**
+   * A model that looks up the tax controller's facts, then reads its file, then picks tax citing a
+   * fact the lookup showed.
+   */
+  private static FakeLlmProvider lookingFurther() {
+    return new FakeLlmProvider()
+        .callingTools(
+            r ->
+                switch (r.messages().size()) {
+                  case 1 ->
+                      List.of(
+                          toolCall(
+                              "toolu_01", "facts_about", "{\"entity\":\"type:t.TaxController\"}"));
+                  case 3 ->
+                      List.of(
+                          toolCall(
+                              "toolu_02",
+                              "read_file",
+                              "{\"repo\":\"t\",\"path\":\"src/main/java/t/TaxController.java\","
+                                  + "\"from\":3,\"to\":6}"));
+                  default -> List.of();
+                })
+        .answering(
+            "{\"target\": \"C2\", \"confidence\": \"medium\", \"cites\": [\"C2\", \"F9\", \"T1\"],"
+                + " \"rationale\": \"TaxController is a REST controller that serves GET /v2/quotes.\"}");
+  }
+
+  private LinkResolver.Result resolveWithFiles(LlmProvider provider) {
+    LinkResolver.Result result =
+        new LinkResolver(client(provider, BudgetGuard.unlimited("t")), store, FILES)
+            .resolve(linked(), 1);
+    result.facts().forEach(DeployableUnitsTest.vocabulary()::validate);
+    return result;
+  }
+
+  @Test
+  void aModelThatCanUseToolsLooksFurtherAndCitesWhatTheyShowed() {
+    taxCall();
+    FakeLlmProvider fake = lookingFurther();
+
+    LinkResolver.Result result = resolveWithFiles(fake);
+
+    assertThat(fake.sent()).hasSize(3);
+    LlmRequest last = fake.sent().getLast().request();
+    assertThat(last.system()).isEqualTo(ResolvePrompt.system(true));
+    assertThat(last.tools())
+        .extracting(io.lantern.llm.LlmTool::name)
+        .containsExactly("facts_about", "search_facts", "read_file");
+    String about = last.messages().get(2).toolResults().getFirst().content();
+    assertThat(about)
+        .isEqualTo(
+            """
+            Facts about type:t.TaxController:
+            [T1] type:t.TaxController stereotype "controller" {"rest":true} \
+            (t:src/main/java/t/TaxController.java)
+            [T2] package:g:tax:t CONTAINS type:t.TaxController (t:src/main/java/t/TaxController.java)
+            """);
+    String read = last.messages().get(4).toolResults().getFirst().content();
+    assertThat(read)
+        .isEqualTo(
+            """
+            t:src/main/java/t/TaxController.java, lines 3 to 6 of 7:
+            3: @RestController
+            4: class TaxController {
+            5:   private String apiKey = "******";
+            6:   @GetMapping("/v2/quotes") List<Quote> quotes() { return rates.quotes(); }
+            """);
+    Fact link = result.facts().getFirst();
+    assertThat(link.object().value()).isEqualTo("service:g:tax");
+    assertThat(link.confidence()).isEqualTo(0.35);
+    String stereotype =
+        facts.stream()
+            .filter(
+                f ->
+                    f.predicate().equals(SpringExtractor.STEREOTYPE)
+                        && f.subject().toString().equals("type:t.TaxController"))
+            .findFirst()
+            .orElseThrow()
+            .id();
+    assertThat(link.attributes().get("facts").toString()).contains(stereotype);
+    assertThat(store.latest(link.attributes().get("resolves").asString()).orElseThrow().cited())
+        .containsExactly("C2", "F9", stereotype);
+    // One conversation of three turns, its calls numbered.
+    assertThat(log.calls()).extracting(LlmCall::turn).containsExactly(1, 2, 3);
+    assertThat(log.conversations())
+        .singleElement()
+        .satisfies(
+            c -> {
+              assertThat(c.role()).isEqualTo(Role.RESOLVE);
+              assertThat(c.turns()).isEqualTo(3);
+              assertThat(c.toolCalls())
+                  .isEqualTo(java.util.Map.of("facts_about", 1, "read_file", 1));
+              assertThat(c.ending()).isEqualTo(io.lantern.llm.LlmConversation.Ending.ANSWERED);
+            });
+  }
+
+  @Test
+  void aCachedAnswerThatCitedAToolsFactGivesTheSameLink() {
+    taxCall();
+    LinkResolver.Result first = resolveWithFiles(lookingFurther());
+    FakeLlmProvider unused = lookingFurther();
+
+    LinkResolver.Result second = resolveWithFiles(unused);
+
+    assertThat(unused.sent()).isEmpty();
+    assertThat(second.reused()).isEqualTo(1);
+    assertThat(second.facts()).isEqualTo(first.facts());
+  }
+
+  @Test
+  void aModelWithoutToolUseGetsThePromptAlone() {
+    taxCall();
+    FakeLlmProvider fake = answering(r -> PICK_TAX);
+    LlmClient client =
+        new LlmClient(
+            ModelSettings.single(
+                new io.lantern.llm.ModelConfig(
+                    FakeLlmProvider.NAME,
+                    model,
+                    java.util.Set.of(),
+                    1_000_000,
+                    io.lantern.llm.Pricing.FREE)),
+            List.of(fake),
+            BudgetGuard.unlimited("t"),
+            log,
+            Clock.systemUTC());
+
+    LinkResolver.Result result = new LinkResolver(client, store, FILES).resolve(linked(), 1);
+
+    assertThat(result.facts()).hasSize(1);
+    LlmRequest request = fake.sent().getFirst().request();
+    assertThat(request.system()).isEqualTo(ResolvePrompt.SYSTEM);
+    assertThat(request.tools()).isEmpty();
+  }
+
+  @Test
+  void anAnswerCitingAToolReferenceNoToolShowedIsRejected() {
+    taxCall();
+    FakeLlmProvider fake =
+        answering(
+            r ->
+                "{\"target\": \"C2\", \"confidence\": \"high\", \"cites\": [\"C2\", \"T4\"],"
+                    + " \"rationale\": \"Seen in a tool.\"}");
+
+    LinkResolver.Result result = resolveWithFiles(fake);
+
+    assertThat(result.rejected()).hasSize(1);
+    assertThat(fake.sent().getLast().request().messages().getLast().text())
+        .contains("it cites T4, which is not in the input.");
+    assertThat(log.conversations().getFirst().ending())
+        .isEqualTo(io.lantern.llm.LlmConversation.Ending.REJECTED);
+  }
+
+  /**
+   * The recordings of {@link #lookingFurther()}'s conversation, kept in the repository in the
+   * record and replay format (ADR 0008): three turns, two of them asking for tools.
+   */
+  private static final Path TOOL_RECORDINGS =
+      Path.of("src/test/resources/recordings/resolve-tools");
+
+  @Test
+  void aRecordedToolLoopReplaysTurnByTurn() {
+    taxCall();
+    if (Boolean.getBoolean("lantern.test.rerecord")) {
+      // Rewrites the recordings from the scripted model above; no real model is called.
+      FakeLlmProvider scripted = lookingFurther();
+      new LinkResolver(
+              new LlmClient(
+                  ModelSettings.single(scripted.model(model)),
+                  List.of(RecordReplayLlmProvider.recording(scripted, TOOL_RECORDINGS)),
+                  BudgetGuard.unlimited("t"),
+                  new InMemoryLlmCallLog(),
+                  Clock.systemUTC()),
+              new InMemoryResolutionStore(),
+              FILES)
+          .resolve(linked(), 1);
+    }
+
+    LinkResolver.Result replayed =
+        resolveWithFiles(RecordReplayLlmProvider.replaying(FakeLlmProvider.NAME, TOOL_RECORDINGS));
+
+    assertThat(replayed.asked()).isEqualTo(1);
+    assertThat(replayed.facts())
+        .singleElement()
+        .satisfies(f -> assertThat(f.object().value()).isEqualTo("service:g:tax"));
+    assertThat(log.conversations())
+        .singleElement()
+        .satisfies(
+            c -> {
+              assertThat(c.turns()).isEqualTo(3);
+              assertThat(c.toolCallCount()).isEqualTo(2);
+            });
   }
 }

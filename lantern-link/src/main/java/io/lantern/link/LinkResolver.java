@@ -14,13 +14,17 @@ import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.ResolvePrompt.Answer;
 import io.lantern.link.ResolvePrompt.Candidate;
 import io.lantern.link.ResolvePrompt.Question;
+import io.lantern.llm.Capability;
+import io.lantern.llm.Conversation;
 import io.lantern.llm.LlmClient;
+import io.lantern.llm.LlmConversation;
 import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.Role;
+import io.lantern.llm.ToolBox;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -59,6 +63,11 @@ import tools.jackson.databind.node.ObjectNode;
  * so a later run asks again; the link keeps the last pick stored for it if that unit is still a
  * candidate, else stays open. Calls run in parallel on virtual threads, bounded by the client's
  * limits.
+ *
+ * <p>When the model can use tools, it may look further than the prompt with {@link GraphTools}: the
+ * facts about an entity, a search of the facts, and the lines of a file at the snapshot's commit;
+ * an answer may cite the facts they showed (ADR 0080). Each question is one {@link Conversation},
+ * logged with its turns and tool calls.
  *
  * <p>It runs as the last step of the linker, after {@link CrossRepoLinks}, so its facts are
  * recorded for the whole snapshot like the other steps' (ADR 0039).
@@ -112,6 +121,7 @@ public final class LinkResolver implements LinkStep {
 
   private final LlmClient client;
   private final ResolutionStore store;
+  private final GraphTools.RepoFiles files;
   private final AtomicInteger asked = new AtomicInteger();
   private final AtomicInteger reused = new AtomicInteger();
 
@@ -120,8 +130,19 @@ public final class LinkResolver implements LinkStep {
    * @param store where answers are cached
    */
   public LinkResolver(LlmClient client, ResolutionStore store) {
+    this(client, store, GraphTools.RepoFiles.NONE);
+  }
+
+  /**
+   * @param client the LLM, with the budgets the run's calls count against
+   * @param store where answers are cached
+   * @param files the files of the snapshot's repositories, which the tools read when the model can
+   *     use tools; {@link GraphTools.RepoFiles#NONE} offers no file reads
+   */
+  public LinkResolver(LlmClient client, ResolutionStore store, GraphTools.RepoFiles files) {
     this.client = Objects.requireNonNull(client, "client");
     this.store = Objects.requireNonNull(store, "store");
+    this.files = Objects.requireNonNull(files, "files");
   }
 
   @Override
@@ -180,11 +201,17 @@ public final class LinkResolver implements LinkStep {
       questions.add(question(unresolved, index, http, byId));
     }
     ModelConfig model = client.model(Role.RESOLVE);
+    // Tools only for a model that can use them; the graph is prepared once, if anything is asked.
+    GraphTools.Graph graph =
+        model.supports(Capability.TOOL_USE) && !questions.isEmpty()
+            ? new GraphTools.Graph(facts, files)
+            : null;
+    String system = ResolvePrompt.system(model.supports(Capability.TOOL_USE));
     List<Outcome> outcomes = new ArrayList<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       List<Future<Outcome>> futures = new ArrayList<>();
       for (Question question : questions) {
-        futures.add(executor.submit(() -> answer(question, model)));
+        futures.add(executor.submit(() -> answer(question, model, graph, system)));
       }
       for (Future<Outcome> future : futures) {
         outcomes.add(future.get());
@@ -222,7 +249,7 @@ public final class LinkResolver implements LinkStep {
           if (earlier != null
               && !earlier.unknown()
               && question.candidate(earlier.target().toString()) != null) {
-            derived.add(fact(question, earlier, index, byId, snapshot));
+            derived.add(fact(question, earlier, index, byId, snapshot, system));
           }
         }
         case ANSWERED -> {
@@ -235,7 +262,7 @@ public final class LinkResolver implements LinkStep {
           if (resolution.unknown() || question.candidate(resolution.target().toString()) == null) {
             unknown++;
           } else {
-            derived.add(fact(question, resolution, index, byId, snapshot));
+            derived.add(fact(question, resolution, index, byId, snapshot, system));
           }
         }
       }
@@ -351,8 +378,9 @@ public final class LinkResolver implements LinkStep {
 
   private record Outcome(Kind kind, Resolution resolution, boolean cached) {}
 
-  private Outcome answer(Question question, ModelConfig model) {
-    String key = key(question, model);
+  private Outcome answer(
+      Question question, ModelConfig model, GraphTools.Graph graph, String system) {
+    String key = key(question, ResolvePrompt.VERSION, model.provider(), model.model(), system);
     Resolution cached = store.find(key).orElse(null);
     if (cached != null) {
       return new Outcome(Kind.ANSWERED, cached, true);
@@ -368,40 +396,49 @@ public final class LinkResolver implements LinkStep {
             + (LinkIndex.text(unresolved, "profile") == null
                 ? ""
                 : " under " + LinkIndex.text(unresolved, "profile"));
+    GraphTools tools = graph == null ? null : graph.tools();
+    Conversation conversation =
+        client.converse(
+            new LlmRequest(
+                Role.RESOLVE,
+                purpose,
+                system,
+                List.of(LlmMessage.user(question.user())),
+                MAX_OUTPUT_TOKENS,
+                false),
+            tools == null ? ToolBox.NONE : tools);
     try {
-      List<LlmMessage> messages = new ArrayList<>();
-      messages.add(LlmMessage.user(question.user()));
-      LlmResponse first = ask(purpose, messages);
+      LlmResponse first = conversation.answer();
       Answer answer;
       try {
-        answer = ResolvePrompt.check(first, question);
+        answer = ResolvePrompt.check(first, question, shown(tools));
       } catch (ResolvePrompt.Rejected rejected) {
         logRejected(purpose, rejected, first);
-        if (first.text().isBlank()) {
-          // A conversation cannot hold an empty turn, so the reason goes with the prompt again.
-          messages.set(
-              0,
-              LlmMessage.user(
-                  question.user() + "\n" + ResolvePrompt.RETRY.formatted(rejected.getMessage())));
-        } else {
-          messages.add(LlmMessage.assistant(first.text()));
-          messages.add(LlmMessage.user(ResolvePrompt.RETRY.formatted(rejected.getMessage())));
-        }
-        LlmResponse second = ask(purpose + " (retry)", messages);
+        LlmResponse second =
+            conversation.reply(
+                ResolvePrompt.RETRY.formatted(rejected.getMessage()), purpose + " (retry)");
         try {
-          answer = ResolvePrompt.check(second, question);
+          answer = ResolvePrompt.check(second, question, shown(tools));
         } catch (ResolvePrompt.Rejected again) {
           logRejected(purpose + " (retry)", again, second);
+          conversation.end(LlmConversation.Ending.REJECTED, again.getMessage());
           return new Outcome(Kind.REJECTED, null, false);
         }
       }
+      conversation.end(LlmConversation.Ending.ANSWERED);
+      // A fact a tool showed is kept by its ID, which stands for it whatever its reference was.
+      Map<String, Fact> found = shown(tools);
+      List<String> cited =
+          answer.cited().stream()
+              .map(ref -> found.containsKey(ref) ? found.get(ref).id() : ref)
+              .toList();
       Resolution resolution =
           new Resolution(
               key,
               linkOf(unresolved),
               answer.target() == null ? null : answer.target().unit(),
               answer.confidence(),
-              answer.cited(),
+              cited,
               answer.rationale(),
               ResolvePrompt.VERSION,
               model.provider(),
@@ -414,10 +451,8 @@ public final class LinkResolver implements LinkStep {
     }
   }
 
-  private LlmResponse ask(String purpose, List<LlmMessage> messages) {
-    return client.call(
-        new LlmRequest(
-            Role.RESOLVE, purpose, ResolvePrompt.SYSTEM, messages, MAX_OUTPUT_TOKENS, false));
+  private static Map<String, Fact> shown(GraphTools tools) {
+    return tools == null ? Map.of() : tools.shown();
   }
 
   private static void logRejected(
@@ -435,15 +470,22 @@ public final class LinkResolver implements LinkStep {
 
   /** The cache key: the SHA-256 of the prompt version, provider, model and prompt. */
   static String key(Question question, ModelConfig model) {
-    return key(question, ResolvePrompt.VERSION, model.provider(), model.model());
+    return key(
+        question,
+        ResolvePrompt.VERSION,
+        model.provider(),
+        model.model(),
+        ResolvePrompt.system(model.supports(Capability.TOOL_USE)));
   }
 
   /** The key the prompt would have had for the answer's prompt version and model. */
-  private static String key(Question question, Resolution resolution) {
-    return key(question, resolution.promptVersion(), resolution.provider(), resolution.model());
+  private static String key(Question question, Resolution resolution, String system) {
+    return key(
+        question, resolution.promptVersion(), resolution.provider(), resolution.model(), system);
   }
 
-  private static String key(Question question, String version, String provider, String model) {
+  private static String key(
+      Question question, String version, String provider, String model, String system) {
     String text =
         "prompt "
             + version
@@ -452,7 +494,7 @@ public final class LinkResolver implements LinkStep {
             + "\nmodel "
             + model
             + "\nsystem\n"
-            + ResolvePrompt.SYSTEM
+            + system
             + "\nuser\n"
             + question.user();
     try {
@@ -482,18 +524,20 @@ public final class LinkResolver implements LinkStep {
       Resolution resolution,
       LinkIndex index,
       Map<String, Fact> byId,
-      long snapshot) {
+      long snapshot,
+      String system) {
     Fact unresolved = question.unresolved();
     boolean isHttp = "http".equals(LinkIndex.text(unresolved, "kind"));
     String predicate = isHttp ? CrossRepoLinks.CALLS_HTTP : CrossRepoLinks.SENDS_MESSAGES_TO;
     Candidate candidate = question.candidate(resolution.target().toString());
     List<Fact> cited = new ArrayList<>();
-    // The references stand for this prompt's facts only when the answer was given for it.
+    // The references stand for this prompt's facts only when the answer was given for it; a fact
+    // a tool showed is cited by its ID, and counts while it holds.
     List<String> refs =
-        resolution.key().equals(key(question, resolution)) ? resolution.cited() : List.of();
+        resolution.key().equals(key(question, resolution, system)) ? resolution.cited() : List.of();
     for (String ref : refs) {
-      Fact fact = question.facts().get(ref);
-      if (fact != null) {
+      Fact fact = question.facts().containsKey(ref) ? question.facts().get(ref) : byId.get(ref);
+      if (fact != null && !cited.contains(fact)) {
         cited.add(fact);
       }
     }

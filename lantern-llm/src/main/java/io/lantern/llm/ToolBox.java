@@ -9,6 +9,20 @@ import java.util.List;
  */
 public interface ToolBox {
 
+  /** No tools: a conversation with it is a plain request and the reply after it. */
+  ToolBox NONE =
+      new ToolBox() {
+        @Override
+        public List<LlmTool> tools() {
+          return List.of();
+        }
+
+        @Override
+        public LlmToolResult run(LlmToolCall call) {
+          return LlmToolResult.error(call, "There are no tools.");
+        }
+      };
+
   /** The tools offered, each with a distinct name. */
   List<LlmTool> tools();
 
