@@ -32,6 +32,7 @@ import java.util.HexFormat;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -66,7 +67,7 @@ public final class MavenExtractor {
   public static final String NAME = "maven";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
@@ -105,6 +106,16 @@ public final class MavenExtractor {
           "com.atlassian.maven.plugins:maven-clover2-plugin");
 
   private static final String JACOCO_PLUGIN = "org.jacoco:jacoco-maven-plugin";
+
+  /**
+   * Attribute of a {@code BUILD_DEPENDS_ON} to a module: the {@code groupId:artifactId} the POM
+   * declares, when it differs from the module's own (JitPack coordinates).
+   */
+  public static final String COORDINATES = "coordinates";
+
+  /** The group ID prefixes of JitPack's git hosts, each followed by the repository's owner. */
+  static final List<String> JITPACK_HOSTS =
+      List.of("com.github.", "com.gitlab.", "org.bitbucket.", "com.gitee.");
 
   /** Confidence of facts read from an effective POM. */
   static final double EFFECTIVE_CONFIDENCE = 1.0;
@@ -184,8 +195,12 @@ public final class MavenExtractor {
       }
     }
     Map<String, Module> internal = new HashMap<>();
+    Map<String, List<Module>> byRepo = new HashMap<>();
     for (Module m : modules) {
       internal.putIfAbsent(m.key(), m);
+      byRepo
+          .computeIfAbsent(repoKey(m.written().repo().repo().name()), r -> new ArrayList<>())
+          .add(m);
     }
 
     Map<String, Fact> facts = new LinkedHashMap<>();
@@ -274,19 +289,33 @@ public final class MavenExtractor {
       }
       for (Dep dep : m.dependencies()) {
         Module target = internal.get(dep.key());
-        EntityId object = target != null ? target.id() : entity(ARTIFACT, dep.key());
-        if (object == null || object.equals(id)) {
-          continue;
+        List<EntityId> objects = new ArrayList<>();
+        ObjectNode attributes = dep.attributes();
+        if (target != null) {
+          objects.add(target.id());
+        } else {
+          List<Module> repository = jitPack(dep, byRepo);
+          if (repository.isEmpty()) {
+            objects.add(entity(ARTIFACT, dep.key()));
+          } else {
+            repository.forEach(r -> objects.add(r.id()));
+            attributes.put(COORDINATES, dep.key());
+          }
         }
-        add(
-            facts,
-            id,
-            BUILD_DEPENDS_ON,
-            FactObject.entity(object),
-            dep.attributes(),
-            m.evidence(m.declaration(dep)),
-            m.confidence(),
-            validity);
+        for (EntityId object : objects) {
+          if (object == null || object.equals(id)) {
+            continue;
+          }
+          add(
+              facts,
+              id,
+              BUILD_DEPENDS_ON,
+              FactObject.entity(object),
+              attributes,
+              m.evidence(m.declaration(dep)),
+              m.confidence(),
+              validity);
+        }
       }
       Dep packaged = packagedLibrary(m, internal, sourceCounts);
       if (packaged != null) {
@@ -1117,6 +1146,56 @@ public final class MavenExtractor {
           return (int)
               Arrays.stream(result.out().split("\0")).filter(l -> l.endsWith(".java")).count();
         });
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // JitPack coordinates
+
+  /**
+   * The modules of the snapshot that a dependency under JitPack coordinates names, or none. JitPack
+   * builds a repository from its git host and publishes it as {@code com.github.<owner>:<repo>}
+   * (the whole build: every module that is not a {@code pom}) or {@code
+   * com.github.<owner>.<repo>:<artifactId>} (one module of a multi-module build), whatever the
+   * coordinates in the repository's own POMs. The repository is the analyzed one of that name,
+   * compared without case; the owner is not checked. See {@code docs/adr/0006-maven-extractor.md}
+   * (amendment for #265).
+   */
+  private static List<Module> jitPack(Dep dep, Map<String, List<Module>> byRepo) {
+    String repoName = null;
+    String artifactId = null;
+    for (String host : JITPACK_HOSTS) {
+      if (!dep.groupId().startsWith(host)) {
+        continue;
+      }
+      String rest = dep.groupId().substring(host.length());
+      int dot = rest.indexOf('.');
+      if (rest.isEmpty() || dot == 0) {
+        return List.of();
+      }
+      if (dot < 0) {
+        repoName = dep.artifactId();
+      } else {
+        repoName = rest.substring(dot + 1);
+        artifactId = dep.artifactId();
+      }
+      break;
+    }
+    if (repoName == null || repoName.isEmpty()) {
+      return List.of();
+    }
+    List<Module> modules = byRepo.getOrDefault(repoKey(repoName), List.of());
+    List<Module> named = new ArrayList<>();
+    for (Module m : modules) {
+      if (m.container() != null && (artifactId == null || artifactId.equals(m.artifactId()))) {
+        named.add(m);
+      }
+    }
+    return named;
+  }
+
+  /** A repository's name as JitPack coordinates are matched against it. */
+  private static String repoKey(String name) {
+    return name.toLowerCase(Locale.ROOT);
   }
 
   // ---------------------------------------------------------------------------------------------

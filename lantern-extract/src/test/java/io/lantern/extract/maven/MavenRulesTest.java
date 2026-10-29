@@ -150,6 +150,64 @@ class MavenRulesTest {
   }
 
   @Test
+  void jitPackCoordinatesNameAnAnalyzedRepository() throws IOException {
+    Repo service =
+        repo(
+            "svc",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "orders-service",
+                    dependencies(
+                            dependency("com.github.Acme", "Shared-Lib", ""),
+                            dependency("com.github.Acme.shared-lib", "rbac", ""),
+                            dependency("com.github.Acme", "elsewhere", ""),
+                            dependency("com.github.Acme.shared-lib", "missing", ""))
+                        + BOOT)));
+    Repo lib =
+        repo(
+            "shared-lib",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "com.acme",
+                    "sharedlib",
+                    "<packaging>pom</packaging><modules><module>core</module>"
+                        + "<module>rbac</module></modules>"),
+                "core/pom.xml",
+                pom("com.acme", "core", ""),
+                "rbac/pom.xml",
+                pom("com.acme", "rbac", "")));
+
+    List<String> deps =
+        extract(service, lib).stream()
+            .filter(f -> f.startsWith("module:g:orders-service BUILD_DEPENDS_ON"))
+            .toList();
+
+    assertThat(deps)
+        .anyMatch(
+            f ->
+                f.contains(
+                    "BUILD_DEPENDS_ON module:com.acme:core"
+                        + " {\"coordinates\":\"com.github.Acme:Shared-Lib\","))
+        .anyMatch(
+            f ->
+                f.contains(
+                    "BUILD_DEPENDS_ON module:com.acme:rbac"
+                        + " {\"coordinates\":\"com.github.Acme:Shared-Lib\","))
+        .anyMatch(
+            f ->
+                f.contains(
+                    "BUILD_DEPENDS_ON module:com.acme:rbac"
+                        + " {\"coordinates\":\"com.github.Acme.shared-lib:rbac\","))
+        .anyMatch(f -> f.contains("BUILD_DEPENDS_ON artifact:com.github.Acme:elsewhere "))
+        .anyMatch(f -> f.contains("BUILD_DEPENDS_ON artifact:com.github.Acme.shared-lib:missing "))
+        .noneMatch(f -> f.contains("module:com.acme:sharedlib"))
+        .hasSize(5);
+  }
+
+  @Test
   void aClassifiedLibraryDependencyStillLinksAServiceToItsLibrary() throws IOException {
     Repo service =
         repo(

@@ -469,6 +469,65 @@ class DeployableUnitsTest {
                 + " @r:pom.xml#4 1.0");
   }
 
+  /** A module's version, as its POM declares it. */
+  private void version(String repo, String module, String version) {
+    add(
+        MavenExtractor.NAME,
+        "module:" + module,
+        MavenExtractor.VERSION_ATTRIBUTE,
+        FactObject.string(version),
+        null,
+        repo + ":" + module.substring(module.indexOf(':') + 1) + "/pom.xml#8",
+        1.0);
+  }
+
+  @Test
+  void unitsAskingForOtherVersionsOfALibraryThanItBuildsAreAVersionSkew() {
+    module("a", "service:g:alpha", "jar");
+    module("b", "service:g:beta", "jar");
+    module("c", "service:g:gamma", "jar");
+    module("lib", "library:com.acme:core", "jar");
+    module("lib", "library:com.acme:rbac", "jar");
+    version("lib", "com.acme:core", "0.3.0-SNAPSHOT");
+    version("lib", "com.acme:rbac", "0.3.0-SNAPSHOT");
+    String jitPack = "\"coordinates\":\"com.github.Acme:shared-lib\",\"scope\":\"compile\"";
+    dependency(
+        "a",
+        "g:alpha",
+        "module:com.acme:core",
+        "{" + jitPack + ",\"version\":\"0.2.0-SNAPSHOT\"}",
+        9);
+    dependency(
+        "b",
+        "g:beta",
+        "module:com.acme:core",
+        "{" + jitPack + ",\"version\":\"0.3.0-SNAPSHOT\"}",
+        9);
+    dependency(
+        "c",
+        "g:gamma",
+        "module:com.acme:rbac",
+        "{\"scope\":\"compile\",\"version\":\"0.3.0-SNAPSHOT\"}",
+        9);
+    // rbac reaches core through its own dependency, at the version the library builds.
+    dependency(
+        "lib",
+        "com.acme:rbac",
+        "module:com.acme:core",
+        "{\"scope\":\"compile\",\"version\":\"0.3.0-SNAPSHOT\"}",
+        12);
+
+    List<String> derived = derive();
+
+    assertThat(derived.stream().filter(f -> f.contains(" version-skew ")))
+        .containsExactly(
+            "library:com.acme:core version-skew 0.3.0-SNAPSHOT"
+                + " {\"pins\":{\"service:g:alpha\":\"0.2.0-SNAPSHOT\","
+                + "\"service:g:beta\":\"0.3.0-SNAPSHOT\",\"service:g:gamma\":\"0.3.0-SNAPSHOT\"},"
+                + "\"versions\":[\"0.2.0-SNAPSHOT\",\"0.3.0-SNAPSHOT\"]}"
+                + " @lib:core/pom.xml#8 1.0");
+  }
+
   @Test
   void noFactsNoUnits() {
     assertThat(new DeployableUnits().derive(List.of(), 1)).isEmpty();
