@@ -475,6 +475,8 @@ Renderers turn the document model into a format and make no content decisions. S
 
 What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015.
 
+Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs.
+
 Templates are versioned. Upgrading a template doesn't change a published document's look until the owner opts in. Prototypes will be built against a realistic fictional dataset and refined from there, starting with Architecture Explorer and Executive Brief.
 
 ## Hosted service
