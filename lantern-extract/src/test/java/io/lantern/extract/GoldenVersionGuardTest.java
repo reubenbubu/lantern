@@ -11,6 +11,7 @@ import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +29,9 @@ import org.junit.jupiter.api.Test;
  * Cached static facts are keyed on the extractor's name and version, so an extractor whose output
  * changes must raise its {@code VERSION}. This test records, in {@code golden/versions.txt}, each
  * extractor's version and a hash of its golden files, and fails when the golden files change
- * without the version changing.
+ * without the manifest changing. The manifest alone cannot enforce a version bump: a changed hash
+ * must come with a changed {@code VERSION}, and review checks that before the manifest line is
+ * updated.
  */
 class GoldenVersionGuardTest {
 
@@ -36,15 +39,18 @@ class GoldenVersionGuardTest {
 
   /** The extractor of each folder in {@code src/test/resources/golden}: its name and version. */
   private static final Map<String, String[]> EXTRACTORS =
-      Map.of(
-          "docs", new String[] {DocsExtractor.NAME, DocsExtractor.VERSION},
-          "http", new String[] {HttpClientExtractor.NAME, HttpClientExtractor.VERSION},
-          "java", new String[] {JavaExtractor.NAME, JavaExtractor.VERSION},
-          "maven", new String[] {MavenExtractor.NAME, MavenExtractor.VERSION},
-          "messaging", new String[] {MessagingExtractor.NAME, MessagingExtractor.VERSION},
-          "persistence", new String[] {PersistenceExtractor.NAME, PersistenceExtractor.VERSION},
-          "spring", new String[] {SpringExtractor.NAME, SpringExtractor.VERSION},
-          "sql", new String[] {SqlExtractor.NAME, SqlExtractor.VERSION});
+      Map.ofEntries(
+          Map.entry("docs", new String[] {DocsExtractor.NAME, DocsExtractor.VERSION}),
+          Map.entry("http", new String[] {HttpClientExtractor.NAME, HttpClientExtractor.VERSION}),
+          Map.entry("java", new String[] {JavaExtractor.NAME, JavaExtractor.VERSION}),
+          Map.entry("maven", new String[] {MavenExtractor.NAME, MavenExtractor.VERSION}),
+          Map.entry(
+              "messaging", new String[] {MessagingExtractor.NAME, MessagingExtractor.VERSION}),
+          Map.entry(
+              "persistence",
+              new String[] {PersistenceExtractor.NAME, PersistenceExtractor.VERSION}),
+          Map.entry("spring", new String[] {SpringExtractor.NAME, SpringExtractor.VERSION}),
+          Map.entry("sql", new String[] {SqlExtractor.NAME, SqlExtractor.VERSION}));
 
   @Test
   void everyGoldenFolderBelongsToAnExtractor() throws IOException {
@@ -88,7 +94,7 @@ class GoldenVersionGuardTest {
   private static Path golden() {
     try {
       return Path.of(GoldenVersionGuardTest.class.getResource("/golden").toURI());
-    } catch (java.net.URISyntaxException e) {
+    } catch (URISyntaxException e) {
       throw new IllegalStateException(e);
     }
   }
