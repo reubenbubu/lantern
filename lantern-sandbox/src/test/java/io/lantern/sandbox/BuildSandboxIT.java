@@ -604,10 +604,11 @@ class BuildSandboxIT {
       new BuildSandbox(settings()).removeLeftovers();
 
       // Docker may take a moment to finish removing them.
+      long removal = System.nanoTime() + Duration.ofSeconds(30).toNanos();
       while (!ownContainers("label=" + RUN_LABEL).isEmpty() || !ownNetworks().isEmpty()) {
         assertThat(System.nanoTime())
             .as("containers or networks left behind: " + ownContainers("label=" + RUN_LABEL))
-            .isLessThan(deadline);
+            .isLessThan(removal);
         Thread.sleep(200);
       }
     } finally {
