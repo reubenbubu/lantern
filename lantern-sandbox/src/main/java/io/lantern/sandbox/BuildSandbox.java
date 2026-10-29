@@ -306,6 +306,7 @@ public class BuildSandbox {
             // What the build wrote to the cache, in whatever modes, stays deletable by the user.
             handOverCache();
           }
+          removeLabelled();
           if (interrupted) {
             Thread.currentThread().interrupt();
           }
@@ -428,6 +429,40 @@ public class BuildSandbox {
       }
     }
 
+    /**
+     * Removes whatever containers and networks with this build's sandbox label are still there,
+     * such as one a create that was killed at its timeout made late. Best effort, like all cleanup.
+     */
+    private void removeLabelled() {
+      String filter = "label=" + LABEL + "=" + id;
+      try {
+        List<String> containers =
+            docker
+                .check(CLEANUP_TIMEOUT, List.of("ps", "--all", "--quiet", "--filter", filter))
+                .out()
+                .lines()
+                .toList();
+        if (!containers.isEmpty()) {
+          List<String> rm = new ArrayList<>(List.of("rm", "--force", "--volumes"));
+          rm.addAll(containers);
+          docker.quietly(CLEANUP_TIMEOUT, rm);
+        }
+        List<String> networks =
+            docker
+                .check(CLEANUP_TIMEOUT, List.of("network", "ls", "--quiet", "--filter", filter))
+                .out()
+                .lines()
+                .toList();
+        if (!networks.isEmpty()) {
+          List<String> rm = new ArrayList<>(List.of("network", "rm"));
+          rm.addAll(networks);
+          docker.quietly(CLEANUP_TIMEOUT, rm);
+        }
+      } catch (RuntimeException e) {
+        // Cleanup is best effort; leftovers carry the sandbox label.
+      }
+    }
+
     /** Whether the build was stopped before it finished: timed out or used too much disk. */
     private boolean stopped() {
       return timedOut || diskProblem != null;
@@ -468,7 +503,7 @@ public class BuildSandbox {
       }
       List<String> handover =
           labelled(
-              List.of("run", "--name", cacheOwner),
+              List.of("create", "--name", cacheOwner),
               List.of(
                   "--network",
                   "none",
@@ -511,7 +546,9 @@ public class BuildSandbox {
                   user[0],
                   user[1]));
       try {
-        Docker.Result result = docker.run(settings.timeout(), handover);
+        docker.create(DOCKER_TIMEOUT, handover);
+        Docker.Result result =
+            docker.run(settings.timeout(), List.of("start", "--attach", cacheOwner));
         if (!result.ok() || !result.err().isBlank()) {
           log.note("could not hand the Maven cache to the build user: " + result.err());
         }
@@ -545,7 +582,7 @@ public class BuildSandbox {
      * problem of the host, not of the build.
      */
     private void startMonitor() {
-      docker.check(
+      docker.create(
           DOCKER_TIMEOUT,
           labelled(
               List.of("run", "--detach", "--name", monitor),
@@ -593,9 +630,9 @@ public class BuildSandbox {
         Files.copy(in, target);
       }
       permit(proxyDir, false);
-      docker.check(
+      docker.create(
           DOCKER_TIMEOUT, labelled(List.of("network", "create", "--internal"), List.of(network)));
-      docker.check(
+      docker.create(
           DOCKER_TIMEOUT,
           labelled(
               List.of("create", "--name", proxy),
@@ -710,7 +747,7 @@ public class BuildSandbox {
                       entrypoint,
                       image)));
       args.addAll(command);
-      docker.check(DOCKER_TIMEOUT, args);
+      docker.create(DOCKER_TIMEOUT, args);
       copyIn(name);
       permit(lantern, false);
       docker.check(COPY_TIMEOUT, List.of("cp", lantern.toString(), name + ":/lantern"));
