@@ -50,7 +50,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Turns Kafka, JMS and RabbitMQ code into facts: the methods that listen on topics, queues and
  * destinations, the methods that send to them through a template or producer, and the bindings of
- * RabbitMQ queues to exchanges. See {@code docs/adr/0036-messaging-extractor.md}.
+ * RabbitMQ queues to exchanges. See {@code docs/adr/0037-messaging-extractor.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}): through
  * javac with the build's classpath, or parsed in degraded mode, with the same confidence. Names are
