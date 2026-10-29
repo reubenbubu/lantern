@@ -280,11 +280,12 @@ Summaries of the parts it contains:
 Summarize the Maven module shop-api in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 
 Facts:
-[F1] module:com.example.shop:shop-api version "1.0.0"
-[F2] module:com.example.shop:shop-api java-release "21"
-[F3] module:com.example.shop:shop-api CONTAINS package:com.example.shop:shop-api:com.example.shop.api
-[F4] library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api
-[F5] module:com.example.shop:shop-api packaging "jar"
+[F1] module:com.example.shop:shop-api parent "com.example.shop:shop-parent:1.0.0"
+[F2] module:com.example.shop:shop-api version "1.0.0"
+[F3] module:com.example.shop:shop-api java-release "21"
+[F4] module:com.example.shop:shop-api CONTAINS package:com.example.shop:shop-api:com.example.shop.api
+[F5] library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api
+[F6] module:com.example.shop:shop-api packaging "jar"
 
 Summaries of the parts it contains:
 [S1] package com.example.shop.api: It builds on its parts. It is described by its facts.
@@ -340,7 +341,8 @@ Facts:
 [F3] module:com.example.shop:shop-core packaging "jar"
 [F4] library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core
 [F5] module:com.example.shop:shop-core java-release "21"
-[F6] module:com.example.shop:shop-core CONTAINS package:com.example.shop:shop-core:com.example.shop.core
+[F6] module:com.example.shop:shop-core parent "com.example.shop:shop-parent:1.0.0"
+[F7] module:com.example.shop:shop-core CONTAINS package:com.example.shop:shop-core:com.example.shop.core
 
 Summaries of the parts it contains:
 [S1] package com.example.shop.core: It builds on its parts. It is described by its facts.

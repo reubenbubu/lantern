@@ -31,6 +31,7 @@ import tools.jackson.databind.node.ObjectNode;
 class DeployableUnitsTest {
 
   private static final String COMMIT = "a".repeat(40);
+  private static final String NAME = DeployableUnits.NAME_KEY;
 
   private final List<Fact> facts = new ArrayList<>();
 
@@ -147,6 +148,12 @@ class DeployableUnitsTest {
   }
 
   private void config(String repo, String module, String key, String value, String profile) {
+    config(repo, module, "application.yml", key, value, profile);
+  }
+
+  /** A config value, defined in the given file of the module's resources. */
+  private void config(
+      String repo, String module, String file, String key, String value, String profile) {
     add(
         ConfigExtractor.NAME,
         "module:" + module,
@@ -155,7 +162,12 @@ class DeployableUnitsTest {
         profile == null
             ? "{\"key\":\"" + key + "\"}"
             : "{\"key\":\"" + key + "\",\"profile\":\"" + profile + "\"}",
-        repo + ":src/main/resources/application.yml#3",
+        repo
+            + ":"
+            + module.substring(module.indexOf(':') + 1)
+            + "/src/main/resources/"
+            + file
+            + "#3",
         1.0);
   }
 
@@ -252,10 +264,10 @@ class DeployableUnitsTest {
             "service:g:orders-service BUNDLES library:g:orders-lib {\"main\":true}"
                 + " @r:orders-service/pom.xml#12 1.0",
             "service:g:orders-service application-name orders {\"module\":\"module:g:orders-lib\"}"
-                + " @r:src/main/resources/application.yml#3 1.0",
+                + " @r:orders-lib/src/main/resources/application.yml#3 1.0",
             "service:g:orders-service application-name orders-local"
                 + " {\"module\":\"module:g:orders-lib\",\"profile\":\"local\"}"
-                + " @r:src/main/resources/application.yml#3 1.0",
+                + " @r:orders-lib/src/main/resources/application.yml#3 1.0",
             "service:g:orders-service deployable-unit spring-boot"
                 + " {\"mainClass\":\"type:g.orders.OrdersApplication\",\"packaging\":\"jar\"}"
                 + " @r:src/main/java/g/orders/OrdersApplication.java#5 1.0",
@@ -304,7 +316,7 @@ class DeployableUnitsTest {
     assertThat(derived)
         .contains(
             "service:g:app application-name shop {\"module\":\"module:g:app\"}"
-                + " @r:src/main/resources/application.yml#3 1.0",
+                + " @r:app/src/main/resources/application.yml#3 1.0",
             "service:g:app technology Spring Boot / Java 17"
                 + " {\"framework\":\"Spring Boot\",\"java\":\"17\"} @r:pom.xml#7 1.0");
     // The other service is a unit of its own, named by its artifact ID as no config names it.
@@ -377,6 +389,76 @@ class DeployableUnitsTest {
                 + " {\"mainClass\":\"type:g.lib.App\",\"packaging\":\"jar\"} @svc:svc/pom.xml 1.0",
             "service:g:svc technology Spring Boot {\"framework\":\"Spring Boot\"}"
                 + " @svc:svc/pom.xml 1.0");
+  }
+
+  @Test
+  void theApplicationAndBootstrapFilesComeEachFromTheFirstModuleThatHasThem() {
+    module("r", "service:g:svc", "jar");
+    module("r", "library:g:lib", "jar");
+    dependency("r", "g:svc", "module:g:lib", "{\"scope\":\"compile\"}", 9);
+    // The service's application.yml hides the library's, but not the library's bootstrap.yml.
+    config("r", "g:svc", "application.yml", "server.port", "8080", null);
+    config("r", "g:svc", "application-cloud.yml", NAME, "svc-cloud", "cloud");
+    config("r", "g:lib", "application.yml", NAME, "hidden", null);
+    config("r", "g:lib", "bootstrap.yml", NAME, "from-bootstrap", null);
+    config("r", "g:lib", "bootstrap-dev.yml", NAME, "from-bootstrap-dev", "dev");
+
+    assertThat(derive().stream().filter(f -> f.contains(" application-name ")))
+        .containsExactly(
+            "service:g:svc application-name from-bootstrap {\"module\":\"module:g:lib\"}"
+                + " @r:lib/src/main/resources/bootstrap.yml#3 1.0",
+            "service:g:svc application-name from-bootstrap-dev"
+                + " {\"module\":\"module:g:lib\",\"profile\":\"dev\"}"
+                + " @r:lib/src/main/resources/bootstrap-dev.yml#3 1.0",
+            "service:g:svc application-name svc-cloud"
+                + " {\"module\":\"module:g:svc\",\"profile\":\"cloud\"}"
+                + " @r:svc/src/main/resources/application-cloud.yml#3 1.0");
+  }
+
+  @Test
+  void aNameInTheApplicationFilesWinsOverTheBootstrapFilesInEveryProfile() {
+    module("r", "service:g:svc", "jar");
+    config("r", "g:svc", "bootstrap.yml", NAME, "boot", null);
+    config("r", "g:svc", "bootstrap-dev.yml", NAME, "boot-dev", "dev");
+    config("r", "g:svc", "application.yml", NAME, "app", null);
+
+    assertThat(derive().stream().filter(f -> f.contains(" application-name ")))
+        .containsExactly(
+            "service:g:svc application-name app {\"module\":\"module:g:svc\"}"
+                + " @r:svc/src/main/resources/application.yml#3 1.0");
+  }
+
+  @Test
+  void withoutDependencyVersionsSpringBootsVersionComesFromItsParentPom() {
+    module("r", "service:g:svc", "jar");
+    add(
+        MavenExtractor.NAME,
+        "module:g:svc",
+        MavenExtractor.PARENT,
+        FactObject.string("g:parent:1"),
+        null,
+        "r:svc/pom.xml#4",
+        0.7);
+    add(
+        MavenExtractor.NAME,
+        "module:g:parent",
+        MavenExtractor.PARENT,
+        FactObject.string("org.springframework.boot:spring-boot-starter-parent:3.5.14"),
+        null,
+        "r:pom.xml#4",
+        0.7);
+    dependency(
+        "r",
+        "g:svc",
+        "artifact:org.springframework.boot:spring-boot-starter-web",
+        "{\"scope\":\"compile\"}",
+        12);
+
+    assertThat(derive())
+        .contains(
+            "service:g:svc technology Spring Boot 3.5.14"
+                + " {\"framework\":\"Spring Boot\",\"frameworkVersion\":\"3.5.14\"}"
+                + " @r:pom.xml#4 1.0");
   }
 
   @Test

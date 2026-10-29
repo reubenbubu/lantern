@@ -85,6 +85,9 @@ public final class MavenExtractor {
   /** Attribute: a module's Maven packaging. */
   public static final String PACKAGING = "packaging";
 
+  /** Attribute: the coordinates of a module's parent POM. */
+  public static final String PARENT = "parent";
+
   /** Attribute: the Java release a module compiles for. */
   public static final String JAVA_RELEASE = "java-release";
 
@@ -197,6 +200,17 @@ public final class MavenExtractor {
           m.evidence(xml.child("packaging").orElse(null)),
           m,
           validity);
+      String parent = parentCoordinates(m);
+      if (parent != null) {
+        add(
+            facts,
+            id,
+            PARENT,
+            FactObject.string(parent),
+            m.evidence(xml.child("parent").orElse(null)),
+            m,
+            validity);
+      }
       JavaRelease release = javaRelease(m);
       if (release != null) {
         add(
@@ -720,6 +734,20 @@ public final class MavenExtractor {
     properties.putAll(w.pom().properties());
     projectProperties(properties, w.pom());
     return properties;
+  }
+
+  /** The parent's {@code groupId:artifactId:version} as the module's POM writes them, or null. */
+  private static String parentCoordinates(Module m) {
+    Pom.Coordinates parent = m.written().pom().parent();
+    if (parent == null) {
+      return null;
+    }
+    String groupId = blankToNull(Pom.interpolate(parent.groupId(), m.properties()));
+    String artifactId = blankToNull(Pom.interpolate(parent.artifactId(), m.properties()));
+    String version = blankToNull(Pom.interpolate(parent.version(), m.properties()));
+    return groupId == null || artifactId == null || version == null
+        ? null
+        : groupId + ":" + artifactId + ":" + version;
   }
 
   // ---------------------------------------------------------------------------------------------

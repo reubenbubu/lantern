@@ -41,9 +41,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "195977277fcd28fd001244be282a63130fdd503b58ceddcea9d5e19763cc72e3" ]
+      "facts" : [ "01bea95436b75747806745f4d4ea8f14e58653b1b4b7c956a36787d441e1a3f1" ]
     } ],
-    "facts" : [ "195977277fcd28fd001244be282a63130fdd503b58ceddcea9d5e19763cc72e3", "25e35508872c85750e94a3bd10b5f7f9cc0423c62e6542c0a59b96fddbbcac84", "6fc07b46c6a8adb6993651cdea9c300cf46b6ab4d47e71521129df3857b01898", "ff80ab4b5389dc119afa8e3832459ab5ad82f9f296910193184a9586160ad2e0" ]
+    "facts" : [ "01bea95436b75747806745f4d4ea8f14e58653b1b4b7c956a36787d441e1a3f1", "195977277fcd28fd001244be282a63130fdd503b58ceddcea9d5e19763cc72e3", "25e35508872c85750e94a3bd10b5f7f9cc0423c62e6542c0a59b96fddbbcac84", "6fc07b46c6a8adb6993651cdea9c300cf46b6ab4d47e71521129df3857b01898", "ff80ab4b5389dc119afa8e3832459ab5ad82f9f296910193184a9586160ad2e0" ]
   }, {
     "id" : "module:com.example.shop:shop-core",
     "name" : "shop-core",
@@ -66,7 +66,7 @@
       "kind" : "citation",
       "facts" : [ "55b874ba943abe02d3ef818539584a231cafb395604f0869b548406c32f28ae7" ]
     } ],
-    "facts" : [ "3ce60f832bd492e1cd4a4da458cb0005abc64d1326eed0f34bf46d5fa0af9c44", "55b874ba943abe02d3ef818539584a231cafb395604f0869b548406c32f28ae7", "7b168833e6e0cd18ff05b4eb491c2aa160bc12e217c38d76bb2c4d69efeaedad", "a3b4af246afd8170260c350ac8f85beaa6527369fc3e8ba6ecf7c60eea217334" ]
+    "facts" : [ "3ce60f832bd492e1cd4a4da458cb0005abc64d1326eed0f34bf46d5fa0af9c44", "55b874ba943abe02d3ef818539584a231cafb395604f0869b548406c32f28ae7", "7b168833e6e0cd18ff05b4eb491c2aa160bc12e217c38d76bb2c4d69efeaedad", "a3b4af246afd8170260c350ac8f85beaa6527369fc3e8ba6ecf7c60eea217334", "cdd502aff8c7a75d76f16d608d8a009caa1ebf796ea01873075767bc558bcd7c" ]
   }, {
     "id" : "module:com.example.shop:shop-parent",
     "name" : "shop-parent",
@@ -178,6 +178,34 @@
     "facts" : [ "0bc179403a38de8486b0c99fd28cbfe29996829198270398682f637ea2f38822", "2b345dd305a53886666a5ac22356f7cfa1e1afbc2904914da8e5b836f6fa7098" ]
   } ],
   "facts" : [ {
+    "id" : "01bea95436b75747806745f4d4ea8f14e58653b1b4b7c956a36787d441e1a3f1",
+    "subject" : "module:com.example.shop:shop-api",
+    "predicate" : "parent",
+    "object" : {
+      "kind" : "string",
+      "value" : "com.example.shop:shop-parent:1.0.0"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "2"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
+      "path" : "api/pom.xml",
+      "lines" : {
+        "start" : 7,
+        "end" : 11
+      },
+      "contentHash" : "d3f6746f54dffdd6222929c795c1e4e5b6f87249e0b74656d233dc983a89d89a"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
     "id" : "0bc179403a38de8486b0c99fd28cbfe29996829198270398682f637ea2f38822",
     "subject" : "type:com.example.shop.core.FixedPriceService",
     "predicate" : "kind",
@@ -602,6 +630,34 @@
       "repo" : "shop",
       "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
       "path" : "api/src/main/java/com/example/shop/api"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "cdd502aff8c7a75d76f16d608d8a009caa1ebf796ea01873075767bc558bcd7c",
+    "subject" : "module:com.example.shop:shop-core",
+    "predicate" : "parent",
+    "object" : {
+      "kind" : "string",
+      "value" : "com.example.shop:shop-parent:1.0.0"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "2"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
+      "path" : "core/pom.xml",
+      "lines" : {
+        "start" : 7,
+        "end" : 11
+      },
+      "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
     },
     "confidence" : 0.7,
     "validity" : {

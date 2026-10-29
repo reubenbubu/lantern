@@ -37,7 +37,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Finds the deployable units of a snapshot, the containers of its diagrams: each runnable
  * application together with the in-set libraries it bundles, its name and its technology. See
- * {@code docs/adr/0037-deployable-units.md}.
+ * {@code docs/adr/0039-deployable-units.md}.
  *
  * <p>The step reads the facts of the whole snapshot, as the extractors made them, and derives new
  * facts from them: the Maven extractor's services, modules and dependencies, the Spring extractor's
@@ -46,7 +46,7 @@ import tools.jackson.databind.node.ObjectNode;
  * entity. Every fact about a unit has its evidence in the unit's own repository, so the unit's
  * facts are derived again whenever that repository is analyzed.
  */
-public final class DeployableUnits {
+public final class DeployableUnits implements LinkStep {
 
   /** The step's name, recorded as the origin of its facts. */
   public static final String NAME = "deployable-units";
@@ -80,9 +80,18 @@ public final class DeployableUnits {
   private static final String RESOURCE = "/vocabulary/deployable-units-types.json";
   private static final String SPRING_BOOT_GROUP = "org.springframework.boot:";
   private static final String SPRING_BOOT = "Spring Boot";
+  private static final Set<String> BOOT_PARENTS =
+      Set.of(
+          "org.springframework.boot:spring-boot-starter-parent",
+          "org.springframework.boot:spring-boot-parent");
   private static final Set<String> PACKAGED_SCOPES = Set.of("compile", "runtime");
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
+
+  @Override
+  public Origin origin() {
+    return ORIGIN;
+  }
 
   /** The vocabulary types this step's facts use besides the built-in and extractors' ones. */
   public static List<VocabularyType> vocabulary() {
@@ -108,6 +117,7 @@ public final class DeployableUnits {
    * @param snapshot the snapshot number the facts hold from
    * @return the derived facts, without duplicates, ordered by subject, predicate, object and ID
    */
+  @Override
   public List<Fact> derive(List<Fact> facts, long snapshot) {
     Objects.requireNonNull(facts, "facts");
     Index index = new Index(facts);
@@ -305,31 +315,57 @@ public final class DeployableUnits {
     }
 
     /**
-     * The unit's {@code spring.application.name}, from the config Spring Boot loads: that of the
-     * unit's own module if it has any, else that of the nearest library it bundles that has some,
-     * since a library's {@code application.yml} is only found when the application has none. The
-     * name of the default view, then one per profile whose name differs. Without a name in the
-     * default view, the unit's artifact ID.
+     * The unit's {@code spring.application.name}, as Spring Boot finds it on the classpath. It
+     * loads the {@code application} files and the {@code bootstrap} files each from the first
+     * module on the classpath that has them: the unit's own module, else the nearest library it
+     * bundles. A name in the {@code application} files wins over one in the {@code bootstrap}
+     * files, for the default view and for each profile (ADR 0032). The name of the default view,
+     * then one per profile whose name differs. Without a name in the default view, the unit's
+     * artifact ID.
      */
     private void names(Index index, Validity validity, List<Fact> facts) {
-      EntityId configModule =
-          modules().stream().filter(index.config::containsKey).findFirst().orElse(null);
-      List<Fact> names =
-          configModule == null
-              ? List.of()
-              : index.config.get(configModule).stream()
-                  .filter(f -> NAME_KEY.equals(text(f, "key")))
-                  .filter(f -> !f.attributes().path("masked").asBoolean(false))
-                  .toList();
-      boolean hasDefault = false;
-      for (Fact name : names) {
+      // Lowest precedence first, so a later family's name replaces an earlier one's.
+      Map<String, Fact> byProfile = new TreeMap<>(Comparator.nullsFirst(Comparator.naturalOrder()));
+      for (String family : List.of("bootstrap", "application")) {
+        EntityId provider =
+            modules().stream()
+                .filter(
+                    m ->
+                        index.config.getOrDefault(m, List.of()).stream()
+                            .anyMatch(f -> family.equals(configFamily(f))))
+                .findFirst()
+                .orElse(null);
+        if (provider == null) {
+          continue;
+        }
+        Map<String, Fact> names = new HashMap<>();
+        for (Fact f : index.config.get(provider)) {
+          if (family.equals(configFamily(f))
+              && NAME_KEY.equals(text(f, "key"))
+              && !f.attributes().path("masked").asBoolean(false)) {
+            names.put(text(f, "profile"), f);
+          }
+        }
+        Fact familyDefault = names.get(null);
+        if (familyDefault != null) {
+          // The family's default view overrides every profile view of the families before it.
+          byProfile.replaceAll((profile, earlier) -> familyDefault);
+        }
+        byProfile.putAll(names);
+      }
+      Fact defaultName = byProfile.get(null);
+      for (Map.Entry<String, Fact> entry : byProfile.entrySet()) {
+        String profile = entry.getKey();
+        Fact name = entry.getValue();
+        if (profile != null
+            && defaultName != null
+            && name.object().value().equals(defaultName.object().value())) {
+          continue;
+        }
         ObjectNode attributes = FactJson.newObject();
-        attributes.put("module", configModule.toString());
-        String profile = text(name, "profile");
+        attributes.put("module", name.subject().toString());
         if (profile != null) {
           attributes.put("profile", profile);
-        } else {
-          hasDefault = true;
         }
         if (name.attributes().has("unresolved")) {
           attributes.set("unresolved", name.attributes().get("unresolved").deepCopy());
@@ -344,7 +380,7 @@ public final class DeployableUnits {
                 name.confidence(),
                 validity));
       }
-      if (!hasDefault) {
+      if (defaultName == null) {
         String key = id.key();
         ObjectNode attributes = FactJson.newObject();
         attributes.put("defaulted", true);
@@ -362,8 +398,9 @@ public final class DeployableUnits {
 
     /**
      * Spring Boot with the version of the first {@code org.springframework.boot} dependency of the
-     * nearest module that has one, if the unit uses Spring Boot; and the Java release of the unit's
-     * own module, else of its main library.
+     * nearest module that has one, else of the Spring Boot parent POM the nearest module inherits
+     * from, if the unit uses Spring Boot; and the Java release of the unit's own module, else of
+     * its main library.
      */
     private void technology(
         Index index, Fact main, Set<EntityId> mainLibraries, Validity validity, List<Fact> facts) {
@@ -384,6 +421,19 @@ public final class DeployableUnits {
           break;
         }
       }
+      String version = boot == null ? null : text(boot, "version");
+      Fact bootParent = null;
+      if (version == null) {
+        // Without a build the dependencies' versions are those Spring Boot's parent POM manages.
+        for (EntityId m : modules()) {
+          bootParent = index.bootParent(m);
+          if (bootParent != null) {
+            usesBoot = true;
+            version = parentVersion(bootParent);
+            break;
+          }
+        }
+      }
       Fact java = index.javaRelease.get(module);
       for (Bundled b : bundled) {
         if (java == null && mainLibraries.contains(b.library())) {
@@ -394,7 +444,6 @@ public final class DeployableUnits {
       List<String> parts = new ArrayList<>();
       if (usesBoot) {
         attributes.put("framework", SPRING_BOOT);
-        String version = boot == null ? null : text(boot, "version");
         if (version != null) {
           attributes.put("frameworkVersion", version);
         }
@@ -407,7 +456,8 @@ public final class DeployableUnits {
       if (parts.isEmpty()) {
         return;
       }
-      Evidence where = boot != null ? local(boot) : local(java);
+      Evidence where =
+          boot != null ? local(boot) : bootParent != null ? local(bootParent) : local(java);
       facts.add(
           fact(
               id,
@@ -472,6 +522,10 @@ public final class DeployableUnits {
     final Map<EntityId, Set<EntityId>> packages = new HashMap<>();
 
     final Map<EntityId, String> packaging = new HashMap<>();
+
+    /** A module's {@code parent} fact. */
+    final Map<EntityId, Fact> parent = new HashMap<>();
+
     final Map<EntityId, Fact> javaRelease = new HashMap<>();
 
     /** A module's {@code config-value} facts. */
@@ -520,6 +574,7 @@ public final class DeployableUnits {
             }
           }
           case MavenExtractor.PACKAGING -> packaging.put(f.subject(), f.object().value());
+          case MavenExtractor.PARENT -> parent.merge(f.subject(), f, DeployableUnits::first);
           case MavenExtractor.JAVA_RELEASE ->
               javaRelease.merge(f.subject(), f, DeployableUnits::first);
           case ConfigExtractor.CONFIG_VALUE ->
@@ -540,6 +595,33 @@ public final class DeployableUnits {
           bootMainsByModule.computeIfAbsent(module, m -> new ArrayList<>()).add(main);
         }
       }
+    }
+
+    /**
+     * The {@code parent} fact naming Spring Boot's parent POM ({@code spring-boot-starter-parent}
+     * or {@code spring-boot-parent}) that a module inherits from, directly or through parents in
+     * the snapshot, or null.
+     */
+    Fact bootParent(EntityId module) {
+      Set<EntityId> seen = new HashSet<>();
+      EntityId current = module;
+      while (current != null && seen.add(current)) {
+        Fact fact = parent.get(current);
+        if (fact == null) {
+          return null;
+        }
+        String coordinates = fact.object().value();
+        String key = coordinates.substring(0, coordinates.lastIndexOf(':'));
+        if (BOOT_PARENTS.contains(key)) {
+          return fact;
+        }
+        try {
+          current = new EntityId(BuiltInTypes.MODULE, key);
+        } catch (IllegalArgumentException e) {
+          return null;
+        }
+      }
+      return null;
     }
 
     /** The modules that declare a type, found up its packages and enclosing types; by ID. */
@@ -598,9 +680,33 @@ public final class DeployableUnits {
         subject, predicate, object, attributes, ORIGIN, evidence, confidence, validity);
   }
 
+  /**
+   * Which config files a {@code config-value} fact comes from: {@code application} or {@code
+   * bootstrap}, by the name of the file its evidence names, or null.
+   */
+  static String configFamily(Fact fact) {
+    String path = fact.evidence().path();
+    if (path == null) {
+      return null;
+    }
+    String file = path.substring(path.lastIndexOf('/') + 1);
+    for (String family : List.of("application", "bootstrap")) {
+      if (file.startsWith(family + ".") || file.startsWith(family + "-")) {
+        return family;
+      }
+    }
+    return null;
+  }
+
   private static String text(Fact fact, String attribute) {
     JsonNode value = fact.attributes().get(attribute);
     return value == null || !value.isString() ? null : value.stringValue();
+  }
+
+  /** The version in a {@code parent} fact's {@code groupId:artifactId:version}. */
+  private static String parentVersion(Fact parent) {
+    String coordinates = parent.object().value();
+    return coordinates.substring(coordinates.lastIndexOf(':') + 1);
   }
 
   /** Rounded, so a stored confidence reads as it was meant: 0.56, not 0.5599... */
