@@ -263,12 +263,12 @@ The LLM handles understanding that static analysis can't provide, always working
 
 | Role | Input | Output |
 | --- | --- | --- |
-| Summarize | A code unit's facts, source excerpts, child summaries | Hierarchical summaries at each level |
-| Resolve | Ambiguous facts plus tools to query the graph and read files | New facts with `origin=llm` and a confidence |
-| Infer intent | A deployable unit's facts, README claims, glossary; a data store's or destination's facts and uses | Responsibilities of units, components, data stores and destinations, intent of their links, domain role |
+| Summarize | A code unit's facts and child summaries; for a type, its whole source file with secrets masked; for a module or repository, a fact sheet of its parts | Hierarchical summaries at each level |
+| Resolve | A link left open, its facts and its candidates' facts; later also tools to query the graph and read files (#169) | New facts with `origin=llm` and a confidence |
+| Infer intent | A deployable unit's facts and README claims; a data store's or destination's facts and uses; the glossary once annotations exist | Responsibilities of units, components, data stores and destinations, intent of their links, domain role |
 | Name groups | Cluster members' summaries | Group name and description |
 | Propose rules | Repeated unresolved patterns | Declarative extractor rules (see Learned rules) |
-| Compose | Document model plus facts in scope | Narrative sections for an audience |
+| Compose | Document model plus facts in scope; a main flow's traced facts | Narrative sections for an audience; a flow's walkthrough and pre- and post-conditions |
 | Translate | A user's natural-language instruction | A structured annotation or presentation rule |
 
 **Models (Anthropic):** Claude Sonnet for the high-volume roles (Summarize, Name groups, Compose, Translate); Claude Opus for the reasoning-heavy ones (Resolve, Infer intent, Propose rules).
@@ -281,17 +281,17 @@ The LLM handles understanding that static analysis can't provide, always working
 
 **Grounding**
 
-- Every LLM output must cite the fact IDs or file ranges it used. Outputs without citations are rejected or marked low-confidence.
-- The glossary (from annotations) is included in prompts.
+- Every LLM output must cite the facts or summaries it used; a source file is cited through the fact observed in it. An output that fails its checks, for example one that cites nothing, is sent back once with the reason, and dropped if it fails again (see ADR 0010).
+- The glossary (from annotations) is included in prompts, once annotations exist (Phase 3).
 - The LLM words what extraction found: names, the responsibility sentence of each element, the intent phrase of each relationship, a system's purpose and "start here". It never invents elements or relationships. Every box and line in a document comes from a static or rule fact, an annotation, or a Resolve result that picks among candidates the code shows.
-- What code can't show (business purpose, people, owners, rationale, quality goals, production topology) comes from annotations or README claims, or is stated once, plainly, as unknown.
+- What code can't show (people, owners, rationale, quality goals, production topology) comes from annotations or README claims, or is stated once, plainly, as unknown. Business purpose comes from what people wrote (Lantern annotations, README claims, Javadoc) where there is any; otherwise it is inferred from the code and every document shows it as inferred, never as fact. Each summary's purpose sentence is marked as evidenced or inferred.
 
-How summaries are built bottom-up, cached and cited is in ADR 0010, and how their cache keys on the prompt in ADR 0055; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how secrets are masked in those files before they are sent is in ADR 0054; how module and repository prompts show a fact sheet of their parts' entry points, links, data stores and technology is in ADR 0057; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025. How the LLM words the responsibility sentences of units and components and the intent phrases of their links, and how documents use them, is in ADR 0050; the responsibility sentences of databases, topics, queues, exchanges and external systems are in ADR 0056. How the LLM narrates each main flow, its walkthrough and pre- and post-conditions, from the facts of its trace is in ADR 0058.
+How summaries are built bottom-up, cached and cited is in ADR 0010, and how their cache keys on the prompt in ADR 0055; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how secrets are masked in those files before they are sent is in ADR 0054; how module and repository prompts show a fact sheet of their parts' entry points, links, data stores and technology is in ADR 0057; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025; how a summary marks its purpose as evidenced or inferred, and how documents show it, is in ADR 0059. How the LLM words the responsibility sentences of units and components and the intent phrases of their links, and how documents use them, is in ADR 0050; the responsibility sentences of databases, topics, queues, exchanges and external systems are in ADR 0056. How the LLM narrates each main flow, its walkthrough and pre- and post-conditions, from the facts of its trace is in ADR 0058. What Resolve is shown about a link left open, and how its answer is checked and cached, is in ADR 0045.
 
 **Cost and reliability**
 
-- Results are cached by input hash, so unchanged code is never summarized twice.
-- Per-run and per-scope budgets in tokens and dollars, with an estimate shown before a run starts.
+- Results are cached by what the model sees (prompt version, provider, model and prompt), so a commit that changes nothing a prompt shows makes no call.
+- Per-run and per-scope budgets in tokens and dollars, with an estimate shown before a run starts (configured run budgets and the estimate are #42).
 - Every call is logged with its role, purpose, model, tokens and cost.
 - Tests never call a real provider: they use a fake or recorded responses (see ADR 0008).
 - Calls run in parallel on virtual threads, with concurrency and rate limits per model and retry with backoff (see ADR 0021).

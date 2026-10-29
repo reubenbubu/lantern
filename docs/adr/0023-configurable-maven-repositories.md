@@ -1,6 +1,6 @@
 # 0023: Configurable Maven repositories for sandbox builds
 
-Status: accepted (#30), amended (#100, #117), pending the user's review (#24)
+Status: accepted (#30), amended (#100, #117, #212), pending the user's review (#24)
 
 ## Context
 
@@ -84,3 +84,5 @@ mirror is set it replaces them on the network: every download, plugins included,
 and the egress proxy allows only its host and port. For the mirror alone, `http` and IPv4
 addresses in private networks are allowed. Loopback, link-local addresses (the cloud metadata
 service among them) and every other address stay refused, for the mirror and the repositories.
+Since #212 the `BuildSandboxIT` tests of configured repositories, which reach Maven Central and
+`repo1.maven.org`, are skipped when a test mirror is set (ADR 0030, amendment for #212).

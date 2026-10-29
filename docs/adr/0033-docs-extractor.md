@@ -66,7 +66,8 @@ named below).
   file's SHA-256. Confidence is 0.5 for README claims, which the design calls low-trust, and 0.8
   for what a decision record says: a deliberate record, but one that may be stale.
 - **Wiring.** The analysis run (ADR 0016) runs the extractor with the others and stores its facts;
-  the summarizer ignores them, since no module contains them. Composing the decisions section
+  the summarizer ignores them, since no module contains them (since ADR 0059 a repository's
+  summary prompt shows its README's first claims). Composing the decisions section
   from them is #97.
 - **Front matter and fences.** Front matter counts only when every line between the `---` lines
   is a `key: value` line, an indented (nested) line, a comment or blank; otherwise the first
