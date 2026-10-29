@@ -187,7 +187,7 @@ class EndToEndIT {
     assertThat(twice.first().builds().get("shop").status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(twice.first().documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly("shop.html", "shop.brief.html");
+        .containsExactly("shop.html", "shop.brief.html", "shop.c4.html");
 
     // The same pipeline through the command line: everything is reused again.
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -200,7 +200,8 @@ class EndToEndIT {
         .contains("build SUCCEEDED (reused)")
         .contains("Summaries: 0 written by the LLM")
         .contains("LLM calls: 0, tokens: 0, cost: $0")
-        .contains("shop.brief.html");
+        .contains("shop.brief.html")
+        .contains("shop.c4.html");
   }
 
   @Test
@@ -256,7 +257,7 @@ class EndToEndIT {
     assertThat(third.summariesGenerated()).isZero();
     assertThat(third.documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly("greeting-lib.html", "greeting-lib.brief.html");
+        .containsExactly("greeting-lib.html", "greeting-lib.brief.html", "greeting-lib.c4.html");
     assertThat(validIn(third, "greeting-lib")).isEqualTo(libFacts);
     assertThat(validIn(third, "greeting-service")).isEqualTo(serviceFacts);
     for (Fact fact : libFacts) {
@@ -399,6 +400,7 @@ class EndToEndIT {
         context.getBean(SummaryStore.class),
         context.getBean(ViewDefinitionStore.class),
         context.getBean(HtmlRenderer.class),
+        context.getBean(C4ReportRenderer.class),
         context.getEnvironment().getRequiredProperty("lantern.version"),
         WORKSPACE.resolve("documents"));
   }
@@ -435,7 +437,7 @@ class EndToEndIT {
         .isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(twice.first().documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly(name + ".html", name + ".brief.html");
+        .containsExactly(name + ".html", name + ".brief.html", name + ".c4.html");
     writeCallReport(name, sent);
   }
 
@@ -453,16 +455,24 @@ class EndToEndIT {
     assertThat(first.summariesReused()).isZero();
     assertThat(calls).isEqualTo(first.summariesGenerated());
     assertThat(first.llm().calls()).isEqualTo(calls);
-    assertThat(first.documents()).hasSize(2);
+    assertThat(first.documents()).hasSize(3);
     assertThat(first.documents())
         .extracting(d -> d.document().template().name())
-        .containsExactly("architecture-explorer", "executive-brief");
-    for (AnalysisRun.Rendered rendered : first.documents()) {
+        .containsExactly("architecture-explorer", "executive-brief", C4ReportRenderer.SPEC);
+    for (AnalysisRun.Rendered rendered : first.documents().subList(0, 2)) {
       String html = Files.readString(rendered.file());
       assertThat(html)
           .contains("<script id=\"lantern-document\" type=\"application/json\">{")
           .contains("\"name\":\"" + rendered.document().template().name() + "\"");
     }
+    // The C4 report carries the report spec's data, built from its document, instead.
+    AnalysisRun.Rendered report = first.documents().get(2);
+    assertThat(Files.readString(report.file()))
+        .contains(
+            "<script type=\"application/json\" id=\"arc-data\">\n"
+                + C4ReportRenderer.write(C4ReportRenderer.toJson(report.document()).data())
+                    .replace("<", "\\u003c")
+                + "\n</script>");
 
     int sentAfterFirst = fake.sent().size();
     AnalysisRun.Result second = run.run(Map.of(name, repo));
@@ -477,7 +487,7 @@ class EndToEndIT {
     assertThat(second.summariesGenerated()).isZero();
     assertThat(second.summariesReused()).isEqualTo(first.summariesGenerated());
     // The documents differ only in the snapshot they are of.
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 3; i++) {
       Document before = first.documents().get(i).document();
       Document after = second.documents().get(i).document();
       assertThat(after.source().snapshot()).isEqualTo(second.snapshot().number());

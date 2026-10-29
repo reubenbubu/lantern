@@ -77,6 +77,24 @@ public record ViewDefinition(
   }
 
   /**
+   * A view of one repository for a C4 report: overview, context, containers and components, the
+   * sections whose diagrams the C4 report spec draws (ADR 0031).
+   */
+  public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
+    return new ViewDefinition(
+        id,
+        repo,
+        Scope.repo(repo),
+        null,
+        template,
+        List.of(
+            SectionKind.OVERVIEW,
+            SectionKind.CONTEXT,
+            SectionKind.CONTAINERS,
+            SectionKind.COMPONENTS));
+  }
+
+  /**
    * A view of one repository with the sections of the Executive Brief: overview, headline numbers,
    * risks, and the context and container diagrams.
    */

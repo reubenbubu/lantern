@@ -1,0 +1,156 @@
+{
+  "document" : {
+    "id" : "orders-explorer",
+    "title" : "orders",
+    "subtitle" : "The **orders** service [orders](#/structure) packages its library.\n\n**Shared database (high)**\n`orders-db` is shared.\n\n- One deployable.\n- *Reads one database.*",
+    "version" : "3"
+  },
+  "elements" : {
+    "database-orders-db" : {
+      "kind" : "container",
+      "name" : "orders-db",
+      "tag" : "Database"
+    },
+    "library-orders-lib" : {
+      "kind" : "container",
+      "name" : "orders-lib",
+      "parent" : "service-orders",
+      "tag" : "Library",
+      "technology" : "Java, Spring Boot"
+    },
+    "service-orders" : {
+      "kind" : "system",
+      "name" : "orders",
+      "tag" : "Service",
+      "technology" : "Spring Boot",
+      "description" : "Takes orders."
+    }
+  },
+  "pages" : [ {
+    "id" : "structure",
+    "level" : "containers",
+    "title" : "Structure",
+    "element" : "service-orders",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "containers",
+      "title" : "Containers",
+      "caption" : "Containers",
+      "boundary" : "service-orders",
+      "relationships" : [ {
+        "from" : "library-orders-lib",
+        "to" : "database-orders-db",
+        "label" : "reads"
+      }, {
+        "from" : "service-orders",
+        "to" : "database-orders-db"
+      } ]
+    }, {
+      "type" : "elements",
+      "id" : "containers-elements",
+      "title" : "Elements",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "database-orders-db", "library-orders-lib" ]
+      }
+    }, {
+      "type" : "table",
+      "id" : "dependencies",
+      "title" : "Dependencies",
+      "columns" : [ "From", "To" ],
+      "rows" : [ [ "[orders-lib](#/structure/el-library-orders-lib)", "orders-db" ], [ "orders", "" ] ]
+    }, {
+      "type" : "list",
+      "id" : "modules",
+      "title" : "Modules",
+      "items" : [ "orders", "  orders-lib", "  README.md" ]
+    }, {
+      "type" : "text",
+      "id" : "see-also",
+      "body" : "See the overview and [the diagram](#/structure/containers)."
+    }, {
+      "type" : "callout",
+      "id" : "note-1",
+      "body" : "Draft.",
+      "tone" : "info"
+    }, {
+      "type" : "table",
+      "id" : "no-rows",
+      "columns" : [ "Name" ],
+      "rows" : [ ]
+    }, {
+      "type" : "list",
+      "id" : "db-only",
+      "title" : "Structure",
+      "items" : [ "orders-db" ]
+    } ]
+  }, {
+    "id" : "flows",
+    "level" : "sequence",
+    "title" : "Flows",
+    "sections" : [ {
+      "type" : "sequence",
+      "id" : "order-flow",
+      "title" : "Place an order",
+      "participants" : [ "service-orders", "library-orders-lib", "database-orders-db" ],
+      "steps" : [ {
+        "from" : "service-orders",
+        "to" : "library-orders-lib",
+        "message" : "Create order",
+        "code" : "POST /orders",
+        "activate" : true,
+        "deactivate" : false,
+        "info" : "Validates the order first. Only with the Spring profiles `prod`, `staging`."
+      }, {
+        "frame" : "alt",
+        "label" : "in stock"
+      }, {
+        "from" : "library-orders-lib",
+        "to" : "library-orders-lib",
+        "message" : "Check stock"
+      }, {
+        "from" : "library-orders-lib",
+        "to" : "database-orders-db",
+        "message" : "Save order",
+        "code" : "INSERT orders"
+      }, {
+        "else" : ""
+      }, {
+        "note" : "Nothing is saved.",
+        "over" : [ "library-orders-lib", "database-orders-db" ]
+      }, {
+        "end" : true
+      }, {
+        "from" : "library-orders-lib",
+        "to" : "service-orders",
+        "message" : "Order ID",
+        "type" : "return"
+      }, {
+        "note" : "orders → unknown: Order placed",
+        "over" : [ "service-orders", "library-orders-lib", "database-orders-db" ]
+      }, {
+        "note" : "unknown → unknown",
+        "over" : [ "service-orders", "library-orders-lib", "database-orders-db" ]
+      }, {
+        "note" : "The rest happens later.",
+        "over" : [ "service-orders", "library-orders-lib", "database-orders-db" ]
+      } ]
+    }, {
+      "type" : "steps",
+      "id" : "order-flow-steps",
+      "title" : "Steps",
+      "of" : "order-flow"
+    }, {
+      "type" : "list",
+      "id" : "quality",
+      "title" : "Quality report",
+      "items" : [ "**Every line is labelled with an intent phrase** ([Containers](#/structure/containers)): The line from orders to orders-db has no label.", "**Every element has a responsibility sentence** ([orders-db](#/structure/el-database-orders-db))", "**It states its reader**" ]
+    }, {
+      "type" : "callout",
+      "id" : "quality-passed",
+      "title" : "Quality report",
+      "body" : "Every check Lantern makes on this document passed.",
+      "tone" : "success"
+    } ]
+  } ]
+}

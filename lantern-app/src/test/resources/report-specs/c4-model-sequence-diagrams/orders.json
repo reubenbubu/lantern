@@ -1,0 +1,98 @@
+{
+  "document" : {
+    "id" : "orders",
+    "title" : "orders",
+    "subtitle" : "It builds on its parts.\n\n- [orders](#/containers/el-library-com-example-orders-orders), a library",
+    "version" : "1"
+  },
+  "elements" : {
+    "library-com-example-orders-orders" : {
+      "kind" : "container",
+      "name" : "orders",
+      "parent" : "repo-orders",
+      "tag" : "Library",
+      "technology" : "Library, jar"
+    },
+    "package-com-example-orders-orders-com-example-orders" : {
+      "kind" : "component",
+      "name" : "com.example.orders",
+      "parent" : "library-com-example-orders-orders",
+      "tag" : "Package",
+      "description" : "It builds on its parts. It is described by its facts."
+    },
+    "repo-orders" : {
+      "kind" : "system",
+      "name" : "orders",
+      "tag" : "Repository",
+      "description" : "It builds on its parts."
+    }
+  },
+  "pages" : [ {
+    "id" : "context",
+    "level" : "context",
+    "title" : "System context",
+    "element" : "repo-orders",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "context-diagram",
+      "title" : "System context of orders",
+      "caption" : "System context of orders",
+      "focus" : "repo-orders",
+      "elements" : [ "repo-orders" ],
+      "relationships" : [ ]
+    }, {
+      "type" : "elements",
+      "id" : "context-diagram-elements",
+      "title" : "Elements",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "repo-orders" ]
+      }
+    } ]
+  }, {
+    "id" : "containers",
+    "level" : "containers",
+    "title" : "Containers",
+    "element" : "repo-orders",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "containers-diagram",
+      "title" : "Containers of orders",
+      "caption" : "Containers of orders",
+      "boundary" : "repo-orders",
+      "elements" : [ "library-com-example-orders-orders" ],
+      "relationships" : [ ]
+    }, {
+      "type" : "elements",
+      "id" : "containers-diagram-elements",
+      "title" : "Elements",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "library-com-example-orders-orders" ]
+      }
+    } ]
+  }, {
+    "id" : "components-library-com-example-orders-orders",
+    "level" : "components",
+    "title" : "orders",
+    "summary" : "It builds on its parts. It is described by its facts.",
+    "element" : "library-com-example-orders-orders",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "components-library-com-example-orders-orders-diagram",
+      "title" : "Components of orders",
+      "caption" : "Components of orders",
+      "boundary" : "library-com-example-orders-orders",
+      "elements" : [ "package-com-example-orders-orders-com-example-orders" ],
+      "relationships" : [ ]
+    }, {
+      "type" : "elements",
+      "id" : "components-library-com-example-orders-orders-diagram-elements",
+      "title" : "Elements",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "package-com-example-orders-orders-com-example-orders" ]
+      }
+    } ]
+  } ]
+}
