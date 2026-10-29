@@ -970,6 +970,61 @@ class SummarizerTest {
   }
 
   @Test
+  void aModuleWhoseFactSheetRunsOverPartsCitesTheSheetsFactsThroughThem() {
+    TestFacts facts = new TestFacts().attribute("r", "type:p.Api", "kind", "class");
+    for (int i = 0; i < 12; i++) {
+      String method = "method:p.Api#get%02d()".formatted(i);
+      facts
+          .relate("r", "type:p.Api", "CONTAINS", method)
+          .attribute("r", method, "endpoint", "GET /" + i);
+    }
+    SummaryNode api =
+        new SummaryNode(EntityId.parse("type:p.Api"), SummaryLevel.TYPE, facts.list(), List.of());
+    TestFacts own = new TestFacts();
+    for (int i = 0; i < 200; i++) {
+      own.attribute("r", "module:g:m", "property-%03d".formatted(i), "value " + i);
+    }
+    SummaryNode module =
+        new SummaryNode(
+            EntityId.parse("module:g:m"), SummaryLevel.MODULE, own.list(), List.of(api));
+    fake.answering(
+        request -> {
+          String prompt = request.messages().getFirst().text();
+          List<String> refs = new ArrayList<>();
+          if (prompt.contains("Summaries of the parts:")) {
+            refs.addAll(Citations.references(prompt));
+          } else {
+            Matcher ref = REF.matcher(prompt);
+            while (ref.find()) {
+              refs.add(ref.group(1));
+            }
+          }
+          return "Part of it. [" + String.join(", ", refs) + "]";
+        });
+
+    Summary summary =
+        new Summarizer(smallWindowClient(4_000), store)
+            .summarize(List.of(module))
+            .summaries()
+            .get(module.entity());
+
+    List<String> prompts =
+        fake.sent().stream()
+            .filter(s -> s.request().purpose().startsWith("summarize module"))
+            .map(s -> s.request().messages().getFirst().text())
+            .toList();
+    assertThat(prompts.stream().filter(p -> p.contains("This is part "))).hasSizeGreaterThan(1);
+    assertThat(prompts).anyMatch(p -> p.contains("\nEntry points (10 of 12):\n[F201] "));
+    for (String prompt : prompts) {
+      assertThat(Tokens.estimate(Prompt.SYSTEM + prompt)).isLessThanOrEqualTo(4_000);
+    }
+    List<String> sheet = FactSheet.facts(FactSheet.of(module)).stream().map(Fact::id).toList();
+    assertThat(sheet).hasSize(10);
+    assertThat(summary.citedFacts()).containsAll(sheet);
+    assertThat(summary.inputFacts()).endsWith(sheet.toArray(String[]::new));
+  }
+
+  @Test
   void aUnitLargerThanTheContextWindowIsSummarizedInPartsAndMerged() {
     SummaryNode big = largeType(400);
     LlmClient client = smallWindowClient(4_000);

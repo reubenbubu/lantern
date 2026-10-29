@@ -1,6 +1,6 @@
 # 0024: Source files in type summaries, and units too large for one prompt
 
-Status: accepted (#43), amended by ADR 0055 (#190), pending the user's review (#24)
+Status: accepted (#43), amended by ADR 0055 (#190) and ADR 0056 (#197), pending the user's review (#24)
 
 ## Context
 
@@ -40,7 +40,8 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
   the model's thinking headroom (ADR 0022), one and a half times that again for a rejected answer
   sent back with a retry (a model that does not think may use the headroom for text), the retry
   message and 100 tokens. A unit over that is sent in parts: its
-  facts, files and child summaries, in that order, are packed into prompts that each fit, under the
+  facts, files and child summaries, in that order (since ADR 0056 a module's or repository's fact
+  sheet follows its own facts), are packed into prompts that each fit, under the
   references of the whole unit, and each part is summarized (purpose suffix `(part i of n)`). The
   parts' summaries, with their references, are then merged into one (`(merge)`); if they do not fit
   one prompt they are merged in groups first (`(merge r.i of n)`). A unit's parts and merges are
