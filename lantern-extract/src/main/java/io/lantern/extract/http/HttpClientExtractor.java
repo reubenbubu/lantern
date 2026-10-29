@@ -70,7 +70,7 @@ public final class HttpClientExtractor {
   public static final String NAME = "http-client";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
@@ -120,6 +120,8 @@ public final class HttpClientExtractor {
       List.of("jakarta.ws.rs.HttpMethod", "javax.ws.rs.HttpMethod");
   private static final String VALUE = SPRING + "beans.factory.annotation.Value";
   private static final String BEAN = SPRING + "context.annotation.Bean";
+  private static final String QUALIFIER = SPRING + "beans.factory.annotation.Qualifier";
+  private static final String PRIMARY = SPRING + "context.annotation.Primary";
   private static final String HTTP_EXCHANGE = SPRING + "web.service.annotation.HttpExchange";
 
   /** The types an HTTP interface's proxy is made with, and the adapters they take. */
@@ -773,7 +775,11 @@ public final class HttpClientExtractor {
     }
 
     private Text clientBase(Expression client, Scope scope) {
-      Chain made = chain(client, scope, 0);
+      return baseOf(chain(client, scope, 0));
+    }
+
+    /** The base URL set by the calls of a chain on a client or its builder, or null. */
+    private Text baseOf(Chain made) {
       String kind = made.rootType() == null ? null : KINDS.get(made.rootType());
       if (kind == null) {
         return null;
@@ -791,6 +797,161 @@ public final class HttpClientExtractor {
                 && (method.equals("baseUrl") || method.equals("create"))) {
           base = text(args.getFirst(), link.scope());
         }
+      }
+      return base;
+    }
+
+    /**
+     * A base URL read from a bean method, and the module of that method, whose config resolves it.
+     */
+    private record Found(Text base, JavaAnalysis.Module module) {}
+
+    /**
+     * The base URL of a client (or client builder) injected as a parameter or field: that of the
+     * bean of its type made by a {@code @Bean} method in the same repository's code, read from that
+     * method's code as above, and through a builder bean when the method's own builder is injected.
+     * Beans of the caller's own module are considered first, those of the repository's other
+     * modules only if it has none. The bean is picked as Spring does, but only when the choice is
+     * certain: the {@code @Qualifier} (a bean's name or its own qualifier), else the only
+     * candidate, else the one named as the parameter or field, else the {@code @Primary} one; null
+     * if none or several match at a step.
+     */
+    private Found injectedClientBase(Chain chain, Expression e, Scope scope, int depth) {
+      if (depth > 2 || chain.rootType() == null || made(chain)) {
+        return null;
+      }
+      Injection point = injection(e, scope, 0);
+      if (point == null) {
+        return null;
+      }
+      List<Member> own = new ArrayList<>();
+      List<Member> others = new ArrayList<>();
+      Map<Member, JavaAnalysis.Module> modules = new HashMap<>();
+      for (JavaAnalysis.Module m : code.modules()) {
+        if (!m.repo().equals(scope.module().repo())) {
+          continue;
+        }
+        for (TypeDecl type : m.structure().types()) {
+          for (Member member : type.members()) {
+            if (chain.rootType().equals(member.returns())
+                && code.annotationPath(member.annotations(), BEAN) != null) {
+              (m == scope.module() ? own : others).add(member);
+              modules.put(member, m);
+            }
+          }
+        }
+      }
+      Member bean = pick(own.isEmpty() ? others : own, point);
+      return bean == null ? null : beanClientBase(bean, modules.get(bean), depth + 1);
+    }
+
+    /** What a client is injected as: its name, and the qualifier written on it, or null. */
+    private record Injection(String name, String qualifier) {}
+
+    private Injection injection(Expression e, Scope scope, int depth) {
+      Expression root = e instanceof Expression.Invoke i ? i.root() : e;
+      switch (root) {
+        case Expression.Param p -> {
+          ModuleStructure.Parameter parameter = parameter(scope.in(), p.index());
+          return parameter == null
+              ? null
+              : new Injection(parameter.name(), qualifier(parameter.annotations()));
+        }
+        case Expression.FieldRef f -> {
+          Assignment given = single(f);
+          if (depth < 2 && given != null) {
+            Scope inner = new Scope(moduleOf(f.owner(), scope.module()), given.in());
+            Injection found = injection(given.value(), inner, depth + 1);
+            if (found != null) {
+              Member field = field(f);
+              String q = field == null ? null : qualifier(field.annotations());
+              return new Injection(found.name(), found.qualifier() != null ? found.qualifier() : q);
+            }
+          }
+          Member field = field(f);
+          return new Injection(f.name(), field == null ? null : qualifier(field.annotations()));
+        }
+        default -> {
+          return null;
+        }
+      }
+    }
+
+    private String qualifier(List<Annotation> annotations) {
+      List<Annotation> path = code.annotationPath(annotations, QUALIFIER);
+      return path == null || path.getLast().values("value").isEmpty()
+          ? null
+          : path.getLast().values("value").getFirst();
+    }
+
+    /** The bean's name: its method's, or null when {@code @Bean} names it (not supported). */
+    private String beanName(Member bean) {
+      List<Annotation> path = code.annotationPath(bean.annotations(), BEAN);
+      if (path != null
+          && (!path.getLast().values("value").isEmpty()
+              || !path.getLast().values("name").isEmpty())) {
+        return null;
+      }
+      String key = bean.id().toString();
+      return key.substring(key.indexOf('#') + 1, key.indexOf('('));
+    }
+
+    /** The bean Spring injects, if the choice is certain: see {@link #injectedClientBase}. */
+    private Member pick(List<Member> beans, Injection point) {
+      if (beans.isEmpty()) {
+        return null;
+      }
+      if (point.qualifier() != null) {
+        return only(
+            beans.stream()
+                .filter(
+                    b ->
+                        point.qualifier().equals(beanName(b))
+                            || point.qualifier().equals(qualifier(b.annotations())))
+                .toList());
+      }
+      if (beans.size() == 1) {
+        return beans.getFirst();
+      }
+      Member named = only(beans.stream().filter(b -> point.name().equals(beanName(b))).toList());
+      if (named != null) {
+        return named;
+      }
+      if (beans.stream().anyMatch(b -> point.name().equals(beanName(b)))) {
+        return null;
+      }
+      return only(
+          beans.stream()
+              .filter(b -> code.annotationPath(b.annotations(), PRIMARY) != null)
+              .toList());
+    }
+
+    private static Member only(List<Member> beans) {
+      return beans.size() == 1 ? beans.getFirst() : null;
+    }
+
+    /** The base URL of the client a bean method makes, and the module to resolve it in. */
+    private Found beanClientBase(Member bean, JavaAnalysis.Module m, int depth) {
+      Scope scope = new Scope(m, bean.id());
+      Found base = null;
+      for (Invocation invocation : m.structure().invocations()) {
+        if (!invocation.caller().equals(bean.id())) {
+          continue;
+        }
+        Chain made = chain(invocation.expression(), scope, 0);
+        String kind = made.rootType() == null ? null : KINDS.get(made.rootType());
+        if (kind == null
+            || !(kind.equals(REST_TEMPLATE)
+                || kind.equals(REST_CLIENT)
+                || kind.equals(WEB_CLIENT))) {
+          continue;
+        }
+        Text text = baseOf(made);
+        Found found =
+            text != null
+                ? new Found(text, m)
+                : injectedClientBase(made, invocation.expression(), scope, depth);
+        base = found != null ? found : base;
       }
       return base;
     }
@@ -1132,10 +1293,20 @@ public final class HttpClientExtractor {
       if (kind == null) {
         return;
       }
+      Found bean =
+          kind.equals(REST_TEMPLATE) || kind.equals(REST_CLIENT) || kind.equals(WEB_CLIENT)
+              ? injectedClientBase(chain, invocation.expression(), scope, 0)
+              : null;
+      Text injected = bean == null ? null : bean.base();
+      // The bean's placeholders resolve in its own module's config, unless the call sets its base.
+      CodeConfig.View view =
+          bean != null && bean.module() != module && baseOf(chain) == null
+              ? configs.forModule(bean.module().repo(), bean.module().directory())
+              : config;
       Request request =
           switch (kind) {
-            case REST_TEMPLATE -> restTemplate(chain.links());
-            case REST_CLIENT, WEB_CLIENT -> fluent(chain.links());
+            case REST_TEMPLATE -> restTemplate(chain.links(), injected);
+            case REST_CLIENT, WEB_CLIENT -> fluent(chain.links(), injected);
             case JAKARTA_CLIENT -> jakarta(chain.links());
             default -> built(kind, chain.rootType(), chain.links());
           };
@@ -1153,7 +1324,7 @@ public final class HttpClientExtractor {
               null,
               invocation.where(),
               module),
-          config);
+          view);
     }
 
     /** An HTTP request a chain sends: the HTTP method, if known, and the URL as written. */
@@ -1203,8 +1374,8 @@ public final class HttpClientExtractor {
       };
     }
 
-    private Request restTemplate(List<Link> links) {
-      Text base = null;
+    private Request restTemplate(List<Link> links, Text injected) {
+      Text base = injected;
       for (Link link : links) {
         String method = link.call().method();
         List<Expression> args = link.call().arguments();
@@ -1253,8 +1424,8 @@ public final class HttpClientExtractor {
     }
 
     /** RestClient and WebClient: a base URL, an HTTP method, then the URI. */
-    private Request fluent(List<Link> links) {
-      Text base = null;
+    private Request fluent(List<Link> links, Text injected) {
+      Text base = injected;
       String http = null;
       boolean requested = false;
       for (Link link : links) {
