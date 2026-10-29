@@ -18,10 +18,10 @@ class PromptTest {
    * changed: raise {@link Prompt#VERSION} so cached summaries made with the old prompt are not
    * reused, then update both values here.
    */
-  private static final String VERSION = "6";
+  private static final String VERSION = "7";
 
   private static final String FINGERPRINT =
-      "4b9272ee2a915b6783b5fa4a05f95533dce632384be587088c02124b4fcc686f";
+      "a65bf523e3a79ca1a4aed5c910480d489405edfcf5a6e666412ecddf76c5b700";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -77,6 +77,7 @@ class PromptTest {
             Prompt.user(
                 order,
                 Prompt.facts(order.facts()),
+                List.of(),
                 Prompt.excerpts(excerpts),
                 List.of(),
                 new Prompt.Part(2, 3)));
@@ -87,6 +88,15 @@ class PromptTest {
     // A repository of one plain module, and a repository merged from parts.
     all.append('\u0000').append(Prompt.user(singleModule(repo), List.of(), List.of(child)));
     all.append('\u0000').append(Prompt.merge(repo, List.of("One [S1].")));
+    // A repository and a module with fact sheets, one group of them cut short.
+    SummaryNode service = SummaryTree.fromFacts(FactSheetTest.service(12).list()).getFirst();
+    all.append('\u0000').append(Prompt.user(service, List.of(), List.of(child)));
+    all.append('\u0000')
+        .append(Prompt.user(service.children().getFirst(), List.of(), List.of(child)));
+    all.append(FactSheet.MAX_PER_GROUP);
+    for (FactSheet.Group group : FactSheet.Group.values()) {
+      all.append(group.title()).append(group.predicates());
+    }
     for (String id :
         List.of(
             "type:com.example.Order$Line",
@@ -142,7 +152,12 @@ class PromptTest {
 
     assertThat(
             Prompt.user(
-                priceService, facts.subList(1, 2), List.of(), List.of(), new Prompt.Part(2, 2)))
+                priceService,
+                facts.subList(1, 2),
+                List.of(),
+                List.of(),
+                List.of(),
+                new Prompt.Part(2, 2)))
         .isEqualTo(
             """
             What is known about the type PriceService in package com.example.shop is too long for one \

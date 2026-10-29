@@ -2,6 +2,7 @@ package io.lantern.summarize;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -31,16 +32,23 @@ public record SummaryNode(
               l -> l.fact().evidence().lines() == null ? 0 : l.fact().evidence().lines().start())
           .thenComparing(l -> l.fact().id());
 
+  /**
+   * The facts without repeats, in the order a prompt lists them: by the fact as the prompt writes
+   * it, then by where it was observed and by ID.
+   */
+  static List<Fact> inPromptOrder(Collection<Fact> facts) {
+    return facts.stream()
+        .distinct()
+        .map(f -> new Line(Prompt.fact(f), f))
+        .sorted(PROMPT_ORDER)
+        .map(Line::fact)
+        .toList();
+  }
+
   public SummaryNode {
     Objects.requireNonNull(entity, "entity");
     Objects.requireNonNull(level, "level");
-    facts =
-        Objects.requireNonNull(facts, "facts").stream()
-            .distinct()
-            .map(f -> new Line(Prompt.fact(f), f))
-            .sorted(PROMPT_ORDER)
-            .map(Line::fact)
-            .toList();
+    facts = inPromptOrder(Objects.requireNonNull(facts, "facts"));
     children =
         Objects.requireNonNull(children, "children").stream()
             .sorted(Comparator.comparing(child -> child.entity().toString()))

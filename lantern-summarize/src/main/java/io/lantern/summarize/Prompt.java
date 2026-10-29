@@ -13,19 +13,22 @@ import tools.jackson.databind.node.ObjectNode;
  * short references ({@code F1}, {@code E1}, {@code S1}) that the model cites, and that {@link
  * Citations} maps back.
  *
+ * <p>A module's or repository's prompt also shows its fact sheet ({@link FactSheet}): facts about
+ * its parts, listed after its own facts and cited as facts.
+ *
  * <p>A unit whose inputs do not fit one prompt is summarized in parts, each prompt showing some of
  * the inputs under their usual references, and the parts' summaries are then merged into one, which
  * keeps the references they cite.
  *
  * <p>Change {@link #VERSION} whenever the text of the prompt or the way inputs are written into it
- * changes (including which source files {@link Excerpts} shows, and what is masked in them), so
- * cached summaries made with the old prompt are not reused. {@code PromptTest} fails until it is
- * changed.
+ * changes (including which source files {@link Excerpts} shows, what is masked in them, and which
+ * facts {@link FactSheet} lists), so cached summaries made with the old prompt are not reused.
+ * {@code PromptTest} fails until it is changed.
  */
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "6";
+  static final String VERSION = "7";
 
   static final String SYSTEM =
       """
@@ -47,6 +50,9 @@ final class Prompt {
       which start with a kind and a colon.
       Do not restate the summaries of the parts sentence by sentence; say what the unit as a \
       whole is for, drawing on them.
+      A module or repository also comes with a fact sheet: facts about its parts that list \
+      their entry points, links, data stores and technology. Use it to say specifically what \
+      the unit offers and works with, rather than what would be true of any application.
       Say only what the input shows or what follows from it. End every sentence with the \
       references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a \
       sentence about purpose cites the facts, source files or summaries it is inferred from. \
@@ -75,8 +81,13 @@ final class Prompt {
    *
    * @param ref its reference, such as {@code F1}
    * @param text what follows the reference
+   * @param heading the heading of the group of a fact sheet it is listed under, or {@code null}
    */
-  record Item(String ref, String text) {
+  record Item(String ref, String text, String heading) {
+
+    Item(String ref, String text) {
+      this(ref, text, null);
+    }
 
     /** The item as the prompt writes it. */
     String rendered() {
@@ -92,6 +103,20 @@ final class Prompt {
     List<Item> items = new ArrayList<>();
     for (int i = 0; i < facts.size(); i++) {
       items.add(new Item("F" + (i + 1), fact(facts.get(i))));
+    }
+    return items;
+  }
+
+  /**
+   * A fact sheet as prompt items, numbered after the unit's own facts.
+   *
+   * @param facts how many facts of its own the unit lists before it
+   */
+  static List<Item> sheet(List<FactSheet.Entry> sheet, int facts) {
+    List<Item> items = new ArrayList<>();
+    for (int i = 0; i < sheet.size(); i++) {
+      FactSheet.Entry entry = sheet.get(i);
+      items.add(new Item("F" + (facts + i + 1), fact(entry.fact()), entry.heading()));
     }
     return items;
   }
@@ -140,16 +165,28 @@ final class Prompt {
    * @param children the contained units' summaries, in the order they are referenced
    */
   static String user(SummaryNode node, List<Excerpts.Excerpt> excerpts, List<Summary> children) {
-    return user(node, facts(node.facts()), excerpts(excerpts), children(children), null);
+    return user(
+        node,
+        facts(node.facts()),
+        sheet(FactSheet.of(node), node.facts().size()),
+        excerpts(excerpts),
+        children(children),
+        null);
   }
 
   /**
    * The user turn for a unit, or for one part of its inputs.
    *
+   * @param sheet the items of the unit's fact sheet
    * @param part which part of the inputs this is, or {@code null} for all of them
    */
   static String user(
-      SummaryNode node, List<Item> facts, List<Item> excerpts, List<Item> children, Part part) {
+      SummaryNode node,
+      List<Item> facts,
+      List<Item> sheet,
+      List<Item> excerpts,
+      List<Item> children,
+      Part part) {
     StringBuilder text = new StringBuilder();
     if (part == null) {
       text.append("Summarize the ").append(describe(node.level(), node.entity())).append(' ');
@@ -181,6 +218,10 @@ final class Prompt {
           .append(" words; the summaries of the parts will be merged later.\n");
     }
     section(text, "Facts:", facts);
+    section(
+        text,
+        "Fact sheet: entry points, links, data stores and technology of the parts it contains:",
+        sheet);
     section(text, "Source files:", excerpts);
     section(text, "Summaries of the parts it contains:", children);
     return text.toString();
@@ -266,7 +307,14 @@ final class Prompt {
       return;
     }
     text.append('\n').append(heading).append('\n');
-    items.forEach(item -> text.append(item.rendered()));
+    String group = null;
+    for (Item item : items) {
+      if (item.heading() != null && !item.heading().equals(group)) {
+        group = item.heading();
+        text.append(group).append(":\n");
+      }
+      text.append(item.rendered());
+    }
   }
 
   /** A fact on one line: subject, predicate, object, and attributes if it has any. */

@@ -76,6 +76,12 @@
         "id" : "module:com.example.greeting:greeting-lib"
       },
       "citation" : true
+    }, {
+      "kind" : "text",
+      "text" : " It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "91426a7cb095464c18b7d4b1de699536b5c290bd237cd03f50a198438bc21669" ]
     } ],
     "facts" : [ ]
   }, {
@@ -520,8 +526,14 @@
           "id" : "module:com.example.greeting:greeting-lib"
         },
         "citation" : true
+      }, {
+        "kind" : "text",
+        "text" : " It is described by its facts."
+      }, {
+        "kind" : "citation",
+        "facts" : [ "91426a7cb095464c18b7d4b1de699536b5c290bd237cd03f50a198438bc21669" ]
       } ],
-      "facts" : [ ]
+      "facts" : [ "91426a7cb095464c18b7d4b1de699536b5c290bd237cd03f50a198438bc21669" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",
