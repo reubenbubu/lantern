@@ -77,5 +77,11 @@
   "org.springframework.web.bind.annotation.ResponseBody": [],
   "org.springframework.web.bind.annotation.ResponseStatus": [],
   "org.springframework.web.bind.annotation.RestController": [{"type": "org.springframework.stereotype.Controller"}, {"type": "org.springframework.web.bind.annotation.ResponseBody"}],
-  "org.springframework.web.bind.annotation.RestControllerAdvice": [{"type": "org.springframework.web.bind.annotation.ControllerAdvice"}, {"type": "org.springframework.web.bind.annotation.ResponseBody"}]
+  "org.springframework.web.bind.annotation.RestControllerAdvice": [{"type": "org.springframework.web.bind.annotation.ControllerAdvice"}, {"type": "org.springframework.web.bind.annotation.ResponseBody"}],
+  "org.springframework.web.service.annotation.DeleteExchange": [{"type": "org.springframework.web.service.annotation.HttpExchange", "values": {"method": ["DELETE"]}}],
+  "org.springframework.web.service.annotation.GetExchange": [{"type": "org.springframework.web.service.annotation.HttpExchange", "values": {"method": ["GET"]}}],
+  "org.springframework.web.service.annotation.HttpExchange": [],
+  "org.springframework.web.service.annotation.PatchExchange": [{"type": "org.springframework.web.service.annotation.HttpExchange", "values": {"method": ["PATCH"]}}],
+  "org.springframework.web.service.annotation.PostExchange": [{"type": "org.springframework.web.service.annotation.HttpExchange", "values": {"method": ["POST"]}}],
+  "org.springframework.web.service.annotation.PutExchange": [{"type": "org.springframework.web.service.annotation.HttpExchange", "values": {"method": ["PUT"]}}]
 }

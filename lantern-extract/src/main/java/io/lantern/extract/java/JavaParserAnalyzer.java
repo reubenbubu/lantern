@@ -1194,6 +1194,9 @@ final class JavaParserAnalyzer {
           return new Expression.Invoke(
               receiver, call.getNameAsString(), arguments(call.getArguments(), owner, depth));
         }
+        case ClassExpr c when c.getType() instanceof ClassOrInterfaceType -> {
+          return new Expression.TypeRef(describe(c.getType(), c));
+        }
         case ObjectCreationExpr created -> {
           return new Expression.Invoke(
               new Expression.TypeRef(describe(created.getType(), created)),

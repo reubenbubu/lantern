@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -72,6 +73,15 @@ class HttpClientExtractorTest {
         .doesNotContain("s3cret")
         .doesNotContain("pa55word")
         .doesNotContain("abc123");
+    // A base URL's unfollowed parts are listed only where the base is part of the URL: not for a
+    // method whose own URL is a whole URL.
+    assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#quote(")))
+        .singleElement(InstanceOfAssertFactories.STRING)
+        .contains("\"expressions\":[\"region()\"]");
+    assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#remove(")))
+        .singleElement(InstanceOfAssertFactories.STRING)
+        .contains("https://admin.example.com/quotes/{symbol}")
+        .doesNotContain("expressions");
   }
 
   @Test
