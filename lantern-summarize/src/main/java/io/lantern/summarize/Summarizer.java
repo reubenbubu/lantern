@@ -3,6 +3,7 @@ package io.lantern.summarize;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
+import io.lantern.extract.config.SourceSecrets;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
@@ -42,9 +43,10 @@ import org.slf4j.LoggerFactory;
  * units it contains, so each level builds on the one below.
  *
  * <p>A type's prompt also shows its whole source file (see {@link Excerpts}), read through {@link
- * SourceFiles} and shown only when the file matches the content hash of the fact's evidence. A unit
- * whose inputs do not fit the model's context window is summarized in parts that are then merged
- * (see {@link Prompt}).
+ * SourceFiles} and shown only when the file matches the content hash of the fact's evidence, with
+ * its secrets masked or removed ({@link SourceSecrets}) before it is sent. A unit whose inputs do
+ * not fit the model's context window is summarized in parts that are then merged (see {@link
+ * Prompt}).
  *
  * <p>Every summary is cached under a key that hashes its entity and level, the IDs of its input
  * facts, the source excerpts its prompt shows, the text of its contained units' summaries, the
@@ -392,8 +394,9 @@ public final class Summarizer {
     }
 
     /**
-     * The text of the file of a fact's evidence, if it can be read and is the version observed.
-     * Units run in parallel, so the cache is locked, but not while the file is read.
+     * The text of the file of a fact's evidence, if it can be read and is the version observed,
+     * with its secrets masked or removed. Units run in parallel, so the cache is locked, but not
+     * while the file is read.
      */
     private Optional<String> text(Evidence evidence) {
       if (evidence.path() == null || evidence.contentHash() == null) {
@@ -410,7 +413,7 @@ public final class Summarizer {
           sources
               .read(evidence.repo(), evidence.commit(), evidence.path())
               .filter(content -> sha256(content).equals(evidence.contentHash()))
-              .map(content -> new String(content, StandardCharsets.UTF_8));
+              .map(content -> SourceSecrets.scrub(new String(content, StandardCharsets.UTF_8)));
       synchronized (files) {
         files.put(file, read);
       }
