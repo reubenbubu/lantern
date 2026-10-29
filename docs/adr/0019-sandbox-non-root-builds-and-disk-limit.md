@@ -64,6 +64,16 @@ VM's rootless Docker.
   --attach`, and only the start is bound by the build timeout. Cleanup removes the build's
   containers and network by name and then, for any a create killed at the Docker timeout left
   behind, by the build's sandbox label.
+- **Helpers end with their build (#171).** The egress proxy and the disk monitor are removed as
+  soon as the build container ends, before the outputs are copied out. They are created with
+  `--rm` and `--interactive` and run their command under a small shell wrapper that ends it when
+  the container's standard input ends. Lantern starts them with `docker start --attach
+  --interactive` and keeps that process's input open while the build runs, so if Lantern's process
+  is killed and its cleanup never runs, the input closes, the helpers stop within seconds and Docker
+  removes them. The cache hand-over container is created with `--rm` too. There is no startup
+  sweep: it could not tell a dead build's leftovers from those of another Lantern process still
+  building. A killed process still leaves the build or detector container (it runs Maven to its
+  end, then stays exited) and the build's network, both labelled.
 - **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. With
   several builds at once, the free-space guard stops them all. What a build wrote to the shared
   cache stays there; cleaning the cache is manual, and until then every analysis stops at its
