@@ -199,7 +199,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Containers and components have a technology** ([Containers of base and shop](#/containers/containers-diagram)): No technology for worker.", "**Every line is labelled with an intent phrase** ([Containers of base and shop](#/containers/containers-diagram)): Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\")." ]
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Containers of base and shop](#/containers/containers-diagram)): The template's legend has no entry for the dashed boundary.", "**Containers and components have a technology** ([Containers of base and shop](#/containers/containers-diagram)): No technology for worker.", "**Every line is labelled with an intent phrase** ([Containers of base and shop](#/containers/containers-diagram)): Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\")." ]
     } ]
   }, {
     "id" : "components-service-com-example-app",
@@ -278,7 +278,127 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Containers and components have a technology** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): No technology for worker.", "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ]
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): The template's legend has no entry for the dashed boundary.", "**Containers and components have a technology** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): No technology for worker.", "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ]
+    } ]
+  }, {
+    "id" : "sequences-shop-app-controller-list",
+    "level" : "sequence",
+    "title" : "GET /orders on shop-app",
+    "summary" : "Starts when shop-app receives GET /orders, handled by Controller.list. It reaches orders, shop on db, pay.example.com and worker. It hands work on asynchronously through orders.",
+    "sections" : [ {
+      "type" : "table",
+      "id" : "sequences-shop-app-controller-list-trigger",
+      "title" : "Overview",
+      "columns" : [ "Trigger", "Pre-conditions", "Post-conditions" ],
+      "rows" : [ [ "GET /orders (Controller.list)", "Not known from the code.", "Not known from the code." ] ]
+    }, {
+      "type" : "sequence",
+      "id" : "sequences-shop-app-controller-list-diagram",
+      "title" : "GET /orders on shop-app",
+      "participants" : [ "service-com-example-app", "topic-kafka-orders", "database-db-5432-shop", "external-system-pay-example-com", "service-com-example-worker" ],
+      "steps" : [ {
+        "note" : "Starts when shop-app receives GET /orders (Controller.list).",
+        "over" : [ "service-com-example-app", "topic-kafka-orders", "database-db-5432-shop", "external-system-pay-example-com", "service-com-example-worker" ]
+      }, {
+        "from" : "service-com-example-app",
+        "to" : "topic-kafka-orders",
+        "message" : "Sends a message",
+        "code" : "Kafka",
+        "type" : "async",
+        "activate" : false
+      }, {
+        "note" : "shop-app does not wait: worker takes the message later.",
+        "over" : [ "service-com-example-app", "topic-kafka-orders" ]
+      }, {
+        "from" : "service-com-example-app",
+        "to" : "database-db-5432-shop",
+        "message" : "Reads orders",
+        "code" : "JDBC",
+        "activate" : false
+      }, {
+        "frame" : "opt",
+        "label" : "Spring profile prod"
+      }, {
+        "from" : "service-com-example-app",
+        "to" : "external-system-pay-example-com",
+        "message" : "Calls pay.example.com",
+        "code" : "POST /charges",
+        "activate" : false,
+        "info" : "Over HTTPS. Only with the Spring profile `prod`."
+      }, {
+        "end" : true
+      }, {
+        "from" : "topic-kafka-orders",
+        "to" : "service-com-example-worker",
+        "message" : "Delivers to L.on",
+        "code" : "Kafka",
+        "type" : "async",
+        "activate" : false
+      } ]
+    }, {
+      "type" : "steps",
+      "id" : "sequences-shop-app-controller-list-diagram-steps",
+      "title" : "Steps",
+      "of" : "sequences-shop-app-controller-list-diagram"
+    }, {
+      "type" : "list",
+      "id" : "quality-report",
+      "title" : "Quality gaps",
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([GET /orders on shop-app](#/sequences-shop-app-controller-list/sequences-shop-app-controller-list-diagram)): The template's legend has no arrowhead for asynchronous messages." ]
+    } ]
+  }, {
+    "id" : "sequences-shop-app-jobs-run",
+    "level" : "sequence",
+    "title" : "Jobs.run on its schedule in shop-app",
+    "summary" : "Starts when the schedule 0 0 * * * * fires in shop-app, handled by Jobs.run. It reaches orders, shop on db and worker. It hands work on asynchronously through orders.",
+    "sections" : [ {
+      "type" : "table",
+      "id" : "sequences-shop-app-jobs-run-trigger",
+      "title" : "Overview",
+      "columns" : [ "Trigger", "Pre-conditions", "Post-conditions" ],
+      "rows" : [ [ "The schedule 0 0 * * * * (Jobs.run)", "Not known from the code.", "Not known from the code." ] ]
+    }, {
+      "type" : "sequence",
+      "id" : "sequences-shop-app-jobs-run-diagram",
+      "title" : "Jobs.run on its schedule in shop-app",
+      "participants" : [ "service-com-example-app", "topic-kafka-orders", "database-db-5432-shop", "service-com-example-worker" ],
+      "steps" : [ {
+        "note" : "Starts when the schedule 0 0 * * * * fires in shop-app (Jobs.run).",
+        "over" : [ "service-com-example-app", "topic-kafka-orders", "database-db-5432-shop", "service-com-example-worker" ]
+      }, {
+        "from" : "service-com-example-app",
+        "to" : "topic-kafka-orders",
+        "message" : "Sends a message",
+        "code" : "Kafka",
+        "type" : "async",
+        "activate" : false
+      }, {
+        "note" : "shop-app does not wait: worker takes the message later.",
+        "over" : [ "service-com-example-app", "topic-kafka-orders" ]
+      }, {
+        "from" : "service-com-example-app",
+        "to" : "database-db-5432-shop",
+        "message" : "Reads orders",
+        "code" : "JDBC",
+        "activate" : false
+      }, {
+        "from" : "topic-kafka-orders",
+        "to" : "service-com-example-worker",
+        "message" : "Delivers to L.on",
+        "code" : "Kafka",
+        "type" : "async",
+        "activate" : false
+      } ]
+    }, {
+      "type" : "steps",
+      "id" : "sequences-shop-app-jobs-run-diagram-steps",
+      "title" : "Steps",
+      "of" : "sequences-shop-app-jobs-run-diagram"
+    }, {
+      "type" : "list",
+      "id" : "quality-report",
+      "title" : "Quality gaps",
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Jobs.run on its schedule in shop-app](#/sequences-shop-app-jobs-run/sequences-shop-app-jobs-run-diagram)): The template's legend has no arrowhead for asynchronous messages." ]
     } ]
   } ]
 }

@@ -85,6 +85,8 @@ describe('entity placements', () => {
       'containers.diagram',
       'components.service:com.example:app',
       'components.service:com.example:app.diagram',
+      'sequences.shop-app.Controller.list.diagram',
+      'sequences.shop-app.Jobs.run.diagram',
     ]);
   });
 

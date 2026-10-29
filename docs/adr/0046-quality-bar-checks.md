@@ -47,8 +47,9 @@ sequence flows, the Brief's blast radius); those fail, so the report shows what 
   - *Every specific claim links to a fact or source*: paragraphs, list items, table rows, nonzero
     headline numbers, warning and risk callouts, diagram boxes and tree nodes cite facts, or are
     about an entity with facts in the document, or (a box) end a line with facts. Notes state what
-    is not known and cite nothing, so a repository without units now says so in a note; the scope's
-    system is Lantern's, not a claim.
+    is not known and cite nothing, so a repository without units, and a scope without sequence
+    flows (ADR 0047), now say so in a note; the scope's system is Lantern's, not a claim. A flow's
+    prose cites the facts of the steps it describes.
   - *No diagram repeated*: two diagrams showing the same elements and lines, whatever their kind.
 - **The Explorer** (template `architecture-explorer`): the first section has at most 300 words of
   text and a "Start here" subsection or next section; the first diagram is the container diagram;

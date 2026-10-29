@@ -36,7 +36,8 @@ author and dates, and that Lantern pins that repository's commit.
   - `pins.txt`: one `<name> <clone URL> <full commit hash>` line per git repository the set is
     made from (for project-0, the one source repository); a pin is moved by editing its hash;
   - `setup.sh [destination]`: puts the set's repositories at their pins under
-    `~/workspace/lantern-test-projects/<set>/` or the destination; safe to run again;
+    `~/workspace/lantern-test-projects/<set>/` or the destination; safe to run again; for
+    project-0 it records the pin in `<destination>/.lantern-pin` (#167);
   - `lantern.properties`, only when the set needs Lantern settings, such as Maven repositories
     besides Maven Central (ADR 0023). project-0 needs none.
 - **Proof.** `Project0BuildIT` (lantern-sandbox) checks each project-0 repository is at the
@@ -47,3 +48,13 @@ author and dates, and that Lantern pins that repository's commit.
   `lantern.test.project0` names the set-up folder (see Commands in `CLAUDE.md`). Checks of the
   facts, links, views and flows Lantern should find belong to the extractor, linker and composer
   issues (#92, #94, #113, #114), which read the case list.
+- **End to end in every build** (#167). `Project0EndToEndIT` (lantern-app) runs the analyze
+  pipeline with the fake model over all project-0 repositories as one snapshot, twice, and checks
+  every repository builds and gets its documents, the second run reuses every build, fact and
+  summary and makes no LLM call, and the system's C4 report (ADR 0044). Unlike the other project-0
+  tests it needs no property: plain `./mvnw verify` runs it when project-0 is set up in the default
+  folder, and skips it, with the reason, when that folder does not exist, so the build passes on a
+  machine without the private set. `lantern.test.project0` points it at another folder. Its commits
+  come from `pins.txt` alone: `setup.sh` records the pin it set the folder up from in
+  `<destination>/.lantern-pin`, the test fails, saying to run `setup.sh`, when that is not the
+  current pin, and it reads each repository's commit from the repository. It adds about 50 seconds.

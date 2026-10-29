@@ -112,6 +112,14 @@ final class C4Views {
     links.removeIf(link -> alternatives.containsKey(link.facts.getFirst()));
   }
 
+  /**
+   * Each profile-only link that replaces a default link under its profile, with that default; the
+   * diagrams show the default.
+   */
+  Map<Fact, Fact> alternativeLinks() {
+    return alternatives;
+  }
+
   // The deployable units and their names.
 
   /** Every deployable unit of the knowledge. */
@@ -153,7 +161,7 @@ final class C4Views {
   }
 
   /** The facts that make an entity a container of the diagrams, and its technology. */
-  private List<Fact> containerFacts(EntityId entity) {
+  List<Fact> containerFacts(EntityId entity) {
     return knowledge.attributes(entity).stream()
         .filter(
             f ->
@@ -164,7 +172,7 @@ final class C4Views {
   }
 
   /** The technology line of a container: what it is built with, or what kind of store it is. */
-  private String technology(EntityId entity) {
+  String technology(EntityId entity) {
     Optional<String> technology = knowledge.attribute(entity, TECHNOLOGY);
     String broker = entity.key().substring(0, Math.max(entity.key().indexOf(':'), 0));
     return switch (entity.type()) {
@@ -509,7 +517,7 @@ final class C4Views {
     return RepoSections.attribute(fact, name, null);
   }
 
-  private static List<String> strings(Fact fact, String name) {
+  static List<String> strings(Fact fact, String name) {
     JsonNode values = fact.attributes().get(name);
     List<String> result = new ArrayList<>();
     if (values != null && values.isArray()) {
