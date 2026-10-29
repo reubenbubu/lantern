@@ -32,7 +32,7 @@
   {
     "name": "technology",
     "kind": "attribute",
-    "description": "What the subject deployable unit is built with, such as Spring Boot 3.5.14 / Java 21.",
+    "description": "What the subject container is built with or runs on: for a deployable unit such as Spring Boot 3.5.14 / Java 21, for a database the database, such as PostgreSQL.",
     "attributeSchema": {
       "type": "object",
       "properties": {
