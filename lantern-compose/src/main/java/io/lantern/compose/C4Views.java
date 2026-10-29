@@ -79,6 +79,7 @@ final class C4Views {
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
   private static final String SCHEDULED = "scheduled";
+  private static final String BACKGROUND_JOB = "background-job";
   private static final String HTTP_CLIENT = "http-client";
   private static final String HTTP_CALL = "http-call";
   private static final String MESSAGE_SEND = "message-send";
@@ -1216,7 +1217,7 @@ final class C4Views {
           case MESSAGE_LISTENER ->
               kinds.add(
                   brokerName(RepoSections.attribute(fact, "broker", "message")) + " listener");
-          case SCHEDULED -> kinds.add("Scheduled job");
+          case SCHEDULED, BACKGROUND_JOB -> kinds.add(ExplorerSections.jobKind(fact));
           default -> {}
         }
       }
@@ -1466,7 +1467,13 @@ final class C4Views {
     for (EntityId member : withMethods(component.main)) {
       for (Fact fact : knowledge.attributes(member)) {
         switch (fact.predicate()) {
-          case STEREOTYPE, HTTP_CLIENT, ENDPOINT, MESSAGE_LISTENER, SCHEDULED, ASPECT ->
+          case STEREOTYPE,
+              HTTP_CLIENT,
+              ENDPOINT,
+              MESSAGE_LISTENER,
+              SCHEDULED,
+              BACKGROUND_JOB,
+              ASPECT ->
               facts.add(fact);
           default -> {}
         }

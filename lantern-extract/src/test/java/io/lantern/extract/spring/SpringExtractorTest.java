@@ -100,6 +100,63 @@ class SpringExtractorTest {
   }
 
   @Test
+  void jobsOfJobRunrAndQuartz() throws IOException {
+    List<String> facts = Fixtures.render(extract(unbuilt(fixtures()))).lines().toList();
+
+    assertThat(facts)
+        .anyMatch(
+            // A request handler is a job, named by @Job, scheduled where its request is built.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.ReminderHandler#run("
+                            + "com.example.shop.app.jobs.ReminderRequest) background-job Task's reminder"
+                            + " job ")
+                    && l.contains("\"kind\":\"job\"")
+                    && l.contains("Reminders#remindAt(long,java.time.Instant)")
+                    && l.contains("Reminders#remindNow(long)"))
+        .anyMatch(
+            // A request scheduled recurrently with a cron is on a schedule, like @Scheduled, and
+            // a call in another repository counts.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.AuditHandler#run("
+                            + "com.example.api.AuditRequest) scheduled 0 0 1 * * * ")
+                    && l.contains("\"trigger\":\"cron\"")
+                    && l.contains("method:com.example.api.AuditTrigger#auditNow()")
+                    && l.contains("method:com.example.api.AuditTrigger#auditNightly()"))
+        .anyMatch(
+            // A Quartz job takes the cron of the trigger it is scheduled with.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.ExpiryJob#execute("
+                            + "org.quartz.JobExecutionContext) scheduled 0 15 2 * * ? ")
+                    && l.contains("QuartzSetup#schedule(org.quartz.Scheduler)"))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "method:com.example.shop.app.jobs.DigestJob#executeInternal("
+                        + "org.quartz.JobExecutionContext) background-job"
+                        + " com.example.shop.app.jobs.DigestJob "))
+        .anyMatch(
+            // @Recurring resolves its cron like @Scheduled.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.NightlyJob#cleanUp() scheduled 0 0 3")
+                    && l.contains("\"framework\":\"jobrunr\""))
+        .anyMatch(
+            // A @Recurring interval is a background job.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.NightlyJob#poll() background-job PT5M ")
+                    && l.contains("\"kind\":\"interval\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "method:com.example.shop.app.jobs.NightlyJob#reindex() background-job Manual"
+                        + " re-index "));
+  }
+
+  @Test
   void compiledGivesTheSameFactsAsParsed() throws IOException {
     List<Repo> repos = fixtures();
     Repo spring = repos.getFirst();

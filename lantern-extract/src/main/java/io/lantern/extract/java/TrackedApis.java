@@ -48,7 +48,10 @@ final class TrackedApis {
           "org.springframework.data.redis.cache.",
           "org.springframework.data.redis.listener.",
           "org.springframework.integration.redis.util.",
-          "org.springframework.cloud.gateway.filter.ratelimit.");
+          "org.springframework.cloud.gateway.filter.ratelimit.",
+          // Jobs (the Spring extractor): JobRunr's schedulers and Quartz's builders and scheduler.
+          "org.jobrunr.scheduling.",
+          "org.quartz.");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";
