@@ -45,6 +45,7 @@ import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.expr.TextBlockLiteralExpr;
 import com.github.javaparser.ast.expr.UnaryExpr;
+import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithTypeParameters;
 import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
 import com.github.javaparser.ast.type.ArrayType;
@@ -211,20 +212,20 @@ final class JavaParserAnalyzer {
       }
       for (MethodCallExpr call : unit.findAll(MethodCallExpr.class)) {
         Position name = call.getName().getBegin().orElse(null);
-        call(call, () -> call.resolve(), name);
+        call(call, () -> call.resolve(), name, call.getArguments());
       }
       for (ObjectCreationExpr creation : unit.findAll(ObjectCreationExpr.class)) {
         // An anonymous class is not an entity; calls in its body count for the enclosing code.
         if (creation.getAnonymousClassBody().isEmpty()) {
-          call(creation, () -> creation.resolve(), null);
+          call(creation, () -> creation.resolve(), null, creation.getArguments());
         }
       }
       for (ExplicitConstructorInvocationStmt invocation :
           unit.findAll(ExplicitConstructorInvocationStmt.class)) {
-        call(invocation, () -> invocation.resolve(), null);
+        call(invocation, () -> invocation.resolve(), null, invocation.getArguments());
       }
       for (MethodReferenceExpr reference : unit.findAll(MethodReferenceExpr.class)) {
-        call(reference, () -> reference.resolve(), null);
+        call(reference, () -> reference.resolve(), null, List.of());
       }
     }
 
@@ -426,7 +427,27 @@ final class JavaParserAnalyzer {
       for (ClassOrInterfaceType t : declared) {
         String name = describe(t, context);
         if (!name.equals("java.lang.Object")) {
-          supertypes.add(new Supertype(predicate, name, location(t)));
+          List<String> parameters = new ArrayList<>();
+          if (context instanceof NodeWithTypeParameters<?> generic) {
+            generic.getTypeParameters().forEach(p -> parameters.add(p.getNameAsString()));
+          }
+          List<String> arguments = new ArrayList<>();
+          List<Integer> variables = new ArrayList<>();
+          for (Type a : t.getTypeArguments().orElse(new NodeList<>())) {
+            arguments.add(describe(a, context));
+            int variable = -1;
+            if (a instanceof ClassOrInterfaceType c
+                && c.getScope().isEmpty()
+                && c.getTypeArguments().isEmpty()) {
+              variable = parameters.indexOf(c.getNameAsString());
+              if (variable < 0 && typeVariables(context).containsKey(c.getNameAsString())) {
+                // A type variable of an enclosing type: not one of the type's own.
+                variable = Integer.MAX_VALUE;
+              }
+            }
+            variables.add(variable);
+          }
+          supertypes.add(new Supertype(predicate, name, location(t), arguments, variables));
         }
       }
     }
@@ -544,20 +565,42 @@ final class JavaParserAnalyzer {
       }
       if (d instanceof AssociableToAST declaration
           && declaration.toAst().orElse(null) instanceof Node node) {
+        List<VariableDeclarator> declared =
+            switch (node) {
+              case VariableDeclarator v -> List.of(v);
+              case FieldDeclaration f -> f.getVariables();
+              case VariableDeclarationExpr local -> local.getVariables();
+              default -> List.of();
+            };
         VariableDeclarator variable =
-            node instanceof VariableDeclarator v
-                ? v
-                : node instanceof FieldDeclaration f
-                    ? f.getVariables().stream()
-                        .filter(v -> v.getNameAsString().equals(d.getName()))
-                        .findFirst()
-                        .orElse(null)
-                    : null;
-        if (variable != null && variable.getInitializer().isPresent()) {
+            declared.stream()
+                .filter(v -> v.getNameAsString().equals(d.getName()))
+                .findFirst()
+                .orElse(null);
+        if (variable != null && variable.getInitializer().isPresent() && isFinal(variable)) {
           return constant(variable.getInitializer().get(), depth + 1);
         }
       }
       return null;
+    }
+
+    /**
+     * Whether a variable is final, as a constant variable must be: declared final, or a field of an
+     * interface or annotation type, which is implicitly so.
+     */
+    private static boolean isFinal(VariableDeclarator variable) {
+      Node parent = variable.getParentNode().orElse(null);
+      if (parent instanceof FieldDeclaration field) {
+        return field.isFinal()
+            || field
+                .getParentNode()
+                .map(
+                    owner ->
+                        owner instanceof AnnotationDeclaration
+                            || (owner instanceof ClassOrInterfaceDeclaration c && c.isInterface()))
+                .orElse(false);
+      }
+      return parent instanceof VariableDeclarationExpr local && local.isFinal();
     }
 
     private static Object unary(UnaryExpr u, Object value) {
@@ -652,7 +695,10 @@ final class JavaParserAnalyzer {
     // Calls
 
     private void call(
-        Node node, Supplier<? extends ResolvedMethodLikeDeclaration> resolve, Position name) {
+        Node node,
+        Supplier<? extends ResolvedMethodLikeDeclaration> resolve,
+        Position name,
+        List<Expression> arguments) {
       EntityId caller = owner(node);
       if (caller == null) {
         return;
@@ -669,7 +715,15 @@ final class JavaParserAnalyzer {
       }
       int start = name != null ? name.line : node.getBegin().map(p -> p.line).orElse(0);
       int end = node.getEnd().map(p -> p.line).orElse(start);
-      structure.calls.add(new Call(caller, callee, Location.of(file, start, end)));
+      List<String> constants = new ArrayList<>();
+      for (int i = 0; i < arguments.size(); i++) {
+        constants.add(
+            ModuleStructure.stringParameter(callee, i)
+                    && constant(arguments.get(i), 0) instanceof String s
+                ? s
+                : null);
+      }
+      structure.calls.add(new Call(caller, callee, Location.of(file, start, end), constants));
     }
 
     private static EntityId calleeId(ResolvedMethodLikeDeclaration method) {

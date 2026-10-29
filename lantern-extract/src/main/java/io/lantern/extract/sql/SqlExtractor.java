@@ -140,6 +140,18 @@ public final class SqlExtractor {
   }
 
   /**
+   * A table name as {@code table} entities key it, for other extractors that name tables: an
+   * unquoted name in lower case, as PostgreSQL folds it, and a quoted one as written without the
+   * quotes, each part of a qualified name on its own.
+   *
+   * @param written the name as written, such as {@code app.Orders} or {@code "Orders"}
+   * @return the name, or null for a blank one
+   */
+  public static String tableName(String written) {
+    return SchemaModel.name(written);
+  }
+
+  /**
    * Extracts the schemas of a snapshot's repositories. Each repository is read on its own, from git
    * at its commit; builds are not used.
    *

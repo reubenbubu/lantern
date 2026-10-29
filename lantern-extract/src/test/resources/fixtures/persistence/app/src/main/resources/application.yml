@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: shop
+  datasource:
+    url: jdbc:postgresql://shop:s3cret@shop-db:5432/shop?sslmode=require&password=s3cret
+    username: shop
+    password: ${SHOP_DB_PASSWORD}
+
+reporting:
+  datasource:
+    url: jdbc:mysql://${REPORT_HOST}:3306/reports
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+legacy:
+  password: hunter2
+  datasource:
+    url: jdbc:sqlserver://legacy:1433;databaseName=old;user=sa;password=${legacy.password}
+
+warehouse:
+  url: ${WAREHOUSE_URL:jdbc:oracle:thin:scott/tiger@//wh-db:1521/WH}

@@ -1,0 +1,78 @@
+[
+  {
+    "name": "datasource",
+    "kind": "attribute",
+    "description": "A datasource URL in the subject module's config, such as jdbc:postgresql://shop-db:5432/shop, without credentials (no user or password before the host, and no user, password or other secret property), by default or with the attribute profile active. Placeholders that cannot be resolved stay as ${KEY}.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "The config key, such as spring.datasource.url." },
+        "profile": { "type": "string", "description": "The profile active instead of the default one. Absent for the default view; present only where the datasource differs from it." },
+        "technology": { "type": "string", "description": "The database the URL, or else the driver class configured with it, names, such as PostgreSQL or MySQL." },
+        "server": { "type": "string", "description": "The host and port as the URL writes them, such as shop-db:5432." },
+        "database": { "type": "string", "description": "The database, service or schema name the URL names, such as shop." },
+        "written": { "type": "string", "description": "The URL as written, without credentials, when it differs from the resolved value." },
+        "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders that could not be resolved." },
+        "masked": { "type": "boolean", "description": "Present and true when a secret was substituted into the URL, so it is recorded as written, placeholders kept; or ****** when a credential might be left in it." }
+      },
+      "required": ["key"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "MAPS_TO",
+    "kind": "relationship",
+    "description": "The subject entity class is stored in the object table: a JPA @Entity, with its table named as Spring Boot's default naming makes it, or a Spring Data relational @Table class. The table is keyed by the module that declares the entity; the linker matches it to the tables migrations create by name.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "framework": { "type": "string", "enum": ["jpa", "spring-data-relational"], "description": "Which annotations map it." },
+        "inheritedFrom": { "type": "string", "description": "The binary name of the entity at the top of its single-table inheritance hierarchy, whose table it shares." }
+      },
+      "required": ["framework"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "REPOSITORY_FOR",
+    "kind": "relationship",
+    "description": "The subject Spring Data repository interface stores the object entity type, its domain type.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "base": { "type": "string", "description": "The binary name of the Spring Data interface it extends, such as org.springframework.data.jpa.repository.JpaRepository, or of @RepositoryDefinition." }
+      },
+      "required": ["base"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "READS_TABLE",
+    "kind": "relationship",
+    "description": "The subject method (or type, for code outside methods) runs SQL that reads the object table: through JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient or R2DBC's DatabaseClient, or a repository's native @Query. The table is keyed by the module whose code runs the SQL.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "statement": { "type": "string", "description": "The kind of SQL statement: select, insert, update, delete, merge, upsert or truncate." },
+        "api": { "type": "string", "description": "The binary name of the type whose method takes the SQL, or of the @Query annotation." }
+      },
+      "required": ["statement", "api"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "WRITES_TABLE",
+    "kind": "relationship",
+    "description": "The subject method (or type, for code outside methods) runs SQL that writes the object table, the target of an insert, update, delete, merge, upsert or truncate: through JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient, R2DBC's DatabaseClient or SimpleJdbcInsert, or a repository's native @Query. The table is keyed by the module whose code runs the SQL.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "statement": { "type": "string", "description": "The kind of SQL statement: insert, update, delete, merge, upsert or truncate." },
+        "api": { "type": "string", "description": "The binary name of the type whose method takes the SQL or the table name, or of the @Query annotation." }
+      },
+      "required": ["statement", "api"],
+      "additionalProperties": false
+    }
+  }
+]
