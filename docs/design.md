@@ -281,7 +281,7 @@ The LLM handles understanding that static analysis can't provide, always working
 
 **Grounding**
 
-- Every LLM output must cite the facts or summaries it used; a source file is cited through the fact observed in it. An output that fails its checks, for example one that cites nothing, is sent back once with the reason, and dropped if it fails again (see ADR 0010).
+- Every LLM output must cite the facts or summaries it used; a source file is cited through the fact observed in it. An output that fails its checks, for example one that cites nothing, is sent back once with the reason, and dropped if it fails again (see ADR 0010). A summary sentence that cites nothing is left out of the summary (ADR 0061).
 - The glossary (from annotations) is included in prompts, once annotations exist (Phase 3).
 - The LLM words what extraction found: names, the responsibility sentence of each element, the intent phrase of each relationship, a system's purpose and "start here". It never invents elements or relationships. Every box and line in a document comes from a static or rule fact, an annotation, or a Resolve result that picks among candidates the code shows.
 - What code can't show (people, owners, rationale, quality goals, production topology) comes from annotations or README claims, or is stated once, plainly, as unknown. Business purpose comes from what people wrote (Lantern annotations, README claims, Javadoc) where there is any; otherwise it is inferred from the code and every document shows it as inferred, never as fact. Each summary's purpose sentence, and each responsibility sentence, is marked as evidenced or inferred.
@@ -496,7 +496,7 @@ Renderers turn the document model into a format and make no content decisions. S
 | Service Datasheet | Anyone | One page per repo or service: APIs, dependencies, data, config, owners |
 | Change Report | Reviewers | Snapshot-to-snapshot diff with the change overlay |
 
-What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0052.
+What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0052, and its quality evidence in ADR 0062.
 
 Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository and for the whole system (ADR 0031, ADR 0044).
 
@@ -565,7 +565,7 @@ Each phase delivers something usable on real repos. The knowledge model and stab
    - Spring, HTTP client, messaging, persistence, config and SQL extractors, following values
    - Cross-repo linker and LLM resolver
    - Deployable units, container, component and sequence views, and Quality bar checks
-   - Executive Brief blast radius, technology currency and ranked risks
+   - Executive Brief blast radius, technology currency, ranked risks and quality evidence
    - System scope, audience profiles, granularity switch
 3. **Living docs:** versions and human knowledge.
    - Incremental runs, architecture diff, Change Report template

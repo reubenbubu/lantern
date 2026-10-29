@@ -1,6 +1,6 @@
 # 0025: Summary prompt wording and length
 
-Status: accepted (#71), amended by ADR 0059 (#193), pending the user's review (#24)
+Status: accepted (#71), amended by ADR 0059 (#193) and ADR 0061 (#77), pending the user's review (#24)
 
 ## Context
 
@@ -32,7 +32,8 @@ asks for audiences up to executives (Composition, granularity table) and keeps e
   sentence, and now also asks a sentence about purpose to cite the facts, source files or
   summaries it is inferred from. As in ADR
   0010, the check enforces at least one valid citation per summary and no unknown references; a
-  citation per sentence is requested, not enforced (#77).
+  citation per sentence is requested, not enforced (#77). Since ADR 0061 a sentence that cites
+  nothing is left out of the summary.
 - **Plain names, no IDs in the instructions.** The prompt names the unit and the contained units by
   kind and plain name: `type Order.Line in package com.example.shop`, `package com.example.shop`,
   `Maven module shop-core` (the artifact ID), `repository shop`. The system prompt asks for plain
