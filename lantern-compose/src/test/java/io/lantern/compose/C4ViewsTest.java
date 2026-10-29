@@ -168,10 +168,18 @@ class C4ViewsTest {
         .startsWith("Inferred: The code has members of an organization.");
     assertThat(person.description()).anyMatch(i -> i instanceof io.lantern.core.document.Citation);
     assertThat(text(block(context, Callout.class).content()))
-        .startsWith("These people are inferred");
+        .isEqualTo(
+            "These people are inferred from the code. Who else uses base and shop is not known.");
     assertThat(block(context, Metrics.class).items())
         .extracting(i -> i.label() + " " + i.value())
         .contains("People 1");
+    assertThat(
+            block(context, Metrics.class).items().stream()
+                .filter(i -> i.label().equals("People"))
+                .findFirst()
+                .orElseThrow()
+                .facts())
+        .containsExactly(basis.id());
     // A repository the person's files are not in does not show them.
     assertThat(
             nodes(

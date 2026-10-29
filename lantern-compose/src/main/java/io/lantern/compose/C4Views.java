@@ -812,7 +812,7 @@ final class C4Views {
       edge.phrased(null);
     }
     List<Block> blocks = new ArrayList<>();
-    blocks.add(counts(section, people.size()));
+    blocks.add(counts(section, people));
     blocks.add(
         new Diagram(
             assembler.id(section, "diagram"),
@@ -834,9 +834,7 @@ final class C4Views {
                         ? "The code names no people or user roles, so who uses "
                             + assembler.name(system)
                             + " is not known."
-                        : "These people are inferred from the code: the roles it checks, the"
-                            + " members and invitations it keeps, and signing up and in. Who else"
-                            + " uses "
+                        : "These people are inferred from the code. Who else uses "
                             + assembler.name(system)
                             + " is not known.")),
             List.of()));
@@ -877,7 +875,7 @@ final class C4Views {
    * How many deployable units the scope has, and how many data stores, queues and external systems
    * they use, each citing the facts it counts.
    */
-  private Metrics counts(String section, int people) {
+  private Metrics counts(String section, SortedMap<EntityId, Fact> people) {
     List<Fact> unitFacts = new ArrayList<>();
     units.forEach(u -> unitFacts.addAll(containerFacts(u)));
     Map<String, SortedMap<EntityId, List<Fact>>> used = new TreeMap<>();
@@ -904,8 +902,8 @@ final class C4Views {
     items.add(metric("Databases", used.get(DATABASE)));
     items.add(metric("Topics, queues and exchanges", used.get(QUEUE)));
     items.add(metric("External systems", used.get(EXTERNAL_SYSTEM)));
-    if (people > 0) {
-      items.add(metric("People", people, List.of()));
+    if (!people.isEmpty()) {
+      items.add(metric("People", people.size(), List.copyOf(people.values())));
     }
     return new Metrics(assembler.id(section, "counts"), items, List.of());
   }

@@ -53,7 +53,7 @@ public final class PeopleExtractor {
   public static final String NAME = "people";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "people-extractor";
@@ -474,6 +474,28 @@ public final class PeopleExtractor {
         return;
       }
       String[] lines = text.split("\n", -1);
+      // The realm roles are listed under roles.realm, an array; a client role of the same name
+      // is elsewhere in the file, so the search starts at that array.
+      int from = 0;
+      for (int n = 0; n < lines.length && from == 0; n++) {
+        if (lines[n].matches("\\s*\"realm\"\\s*:\\s*\\[.*")) {
+          from = n;
+        }
+      }
+      Set<String> serviceHolders = new LinkedHashSet<>();
+      Set<String> otherHolders = new LinkedHashSet<>();
+      FactJson.parse(text)
+          .path("users")
+          .forEach(
+              user -> {
+                boolean service = user.has("serviceAccountClientId");
+                user.path("realmRoles")
+                    .forEach(r -> (service ? serviceHolders : otherHolders).add(r.asString("")));
+              });
+      FactJson.parse(text)
+          .path("groups")
+          .forEach(
+              group -> group.path("realmRoles").forEach(r -> otherHolders.add(r.asString(""))));
       for (JsonNode role : roles) {
         String name = role.path("name").asString("");
         if (name.isBlank()
@@ -482,7 +504,7 @@ public final class PeopleExtractor {
           continue;
         }
         int at = 0;
-        for (int n = 0; n < lines.length && at == 0; n++) {
+        for (int n = from; n < lines.length && at == 0; n++) {
           if (lines[n].contains("\"" + name + "\"")) {
             at = n + 1;
           }
@@ -490,6 +512,9 @@ public final class PeopleExtractor {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("name", name);
         attributes.put("source", "keycloak-realm");
+        if (serviceHolders.contains(name) && !otherHolders.contains(name)) {
+          attributes.put("serviceAccountOnly", true);
+        }
         add(
             subject,
             ROLE,

@@ -14,6 +14,10 @@
           "type": "string",
           "description": "For a role, where it is named: the annotation (PreAuthorize, PostAuthorize, Secured, RolesAllowed), the security call (hasRole, hasAnyRole, hasAuthority, hasAnyAuthority) or keycloak-realm."
         },
+        "serviceAccountOnly": {
+          "type": "boolean",
+          "description": "For a Keycloak realm role, present and true when only service accounts hold it, so it names software, not a kind of person."
+        },
         "scope": {
           "type": "string",
           "description": "For a membership, the word before Member in the type's name, such as Organization; absent when the name has none."

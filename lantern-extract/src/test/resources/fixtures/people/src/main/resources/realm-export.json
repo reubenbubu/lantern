@@ -1,5 +1,15 @@
 {
   "realm": "my-realm",
+  "clients": [
+    {
+      "clientId": "web",
+      "roles": [
+        {
+          "name": "editor"
+        }
+      ]
+    }
+  ],
   "roles": {
     "realm": [
       {
@@ -13,7 +23,21 @@
       },
       {
         "name": "editor"
+      },
+      {
+        "name": "WORKER"
       }
     ]
-  }
+  },
+  "users": [
+    {
+      "username": "service-account-worker",
+      "serviceAccountClientId": "worker",
+      "realmRoles": ["WORKER"]
+    },
+    {
+      "username": "alice",
+      "realmRoles": ["editor"]
+    }
+  ]
 }

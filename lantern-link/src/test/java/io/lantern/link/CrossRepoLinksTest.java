@@ -1462,6 +1462,148 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aDescriptionNamesOnlyTheFactsItCites() {
+    evidence(
+        "type:m.RequiresOrganizationMembership",
+        "membership",
+        "{\"scope\":\"Organization\",\"type\":\"m.RequiresOrganizationMembership\"}",
+        "main:src/main/java/m/RequiresOrganizationMembership.java#7");
+    for (int n = 0; n < 20; n++) {
+      evidence(
+          "repo:web",
+          "route",
+          "{\"framework\":\"angular\",\"path\":\"/x" + n + "/login\"}",
+          "web:src/app/app.routes.ts#" + (n + 1));
+    }
+    add(
+        SpringExtractor.NAME,
+        "method:a.AuthController#up()",
+        SpringExtractor.ENDPOINT,
+        FactObject.string("POST /sign-up"),
+        "{\"httpMethod\":\"POST\",\"path\":\"/sign-up\",\"controller\":\"a.AuthController\","
+            + "\"annotation\":\"x\",\"framework\":\"spring-mvc\"}",
+        "auth:src/main/java/a/AuthController.java#9",
+        1.0);
+    signInEndpoint("/login");
+
+    Fact member = people().get("organization-member");
+
+    assertThat(member.attributes().get("cites")).hasSize(PeopleLinker.MAX_CITED);
+    String description = member.attributes().get("description").asString();
+    Map<String, Fact> byId = new TreeMap<>();
+    facts.forEach(f -> byId.put(f.id(), f));
+    // Every screen and endpoint the sentence names is a cited fact, and the rest are not named.
+    List<String> citedPaths = new java.util.ArrayList<>();
+    for (var id : member.attributes().get("cites")) {
+      Fact cited = byId.get(id.asString());
+      citedPaths.add(cited.attributes().path("path").asString(""));
+    }
+    for (java.util.regex.Matcher m =
+            java.util.regex.Pattern.compile("(/[a-z0-9/-]+)").matcher(description);
+        m.find(); ) {
+      assertThat(citedPaths).contains(m.group(1));
+    }
+    assertThat(member.attributes().get("frontends").toString()).isEqualTo("[\"web\"]");
+  }
+
+  @Test
+  void rolesAreWordedAsAnnotationsAndCallsAreChecks() {
+    evidence(
+        "method:m.A#a()",
+        "role",
+        "{\"name\":\"ADMIN\",\"source\":\"RolesAllowed\"}",
+        "m:src/main/java/m/A.java#5");
+    evidence(
+        "method:m.A#b()",
+        "role",
+        "{\"name\":\"CLERK\",\"source\":\"hasRole\"}",
+        "m:src/main/java/m/A.java#9");
+
+    assertThat(people().get("admin").attributes().get("description").asString())
+        .isEqualTo("The code checks the role ADMIN (@RolesAllowed in A.java).");
+    assertThat(people().get("clerk").attributes().get("description").asString())
+        .isEqualTo("The code checks the role CLERK (a hasRole check in A.java).");
+  }
+
+  @Test
+  void aRoleOnlyServiceAccountsHoldIsNoPerson() {
+    evidence(
+        "repo:kc",
+        "role",
+        "{\"name\":\"WORKER\",\"source\":\"keycloak-realm\",\"serviceAccountOnly\":true}",
+        "kc:realm.json#4");
+    evidence(
+        "method:m.A#reg()",
+        "role",
+        "{\"name\":\"WORKER\",\"source\":\"PreAuthorize\"}",
+        "m:src/main/java/m/A.java#5");
+    evidence(
+        "repo:kc",
+        "role",
+        "{\"name\":\"editor\",\"source\":\"keycloak-realm\"}",
+        "kc:realm.json#8");
+
+    assertThat(people().keySet()).containsExactly("editor");
+  }
+
+  @Test
+  void aRoleThatGuardsOnlyOperatorEndpointsIsNoPersonButOneGuardingOthersIs() {
+    for (String[] role :
+        new String[][] {
+          {"OPS", "/actuator/env"}, {"STAFF", "/api/internal/x"}, {"ADMIN", "/api/users"}
+        }) {
+      String controller = "m.C" + role[0];
+      add(
+          SpringExtractor.NAME,
+          "method:" + controller + "#h()",
+          SpringExtractor.ENDPOINT,
+          FactObject.string("GET " + role[1]),
+          "{\"httpMethod\":\"GET\",\"path\":\""
+              + role[1]
+              + "\",\"controller\":\""
+              + controller
+              + "\",\"annotation\":\"x\",\"framework\":\"spring-mvc\"}",
+          "m:src/main/java/m/C.java#3",
+          1.0);
+      evidence(
+          "type:" + controller,
+          "role",
+          "{\"name\":\"" + role[0] + "\",\"source\":\"Secured\"}",
+          "m:src/main/java/m/C.java#2");
+    }
+    // A role checked in code with no endpoint to tell by is kept.
+    evidence(
+        "method:m.D#x()",
+        "role",
+        "{\"name\":\"CLERK\",\"source\":\"Secured\"}",
+        "m:src/main/java/m/D.java#2");
+
+    assertThat(people().keySet()).containsExactly("admin", "clerk");
+  }
+
+  @Test
+  void aRoleAndAMembershipOfOneNameAreOnePersonThatTheMembershipDescribes() {
+    evidence(
+        "method:m.A#a()",
+        "role",
+        "{\"name\":\"member\",\"source\":\"Secured\"}",
+        "m:src/main/java/m/A.java#5");
+    evidence(
+        "type:m.Member",
+        "membership",
+        "{\"type\":\"m.Member\"}",
+        "m:src/main/java/m/Member.java#3");
+    signInEndpoint("/login");
+
+    assertThat(people().keySet()).containsExactly("member");
+    Fact person = people().get("member");
+    assertThat(person.object().value()).isEqualTo("member");
+    assertThat(person.attributes().get("cites")).hasSize(3);
+    assertThat(person.attributes().get("description").asString())
+        .startsWith("The code has members: it checks membership in Member (Member.java).");
+  }
+
+  @Test
   void aCodeWithNoSignOfUsersHasNoPeople() {
     unit("shop", "shop-app", "shop");
     signInEndpoint("/orders");

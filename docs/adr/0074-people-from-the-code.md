@@ -32,7 +32,11 @@ unknown users are marked unknown, not invented.
   entity per kind of person, with `display-name` and a `person-basis` fact (value: `role`, `member`,
   `invited` or `account`) that holds one sentence in the code's own words, the first facts it
   cites, the repositories whose files show it and the frontends that have screens for it:
-  - each distinct role is a person, named by the role in words (`EVENT_STAFF` is Event staff), the
+  - each distinct role is a person, unless it is for software: a Keycloak realm role that only
+    service accounts hold (`serviceAccountOnly`, read from the realm's users), or, without a
+    realm role, one whose every check guards only actuator, management or internal endpoints. This
+    is judged by how a role is used, never by its name;
+  - each remaining role is a person, named by the role in words (`EVENT_STAFF` is Event staff), the
     same role written in different ways being one; at most 12, the most often checked;
   - each membership scope is a person, `Organization member`, or `Member` without a scope;
   - invitations make `Invited user`;
@@ -59,4 +63,4 @@ unknown users are marked unknown, not invented.
 - The names come from the code, so they are as good as its words: a project that checks `ADMIN` has
   an Admin. A role name that is a permission in disguise, or a type named `Member` for another
   reason, makes a wrong person; it is marked inferred and cites the line.
-- The extractor is new (`people` at version 1) and `cross-repo-links` is raised.
+- The extractor is new (`people`, version 2 after the service-account rule) and `cross-repo-links` moves to version 5.

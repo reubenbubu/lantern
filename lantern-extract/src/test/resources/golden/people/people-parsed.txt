@@ -5,8 +5,9 @@ method:com.example.crm.Orders#all() person-evidence role {"name":"SUPPORT","sour
 method:com.example.crm.Orders#clerk() person-evidence role {"name":"CLERK","source":"Secured"} @people:src/main/java/com/example/crm/Orders.java#18-18 0.7
 method:com.example.crm.Orders#clerk() person-evidence role {"name":"MANAGER","source":"Secured"} @people:src/main/java/com/example/crm/Orders.java#18-18 0.7
 method:com.example.crm.Orders#write() person-evidence role {"name":"PARTNER","source":"PreAuthorize"} @people:src/main/java/com/example/crm/Orders.java#29-29 0.7
-repo:people person-evidence role {"name":"ADMIN","source":"keycloak-realm"} @people:src/main/resources/realm-export.json#12-12 1.0
-repo:people person-evidence role {"name":"editor","source":"keycloak-realm"} @people:src/main/resources/realm-export.json#15-15 1.0
+repo:people person-evidence role {"name":"ADMIN","source":"keycloak-realm"} @people:src/main/resources/realm-export.json#22-22 1.0
+repo:people person-evidence role {"name":"editor","source":"keycloak-realm"} @people:src/main/resources/realm-export.json#25-25 1.0
+repo:people person-evidence role {"name":"WORKER","serviceAccountOnly":true,"source":"keycloak-realm"} @people:src/main/resources/realm-export.json#28-28 1.0
 repo:people person-evidence route {"framework":"react","path":"/signup"} @people:web/src/app/App.tsx#5-5 0.8
 repo:people person-evidence route {"framework":"react","path":"/orders/:id"} @people:web/src/app/App.tsx#6-6 0.8
 repo:people person-evidence route {"framework":"angular","path":"/login"} @people:web/src/app/app.routes.ts#4-4 0.8

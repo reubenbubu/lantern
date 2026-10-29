@@ -97,7 +97,6 @@ class BuiltInTypesUpgradeIT {
       registry.apply(MailExtractor.VOCABULARY_SOURCE, MailExtractor.vocabulary());
       registry.apply(RedisExtractor.VOCABULARY_SOURCE, RedisExtractor.vocabulary());
       registry.apply(PeopleExtractor.VOCABULARY_SOURCE, PeopleExtractor.vocabulary());
-      registry.apply(PeopleExtractor.VOCABULARY_SOURCE, PeopleExtractor.vocabulary());
       registry.apply(TestExtractor.VOCABULARY_SOURCE, TestExtractor.vocabulary());
       registry.apply(DeployableUnits.VOCABULARY_SOURCE, DeployableUnits.vocabulary());
       registry.apply(CrossRepoLinks.VOCABULARY_SOURCE, CrossRepoLinks.vocabulary());
