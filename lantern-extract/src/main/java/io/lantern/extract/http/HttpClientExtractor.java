@@ -12,6 +12,7 @@ import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.Resolution;
+import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -162,10 +163,6 @@ public final class HttpClientExtractor {
       Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE");
 
   private static final Pattern ABSOLUTE = Pattern.compile("^([A-Za-z][A-Za-z0-9+.-]*://)([^/]*)");
-
-  /** The user information of a URL, after its scheme: {@code user:password@}. */
-  private static final Pattern USER_INFO =
-      Pattern.compile("([A-Za-z][A-Za-z0-9+.-]*://)[^/@\\s{}\"']*@");
 
   /** The vocabulary types this extractor's facts use besides the built-in ones. */
   public static List<VocabularyType> vocabulary() {
@@ -1024,7 +1021,7 @@ public final class HttpClientExtractor {
         }
         if (!call.url().unknown().isEmpty()) {
           ArrayNode expressions = attributes.putArray("expressions");
-          call.url().unknown().forEach(x -> expressions.add(withoutUserInfo(x)));
+          call.url().unknown().forEach(x -> expressions.add(UrlCredentials.withoutCredentials(x)));
         }
         fact(
             call.subject(),
@@ -1158,8 +1155,8 @@ public final class HttpClientExtractor {
   }
 
   /**
-   * A URL without what must not be recorded or does not say where a request goes: the user
-   * information of an absolute URL ({@code user:password@}), the query and the fragment.
+   * A URL without what must not be recorded or does not say where a request goes: the query, the
+   * fragment and the credentials of any URL in it ({@link UrlCredentials}).
    */
   static String clean(String url) {
     String cut = url;
@@ -1175,12 +1172,7 @@ public final class HttpClientExtractor {
         break;
       }
     }
-    return withoutUserInfo(cut);
-  }
-
-  /** A text with the user information of every URL in it left out, also inside expressions. */
-  static String withoutUserInfo(String text) {
-    return USER_INFO.matcher(text).replaceAll("$1");
+    return UrlCredentials.withoutCredentials(cut);
   }
 
   /** A URL's base (scheme and authority, or a leading placeholder or expression) and path. */
