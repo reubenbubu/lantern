@@ -85,11 +85,26 @@ public final class ClaimChecks implements LinkStep {
     return Pattern.compile("\\b" + NEGATION + "\\b(?:\\W+[\\w'-]+){0,3}?\\W+(" + words + ")\\b");
   }
 
+  /**
+   * The unit as the caller, negated: "never calls", "does not call", "makes no ... calls", with
+   * only qualifiers between (group 1), then the rest of the clause (group 2). Not "nothing calls"
+   * or "no service calls", which are about calls coming in, and not "does not retry HTTP calls".
+   */
   private static final Pattern NO_CALLS =
-      negated("call|calls|calling|called|invoke|invokes|invoking|invoked|request|requests");
+      Pattern.compile(
+          "\\b(?:never|not|doesn't|don't|won't|cannot|can't|makes? no|making no)"
+              + "((?:\\s+(?:synchronous|synchronously|sync|blocking|http|https|rest-api|any|other"
+              + "|outbound|direct|directly|remote))*)\\s+(?:call|calls|calling|invoke|invokes"
+              + "|invoking)\\b([^,;:]*)");
 
+  /** A qualifier that makes a call synchronous; REST only as the acronym (see sentences). */
   private static final Pattern SYNCHRONOUS =
-      Pattern.compile("\\b(synchronous|synchronously|sync|blocking|http|https|rest)\\b");
+      Pattern.compile("\\b(synchronous|synchronously|sync|blocking|http|https|rest-api)\\b");
+
+  /** What the units call, said generally: not one named service. */
+  private static final Pattern ANY_SERVICE =
+      Pattern.compile(
+          "^[\\s.!?]*$|\\b(another|other|any|anything|external|services|systems|apis|each other)\\b");
 
   private static final String READ = "read|reads|reading|query|queries|querying|select|selects";
   private static final String WRITE = "write|writes|writing|update|updates|updating|insert|inserts";
@@ -117,7 +132,8 @@ public final class ClaimChecks implements LinkStep {
   private static final Pattern NOT_RUNTIME =
       Pattern.compile(
           "\\b(test|tests|testing|local|locally|development|dev|demo|example|migrated|migrate"
-              + "|migrating|previously|formerly|instead of|replaced|replaces)\\b");
+              + "|migrating|previously|formerly|instead of|replaced|replaces|plan|plans|planned"
+              + "|will|future|used to|legacy|deprecated|roadmap)\\b");
 
   /** Database technologies by the words that name them, as the persistence extractor names them. */
   private static final Map<String, Pattern> DATABASES = new LinkedHashMap<>();
@@ -157,8 +173,18 @@ public final class ClaimChecks implements LinkStep {
 
   private static final String AT_LEAST = "(\\s*\\+|\\s+or\\s+(later|newer|higher|above|greater))?";
 
+  /**
+   * A Java release after words about what the units run on or are built for ("runs on Java 17",
+   * "requires JDK 21", "Java version: 17"), not one naming a feature ("Java 8 streams").
+   */
   private static final Pattern JAVA =
-      Pattern.compile("\\b(?:java|jdk|openjdk|jre)\\s*(?:se\\s*)?(1\\.)?(\\d{1,2})\\b" + AT_LEAST);
+      Pattern.compile(
+          "\\b(?:(?:runs? on|running on|requires?|needs?|built (?:with|for|on)|builds? with"
+              + "|compiled (?:with|for)|targets?)\\s+(?:at least\\s+)?(?:java|jdk|openjdk|jre)"
+              + "\\s*(?:se\\s*)?|(?:java|jdk) version\\s*:?\\s*(?:is\\s+)?)(1\\.)?(\\d{1,2})\\b"
+              + AT_LEAST
+              + "(?!\\s+(?:streams?|httpclient|http|records?|apis?|features?|syntax|style|time"
+              + "|date|lambdas?|modules?|virtual|text|switch|optional))");
 
   private static final Pattern BOOT =
       Pattern.compile("\\bspring[\\s-]*boot\\s*v?(\\d+(?:\\.\\d+){0,2})(?:\\.x)?" + AT_LEAST);
@@ -292,8 +318,7 @@ public final class ClaimChecks implements LinkStep {
   /** "Never calls another service synchronously": any HTTP call the units make. */
   private static void synchronousCalls(
       List<String> sentences, Set<EntityId> units, Index index, List<Contradiction> out) {
-    if (sentences.stream()
-        .noneMatch(s -> NO_CALLS.matcher(s).find() && SYNCHRONOUS.matcher(s).find())) {
+    if (sentences.stream().noneMatch(ClaimChecks::saysNoSynchronousCalls)) {
       return;
     }
     List<Fact> calls = new ArrayList<>(index.from(CrossRepoLinks.CALLS_HTTP, units));
@@ -342,18 +367,21 @@ public final class ClaimChecks implements LinkStep {
     }
   }
 
-  /** "Has a database of its own": a unit outside the README's units uses the same database. */
+  /**
+   * "Has a database of its own": a unit outside the README's units uses the same database, in the
+   * default view. Sharing only under a profile (a local database on localhost) is not flagged.
+   */
   private static void ownDatabase(
       List<String> sentences, Set<EntityId> units, Index index, List<Contradiction> out) {
     if (sentences.stream().noneMatch(s -> affirms(s, OWN_DB))) {
       return;
     }
-    List<Fact> own = index.from(CrossRepoLinks.USES_DATABASE, units);
+    List<Fact> own = defaultView(index.from(CrossRepoLinks.USES_DATABASE, units));
     Set<String> databases = new TreeSet<>();
     own.forEach(f -> databases.add(f.object().value()));
     List<Fact> shared = new ArrayList<>();
     Set<String> others = new TreeSet<>();
-    for (Fact f : index.of(CrossRepoLinks.USES_DATABASE)) {
+    for (Fact f : defaultView(index.of(CrossRepoLinks.USES_DATABASE))) {
       if (!units.contains(f.subject()) && databases.contains(f.object().value())) {
         shared.add(f);
         others.add(f.subject().toString());
@@ -491,10 +519,15 @@ public final class ClaimChecks implements LinkStep {
   // ---------------------------------------------------------------------------------------------
   // Reading the words
 
-  /** The claim in lowercase sentences, without emphasis and with plain apostrophes. */
+  /**
+   * The claim in lowercase sentences, without emphasis and with plain apostrophes, the acronym REST
+   * written as {@code rest-api}.
+   */
   static List<String> sentences(String claim) {
     String text =
         claim
+            // REST only as the acronym: "the rest is event-driven" is not about calls.
+            .replaceAll("\\bREST\\b", "rest-api")
             .toLowerCase(Locale.ROOT)
             .replace('’', '\'')
             .replace("*", "")
@@ -584,11 +617,31 @@ public final class ClaimChecks implements LinkStep {
           parts.add(Integer.parseInt(part));
         }
         boolean atLeast =
-            m.group(numberGroup + 1) != null || MINIMUM.matcher(s.substring(0, m.start())).find();
+            m.group(numberGroup + 1) != null
+                || m.group().contains("at least")
+                || MINIMUM.matcher(s.substring(0, m.start())).find();
         stated.add(new Version(List.copyOf(parts), atLeast));
       }
     }
     return stated.size() == 1 ? stated.iterator().next() : null;
+  }
+
+  /** The links that hold in the default view: those without a profile. */
+  private static List<Fact> defaultView(List<Fact> links) {
+    return links.stream().filter(f -> LinkIndex.text(f, "profile") == null).toList();
+  }
+
+  /** Whether a sentence says the units make no synchronous calls to other services. */
+  private static boolean saysNoSynchronousCalls(String sentence) {
+    Matcher m = NO_CALLS.matcher(sentence);
+    while (m.find()) {
+      String rest = m.group(2);
+      if ((SYNCHRONOUS.matcher(m.group(1)).find() || SYNCHRONOUS.matcher(rest).find())
+          && ANY_SERVICE.matcher(rest).find()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static List<Fact> sorted(List<Fact> facts) {
@@ -637,8 +690,8 @@ public final class ClaimChecks implements LinkStep {
     }
 
     /**
-     * The units a README speaks for: those of its repository in its folder or below, or all of the
-     * repository's when none is.
+     * The units a README speaks for: all of its repository's for one at the root, else those in its
+     * folder or below; none for a README in a folder without units (docs/, a library's folder).
      */
     Set<EntityId> unitsFor(Fact claim) {
       Map<EntityId, String> units = unitsByRepo.getOrDefault(claim.evidence().repo(), Map.of());
@@ -652,7 +705,7 @@ public final class ClaimChecks implements LinkStep {
               within.add(unit);
             }
           });
-      if (!within.isEmpty()) {
+      if (!folder.isEmpty()) {
         return within;
       }
       Set<EntityId> all = new TreeSet<>(LinkIndex.BY_TEXT);

@@ -300,6 +300,108 @@ class ClaimChecksTest {
   }
 
   @Test
+  void onlyTheUnitsOwnOutgoingCallsSaidGenerallyAreReadAsNoSynchronousCalls() {
+    unit("orders", "orders", "src/main/java/g/App.java");
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    claim("orders", "README.md", "It does not retry HTTP calls.");
+    claim("orders", "README.md", "Nothing calls this service over HTTP; it only consumes events.");
+    claim("orders", "README.md", "No other service calls orders synchronously.");
+    claim("orders", "README.md", "It never logs HTTP requests.");
+    claim("orders", "README.md", "It doesn't call billing, the rest is event-driven.");
+    claim("orders", "README.md", "It does not call billing over HTTP.");
+    claim("orders", "README.md", "Orders is not called synchronously by anyone.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void restIsReadOnlyAsTheAcronym() {
+    unit("orders", "orders", "src/main/java/g/App.java");
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    claim("orders", "README.md", "Orders never calls other services through rest.");
+    claim("orders", "README.md", "Orders makes no REST calls.");
+    claim("orders", "README.md", "Orders does not call other services over HTTP.");
+
+    assertThat(derive())
+        .extracting(f -> f.object().value())
+        .containsExactly(ClaimChecks.SYNCHRONOUS_CALLS, ClaimChecks.SYNCHRONOUS_CALLS);
+  }
+
+  @Test
+  void hedgedOrFutureTechnologyClaimsAreNotReadAsWhatRuns() {
+    unit("orders", "orders", "src/main/java/g/App.java");
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.USES_DATABASE,
+        "database:db:5432/orders",
+        "{\"technology\":\"PostgreSQL\"}",
+        1.0);
+    claim("orders", "README.md", "We plan to move orders to MySQL.");
+    claim("orders", "README.md", "Orders will be stored in MySQL.");
+    claim("orders", "README.md", "In the future orders go to MySQL.");
+    claim("orders", "README.md", "Orders used to live in MySQL.");
+    claim("orders", "README.md", "The legacy importer reads MySQL.");
+    claim("orders", "README.md", "The deprecated MySQL store is still documented.");
+    claim("orders", "README.md", "MySQL support is on the roadmap.");
+    claim("orders", "README.md", "We are migrating to MySQL.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void javaVersionsNamingAFeatureAreNotTheRuntime() {
+    unit("orders", "orders", "src/main/java/g/App.java");
+    value("orders", "service:g:orders", DeployableUnits.TECHNOLOGY, "Java 21", "{\"java\":\"21\"}");
+    claim("orders", "README.md", "Calls go through the JDK 11 HttpClient.");
+    claim("orders", "README.md", "The code uses Java 8 streams throughout.");
+    claim("orders", "README.md", "Written in Java 17 style.");
+    claim("orders", "README.md", "Requires Java 17 streams.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void aDatabaseSharedOnlyUnderAProfileIsStillItsOwn() {
+    unit("orders", "orders", "src/main/java/g/App.java");
+    unit("billing", "billing", "src/main/java/g/App.java");
+    claim("orders", "README.md", "Orders has its own database.");
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.USES_DATABASE,
+        "database:db:5432/orders",
+        "{\"technology\":\"PostgreSQL\"}",
+        1.0);
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.USES_DATABASE,
+        "database:localhost:5432/shop",
+        "{\"profile\":\"local\"}",
+        1.0);
+    link(
+        "billing",
+        "billing",
+        CrossRepoLinks.USES_DATABASE,
+        "database:localhost:5432/shop",
+        "{\"profile\":\"local\"}",
+        1.0);
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void aReadmeInAFolderWithoutUnitsChecksNothing() {
+    unit("orders", "orders", "orders-app/src/main/java/g/App.java");
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    claim("orders", "docs/README.md", "Orders makes no synchronous calls.");
+    claim("orders", "orders-lib/README.md", "Orders makes no synchronous calls.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
   void aLibraryRepositoryHasNoUnitsToCheck() {
     claim("lib", "README.md", "This library never calls another service synchronously.");
     link("lib", "x", CrossRepoLinks.CALLS_HTTP, "service:g:y", null, 1.0);

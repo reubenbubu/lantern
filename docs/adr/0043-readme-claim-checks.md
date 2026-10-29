@@ -20,18 +20,26 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
   derives from every fact that holds in the snapshot (ADR 0039). No LLM: every check is a fixed
   reading of the claim's words against facts, so it is deterministic, free and repeatable. A claim
   no check understands is left alone, neither flagged nor confirmed.
-- **Whom a README speaks for.** The deployable units of its repository; when it sits in a folder
-  that holds some units (where their `deployable-unit` fact is written), those units only. A
-  repository without units (a library) has nothing to check.
+- **Whom a README speaks for.** A README at the repository's root speaks for all of its
+  deployable units; one in a folder, for the units in that folder or below (where their
+  `deployable-unit` fact is written), and for none when no unit is there (`docs/`, a library's
+  folder). A repository without units (a library) has nothing to check.
+- **Precision first.** A wrong flag misleads a reader more than a missed one, so every check reads
+  only plain statements about the units themselves and leaves anything less clear alone.
 - **Reading the words.** The claim is lowercased, emphasis and code marks dropped, and split into
   sentences (at `.`, `!`, `?` and `;`). A negation is `never`, `not`, `no`, `none`, `nothing`,
   `without` or a `n't` form; "negated" means one stands at most three words before the verb.
   Sentences about tests, local or development set-ups, examples or migrations (`test`, `local`,
-  `dev`, `migrated`, `instead of`, ...) are skipped by the checks that read a named technology or
+  `dev`, `migrated`, `instead of`, ...) and hedged or future ones (`plan`, `will`, `future`,
+  `used to`, `legacy`, `deprecated`, `roadmap`, `migrating`) are skipped by the checks that read a named technology or
   version, so "tests use H2" or "we moved from MySQL to Postgres" are not read as what runs.
 - **The checks**, each the value of the fact it makes:
-  - `synchronous-calls`: a sentence negates calling (`never calls`, `makes no ... calls`, `does not
-    invoke`) and says synchronous, blocking, HTTP or REST. Contradicted by every `CALLS_HTTP` link
+  - `synchronous-calls`: a sentence has the units as the caller, negated (`never calls`, `does not
+    call`, `makes no ... calls`, with only qualifiers such as "synchronous" or "HTTP" between), says
+    synchronous, blocking, HTTP or REST (only the acronym, as written) in that clause, and names
+    no one service ("another service", "other services", or nothing). Not read: calls coming in
+    ("nothing calls this service"), other verbs ("does not retry HTTP calls", "never logs HTTP
+    requests") and one named service ("does not call billing over HTTP", #160). Contradicted by every `CALLS_HTTP` link
     of the units and every `unresolved-link` of kind `http` (a call whose target is unknown is
     still a call). A qualifier such as "when an order is placed" is not read: every call counts.
   - `other-services-data`: a sentence negates reading, writing or accessing "another service's
@@ -39,16 +47,19 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
     claim only about reading needs `reads`, one only about writing `writes`.
   - `own-database`: a sentence says "its own database", "a database of its own" or "dedicated
     database", without a negation before it. Contradicted by a unit the README does not speak for
-    using (`USES_DATABASE`) one of the same databases, in any view.
+    using (`USES_DATABASE`) one of the same databases in the default view. Sharing that holds
+    only under a profile (both on `localhost` under `local`) is not flagged.
   - `database-technology`: the claim's sentences name exactly one database (PostgreSQL, MySQL,
     MariaDB, Oracle, SQL Server, H2, HSQLDB, Derby, Db2, SQLite), not negated. Contradicted when
     the units use databases and none of them, in any view, is of that kind; a datasource whose
     technology is unknown means no contradiction.
   - `broker-technology`: likewise for Kafka, RabbitMQ and ActiveMQ/Artemis, against the units'
     `PUBLISHES` and `CONSUMES` protocols (`Kafka`, `AMQP`, `JMS`) and `USES_BROKER` technologies.
-  - `java-version` and `spring-boot-version`: the claim states exactly one version (`Java 17`,
-    `JDK 1.8`, `Spring Boot 3.2`, `3.5.x`), compared on the parts it gives with the units'
-    `technology` facts; `17+`, "or later" and "at least" make it a minimum.
+  - `java-version` and `spring-boot-version`: the claim states exactly one version, compared on the parts it gives with the units'
+    `technology` facts; `17+`, "or later" and "at least" make it a minimum. A Java release is read
+    only after words about what runs ("runs on Java 17", "requires JDK 21", "built for Java 17",
+    "Java version: 17") and not when a feature follows ("Java 8 streams", "the JDK 11
+    HttpClient"); a Spring Boot version wherever it is named (`Spring Boot 3.2`, `3.5.x`).
 - **The fact.** Attribute `claim-contradiction` on the README entity, the check as its value, so
   a document finds a README's contradicted claims by its key. Attributes: `claim` (the claim
   fact's ID), `stated` and `found` (for technologies and versions: what the claim names and what
