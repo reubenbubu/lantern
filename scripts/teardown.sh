@@ -50,7 +50,8 @@ down_args=(down)
 if $purge; then
   if ! $assume_yes; then
     [[ -t 0 ]] || die "--purge deletes the data volume of project $PROJECT; pass --yes to confirm when not at a terminal"
-    read -r -p "Delete the data volume of project $PROJECT and all its data? [y/N] " answer
+    answer=""
+    read -r -p "Delete the data volume of project $PROJECT and all its data? [y/N] " answer || true
     [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]] || die "cancelled; nothing was stopped or deleted"
   fi
   down_args+=(--volumes)

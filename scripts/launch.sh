@@ -22,9 +22,11 @@ Options:
                             Default: \$LANTERN_MIRROR_PROPERTIES.
   --auto-port               If the database port is taken, use the next free port instead
                             of failing.
-  --rebuild                 Build the app jar even if one exists.
+  --rebuild                 Build the app jar even if one exists. An existing jar is not
+                            rebuilt otherwise, so pass this after changing the code.
   --db-only                 Only start the database; do not build or analyze.
-  -y, --yes                 Do not ask before running (a real model costs money).
+  -y, --yes                 Do not ask before running analyze (a real model costs money).
+                            Needed when not at a terminal.
   -h, --help                Show this help.
 
 Environment:
@@ -95,6 +97,9 @@ if ! $db_only; then
   if [[ -n "$mirror_file" ]]; then
     mirror_file="$(check_properties_file "Mirror properties" "$mirror_file")"
   fi
+  if ! $assume_yes && [[ ! -t 0 ]]; then
+    die "pass --yes to run analyze when not at a terminal (a real model costs money)"
+  fi
 fi
 
 # --- Prerequisites -------------------------------------------------------------------
@@ -127,8 +132,10 @@ port_holder() {
   if command -v ss >/dev/null 2>&1; then
     listeners="$(ss -Htlnp "sport = :$port" 2>/dev/null || true)"
   elif command -v lsof >/dev/null 2>&1; then
+    # lsof sees only this user's processes, so the connection probe below backs it up.
     listeners="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-  elif (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+  fi
+  if [[ -z "$listeners" ]] && (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
     listeners="something accepts connections on 127.0.0.1:$port"
   fi
   [[ -n "$listeners" ]] && out+="Listening: $listeners"$'\n'
@@ -142,7 +149,7 @@ fi
 
 running_port=""
 if [[ -n "$(compose ps -q --status running postgres 2>/dev/null)" ]]; then
-  running_port="$(compose port postgres 5432 2>/dev/null | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | head -n 1)"
+  running_port="$({ compose port postgres 5432 2>/dev/null || true; } | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | head -n 1)"
 fi
 
 if [[ -n "$running_port" ]]; then
@@ -214,8 +221,9 @@ locations="file:$llm_file"
 [[ -n "$mirror_file" ]] && locations+=",file:$mirror_file"
 
 info "LLM settings: $llm_file. A real model costs money; a fake one does not."
-if ! $assume_yes && [[ -t 0 && -t 1 ]]; then
-  read -r -p "Run analyze on ${#args[@]} repositor$([[ ${#args[@]} -eq 1 ]] && echo y || echo ies)? [y/N] " answer
+if ! $assume_yes; then
+  answer=""
+  read -r -p "Run analyze on ${#args[@]} repositor$([[ ${#args[@]} -eq 1 ]] && echo y || echo ies)? [y/N] " answer || true
   [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]] || die "cancelled"
 fi
 
