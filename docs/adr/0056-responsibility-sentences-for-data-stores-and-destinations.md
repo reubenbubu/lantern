@@ -1,6 +1,6 @@
 # 0056: Responsibility sentences for data stores and destinations
 
-Status: accepted (#194), amends ADR 0050, amended by ADR 0061 (#216), pending the user's review (#24)
+Status: accepted (#194), amends ADR 0050, amended by ADR 0062 (#216), pending the user's review (#24)
 
 ## Context
 

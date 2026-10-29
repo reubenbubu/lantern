@@ -281,7 +281,7 @@ class DescriberTest {
 
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    // Citing no README claim, the sentences are marked as inferred (ADR 0061).
+    // Citing no README claim, the sentences are marked as inferred (ADR 0062).
     assertThat(app.description().getFirst())
         .isEqualTo(new TextRun(Assembler.INFERRED_SENTENCE, TextRun.Style.EMPHASIS));
     assertThat(text(app.description()))
@@ -622,6 +622,13 @@ class DescriberTest {
                     + "] [fact:"
                     + claim.id()
                     + "]",
+                EntityId.parse("type:com.example.web.Controller"),
+                "Lists the shop's orders. [fact:" + claim.id() + "]",
+                // The claim it cited is not in the snapshot, so only code is left.
+                WORKER,
+                "Processes new orders. [fact:"
+                    + facts.find(WORKER.toString(), "deployable-unit").id()
+                    + "] [fact:gone-claim]",
                 DATABASE,
                 "Keeps the shop's orders. [fact:"
                     + facts.find(APP.toString(), "USES_DATABASE").id()
@@ -645,6 +652,11 @@ class DescriberTest {
                 .orElseThrow()
                 .description();
     assertThat(text(description.apply(APP))).isEqualTo("Takes the shop's orders.");
+    assertThat(text(description.apply(EntityId.parse("type:com.example.web.Controller"))))
+        .isEqualTo("Lists the shop's orders.");
+    // Leaving out a citation leaves the space before it.
+    assertThat(text(description.apply(WORKER)).strip())
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Processes new orders.");
     assertThat(text(description.apply(DATABASE)))
         .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders.");
   }

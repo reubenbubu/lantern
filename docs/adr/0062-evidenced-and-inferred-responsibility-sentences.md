@@ -1,4 +1,4 @@
-# 0061: Evidenced and inferred responsibility sentences
+# 0062: Evidenced and inferred responsibility sentences
 
 Status: accepted (#216), amends ADR 0050 and ADR 0056, pending the user's review (#24)
 
