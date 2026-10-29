@@ -197,6 +197,22 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
         .commits()
         .forEach(
             (repo, commit) -> {
+              List<String> code = result.codeNotAnalyzed().get(repo);
+              if (code != null) {
+                out.println(
+                    "  "
+                        + repo
+                        + "@"
+                        + commit
+                        + ": warning: has "
+                        + String.join(", ", code)
+                        + " but no top-level pom.xml: its code is not analyzed");
+                return;
+              }
+              if (result.withoutBuild().contains(repo)) {
+                out.println("  " + repo + "@" + commit + ": analyzed without a build (no pom.xml)");
+                return;
+              }
               var build = result.builds().get(repo);
               if (build == null) {
                 out.println("  " + repo + "@" + commit + ": carried forward, not analyzed");
