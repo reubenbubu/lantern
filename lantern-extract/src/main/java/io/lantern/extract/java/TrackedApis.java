@@ -42,7 +42,11 @@ final class TrackedApis {
           "org.springframework.jms.core.",
           "org.springframework.amqp.",
           // Spring Cloud Stream: StreamBridge, and the legacy Source and Processor bindings.
-          "org.springframework.cloud.stream.");
+          "org.springframework.cloud.stream.",
+          // WebSocket and STOMP (the WebSocket extractor): endpoint and handler registries, the
+          // broker's and client channel's registrations, and the Simp messaging templates.
+          "org.springframework.web.socket.config.annotation.",
+          "org.springframework.messaging.simp.");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";

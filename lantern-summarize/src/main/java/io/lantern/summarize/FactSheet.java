@@ -30,7 +30,14 @@ final class FactSheet {
   /** The groups of a fact sheet, in the order the prompt lists them. */
   enum Group {
     ENTRY_POINTS(
-        "Entry points", List.of("main-class", "endpoint", "message-listener", "scheduled")),
+        "Entry points",
+        List.of(
+            "main-class",
+            "endpoint",
+            "message-listener",
+            "websocket-endpoint",
+            "stomp-mapping",
+            "scheduled")),
     LINKS(
         "Links",
         List.of(
@@ -42,6 +49,7 @@ final class FactSheet {
             "USES_INFRASTRUCTURE",
             "http-call",
             "message-send",
+            "stomp-send",
             "http-client")),
     DATA_STORES(
         "Data stores",

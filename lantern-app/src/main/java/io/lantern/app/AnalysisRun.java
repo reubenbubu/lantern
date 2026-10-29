@@ -31,6 +31,7 @@ import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.extract.test.TestExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
 import io.lantern.link.ResolutionStore;
@@ -303,6 +304,7 @@ public final class AnalysisRun {
       found.addAll(new PersistenceExtractor().extract(code, snapshot.number()));
       found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
       found.addAll(new MessagingExtractor().extract(code, snapshot.number()));
+      found.addAll(new WebSocketExtractor().extract(code, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       Stored stored =
           store(snapshot.number(), registered.keySet(), snapshot.commits().keySet(), found, client);

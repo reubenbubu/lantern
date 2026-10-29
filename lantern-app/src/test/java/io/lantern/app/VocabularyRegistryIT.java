@@ -13,6 +13,7 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.CrossRepoLinks;
 import java.util.List;
 import java.util.Map;
@@ -269,5 +270,10 @@ class VocabularyRegistryIT {
             t ->
                 assertThat(registry.owner(t.name()))
                     .contains(MessagingExtractor.VOCABULARY_SOURCE));
+    WebSocketExtractor.vocabulary()
+        .forEach(
+            t ->
+                assertThat(registry.owner(t.name()))
+                    .contains(WebSocketExtractor.VOCABULARY_SOURCE));
   }
 }

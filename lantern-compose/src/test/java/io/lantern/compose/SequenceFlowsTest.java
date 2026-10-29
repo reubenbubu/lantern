@@ -410,6 +410,40 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aMessagePushedOverStompIsANoteNamingTheEndpointClientsConnectTo() {
+    // ship's listener pushes what it received to the browsers subscribed to /topic/parcels.
+    attribute(
+        "ship", LISTEN, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 9);
+    attribute(
+        "ship",
+        STATUS,
+        "websocket-endpoint",
+        "/ws-parcels",
+        "{\"path\": \"/ws-parcels\", \"protocol\": \"stomp\"}",
+        2);
+
+    List<String> lines = steps(diagram(flows(system(facts)).sections().getFirst()).steps());
+
+    assertThat(lines)
+        .containsSubsequence(
+            "topic:kafka:orders >> service:x:ship: Delivers to Listener.on [Kafka]",
+            "service:x:ship > database:db:5432/ship: Reads parcel [JDBC]",
+            "note [service:x:ship]: ship pushes to the STOMP subscribers of /topic/parcels,"
+                + " connected over /ws-parcels [STOMP over WebSocket]. It does not wait for"
+                + " them.");
+  }
+
+  @Test
+  void anEntryPointThatOnlyPushesOverStompIsAFlow() {
+    // ship's status endpoint reaches nothing else, but pushes to browsers subscribed over STOMP.
+    attribute("ship", STATUS, "stomp-send", "/topic/status", "{\"method\": \"convertAndSend\"}", 4);
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .contains("GET /status on ship");
+  }
+
+  @Test
   void aSendTheResolverLinkedIsMarkedAsTheLlmsToo() {
     Fact open =
         facts.stream().filter(f -> f.predicate().equals("unresolved-link")).findFirst().get();

@@ -128,7 +128,7 @@ public final class Describer {
   private static final String KIND = "kind";
   private static final String TABLE = "table";
   private static final Set<String> ENTRY_POINTS =
-      Set.of("endpoint", "message-listener", "scheduled");
+      Set.of("endpoint", "message-listener", "stomp-mapping", "websocket-endpoint", "scheduled");
 
   private static final Logger LOG = LoggerFactory.getLogger(Describer.class);
 
