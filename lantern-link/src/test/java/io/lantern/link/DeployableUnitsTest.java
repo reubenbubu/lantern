@@ -220,7 +220,8 @@ class DeployableUnitsTest {
             PersistenceExtractor.vocabulary(),
             HttpClientExtractor.vocabulary(),
             MessagingExtractor.vocabulary(),
-            DeployableUnits.vocabulary())) {
+            DeployableUnits.vocabulary(),
+            CrossRepoLinks.vocabulary())) {
       vocabulary.changes(step).forEach(t -> types.put(t.name(), t));
       vocabulary = new Vocabulary(vocabulary.revision() + 1, types.values());
     }

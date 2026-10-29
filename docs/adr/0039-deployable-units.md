@@ -80,7 +80,7 @@ are decided.
   from when that is in the unit's repository (the application class, the config line, the
   dependency, the parent), else the unit's own POM, so a document of the unit's repository shows
   its unit.
-- **Left to the linker (#94):** a library's code runs with the config of each unit that bundles
+- **Left to the linker (#94, done in ADR 0042):** a library's code runs with the config of each unit that bundles
   it, so its placeholders resolve per unit, and the unit that calls through an HTTP client in a
   library bundled by several is the one that enables or injects it (ADR 0038). Applying both needs
   the links this step does not make.
