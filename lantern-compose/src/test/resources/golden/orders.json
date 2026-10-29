@@ -83,6 +83,10 @@
     } ],
     "facts" : [ ]
   }, {
+    "id" : "system:snapshot",
+    "name" : "greeting-lib, greeting-service, orders and shop",
+    "facts" : [ ]
+  }, {
     "id" : "type:com.example.orders.Order",
     "name" : "Order",
     "parent" : "package:com.example.orders:orders:com.example.orders",
@@ -551,16 +555,46 @@
     "entity" : "repo:orders",
     "facts" : [ ],
     "blocks" : [ {
+      "kind" : "metrics",
+      "id" : "context.counts",
+      "items" : [ {
+        "label" : "Deployable units",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Databases",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Topics, queues and exchanges",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "External systems",
+        "value" : 0,
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    }, {
       "kind" : "diagram",
       "id" : "context.diagram",
       "diagramKind" : "c4-context",
-      "title" : "System context of orders",
+      "title" : "System context of greeting-lib, greeting-service, orders and shop",
       "nodes" : [ {
-        "id" : "repo:orders",
-        "label" : "orders",
+        "id" : "system:snapshot",
+        "label" : "greeting-lib, greeting-service, orders and shop",
         "facts" : [ ]
       } ],
       "edges" : [ ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "context.people",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The code names no people or user roles, so who uses greeting-lib, greeting-service, orders and shop is not known."
+      } ],
       "facts" : [ ]
     } ],
     "sections" : [ ]
@@ -571,22 +605,12 @@
     "entity" : "repo:orders",
     "facts" : [ ],
     "blocks" : [ {
-      "kind" : "diagram",
-      "id" : "containers.diagram",
-      "diagramKind" : "c4-container",
-      "title" : "Containers of orders",
-      "nodes" : [ {
-        "id" : "library:com.example.orders:orders",
-        "label" : "orders",
-        "technology" : "Library, jar",
-        "parent" : "repo:orders",
-        "facts" : [ "582ae49a133aeced80db6cf83bc7afe19d90ad0982cada5aee435107f1a21cd4", "680e530ef746afe7b93faef5e95a4e2d4f7cabb2f669a9506c988dae0e43c982" ]
-      }, {
-        "id" : "repo:orders",
-        "label" : "orders",
-        "facts" : [ ]
+      "kind" : "paragraph",
+      "id" : "containers.none",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No deployable unit was found in the code."
       } ],
-      "edges" : [ ],
       "facts" : [ ]
     } ],
     "sections" : [ ]
@@ -597,55 +621,7 @@
     "entity" : "repo:orders",
     "facts" : [ ],
     "blocks" : [ ],
-    "sections" : [ {
-      "id" : "components.library:com.example.orders:orders",
-      "title" : "orders",
-      "levels" : [ "L2", "L3" ],
-      "entity" : "library:com.example.orders:orders",
-      "facts" : [ ],
-      "blocks" : [ {
-        "kind" : "paragraph",
-        "id" : "components.library:com.example.orders:orders.summary",
-        "content" : [ {
-          "kind" : "text",
-          "text" : "It builds on its parts."
-        }, {
-          "kind" : "ref",
-          "text" : "com.example.orders",
-          "target" : {
-            "kind" : "entity",
-            "id" : "package:com.example.orders:orders:com.example.orders"
-          },
-          "citation" : true
-        }, {
-          "kind" : "text",
-          "text" : " It is described by its facts."
-        }, {
-          "kind" : "citation",
-          "facts" : [ "3b410a144056e2bb3cdb1b7cd0a573378ff063272cfb2dc459596c9d9ac83bf1" ]
-        } ],
-        "facts" : [ "3b410a144056e2bb3cdb1b7cd0a573378ff063272cfb2dc459596c9d9ac83bf1" ]
-      }, {
-        "kind" : "diagram",
-        "id" : "components.library:com.example.orders:orders.diagram",
-        "diagramKind" : "c4-component",
-        "title" : "Components of orders",
-        "nodes" : [ {
-          "id" : "library:com.example.orders:orders",
-          "label" : "orders",
-          "technology" : "Library, jar",
-          "facts" : [ "582ae49a133aeced80db6cf83bc7afe19d90ad0982cada5aee435107f1a21cd4", "680e530ef746afe7b93faef5e95a4e2d4f7cabb2f669a9506c988dae0e43c982" ]
-        }, {
-          "id" : "package:com.example.orders:orders:com.example.orders",
-          "label" : "com.example.orders",
-          "parent" : "library:com.example.orders:orders",
-          "facts" : [ "8fec80ad11d405687325266bcb18a0a98b85c8541c9141d6f0d6f8c4e1b5439f" ]
-        } ],
-        "edges" : [ ],
-        "facts" : [ ]
-      } ],
-      "sections" : [ ]
-    } ]
+    "sections" : [ ]
   }, {
     "id" : "dependencies",
     "title" : "Dependencies",

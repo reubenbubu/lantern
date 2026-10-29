@@ -120,15 +120,29 @@ export function toElkGraph(diagram: Diagram): ElkNode {
   const edges: ElkExtendedEdge[] = [...diagram.edges]
     .sort(byId)
     .filter((e) => known.has(e.from) && known.has(e.to))
-    .map((e) => ({
-      id: e.id,
-      sources: [e.from],
-      targets: [e.to],
-      labels: e.label
-        ? [{ text: e.label, width: textWidth(e.label), height: LINE_HEIGHT }]
-        : undefined,
-    }));
+    .map((e) => {
+      const label = edgeLabel(e);
+      return {
+        id: e.id,
+        sources: [e.from],
+        targets: [e.to],
+        labels: label ? [{ text: label, width: textWidth(label), height: LINE_HEIGHT }] : undefined,
+      };
+    });
   return { id: 'root', layoutOptions: ROOT_OPTIONS, children: top, edges };
+}
+
+/**
+ * What an edge's label shows: what happens, its technology in brackets as C4 writes it, and the
+ * Spring profiles it alone holds under.
+ */
+export function edgeLabel(edge: Diagram['edges'][number]): string | undefined {
+  const parts = [
+    edge.label,
+    edge.technology ? `[${edge.technology}]` : undefined,
+    edge.profiles ? `(only with ${edge.profiles.join(', ')})` : undefined,
+  ].filter((part) => part !== undefined);
+  return parts.length > 0 ? parts.join(' ') : undefined;
 }
 
 let elk: InstanceType<typeof ELK> | undefined;
@@ -161,7 +175,7 @@ export async function layoutDiagram(diagram: Diagram): Promise<DiagramLayout> {
   }
   nodes.sort((a, b) => a.depth - b.depth || byId(a, b));
 
-  const edgeLabels = new Map(diagram.edges.map((e) => [e.id, e.label]));
+  const edgeLabels = new Map(diagram.edges.map((e) => [e.id, edgeLabel(e)]));
   const edges: PlacedEdge[] = (graph.edges ?? []).map((e) => {
     const section = e.sections?.[0];
     const points = section ? [section.startPoint, ...(section.bendPoints ?? []), section.endPoint] : [];

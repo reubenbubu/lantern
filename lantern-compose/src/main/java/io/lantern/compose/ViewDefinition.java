@@ -95,6 +95,24 @@ public record ViewDefinition(
   }
 
   /**
+   * A view of the whole system for a C4 report: overview, context, containers and components (ADR
+   * 0031).
+   */
+  public static ViewDefinition c4System(String id, String title, TemplateRef template) {
+    return new ViewDefinition(
+        id,
+        title,
+        Scope.system(),
+        null,
+        template,
+        List.of(
+            SectionKind.OVERVIEW,
+            SectionKind.CONTEXT,
+            SectionKind.CONTAINERS,
+            SectionKind.COMPONENTS));
+  }
+
+  /**
    * A view of one repository with the sections of the Executive Brief: overview, headline numbers,
    * risks, and the context and container diagrams.
    */

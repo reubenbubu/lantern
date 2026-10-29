@@ -17,6 +17,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
@@ -37,6 +38,7 @@ final class Assembler {
   private final Map<EntityId, Summary> summaries;
   private final Set<EntityId> described;
   private final String repo;
+  private final String systemName;
   private final Set<EntityId> adding = new HashSet<>();
   private final Deque<EntityId> undescribed = new ArrayDeque<>();
   private final Map<EntityId, DocumentEntity> entities = new TreeMap<>(Knowledge.BY_ID);
@@ -48,14 +50,20 @@ final class Assembler {
    * @param summaries the summaries, by entity
    * @param described the entities whose summaries become their descriptions: those in scope
    * @param repo the repository the document is about, preferred as the parent of a module, service
-   *     or library observed in several repositories
+   *     or library observed in several repositories, or {@code null} for a document of the system
+   * @param systemName the name of the software system the document's containers belong to
    */
   Assembler(
-      Knowledge knowledge, Map<EntityId, Summary> summaries, Set<EntityId> described, String repo) {
+      Knowledge knowledge,
+      Map<EntityId, Summary> summaries,
+      Set<EntityId> described,
+      String repo,
+      String systemName) {
     this.knowledge = knowledge;
     this.summaries = summaries;
     this.described = described;
     this.repo = repo;
+    this.systemName = systemName;
   }
 
   /** The text of a rich-text element and the facts it cites. */
@@ -87,7 +95,7 @@ final class Assembler {
     }
     entities.put(id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts)));
     adding.remove(id);
-    if (described.contains(id) && summaries.containsKey(id)) {
+    if (described.contains(id) && summaries.containsKey(summarized(id))) {
       undescribed.add(id);
     }
     return id;
@@ -98,15 +106,52 @@ final class Assembler {
     return entities.get(entity(id)).parent();
   }
 
+  /**
+   * The entity whose summary describes the entity: for a deployable unit the module of its main
+   * code, the main library's if it bundles one, else its own; for anything else itself.
+   */
+  EntityId summarized(EntityId id) {
+    if (!id.type().equals(BuiltInTypes.SERVICE)) {
+      return id;
+    }
+    for (Fact fact : knowledge.relations(id, C4Views.BUNDLES)) {
+      if (RepoSections.attribute(fact, "main", "false").equals("true")) {
+        SortedSet<EntityId> modules = knowledge.parts(Knowledge.object(fact), BuiltInTypes.MODULE);
+        if (!modules.isEmpty()) {
+          return modules.first();
+        }
+      }
+    }
+    SortedSet<EntityId> modules = knowledge.parts(id, BuiltInTypes.MODULE);
+    return modules.isEmpty() ? id : modules.first();
+  }
+
   /** The entity's display name. */
   String name(EntityId id) {
     String key = id.key();
     return switch (id.type()) {
-      case BuiltInTypes.MODULE,
-          BuiltInTypes.SERVICE,
-          BuiltInTypes.LIBRARY,
-          BuiltInTypes.PACKAGE,
-          "artifact" ->
+      case BuiltInTypes.SERVICE -> {
+        Optional<String> name = C4Views.applicationName(knowledge, id);
+        yield name.orElse(key.substring(key.lastIndexOf(':') + 1));
+      }
+      case BuiltInTypes.SYSTEM -> systemName;
+      case C4Views.DATABASE -> {
+        // server/database, the server host:port or the unit an embedded database belongs to.
+        int slash = key.lastIndexOf('/');
+        if (slash < 0) {
+          yield key;
+        }
+        String server = key.substring(0, slash);
+        int colon = server.lastIndexOf(':');
+        String host =
+            colon > 0 && server.substring(colon + 1).matches("[0-9]+")
+                ? server.substring(0, colon)
+                : server;
+        yield key.substring(slash + 1) + " on " + host;
+      }
+      case C4Views.TOPIC, C4Views.QUEUE, C4Views.EXCHANGE -> key.substring(key.indexOf(':') + 1);
+      case C4Views.DECISION -> knowledge.attribute(id, "title").orElse(key);
+      case BuiltInTypes.MODULE, BuiltInTypes.LIBRARY, BuiltInTypes.PACKAGE, "artifact" ->
           key.substring(key.lastIndexOf(':') + 1);
       case BuiltInTypes.TYPE -> key.substring(key.lastIndexOf('.') + 1).replace('$', '.');
       case "method", "field" -> key.substring(key.indexOf('#') + 1);
@@ -149,7 +194,7 @@ final class Assembler {
 
   /** The document's repository if it is one of these, else the first, or {@code null}. */
   private EntityId repoOf(SortedSet<String> repos) {
-    if (repos.contains(repo)) {
+    if (repo != null && repos.contains(repo)) {
       return repo(repo);
     }
     return repos.isEmpty() ? null : repo(repos.first());
@@ -295,7 +340,7 @@ final class Assembler {
   List<DocumentEntity> entities() {
     while (!undescribed.isEmpty()) {
       DocumentEntity entity = entities.get(undescribed.removeFirst());
-      List<Inline> description = summary(summaries.get(entity.id())).content();
+      List<Inline> description = summary(summaries.get(summarized(entity.id()))).content();
       entities.put(
           entity.id(),
           new DocumentEntity(

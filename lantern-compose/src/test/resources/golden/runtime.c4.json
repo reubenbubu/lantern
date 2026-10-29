@@ -1,0 +1,1269 @@
+{
+  "schemaVersion" : 1,
+  "id" : "system:c4",
+  "title" : "System",
+  "template" : {
+    "name" : "c4-model-sequence-diagrams",
+    "version" : "1"
+  },
+  "source" : {
+    "snapshot" : 1,
+    "vocabularyRevision" : 3,
+    "toolVersion" : "0.1.0-test"
+  },
+  "entities" : [ {
+    "id" : "database:db:5432/shop",
+    "name" : "shop on db",
+    "facts" : [ "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
+  }, {
+    "id" : "decision:shop:docs/adr/0001-kafka.md",
+    "name" : "Use Kafka",
+    "facts" : [ "035e5e675ceea8774462d63432d88da8af22f048df901c2f5e64a7b8079cf115", "5b1d166614b8639204654085384e568e77f91b45c1746a3fa0bafaa85563eb48", "6634b6e29c4cc6822fbdaf4a2efc972ace034c96c2921b8867af563ffc91ca3a", "9a3df55e3959424aaeffc9b6fdaf3bebde63d200ab9caa5a0e57961f9fe1f348" ]
+  }, {
+    "id" : "external-system:pay.example.com",
+    "name" : "pay.example.com",
+    "facts" : [ ]
+  }, {
+    "id" : "library:com.example:common",
+    "name" : "common",
+    "parent" : "repo:base",
+    "facts" : [ "3ff98a31830bc9e18aee1ec0105d78269363519de7202aada0fcd209c9770ce5" ]
+  }, {
+    "id" : "module:com.example:app",
+    "name" : "app",
+    "parent" : "repo:shop",
+    "facts" : [ "fb72ff91311732a17b8cddd1ab01d295fc1b627e2555113abb9f5e1ea68a0b35" ]
+  }, {
+    "id" : "module:com.example:common",
+    "name" : "common",
+    "parent" : "repo:base",
+    "facts" : [ "a652ea2d9adb08d990b626955ab76e13d6467199548abf6eed83b426779e53ea" ]
+  }, {
+    "id" : "module:com.example:worker",
+    "name" : "worker",
+    "parent" : "repo:base",
+    "facts" : [ "daf49d5b132b287e1d60cd9a02a079c9d4258953e9be8eb38bc5a5093d4ab909" ]
+  }, {
+    "id" : "package:com.example:app:com.example.domain",
+    "name" : "com.example.domain",
+    "parent" : "module:com.example:app",
+    "facts" : [ "6f42b5c00ea69b451998a28b8976ea98d082a5ce8063fa0770ac733806d7dc4a" ]
+  }, {
+    "id" : "package:com.example:app:com.example.web",
+    "name" : "com.example.web",
+    "parent" : "module:com.example:app",
+    "facts" : [ "aea9df7ab514392cbdca1cc9f6acbb69578b2d23b74caa790e9b2c3981f90b97" ]
+  }, {
+    "id" : "repo:base",
+    "name" : "base",
+    "facts" : [ ]
+  }, {
+    "id" : "repo:shop",
+    "name" : "shop",
+    "facts" : [ ]
+  }, {
+    "id" : "service:com.example:app",
+    "name" : "shop-app",
+    "parent" : "repo:shop",
+    "facts" : [ "562c093935193deea17395a2cb186dd2e4b57be3a332766966c11a8bbf70554d", "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668", "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5", "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd", "f365f73583a3221726526f14d45b9238ffa080727ed15e9c8995ccdf6be5f512", "f3a5abce64bf7d67bca1a55bca795f43c54407aec561a0562cb2b547d6968b56" ]
+  }, {
+    "id" : "service:com.example:worker",
+    "name" : "worker",
+    "parent" : "repo:base",
+    "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "679166264b3a042a38f479ee7460b4f8586b94b25ba0eeaea0365c212a9d0222" ]
+  }, {
+    "id" : "system:snapshot",
+    "name" : "base and shop",
+    "facts" : [ ]
+  }, {
+    "id" : "topic:kafka:orders",
+    "name" : "orders",
+    "facts" : [ ]
+  }, {
+    "id" : "type:com.example.domain.JpaOrders",
+    "name" : "JpaOrders",
+    "parent" : "package:com.example:app:com.example.domain",
+    "facts" : [ "5df1a4656ec3f5a307d58489396ac6dce22402af6028f47b6c666af6a9bc3217", "e812fd3b9eb19c3896ad723fbf4952d7acf5083af98722d2b672a2a635e08576" ]
+  }, {
+    "id" : "type:com.example.domain.Orders",
+    "name" : "Orders",
+    "parent" : "package:com.example:app:com.example.domain",
+    "facts" : [ "fb16669a5ac8b3725309878d5d93263eb7f920d6addb04277e00458cf7c9f809" ]
+  }, {
+    "id" : "type:com.example.web.Controller",
+    "name" : "Controller",
+    "parent" : "package:com.example:app:com.example.web",
+    "facts" : [ "c772a5c6d3d7c462b5f0414a7a38debb6b1c458d080a20a8bb0cfe806f49507b", "e12a56a1007261502fd121e25705fcc0d0c23a1bfe2f72625728062cca20dd5d" ]
+  }, {
+    "id" : "type:com.example.web.Jobs",
+    "name" : "Jobs",
+    "parent" : "package:com.example:app:com.example.web",
+    "facts" : [ "a4249f6a4a3c2f52626706016d1fafbfc2bb4a89f0a427bef14d1ecf5641af53" ]
+  } ],
+  "facts" : [ {
+    "id" : "035e5e675ceea8774462d63432d88da8af22f048df901c2f5e64a7b8079cf115",
+    "subject" : "decision:shop:docs/adr/0001-kafka.md",
+    "predicate" : "decision-number",
+    "object" : {
+      "kind" : "string",
+      "value" : "1"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "0ebc21a6b7495726d79a22839fe4aea36a3e51e714c152f4dafe165dd042cf67",
+    "subject" : "service:com.example:worker",
+    "predicate" : "CALLS_HTTP",
+    "object" : {
+      "kind" : "entity",
+      "value" : "service:com.example:app"
+    },
+    "attributes" : {
+      "endpoint" : "GET /orders",
+      "protocol" : "JSON/HTTP",
+      "target" : "method:com.example.web.Controller#list()"
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "base",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "14da0ef340d0ee2c542db7d71f330aea38dbf6ed263265d52a62a4f19b66f2f2",
+    "subject" : "method:com.example.web.Controller#list()",
+    "predicate" : "CALLS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "method:com.example.domain.Orders#all()"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "3ff98a31830bc9e18aee1ec0105d78269363519de7202aada0fcd209c9770ce5",
+    "subject" : "library:com.example:common",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "module:com.example:common"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "base",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "4df4b4fe0676cce45ca08ceb9320bfe9c856092e331c17b692228a5229e42637",
+    "subject" : "method:com.example.web.Jobs#run()",
+    "predicate" : "CALLS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "method:com.example.domain.Orders#all()"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a",
+    "subject" : "service:com.example:worker",
+    "predicate" : "deployable-unit",
+    "object" : {
+      "kind" : "string",
+      "value" : "spring-boot"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "base",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "502fd631503895f4a279b2b468ed915a4abd748c47e15f79b9191efb221bc4e8",
+    "subject" : "service:com.example:app",
+    "predicate" : "CALLS_HTTP",
+    "object" : {
+      "kind" : "entity",
+      "value" : "external-system:pay.example.com"
+    },
+    "attributes" : {
+      "httpMethod" : "POST",
+      "path" : "/charges",
+      "profile" : "prod",
+      "protocol" : "HTTPS",
+      "source" : "method:com.example.web.Controller#list()"
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "562c093935193deea17395a2cb186dd2e4b57be3a332766966c11a8bbf70554d",
+    "subject" : "service:com.example:app",
+    "predicate" : "unresolved-link",
+    "object" : {
+      "kind" : "string",
+      "value" : "GET ${TAX_URL}/quotes"
+    },
+    "attributes" : {
+      "reason" : "unresolved-placeholder",
+      "unresolved" : [ "TAX_URL" ]
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "5b1d166614b8639204654085384e568e77f91b45c1746a3fa0bafaa85563eb48",
+    "subject" : "decision:shop:docs/adr/0001-kafka.md",
+    "predicate" : "title",
+    "object" : {
+      "kind" : "string",
+      "value" : "Use Kafka"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "5df1a4656ec3f5a307d58489396ac6dce22402af6028f47b6c666af6a9bc3217",
+    "subject" : "package:com.example:app:com.example.domain",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.domain.JpaOrders"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "6634b6e29c4cc6822fbdaf4a2efc972ace034c96c2921b8867af563ffc91ca3a",
+    "subject" : "decision:shop:docs/adr/0001-kafka.md",
+    "predicate" : "decision-outcome",
+    "object" : {
+      "kind" : "string",
+      "value" : "Orders go to Kafka."
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "679166264b3a042a38f479ee7460b4f8586b94b25ba0eeaea0365c212a9d0222",
+    "subject" : "service:com.example:worker",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "module:com.example:worker"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "base",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668",
+    "subject" : "service:com.example:app",
+    "predicate" : "application-name",
+    "object" : {
+      "kind" : "string",
+      "value" : "shop-app"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "6f42b5c00ea69b451998a28b8976ea98d082a5ce8063fa0770ac733806d7dc4a",
+    "subject" : "module:com.example:app",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "package:com.example:app:com.example.domain"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "747af169ca525eecb96896e7255b9dea1d9450359c95a7f7dd53e9623a8e80ec",
+    "subject" : "service:com.example:worker",
+    "predicate" : "CONSUMES",
+    "object" : {
+      "kind" : "entity",
+      "value" : "topic:kafka:orders"
+    },
+    "attributes" : {
+      "protocol" : "Kafka",
+      "source" : "method:com.example.worker.L#on()"
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "base",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502",
+    "subject" : "service:com.example:app",
+    "predicate" : "USES_DATABASE",
+    "object" : {
+      "kind" : "entity",
+      "value" : "database:db:5432/shop"
+    },
+    "attributes" : {
+      "protocol" : "JDBC",
+      "schemas" : [ "schema:com.example:app" ]
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5",
+    "subject" : "service:com.example:app",
+    "predicate" : "deployable-unit",
+    "object" : {
+      "kind" : "string",
+      "value" : "spring-boot"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "9a3df55e3959424aaeffc9b6fdaf3bebde63d200ab9caa5a0e57961f9fe1f348",
+    "subject" : "decision:shop:docs/adr/0001-kafka.md",
+    "predicate" : "decision-status",
+    "object" : {
+      "kind" : "string",
+      "value" : "Accepted"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54",
+    "subject" : "database:db:5432/shop",
+    "predicate" : "technology",
+    "object" : {
+      "kind" : "string",
+      "value" : "PostgreSQL"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "a4249f6a4a3c2f52626706016d1fafbfc2bb4a89f0a427bef14d1ecf5641af53",
+    "subject" : "package:com.example:app:com.example.web",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.web.Jobs"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "a652ea2d9adb08d990b626955ab76e13d6467199548abf6eed83b426779e53ea",
+    "subject" : "module:com.example:common",
+    "predicate" : "packaging",
+    "object" : {
+      "kind" : "string",
+      "value" : "jar"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "base",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "aea9df7ab514392cbdca1cc9f6acbb69578b2d23b74caa790e9b2c3981f90b97",
+    "subject" : "module:com.example:app",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "package:com.example:app:com.example.web"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "b8a8543a15540ec8446e6f285236413a3651f536044ea2066406d6db9ef1f54a",
+    "subject" : "service:com.example:app",
+    "predicate" : "PUBLISHES",
+    "object" : {
+      "kind" : "entity",
+      "value" : "topic:kafka:orders"
+    },
+    "attributes" : {
+      "protocol" : "Kafka",
+      "source" : "method:com.example.domain.JpaOrders#all()"
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "bf76f471ea37f0dc18e515efdc218889fc58ac57b7da38504a8a8c3ec15ef0fb",
+    "subject" : "method:com.example.web.Jobs#run()",
+    "predicate" : "scheduled",
+    "object" : {
+      "kind" : "string",
+      "value" : "0 0 * * * *"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "c772a5c6d3d7c462b5f0414a7a38debb6b1c458d080a20a8bb0cfe806f49507b",
+    "subject" : "type:com.example.web.Controller",
+    "predicate" : "stereotype",
+    "object" : {
+      "kind" : "string",
+      "value" : "controller"
+    },
+    "attributes" : {
+      "rest" : true
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd",
+    "subject" : "service:com.example:app",
+    "predicate" : "technology",
+    "object" : {
+      "kind" : "string",
+      "value" : "Spring Boot 3.5.0 / Java 21"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "daf49d5b132b287e1d60cd9a02a079c9d4258953e9be8eb38bc5a5093d4ab909",
+    "subject" : "module:com.example:worker",
+    "predicate" : "packaging",
+    "object" : {
+      "kind" : "string",
+      "value" : "jar"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "base",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "e12a56a1007261502fd121e25705fcc0d0c23a1bfe2f72625728062cca20dd5d",
+    "subject" : "package:com.example:app:com.example.web",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.web.Controller"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "e812fd3b9eb19c3896ad723fbf4952d7acf5083af98722d2b672a2a635e08576",
+    "subject" : "type:com.example.domain.JpaOrders",
+    "predicate" : "stereotype",
+    "object" : {
+      "kind" : "string",
+      "value" : "repository"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "f365f73583a3221726526f14d45b9238ffa080727ed15e9c8995ccdf6be5f512",
+    "subject" : "service:com.example:app",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "module:com.example:app"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "f3a5abce64bf7d67bca1a55bca795f43c54407aec561a0562cb2b547d6968b56",
+    "subject" : "service:com.example:app",
+    "predicate" : "application-name",
+    "object" : {
+      "kind" : "string",
+      "value" : "shop-local"
+    },
+    "attributes" : {
+      "profile" : "local"
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "f88a69586e4c4de0dbd0b3a14aace2d47d1c11856869443ea493f7c78fe41680",
+    "subject" : "method:com.example.web.Controller#list()",
+    "predicate" : "endpoint",
+    "object" : {
+      "kind" : "string",
+      "value" : "GET /orders"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "fb16669a5ac8b3725309878d5d93263eb7f920d6addb04277e00458cf7c9f809",
+    "subject" : "package:com.example:app:com.example.domain",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.domain.Orders"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "fb72ff91311732a17b8cddd1ab01d295fc1b627e2555113abb9f5e1ea68a0b35",
+    "subject" : "module:com.example:app",
+    "predicate" : "packaging",
+    "object" : {
+      "kind" : "string",
+      "value" : "jar"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  } ],
+  "sections" : [ {
+    "id" : "overview",
+    "title" : "Overview",
+    "entity" : "system:snapshot",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "list",
+      "id" : "overview.repositories",
+      "ordered" : false,
+      "items" : [ {
+        "content" : [ {
+          "kind" : "ref",
+          "text" : "base",
+          "target" : {
+            "kind" : "entity",
+            "id" : "repo:base"
+          }
+        }, {
+          "kind" : "text",
+          "text" : ": runs "
+        }, {
+          "kind" : "ref",
+          "text" : "worker",
+          "target" : {
+            "kind" : "entity",
+            "id" : "service:com.example:worker"
+          }
+        } ],
+        "facts" : [ "679166264b3a042a38f479ee7460b4f8586b94b25ba0eeaea0365c212a9d0222" ]
+      }, {
+        "content" : [ {
+          "kind" : "ref",
+          "text" : "shop",
+          "target" : {
+            "kind" : "entity",
+            "id" : "repo:shop"
+          }
+        }, {
+          "kind" : "text",
+          "text" : ": runs "
+        }, {
+          "kind" : "ref",
+          "text" : "shop-app",
+          "target" : {
+            "kind" : "entity",
+            "id" : "service:com.example:app"
+          }
+        } ],
+        "facts" : [ "f365f73583a3221726526f14d45b9238ffa080727ed15e9c8995ccdf6be5f512" ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "context",
+    "title" : "System context",
+    "levels" : [ "L0", "L1" ],
+    "entity" : "system:snapshot",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "metrics",
+      "id" : "context.counts",
+      "items" : [ {
+        "label" : "Deployable units",
+        "value" : 2,
+        "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a", "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668", "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5", "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd" ]
+      }, {
+        "label" : "Databases",
+        "value" : 1,
+        "facts" : [ "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
+      }, {
+        "label" : "Topics, queues and exchanges",
+        "value" : 1,
+        "facts" : [ "747af169ca525eecb96896e7255b9dea1d9450359c95a7f7dd53e9623a8e80ec", "b8a8543a15540ec8446e6f285236413a3651f536044ea2066406d6db9ef1f54a" ]
+      }, {
+        "label" : "External systems",
+        "value" : 1,
+        "facts" : [ "502fd631503895f4a279b2b468ed915a4abd748c47e15f79b9191efb221bc4e8" ]
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "diagram",
+      "id" : "context.diagram",
+      "diagramKind" : "c4-context",
+      "title" : "System context of base and shop",
+      "nodes" : [ {
+        "id" : "external-system:pay.example.com",
+        "label" : "pay.example.com",
+        "facts" : [ ]
+      }, {
+        "id" : "system:snapshot",
+        "label" : "base and shop",
+        "facts" : [ ]
+      } ],
+      "edges" : [ {
+        "id" : "system:snapshot--CALLS_HTTP--external-system:pay.example.com",
+        "from" : "system:snapshot",
+        "to" : "external-system:pay.example.com",
+        "label" : "Calls POST /charges",
+        "relationship" : "CALLS_HTTP",
+        "profiles" : [ "prod" ],
+        "facts" : [ "502fd631503895f4a279b2b468ed915a4abd748c47e15f79b9191efb221bc4e8" ]
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "context.people",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The code names no people or user roles, so who uses base and shop is not known."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "containers",
+    "title" : "Containers",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "system:snapshot",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "diagram",
+      "id" : "containers.diagram",
+      "diagramKind" : "c4-container",
+      "title" : "Containers of base and shop",
+      "nodes" : [ {
+        "id" : "database:db:5432/shop",
+        "label" : "shop on db",
+        "technology" : "PostgreSQL",
+        "parent" : "system:snapshot",
+        "facts" : [ "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
+      }, {
+        "id" : "external-system:pay.example.com",
+        "label" : "pay.example.com",
+        "facts" : [ ]
+      }, {
+        "id" : "service:com.example:app",
+        "label" : "shop-app",
+        "technology" : "Spring Boot 3.5.0 / Java 21",
+        "parent" : "system:snapshot",
+        "facts" : [ "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668", "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5", "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd" ]
+      }, {
+        "id" : "service:com.example:worker",
+        "label" : "worker",
+        "parent" : "system:snapshot",
+        "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a" ]
+      }, {
+        "id" : "system:snapshot",
+        "label" : "base and shop",
+        "facts" : [ ]
+      }, {
+        "id" : "topic:kafka:orders",
+        "label" : "orders",
+        "technology" : "Kafka topic",
+        "parent" : "system:snapshot",
+        "facts" : [ ]
+      } ],
+      "edges" : [ {
+        "id" : "service:com.example:app--CALLS_HTTP--external-system:pay.example.com",
+        "from" : "service:com.example:app",
+        "to" : "external-system:pay.example.com",
+        "label" : "Calls POST /charges",
+        "technology" : "HTTPS",
+        "relationship" : "CALLS_HTTP",
+        "profiles" : [ "prod" ],
+        "facts" : [ "502fd631503895f4a279b2b468ed915a4abd748c47e15f79b9191efb221bc4e8" ]
+      }, {
+        "id" : "service:com.example:app--PUBLISHES--topic:kafka:orders",
+        "from" : "service:com.example:app",
+        "to" : "topic:kafka:orders",
+        "label" : "Sends messages",
+        "technology" : "Kafka",
+        "relationship" : "PUBLISHES",
+        "facts" : [ "b8a8543a15540ec8446e6f285236413a3651f536044ea2066406d6db9ef1f54a" ]
+      }, {
+        "id" : "service:com.example:app--USES_DATABASE--database:db:5432-shop",
+        "from" : "service:com.example:app",
+        "to" : "database:db:5432/shop",
+        "label" : "Stores its data in",
+        "technology" : "JDBC",
+        "relationship" : "USES_DATABASE",
+        "facts" : [ "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
+      }, {
+        "id" : "service:com.example:worker--CALLS_HTTP--service:com.example:app",
+        "from" : "service:com.example:worker",
+        "to" : "service:com.example:app",
+        "label" : "Calls GET /orders",
+        "technology" : "JSON/HTTP",
+        "relationship" : "CALLS_HTTP",
+        "facts" : [ "0ebc21a6b7495726d79a22839fe4aea36a3e51e714c152f4dafe165dd042cf67" ]
+      }, {
+        "id" : "topic:kafka:orders--CONSUMES--service:com.example:worker",
+        "from" : "topic:kafka:orders",
+        "to" : "service:com.example:worker",
+        "label" : "Delivers messages",
+        "technology" : "Kafka",
+        "relationship" : "CONSUMES",
+        "facts" : [ "747af169ca525eecb96896e7255b9dea1d9450359c95a7f7dd53e9623a8e80ec" ]
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "containers.unresolved",
+      "variant" : "warning",
+      "title" : "Not linked",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "shop-app: GET ${TAX_URL}/quotes (unresolved placeholder TAX_URL)."
+      } ],
+      "facts" : [ "562c093935193deea17395a2cb186dd2e4b57be3a332766966c11a8bbf70554d" ]
+    }, {
+      "kind" : "table",
+      "id" : "containers.decisions",
+      "title" : "Decisions",
+      "columns" : [ {
+        "label" : "ID"
+      }, {
+        "label" : "Decision"
+      }, {
+        "label" : "Status"
+      }, {
+        "label" : "Outcome"
+      } ],
+      "rows" : [ {
+        "entity" : "decision:shop:docs/adr/0001-kafka.md",
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "ADR 1"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Use Kafka"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Accepted"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Orders go to Kafka."
+        } ] ],
+        "facts" : [ "035e5e675ceea8774462d63432d88da8af22f048df901c2f5e64a7b8079cf115", "5b1d166614b8639204654085384e568e77f91b45c1746a3fa0bafaa85563eb48", "6634b6e29c4cc6822fbdaf4a2efc972ace034c96c2921b8867af563ffc91ca3a", "9a3df55e3959424aaeffc9b6fdaf3bebde63d200ab9caa5a0e57961f9fe1f348" ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "components",
+    "title" : "Components",
+    "levels" : [ "L2", "L3" ],
+    "entity" : "system:snapshot",
+    "facts" : [ ],
+    "blocks" : [ ],
+    "sections" : [ {
+      "id" : "components.service:com.example:app",
+      "title" : "shop-app",
+      "levels" : [ "L2", "L3" ],
+      "entity" : "service:com.example:app",
+      "facts" : [ ],
+      "blocks" : [ {
+        "kind" : "diagram",
+        "id" : "components.service:com.example:app.diagram",
+        "diagramKind" : "c4-component",
+        "title" : "Components of shop-app",
+        "nodes" : [ {
+          "id" : "database:db:5432/shop",
+          "label" : "shop on db",
+          "technology" : "PostgreSQL",
+          "facts" : [ "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
+        }, {
+          "id" : "external-system:pay.example.com",
+          "label" : "pay.example.com",
+          "facts" : [ ]
+        }, {
+          "id" : "service:com.example:app",
+          "label" : "shop-app",
+          "technology" : "Spring Boot 3.5.0 / Java 21",
+          "facts" : [ "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668", "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5", "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd" ]
+        }, {
+          "id" : "service:com.example:worker",
+          "label" : "worker",
+          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a" ]
+        }, {
+          "id" : "topic:kafka:orders",
+          "label" : "orders",
+          "technology" : "Kafka topic",
+          "facts" : [ ]
+        }, {
+          "id" : "type:com.example.domain.JpaOrders",
+          "label" : "JpaOrders",
+          "technology" : "Spring repository",
+          "parent" : "service:com.example:app",
+          "facts" : [ "e812fd3b9eb19c3896ad723fbf4952d7acf5083af98722d2b672a2a635e08576" ]
+        }, {
+          "id" : "type:com.example.web.Controller",
+          "label" : "Controller",
+          "technology" : "Spring MVC REST controller",
+          "parent" : "service:com.example:app",
+          "facts" : [ "c772a5c6d3d7c462b5f0414a7a38debb6b1c458d080a20a8bb0cfe806f49507b", "f88a69586e4c4de0dbd0b3a14aace2d47d1c11856869443ea493f7c78fe41680" ]
+        }, {
+          "id" : "type:com.example.web.Jobs",
+          "label" : "Jobs",
+          "technology" : "Scheduled job",
+          "parent" : "service:com.example:app",
+          "facts" : [ "bf76f471ea37f0dc18e515efdc218889fc58ac57b7da38504a8a8c3ec15ef0fb" ]
+        } ],
+        "edges" : [ {
+          "id" : "service:com.example:worker--CALLS_HTTP--type:com.example.web.Controller",
+          "from" : "service:com.example:worker",
+          "to" : "type:com.example.web.Controller",
+          "label" : "Calls GET /orders",
+          "technology" : "JSON/HTTP",
+          "relationship" : "CALLS_HTTP",
+          "facts" : [ "0ebc21a6b7495726d79a22839fe4aea36a3e51e714c152f4dafe165dd042cf67" ]
+        }, {
+          "id" : "type:com.example.domain.JpaOrders--PUBLISHES--topic:kafka:orders",
+          "from" : "type:com.example.domain.JpaOrders",
+          "to" : "topic:kafka:orders",
+          "label" : "Sends messages",
+          "technology" : "Kafka",
+          "relationship" : "PUBLISHES",
+          "facts" : [ "b8a8543a15540ec8446e6f285236413a3651f536044ea2066406d6db9ef1f54a" ]
+        }, {
+          "id" : "type:com.example.domain.JpaOrders--USES_DATABASE--database:db:5432-shop",
+          "from" : "type:com.example.domain.JpaOrders",
+          "to" : "database:db:5432/shop",
+          "label" : "Reads",
+          "technology" : "JDBC",
+          "relationship" : "USES_DATABASE",
+          "facts" : [ "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
+        }, {
+          "id" : "type:com.example.web.Controller--CALLS--type:com.example.domain.JpaOrders",
+          "from" : "type:com.example.web.Controller",
+          "to" : "type:com.example.domain.JpaOrders",
+          "label" : "Calls all",
+          "relationship" : "CALLS",
+          "facts" : [ "14da0ef340d0ee2c542db7d71f330aea38dbf6ed263265d52a62a4f19b66f2f2" ]
+        }, {
+          "id" : "type:com.example.web.Controller--CALLS_HTTP--external-system:pay.example.com",
+          "from" : "type:com.example.web.Controller",
+          "to" : "external-system:pay.example.com",
+          "label" : "Calls POST /charges",
+          "technology" : "HTTPS",
+          "relationship" : "CALLS_HTTP",
+          "profiles" : [ "prod" ],
+          "facts" : [ "502fd631503895f4a279b2b468ed915a4abd748c47e15f79b9191efb221bc4e8" ]
+        }, {
+          "id" : "type:com.example.web.Jobs--CALLS--type:com.example.domain.JpaOrders",
+          "from" : "type:com.example.web.Jobs",
+          "to" : "type:com.example.domain.JpaOrders",
+          "label" : "Calls all",
+          "relationship" : "CALLS",
+          "facts" : [ "4df4b4fe0676cce45ca08ceb9320bfe9c856092e331c17b692228a5229e42637" ]
+        } ],
+        "facts" : [ ]
+      } ],
+      "sections" : [ ]
+    } ]
+  } ]
+}
