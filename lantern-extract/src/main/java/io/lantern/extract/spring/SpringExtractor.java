@@ -10,8 +10,7 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.RepoBuild;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.config.ModuleConfig;
+import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.Resolution;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -189,10 +188,10 @@ public final class SpringExtractor {
     private final JavaAnalysis code;
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
-    private final Map<RepoBuild, List<ModuleConfig>> configs = new HashMap<>();
+    private final CodeConfig configs = new CodeConfig();
 
     private JavaAnalysis.Module module;
-    private ModuleConfig config;
+    private CodeConfig.View config;
 
     Run(JavaAnalysis code, Validity validity) {
       this.code = code;
@@ -201,7 +200,7 @@ public final class SpringExtractor {
 
     void module(JavaAnalysis.Module m) {
       this.module = m;
-      this.config = config(m);
+      this.config = configs.forModule(m.repo(), m.directory());
       for (TypeDecl type : m.structure().types()) {
         if (type.kind().equals(ModuleStructure.ANNOTATION)) {
           continue;
@@ -223,20 +222,6 @@ public final class SpringExtractor {
           }
         }
       }
-    }
-
-    /**
-     * The config that applies to a module's code: its own, or if it has none (a library), that of
-     * the one module of the repository that has config, if there is exactly one.
-     */
-    private ModuleConfig config(JavaAnalysis.Module m) {
-      List<ModuleConfig> all = configs.computeIfAbsent(m.repo(), ConfigExtractor::read);
-      for (ModuleConfig c : all) {
-        if (c.directory().equals(m.directory())) {
-          return c;
-        }
-      }
-      return all.size() == 1 ? all.getFirst() : null;
     }
 
     // -------------------------------------------------------------------------------------------
@@ -453,7 +438,7 @@ public final class SpringExtractor {
       Annotation a = null;
       List<Annotation> path = null;
       for (Annotation candidate : annotations) {
-        List<Annotation> found = find(candidate, REQUEST_MAPPING, new HashSet<>());
+        List<Annotation> found = code.annotationPath(candidate, REQUEST_MAPPING);
         if (found != null && (path == null || found.size() < path.size())) {
           a = candidate;
           path = found;
@@ -494,7 +479,7 @@ public final class SpringExtractor {
     private Mapping restMethod(List<Annotation> annotations) {
       for (Annotation a : annotations) {
         for (String httpMethod : REST_HTTP_METHODS) {
-          List<Annotation> path = find(a, httpMethod, new HashSet<>());
+          List<Annotation> path = code.annotationPath(a, httpMethod);
           if (path != null && path.size() > 1) {
             Mapping own = restPath(annotations);
             return new Mapping(
@@ -554,7 +539,7 @@ public final class SpringExtractor {
 
     private void scheduled(Member method) {
       for (Annotation a : method.annotations()) {
-        List<Annotation> path = find(a, SCHEDULED_ANNOTATION, new HashSet<>());
+        List<Annotation> path = code.annotationPath(a, SCHEDULED_ANNOTATION);
         if (path == null) {
           continue;
         }
@@ -639,33 +624,7 @@ public final class SpringExtractor {
      * the path from the one written to the one found, or null.
      */
     private List<Annotation> first(List<Annotation> annotations, String type) {
-      for (Annotation a : annotations) {
-        List<Annotation> path = find(a, type, new HashSet<>());
-        if (path != null) {
-          return path;
-        }
-      }
-      return null;
-    }
-
-    /** The path from an annotation to one of the given type among its meta-annotations, or null. */
-    private List<Annotation> find(Annotation a, String type, Set<String> seen) {
-      if (a.type().equals(type)) {
-        return List.of(a);
-      }
-      if (!seen.add(a.type())) {
-        return null;
-      }
-      for (Annotation meta : code.metaAnnotations(a.type())) {
-        List<Annotation> path = find(meta, type, seen);
-        if (path != null) {
-          List<Annotation> full = new ArrayList<>();
-          full.add(a);
-          full.addAll(path);
-          return full;
-        }
-      }
-      return null;
+      return code.annotationPath(annotations, type);
     }
 
     private static String firstOf(Annotation a, String... elements) {
@@ -680,20 +639,12 @@ public final class SpringExtractor {
     // -------------------------------------------------------------------------------------------
     // Values and facts
 
-    /** The views to resolve placeholders in: the default view (null), then each profile. */
     private List<String> views() {
-      List<String> views = new ArrayList<>();
-      views.add(null);
-      if (config != null) {
-        views.addAll(config.profiles());
-      }
-      return views;
+      return config.views();
     }
 
     private Resolution resolve(String profile, String text) {
-      return config == null
-          ? ConfigExtractor.resolveWithoutConfig(text)
-          : config.resolve(profile, text);
+      return config.resolve(profile, text);
     }
 
     private void fact(
@@ -750,10 +701,8 @@ public final class SpringExtractor {
 
     static Resolved of(
         String value, String written, SortedSet<String> unresolved, SortedSet<String> used) {
-      if (used.stream().anyMatch(ConfigExtractor::isSecret)) {
-        return new Resolved(written, written, new TreeSet<>(), true);
-      }
-      return new Resolved(value, written, new TreeSet<>(unresolved), false);
+      CodeConfig.CodeValue v = CodeConfig.CodeValue.of(value, written, unresolved, used);
+      return new Resolved(v.value(), v.written(), v.unresolved(), v.masked());
     }
 
     ObjectNode attributes(String profile) {
@@ -777,7 +726,7 @@ public final class SpringExtractor {
   }
 
   /** A path joined as Spring and Jakarta REST join a class's and a method's: one slash between. */
-  static String join(String base, String path) {
+  public static String join(String base, String path) {
     String a = slashed(base);
     String b = slashed(path);
     if (a.endsWith("/") && !b.isEmpty()) {

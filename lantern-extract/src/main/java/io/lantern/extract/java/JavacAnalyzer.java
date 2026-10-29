@@ -1,9 +1,12 @@
 package io.lantern.extract.java;
 
 import com.sun.source.tree.AnnotationTree;
+import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.BinaryTree;
+import com.sun.source.tree.BlockTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.CompoundAssignmentTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.LineMap;
@@ -16,6 +19,7 @@ import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
+import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.SourcePositions;
@@ -25,9 +29,12 @@ import com.sun.source.util.Trees;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.java.ModuleStructure.Annotation;
+import io.lantern.extract.java.ModuleStructure.Assignment;
 import io.lantern.extract.java.ModuleStructure.Call;
+import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
+import io.lantern.extract.java.ModuleStructure.Parameter;
 import io.lantern.extract.java.ModuleStructure.SourceFile;
 import io.lantern.extract.java.ModuleStructure.Supertype;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
@@ -37,6 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -92,6 +100,9 @@ final class JavacAnalyzer {
 
   /** How deep a constant expression is folded, against pathological code. */
   private static final int MAX_CONSTANT_DEPTH = 16;
+
+  /** How deep expressions are followed, through nested calls and local variables. */
+  static final int MAX_EXPRESSION_DEPTH = 24;
 
   private JavacAnalyzer() {}
 
@@ -204,7 +215,9 @@ final class JavacAnalyzer {
             }
           }
         }
-        new CallScanner(unit, file).scan(unit, null);
+        CallScanner scanner = new CallScanner(unit, file);
+        scanner.scan(unit, null);
+        scanner.values();
       }
       return structure;
     }
@@ -289,8 +302,50 @@ final class JavacAnalyzer {
         List<Member> members, EntityId id, Element e, Location typeLocation, SourceFile file) {
       if (id != null) {
         Location where = location(trees.getPath(e), file, typeLocation);
-        members.add(new Member(id, where, annotations(e, where, file)));
+        String type =
+            e.getKind() == ElementKind.FIELD || e.getKind() == ElementKind.ENUM_CONSTANT
+                ? describe(e.asType())
+                : null;
+        members.add(
+            new Member(id, where, annotations(e, where, file), type, parameters(e, where, file)));
       }
+    }
+
+    /**
+     * The parameters of a method or constructor written in the source, with their annotations; none
+     * for a field, an implicit member or a record's constructor, which parsing cannot tell apart.
+     */
+    private List<Parameter> parameters(Element e, Location where, SourceFile file) {
+      if (!(e instanceof ExecutableElement method)
+          || e.getEnclosingElement().getKind() == ElementKind.RECORD
+              && e.getKind() == ElementKind.CONSTRUCTOR) {
+        return List.of();
+      }
+      TreePath path = trees.getPath(e);
+      if (path == null
+          || !(path.getLeaf() instanceof MethodTree tree)
+          || tree.getParameters().size() != method.getParameters().size()) {
+        return List.of();
+      }
+      List<Parameter> parameters = new ArrayList<>();
+      for (int i = 0; i < method.getParameters().size(); i++) {
+        VariableElement p = method.getParameters().get(i);
+        TreePath written = new TreePath(path, tree.getParameters().get(i));
+        Location at = location(written, file, where);
+        List<Annotation> annotations = new ArrayList<>();
+        List<? extends AnnotationTree> annotationTrees =
+            tree.getParameters().get(i).getModifiers().getAnnotations();
+        List<? extends AnnotationMirror> mirrors = p.getAnnotationMirrors();
+        for (int j = 0; j < mirrors.size(); j++) {
+          Location own =
+              mirrors.size() == annotationTrees.size()
+                  ? location(new TreePath(written, annotationTrees.get(j)), file, at)
+                  : at;
+          annotation(mirrors.get(j), own, annotations, null, file);
+        }
+        parameters.add(new Parameter(p.getSimpleName().toString(), annotations));
+      }
+      return parameters;
     }
 
     // -------------------------------------------------------------------------------------------
@@ -541,11 +596,28 @@ final class JavacAnalyzer {
       return t.getNestingKind() == NestingKind.TOP_LEVEL;
     }
 
-    /** Finds the calls in one compilation unit. */
+    /**
+     * Finds the calls in one compilation unit, and the calls on tracked APIs and the values given
+     * to fields, which it reads as expressions once the whole unit is scanned.
+     */
     private final class CallScanner extends TreePathScanner<Void, Void> {
 
       private final CompilationUnitTree unit;
       private final SourceFile file;
+
+      /** Outermost calls of chains, read as invocations if they are on a tracked API. */
+      private final List<TreePath> chains = new ArrayList<>();
+
+      /** Field initializers and assignments to fields: the field, the value and the whole. */
+      private final List<TreePath[]> fieldValues = new ArrayList<>();
+
+      /** Local variables declared in blocks, by element. */
+      private final Map<Element, TreePath> locals = new HashMap<>();
+
+      /** Local variables assigned after their declaration. */
+      private final Set<Element> reassigned = new HashSet<>();
+
+      private CharSequence source;
 
       CallScanner(CompilationUnitTree unit, SourceFile file) {
         this.unit = unit;
@@ -554,6 +626,9 @@ final class JavacAnalyzer {
 
       @Override
       public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {
+        if (!isReceiver(getCurrentPath())) {
+          chains.add(getCurrentPath());
+        }
         if (!isImplicitSuperCall(node)) {
           // The line of the method's name, which in a chain of calls is not the chain's first.
           long name = end(unit, node.getMethodSelect());
@@ -569,8 +644,298 @@ final class JavacAnalyzer {
         // An enum constant's creation is not written as a call, and parsing does not see one.
         if (node.getClassBody() == null && !isEnumConstant(getCurrentPath().getParentPath())) {
           call(positions.getStartPosition(unit, node), end(unit, node), node.getArguments());
+          if (!isReceiver(getCurrentPath())) {
+            chains.add(getCurrentPath());
+          }
         }
         return super.visitNewClass(node, unused);
+      }
+
+      @Override
+      public Void visitVariable(VariableTree node, Void unused) {
+        TreePath path = getCurrentPath();
+        Element e = trees.getElement(path);
+        if (e != null && e.getKind() == ElementKind.LOCAL_VARIABLE) {
+          if (path.getParentPath().getLeaf() instanceof BlockTree) {
+            locals.put(e, path);
+          }
+        } else if (e != null
+            && e.getKind() == ElementKind.FIELD
+            && node.getInitializer() != null
+            && ((VariableElement) e).getConstantValue() == null) {
+          fieldValues.add(new TreePath[] {path, new TreePath(path, node.getInitializer()), path});
+        }
+        return super.visitVariable(node, unused);
+      }
+
+      @Override
+      public Void visitAssignment(AssignmentTree node, Void unused) {
+        TreePath target = new TreePath(getCurrentPath(), node.getVariable());
+        Element e = trees.getElement(target);
+        if (e != null && e.getKind() == ElementKind.LOCAL_VARIABLE) {
+          reassigned.add(e);
+        } else if (e != null && e.getKind() == ElementKind.FIELD && isOwnField(target)) {
+          fieldValues.add(
+              new TreePath[] {
+                target, new TreePath(getCurrentPath(), node.getExpression()), getCurrentPath()
+              });
+        }
+        return super.visitAssignment(node, unused);
+      }
+
+      @Override
+      public Void visitCompoundAssignment(CompoundAssignmentTree node, Void unused) {
+        Element e = trees.getElement(new TreePath(getCurrentPath(), node.getVariable()));
+        if (e != null && e.getKind() == ElementKind.LOCAL_VARIABLE) {
+          reassigned.add(e);
+        }
+        return super.visitCompoundAssignment(node, unused);
+      }
+
+      @Override
+      public Void visitUnary(UnaryTree node, Void unused) {
+        Element e = trees.getElement(new TreePath(getCurrentPath(), node.getExpression()));
+        if (e != null && e.getKind() == ElementKind.LOCAL_VARIABLE) {
+          reassigned.add(e);
+        }
+        return super.visitUnary(node, unused);
+      }
+
+      /** A field written as {@code name} or {@code this.name}. */
+      private boolean isOwnField(TreePath target) {
+        return target.getLeaf() instanceof IdentifierTree
+            || target.getLeaf() instanceof MemberSelectTree m
+                && m.getExpression() instanceof IdentifierTree id
+                && id.getName().contentEquals("this");
+      }
+
+      /** Whether the call at the path is what another call is made on. */
+      private boolean isReceiver(TreePath path) {
+        TreePath parent = path.getParentPath();
+        return parent != null
+            && parent.getLeaf() instanceof MemberSelectTree select
+            && parent.getParentPath() != null
+            && parent.getParentPath().getLeaf() instanceof MethodInvocationTree call
+            && call.getMethodSelect() == select;
+      }
+
+      /** Reads the invocations and field values found, now that every local is known. */
+      void values() {
+        for (TreePath path : chains) {
+          if (!TrackedApis.isTracked(rootType(path))) {
+            continue;
+          }
+          EntityId caller = owner(path);
+          if (caller != null && expression(path, caller, 0) instanceof Expression.Invoke invoke) {
+            Tree leaf = path.getLeaf();
+            structure.invocations.add(
+                new Invocation(
+                    caller,
+                    invoke,
+                    lines(
+                        unit,
+                        file,
+                        positions.getStartPosition(unit, leaf),
+                        end(unit, leaf),
+                        null)));
+          }
+        }
+        for (TreePath[] value : fieldValues) {
+          VariableElement field = (VariableElement) trees.getElement(value[0]);
+          if (!(field.getEnclosingElement() instanceof TypeElement declaring)
+              || !isNamed(declaring)
+              || !TrackedApis.isFollowed(describe(field.asType()))) {
+            continue;
+          }
+          String type = binaryName(declaring);
+          EntityId in = owner(value[2]);
+          if (in == null || !inOwnCode(in, type)) {
+            continue;
+          }
+          EntityId id = ModuleStructure.fieldId(type, field.getSimpleName().toString());
+          if (id != null) {
+            structure.assignments.add(
+                new Assignment(
+                    id, in, expression(value[1], in, 0), location(value[2], file, null)));
+          }
+        }
+      }
+
+      /** Whether code of the member is the type's initializer or one of its constructors. */
+      private boolean inOwnCode(EntityId in, String type) {
+        return in.type().equals(BuiltInTypes.TYPE)
+            ? in.key().equals(type)
+            : in.key().startsWith(type + "#" + ModuleStructure.CONSTRUCTOR + "(");
+      }
+
+      /**
+       * The type of what the innermost call of a chain is made on, or of the object a constructor
+       * call makes; null for a call without a receiver.
+       */
+      private String rootType(TreePath path) {
+        TreePath p = path;
+        while (true) {
+          Tree leaf = p.getLeaf();
+          if (leaf instanceof MethodInvocationTree call) {
+            if (!(call.getMethodSelect() instanceof MemberSelectTree select)) {
+              return null;
+            }
+            p = new TreePath(new TreePath(p, select), select.getExpression());
+          } else if (leaf instanceof ParenthesizedTree paren) {
+            p = new TreePath(p, paren.getExpression());
+          } else if (leaf instanceof NewClassTree created) {
+            return typeName(new TreePath(p, created.getIdentifier()));
+          } else {
+            return typeName(p);
+          }
+        }
+      }
+
+      private String typeName(TreePath path) {
+        TypeMirror type = trees.getTypeMirror(path);
+        return type != null && type.getKind() == TypeKind.DECLARED ? describe(type) : null;
+      }
+
+      // -----------------------------------------------------------------------------------------
+      // Expressions
+
+      private Expression expression(TreePath path, EntityId owner, int depth) {
+        if (depth > MAX_EXPRESSION_DEPTH) {
+          return unknown(path);
+        }
+        Tree leaf = path.getLeaf();
+        return switch (leaf) {
+          case LiteralTree l ->
+              l.getValue() == null
+                  ? unknown(path)
+                  : new Expression.Literal(String.valueOf(l.getValue()));
+          case ParenthesizedTree p ->
+              expression(new TreePath(path, p.getExpression()), owner, depth + 1);
+          case TypeCastTree c ->
+              expression(new TreePath(path, c.getExpression()), owner, depth + 1);
+          case BinaryTree b when b.getKind() == Tree.Kind.PLUS && isString(path) ->
+              Expression.concat(
+                  List.of(
+                      expression(new TreePath(path, b.getLeftOperand()), owner, depth + 1),
+                      expression(new TreePath(path, b.getRightOperand()), owner, depth + 1)));
+          case IdentifierTree id -> name(path, owner, depth);
+          case MemberSelectTree select -> name(path, owner, depth);
+          case MethodInvocationTree call -> {
+            Expression receiver = null;
+            String method;
+            if (call.getMethodSelect() instanceof MemberSelectTree select) {
+              TreePath selected = new TreePath(path, select);
+              receiver =
+                  expression(new TreePath(selected, select.getExpression()), owner, depth + 1);
+              method = select.getIdentifier().toString();
+            } else if (call.getMethodSelect() instanceof IdentifierTree id) {
+              method = id.getName().toString();
+            } else {
+              yield unknown(path);
+            }
+            yield new Expression.Invoke(
+                receiver, method, arguments(path, call.getArguments(), owner, depth));
+          }
+          case NewClassTree created -> {
+            String type = typeName(new TreePath(path, created.getIdentifier()));
+            yield type == null
+                ? unknown(path)
+                : new Expression.Invoke(
+                    new Expression.TypeRef(type),
+                    ModuleStructure.CONSTRUCTOR,
+                    arguments(path, created.getArguments(), owner, depth));
+          }
+          default -> unknown(path);
+        };
+      }
+
+      private List<Expression> arguments(
+          TreePath path, List<? extends ExpressionTree> arguments, EntityId owner, int depth) {
+        List<Expression> list = new ArrayList<>();
+        for (ExpressionTree a : arguments) {
+          list.add(expression(new TreePath(path, a), owner, depth + 1));
+        }
+        return list;
+      }
+
+      /** A name: a constant, field, parameter, local variable or type. */
+      private Expression name(TreePath path, EntityId owner, int depth) {
+        Tree leaf = path.getLeaf();
+        if (leaf instanceof IdentifierTree id
+            && (id.getName().contentEquals("this") || id.getName().contentEquals("super"))) {
+          return unknown(path);
+        }
+        Element e = trees.getElement(path);
+        if (e instanceof TypeElement type) {
+          return new Expression.TypeRef(binaryName(type));
+        }
+        if (!(e instanceof VariableElement variable)) {
+          return unknown(path);
+        }
+        Object constant = variable.getConstantValue();
+        if (constant != null) {
+          return new Expression.Literal(String.valueOf(constant));
+        }
+        switch (variable.getKind()) {
+          case FIELD, ENUM_CONSTANT -> {
+            boolean plain =
+                leaf instanceof IdentifierTree
+                    || leaf instanceof MemberSelectTree select
+                        && (select.getExpression() instanceof IdentifierTree self
+                                && self.getName().contentEquals("this")
+                            || trees.getElement(new TreePath(path, select.getExpression()))
+                                instanceof TypeElement);
+            if (plain && variable.getEnclosingElement() instanceof TypeElement declaring) {
+              return new Expression.FieldRef(
+                  binaryName(declaring), variable.getSimpleName().toString());
+            }
+            return unknown(path);
+          }
+          case PARAMETER -> {
+            if (variable.getEnclosingElement() instanceof ExecutableElement method) {
+              int index = method.getParameters().indexOf(variable);
+              if (index >= 0 && owner.equals(methodId(method))) {
+                return new Expression.Param(index);
+              }
+            }
+            return unknown(path);
+          }
+          case LOCAL_VARIABLE -> {
+            TreePath declared = locals.get(variable);
+            if (declared != null
+                && !reassigned.contains(variable)
+                && declared.getLeaf() instanceof VariableTree v
+                && v.getInitializer() != null) {
+              return expression(new TreePath(declared, v.getInitializer()), owner, depth + 1);
+            }
+            return unknown(path);
+          }
+          default -> {
+            return unknown(path);
+          }
+        }
+      }
+
+      private boolean isString(TreePath path) {
+        return "java.lang.String".equals(typeName(path));
+      }
+
+      /** An expression not followed, with its source text. */
+      private Expression unknown(TreePath path) {
+        Tree leaf = path.getLeaf();
+        long start = positions.getStartPosition(unit, leaf);
+        long end = end(unit, leaf);
+        try {
+          if (source == null) {
+            source = unit.getSourceFile().getCharContent(true);
+          }
+          if (start >= 0 && end > start && end <= source.length()) {
+            return new Expression.Unknown(source.subSequence((int) start, (int) end).toString());
+          }
+        } catch (IOException e) {
+          // Fall back to the tree as javac prints it.
+        }
+        return new Expression.Unknown(leaf.toString());
       }
 
       @Override

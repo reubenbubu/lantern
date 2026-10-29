@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: shop
+clients:
+  payments:
+    url: http://payments:8080
+  tax:
+    url: ${TAX_SERVICE_URL}
+  legacy:
+    url: http://legacy.example.com
+catalog:
+  base-url: http://catalog-service:8080
+inventory:
+  url: inventory:8080
+audit:
+  url: https://audit.example.com/${audit.api-token}
+  api-token: s3cret
+quarkus:
+  rest-client:
+    ratings:
+      url: http://ratings:9000
