@@ -109,7 +109,7 @@ its path is known, and what is matched when.
   `database`), `reason` (`unresolved-placeholder`, `unknown-url`, `unknown-host`, `ambiguous`,
   `no-match`, `unknown-routing-key`), the unresolved keys and the `candidates`: units whose endpoints serve the
   path, or that listen where the exchange routes. HTTP-5's tax service is one. The LLM resolver
-  that picks among candidates, and the questions queue, are #152.
+  that picks among candidates is ADR 0045; the questions queue is #170.
 - **New vocabulary**, applied by the app on startup after the deployable units', with source
   `cross-repo-links`: entity types `topic`, `queue`, `exchange`, `database`, `message-broker`,
   `external-system` and `infrastructure`; relationship types `CALLS_HTTP`, `PUBLISHES`,

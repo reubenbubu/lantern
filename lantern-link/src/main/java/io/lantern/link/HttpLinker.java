@@ -429,9 +429,25 @@ final class HttpLinker {
    * null if none.
    */
   private Endpoint endpoint(Unit unit, Call call, String view) {
-    String path = call.url().path();
+    List<Endpoint> ranked = ranked(unit, call.httpMethod(), call.url().path(), view);
+    return ranked.isEmpty() ? null : ranked.getFirst();
+  }
+
+  /**
+   * The {@code endpoint} facts of a unit that a request with the method (null for any) and path
+   * matches in the view, best first as {@link #endpoint} ranks them, for the LLM resolver.
+   */
+  List<Fact> endpoints(Unit unit, String httpMethod, String path, String view) {
+    return ranked(unit, httpMethod, path, view).stream().map(Endpoint::fact).toList();
+  }
+
+  /**
+   * The unit's endpoints that match a method and path behind the unit's context and servlet paths
+   * in the view, by the number of literal segments matching, most first, then by ID.
+   */
+  private List<Endpoint> ranked(Unit unit, String httpMethod, String path, String view) {
     if (path == null) {
-      return null;
+      return List.of();
     }
     String prefix = "";
     for (String key : List.of(CONTEXT_PATH, SERVLET_PATH)) {
@@ -440,14 +456,13 @@ final class HttpLinker {
         prefix = LinkText.join(prefix, value.object().value());
       }
     }
-    Endpoint best = null;
-    int bestScore = -1;
+    List<Map.Entry<Endpoint, Integer>> scored = new ArrayList<>();
     for (Endpoint endpoint : endpoints) {
       if (!endpoint.unit().equals(unit) || !index.active(endpoint.fact().subject(), view)) {
         continue;
       }
       String method = LinkIndex.text(endpoint.fact(), "httpMethod");
-      if (method != null && call.httpMethod() != null && !method.equals(call.httpMethod())) {
+      if (method != null && httpMethod != null && !method.equals(httpMethod)) {
         continue;
       }
       String template = LinkIndex.text(endpoint.fact(), "path");
@@ -455,11 +470,12 @@ final class HttpLinker {
         continue;
       }
       int score = LinkText.pathMatch(path, LinkText.join(prefix, template));
-      if (score > bestScore) {
-        best = endpoint;
-        bestScore = score;
+      if (score >= 0) {
+        scored.add(new AbstractMap.SimpleEntry<>(endpoint, score));
       }
     }
-    return best;
+    // A stable sort keeps the endpoints' ID order among equal scores.
+    scored.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+    return scored.stream().map(Map.Entry::getKey).toList();
   }
 }
