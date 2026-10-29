@@ -241,7 +241,7 @@
     },
     "layoutRule": {
       "type": "object",
-      "description": "\"a must be <rel> b\". For boundary placements (at…), b is the diagram's boundary id and a must sit inside it.",
+      "description": "\"a must be <rel> b\". b may be the diagram's boundary id: for boundary placements (at…) a must sit inside it; for any other relation a must sit outside it, and is placed relative to the boundary as a whole.",
       "required": ["a", "rel", "b"],
       "additionalProperties": false,
       "properties": {
