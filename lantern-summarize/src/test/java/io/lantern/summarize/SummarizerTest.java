@@ -550,6 +550,60 @@ class SummarizerTest {
     assertThat(store.size()).isZero();
   }
 
+  @Test
+  void sentencesWithoutCitationsAreLeftOutWithoutAskingAgain() {
+    fake.answering("Line is part of an order. Line holds a quantity. [F1] It is very important.");
+    SummaryNode line =
+        new SummaryNode(
+            EntityId.parse("type:p.Line"),
+            SummaryLevel.TYPE,
+            List.of(
+                TestFacts.fact(
+                    "r", "type:p.Line", "kind", FactObject.string("record"), "Line.java")),
+            List.of());
+    String fact = line.facts().getFirst().id();
+
+    Summary summary = summarizer().summarize(List.of(line)).summaries().get(line.entity());
+
+    assertThat(summary.text()).isEqualTo("Line holds a quantity. [fact:" + fact + "]");
+    assertThat(summary.purpose()).isEqualTo(Summary.Purpose.INFERRED);
+    assertThat(fake.sent()).hasSize(1);
+    assertThat(log.list)
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .contains(
+            "Left out 2 sentences without references from the answer to summarize type"
+                + " type:p.Line: Line is part of an order. | It is very important.");
+    // What is stored, and so reused, is the summary without them.
+    assertThat(store.find(summary.key()).orElseThrow().text()).isEqualTo(summary.text());
+    assertThat(summarizer().summarize(List.of(line)).summaries().get(line.entity()).text())
+        .isEqualTo(summary.text());
+    assertThat(fake.sent()).hasSize(1);
+  }
+
+  @Test
+  void anUnknownReferenceNextToAnUncitedSentenceIsStillSentBack() {
+    firstLineAnswer("It is a line. It is a record [F99].");
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(retried().messages().get(2).text())
+        .startsWith("Your summary was rejected: it cites references that are not in the input:");
+    assertThat(result.rejected()).isEmpty();
+  }
+
+  @Test
+  void aMarkerInASentenceThatWouldBeLeftOutIsStillSentBack() {
+    firstLineAnswer("It is a line [fact:abc]. It is a record [F1].");
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(retried().messages().get(2).text())
+        .startsWith("Your summary was rejected: it contains [fact:...] or [summary:...] markers");
+    assertThat(result.rejected()).isEmpty();
+  }
+
   /** Answers the first prompt for {@code Order$Line} with the given text, and others well. */
   private void firstLineAnswer(String text) {
     fake.answering(
@@ -947,6 +1001,21 @@ class SummarizerTest {
   }
 
   @Test
+  void anEvidencedPurposeWhoseFirstSentenceIsLeftOutIsInferred() {
+    // The first sentence cites nothing, so the one now first is not the one the mark is about.
+    repoAnswer("Purpose: evidenced\nShop is the best shop. Shop sells books to readers. [F1]");
+
+    Summary repo =
+        summarizer()
+            .summarize(SummaryTree.fromFacts(shopWithReadme()))
+            .summaries()
+            .get(EntityId.parse("repo:shop"));
+
+    assertThat(repo.purpose()).isEqualTo(Summary.Purpose.INFERRED);
+    assertThat(repo.text()).startsWith("Shop sells books to readers. [fact:");
+  }
+
+  @Test
   void anInferredPurposeIsInferredThoughItCitesTheReadme() {
     repoAnswer("Purpose: inferred\nShop sells books to readers. [F1]");
 
@@ -1085,6 +1154,23 @@ class SummarizerTest {
     assertThat(fake.sent().getLast().request().purpose()).endsWith("(merge)");
     assertThat(merge).contains("\nPart 1 (purpose evidenced): ", "\nPart 2 (purpose inferred): ");
     assertThat(summary.purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
+  }
+
+  @Test
+  void partsAndTheMergeLeaveOutSentencesWithoutCitations() {
+    SummaryNode big = largeType(400);
+    fake.answering(request -> "It is big. " + citingWhatItSees(request, 0));
+
+    Summary summary =
+        new Summarizer(smallWindowClient(4_000), store)
+            .summarize(List.of(big))
+            .summaries()
+            .get(big.entity());
+
+    String merge = fake.sent().getLast().request().messages().getFirst().text();
+    assertThat(fake.sent().getLast().request().purpose()).endsWith("(merge)");
+    assertThat(merge).contains("Part of it. [").doesNotContain("It is big.");
+    assertThat(summary.text()).startsWith("Part of it. [fact:").doesNotContain("It is big.");
   }
 
   private LlmClient smallWindowClient(int contextWindow) {

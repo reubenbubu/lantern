@@ -1,6 +1,6 @@
 # 0059: Evidenced and inferred purpose in summaries
 
-Status: accepted (#193), amends ADRs 0010 and 0025, pending the user's review (#24)
+Status: accepted (#193), amends ADRs 0010 and 0025, amended by ADR 0061 (#77), pending the user's review (#24)
 
 ## Context
 
@@ -33,9 +33,10 @@ evidenced or inferred, and for documents to show inferred ones as such.
   (`Part 1 (purpose evidenced): ...`), and the merged answer is marked and checked like any other.
 - **The mark is checked.** An answer marked evidenced keeps that mark only if its first citation,
   the one that ends its first sentence, cites a README claim, a source file containing `/**`, or a
-  part's summary marked evidenced; otherwise it counts as inferred. The check is a bound, not
-  proof: it cannot tell that the cited Javadoc says what the sentence says (#191 covers whether
-  citations support their sentences).
+  part's summary marked evidenced; otherwise it counts as inferred, as it does when its first
+  sentence cites nothing and is left out (ADR 0061). The check is a bound, not proof: it cannot
+  tell that the cited Javadoc says what the sentence says (#191 covers whether citations support
+  their sentences).
 - **Stored with the summary.** `Summary.purpose` is `EVIDENCED` or `INFERRED`, kept in a new
   column of the `summaries` table (rows written before count as inferred; they are not reused,
   since the prompt version changed). A reused summary keeps its mark: the same key means the same

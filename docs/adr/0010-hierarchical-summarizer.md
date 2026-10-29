@@ -1,6 +1,6 @@
 # 0010: Hierarchical summarizer
 
-Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76), by ADR 0055 (#190), by ADR 0057 (#197) and by ADR 0059 (#193), pending the user's review (#24)
+Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76), by ADR 0055 (#190), by ADR 0057 (#197), by ADR 0059 (#193) and by ADR 0061 (#77), pending the user's review (#24)
 
 ## Context
 
@@ -59,7 +59,8 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   rejected the run fails with `SummaryRejectedException` and nothing is stored for that unit
   (since #76 the unit is left without a summary instead; see the amendment below). The
   check needs at least one valid citation, not one per sentence, since models do not always cite
-  every sentence and the design allows rejecting or marking low confidence.
+  every sentence and the design allows rejecting or marking low confidence. Since ADR 0061 a
+  sentence of an accepted answer that cites nothing is left out of the summary.
 - **Prompt version** is a constant (`Prompt.VERSION`). A test fingerprints the prompt texts, the
   per-level limits and a rendered prompt, and fails until the version is raised when they change.
 - **Length.** The prompt asks for at most 80 words for a type, 120 for a package, 150 for a module

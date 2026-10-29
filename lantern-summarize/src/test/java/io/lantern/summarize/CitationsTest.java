@@ -316,4 +316,78 @@ class CitationsTest {
         .containsExactly("F2", "S1", "S2", "S3");
     assertThat(Citations.firstReferences("No citation at all.")).isEmpty();
   }
+
+  @Test
+  void sentencesWithoutCitationsAreLeftOut() {
+    Citations.Sentences sentences =
+        Citations.cited(
+            "Sells books [F1]. It is great! Ships them. [F2] Does it pay? Returns int[] x.");
+
+    assertThat(sentences.text()).isEqualTo("Sells books [F1]. Ships them. [F2]");
+    assertThat(sentences.uncited())
+        .containsExactly("It is great!", "Does it pay?", "Returns int[] x.");
+    assertThat(sentences.firstUncited()).isFalse();
+  }
+
+  @Test
+  void aFirstSentenceWithoutCitationsIsReported() {
+    Citations.Sentences sentences = Citations.cited("Sells books. Ships them [F1, S2].");
+
+    assertThat(sentences.text()).isEqualTo("Ships them [F1, S2].");
+    assertThat(sentences.uncited()).containsExactly("Sells books.");
+    assertThat(sentences.firstUncited()).isTrue();
+  }
+
+  @Test
+  void fullStopsInsideASentenceDoNotEndIt() {
+    String text =
+        "It uses Spring Boot 3.2 in com.example.shop, e.g. Order and i.e. lines, for the"
+            + " shop. and more [F1]. "
+            + "It ships \"books.\" [F2]";
+
+    Citations.Sentences sentences = Citations.cited(text);
+
+    assertThat(sentences.text()).isEqualTo(text);
+    assertThat(sentences.uncited()).isEmpty();
+  }
+
+  @Test
+  void aCitedLineOrABlankLineEndsASentence() {
+    Citations.Sentences sentences =
+        Citations.cited("Sells books [F1]\nShips them\n\nA heading\n\n**Note** [S1-S2]");
+
+    assertThat(sentences.text()).isEqualTo("Sells books [F1]\n**Note** [S1-S2]");
+    assertThat(sentences.uncited()).containsExactly("Ships them", "A heading");
+  }
+
+  @Test
+  void citationsAfterTheFullStopStayWithTheirSentence() {
+    for (String text :
+        List.of(
+            "Ships them. [F2].",
+            "Sells books. [F1], [F2]",
+            "Sells books. [F1] and more [F3].",
+            "Sells books.\u201d [F1] Ships them. [F2]")) {
+      Citations.Sentences sentences = Citations.cited(text);
+
+      assertThat(sentences.text()).as(text).isEqualTo(text);
+      assertThat(sentences.uncited()).as(text).isEmpty();
+    }
+  }
+
+  @Test
+  void windowsLineEndsEndSentencesToo() {
+    Citations.Sentences sentences =
+        Citations.cited("Sells books [F1]\r\nShips them\r\n\r\nA heading\r\n\r\nNote [S1]");
+
+    assertThat(sentences.text()).isEqualTo("Sells books [F1]\r\nNote [S1]");
+    assertThat(sentences.uncited()).containsExactly("Ships them", "A heading");
+  }
+
+  @Test
+  void aSentenceCitingAnUnknownReferenceIsKeptForTheCheckToReject() {
+    assertThat(Citations.cited("Sells books [F9]. Ships them.").text())
+        .isEqualTo("Sells books [F9].");
+    assertThat(Citations.cited("No citation. None at all.").text()).isEmpty();
+  }
 }
