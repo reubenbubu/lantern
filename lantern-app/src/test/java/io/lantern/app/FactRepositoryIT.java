@@ -12,6 +12,7 @@ import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.AttributeSchema;
+import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.TypeKind;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
@@ -44,9 +45,21 @@ class FactRepositoryIT {
   static final Evidence EVIDENCE =
       new Evidence("orders", COMMIT, "src/Foo.java", new Evidence.LineRange(3, 9), CONTENT_HASH);
 
-  /** The predicates these tests use. CONSUMES declares one attribute and allows others. */
+  /**
+   * The types these tests use besides the built-in ones. CONSUMES declares one attribute and allows
+   * others; owner's objects must be strings.
+   */
   static final List<VocabularyType> TEST_TYPES =
       List.of(
+          new VocabularyType(
+              "topic",
+              TypeKind.ENTITY,
+              BuiltInTypes.CONTAINER,
+              null,
+              null,
+              null,
+              null,
+              AttributeSchema.NONE),
           new VocabularyType(
               "CONSUMES",
               TypeKind.RELATIONSHIP,
@@ -59,7 +72,16 @@ class FactRepositoryIT {
                   Map.of("group", AttributeSchema.Property.of(AttributeSchema.ValueType.STRING)),
                   Set.of(),
                   true)),
-          attribute("owner"),
+          new VocabularyType(
+              "owner",
+              TypeKind.ATTRIBUTE,
+              null,
+              null,
+              null,
+              null,
+              null,
+              AttributeSchema.NONE,
+              FactObject.Kind.STRING),
           attribute("coverage"),
           attribute("lineCount"),
           attribute("deployable"));
@@ -446,6 +468,38 @@ class FactRepositoryIT {
     assertThatThrownBy(() -> facts.save(unknownPredicate))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("not in the vocabulary");
+    Fact unknownEntityType =
+        Fact.create(
+            EntityId.parse("queue:orders"),
+            "CONSUMES",
+            FactObject.entity(TOPIC),
+            FactJson.newObject(),
+            ORIGIN,
+            EVIDENCE,
+            0.9,
+            Validity.from(1));
+    Fact wrongObjectKind =
+        Fact.create(
+            ORDERS,
+            "owner",
+            FactObject.integer(7),
+            FactJson.newObject(),
+            ORIGIN,
+            EVIDENCE,
+            0.9,
+            Validity.from(1));
+    assertThatThrownBy(() -> facts.save(unknownEntityType))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Subject 'queue:orders' has type 'queue'");
+    assertThatThrownBy(() -> facts.save(wrongObjectKind))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must be a string, not an integer");
+    assertThatThrownBy(
+            () ->
+                facts.recordSnapshot(
+                    1, Origin.Kind.STATIC, Set.of("orders"), List.of(wrongObjectKind)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must be a string, not an integer");
     assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isZero();
   }
 

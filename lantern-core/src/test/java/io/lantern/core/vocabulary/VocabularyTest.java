@@ -55,15 +55,28 @@ class VocabularyTest {
   }
 
   static Fact fact(String predicate, ObjectNode attributes) {
+    return fact("service:orders", predicate, entityObject("service:billing"), attributes);
+  }
+
+  static Fact fact(String subject, String predicate, FactObject object, ObjectNode attributes) {
     return Fact.create(
-        EntityId.parse("service:orders"),
+        EntityId.parse(subject),
         predicate,
-        FactObject.entity(EntityId.parse("service:billing")),
+        object,
         attributes,
         new Origin(Origin.Kind.STATIC, "test", null),
         new Evidence("orders", COMMIT, null, null, null),
         1.0,
         Validity.from(1));
+  }
+
+  static FactObject entityObject(String id) {
+    return FactObject.entity(EntityId.parse(id));
+  }
+
+  static VocabularyType attribute(String name, String parent, FactObject.Kind objectKind) {
+    return new VocabularyType(
+        name, TypeKind.ATTRIBUTE, parent, null, null, null, null, AttributeSchema.NONE, objectKind);
   }
 
   @Test
@@ -140,10 +153,13 @@ class VocabularyTest {
     ObjectNode since = FactJson.newObject().put("since", 2024);
     ObjectNode badSince = FactJson.newObject().put("since", "2024");
 
-    assertThatCode(() -> vocabulary.validate(fact("owner", since))).doesNotThrowAnyException();
+    FactObject team = FactObject.string("team-a");
+
+    assertThatCode(() -> vocabulary.validate(fact("service:orders", "owner", team, since)))
+        .doesNotThrowAnyException();
     assertThatCode(() -> vocabulary.validate(fact("CALLS", FactJson.newObject())))
         .doesNotThrowAnyException();
-    assertThatThrownBy(() -> vocabulary.validate(fact("owner", badSince)))
+    assertThatThrownBy(() -> vocabulary.validate(fact("service:orders", "owner", team, badSince)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'since' must be an integer");
     assertThatThrownBy(() -> vocabulary.validate(fact("CALLS", since)))
@@ -152,6 +168,134 @@ class VocabularyTest {
         .hasMessageContaining("not in the vocabulary");
     assertThatThrownBy(() -> vocabulary.validate(fact("service", FactJson.newObject())))
         .hasMessageContaining("is an entity type");
+  }
+
+  @Test
+  void validatesTheEntityTypesOfSubjectAndObject() {
+    Vocabulary vocabulary = withBatchJob();
+    ObjectNode none = FactJson.newObject();
+
+    assertThatCode(
+            () ->
+                vocabulary.validate(
+                    fact("batch-job:nightly", "CALLS", entityObject("service:billing"), none)))
+        .doesNotThrowAnyException();
+    assertThatThrownBy(
+            () ->
+                vocabulary.validate(
+                    fact("topic:orders", "CALLS", entityObject("service:billing"), none)))
+        .hasMessageContaining("Subject 'topic:orders' has type 'topic'")
+        .hasMessageContaining("not in the vocabulary");
+    assertThatThrownBy(
+            () ->
+                vocabulary.validate(
+                    fact("service:orders", "CALLS", entityObject("table:orders"), none)))
+        .hasMessageContaining("Object 'table:orders' has type 'table'");
+  }
+
+  @Test
+  void rejectsEntitiesWhoseTypeIsAPredicate() {
+    // Entity type names and lowercase predicate names share a form, so an attribute type can be
+    // named like an entity's type.
+    Vocabulary vocabulary =
+        new Vocabulary(
+            1,
+            List.of(
+                entity("service", null),
+                attribute("owner", null, null),
+                predicate("CALLS", TypeKind.RELATIONSHIP, null, AttributeSchema.NONE)));
+
+    assertThatThrownBy(
+            () ->
+                vocabulary.validate(
+                    fact("owner:x", "CALLS", entityObject("service:a"), FactJson.newObject())))
+        .hasMessageContaining("is an attribute type, not an entity type");
+  }
+
+  @Test
+  void validatesTheObjectAgainstThePredicateKind() {
+    Vocabulary vocabulary =
+        new Vocabulary(
+            1,
+            List.of(
+                entity("service", null),
+                attribute("label", null, null),
+                attribute("owner", null, FactObject.Kind.STRING),
+                attribute("team-owner", "owner", null),
+                attribute("replicas", null, FactObject.Kind.INTEGER),
+                predicate("CALLS", TypeKind.RELATIONSHIP, null, AttributeSchema.NONE)));
+    ObjectNode none = FactJson.newObject();
+    String subject = "service:orders";
+
+    assertThat(vocabulary.objectKind("team-owner")).contains(FactObject.Kind.STRING);
+    assertThat(vocabulary.objectKind("label")).isEmpty();
+    assertThat(vocabulary.objectKind("CALLS")).isEmpty();
+    assertThatCode(
+            () -> {
+              vocabulary.validate(fact(subject, "owner", FactObject.string("team-a"), none));
+              vocabulary.validate(fact(subject, "team-owner", FactObject.string("a"), none));
+              vocabulary.validate(fact(subject, "replicas", FactObject.integer(3), none));
+              vocabulary.validate(fact(subject, "label", FactObject.bool(true), none));
+            })
+        .doesNotThrowAnyException();
+    assertThatThrownBy(
+            () -> vocabulary.validate(fact(subject, "owner", FactObject.integer(1), none)))
+        .hasMessageContaining("Object of a 'owner' fact must be a string, not an integer");
+    assertThatThrownBy(
+            () -> vocabulary.validate(fact(subject, "team-owner", FactObject.bool(false), none)))
+        .hasMessageContaining("must be a string, not a boolean");
+    assertThatThrownBy(
+            () -> vocabulary.validate(fact(subject, "replicas", FactObject.string("3"), none)))
+        .hasMessageContaining("must be an integer, not a string");
+    assertThatThrownBy(
+            () -> vocabulary.validate(fact(subject, "label", entityObject("service:a"), none)))
+        .hasMessageContaining("must be a value, as it is an attribute");
+    assertThatThrownBy(
+            () -> vocabulary.validate(fact(subject, "CALLS", FactObject.string("billing"), none)))
+        .hasMessageContaining("must be an entity, as it is a relationship, not a string");
+  }
+
+  @Test
+  void anObjectKindMustAgreeWithTheInheritedOne() {
+    assertThatThrownBy(
+            () ->
+                new Vocabulary(
+                    1,
+                    List.of(
+                        attribute("owner", null, FactObject.Kind.STRING),
+                        attribute("team-owner", "owner", FactObject.Kind.INTEGER))))
+        .hasMessageContaining("Object kind of 'team-owner' is integer, but it inherits string");
+    assertThatCode(
+            () ->
+                new Vocabulary(
+                    1,
+                    List.of(
+                        attribute("owner", null, FactObject.Kind.STRING),
+                        attribute("team-owner", "owner", FactObject.Kind.STRING))))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void anObjectKindMayBeSetButNotChanged() {
+    Vocabulary vocabulary =
+        new Vocabulary(
+            1,
+            List.of(
+                attribute("label", null, null),
+                attribute("owner", null, FactObject.Kind.STRING),
+                attribute("team-owner", "owner", null),
+                attribute("note", null, null)));
+
+    assertThat(vocabulary.changes(List.of(attribute("label", null, FactObject.Kind.BOOLEAN))))
+        .hasSize(1);
+    assertThatThrownBy(
+            () -> vocabulary.changes(List.of(attribute("owner", null, FactObject.Kind.INTEGER))))
+        .hasMessageContaining("changes the object kind");
+    assertThatThrownBy(() -> vocabulary.changes(List.of(attribute("owner", null, null))))
+        .hasMessageContaining("changes the object kind");
+    assertThatThrownBy(() -> vocabulary.changes(List.of(attribute("team-owner", "note", null))))
+        .hasMessageContaining("would accept less than before")
+        .hasMessageContaining("changes the object kind");
   }
 
   @Test

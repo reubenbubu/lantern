@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.AttributeSchema.Property;
 import io.lantern.core.vocabulary.AttributeSchema.ValueType;
 import java.io.IOException;
@@ -46,12 +47,28 @@ class VocabularySchemaTest {
         new AttributeSchema(Map.of("tags", tags, "mode", mode), Set.of("mode"), false));
   }
 
+  /** An attribute type with every field an attribute type can have that {@link #full} lacks. */
+  static VocabularyType attribute() {
+    return new VocabularyType(
+        "owner",
+        TypeKind.ATTRIBUTE,
+        null,
+        null,
+        null,
+        null,
+        null,
+        AttributeSchema.NONE,
+        FactObject.Kind.STRING);
+  }
+
   @Test
   void propertiesMatchTheJavaForm() throws IOException {
     JsonNode schema = schema();
     ObjectNode json = full().toJson();
 
-    assertThat(names(schema.get("properties"))).isEqualTo(names(json));
+    Set<String> javaFields = new HashSet<>(names(json));
+    javaFields.addAll(names(attribute().toJson()));
+    assertThat(names(schema.get("properties"))).isEqualTo(javaFields);
     assertThat(schema.get("additionalProperties").booleanValue()).isFalse();
     JsonNode defs = schema.get("$defs");
     assertThat(names(defs.get("attributeSchema").get("properties")))
@@ -96,6 +113,14 @@ class VocabularySchemaTest {
     assertThat(
             strings(schema.get("$defs").get("property").get("properties").get("type").get("enum")))
         .isEqualTo(Set.copyOf(valueTypes));
+    Set<String> objectKinds = new HashSet<>();
+    for (FactObject.Kind kind : FactObject.Kind.values()) {
+      if (kind != FactObject.Kind.ENTITY) {
+        objectKinds.add(kind.jsonName());
+      }
+    }
+    assertThat(strings(schema.get("properties").get("objectKind").get("enum")))
+        .isEqualTo(objectKinds);
   }
 
   @ParameterizedTest
