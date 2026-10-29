@@ -1,6 +1,6 @@
 # 0006: Maven extractor
 
-Status: accepted (#8), amended (#100), pending the user's review (#24)
+Status: accepted (#8), amended (#100, #93), pending the user's review (#24)
 
 ## Context
 
@@ -92,3 +92,13 @@ OpenWMS is no longer a test set (#100), and `OpenWmsMavenIT` is removed. The rul
 stay as general Maven rules: the `PACKAGES` link from a thin service to its library, and
 accepting any classifier on that dependency. The `lib-and-service` fixture and `MavenRulesTest`
 cover the link, and `MavenRulesTest` a dependency with classifier `all`.
+
+## Amendment (#93): the Java release
+
+- A container's technology names its Java release (ADR 0039), so each module gets a
+  `java-release` attribute fact (object kind `string`): the major release, `21`, or `8` for `1.8`,
+  from the first that gives one of `maven.compiler.release`, the compiler plugin's `release`,
+  `maven.compiler.source`, the plugin's `source` and `java.version`, as the sandbox chooses a
+  build's JDK (ADR 0005). Values come from the effective POM, or the POM as written with its
+  parents in the snapshot. Evidence is the property or compiler plugin in the module's own POM
+  that sets it, else the POM without lines. The extractor's version becomes 2.
