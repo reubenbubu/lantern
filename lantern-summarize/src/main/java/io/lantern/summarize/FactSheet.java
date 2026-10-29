@@ -30,7 +30,8 @@ final class FactSheet {
   /** The groups of a fact sheet, in the order the prompt lists them. */
   enum Group {
     ENTRY_POINTS(
-        "Entry points", List.of("main-class", "endpoint", "message-listener", "scheduled")),
+        "Entry points",
+        List.of("main-class", "endpoint", "message-listener", "scheduled", "background-job")),
     LINKS(
         "Links",
         List.of(
