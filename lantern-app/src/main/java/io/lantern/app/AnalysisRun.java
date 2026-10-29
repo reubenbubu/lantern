@@ -26,6 +26,7 @@ import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.link.Linker;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
@@ -145,8 +146,10 @@ public final class AnalysisRun {
    * @param snapshot the snapshot it analyzed, which also has the repositories carried forward
    * @param builds the build of each repository it analyzed, by name
    * @param reusedBuilds the names of the repositories whose stored build was reused
-   * @param facts how many facts the extractors found
-   * @param newFacts how many of them did not hold in the previous snapshot
+   * @param facts how many facts the extractors found, with the linker's facts about the analyzed
+   *     repositories
+   * @param newFacts how many facts did not hold in the previous snapshot, the linker's about any
+   *     repository included
    * @param summariesGenerated how many summaries the LLM wrote
    * @param summariesReused how many summaries came from the cache
    * @param summariesRejected the units left without a summary because the LLM's answer was rejected
@@ -398,12 +401,27 @@ public final class AnalysisRun {
         status -> {
           Map<String, Fact> unique = new LinkedHashMap<>();
           found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
+          Linker linker = Linker.standard(facts);
           FactRepository.SnapshotUpdate update =
-              facts.recordSnapshot(snapshot, Origin.Kind.STATIC, repos, unique.values());
+              facts.recordSnapshot(
+                  snapshot, Origin.Kind.STATIC, repos, linker.origins(), unique.values());
           LOG.info(
               "Facts: {} changed confidence, {} no longer hold", update.changed(), update.closed());
+          // The linker derives from every fact that holds in the snapshot, those of repositories
+          // carried forward included, and records its facts for the whole snapshot (ADR 0039).
+          Linker.Result linked = linker.link(snapshot);
+          LOG.info(
+              "Linked facts: {} new, {} changed confidence, {} no longer hold",
+              linked.added(),
+              linked.changed(),
+              linked.closed());
           snapshots.markAnalyzed(snapshot, repos);
-          return new Stored(update.facts(), update.added());
+          List<Fact> stored = new ArrayList<>(update.facts());
+          // The documents of the analyzed repositories show the linked facts about them.
+          linked.facts().stream()
+              .filter(f -> repos.contains(f.evidence().repo()))
+              .forEach(stored::add);
+          return new Stored(stored, update.added() + linked.added());
         });
   }
 

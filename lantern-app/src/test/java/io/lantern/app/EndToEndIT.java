@@ -235,6 +235,14 @@ class EndToEndIT {
               assertThat(fact.object().value())
                   .isEqualTo("module:com.example.greeting:greeting-lib");
             });
+    // The linker folds the carried-forward library into the service's deployable unit.
+    assertThat(serviceFacts)
+        .extracting(f -> f.subject() + " " + f.predicate() + " " + f.object().value())
+        .contains(
+            "service:com.example.greeting:greeting-service deployable-unit executable-jar",
+            "service:com.example.greeting:greeting-service BUNDLES"
+                + " library:com.example.greeting:greeting-lib",
+            "service:com.example.greeting:greeting-service application-name greeting-service");
 
     // Analyzing the library again at the same commit reuses everything and starts no new fact
     // version, and the service's facts keep holding. The service's build fails, since the

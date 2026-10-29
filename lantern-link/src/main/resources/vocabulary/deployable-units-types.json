@@ -1,0 +1,60 @@
+[
+  {
+    "name": "deployable-unit",
+    "kind": "attribute",
+    "description": "The subject service is a deployable unit, a container: one runnable application together with the in-set libraries it bundles. The value says what makes it runnable: spring-boot for a Spring Boot application class in its code, war or ear for that packaging, executable-jar for a jar Spring Boot's Maven plugin repackages without such a class.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "mainClass": { "type": "string", "description": "The entity ID of the Spring Boot application class that starts it, if one is found." },
+        "packaging": { "type": "string", "description": "The Maven packaging of the unit's own module, such as jar or war." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "application-name",
+    "kind": "attribute",
+    "description": "The name the subject deployable unit runs under: its spring.application.name, else its Maven artifact ID. Without profile it is the name in the default view; with profile, the name under that profile where it differs.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "module": { "type": "string", "description": "The entity ID of the module whose config sets the name: the unit's own module, or a library it bundles when its own module has no config." },
+        "profile": { "type": "string", "description": "The profile active instead of the default one. Absent for the default view." },
+        "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of placeholders in the name that no config value resolved." },
+        "defaulted": { "type": "boolean", "description": "Present and true when no config sets spring.application.name, so the name is the Maven artifact ID." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "technology",
+    "kind": "attribute",
+    "description": "What the subject deployable unit is built with, such as Spring Boot 3.5.14 / Java 21.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "framework": { "type": "string", "description": "The application framework, such as Spring Boot." },
+        "frameworkVersion": { "type": "string", "description": "The framework's version, from the build's dependencies, if known." },
+        "java": { "type": "string", "description": "The major Java release the unit compiles for, if known." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "BUNDLES",
+    "kind": "relationship",
+    "description": "The subject deployable unit ships the object in-set library in what it deploys, so the library's code runs as part of the unit. A library can be bundled by several units. This is not a dependency between containers: the two are drawn as one container.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "main": { "type": "boolean", "description": "Present and true when the library holds the unit's main code: the library a thin service packages (PACKAGES), or the one with its application class." },
+        "via": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the libraries between the unit and this one, in order, when the unit bundles it through them. Absent for a library the unit's own module depends on." }
+      },
+      "additionalProperties": false
+    }
+  }
+]
