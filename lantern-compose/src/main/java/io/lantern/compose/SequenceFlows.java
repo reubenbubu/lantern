@@ -79,6 +79,9 @@ final class SequenceFlows {
   /** The links of each unit, by the code on the unit's end. */
   private final Map<String, List<Fact>> linksBySource = new HashMap<>();
 
+  /** The background jobs a method schedules, by the method's ID (the jobs' {@code scheduledBy}). */
+  private Map<String, List<Entry>> jobsByScheduler = Map.of();
+
   /**
    * @param units the deployable units in scope; flows that start in or pass through one are shown
    */
@@ -143,8 +146,14 @@ final class SequenceFlows {
   /** A step with the Spring profiles under which alone it happens. */
   private record Item(SequenceDiagram.Step step, List<String> profiles) {}
 
-  /** A send's delivery to a listener, traced after the sender's own steps. */
-  private record Later(EntityId from, Fact link, List<String> profiles) {}
+  /**
+   * A send's delivery to a listener, or a background job's run, traced after the steps of the code
+   * that sent the message or scheduled the job.
+   *
+   * @param link the delivery's link; null for a job
+   * @param job the job that runs; null for a delivery
+   */
+  private record Later(EntityId from, Fact link, List<String> profiles, Entry job) {}
 
   /** One flow being traced. */
   private final class Trace {
@@ -300,6 +309,17 @@ final class SequenceFlows {
   private void deliver(Trace trace) {
     while (!trace.later.isEmpty() && !trace.truncated) {
       Later later = trace.later.removeFirst();
+      if (later.job != null) {
+        Entry job = later.job;
+        trace.note(
+            List.of(job.unit),
+            "Later: the " + jobName(job) + " runs (" + methodName(job.method) + ").",
+            later.profiles,
+            List.of(job.fact));
+        trace.reached.add(job.key());
+        sync(trace, job.unit, job.method, later.profiles);
+        continue;
+      }
       Fact link = later.link;
       EntityId receiver = Knowledge.object(link);
       EntityId handler = parse(attribute(link, "target"));
@@ -353,6 +373,16 @@ final class SequenceFlows {
       if (action != null) {
         events.add(new Event(line(link), 1, link.id(), action));
       }
+    }
+    List<Entry> jobs = jobsByScheduler.getOrDefault(method.toString(), List.of());
+    List<Entry> here = jobs.stream().filter(j -> j.unit.equals(unit)).toList();
+    for (Entry job : here.isEmpty() ? jobs : here) {
+      events.add(
+          new Event(
+              schedulingLine(method),
+              1,
+              job.fact.id(),
+              () -> schedule(trace, unit, job, profiles)));
     }
     List<Fact> reads = knowledge.relations(method, READS_TABLE);
     if (!reads.isEmpty()) {
@@ -650,7 +680,7 @@ final class SequenceFlows {
     SortedSet<String> receivers = new TreeSet<>();
     for (Fact delivery : deliveries) {
       receivers.add(nameOf(Knowledge.object(delivery)));
-      trace.later.add(new Later(destination, delivery, profiles(delivery, profiles)));
+      trace.later.add(new Later(destination, delivery, profiles(delivery, profiles), null));
     }
     trace.note(
         List.of(unit, destination),
@@ -661,6 +691,68 @@ final class SequenceFlows {
             + " the message later.",
         profiles,
         deliveries);
+  }
+
+  /**
+   * A method scheduling a background job: an async message to the unit that runs the job, a note
+   * that the method does not wait, and the job's own steps after the method's, since it runs later.
+   */
+  private void schedule(Trace trace, EntityId unit, Entry job, List<String> profiles) {
+    String kind = ExplorerSections.jobKind(job.fact);
+    trace.message(
+        unit,
+        job.unit,
+        "Schedules " + simpleName(job.fact.object().value()),
+        kind,
+        SequenceDiagram.MessageKind.ASYNC,
+        profiles,
+        null,
+        List.of(job.fact));
+    trace.asyncThrough.add("the " + jobName(job));
+    trace.note(
+        List.of(unit),
+        nameOf(unit) + " does not wait: the " + kind + " runs later in " + nameOf(job.unit) + ".",
+        profiles,
+        List.of(job.fact));
+    trace.later.add(new Later(unit, null, profiles, job));
+  }
+
+  /** The library calls that schedule a job. */
+  private static final Set<String> SCHEDULING_CALLS =
+      Set.of("enqueue", "schedule", "scheduleRecurrently", "create", "scheduleJob");
+
+  /**
+   * The line of the method's first call scheduling a job through JobRunr or Quartz, so the step
+   * comes in the order of the code; after its other steps when there is none.
+   */
+  private int schedulingLine(EntityId method) {
+    int result = Integer.MAX_VALUE;
+    for (Fact call : knowledge.relations(method, BuiltInTypes.CALLS)) {
+      String key = Knowledge.object(call).key();
+      int hash = key.indexOf('#');
+      if (hash < 0 || !(key.startsWith("org.jobrunr.") || key.startsWith("org.quartz."))) {
+        continue;
+      }
+      int paren = key.indexOf('(', hash);
+      String name = key.substring(hash + 1, paren < 0 ? key.length() : paren);
+      if (SCHEDULING_CALLS.contains(name)) {
+        result = Math.min(result, line(call));
+      }
+    }
+    return result;
+  }
+
+  /** "JobRunr job TaskReminder": the kind of a job and its name. */
+  private static String jobName(Entry job) {
+    return ExplorerSections.jobKind(job.fact) + " " + simpleName(job.fact.object().value());
+  }
+
+  /** A class's simple name when the value is a binary class name, else the value. */
+  private static String simpleName(String value) {
+    if (!value.matches("[\\w$]+(\\.[\\w$]+)+")) {
+      return value;
+    }
+    return value.substring(value.lastIndexOf('.') + 1).replace('$', '.');
   }
 
   private String deliveryInfo(Fact link) {
@@ -819,8 +911,18 @@ final class SequenceFlows {
   }
 
   private List<Trace> choose() {
+    List<Entry> entries = entries();
+    Map<String, List<Entry>> jobs = new HashMap<>();
+    for (Entry entry : entries) {
+      if (entry.fact.predicate().equals(BACKGROUND_JOB)) {
+        for (String by : C4Views.strings(entry.fact, "scheduledBy")) {
+          jobs.computeIfAbsent(by, k -> new ArrayList<>()).add(entry);
+        }
+      }
+    }
+    jobsByScheduler = jobs;
     List<Trace> candidates = new ArrayList<>();
-    for (Entry entry : entries()) {
+    for (Entry entry : entries) {
       Trace trace = trace(entry);
       if (trace.messages > 0 || !trace.unresolved.isEmpty()) {
         candidates.add(trace);
@@ -836,7 +938,15 @@ final class SequenceFlows {
       String key = trace.entry.key();
       boolean partOfKept = kept.stream().anyMatch(k -> k.reached.contains(key));
       boolean inScope = trace.participants.stream().anyMatch(scope::contains);
-      if (!partOfKept && inScope && kept.size() < MAX_FLOWS) {
+      if (partOfKept || !inScope) {
+        continue;
+      }
+      // A flow that holds flows already kept, ranked level with them, takes the first one's place.
+      List<Trace> held = kept.stream().filter(k -> trace.reached.contains(k.entry.key())).toList();
+      if (!held.isEmpty()) {
+        kept.set(kept.indexOf(held.getFirst()), trace);
+        kept.removeAll(held.subList(1, held.size()));
+      } else if (kept.size() < MAX_FLOWS) {
         kept.add(trace);
       }
     }

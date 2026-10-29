@@ -1,7 +1,8 @@
 # 0047: Sequence flows traced from entry points and stitched across containers
 
-Status: accepted (#96), amended by ADR 0049 (#176), ADR 0050 (#181), ADR 0058 (#195) and ADR 0070
-(#250), which supersedes its choosing of flows, pending the user's review (#24)
+Status: accepted (#96), amended by ADR 0049 (#176), ADR 0050 (#181), ADR 0058 (#195), ADR 0070
+(#250), which supersedes its choosing of flows, and the amendment below (#313), pending the user's
+review (#24)
 
 ## Context
 
@@ -83,3 +84,26 @@ ends (ADR 0042). Nothing may be invented.
 Replies, activations and loops are not drawn;
 sequences in the Architecture Explorer and the Executive Brief, and splitting a flow above 15
 participants, are left for later.
+
+## Amendment: flows go on into the jobs they schedule (#313)
+
+Status: accepted, pending the user's review (#24). Since #263 a JobRunr or Quartz job is an entry
+point with `scheduledBy`, the methods that schedule it (ADR 0035, amendment for #263), and its flow
+started apart from the request that scheduled it. project-4's task reminder starts at the request
+that creates the task and goes on into the job, so the flows now do too.
+
+- **Scheduling a job is a step.** When a traced method is in the `scheduledBy` of a
+  `background-job`, the trace draws an async message `Schedules <job>` (the job's name, or the
+  simple name of its request type or class) from the method's unit to the unit whose code runs the
+  job, with `JobRunr job` or `Quartz job` as its code, then a note that the unit does not wait. The
+  job is traced after the method's own steps, like a delivery, starting with a note that it runs
+  later. A job in the scheduler's own unit is preferred over a copy of it in another unit. The step
+  comes at the line of the method's first `enqueue`, `schedule`, `scheduleRecurrently`, `create` or
+  `scheduleJob` call to JobRunr or Quartz, else after the method's other steps.
+- **Jobs on a schedule are not continued.** A job with a cron (`scheduled`) runs on its schedule,
+  not because of the code that registered it, so it keeps its own flow.
+- **Choosing.** The job's entry point is reached by the scheduling flow, so it is not shown apart.
+  When a candidate ranks level with a flow already shown and holds it, it takes that flow's place,
+  so the containing flow is shown, not the part.
+- **Checks.** `SequenceFlowsTest` covers the continuation, the deduplication (including the job's
+  flow ranking first) and a job scheduled from code no flow reaches.

@@ -627,6 +627,64 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aFlowGoesOnFromTheMethodSchedulingAJobIntoTheJob() {
+    // ship's status endpoint enqueues the JobRunr job that Nightly.run handles.
+    facts.removeIf(f -> f.predicate().equals("scheduled"));
+    attribute(
+        "ship",
+        NIGHTLY,
+        "background-job",
+        "x.ship.ReminderRequest",
+        "{\"framework\": \"jobrunr\", \"kind\": \"job\", \"request\": \"x.ship.ReminderRequest\","
+            + " \"scheduledBy\": [\""
+            + STATUS
+            + "\"]}",
+        0);
+    relate(
+        "ship",
+        STATUS,
+        "CALLS",
+        "method:org.jobrunr.scheduling.BackgroundJobRequest#enqueue(org.jobrunr.jobs.lambdas.JobRequest)",
+        "{}",
+        2);
+    Section flows = flows(system(facts));
+
+    // The job's own flow is part of the endpoint's, so it is not shown apart, though it ranks
+    // level with it and comes first by ID.
+    assertThat(flows.sections())
+        .extracting(Section::title)
+        .containsExactly("POST /orders on front", "GET /status on ship");
+    SequenceDiagram diagram = diagram(flows.sections().getLast());
+    assertThat(steps(diagram.steps()))
+        .containsExactly(
+            "note []: Starts when ship receives GET /status (Status.get).",
+            "service:x:ship >> service:x:ship: Schedules ReminderRequest [JobRunr job]",
+            "note [service:x:ship]: ship does not wait: the JobRunr job runs later in ship.",
+            "note [service:x:ship]: Later: the JobRunr job ReminderRequest runs (Nightly.run).",
+            "service:x:ship > database:db:5432/ship: Writes parcel [JDBC]");
+    Paragraph prose = (Paragraph) flows.sections().getLast().blocks().getFirst();
+    assertThat(text(prose.content()))
+        .contains("It hands work on asynchronously through the JobRunr job ReminderRequest.");
+  }
+
+  @Test
+  void aJobScheduledByCodeNoFlowReachesKeepsItsOwnFlow() {
+    facts.removeIf(f -> f.predicate().equals("scheduled"));
+    attribute(
+        "ship",
+        NIGHTLY,
+        "background-job",
+        "x.ship.ReminderRequest",
+        "{\"framework\": \"jobrunr\", \"kind\": \"job\","
+            + " \"scheduledBy\": [\"method:x.ship.Elsewhere#remind()\"]}",
+        0);
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .containsExactly("POST /orders on front", "Nightly.run on its schedule in ship");
+  }
+
+  @Test
   void theTraceStopsAfterTheMostMessagesAFlowShows() {
     for (int i = 0; i < SequenceFlows.MAX_MESSAGES + 5; i++) {
       httpCall("ship", SHIP, NIGHTLY, "e" + i + ".example.com", 10 + i);
