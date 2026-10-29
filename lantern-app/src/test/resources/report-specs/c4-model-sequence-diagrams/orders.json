@@ -2,7 +2,7 @@
   "document" : {
     "id" : "orders",
     "title" : "orders",
-    "subtitle" : "It builds on its parts. It is described by its facts.\n\n- orders, a library\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Containers**\nNo deployable unit was found in the code.\n\n**Decisions**\nNo decision records were found in orders, so the reasons for its design are not known.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener or scheduled job) was found whose code reaches another container.\n\n**Catalog**\nNo deployable unit, component, entry point, topic, queue, table or configuration was found in the code.\n\n**Change guidance**\nThe code has no endpoint, listener, scheduled job, send, call to another service, schema or configuration to follow as an example.",
+    "subtitle" : "*Purpose inferred from the code:* It builds on its parts. It is described by its facts.\n\n- orders, a library\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Containers**\nNo deployable unit was found in the code.\n\n**Decisions**\nNo decision records were found in orders, so the reasons for its design are not known.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener or scheduled job) was found whose code reaches another container.\n\n**Catalog**\nNo deployable unit, component, entry point, topic, queue, table or configuration was found in the code.\n\n**Change guidance**\nThe code has no endpoint, listener, scheduled job, send, call to another service, schema or configuration to follow as an example.",
     "version" : "1"
   },
   "elements" : {

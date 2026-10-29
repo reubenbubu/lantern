@@ -16,6 +16,8 @@ import java.util.regex.Pattern;
  * @param entity the entity summarized
  * @param level its level
  * @param text the summary, with citation markers
+ * @param purpose whether its first sentence, which says what the unit is for, takes that from what
+ *     people wrote or infers it from the code
  * @param citedFacts the IDs of the facts the text cites, in order of first citation
  * @param citedSummaries the keys of the contained units' summaries the text cites, in order of
  *     first citation
@@ -32,6 +34,7 @@ public record Summary(
     EntityId entity,
     SummaryLevel level,
     String text,
+    Purpose purpose,
     List<String> citedFacts,
     List<String> citedSummaries,
     List<String> inputFacts,
@@ -39,6 +42,17 @@ public record Summary(
     String promptVersion,
     String provider,
     String model) {
+
+  /** Where a summary's first sentence, on what the unit is for, takes that from. */
+  public enum Purpose {
+    /**
+     * From what people wrote and the prompt showed: a README's claims, Javadoc in a source file, or
+     * a part's summary whose purpose is evidenced.
+     */
+    EVIDENCED,
+    /** Inferred from names and code, or not said at all: the sentence says what the unit is. */
+    INFERRED
+  }
 
   private static final Pattern KEY = Pattern.compile("[0-9a-f]{64}");
 
@@ -53,6 +67,7 @@ public record Summary(
     if (text.isBlank()) {
       throw new IllegalArgumentException("Summary text must not be blank");
     }
+    Objects.requireNonNull(purpose, "purpose");
     citedFacts = List.copyOf(citedFacts);
     citedSummaries = List.copyOf(citedSummaries);
     inputFacts = List.copyOf(inputFacts);

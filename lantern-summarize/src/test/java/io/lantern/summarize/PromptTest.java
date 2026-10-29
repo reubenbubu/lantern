@@ -18,10 +18,10 @@ class PromptTest {
    * changed: raise {@link Prompt#VERSION} so cached summaries made with the old prompt are not
    * reused, then update both values here.
    */
-  private static final String VERSION = "7";
+  private static final String VERSION = "8";
 
   private static final String FINGERPRINT =
-      "a65bf523e3a79ca1a4aed5c910480d489405edfcf5a6e666412ecddf76c5b700";
+      "3c2c45d8d2f08f8c470d7d3e1b45814f56f6be50307e3fbbbca33533f2f4559d";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -53,6 +53,7 @@ class PromptTest {
             order.children().getFirst().entity(),
             SummaryLevel.TYPE,
             "A line. [fact:" + "1".repeat(64) + "]\nSecond line.",
+            Summary.Purpose.INFERRED,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -93,6 +94,8 @@ class PromptTest {
     all.append('\u0000').append(Prompt.user(service, List.of(), List.of(child)));
     all.append('\u0000')
         .append(Prompt.user(service.children().getFirst(), List.of(), List.of(child)));
+    // How many README claims a repository shows.
+    all.append(SummaryTree.README_CLAIMS);
     all.append(FactSheet.MAX_PER_GROUP);
     for (FactSheet.Group group : FactSheet.Group.values()) {
       all.append(group.title()).append(group.predicates());
@@ -214,6 +217,7 @@ class PromptTest {
             singleModule(repo).children().getFirst().entity(),
             SummaryLevel.MODULE,
             "The shop. [fact:" + "1".repeat(64) + "]",
+            Summary.Purpose.INFERRED,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -233,7 +237,7 @@ class PromptTest {
             libraries briefly, if at all.
 
             Summaries of the parts it contains:
-            [S1] Maven module shop-core: The shop.
+            [S1] Maven module shop-core (purpose inferred): The shop.
             """);
   }
 
@@ -252,6 +256,7 @@ class PromptTest {
             repo.children().getFirst().entity(),
             SummaryLevel.MODULE,
             "The parent. [fact:" + "1".repeat(64) + "]",
+            Summary.Purpose.INFERRED,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -277,6 +282,7 @@ class PromptTest {
             core.children().getFirst().entity(),
             SummaryLevel.PACKAGE,
             "Prices. [fact:" + "1".repeat(64) + "]",
+            Summary.Purpose.INFERRED,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -307,5 +313,25 @@ class PromptTest {
               "in %d to %d sentences and at most %d words"
                   .formatted(level.minSentences(), level.maxSentences(), level.maxWords()));
     }
+  }
+
+  @Test
+  void anAnswersPurposeLineIsReadAndLeftOut() {
+    assertThat(Prompt.tagged("Purpose: evidenced\nSells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.EVIDENCED, "Sells books. [F1]"));
+    assertThat(Prompt.tagged("  **Purpose:** Inferred.\n\nSells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.INFERRED, "Sells books. [F1]"));
+    assertThat(Prompt.tagged("## purpose: EVIDENCED Sells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.EVIDENCED, "Sells books. [F1]"));
+    // Without a purpose line, or with one that is not first, the purpose counts as inferred.
+    assertThat(Prompt.tagged("Sells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.INFERRED, "Sells books. [F1]"));
+    assertThat(Prompt.tagged("Sells books. [F1]\nPurpose: evidenced"))
+        .isEqualTo(
+            new Prompt.Tagged(Summary.Purpose.INFERRED, "Sells books. [F1]\nPurpose: evidenced"));
+    assertThat(Prompt.tagged("Purpose: evidenced-ish\nSells books. [F1]").purpose())
+        .isEqualTo(Summary.Purpose.INFERRED);
+    assertThat(Prompt.tagged("Purposes: evidenced\nSells books. [F1]").purpose())
+        .isEqualTo(Summary.Purpose.INFERRED);
   }
 }

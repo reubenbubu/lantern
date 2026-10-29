@@ -32,6 +32,10 @@ import java.util.regex.Pattern;
 final class Assembler {
 
   private static final Pattern MARKER = Pattern.compile("\\[(fact|summary):([^\\]\\s]+)\\]");
+
+  /** What opens a summary whose purpose is inferred from the code (ADR 0058). */
+  static final String INFERRED = "Purpose inferred from the code:";
+
   private static final Pattern NOT_ID_CHAR = Pattern.compile("[^A-Za-z0-9._:-]");
 
   private final Knowledge knowledge;
@@ -239,12 +243,21 @@ final class Assembler {
   /**
    * The summary as rich text: {@code [fact:...]} markers become citations (adjacent ones merged)
    * and {@code [summary:<entity>]} markers cross-references to the entity that are marked as
-   * citations; the entity is added to the document.
+   * citations; the entity is added to the document. A summary whose purpose is inferred from the
+   * code rather than taken from what people wrote opens with {@value #INFERRED}, emphasized.
    *
    * @throws IllegalArgumentException if the summary cites a fact that is not in the snapshot
    */
   Text summary(Summary summary) {
-    return rich(summary.entity(), summary.text());
+    Text text = rich(summary.entity(), summary.text());
+    if (summary.purpose() == Summary.Purpose.EVIDENCED) {
+      return text;
+    }
+    List<Inline> content = new ArrayList<>();
+    content.add(new TextRun(INFERRED, TextRun.Style.EMPHASIS));
+    content.add(TextRun.of(" "));
+    content.addAll(text.content());
+    return new Text(List.copyOf(content), text.facts());
   }
 
   /**

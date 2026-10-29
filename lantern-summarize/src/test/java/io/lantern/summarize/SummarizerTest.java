@@ -153,7 +153,8 @@ class SummarizerTest {
             .text();
     assertThat(packagePrompt)
         .contains(
-            "[S1] type Order in package com.example.shop: Summary of type:com.example.shop.Order")
+            "[S1] type Order in package com.example.shop (purpose inferred): Summary of"
+                + " type:com.example.shop.Order")
         .doesNotContain("[fact:");
   }
 
@@ -440,6 +441,7 @@ class SummarizerTest {
             child.entity(),
             child.level(),
             child.text() + " More.",
+            child.purpose(),
             child.citedFacts(),
             child.citedSummaries(),
             child.inputFacts(),
@@ -455,6 +457,7 @@ class SummarizerTest {
             child.entity(),
             child.level(),
             child.text(),
+            Summary.Purpose.INFERRED,
             child.citedFacts(),
             child.citedSummaries(),
             child.inputFacts(),
@@ -471,6 +474,7 @@ class SummarizerTest {
                 EntityId.parse(id),
                 SummaryLevel.PACKAGE,
                 child.text(),
+                child.purpose(),
                 child.citedFacts(),
                 child.citedSummaries(),
                 child.inputFacts(),
@@ -492,6 +496,7 @@ class SummarizerTest {
             child.entity(),
             child.level(),
             child.text().replace(child.citedFacts().getFirst(), "e".repeat(64)),
+            child.purpose(),
             List.of("e".repeat(64)),
             List.of(),
             List.of("e".repeat(64)),
@@ -882,6 +887,114 @@ class SummarizerTest {
     assertThat(summary.text()).contains("[fact:" + kind.id() + "]").doesNotContain("[E");
     assertThat(summary.key())
         .isNotEqualTo(Summarizer.key(order, List.of(), List.of(), fake.model("model-a")));
+  }
+
+  /** The shop's facts with a README whose first claim says what the shop is for. */
+  private static List<Fact> shopWithReadme() {
+    List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
+    facts.add(TestFacts.claim("shop", "README.md", 3, "Shop sells books to readers."));
+    return facts;
+  }
+
+  /** Answers the repository with the given text, and other units well, without a purpose line. */
+  private void repoAnswer(String text) {
+    fake.answering(request -> request.purpose().endsWith(" repo:shop") ? text : citingAll(request));
+  }
+
+  @Test
+  void aPurposeTakenFromTheReadmeIsEvidenced() {
+    repoAnswer("Purpose: evidenced\nShop sells books to readers. [F1] It is built on [S1].");
+
+    Summarizer.Result result = summarizer().summarize(SummaryTree.fromFacts(shopWithReadme()));
+
+    Summary repo = result.summaries().get(EntityId.parse("repo:shop"));
+    assertThat(repo.purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
+    assertThat(repo.text()).startsWith("Shop sells books to readers. [fact:");
+    String prompt = fake.sent().getLast().request().messages().getFirst().text();
+    assertThat(prompt)
+        .contains("\nFacts:\n[F1] readme:shop:README.md claim \"Shop sells books to readers.\"\n");
+    // Answers without a purpose line count as inferred.
+    assertThat(result.summaries().get(EntityId.parse("module:com.example:shop")).purpose())
+        .isEqualTo(Summary.Purpose.INFERRED);
+  }
+
+  @Test
+  void aReusedSummaryKeepsItsPurpose() {
+    repoAnswer("Purpose: evidenced\nShop sells books to readers. [F1] It is built on [S1].");
+    summarizer().summarize(SummaryTree.fromFacts(shopWithReadme()));
+    int calls = fake.sent().size();
+
+    Summarizer.Result again = summarizer().summarize(SummaryTree.fromFacts(shopWithReadme()));
+
+    assertThat(fake.sent()).hasSize(calls);
+    assertThat(again.summaries().get(EntityId.parse("repo:shop")).purpose())
+        .isEqualTo(Summary.Purpose.EVIDENCED);
+  }
+
+  @Test
+  void anEvidencedPurposeWhoseFirstSentenceCitesNoEvidenceIsInferred() {
+    // The module it cites was inferred, and the README claim is cited only later.
+    repoAnswer("Purpose: evidenced\nShop sells books. [S1] Its README says so. [F1]");
+
+    Summary repo =
+        summarizer()
+            .summarize(SummaryTree.fromFacts(shopWithReadme()))
+            .summaries()
+            .get(EntityId.parse("repo:shop"));
+
+    assertThat(repo.purpose()).isEqualTo(Summary.Purpose.INFERRED);
+    assertThat(repo.text()).startsWith("Shop sells books. [summary:");
+  }
+
+  @Test
+  void anInferredPurposeIsInferredThoughItCitesTheReadme() {
+    repoAnswer("Purpose: inferred\nShop sells books to readers. [F1]");
+
+    Summary repo =
+        summarizer()
+            .summarize(SummaryTree.fromFacts(shopWithReadme()))
+            .summaries()
+            .get(EntityId.parse("repo:shop"));
+
+    assertThat(repo.purpose()).isEqualTo(Summary.Purpose.INFERRED);
+  }
+
+  @Test
+  void aPurposeFromJavadocIsEvidencedAndAPartsEvidencedPurposeCarriesUp() throws Exception {
+    SummaryNode order = orderWithSource(sha256(ExcerptsTest.ORDER));
+    SummaryNode pkg =
+        new SummaryNode(
+            EntityId.parse("package:g:a:p"), SummaryLevel.PACKAGE, List.of(), List.of(order));
+    fake.answering(
+        request ->
+            request.purpose().endsWith("type:p.Order")
+                ? "Purpose: evidenced\nAn order a customer placed. [E1]"
+                : "**Purpose: evidenced** Orders customers place. [S1]");
+
+    Summarizer.Result result =
+        new Summarizer(client("model-a", fake), store, ORDER_SOURCE).summarize(List.of(pkg));
+
+    assertThat(result.summaries().get(order.entity()).purpose())
+        .isEqualTo(Summary.Purpose.EVIDENCED);
+    assertThat(result.summaries().get(pkg.entity()).purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
+    assertThat(result.summaries().get(pkg.entity()).text())
+        .isEqualTo("Orders customers place. [summary:type:p.Order]");
+    assertThat(fake.sent().getLast().request().messages().getFirst().text())
+        .contains("[S1] type Order in package p (purpose evidenced): An order a customer placed.");
+  }
+
+  @Test
+  void anEvidencedPurposeCitingOnlyCodeIsInferred() throws Exception {
+    SummaryNode order = orderWithSource(sha256(ExcerptsTest.ORDER));
+    fake.answering(request -> "Purpose: evidenced\nAn order. [F1]");
+
+    Summary summary =
+        new Summarizer(client("model-a", fake), store, ORDER_SOURCE)
+            .summarize(List.of(order))
+            .summaries()
+            .get(order.entity());
+
+    assertThat(summary.purpose()).isEqualTo(Summary.Purpose.INFERRED);
   }
 
   @Test

@@ -46,6 +46,23 @@ final class TestFacts {
   }
 
   /**
+   * A claim of a README, read from the given line, as the docs extractor records it.
+   *
+   * @param path the README's path in the repository
+   */
+  static Fact claim(String repo, String path, int line, String text) {
+    return Fact.create(
+        EntityId.parse("readme:" + repo + ":" + path),
+        "claim",
+        FactObject.string(text),
+        FactJson.newObject(),
+        new Origin(Origin.Kind.README, "docs", "1"),
+        new Evidence(repo, COMMIT, path, new Evidence.LineRange(line, line), null),
+        0.5,
+        Validity.from(1));
+  }
+
+  /**
    * A small repository {@code shop}: aggregator {@code module:com.example:shop} containing {@code
    * module:com.example:shop-core}, built as {@code library:com.example:shop-core}, with package
    * {@code com.example.shop} holding {@code Order} (with a member type {@code Order$Line} and a
