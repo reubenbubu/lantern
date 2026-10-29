@@ -5,6 +5,7 @@ Begin with one sentence that says plainly what the unit is for: what it does for
 Work out what the unit is for from its names, annotations (such as @RestController, @Entity or @KafkaListener), Javadoc and code, or from the summaries of its parts, and state it directly. If the input does not make its purpose clear, begin instead with what the unit is and what it contains. Never write that the input does not show something or that a purpose cannot be determined; leave out what you cannot tell.
 Call things by their plain names, such as the class Order, the package com.example.orders or the module shop-core, never by the identifiers the facts use, which start with a kind and a colon.
 Do not restate the summaries of the parts sentence by sentence; say what the unit as a whole is for, drawing on them.
+A module or repository also comes with a fact sheet: facts about its parts that list their entry points, links, data stores and technology. Use it to say specifically what the unit offers and works with, rather than what would be true of any application.
 Say only what the input shows or what follows from it. End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a sentence about purpose cites the facts, source files or summaries it is inferred from. Cite only references from the input, each one on its own, such as [F1, F2, F3], never a range such as [F1-F3].
 Write plain prose without headings, lists or a title.
 
@@ -55,6 +56,10 @@ Summaries of the parts it contains:
 ##### summarize repo repo:greeting-lib
 Summarize the repository greeting-lib in 1 to 3 sentences and at most 60 words, covering what the repository as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 Write for a reader who wants to know what this repository does for the system or the business: lead with its role and main capabilities, and mention frameworks and libraries briefly, if at all.
+
+Fact sheet: entry points, links, data stores and technology of the parts it contains:
+Technology:
+[F1] module:com.example.greeting:greeting-lib java-release "21"
 
 Summaries of the parts it contains:
 [S1] Maven module greeting-lib: It builds on its parts. It is described by its facts.
@@ -114,6 +119,10 @@ Summaries of the parts it contains:
 ##### summarize repo repo:greeting-service
 Summarize the repository greeting-service in 1 to 3 sentences and at most 60 words, covering what the repository as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 Write for a reader who wants to know what this repository does for the system or the business: lead with its role and main capabilities, and mention frameworks and libraries briefly, if at all.
+
+Fact sheet: entry points, links, data stores and technology of the parts it contains:
+Technology:
+[F1] module:com.example.greeting:greeting-service java-release "21"
 
 Summaries of the parts it contains:
 [S1] Maven module greeting-service: It builds on its parts. It is described by its facts.
@@ -245,6 +254,10 @@ Summaries of the parts it contains:
 Summarize the repository orders in 1 to 3 sentences and at most 60 words, covering what the repository as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 Write for a reader who wants to know what this repository does for the system or the business: lead with its role and main capabilities, and mention frameworks and libraries briefly, if at all.
 
+Fact sheet: entry points, links, data stores and technology of the parts it contains:
+Technology:
+[F1] module:com.example.orders:orders java-release "21"
+
 Summaries of the parts it contains:
 [S1] Maven module orders: It builds on its parts. It is described by its facts.
 
@@ -357,6 +370,11 @@ Facts:
 [F4] module:com.example.shop:shop-parent packaging "pom"
 [F5] module:com.example.shop:shop-parent version "1.0.0"
 
+Fact sheet: entry points, links, data stores and technology of the parts it contains:
+Technology:
+[F6] module:com.example.shop:shop-api java-release "21"
+[F7] module:com.example.shop:shop-core java-release "21"
+
 Summaries of the parts it contains:
 [S1] Maven module shop-api: It builds on its parts. It is described by its facts.
 [S2] Maven module shop-core: It builds on its parts. It is described by its facts.
@@ -364,6 +382,12 @@ Summaries of the parts it contains:
 ##### summarize repo repo:shop
 Summarize the repository shop in 1 to 3 sentences and at most 60 words, covering what the repository as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
 Write for a reader who wants to know what this repository does for the system or the business: lead with its role and main capabilities, and mention frameworks and libraries briefly, if at all.
+
+Fact sheet: entry points, links, data stores and technology of the parts it contains:
+Technology:
+[F1] module:com.example.shop:shop-api java-release "21"
+[F2] module:com.example.shop:shop-core java-release "21"
+[F3] module:com.example.shop:shop-parent java-release "21"
 
 Summaries of the parts it contains:
 [S1] Maven module shop-parent: It builds on its parts. It is described by its facts.

@@ -305,6 +305,42 @@ class SummarizerTest {
   }
 
   @Test
+  void aModuleCitesItsFactSheetAndARerunAtAnotherCommitCitesTheSheetsNewFacts() {
+    List<Fact> earlier = FactSheetTest.service(2).list();
+    EntityId module = EntityId.parse("module:com.example:orders");
+    String endpoint = "method:com.example.orders.OrderController#get0() endpoint \"GET /orders/0\"";
+
+    Summary first = summarizer().summarize(SummaryTree.fromFacts(earlier)).summaries().get(module);
+    int calls = fake.sent().size();
+    List<Fact> later = atCommit(FactSheetTest.service(2).list(), "b".repeat(40));
+    Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(later));
+
+    assertThat(first.citedFacts().stream().map(id -> content(id, earlier))).contains(endpoint);
+    assertThat(fake.sent()).hasSize(calls);
+    Summary rebound = second.summaries().get(module);
+    assertThat(rebound.key()).isEqualTo(first.key());
+    assertThat(rebound.citedFacts().stream().map(id -> content(id, later))).contains(endpoint);
+    Set<String> ids = later.stream().map(Fact::id).collect(Collectors.toSet());
+    assertThat(ids).containsAll(rebound.inputFacts()).containsAll(rebound.citedFacts());
+    Summary repo = second.summaries().get(new EntityId("repo", "orders"));
+    assertThat(repo.citedFacts().stream().map(id -> content(id, later)))
+        .contains("service:com.example:orders USES_DATABASE database:orders-db:5432/orders");
+  }
+
+  @Test
+  void aChangedEntryPointSummarizesItsModuleAgainThoughNoSummaryTextChanges() {
+    fake.answering(request -> "Same words. [F1]");
+    summarizer().summarize(SummaryTree.fromFacts(FactSheetTest.service(1).list()));
+    int before = fake.sent().size();
+
+    summarizer().summarize(SummaryTree.fromFacts(FactSheetTest.service(2).list()));
+
+    assertThat(summarizedUnits().subList(before, fake.sent().size()))
+        .contains("module:com.example:orders", "repo:orders")
+        .doesNotContain("package:com.example:orders:com.example.orders");
+  }
+
+  @Test
   void aCommitThatChangesNothingReusesATypeSummaryCitingItsSourceFile() throws Exception {
     SourceFiles anyCommit =
         (repo, commit, path) ->

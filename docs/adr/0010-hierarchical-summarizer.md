@@ -1,6 +1,6 @@
 # 0010: Hierarchical summarizer
 
-Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76) and by ADR 0055 (#190), pending the user's review (#24)
+Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76), by ADR 0055 (#190) and by ADR 0056 (#197), pending the user's review (#24)
 
 ## Context
 

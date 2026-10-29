@@ -49,18 +49,19 @@ import org.slf4j.LoggerFactory;
  * SourceFiles} and shown only when the file matches the content hash of the fact's evidence, with
  * its secrets masked or removed ({@link SourceSecrets}) before it is sent. A unit whose inputs do
  * not fit the model's context window is summarized in parts that are then merged (see {@link
- * Prompt}).
+ * Prompt}). A module's or repository's prompt also shows its fact sheet ({@link FactSheet}): the
+ * entry points, links, data stores and technology of its parts, cited like its own facts.
  *
  * <p>Every summary is cached under a key that hashes what the model sees: the prompt version, the
  * model (provider and identifier), the unit's entity and level, its contained units' entities
  * (which its citations of their summaries name), the system prompt and the unit's whole user turn,
- * with its facts, source files and contained units' summaries. Fact IDs and commits are not in the
- * prompt, so a new commit that changes nothing a unit's prompt shows makes no call for it, and a
- * contained unit whose summary reads the same leaves its parent's key as it was. A unit whose key
- * is already in the store is not sent to the model again; the stored summary is rebound to the
- * current inputs, so it cites the facts and contained summaries of this run (the same prompt lists
- * the same inputs in the same order). When a unit's prompt changes it is summarized again; its new
- * text then changes its parent's prompt, and so on up to the repository.
+ * with its facts, fact sheet, source files and contained units' summaries. Fact IDs and commits are
+ * not in the prompt, so a new commit that changes nothing a unit's prompt shows makes no call for
+ * it, and a contained unit whose summary reads the same leaves its parent's key as it was. A unit
+ * whose key is already in the store is not sent to the model again; the stored summary is rebound
+ * to the current inputs, so it cites the facts and contained summaries of this run (the same prompt
+ * lists the same inputs in the same order). When a unit's prompt changes it is summarized again;
+ * its new text then changes its parent's prompt, and so on up to the repository.
  *
  * <p>Every summary must cite the facts or contained summaries it used. An answer that cites
  * nothing, or cites a reference that was not in the prompt, is sent back once with the reason; if
@@ -253,7 +254,7 @@ public final class Summarizer {
    * so each fact and contained summary takes the place of the one at its position.
    */
   static Summary rebind(Summary stored, SummaryNode node, List<Summary> children) {
-    List<String> factIds = node.facts().stream().map(Fact::id).toList();
+    List<String> factIds = promptFacts(node).stream().map(Fact::id).toList();
     List<String> childKeys = children.stream().map(Summary::key).toList();
     if (stored.inputFacts().size() != factIds.size()
         || stored.inputSummaries().size() != childKeys.size()) {
@@ -290,6 +291,13 @@ public final class Summarizer {
         stored.promptVersion(),
         stored.provider(),
         stored.model());
+  }
+
+  /** The facts a unit's prompt lists, its own and then its fact sheet's, {@code F1} first. */
+  static List<Fact> promptFacts(SummaryNode node) {
+    List<Fact> facts = new ArrayList<>(node.facts());
+    facts.addAll(FactSheet.facts(FactSheet.of(node)));
+    return facts;
   }
 
   private static String oneLine(String value) {
@@ -465,7 +473,8 @@ public final class Summarizer {
       String purpose =
           "summarize " + node.level().name().toLowerCase(Locale.ROOT) + " " + node.entity();
       long budget = promptBudget(node, model);
-      String whole = Prompt.user(node, inputs.facts, inputs.excerpts, inputs.children, null);
+      String whole =
+          Prompt.user(node, inputs.facts, inputs.sheet, inputs.excerpts, inputs.children, null);
       Citations.Checked checked;
       List<List<Prompt.Item>> parts =
           Tokens.estimate(whole) <= budget ? List.of() : inputs.parts(budget);
@@ -479,6 +488,7 @@ public final class Summarizer {
               Prompt.user(
                   node,
                   inputs.only(inputs.facts, part),
+                  inputs.only(inputs.sheet, part),
                   inputs.only(inputs.excerpts, part),
                   inputs.only(inputs.children, part),
                   new Prompt.Part(i + 1, parts.size()));
@@ -629,16 +639,19 @@ public final class Summarizer {
     final List<String> excerptFacts;
     final List<Summary> summaries;
     final List<Prompt.Item> facts;
+    final List<Prompt.Item> sheet;
     final List<Prompt.Item> excerpts;
     final List<Prompt.Item> children;
     private final SummaryNode node;
 
     Inputs(SummaryNode node, List<Excerpts.Excerpt> excerpts, List<Summary> children) {
       this.node = node;
-      this.factIds = node.facts().stream().map(Fact::id).toList();
+      List<FactSheet.Entry> sheet = FactSheet.of(node);
+      this.factIds = promptFacts(node).stream().map(Fact::id).toList();
       this.excerptFacts = excerpts.stream().map(Excerpts.Excerpt::fact).toList();
       this.summaries = children;
       this.facts = Prompt.facts(node.facts());
+      this.sheet = Prompt.sheet(sheet, node.facts().size());
       this.excerpts = Prompt.excerpts(excerpts);
       this.children = Prompt.children(children);
     }
@@ -646,14 +659,23 @@ public final class Summarizer {
     /** All items split into parts that each fit the budget with a part prompt's own text. */
     List<List<Prompt.Item>> parts(long budget) {
       List<Prompt.Item> all = new ArrayList<>(facts);
+      all.addAll(sheet);
       all.addAll(excerpts);
       all.addAll(children);
-      // The headings of all three sections and the longest part number, written once.
+      // The headings of all sections and of the fact sheet's groups and the longest part number,
+      // written once.
+      List<Prompt.Item> headings =
+          sheet.stream()
+              .map(Prompt.Item::heading)
+              .distinct()
+              .map(heading -> new Prompt.Item("F1", "", heading))
+              .toList();
       long overhead =
           Tokens.estimate(
               Prompt.user(
                   node,
                   facts.isEmpty() ? List.of() : List.of(new Prompt.Item("F1", "")),
+                  headings,
                   excerpts.isEmpty() ? List.of() : List.of(new Prompt.Item("E1", "")),
                   children.isEmpty() ? List.of() : List.of(new Prompt.Item("S1", "")),
                   new Prompt.Part(all.size(), all.size())));

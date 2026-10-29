@@ -76,6 +76,12 @@
         "id" : "module:com.example.orders:orders"
       },
       "citation" : true
+    }, {
+      "kind" : "text",
+      "text" : " It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "3b410a144056e2bb3cdb1b7cd0a573378ff063272cfb2dc459596c9d9ac83bf1" ]
     } ],
     "facts" : [ ]
   }, {
@@ -549,8 +555,14 @@
           "id" : "module:com.example.orders:orders"
         },
         "citation" : true
+      }, {
+        "kind" : "text",
+        "text" : " It is described by its facts."
+      }, {
+        "kind" : "citation",
+        "facts" : [ "3b410a144056e2bb3cdb1b7cd0a573378ff063272cfb2dc459596c9d9ac83bf1" ]
       } ],
-      "facts" : [ ]
+      "facts" : [ "3b410a144056e2bb3cdb1b7cd0a573378ff063272cfb2dc459596c9d9ac83bf1" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",

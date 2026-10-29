@@ -150,6 +150,12 @@
         "id" : "module:com.example.shop:shop-parent"
       },
       "citation" : true
+    }, {
+      "kind" : "text",
+      "text" : " It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "6fc07b46c6a8adb6993651cdea9c300cf46b6ab4d47e71521129df3857b01898" ]
     } ],
     "facts" : [ ]
   }, {
@@ -811,8 +817,14 @@
           "id" : "module:com.example.shop:shop-parent"
         },
         "citation" : true
+      }, {
+        "kind" : "text",
+        "text" : " It is described by its facts."
+      }, {
+        "kind" : "citation",
+        "facts" : [ "6fc07b46c6a8adb6993651cdea9c300cf46b6ab4d47e71521129df3857b01898" ]
       } ],
-      "facts" : [ ]
+      "facts" : [ "6fc07b46c6a8adb6993651cdea9c300cf46b6ab4d47e71521129df3857b01898" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",
