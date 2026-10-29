@@ -40,7 +40,7 @@ public final class ConfigExtractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
@@ -165,13 +165,18 @@ public final class ConfigExtractor {
     if (profile != null) {
       attributes.put("profile", profile);
     }
-    String object = value.value();
-    if (exposesSecret(value)) {
+    String object = UrlCredentials.withoutCredentials(value.value());
+    String written = UrlCredentials.withoutCredentials(value.written());
+    if (exposesSecret(value) || mayHoldCredential(object) || mayHoldCredential(written)) {
       object = MASK;
       attributes.put("masked", true);
     } else {
-      if (!value.written().equals(value.value())) {
-        attributes.put("written", value.written());
+      if (!object.equals(value.value()) || !written.equals(value.written())) {
+        // Credentials written inside a URL were removed.
+        attributes.put("masked", true);
+      }
+      if (!written.equals(object)) {
+        attributes.put("written", written);
       }
       if (!value.unresolved().isEmpty()) {
         ArrayNode unresolved = attributes.putArray("unresolved");
@@ -210,6 +215,11 @@ public final class ConfigExtractor {
     }
     return isSecret(value.key())
         && !(ONLY_PLACEHOLDERS.matcher(value.written()).matches() && value.used().isEmpty());
+  }
+
+  /** Whether a URL in a text still looks like it holds a credential in a form not understood. */
+  private static boolean mayHoldCredential(String text) {
+    return UrlCredentials.containsUrl(text) && UrlCredentials.mayHoldCredential(text);
   }
 
   /**
