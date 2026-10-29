@@ -10,12 +10,12 @@ package io.lantern.summarize;
 public final class Confidence {
 
   /**
-   * The confidence of a text whose purpose rests on what people wrote: as for a link the resolver
-   * picks with high confidence (ADR 0045).
+   * The confidence of a text whose purpose rests on what people wrote: the resolver's factor for a
+   * pick of high confidence (ADR 0045), here taken as the value itself.
    */
   public static final double EVIDENCED = 0.5;
 
-  /** The confidence of a text inferred from the code: as for a medium pick (ADR 0045). */
+  /** The confidence of a text inferred from the code: the resolver's factor for a medium pick. */
   public static final double INFERRED = 0.35;
 
   private Confidence() {}

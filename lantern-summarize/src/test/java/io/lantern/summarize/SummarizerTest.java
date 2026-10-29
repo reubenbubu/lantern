@@ -1181,6 +1181,8 @@ class SummarizerTest {
     assertThat(fake.sent().getLast().request().purpose()).endsWith("(merge)");
     assertThat(merge).contains("Part of it. [").doesNotContain("It is big.");
     assertThat(summary.text()).startsWith("Part of it. [fact:").doesNotContain("It is big.");
+    // The merged answer left a sentence out, so its confidence is below an inferred summary's.
+    assertThat(summary.confidence()).isPositive().isLessThan(Confidence.INFERRED);
   }
 
   private LlmClient smallWindowClient(int contextWindow) {

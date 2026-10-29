@@ -72,14 +72,14 @@ final class WordingPrompt {
   /** The most words a responsibility sentence may have. */
   static final int SENTENCE_WORDS = 30;
 
-  /** The predicate of a README claim (ADR 0033). */
-  private static final String CLAIM = "claim";
-
   /** The most words a flow's walkthrough may have. */
   static final int WALKTHROUGH_WORDS = 100;
 
   /** The most words a flow's pre- or post-conditions may have. */
   static final int CONDITION_WORDS = 30;
+
+  /** The predicate of a README claim (ADR 0033). */
+  private static final String CLAIM = "claim";
 
   /** The most words an intent phrase may have. */
   static final int PHRASE_WORDS = 10;

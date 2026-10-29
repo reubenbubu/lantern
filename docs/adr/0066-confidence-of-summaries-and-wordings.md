@@ -18,8 +18,8 @@ reconciled or one chosen consistently.
 - **The confidence is worked out, not asked.** It is computed from what the checks already find,
   so no prompt, prompt version or cached answer changes and no call is made again. Asking the model
   how sure it is would change every prompt, and a model's own rating says little about grounding.
-  An LLM's text is never trusted as much as a static fact, so the scale follows the resolver's
-  (ADR 0045): **0.5** when its purpose rests on what people wrote (a summary marked evidenced, ADR
+  An LLM's text is never trusted as much as a static fact, so the values are the resolver's
+  factors for a pick of high and medium confidence (ADR 0045), taken here as values themselves: **0.5** when its purpose rests on what people wrote (a summary marked evidenced, ADR
   0059; a wording citing a README claim, ADR 0065), **0.35** when inferred from the code (`Confidence`
   in `lantern-summarize`).
 - **A summary's confidence** is that base times the share of its answer's sentences that were kept:
