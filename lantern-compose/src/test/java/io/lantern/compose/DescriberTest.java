@@ -227,6 +227,26 @@ class DescriberTest {
   }
 
   @Test
+  void anExchangeAndQueueJoinedOnlyByARouteAreNotAskedAbout() {
+    TestFacts routed =
+        TestFacts.runtime()
+            .relate(
+                "shop",
+                "exchange:rabbitmq:audit",
+                "ROUTES_TO",
+                "queue:rabbitmq:audit.log",
+                "{\"protocol\": \"AMQP\", \"bindingKey\": \"#\"}");
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+
+    Describer.Result result = new Describer(client(fake), store).describe(routed.list());
+
+    assertThat(result.asked()).isEqualTo(5);
+    assertThat(fake.sent())
+        .extracting(s -> s.request().purpose())
+        .noneMatch(p -> p.contains("audit"));
+  }
+
+  @Test
   void documentsUseTheSentencesAsDescriptionsAndThePhrasesAsLabels() {
     Wordings wordings = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
 

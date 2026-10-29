@@ -141,12 +141,17 @@ final class C4Views {
 
   /**
    * The data stores, topics, queues, exchanges and external systems the container diagrams draw:
-   * the ends of their lines that are not deployable units, profile alternatives and queues folded
-   * into a line left out.
+   * the ends of their lines to and from units that are not units themselves, profile alternatives
+   * and queues folded into a line left out. Routes between exchanges and queues add nothing, as on
+   * the diagrams, which draw them only between elements drawn already.
    */
   SortedSet<EntityId> destinations() {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
     for (Link link : links) {
+      if (!link.from.type().equals(BuiltInTypes.SERVICE)
+          && !link.to.type().equals(BuiltInTypes.SERVICE)) {
+        continue;
+      }
       for (EntityId end : List.of(link.from, link.to)) {
         if (DESTINATIONS.contains(end.type())) {
           result.add(end);
@@ -156,10 +161,18 @@ final class C4Views {
     return result;
   }
 
-  /** The lines of the container diagrams that touch the element, in the order of the links. */
+  /**
+   * The lines of the container diagrams that touch the element, in the order of the links: those to
+   * and from units, and routes between it and another of the {@link #destinations()}.
+   */
   List<Neighbour> neighbours(EntityId element) {
+    Set<EntityId> drawn = destinations();
     List<Neighbour> result = new ArrayList<>();
     for (Link link : links) {
+      if (link.relationship.equals(ROUTES_TO)
+          && !(drawn.contains(link.from) && drawn.contains(link.to))) {
+        continue;
+      }
       if (link.to.equals(element)) {
         result.add(new Neighbour(link.from, link.relationship, true, link.via, link.facts));
       } else if (link.from.equals(element)) {

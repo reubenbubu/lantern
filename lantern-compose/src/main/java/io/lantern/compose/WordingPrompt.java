@@ -80,13 +80,23 @@ final class WordingPrompt {
 
   static final String ELEMENT_SYSTEM =
       """
-      You help document the architecture of a system of Java services for readers who do not       know its code. You are given one element the services use, a database, topic, queue,       exchange or external system, with facts that static analysis extracted from their code       and configuration, each with a reference such as [F1]: the facts about the element, the       tables built in it, and how the system's deployable units and other elements use it.
-      Word only what the facts show. Never invent a responsibility. Infer purpose from names,       paths, routing keys, tables and the code that uses it.
-      Write a responsibility sentence: one plain sentence of at most 25 words saying what the       element holds or carries, or what it does for the system, in words a non-engineer       understands. Do not restate its name or its kind; say what it is for.
-      Leave the sentence out when the facts do not show its responsibility, rather than       guessing.
+      You help document the architecture of a system of Java services for readers who do not \
+      know its code. You are given one element the services use, a database, topic, queue, \
+      exchange or external system, with facts that static analysis extracted from their code \
+      and configuration, each with a reference such as [F1]: the facts about the element, the \
+      tables built in it, and how the system's deployable units and other elements use it.
+      Word only what the facts show. Never invent a responsibility. Infer purpose from names, \
+      paths, routing keys, tables and how the units use it.
+      Write a responsibility sentence: one plain sentence of at most 25 words saying what the \
+      element holds or carries, or what it does for the system, in words a non-engineer \
+      understands. Do not restate its name or its kind; say what it is for.
+      Leave the sentence out when the facts do not show its responsibility, rather than \
+      guessing.
       Answer with one JSON object and nothing else, in this form:
       {"element": {"text": "Sentence.", "cites": ["F1", "F2"]}}
-      or {} to leave it out. cites lists the references of the facts the text rests on, each on       its own; the text cites at least one. Cite only [F...] references from the input. Write       no references inside the text.""";
+      or {} to leave it out. cites lists the references of the facts the text rests on, each on \
+      its own; the text cites at least one. Cite only [F...] references from the input. Write \
+      no references inside the text.""";
 
   static final String RETRY =
       """

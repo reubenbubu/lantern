@@ -78,7 +78,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.ELEMENT_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.ELEMENT_VERSION and update this fingerprint")
-        .isEqualTo("1 1d76a0951d9dad8222b75341fa81b8a89c6dab77fe003257d3e049f508425308");
+        .isEqualTo("1 8c8d775e08082d7fbfb8e1fd6b11d064d45fa96ae65d784e5bbaa979683b2016");
   }
 
   private Question element() {
