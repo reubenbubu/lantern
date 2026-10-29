@@ -7,8 +7,10 @@ import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
+import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
 import io.lantern.core.document.SequenceDiagram;
+import io.lantern.core.document.Table;
 import io.lantern.core.document.TemplateRef;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
@@ -30,7 +32,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-/** The LLM's responsibility sentences and intent phrases, and how documents use them (ADR 0050). */
+/**
+ * The LLM's responsibility sentences, intent phrases and flow narration, and how documents use them
+ * (ADR 0050, ADR 0056, ADR 0058).
+ */
 class DescriberTest {
 
   private static final TemplateRef TEMPLATE = new TemplateRef("c4-model-sequence-diagrams", "1");
@@ -42,6 +47,10 @@ class DescriberTest {
   private static final EntityId DATABASE = EntityId.parse("database:db:5432/shop");
   private static final EntityId TOPIC = EntityId.parse("topic:kafka:orders");
   private static final EntityId PAY = EntityId.parse("external-system:pay.example.com");
+  private static final EntityId LIST = EntityId.parse("method:com.example.web.Controller#list()");
+  private static final EntityId RUN = EntityId.parse("method:com.example.web.Jobs#run()");
+  private static final String LIST_FLOW = "GET /orders on shop-app";
+  private static final String RUN_FLOW = "Jobs.run on its schedule in shop-app";
 
   private final TestFacts facts = TestFacts.runtime();
   private final InMemoryWordingStore store = new InMemoryWordingStore();
@@ -49,10 +58,18 @@ class DescriberTest {
   /**
    * Words each unit, its components and relationships from what its prompt shows: the shop app's
    * components and its send, the worker's call, each citing the first fact; and the database and
-   * the topic, citing their uses, leaving the external system out.
+   * the topic, citing their uses, leaving the external system out; and each flow's walkthrough and
+   * post-conditions, citing its entry point and send, leaving its pre-conditions out.
    */
   private static String answer(LlmRequest request) {
     String prompt = request.messages().getFirst().text();
+    if (prompt.startsWith("The flow")) {
+      return """
+          {"walkthrough": {"text": "Lists the orders and announces them for background work.",
+                           "cites": ["F1", "F%1$s"]},
+           "postconditions": {"text": "The orders are announced.", "cites": ["F%1$s"]}}"""
+          .formatted(ref(prompt, "PUBLISHES"));
+    }
     if (prompt.startsWith("The database")) {
       return """
           {"element": {"text": "Keeps the shop's orders.", "cites": ["F%s"]}}"""
@@ -147,7 +164,7 @@ class DescriberTest {
 
     Describer.Result result = describe(fake);
 
-    assertThat(result.asked()).isEqualTo(5);
+    assertThat(result.asked()).isEqualTo(7);
     assertThat(result.reused()).isZero();
     assertThat(result.rejected()).isEmpty();
     assertThat(result.skipped()).isEmpty();
@@ -158,7 +175,9 @@ class DescriberTest {
             "INFER_INTENT word unit " + WORKER,
             "INFER_INTENT word element " + DATABASE,
             "INFER_INTENT word element " + TOPIC,
-            "INFER_INTENT word element " + PAY);
+            "INFER_INTENT word element " + PAY,
+            "COMPOSE narrate flow " + LIST_FLOW,
+            "COMPOSE narrate flow " + RUN_FLOW);
     String app =
         fake.sent().stream()
             .map(s -> s.request().messages().getFirst().text())
@@ -240,7 +259,7 @@ class DescriberTest {
 
     Describer.Result result = new Describer(client(fake), store).describe(routed.list());
 
-    assertThat(result.asked()).isEqualTo(5);
+    assertThat(result.asked()).isEqualTo(7);
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
         .noneMatch(p -> p.contains("audit"));
@@ -321,6 +340,122 @@ class DescriberTest {
     assertThat(messages).contains("Announces new orders [Kafka]");
   }
 
+  private static Section flowSection(Document document, String title) {
+    return all(document.sections()).filter(s -> s.title().equals(title)).findFirst().orElseThrow();
+  }
+
+  private static Table.Row overview(Section flow) {
+    return flow.blocks().stream()
+        .filter(Table.class::isInstance)
+        .map(Table.class::cast)
+        .findFirst()
+        .orElseThrow()
+        .rows()
+        .getFirst();
+  }
+
+  @Test
+  void eachFlowIsNarratedFromWhatStartsItAndTheFactsOfItsSteps() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+
+    describe(fake);
+
+    LlmRequest list =
+        fake.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.purpose().equals("narrate flow " + LIST_FLOW))
+            .findFirst()
+            .orElseThrow();
+    assertThat(list.system()).isEqualTo(WordingPrompt.FLOW_SYSTEM);
+    assertThat(list.maxOutputTokens()).isEqualTo(Describer.MAX_FLOW_OUTPUT_TOKENS);
+    // The steps as the facts give them: no intent phrases, no fact IDs.
+    assertThat(list.messages().getFirst().text())
+        .isEqualTo(
+            """
+            The flow "GET /orders on shop-app".
+            It starts when shop-app receives GET /orders (Controller.list).
+            [F1] method:com.example.web.Controller#list() endpoint "GET /orders" (shop:pom.xml)
+
+            Its steps, in order:
+            - shop-app to orders (a topic), async: Sends a message [Kafka]
+              [F2] service:com.example:app PUBLISHES topic:kafka:orders\
+             {"protocol":"Kafka","source":"method:com.example.domain.JpaOrders#all()"} (shop:pom.xml)
+            - Note: shop-app does not wait: worker takes the message later.
+              [F3] service:com.example:app SENDS_MESSAGES_TO service:com.example:worker\
+             {"destination":"topic:kafka:orders","protocol":"Kafka",\
+            "source":"method:com.example.domain.JpaOrders#all()",\
+            "target":"method:com.example.worker.L#on()"} (shop:pom.xml)
+            - shop-app to shop on db (a database), sync: Reads orders [JDBC]
+              [F4] method:com.example.domain.JpaOrders#all() READS_TABLE\
+             table:com.example:app:orders (shop:pom.xml)
+              [F5] service:com.example:app USES_DATABASE database:db:5432/shop\
+             {"protocol":"JDBC","schemas":["schema:com.example:app"]} (shop:pom.xml)
+            - shop-app to pay.example.com (an external system), sync: Calls pay.example.com\
+             [POST /charges]. Over HTTPS. Only under the Spring profile prod.
+              [F6] service:com.example:app CALLS_HTTP external-system:pay.example.com\
+             {"httpMethod":"POST","path":"/charges","profile":"prod","protocol":"HTTPS",\
+            "source":"method:com.example.web.Controller#list()"} (shop:pom.xml)
+            - orders to worker (a deployable unit), async: Delivers to L.on [Kafka]
+              [F3] service:com.example:app SENDS_MESSAGES_TO service:com.example:worker\
+             {"destination":"topic:kafka:orders","protocol":"Kafka",\
+            "source":"method:com.example.domain.JpaOrders#all()",\
+            "target":"method:com.example.worker.L#on()"} (shop:pom.xml)
+            """);
+  }
+
+  @Test
+  void documentsUseTheWalkthroughAndConditionsOfAFlowTracedAsTheModelSawIt() {
+    Wordings wordings = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
+
+    Document document = system(wordings);
+
+    Section flow = flowSection(document, LIST_FLOW);
+    Paragraph prose = (Paragraph) flow.blocks().getFirst();
+    String endpoint = facts.find(LIST.toString(), "endpoint").id();
+    String send = facts.find(APP.toString(), "PUBLISHES").id();
+    assertThat(text(prose.content()))
+        .isEqualTo("Lists the orders and announces them for background work.");
+    assertThat(prose.content().getLast())
+        .isEqualTo(new Citation(Stream.of(endpoint, send).sorted().toList()));
+    assertThat(prose.facts()).contains(endpoint, send);
+    Table.Row row = overview(flow);
+    // Left out by the model: not known, as before.
+    assertThat(text(row.cells().get(1))).isEqualTo("Not known from the code.");
+    assertThat(text(row.cells().get(2))).isEqualTo("The orders are announced.");
+    assertThat(row.cells().get(2).getLast()).isEqualTo(new Citation(List.of(send)));
+    assertThat(row.facts()).contains(endpoint, send);
+    assertThat(text(((Paragraph) flowSection(document, RUN_FLOW).blocks().getFirst()).content()))
+        .isEqualTo("Lists the orders and announces them for background work.");
+  }
+
+  @Test
+  void aFlowNotWordedAsTracedOrCitingNoFactOfTheSnapshotKeepsItsProse() {
+    Wordings worded = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
+    String unknown = " [fact:" + "f".repeat(64) + "]";
+    Map<String, Wordings.Flow> citingNothing = new java.util.HashMap<>();
+    worded
+        .flows()
+        .keySet()
+        .forEach(
+            key ->
+                citingNothing.put(
+                    key,
+                    new Wordings.Flow(
+                        "Lists orders." + unknown, null, "Orders announced." + unknown)));
+    Map<String, Wordings.Flow> otherTrace =
+        Map.of("0".repeat(64), worded.flows().values().iterator().next());
+
+    for (Map<String, Wordings.Flow> flows : List.of(citingNothing, otherTrace)) {
+      Section flow = flowSection(system(new Wordings(Map.of(), Map.of(), flows)), LIST_FLOW);
+
+      assertThat(text(((Paragraph) flow.blocks().getFirst()).content()))
+          .startsWith("Starts when shop-app receives GET /orders, handled by Controller.list.");
+      assertThat(overview(flow).cells().subList(1, 3))
+          .extracting(DescriberTest::text)
+          .containsExactly("Not known from the code.", "Not known from the code.");
+    }
+  }
+
   @Test
   void aSecondRunOverTheSameFactsMakesNoCall() {
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
@@ -331,7 +466,7 @@ class DescriberTest {
 
     assertThat(fake.sent()).hasSize(calls);
     assertThat(second.asked()).isZero();
-    assertThat(second.reused()).isEqualTo(5);
+    assertThat(second.reused()).isEqualTo(7);
     assertThat(second.wordings()).isEqualTo(first);
   }
 
@@ -343,14 +478,18 @@ class DescriberTest {
                 request ->
                     """
                     {"unit": {"text": "Uses things.", "cites": ["F99"]},
-                     "element": {"text": "Holds things.", "cites": ["F99"]}}""");
+                     "element": {"text": "Holds things.", "cites": ["F99"]},
+                     "walkthrough": {"text": "Does things.", "cites": ["F99"]}}""");
 
     Describer.Result result = describe(fake);
 
-    assertThat(fake.sent()).hasSize(10);
+    assertThat(fake.sent()).hasSize(14);
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
-        .contains("word unit " + APP + " (retry)", "word element " + DATABASE + " (retry)");
+        .contains(
+            "word unit " + APP + " (retry)",
+            "word element " + DATABASE + " (retry)",
+            "narrate flow " + LIST_FLOW + " (retry)");
     assertThat(fake.sent())
         .filteredOn(s -> s.request().purpose().endsWith("(retry)"))
         .allSatisfy(
@@ -358,9 +497,14 @@ class DescriberTest {
                 assertThat(s.request().messages().getLast().text())
                     .startsWith(
                         "Your answer was rejected: the "
-                            + (s.request().purpose().startsWith("word unit") ? "unit" : "element")
+                            + (s.request().purpose().startsWith("word unit")
+                                ? "unit"
+                                : s.request().purpose().startsWith("narrate")
+                                    ? "walkthrough"
+                                    : "element")
                             + " cites F99, which is not a fact in the input."));
-    assertThat(result.rejected()).containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY);
+    assertThat(result.rejected())
+        .containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY, LIST, RUN);
     assertThat(result.wordings()).isEqualTo(Wordings.NONE);
     assertThat(store.size()).isZero();
     // The documents keep summaries and static labels.
@@ -380,7 +524,8 @@ class DescriberTest {
 
     Describer.Result result = describe(fake);
 
-    assertThat(result.skipped()).containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY);
+    assertThat(result.skipped())
+        .containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY, LIST, RUN);
     assertThat(result.wordings()).isEqualTo(Wordings.NONE);
   }
 
@@ -452,7 +597,7 @@ class DescriberTest {
     Describer.Result second = new Describer(client(fake), store).describe(moved);
 
     assertThat(fake.sent()).hasSize(calls);
-    assertThat(second.reused()).isEqualTo(5);
+    assertThat(second.reused()).isEqualTo(7);
     // The answers cite the new commit's facts.
     assertThat(second.wordings().phrases())
         .containsKey(

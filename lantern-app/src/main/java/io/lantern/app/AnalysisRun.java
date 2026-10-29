@@ -178,8 +178,8 @@ public final class AnalysisRun {
    * @param summariesReused how many summaries came from the cache
    * @param summariesRejected the units left without a summary because the LLM's answer was rejected
    *     twice
-   * @param wordingsAsked how many deployable units, data stores and destinations the LLM was asked
-   *     to word (ADR 0050, ADR 0056)
+   * @param wordingsAsked how many deployable units, data stores, destinations and flows the LLM was
+   *     asked to word (ADR 0050, ADR 0056, ADR 0058)
    * @param wordingsReused how many of their wordings came from the cache
    * @param llm the LLM calls made during the run, whatever their outcome
    * @param documents the rendered documents, in the order written
@@ -292,8 +292,8 @@ public final class AnalysisRun {
       }
 
       // The LLM words the responsibilities of the snapshot's units and components and the intent
-      // of their links, from every fact that holds in it, carried forward repositories included
-      // (ADR 0050).
+      // of their links, and narrates the main flows, from every fact that holds in it, carried
+      // forward repositories included (ADR 0050, ADR 0058).
       List<Fact> system = facts.findValidAt(snapshot.number());
       Describer.Result described = new Describer(client, wordings).describe(system);
 
