@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.llm.LlmResponse;
+import io.lantern.summarize.Confidence;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -70,6 +71,9 @@ final class WordingPrompt {
 
   /** The most words a responsibility sentence may have. */
   static final int SENTENCE_WORDS = 30;
+
+  /** The predicate of a README claim (ADR 0033). */
+  private static final String CLAIM = "claim";
 
   /** The most words a flow's walkthrough may have. */
   static final int WALKTHROUGH_WORDS = 100;
@@ -724,6 +728,9 @@ final class WordingPrompt {
     if (cited.isEmpty()) {
       throw new Rejected(what + " cites nothing; cite the facts it rests on.");
     }
-    return new WordingAnswer.Item(text, new ArrayList<>(cited));
+    // What people wrote that the prompt shows is a README's claims (ADR 0065).
+    boolean evidenced =
+        cited.stream().anyMatch(ref -> question.facts().get(ref).predicate().equals(CLAIM));
+    return new WordingAnswer.Item(text, new ArrayList<>(cited), Confidence.of(evidenced, 1, 0));
   }
 }

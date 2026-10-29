@@ -442,6 +442,7 @@ class SummarizerTest {
             child.level(),
             child.text() + " More.",
             child.purpose(),
+            child.confidence(),
             child.citedFacts(),
             child.citedSummaries(),
             child.inputFacts(),
@@ -458,6 +459,7 @@ class SummarizerTest {
             child.level(),
             child.text(),
             Summary.Purpose.INFERRED,
+            0.35,
             child.citedFacts(),
             child.citedSummaries(),
             child.inputFacts(),
@@ -475,6 +477,7 @@ class SummarizerTest {
                 SummaryLevel.PACKAGE,
                 child.text(),
                 child.purpose(),
+                child.confidence(),
                 child.citedFacts(),
                 child.citedSummaries(),
                 child.inputFacts(),
@@ -497,6 +500,7 @@ class SummarizerTest {
             child.level(),
             child.text().replace(child.citedFacts().getFirst(), "e".repeat(64)),
             child.purpose(),
+            child.confidence(),
             List.of("e".repeat(64)),
             List.of(),
             List.of("e".repeat(64)),
@@ -567,6 +571,8 @@ class SummarizerTest {
 
     assertThat(summary.text()).isEqualTo("Line holds a quantity. [fact:" + fact + "]");
     assertThat(summary.purpose()).isEqualTo(Summary.Purpose.INFERRED);
+    // One sentence of three is kept, so it is trusted a third as much as an inferred summary.
+    assertThat(summary.confidence()).isEqualTo(0.12);
     assertThat(fake.sent()).hasSize(1);
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
@@ -575,8 +581,9 @@ class SummarizerTest {
                 + " type:p.Line: Line is part of an order. | It is very important.");
     // What is stored, and so reused, is the summary without them.
     assertThat(store.find(summary.key()).orElseThrow().text()).isEqualTo(summary.text());
-    assertThat(summarizer().summarize(List.of(line)).summaries().get(line.entity()).text())
-        .isEqualTo(summary.text());
+    assertThat(summarizer().summarize(List.of(line)).summaries().get(line.entity()))
+        .extracting(Summary::text, Summary::confidence)
+        .containsExactly(summary.text(), 0.12);
     assertThat(fake.sent()).hasSize(1);
   }
 
@@ -963,13 +970,15 @@ class SummarizerTest {
 
     Summary repo = result.summaries().get(EntityId.parse("repo:shop"));
     assertThat(repo.purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
+    assertThat(repo.confidence()).isEqualTo(Confidence.EVIDENCED);
     assertThat(repo.text()).startsWith("Shop sells books to readers. [fact:");
     String prompt = fake.sent().getLast().request().messages().getFirst().text();
     assertThat(prompt)
         .contains("\nFacts:\n[F1] readme:shop:README.md claim \"Shop sells books to readers.\"\n");
     // Answers without a purpose line count as inferred.
-    assertThat(result.summaries().get(EntityId.parse("module:com.example:shop")).purpose())
-        .isEqualTo(Summary.Purpose.INFERRED);
+    assertThat(result.summaries().get(EntityId.parse("module:com.example:shop")))
+        .extracting(Summary::purpose, Summary::confidence)
+        .containsExactly(Summary.Purpose.INFERRED, Confidence.INFERRED);
   }
 
   @Test
@@ -981,8 +990,9 @@ class SummarizerTest {
     Summarizer.Result again = summarizer().summarize(SummaryTree.fromFacts(shopWithReadme()));
 
     assertThat(fake.sent()).hasSize(calls);
-    assertThat(again.summaries().get(EntityId.parse("repo:shop")).purpose())
-        .isEqualTo(Summary.Purpose.EVIDENCED);
+    assertThat(again.summaries().get(EntityId.parse("repo:shop")))
+        .extracting(Summary::purpose, Summary::confidence)
+        .containsExactly(Summary.Purpose.EVIDENCED, Confidence.EVIDENCED);
   }
 
   @Test

@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
  * @param text the summary, with citation markers
  * @param purpose whether its first sentence, which says what the unit is for, takes that from what
  *     people wrote or infers it from the code
+ * @param confidence how far it can be trusted, above 0 and at most 1 ({@link Confidence})
  * @param citedFacts the IDs of the facts the text cites, in order of first citation
  * @param citedSummaries the keys of the contained units' summaries the text cites, in order of
  *     first citation
@@ -35,6 +36,7 @@ public record Summary(
     SummaryLevel level,
     String text,
     Purpose purpose,
+    double confidence,
     List<String> citedFacts,
     List<String> citedSummaries,
     List<String> inputFacts,
@@ -68,6 +70,9 @@ public record Summary(
       throw new IllegalArgumentException("Summary text must not be blank");
     }
     Objects.requireNonNull(purpose, "purpose");
+    if (!Confidence.valid(confidence)) {
+      throw new IllegalArgumentException("Invalid summary confidence: " + confidence);
+    }
     citedFacts = List.copyOf(citedFacts);
     citedSummaries = List.copyOf(citedSummaries);
     inputFacts = List.copyOf(inputFacts);
