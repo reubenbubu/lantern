@@ -2,6 +2,7 @@ package io.lantern.sandbox;
 
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -87,6 +89,7 @@ public class BuildSandbox {
   private static final Duration CLEANUP_TIMEOUT = Duration.ofMinutes(1);
   private static final Duration PROXY_START_TIMEOUT = Duration.ofSeconds(60);
   private static final Duration DISK_CHECK_INTERVAL = Duration.ofSeconds(5);
+  private static final Duration HELPER_START_TIMEOUT = Duration.ofSeconds(60);
   private static final long MAX_OUTPUT_ENTRIES = 2_000_000;
   private static final long MAX_DETECT_BYTES = 64L * 1024 * 1024;
   private static final long MAX_TRAILING_BYTES = 1024 * 1024;
@@ -116,6 +119,17 @@ public class BuildSandbox {
    * user running Lantern, who can then delete them.
    */
   private static final String UMASK = "0002";
+
+  /**
+   * The shell command the helper containers, the egress proxy and the disk monitor, run their
+   * command under, with the command as its arguments. It ends when the command ends, or when the
+   * container's standard input ends: Lantern holds that open through {@code docker start --attach
+   * --interactive} for as long as the build runs, and it ends when that process or Lantern's own
+   * process goes away, even when killed. The helpers are created with {@code --rm}, so a build
+   * whose cleanup never ran leaves no helper running or behind (#171).
+   */
+  static final String LIFELINE =
+      "exec 3<&0; \"$@\" </dev/null & p=$!; { cat <&3 >/dev/null; kill $p; } & wait $p";
 
   /** Where the shared Maven cache is mounted in every container that mounts it. */
   private static final String CACHE_MOUNT =
@@ -274,6 +288,14 @@ public class BuildSandbox {
     private String failure;
     private boolean cacheHandedOver;
     private List<BuildModule> modules = List.of();
+
+    /** The attached {@code docker start} process of each running helper, by container name. */
+    private final Map<String, Process> lifelines = new LinkedHashMap<>();
+
+    /** What the egress proxy writes, read through its attached process, or null before it runs. */
+    private Captured proxyOutput;
+
+    private boolean helpersStopped;
     private String effectivePom;
     private boolean hasUpstream;
     private final Set<String> given;
@@ -319,6 +341,8 @@ public class BuildSandbox {
             createContainer(container, image, "sh", command, lantern);
             runBuild();
           }
+          // The build container has ended; the proxy and the monitor are not needed to collect.
+          stopHelpers();
           if (!stopped()) {
             collect();
           }
@@ -327,11 +351,10 @@ public class BuildSandbox {
           // Clean up even when interrupted: clear the flag so the docker calls run, then restore
           // it.
           boolean interrupted = Thread.interrupted();
-          appendProxyLog();
+          stopHelpers();
           docker.quietly(
               CLEANUP_TIMEOUT,
-              List.of(
-                  "rm", "--force", "--volumes", container, detector, proxy, cacheOwner, monitor));
+              List.of("rm", "--force", "--volumes", container, detector, cacheOwner));
           docker.quietly(CLEANUP_TIMEOUT, List.of("network", "rm", network));
           if (!interrupted && cacheHandedOver) {
             // What the build wrote to the cache, in whatever modes, stays deletable by the user.
@@ -538,6 +561,8 @@ public class BuildSandbox {
           labelled(
               List.of("create", "--name", cacheOwner),
               List.of(
+                  // Removed when it ends, also if Lantern is killed meanwhile.
+                  "--rm",
                   "--network",
                   "none",
                   "--user",
@@ -618,8 +643,10 @@ public class BuildSandbox {
       docker.create(
           DOCKER_TIMEOUT,
           labelled(
-              List.of("run", "--detach", "--name", monitor),
+              List.of("create", "--name", monitor),
               List.of(
+                  "--interactive",
+                  "--rm",
                   "--network",
                   "none",
                   "--user",
@@ -637,9 +664,14 @@ public class BuildSandbox {
                   "--mount",
                   cacheMount(true),
                   "--entrypoint",
-                  "sleep",
+                  "sh",
                   settings.proxyImage(),
+                  "-c",
+                  LIFELINE,
+                  "sh",
+                  "sleep",
                   "infinity")));
+      startHelper(monitor, false);
       List<Storage> storage = storage();
       if (storage == null) {
         throw new SandboxException(
@@ -670,6 +702,8 @@ public class BuildSandbox {
           labelled(
               List.of("create", "--name", proxy),
               List.of(
+                  "--interactive",
+                  "--rm",
                   "--network",
                   "bridge",
                   "--cpus",
@@ -686,9 +720,16 @@ public class BuildSandbox {
                   "no-new-privileges",
                   "--user",
                   BUILD_USER,
+                  // Its output is read through docker start --attach; Docker keeps no copy on disk.
+                  "--log-driver",
+                  "none",
                   "--entrypoint",
-                  "java",
+                  "sh",
                   settings.proxyImage(),
+                  "-c",
+                  LIFELINE,
+                  "sh",
+                  "java",
                   "-Xmx128m",
                   "-cp",
                   "/proxy",
@@ -698,18 +739,14 @@ public class BuildSandbox {
       docker.check(COPY_TIMEOUT, List.of("cp", proxyDir.toString(), proxy + ":/proxy"));
       docker.check(
           DOCKER_TIMEOUT, List.of("network", "connect", "--alias", PROXY_ALIAS, network, proxy));
-      docker.check(DOCKER_TIMEOUT, List.of("start", proxy));
+      // The proxy is removed when it ends, so its output is read as it comes, not from Docker.
+      proxyOutput = startHelper(proxy, true);
+      Process process = lifelines.get(proxy);
       long deadline = System.nanoTime() + PROXY_START_TIMEOUT.toNanos();
-      while (true) {
-        Docker.Result logs = docker.run(DOCKER_TIMEOUT, List.of("logs", proxy));
-        if (logs.out().contains(EgressProxy.READY)) {
-          return;
-        }
-        Docker.Result state =
-            docker.run(DOCKER_TIMEOUT, List.of("inspect", "--format", "{{.State.Running}}", proxy));
-        if (System.nanoTime() > deadline || !state.out().equals("true")) {
-          throw new SandboxException(
-              "The egress proxy did not start: " + logs.out() + " " + logs.err());
+      while (!proxyOutput.text().contains(EgressProxy.READY)) {
+        if (System.nanoTime() > deadline || !process.isAlive()) {
+          proxyOutput.await(Duration.ofSeconds(5));
+          throw new SandboxException("The egress proxy did not start: " + proxyOutput.text());
         }
         sleep(Duration.ofMillis(200));
       }
@@ -967,6 +1004,13 @@ public class BuildSandbox {
               Math.min(left, DISK_CHECK_INTERVAL.toNanos()), TimeUnit.NANOSECONDS)) {
             break;
           }
+          String helper = helperProblem();
+          if (helper != null) {
+            // A problem of the sandbox, not of the build: store nothing.
+            log.note("stopping the container: " + helper);
+            stop(name, process, pump);
+            throw new SandboxException("Build stopped: " + helper);
+          }
           long written = writtenBytes(name);
           List<Storage> storage = storage();
           if (Thread.interrupted()) {
@@ -1000,6 +1044,12 @@ public class BuildSandbox {
         throw new SandboxException("Interrupted while building " + repo.name(), e);
       }
       pump.join();
+      // A helper that ended since the last check may be why the build failed.
+      String helper = helperProblem();
+      if (helper != null) {
+        log.note("the container ended, but " + helper);
+        throw new SandboxException("Build stopped: " + helper);
+      }
       // A build may write a lot and end between two checks. Free space that cannot be measured
       // here passes: the next build refuses to start if it is short.
       String low = storageProblem(storage());
@@ -1268,16 +1318,85 @@ public class BuildSandbox {
       return null;
     }
 
-    private void appendProxyLog() {
-      try {
-        Docker.Result logs = docker.run(CLEANUP_TIMEOUT, List.of("logs", proxy));
-        if (logs.ok()) {
-          log.note("egress proxy log:");
-          log.write(logs.out() + "\n");
+    /**
+     * Starts a helper container through {@code docker start --attach --interactive}, whose standard
+     * input stays open until {@link #stopHelpers} or the end of Lantern's process (see {@link
+     * #LIFELINE}), and waits until it runs.
+     *
+     * @param keepOutput whether to keep the container's output, standard error included
+     * @return the output if kept, else null
+     */
+    private Captured startHelper(String name, boolean keepOutput) {
+      Process process =
+          Docker.start(
+              docker
+                  .builder(List.of("start", "--attach", "--interactive", name))
+                  .redirectErrorStream(true)
+                  .redirectOutput(
+                      keepOutput ? ProcessBuilder.Redirect.PIPE : ProcessBuilder.Redirect.DISCARD));
+      lifelines.put(name, process);
+      Captured output = keepOutput ? new Captured(process.getInputStream()) : null;
+      long deadline = System.nanoTime() + HELPER_START_TIMEOUT.toNanos();
+      while (true) {
+        Docker.Result state =
+            docker.run(DOCKER_TIMEOUT, List.of("inspect", "--format", "{{.State.Running}}", name));
+        if (state.out().equals("true")) {
+          return output;
         }
-      } catch (RuntimeException e) {
-        // The log is a convenience.
+        if (!process.isAlive() || System.nanoTime() > deadline) {
+          String why = state.err();
+          if (output != null) {
+            output.await(Duration.ofSeconds(5));
+            why = output.text() + " " + why;
+          }
+          throw new SandboxException("The container " + name + " did not start: " + why);
+        }
+        sleep(Duration.ofMillis(100));
       }
+    }
+
+    /**
+     * Copies the egress proxy's log into the build log and removes the proxy and the disk monitor,
+     * once: as soon as the build container has ended, or in cleanup. Best effort.
+     */
+    private void stopHelpers() {
+      if (helpersStopped) {
+        return;
+      }
+      helpersStopped = true;
+      docker.quietly(CLEANUP_TIMEOUT, List.of("rm", "--force", "--volumes", proxy, monitor));
+      for (Process process : lifelines.values()) {
+        try {
+          // Ends once the removed container's last output is read.
+          process.waitFor(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+        }
+        // Ending their input also ends the helpers, should removing them have failed.
+        process.destroyForcibly();
+      }
+      lifelines.clear();
+      if (proxyOutput != null) {
+        proxyOutput.await(Duration.ofSeconds(5));
+        log.note("egress proxy log:");
+        log.write(proxyOutput.text() + "\n");
+      }
+    }
+
+    /**
+     * Why the build cannot go on, if a helper container has ended while it runs: without the proxy
+     * the build cannot download, and without the monitor its disk use is not measured. Null if they
+     * all run.
+     */
+    private String helperProblem() {
+      for (Map.Entry<String, Process> helper : lifelines.entrySet()) {
+        if (!helper.getValue().isAlive()) {
+          return "The sandbox's helper container "
+              + helper.getKey()
+              + " stopped while the build ran";
+        }
+      }
+      return null;
     }
   }
 
@@ -1298,6 +1417,52 @@ public class BuildSandbox {
         </toolchains>
         """
         .formatted(jdk, JDK_HOME);
+  }
+
+  /** A process's output, read on a virtual thread as it comes; the first megabyte is kept. */
+  private static final class Captured {
+
+    private static final int MAX_BYTES = 1024 * 1024;
+
+    private final ByteArrayOutputStream kept = new ByteArrayOutputStream();
+    private final Thread reader;
+
+    Captured(InputStream in) {
+      reader = Thread.ofVirtual().start(() -> read(in));
+    }
+
+    private void read(InputStream in) {
+      byte[] buffer = new byte[8192];
+      try (in) {
+        int read;
+        while ((read = in.read(buffer)) >= 0) {
+          keep(buffer, read);
+        }
+      } catch (IOException e) {
+        // The process went away.
+      }
+    }
+
+    private synchronized void keep(byte[] bytes, int length) {
+      int room = MAX_BYTES - kept.size();
+      if (room > 0) {
+        kept.write(bytes, 0, Math.min(room, length));
+      }
+    }
+
+    /** What was read so far. */
+    synchronized String text() {
+      return kept.toString(StandardCharsets.UTF_8).strip();
+    }
+
+    /** Waits up to the timeout for the output to end. */
+    void await(Duration timeout) {
+      try {
+        reader.join(timeout);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    }
   }
 
   /** The build log, with a size limit; output past the limit is dropped. */
