@@ -474,7 +474,8 @@ class ExecutiveBriefTest {
     // worker is base's own unit; shop-app runs base's code, so their links are within scope.
     assertThat(text(((Paragraph) blocks.get(1)).content()))
         .isEqualTo(
-            "No container in the snapshot depends on base's deployable units. They depend on 1"
+            "No container in the snapshot depends on the deployable units running base's code. They"
+                + " depend on 1"
                 + " external system and 1 database.");
   }
 
@@ -539,12 +540,12 @@ class ExecutiveBriefTest {
 
   @Test
   void technologyCurrencyKnowsWhatItDoesNotKnow() {
-    Document document = compose(withTechnology("${boot.version}", "9", null), OCTOBER_2026);
+    Document document = compose(withTechnology("${boot.version}", "99", null), OCTOBER_2026);
     List<Block> blocks = section(document, "technology_currency").blocks();
 
     assertThat(rows((Table) blocks.get(1)))
         .containsExactly(
-            "Java | 9 | shop-app | Not in Lantern's table",
+            "Java | 99 | shop-app | Not in Lantern's table",
             "Spring Boot | ${boot.version} | shop-app | Version could not be read");
     assertThat(text(((Paragraph) blocks.get(0)).content()))
         .isEqualTo(
@@ -556,7 +557,7 @@ class ExecutiveBriefTest {
   }
 
   @Test
-  void technologyCurrencyJudgesLinesBetweenRowsAndOlderThanTheTable() {
+  void technologyCurrencyJudgesReleasesTemurinNeverBuiltAndLinesOlderThanTheTable() {
     Document document = compose(withTechnology("1.2.0", "1.8", "4.2.9"), OCTOBER_2026);
     List<Block> blocks = section(document, "technology_currency").blocks();
 
@@ -567,7 +568,7 @@ class ExecutiveBriefTest {
             "Spring Framework | 4.2.9 | shop-app | Ended");
     Document gap = compose(withTechnology("3.5.1", "13", null), OCTOBER_2026);
     assertThat(rows((Table) section(gap, "technology_currency").blocks().get(1)))
-        .contains("Java | 13 | shop-app | Ended by 30 Sep 2021");
+        .contains("Java | 13 | shop-app | Ended 17 Mar 2020");
     assertThat(text(((Paragraph) section(gap, "technology_currency").blocks().get(0)).content()))
         .isEqualTo(
             "As of the snapshot's date, 29 Oct 2026, 2 of the 2 versions in use are past the end"

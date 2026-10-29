@@ -636,7 +636,7 @@
       "variant" : "note",
       "content" : [ {
         "kind" : "text",
-        "text" : "Lantern found no container in the snapshot that depends on greeting-service, and nothing they depend on. Dependents outside the snapshot are not known."
+        "text" : "Lantern found no container in the snapshot that depends on greeting-service, and nothing it depends on. Dependents outside the snapshot are not known."
       } ],
       "facts" : [ ]
     } ],

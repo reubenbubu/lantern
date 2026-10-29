@@ -204,7 +204,9 @@ final class BriefSections {
               assembler.id(section, "none"),
               "Lantern found no container in the snapshot that depends on "
                   + unitsPhrase()
-                  + ", and nothing they depend on. Dependents outside the snapshot are not"
+                  + ", and nothing "
+                  + (units.size() == 1 ? "it depends" : "they depend")
+                  + " on. Dependents outside the snapshot are not"
                   + " known."));
     } else {
       blocks.add(
@@ -272,7 +274,9 @@ final class BriefSections {
   }
 
   private String unitsPhrase() {
-    return units.size() == 1 ? assembler.name(units.first()) : repo + "'s deployable units";
+    return units.size() == 1
+        ? assembler.name(units.first())
+        : "the deployable units running " + repo + "'s code";
   }
 
   /**

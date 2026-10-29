@@ -40,16 +40,25 @@ class EndOfLifeTest {
     assertThat(table.support(Product.JAVA, "1.7")).isEqualTo(new Support.Older("7"));
     assertThat(table.support(Product.SPRING_BOOT, "1.2.0")).isEqualTo(new Support.Older("1.2"));
     assertThat(table.support(Product.JAVA, "99")).isEqualTo(new Support.Unknown());
-    // Between two lines of the table: ended no later than the next newer line.
+    // Releases Temurin never built: when the next feature release came out.
     assertThat(table.support(Product.JAVA, "12"))
-        .isEqualTo(new Support.EndedBy("12", LocalDate.of(2021, 9, 30)));
+        .isEqualTo(new Support.Until("12", LocalDate.of(2019, 9, 17)));
     assertThat(table.support(Product.JAVA, "9"))
-        .isEqualTo(new Support.EndedBy("9", LocalDate.of(2027, 10, 31)));
+        .isEqualTo(new Support.Until("9", LocalDate.of(2018, 3, 20)));
     assertThat(table.support(Product.SPRING_FRAMEWORK, "4.2.9"))
         .isEqualTo(new Support.Older("4.2"));
     assertThat(table.support(Product.SPRING_BOOT, "${boot.version}"))
         .isEqualTo(new Support.Unknown());
     assertThat(table.support(Product.SPRING_BOOT, null)).isEqualTo(new Support.Unknown());
+  }
+
+  @Test
+  void aLineBetweenTwoLinesEndedNoLaterThanTheNextNewerOne() {
+    EndOfLife table =
+        EndOfLife.parse(List.of("as-of,2026-10-29", "java,8,2030-12-31", "java,16,2021-09-30"));
+
+    assertThat(table.support(Product.JAVA, "13"))
+        .isEqualTo(new Support.EndedBy("13", LocalDate.of(2021, 9, 30)));
   }
 
   @Test

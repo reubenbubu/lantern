@@ -61,8 +61,9 @@ final class EndOfLife {
     record Unknown() implements Support {}
   }
 
-  private static final Pattern JAVA = Pattern.compile("(?:1\\.)?(\\d+)(?:[.\\-+_].*)?");
-  private static final Pattern MAJOR_MINOR = Pattern.compile("(\\d+)\\.(\\d+)(?:[.\\-+_].*)?");
+  private static final Pattern JAVA = Pattern.compile("(?:1\\.)?(\\d{1,6})(?:[.\\-+_].*)?");
+  private static final Pattern MAJOR_MINOR =
+      Pattern.compile("(\\d{1,6})\\.(\\d{1,6})(?:[.\\-+_].*)?");
 
   /** Orders lines by their numbers: 2.10 after 2.9, 11 after 8. */
   static final Comparator<String> BY_VERSION =

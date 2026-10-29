@@ -42,16 +42,19 @@ network call or new dependency is needed. The linker now records the links betwe
   end of free support of each line: a Java major release, a Spring Boot or Spring Framework major
   and minor version. Java uses Eclipse Temurin's end of availability
   (<https://adoptium.net/support/>), the free OpenJDK build most containers use, by the day
-  <https://endoflife.date/eclipse-temurin> gives (Adoptium gives months); Spring Boot and Spring
+  <https://endoflife.date/eclipse-temurin> gives (Adoptium gives months), and for Java 9, 10 and
+  12 to 15, which Temurin never built, the end of their public updates when the next feature
+  release came out; Spring Boot and Spring
   Framework the end of open-source support, not the paid extension: `ossSupportEndDate` in
   <https://api.spring.io/projects/spring-boot/generations> and
   <https://api.spring.io/projects/spring-framework/generations>, the data behind
   <https://spring.io/projects/spring-boot#support>. All as of 2026-10-29. The table records that
   as-of date and the brief shows it. It is updated each release. A version older than a product's
-  oldest line in the table has ended. One between two lines (a Java release Temurin never built,
-  Java 13) ended no later than the next newer line, since every missing line is older than it and
-  not a long-term-support release: shown as "Ended by" that date once it has passed, else as not
-  in the table (Java 9, whose next line is 11). One newer than every line is not in the table.
+  oldest line in the table has ended. One between two lines ended no later than the next newer
+  line, since every missing line is older than it and not a long-term-support release: shown as
+  "Ended by" that date once it has passed, else as not in the table; today the table has no such
+  gaps, so this guards rows added later. One newer than every line is not in the table. Lines
+  older than the table count as ended whatever the snapshot's date.
 - **Technology currency** lists each version in use: Spring Boot and Java from the units'
   `technology` facts; Spring Framework from direct dependencies outside test scope on
   `org.springframework:spring-*` artifacts with a version, in the repository's modules or those its
@@ -81,6 +84,8 @@ network call or new dependency is needed. The linker now records the links betwe
 - **Quality bar.** The brief's sections now pass ADR 0046's checks for blast radius and
   technology currency; the risks check also fails a risk without a consequence or confidence.
   Quality evidence remains missing (#186).
+- **The C4 report** shows a risk's consequence and confidence under its text, as the templates
+  do, since the consequence is no longer part of the text.
 - **Checks.** `ExecutiveBriefTest` covers both sections and the new risks on the fixture facts
   with links (`TestFacts.runtime`), `EndOfLifeTest` the table, `QualityBarTest` the risk check,
   and the golden briefs hold the sections of the fixture repositories (their snapshot is dated

@@ -18,6 +18,7 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -666,6 +667,16 @@ public final class C4ReportRenderer {
         title = (title == null ? "Risk" : title) + " (" + severity + ")";
       }
       String body = markdown(callout.content());
+      // A risk's consequence and confidence (ADR 0051) follow its text.
+      if (callout.consequence() != null) {
+        body += "\n" + markdown(List.of(TextRun.of("Consequence: " + callout.consequence())));
+      }
+      if (callout.confidence() != null) {
+        body +=
+            "\nConfidence: "
+                + callout.confidence().movePointRight(2).setScale(0, RoundingMode.HALF_UP)
+                + "%";
+      }
       return title == null ? body : "**" + oneLine(title) + "**\n" + body;
     }
 
