@@ -1,15 +1,22 @@
 package io.lantern.extract.java;
 
 import com.sun.source.tree.AnnotationTree;
+import com.sun.source.tree.AssignmentTree;
+import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.LineMap;
+import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MemberReferenceTree;
+import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
+import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.SourcePositions;
@@ -19,18 +26,28 @@ import com.sun.source.util.Trees;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.java.ModuleStructure.Annotation;
+import io.lantern.extract.java.ModuleStructure.Assignment;
 import io.lantern.extract.java.ModuleStructure.Call;
+import io.lantern.extract.java.ModuleStructure.Constant;
+import io.lantern.extract.java.ModuleStructure.FieldRead;
+import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
+import io.lantern.extract.java.ModuleStructure.Other;
+import io.lantern.extract.java.ModuleStructure.Parameter;
+import io.lantern.extract.java.ModuleStructure.ParameterRead;
+import io.lantern.extract.java.ModuleStructure.Result;
 import io.lantern.extract.java.ModuleStructure.SourceFile;
 import io.lantern.extract.java.ModuleStructure.Supertype;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.java.ModuleStructure.Value;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -43,6 +60,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.NestingKind;
+import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
@@ -272,7 +290,14 @@ final class JavacAnalyzer {
         List<Member> members, EntityId id, Element e, Location typeLocation, SourceFile file) {
       if (id != null) {
         Location where = location(trees.getPath(e), file, typeLocation);
-        members.add(new Member(id, where, annotations(e, where, file)));
+        List<Parameter> parameters = new ArrayList<>();
+        if (e instanceof ExecutableElement method) {
+          for (VariableElement p : method.getParameters()) {
+            parameters.add(
+                new Parameter(p.getSimpleName().toString(), annotations(p, where, file)));
+          }
+        }
+        members.add(new Member(id, where, annotations(e, where, file), parameters));
       }
     }
 
@@ -308,14 +333,19 @@ final class JavacAnalyzer {
         SourceFile file) {
       TypeElement type = (TypeElement) m.getAnnotationType().asElement();
       Map<String, List<String>> values = new LinkedHashMap<>();
-      List<AnnotationMirror> nested = new ArrayList<>();
+      Map<String, List<AnnotationMirror>> nestedByElement = new LinkedHashMap<>();
       for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e :
           m.getElementValues().entrySet()) {
         String name = e.getKey().getSimpleName().toString();
         List<String> list = new ArrayList<>();
-        value(e.getValue().getValue(), list, name.equals(VALUE) ? nested : null);
+        List<AnnotationMirror> inner = new ArrayList<>();
+        value(e.getValue().getValue(), list, inner);
         values.put(name, List.copyOf(list));
+        if (!inner.isEmpty()) {
+          nestedByElement.put(name, inner);
+        }
       }
+      List<AnnotationMirror> nested = nestedByElement.getOrDefault(VALUE, List.of());
       if (!nested.isEmpty() && values.size() == 1 && values.get(VALUE).isEmpty()) {
         // javac makes up the container of repeated annotations; each has its own place.
         List<Location> places = element == null ? List.of() : repeated(element, nested, file);
@@ -325,8 +355,38 @@ final class JavacAnalyzer {
         }
         return;
       }
-      annotations.add(new Annotation(binaryName(type), values, where));
+      annotations.add(
+          new Annotation(binaryName(type), values, nested(nestedByElement, where), where));
       metaAnnotations(type);
+    }
+
+    /** Annotations written as element values, read as written annotations are, recursively. */
+    private Map<String, List<Annotation>> nested(
+        Map<String, List<AnnotationMirror>> byElement, Location where) {
+      Map<String, List<Annotation>> nested = new LinkedHashMap<>();
+      byElement.forEach(
+          (element, mirrors) -> {
+            List<Annotation> list = new ArrayList<>();
+            for (AnnotationMirror n : mirrors) {
+              Map<String, List<String>> values = new LinkedHashMap<>();
+              Map<String, List<AnnotationMirror>> inner = new LinkedHashMap<>();
+              for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e :
+                  n.getElementValues().entrySet()) {
+                String name = e.getKey().getSimpleName().toString();
+                List<String> strings = new ArrayList<>();
+                List<AnnotationMirror> deeper = new ArrayList<>();
+                value(e.getValue().getValue(), strings, deeper);
+                values.put(name, List.copyOf(strings));
+                if (!deeper.isEmpty()) {
+                  inner.put(name, deeper);
+                }
+              }
+              TypeElement type = (TypeElement) n.getAnnotationType().asElement();
+              list.add(new Annotation(binaryName(type), values, nested(inner, where), where));
+            }
+            nested.put(element, list);
+          });
+      return nested;
     }
 
     /**
@@ -501,6 +561,7 @@ final class JavacAnalyzer {
 
       private final CompilationUnitTree unit;
       private final SourceFile file;
+      private final Map<Tree, Invocation> invocations = new IdentityHashMap<>();
 
       CallScanner(CompilationUnitTree unit, SourceFile file) {
         this.unit = unit;
@@ -514,6 +575,7 @@ final class JavacAnalyzer {
           long name = end(unit, node.getMethodSelect());
           long start = name > 0 ? name - 1 : positions.getStartPosition(unit, node);
           call(start, end(unit, node));
+          invocation(getCurrentPath());
         }
         return super.visitMethodInvocation(node, unused);
       }
@@ -524,8 +586,243 @@ final class JavacAnalyzer {
         // An enum constant's creation is not written as a call, and parsing does not see one.
         if (node.getClassBody() == null && !isEnumConstant(getCurrentPath().getParentPath())) {
           call(positions.getStartPosition(unit, node), end(unit, node));
+          invocation(getCurrentPath());
         }
         return super.visitNewClass(node, unused);
+      }
+
+      @Override
+      public Void visitAssignment(AssignmentTree node, Void unused) {
+        TreePath path = getCurrentPath();
+        ExpressionTree variable = node.getVariable();
+        boolean own =
+            variable instanceof IdentifierTree
+                || (variable instanceof MemberSelectTree select
+                    && select.getExpression() instanceof IdentifierTree id
+                    && id.getName().contentEquals("this"));
+        if (own
+            && trees.getElement(new TreePath(path, variable)) instanceof VariableElement field
+            && field.getKind() == ElementKind.FIELD) {
+          assignment(path, field, new TreePath(path, node.getExpression()));
+        }
+        return super.visitAssignment(node, unused);
+      }
+
+      @Override
+      public Void visitVariable(VariableTree node, Void unused) {
+        TreePath path = getCurrentPath();
+        if (node.getInitializer() != null
+            && trees.getElement(path) instanceof VariableElement field
+            && field.getKind() == ElementKind.FIELD) {
+          assignment(path, field, new TreePath(path, node.getInitializer()));
+        }
+        return super.visitVariable(node, unused);
+      }
+
+      private void assignment(TreePath path, VariableElement field, TreePath value) {
+        EntityId in = owner(path);
+        if (in == null
+            || !(field.getEnclosingElement() instanceof TypeElement declaring)
+            || !isNamed(declaring)) {
+          return;
+        }
+        EntityId id =
+            ModuleStructure.fieldId(binaryName(declaring), field.getSimpleName().toString());
+        if (id != null) {
+          Tree leaf = path.getLeaf();
+          structure.assignments.add(
+              new Assignment(
+                  in,
+                  id,
+                  value(value),
+                  lines(
+                      unit, file, positions.getStartPosition(unit, leaf), end(unit, leaf), null)));
+        }
+      }
+
+      /** What an expression is, as far as following a value needs. */
+      private Value value(TreePath path) {
+        Tree tree = path.getLeaf();
+        while (tree instanceof ParenthesizedTree || tree instanceof TypeCastTree) {
+          ExpressionTree inner =
+              tree instanceof ParenthesizedTree p
+                  ? p.getExpression()
+                  : ((TypeCastTree) tree).getExpression();
+          path = new TreePath(path, inner);
+          tree = inner;
+        }
+        Object constant = constant(path);
+        if (constant != null) {
+          return new Constant(String.valueOf(constant));
+        }
+        switch (tree) {
+          case MethodInvocationTree m -> {
+            Invocation i = invocation(path);
+            return i != null ? new Result(i) : new Other();
+          }
+          case NewClassTree n -> {
+            Invocation i = n.getClassBody() == null ? invocation(path) : null;
+            return i != null ? new Result(i) : new Other();
+          }
+          case IdentifierTree id -> {
+            return variable(trees.getElement(path));
+          }
+          case MemberSelectTree select -> {
+            return variable(trees.getElement(path));
+          }
+          default -> {
+            return new Other();
+          }
+        }
+      }
+
+      private Value variable(Element e) {
+        if (!(e instanceof VariableElement v)) {
+          return new Other();
+        }
+        if (v.getKind() == ElementKind.FIELD
+            && v.getEnclosingElement() instanceof TypeElement declaring
+            && isNamed(declaring)) {
+          EntityId id =
+              ModuleStructure.fieldId(binaryName(declaring), v.getSimpleName().toString());
+          return id != null ? new FieldRead(id) : new Other();
+        }
+        if (v.getKind() == ElementKind.PARAMETER
+            && v.getEnclosingElement() instanceof ExecutableElement method) {
+          int index = method.getParameters().indexOf(v);
+          if (index >= 0) {
+            return new ParameterRead(index, v.getSimpleName().toString());
+          }
+        }
+        return new Other();
+      }
+
+      /**
+       * Folds a constant expression: a literal, a constant variable, an enum constant (its name),
+       * and string concatenation and arithmetic of those, or null if it is not one.
+       */
+      private Object constant(TreePath path) {
+        Tree tree = path.getLeaf();
+        switch (tree) {
+          case LiteralTree l -> {
+            return l.getValue();
+          }
+          case ParenthesizedTree p -> {
+            return constant(new TreePath(path, p.getExpression()));
+          }
+          case TypeCastTree c -> {
+            return constant(new TreePath(path, c.getExpression()));
+          }
+          case IdentifierTree id -> {
+            return constantVariable(trees.getElement(path));
+          }
+          case MemberSelectTree select -> {
+            return constantVariable(trees.getElement(path));
+          }
+          case BinaryTree b -> {
+            Object left = constant(new TreePath(path, b.getLeftOperand()));
+            Object right = constant(new TreePath(path, b.getRightOperand()));
+            if (left == null || right == null || b.getKind() != Tree.Kind.PLUS) {
+              return null;
+            }
+            if (left instanceof String || right instanceof String) {
+              return String.valueOf(left) + right;
+            }
+            if (left instanceof Number x && right instanceof Number y) {
+              return isIntegral(x) && isIntegral(y)
+                  ? (Object) (x.longValue() + y.longValue())
+                  : (Object) (x.doubleValue() + y.doubleValue());
+            }
+            return null;
+          }
+          default -> {
+            return null;
+          }
+        }
+      }
+
+      private static boolean isIntegral(Number n) {
+        return n instanceof Integer || n instanceof Long || n instanceof Short || n instanceof Byte;
+      }
+
+      private static Object constantVariable(Element e) {
+        if (e instanceof VariableElement v) {
+          if (v.getKind() == ElementKind.ENUM_CONSTANT) {
+            return v.getSimpleName().toString();
+          }
+          return v.getConstantValue();
+        }
+        return null;
+      }
+
+      /** The invocation a call or creation makes, read once. */
+      private Invocation invocation(TreePath path) {
+        Tree tree = path.getLeaf();
+        if (invocations.containsKey(tree)) {
+          return invocations.get(tree);
+        }
+        invocations.put(tree, null);
+        EntityId caller = owner(path);
+        if (caller == null) {
+          return null;
+        }
+        Element element = trees.getElement(path);
+        EntityId callee = null;
+        String type = null;
+        String method = null;
+        if (element instanceof ExecutableElement executable
+            && executable.getEnclosingElement() instanceof TypeElement declaring) {
+          type = isNamed(declaring) ? binaryName(declaring) : null;
+          callee = type != null ? methodId(executable) : null;
+          method =
+              executable.getKind() == ElementKind.CONSTRUCTOR
+                  ? ModuleStructure.CONSTRUCTOR
+                  : executable.getSimpleName().toString();
+        }
+        Value receiver = null;
+        List<? extends ExpressionTree> arguments;
+        long start;
+        if (tree instanceof MethodInvocationTree m) {
+          arguments = m.getArguments();
+          ExpressionTree select = m.getMethodSelect();
+          if (method == null) {
+            method =
+                select instanceof MemberSelectTree ms
+                    ? ms.getIdentifier().toString()
+                    : ((IdentifierTree) select).getName().toString();
+          }
+          if (select instanceof MemberSelectTree ms) {
+            TreePath selectPath = new TreePath(path, select);
+            TreePath on = new TreePath(selectPath, ms.getExpression());
+            Element target = trees.getElement(on);
+            if (!(target instanceof TypeElement) && !(target instanceof PackageElement)) {
+              receiver = value(on);
+            }
+          }
+          long name = end(unit, select);
+          start = name > 0 ? name - 1 : positions.getStartPosition(unit, tree);
+        } else {
+          NewClassTree n = (NewClassTree) tree;
+          arguments = n.getArguments();
+          method = ModuleStructure.CONSTRUCTOR;
+          start = positions.getStartPosition(unit, tree);
+        }
+        List<Value> values = new ArrayList<>();
+        for (ExpressionTree a : arguments) {
+          values.add(value(new TreePath(path, a)));
+        }
+        Invocation invocation =
+            new Invocation(
+                caller,
+                callee,
+                type,
+                method,
+                receiver,
+                values,
+                lines(unit, file, start, end(unit, tree), null));
+        invocations.put(tree, invocation);
+        structure.invocations.add(invocation);
+        return invocation;
       }
 
       @Override

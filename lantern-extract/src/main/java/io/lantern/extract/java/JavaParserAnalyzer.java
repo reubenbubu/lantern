@@ -11,6 +11,7 @@ import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.AnnotationDeclaration;
 import com.github.javaparser.ast.body.AnnotationMemberDeclaration;
 import com.github.javaparser.ast.body.BodyDeclaration;
+import com.github.javaparser.ast.body.CallableDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.CompactConstructorDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
@@ -24,6 +25,7 @@ import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.ArrayInitializerExpr;
+import com.github.javaparser.ast.expr.AssignExpr;
 import com.github.javaparser.ast.expr.BinaryExpr;
 import com.github.javaparser.ast.expr.BooleanLiteralExpr;
 import com.github.javaparser.ast.expr.CastExpr;
@@ -34,6 +36,7 @@ import com.github.javaparser.ast.expr.EnclosedExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.IntegerLiteralExpr;
+import com.github.javaparser.ast.expr.LambdaExpr;
 import com.github.javaparser.ast.expr.LongLiteralExpr;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.MethodCallExpr;
@@ -44,7 +47,9 @@ import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.expr.TextBlockLiteralExpr;
+import com.github.javaparser.ast.expr.ThisExpr;
 import com.github.javaparser.ast.expr.UnaryExpr;
+import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithTypeParameters;
 import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
 import com.github.javaparser.ast.type.ArrayType;
@@ -69,12 +74,20 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeS
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.java.ModuleStructure.Annotation;
+import io.lantern.extract.java.ModuleStructure.Assignment;
 import io.lantern.extract.java.ModuleStructure.Call;
+import io.lantern.extract.java.ModuleStructure.Constant;
+import io.lantern.extract.java.ModuleStructure.FieldRead;
+import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
+import io.lantern.extract.java.ModuleStructure.Other;
+import io.lantern.extract.java.ModuleStructure.ParameterRead;
+import io.lantern.extract.java.ModuleStructure.Result;
 import io.lantern.extract.java.ModuleStructure.SourceFile;
 import io.lantern.extract.java.ModuleStructure.Supertype;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.java.ModuleStructure.Value;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -178,6 +191,8 @@ final class JavaParserAnalyzer {
       }
       structure.types.addAll(one.types);
       structure.calls.addAll(one.calls);
+      structure.invocations.addAll(one.invocations);
+      structure.assignments.addAll(one.assignments);
     }
     return structure;
   }
@@ -191,6 +206,7 @@ final class JavaParserAnalyzer {
     private final String packageName;
     private final Map<Node, String> binaryNames = new IdentityHashMap<>();
     private final Map<Node, EntityId> callables = new IdentityHashMap<>();
+    private final Map<Node, Invocation> invocations = new IdentityHashMap<>();
     private final TypeSolver solver;
 
     Reader(ModuleStructure structure, CompilationUnit unit, SourceFile file, TypeSolver solver) {
@@ -225,6 +241,24 @@ final class JavaParserAnalyzer {
       }
       for (MethodReferenceExpr reference : unit.findAll(MethodReferenceExpr.class)) {
         call(reference, () -> reference.resolve(), null);
+      }
+      for (MethodCallExpr call : unit.findAll(MethodCallExpr.class)) {
+        invocation(call);
+      }
+      for (ObjectCreationExpr creation : unit.findAll(ObjectCreationExpr.class)) {
+        if (creation.getAnonymousClassBody().isEmpty()) {
+          invocation(creation);
+        }
+      }
+      for (AssignExpr assign : unit.findAll(AssignExpr.class)) {
+        if (assign.getOperator() == AssignExpr.Operator.ASSIGN) {
+          assignment(assign, assign.getTarget(), assign.getValue());
+        }
+      }
+      for (FieldDeclaration field : unit.findAll(FieldDeclaration.class)) {
+        for (VariableDeclarator v : field.getVariables()) {
+          v.getInitializer().ifPresent(init -> assignment(v, v.getNameAsExpression(), init));
+        }
       }
     }
 
@@ -407,8 +441,24 @@ final class JavaParserAnalyzer {
     private void callable(List<Member> members, BodyDeclaration<?> declaration, EntityId id) {
       if (id != null) {
         callables.put(declaration, id);
+        List<Parameter> written =
+            switch (declaration) {
+              case MethodDeclaration m -> m.getParameters();
+              case ConstructorDeclaration c -> c.getParameters();
+              case CompactConstructorDeclaration c ->
+                  c.getParentNode().orElse(null) instanceof RecordDeclaration r
+                      ? r.getParameters()
+                      : List.of();
+              default -> List.of();
+            };
+        List<ModuleStructure.Parameter> parameters = new ArrayList<>();
+        for (Parameter p : written) {
+          parameters.add(
+              new ModuleStructure.Parameter(p.getNameAsString(), annotations(p.getAnnotations())));
+        }
         members.add(
-            new Member(id, location(declaration), annotations(declaration.getAnnotations())));
+            new Member(
+                id, location(declaration), annotations(declaration.getAnnotations()), parameters));
       }
     }
 
@@ -453,22 +503,58 @@ final class JavaParserAnalyzer {
     /** Adds an annotation, or the annotations a container of repeated annotations holds. */
     private void annotation(AnnotationExpr a, Location where, List<Annotation> annotations) {
       Map<String, List<String>> values = new LinkedHashMap<>();
-      List<AnnotationExpr> nested = new ArrayList<>();
-      if (a instanceof SingleMemberAnnotationExpr single) {
-        values.put(VALUE, values(single.getMemberValue(), nested));
-      } else if (a instanceof NormalAnnotationExpr normal) {
-        for (MemberValuePair pair : normal.getPairs()) {
-          String element = pair.getNameAsString();
-          values.put(element, values(pair.getValue(), element.equals(VALUE) ? nested : null));
-        }
-      }
+      Map<String, List<AnnotationExpr>> nestedByElement = new LinkedHashMap<>();
+      elements(a, values, nestedByElement);
+      List<AnnotationExpr> nested = nestedByElement.getOrDefault(VALUE, List.of());
       if (!nested.isEmpty() && values.size() == 1 && values.get(VALUE).isEmpty()) {
         for (AnnotationExpr n : nested) {
           annotation(n, where, annotations);
         }
         return;
       }
-      annotations.add(new Annotation(annotationType(a), values, where));
+      annotations.add(
+          new Annotation(annotationType(a), values, nested(nestedByElement, where), where));
+    }
+
+    /** An annotation's element values, with the annotations written as values apart. */
+    private void elements(
+        AnnotationExpr a,
+        Map<String, List<String>> values,
+        Map<String, List<AnnotationExpr>> nestedByElement) {
+      if (a instanceof SingleMemberAnnotationExpr single) {
+        List<AnnotationExpr> inner = new ArrayList<>();
+        values.put(VALUE, values(single.getMemberValue(), inner));
+        if (!inner.isEmpty()) {
+          nestedByElement.put(VALUE, inner);
+        }
+      } else if (a instanceof NormalAnnotationExpr normal) {
+        for (MemberValuePair pair : normal.getPairs()) {
+          String element = pair.getNameAsString();
+          List<AnnotationExpr> inner = new ArrayList<>();
+          values.put(element, values(pair.getValue(), inner));
+          if (!inner.isEmpty()) {
+            nestedByElement.put(element, inner);
+          }
+        }
+      }
+    }
+
+    /** Annotations written as element values, read as written annotations are, recursively. */
+    private Map<String, List<Annotation>> nested(
+        Map<String, List<AnnotationExpr>> byElement, Location where) {
+      Map<String, List<Annotation>> nested = new LinkedHashMap<>();
+      byElement.forEach(
+          (element, written) -> {
+            List<Annotation> list = new ArrayList<>();
+            for (AnnotationExpr n : written) {
+              Map<String, List<String>> values = new LinkedHashMap<>();
+              Map<String, List<AnnotationExpr>> inner = new LinkedHashMap<>();
+              elements(n, values, inner);
+              list.add(new Annotation(annotationType(n), values, nested(inner, where), where));
+            }
+            nested.put(element, list);
+          });
+      return nested;
     }
 
     /** An element's value as strings, constants folded; nested annotations go to {@code nested}. */
@@ -497,6 +583,14 @@ final class JavaParserAnalyzer {
      * arithmetic is done in {@code long}, so a result that overflows an {@code int} differs.
      */
     private Object constant(Expression e, int depth) {
+      return constant(e, depth, false);
+    }
+
+    /**
+     * Folds a constant expression; when {@code strict}, only through variables that are final, as
+     * javac requires of a constant variable outside annotations.
+     */
+    private Object constant(Expression e, int depth, boolean strict) {
       if (depth > MAX_CONSTANT_DEPTH) {
         return null;
       }
@@ -509,17 +603,17 @@ final class JavaParserAnalyzer {
           case LongLiteralExpr l -> l.asNumber().longValue();
           case DoubleLiteralExpr d -> d.asDouble();
           case BooleanLiteralExpr b -> b.getValue();
-          case EnclosedExpr inner -> constant(inner.getInner(), depth + 1);
-          case CastExpr cast -> constant(cast.getExpression(), depth + 1);
-          case UnaryExpr u -> unary(u, constant(u.getExpression(), depth + 1));
+          case EnclosedExpr inner -> constant(inner.getInner(), depth + 1, strict);
+          case CastExpr cast -> constant(cast.getExpression(), depth + 1, strict);
+          case UnaryExpr u -> unary(u, constant(u.getExpression(), depth + 1, strict));
           case BinaryExpr b ->
               binary(
                   b.getOperator(),
-                  constant(b.getLeft(), depth + 1),
-                  constant(b.getRight(), depth + 1));
-          case ClassExpr c -> describe(c.getType(), c);
-          case NameExpr n -> reference(JavaParserFacade.get(solver).solve(n), depth);
-          case FieldAccessExpr f -> reference(JavaParserFacade.get(solver).solve(f), depth);
+                  constant(b.getLeft(), depth + 1, strict),
+                  constant(b.getRight(), depth + 1, strict));
+          case ClassExpr c -> strict ? null : describe(c.getType(), c);
+          case NameExpr n -> reference(JavaParserFacade.get(solver).solve(n), depth, strict);
+          case FieldAccessExpr f -> reference(JavaParserFacade.get(solver).solve(f), depth, strict);
           default -> null;
         };
       } catch (RuntimeException | StackOverflowError ex) {
@@ -534,7 +628,8 @@ final class JavaParserAnalyzer {
     }
 
     /** The value of a constant or enum constant a name refers to, or null. */
-    private Object reference(SymbolReference<? extends ResolvedValueDeclaration> ref, int depth) {
+    private Object reference(
+        SymbolReference<? extends ResolvedValueDeclaration> ref, int depth, boolean strict) {
       if (!ref.isSolved()) {
         return null;
       }
@@ -553,11 +648,25 @@ final class JavaParserAnalyzer {
                         .findFirst()
                         .orElse(null)
                     : null;
-        if (variable != null && variable.getInitializer().isPresent()) {
-          return constant(variable.getInitializer().get(), depth + 1);
+        if (variable != null
+            && variable.getInitializer().isPresent()
+            && (!strict || isFinal(variable))) {
+          return constant(variable.getInitializer().get(), depth + 1, strict);
         }
       }
       return null;
+    }
+
+    /** Whether a variable is final: declared so, or a field of an interface or annotation. */
+    private static boolean isFinal(VariableDeclarator variable) {
+      Node parent = variable.getParentNode().orElse(null);
+      if (parent instanceof FieldDeclaration f) {
+        return f.isFinal()
+            || (f.getParentNode().orElse(null) instanceof ClassOrInterfaceDeclaration c
+                && c.isInterface())
+            || f.getParentNode().orElse(null) instanceof AnnotationDeclaration;
+      }
+      return parent instanceof VariableDeclarationExpr v && v.isFinal();
     }
 
     private static Object unary(UnaryExpr u, Object value) {
@@ -670,6 +779,264 @@ final class JavaParserAnalyzer {
       int start = name != null ? name.line : node.getBegin().map(p -> p.line).orElse(0);
       int end = node.getEnd().map(p -> p.line).orElse(start);
       structure.calls.add(new Call(caller, callee, Location.of(file, start, end)));
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Invocations and assignments, for following values
+
+    /** The invocation a call or creation makes, read once. */
+    private Invocation invocation(Expression node) {
+      if (invocations.containsKey(node)) {
+        return invocations.get(node);
+      }
+      invocations.put(node, null);
+      EntityId caller = owner(node);
+      if (caller == null) {
+        return null;
+      }
+      EntityId callee = null;
+      String type = null;
+      String method;
+      Value receiver = null;
+      List<Expression> arguments;
+      Position name = null;
+      if (node instanceof MethodCallExpr call) {
+        method = call.getNameAsString();
+        arguments = call.getArguments();
+        name = call.getName().getBegin().orElse(null);
+        Expression scope = call.getScope().orElse(null);
+        boolean typeName = scope != null && isTypeName(scope);
+        if (scope != null && !typeName) {
+          receiver = value(scope);
+        }
+        try {
+          ResolvedMethodLikeDeclaration resolved = call.resolve();
+          callee = calleeId(resolved);
+          type = binaryName(resolved.declaringType());
+        } catch (RuntimeException | StackOverflowError e) {
+          // Not resolvable without the classpath: the type the receiver is declared with.
+          type =
+              scope == null ? null : typeName ? guessType(scope.toString()) : declaredType(scope);
+        }
+      } else {
+        ObjectCreationExpr creation = (ObjectCreationExpr) node;
+        method = ModuleStructure.CONSTRUCTOR;
+        arguments = creation.getArguments();
+        try {
+          ResolvedMethodLikeDeclaration resolved = creation.resolve();
+          callee = calleeId(resolved);
+          type = binaryName(resolved.declaringType());
+        } catch (RuntimeException | StackOverflowError e) {
+          type = describe(creation.getType(), creation);
+        }
+      }
+      List<Value> values = new ArrayList<>();
+      for (Expression a : arguments) {
+        values.add(value(a));
+      }
+      int start = name != null ? name.line : node.getBegin().map(p -> p.line).orElse(0);
+      int end = node.getEnd().map(p -> p.line).orElse(start);
+      Invocation invocation =
+          new Invocation(
+              caller, callee, type, method, receiver, values, Location.of(file, start, end));
+      invocations.put(node, invocation);
+      structure.invocations.add(invocation);
+      return invocation;
+    }
+
+    /** Records an assignment to a field of the type the code is in. */
+    private void assignment(Node at, Expression target, Expression value) {
+      boolean own =
+          target instanceof NameExpr
+              || (target instanceof FieldAccessExpr f && f.getScope() instanceof ThisExpr);
+      if (!own) {
+        return;
+      }
+      String fieldName =
+          target instanceof NameExpr n
+              ? n.getNameAsString()
+              : ((FieldAccessExpr) target).getNameAsString();
+      Declared declared =
+          target instanceof NameExpr || !(at instanceof VariableDeclarator)
+              ? lookup(target, fieldName, !(target instanceof NameExpr))
+              : null;
+      if (at instanceof VariableDeclarator v) {
+        // A field's initializer: the field is the one declared.
+        TypeDeclaration<?> type = v.findAncestor(TypeDeclaration.class).orElse(null);
+        declared =
+            type == null
+                ? null
+                : new Declared(Declared.FIELD, binaryNames.get(type), -1, v.getType(), v);
+      }
+      if (declared == null || declared.kind() != Declared.FIELD || declared.owner() == null) {
+        return;
+      }
+      EntityId in = owner(at);
+      EntityId field = ModuleStructure.fieldId(declared.owner(), fieldName);
+      if (in != null && field != null) {
+        Node located = at instanceof VariableDeclarator v ? v.getParentNode().orElse(v) : at;
+        structure.assignments.add(new Assignment(in, field, value(value), location(located)));
+      }
+    }
+
+    /** What an expression is, as far as following a value needs. */
+    private Value value(Expression e) {
+      while (e instanceof EnclosedExpr || e instanceof CastExpr) {
+        e = e instanceof EnclosedExpr inner ? inner.getInner() : ((CastExpr) e).getExpression();
+      }
+      Object constant;
+      try {
+        constant = constant(e, 0, true);
+      } catch (RuntimeException | StackOverflowError ex) {
+        constant = null;
+      }
+      if (constant != null) {
+        return new Constant(String.valueOf(constant));
+      }
+      switch (e) {
+        case MethodCallExpr call -> {
+          Invocation i = invocation(call);
+          return i != null ? new Result(i) : new Other();
+        }
+        case ObjectCreationExpr creation -> {
+          Invocation i = creation.getAnonymousClassBody().isEmpty() ? invocation(creation) : null;
+          return i != null ? new Result(i) : new Other();
+        }
+        case NameExpr n -> {
+          return variable(n, n.getNameAsString(), false);
+        }
+        case FieldAccessExpr f when f.getScope() instanceof ThisExpr -> {
+          return variable(f, f.getNameAsString(), true);
+        }
+        case FieldAccessExpr f -> {
+          try {
+            ResolvedValueDeclaration d =
+                JavaParserFacade.get(solver).solve(f).getCorrespondingDeclaration();
+            if (d.isField()) {
+              EntityId id =
+                  ModuleStructure.fieldId(
+                      binaryName((ResolvedReferenceTypeDeclaration) d.asField().declaringType()),
+                      d.getName());
+              return id != null ? new FieldRead(id) : new Other();
+            }
+          } catch (RuntimeException | StackOverflowError ex) {
+            // Not resolvable: nothing to follow.
+          }
+          return new Other();
+        }
+        default -> {
+          return new Other();
+        }
+      }
+    }
+
+    private Value variable(Node at, String name, boolean fieldOnly) {
+      Declared d = lookup(at, name, fieldOnly);
+      if (d == null) {
+        return new Other();
+      }
+      return switch (d.kind()) {
+        case Declared.FIELD -> {
+          EntityId id = d.owner() == null ? null : ModuleStructure.fieldId(d.owner(), name);
+          yield id != null ? new FieldRead(id) : new Other();
+        }
+        case Declared.PARAMETER -> new ParameterRead(d.index(), name);
+        default -> new Other();
+      };
+    }
+
+    /**
+     * What a name declared in scope is.
+     *
+     * @param kind {@link #LOCAL}, {@link #PARAMETER} or {@link #FIELD}
+     * @param owner for a field, the binary name of the type declaring it
+     * @param index for a parameter, its position
+     * @param type the type declared, or null if not written ({@code var}, a lambda parameter)
+     * @param context where the type is written
+     */
+    private record Declared(String kind, String owner, int index, Type type, Node context) {
+      static final String LOCAL = "local";
+      static final String PARAMETER = "parameter";
+      static final String FIELD = "field";
+    }
+
+    /**
+     * Finds what a name in code refers to, by its declaration in scope: a local variable or lambda
+     * parameter, a parameter of the method or constructor, or a field of an enclosing type.
+     * Inherited fields are not found.
+     */
+    private Declared lookup(Node at, String name, boolean fieldOnly) {
+      for (Node n = at; n != null; n = n.getParentNode().orElse(null)) {
+        if (!fieldOnly && n instanceof LambdaExpr lambda) {
+          for (Parameter p : lambda.getParameters()) {
+            if (p.getNameAsString().equals(name)) {
+              return new Declared(Declared.LOCAL, null, -1, null, p);
+            }
+          }
+        }
+        if (!fieldOnly && n instanceof CallableDeclaration<?> callable) {
+          for (VariableDeclarator v : callable.findAll(VariableDeclarator.class)) {
+            if (v.getNameAsString().equals(name)
+                && !(v.getParentNode().orElse(null) instanceof FieldDeclaration)) {
+              return new Declared(Declared.LOCAL, null, -1, v.getType(), v);
+            }
+          }
+          NodeList<Parameter> parameters = callable.getParameters();
+          for (int i = 0; i < parameters.size(); i++) {
+            if (parameters.get(i).getNameAsString().equals(name)) {
+              return new Declared(
+                  Declared.PARAMETER, null, i, parameters.get(i).getType(), parameters.get(i));
+            }
+          }
+        }
+        if (n instanceof TypeDeclaration<?> type) {
+          for (FieldDeclaration f : type.getFields()) {
+            for (VariableDeclarator v : f.getVariables()) {
+              if (v.getNameAsString().equals(name)) {
+                return new Declared(Declared.FIELD, binaryNames.get(type), -1, v.getType(), v);
+              }
+            }
+          }
+          if (type instanceof EnumDeclaration e
+              && e.getEntries().stream().anyMatch(c -> c.getNameAsString().equals(name))) {
+            return new Declared(Declared.FIELD, binaryNames.get(type), -1, null, e);
+          }
+        }
+      }
+      return null;
+    }
+
+    /** Whether an expression names a type (the scope of a static call), as far as can be told. */
+    private boolean isTypeName(Expression scope) {
+      if (scope instanceof NameExpr n) {
+        return lookup(n, n.getNameAsString(), false) == null
+            && Character.isUpperCase(n.getNameAsString().charAt(0));
+      }
+      if (scope instanceof FieldAccessExpr f) {
+        String last = f.getNameAsString();
+        return !(f.getScope() instanceof ThisExpr)
+            && Character.isUpperCase(last.charAt(0))
+            && f.getScope()
+                .toString()
+                .chars()
+                .allMatch(c -> c == '.' || Character.isJavaIdentifierPart(c));
+      }
+      return false;
+    }
+
+    /** The type a receiver is declared with, guessed if it does not resolve, or null. */
+    private String declaredType(Expression scope) {
+      Declared d =
+          switch (scope) {
+            case NameExpr n -> lookup(n, n.getNameAsString(), false);
+            case FieldAccessExpr f when f.getScope() instanceof ThisExpr ->
+                lookup(f, f.getNameAsString(), true);
+            default -> null;
+          };
+      if (d == null || d.type() == null || d.type().isVarType()) {
+        return null;
+      }
+      return describe(d.type(), d.context());
     }
 
     private static EntityId calleeId(ResolvedMethodLikeDeclaration method) {

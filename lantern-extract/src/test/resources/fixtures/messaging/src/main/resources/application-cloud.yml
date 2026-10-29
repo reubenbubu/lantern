@@ -1,0 +1,3 @@
+events:
+  kafka:
+    payments-topic: cloud.payments.completed
