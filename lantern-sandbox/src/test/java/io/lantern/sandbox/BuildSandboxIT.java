@@ -548,7 +548,7 @@ class BuildSandboxIT {
 
   @Test
   void helpersEndWhenTheProcessRunningTheBuildIsKilled() throws Exception {
-    Repo repo = repo(sandboxFixture("broken"), "killed", RepoSettings.DEFAULT);
+    Repo repo = repo(sandboxFixture("sleeper"), "killed", RepoSettings.DEFAULT);
     List<String> command =
         new ArrayList<>(
             List.of(
@@ -575,19 +575,16 @@ class BuildSandboxIT {
             .redirectOutput(temp.resolve("child.log").toFile())
             .start();
     try {
-      long deadline = System.nanoTime() + Duration.ofMinutes(1).toNanos();
-      while (ownContainers("name=lantern-build-[0-9a-f]+$").isEmpty()) {
-        assertThat(System.nanoTime())
-            .as("build container never started: " + Files.readString(temp.resolve("child.log")))
-            .isLessThan(deadline);
-        Thread.sleep(100);
-      }
+      awaitBuildContainer();
       assertThat(ownContainers("name=lantern-build-(proxy|disk)-")).isNotEmpty();
-      assertThat(child.isAlive()).as("the build ended before it could be killed").isTrue();
+      // The build sleeps for ten minutes, so the process is still building.
+      assertThat(child.isAlive())
+          .as("the build process ended: " + Files.readString(temp.resolve("child.log")))
+          .isTrue();
       // As a task timeout or a killed test fork would: no cleanup runs in the process.
       child.destroyForcibly().waitFor();
 
-      deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+      long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
       while (!ownContainers("name=lantern-build-(proxy|disk)-").isEmpty()) {
         assertThat(System.nanoTime())
             .as("the proxy and the disk monitor outlived the killed process")
@@ -598,6 +595,55 @@ class BuildSandboxIT {
       child.destroyForcibly().waitFor();
       // What a killed process does leave, the exited build container and the network.
       removeOwn();
+    }
+  }
+
+  @Test
+  void stopsTheBuildWhenAHelperStops() throws Exception {
+    Repo repo = repo(sandboxFixture("sleeper"), "orphaned", RepoSettings.DEFAULT);
+    BuildSandbox sandbox = new BuildSandbox(settings());
+    AtomicReference<Throwable> thrown = new AtomicReference<>();
+    Thread build =
+        Thread.ofVirtual()
+            .start(
+                () -> {
+                  try {
+                    sandbox.build(repo, TestRepos.head(repo));
+                  } catch (Throwable t) {
+                    thrown.set(t);
+                  }
+                });
+    awaitBuildContainer();
+    String proxy = ownContainers("name=lantern-build-proxy-");
+    assertThat(proxy).isNotEmpty();
+    DOCKER.check(TIMEOUT, List.of("rm", "--force", proxy));
+    build.join(Duration.ofMinutes(2));
+
+    assertThat(build.isAlive()).as("the build went on without its proxy").isFalse();
+    assertThat(thrown.get())
+        .isInstanceOf(SandboxException.class)
+        .hasMessageContaining("lantern-build-proxy-")
+        .hasMessageContaining("stopped while the build ran");
+    assertThat(sandbox.find("orphaned", TestRepos.head(repo))).isEmpty();
+  }
+
+  /** Waits until a build container of this test runs. */
+  private void awaitBuildContainer() throws InterruptedException {
+    long deadline = System.nanoTime() + Duration.ofMinutes(1).toNanos();
+    while (DOCKER
+        .check(
+            TIMEOUT,
+            List.of(
+                "ps",
+                "--quiet",
+                "--filter",
+                ownFilter(),
+                "--filter",
+                "name=lantern-build-[0-9a-f]+$"))
+        .out()
+        .isEmpty()) {
+      assertThat(System.nanoTime()).as("build container never started").isLessThan(deadline);
+      Thread.sleep(100);
     }
   }
 

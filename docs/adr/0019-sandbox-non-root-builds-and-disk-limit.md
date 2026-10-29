@@ -70,15 +70,20 @@ VM's rootless Docker.
   the container's standard input ends. Lantern starts them with `docker start --attach
   --interactive` and keeps that process's input open while the build runs, so if Lantern's process
   is killed and its cleanup never runs, the input closes, the helpers stop within seconds and Docker
-  removes them. The cache hand-over container is created with `--rm` too. There is no startup
-  sweep: it could not tell a dead build's leftovers from those of another Lantern process still
-  building. A killed process still leaves the build or detector container (it runs Maven to its
-  end, then stays exited) and the build's network, both labelled.
+  removes them. The cache hand-over container is created with `--rm` too. The proxy's output is
+  read through its attached process into the build log, since Docker removes the container, and
+  its logs, when it ends; it logs with Docker's `none` driver. If a helper's attached process ends
+  while the build runs, the build is stopped with a `SandboxException` naming the helper, not
+  recorded as a failed build. There is no startup sweep: it could not tell a dead build's
+  leftovers from those of another Lantern process still building. A killed process still leaves
+  the build or detector container (it runs Maven to its end, then stays exited) and the build's
+  network, both labelled, and a helper killed between its `docker create` and `docker start` stays
+  in state Created (#174). Tested with Docker only; Podman's handling of the attached input is
+  untested.
 - **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. With
   several builds at once, the free-space guard stops them all. What a build wrote to the shared
   cache stays there; cleaning the cache is manual, and until then every analysis stops at its
   first build (#65). A build can fill the cache folder's filesystem,
   which may also hold the user's other files, down to the free-space floor. The
   build timeout can be overrun by the time of one check. On a very busy host an honest build with
-  very many files could be stopped because its size could not be measured in time. The egress
-  proxy keeps Docker's default logging.
+  very many files could be stopped because its size could not be measured in time.
