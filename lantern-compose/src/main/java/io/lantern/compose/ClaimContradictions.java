@@ -41,6 +41,8 @@ final class ClaimContradictions {
       Map.of(
           C4Views.CALLS_HTTP,
           "calls",
+          C4Views.SENDS_MAIL,
+          "sends mail through",
           C4Views.ACCESSES_DATA_OF,
           "accesses the data of",
           C4Views.USES_DATABASE,

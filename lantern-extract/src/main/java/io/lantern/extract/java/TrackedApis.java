@@ -42,7 +42,11 @@ final class TrackedApis {
           "org.springframework.jms.core.",
           "org.springframework.amqp.",
           // Spring Cloud Stream: StreamBridge, and the legacy Source and Processor bindings.
-          "org.springframework.cloud.stream.");
+          "org.springframework.cloud.stream.",
+          // Mail (the mail extractor): JavaMailSender and MailSender, and Jakarta Mail.
+          "org.springframework.mail.",
+          "jakarta.mail.",
+          "javax.mail.");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";

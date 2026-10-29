@@ -118,6 +118,7 @@ public final class Describer {
   private static final List<String> LINKS =
       List.of(
           C4Views.CALLS_HTTP,
+          C4Views.SENDS_MAIL,
           C4Views.PUBLISHES,
           C4Views.CONSUMES,
           C4Views.USES_DATABASE,
@@ -556,6 +557,7 @@ public final class Describer {
     }
     return switch (neighbour.relationship()) {
       case C4Views.CALLS_HTTP -> "calls it";
+      case C4Views.SENDS_MAIL -> "sends mail through it";
       case C4Views.PUBLISHES -> "sends messages to it";
       case C4Views.USES_DATABASE -> "connects to it";
       case C4Views.ACCESSES_DATA_OF -> "reads or writes tables of it";
@@ -639,6 +641,7 @@ public final class Describer {
   private static String verb(String predicate) {
     return switch (predicate) {
       case C4Views.CALLS_HTTP -> "calls";
+      case C4Views.SENDS_MAIL -> "sends mail through";
       case C4Views.PUBLISHES -> "sends messages to";
       case C4Views.CONSUMES -> "receives messages from";
       case C4Views.USES_DATABASE -> "connects to";

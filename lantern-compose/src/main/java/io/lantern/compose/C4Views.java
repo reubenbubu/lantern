@@ -48,6 +48,7 @@ final class C4Views {
   static final String TECHNOLOGY = "technology";
   static final String BUNDLES = "BUNDLES";
   static final String CALLS_HTTP = "CALLS_HTTP";
+  static final String SENDS_MAIL = "SENDS_MAIL";
   static final String PUBLISHES = "PUBLISHES";
   static final String CONSUMES = "CONSUMES";
   static final String ROUTES_TO = "ROUTES_TO";
@@ -412,6 +413,18 @@ final class C4Views {
                 "Calls",
                 "Calls",
                 endpoint(fact),
+                protocol(fact),
+                fact));
+      }
+      for (Fact fact : knowledge.relations(unit, SENDS_MAIL)) {
+        result.add(
+            link(
+                unit,
+                SENDS_MAIL,
+                Knowledge.object(fact),
+                "Sends mail through",
+                "Sends mail",
+                null,
                 protocol(fact),
                 fact));
       }
