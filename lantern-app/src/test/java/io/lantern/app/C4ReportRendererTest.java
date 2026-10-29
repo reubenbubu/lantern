@@ -3,12 +3,17 @@ package io.lantern.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.lantern.core.document.Block;
+import io.lantern.core.document.CrossReference;
 import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.DocumentJson;
 import io.lantern.core.document.DocumentSource;
+import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
+import io.lantern.core.document.TextRun;
+import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -137,6 +142,106 @@ class C4ReportRendererTest {
         .hasMessageContaining("'service:orders-api'")
         .hasMessageContaining("'service:orders.api'")
         .hasMessageContaining("'service-orders-api'");
+  }
+
+  @Test
+  void drawsNoBoundaryWhoseChildrenCannotHaveItAsTheirParent() {
+    // The system on the context diagram is drawn around a package on a component diagram, but a
+    // component cannot sit inside a system, so neither the parent nor the boundary is kept.
+    EntityId system = EntityId.parse("repo:shop");
+    EntityId pkg = EntityId.parse("package:shop:com.example");
+    Diagram context =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Diagram components =
+        new Diagram(
+            "components.diagram",
+            Diagram.Kind.C4_COMPONENT,
+            null,
+            List.of(node(system), node(pkg, system)),
+            List.of(),
+            List.of());
+    Document document =
+        document(
+            List.of(entity(system), entity(pkg)),
+            section("context", system, List.of(context), List.of()),
+            section("components", system, List.of(components), List.of()));
+
+    JsonNode data = C4ReportRenderer.toJson(document).data();
+
+    assertThat(data.get("elements").get("repo-shop").get("kind").asString()).isEqualTo("system");
+    assertThat(data.get("elements").get("package-shop-com-example").has("parent")).isFalse();
+    assertThat(data.get("pages").get(1).get("sections").get(0).has("boundary")).isFalse();
+  }
+
+  @Test
+  void givesABlockThatShowsNothingNoSectionAndLinksToTheNextOneShown() {
+    EntityId system = EntityId.parse("repo:shop");
+    Diagram context =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Paragraph link =
+        new Paragraph(
+            "context.see",
+            List.of(
+                TextRun.of("See "),
+                new CrossReference("the notes", CrossReference.Target.block("notes.empty"), false),
+                TextRun.of(".")),
+            List.of());
+    Section notes =
+        section(
+            "notes",
+            null,
+            List.of(
+                new Tree("notes.empty", "Nothing yet", List.of(), List.of()),
+                new Paragraph("notes.text", List.of(TextRun.of("Some notes.")), List.of())),
+            List.of());
+    Document document =
+        document(
+            List.of(entity(system)),
+            section("context", system, List.of(context, link), List.of(notes)));
+
+    JsonNode sections =
+        C4ReportRenderer.toJson(document).data().get("pages").get(0).get("sections");
+
+    assertThat(sections.findValuesAsString("id"))
+        .containsExactly(
+            "context-diagram", "context-diagram-elements", "context-see", "notes-text");
+    assertThat(sections.get(2).get("body").asString())
+        .isEqualTo("See [the notes](#/context/notes-text).");
+    assertThat(sections.get(3).get("title").asString()).isEqualTo("Notes");
+  }
+
+  private static Document document(List<DocumentEntity> entities, Section... sections) {
+    return new Document(
+        "shop.c4",
+        "shop",
+        null,
+        AnalysisRun.C4_REPORT,
+        new DocumentSource(1, 1, "test"),
+        entities,
+        List.of(),
+        List.of(sections));
+  }
+
+  private static Section section(
+      String id, EntityId entity, List<Block> blocks, List<Section> subsections) {
+    String title = id.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + id.substring(1);
+    return new Section(id, title, Set.of(), entity, List.of(), blocks, subsections);
+  }
+
+  private static Diagram.Node node(EntityId id, EntityId parent) {
+    return new Diagram.Node(id, id.key(), null, parent, null, null, List.of());
   }
 
   private static Diagram.Node node(EntityId id) {

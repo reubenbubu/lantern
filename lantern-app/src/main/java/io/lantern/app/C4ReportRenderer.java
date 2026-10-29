@@ -235,23 +235,69 @@ public final class C4ReportRenderer {
     }
 
     /** Gives each block on the page its section ID; leading paragraphs form the summary. */
+    /**
+     * Gives each block on the page its section ID; leading paragraphs form the summary. A block
+     * that shows nothing gets no section: links to it go to the next section shown, which also
+     * takes its heading if it comes from the same Lantern section.
+     */
     private void placeOnPage(PagePlan page) {
       boolean leading = true;
       Set<Section> placed = new HashSet<>();
+      List<Part> shown = new ArrayList<>();
+      List<String> pending = new ArrayList<>();
+      Part pendingHeading = null;
       for (Part part : page.parts) {
         if (leading && part.block instanceof Paragraph && part.owner == page.section) {
           page.summary.add(part);
+          shown.add(part);
           blocks.put(part.block.id(), new Location(page, null));
           continue;
         }
         leading = false;
+        if (showsNothing(part.block)) {
+          pending.add(part.block.id());
+          if (part.heading != null) {
+            pendingHeading = part;
+          }
+          continue;
+        }
+        if (pendingHeading != null) {
+          if (part.heading == null && part.owner == pendingHeading.owner) {
+            part = new Part(part.owner, part.block, pendingHeading.heading);
+          }
+          pendingHeading = null;
+        }
+        shown.add(part);
         String id = page.sectionIds.id(part.block.id());
-        blocks.put(part.block.id(), new Location(page, id));
+        Location location = new Location(page, id);
+        blocks.put(part.block.id(), location);
+        pending.forEach(block -> blocks.put(block, location));
+        pending.clear();
         if (part.owner != page.section && placed.add(part.owner)) {
-          // A subsection placed on this page is linked to as its first block.
-          sections.put(part.owner.id(), new Location(page, id));
+          // A subsection placed on this page is linked to as its first block shown.
+          sections.put(part.owner.id(), location);
         }
       }
+      pending.forEach(block -> blocks.put(block, new Location(page, null)));
+      page.parts.clear();
+      page.parts.addAll(shown);
+    }
+
+    /** Whether a block maps to no section at all: an empty list or tree, or an empty sequence. */
+    private boolean showsNothing(Block block) {
+      return switch (block) {
+        case ListBlock l -> l.items().isEmpty();
+        case Tree t -> t.roots().isEmpty();
+        case SequenceDiagram s -> {
+          if (s.participants().size() >= 2) {
+            yield false;
+          }
+          List<String> items = new ArrayList<>();
+          s.steps().forEach(step -> stepItems(step, items));
+          yield items.isEmpty();
+        }
+        default -> false;
+      };
     }
 
     // Elements: the entities the diagrams draw, as the kind they are drawn as.
@@ -328,11 +374,23 @@ public final class C4ReportRenderer {
         return null;
       }
       for (Diagram.Node node : diagram.nodes()) {
-        if (candidate.equals(elements.get(node.id()).parent())) {
+        if (candidate.equals(shownParent(elements.get(node.id())))) {
           return candidate;
         }
       }
       return null;
+    }
+
+    /** The element's parent, if it is an element of a kind the schema allows as its parent. */
+    private EntityId shownParent(Element element) {
+      EntityId parent = element.parent();
+      if (parent == null || !elements.containsKey(parent)) {
+        return null;
+      }
+      String parentKind = elements.get(parent).kind();
+      return PARENT_KINDS.getOrDefault(element.kind(), Set.of()).contains(parentKind)
+          ? parent
+          : null;
     }
 
     /** The nodes drawn as boxes: all but those other nodes are drawn inside. */
@@ -380,12 +438,9 @@ public final class C4ReportRenderer {
       String kind = element.kind();
       node.put("kind", kind);
       node.put("name", entity.name());
-      EntityId parent = element.parent();
-      if (parent != null && elements.containsKey(parent)) {
-        String parentKind = elements.get(parent).kind();
-        if (PARENT_KINDS.getOrDefault(kind, Set.of()).contains(parentKind)) {
-          node.put("parent", elementIds.find(parent.toString()));
-        }
+      EntityId parent = shownParent(element);
+      if (parent != null) {
+        node.put("parent", elementIds.find(parent.toString()));
       }
       String type = element.id.type();
       if (!type.equals(kind)) {
@@ -443,7 +498,6 @@ public final class C4ReportRenderer {
       String id = blocks.get(part.block.id()).sectionId;
       return switch (part.block) {
         case Paragraph p -> List.of(section("text", id, null).put("body", markdown(p.content())));
-        case ListBlock l when l.items().isEmpty() -> List.of();
         case ListBlock l -> List.of(list(id, null, listItems(l)));
         case Callout c ->
             List.of(
@@ -452,7 +506,6 @@ public final class C4ReportRenderer {
                     .put("tone", c.variant() == Callout.Variant.NOTE ? "info" : "warning"));
         case Table t -> List.of(table(id, t));
         case Metrics m -> List.of(stats(id, m));
-        case Tree t when t.roots().isEmpty() -> List.of();
         case Tree t -> List.of(list(id, t.title(), treeItems(t)));
         case QualityReport q -> List.of(qualityReport(id, q));
         case Diagram d when d.diagramKind() == Diagram.Kind.DEPENDENCY ->
@@ -639,7 +692,7 @@ public final class C4ReportRenderer {
         // The spec draws a sequence between two participants or more; fewer is a list of steps.
         List<String> items = new ArrayList<>();
         diagram.steps().forEach(step -> stepItems(step, items));
-        return items.isEmpty() ? List.of() : List.of(list(id, title, items));
+        return List.of(list(id, title, items));
       }
       ObjectNode node = section("sequence", id, title);
       ArrayNode participantsNode = node.putArray("participants");
