@@ -189,7 +189,7 @@ public final class MessagingExtractor {
    *
    * @param repos the repositories of the snapshot, each at its commit with its build, if any
    * @param snapshot the snapshot number the facts hold from
-   * @return the facts, without duplicates, ordered by subject, predicate, object and ID
+   * @return the facts, without duplicates, ordered by subject, predicate, object, attributes and ID
    * @throws UncheckedIOException if the sources cannot be read or copied
    * @throws IllegalStateException if git fails or times out, or Lantern runs without a compiler
    */
@@ -202,7 +202,7 @@ public final class MessagingExtractor {
    *
    * @param code the code of the snapshot's repositories
    * @param snapshot the snapshot number the facts hold from
-   * @return the facts, without duplicates, ordered by subject, predicate, object and ID
+   * @return the facts, without duplicates, ordered by subject, predicate, object, attributes and ID
    * @throws IllegalStateException if git fails or times out while reading config
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
@@ -216,6 +216,7 @@ public final class MessagingExtractor {
             Comparator.comparing((Fact f) -> f.subject().toString())
                 .thenComparing(Fact::predicate)
                 .thenComparing(f -> f.object().value())
+                .thenComparing(f -> f.attributes().toString())
                 .thenComparing(Fact::id))
         .toList();
   }
