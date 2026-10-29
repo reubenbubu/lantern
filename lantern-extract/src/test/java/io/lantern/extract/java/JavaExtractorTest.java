@@ -10,14 +10,18 @@ import io.lantern.sandbox.BuildModule;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildStatus;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -398,20 +402,38 @@ class JavaExtractorTest {
 
   @Test
   void removesItsWorkingCopy() throws IOException {
-    Repo repo = Fixtures.repo("multi-module", temp.resolve("shop"), "shop");
+    // Other tests, in this JVM or another, make working copies in the same folder at the same
+    // time, so only one holding this test's uniquely named source file is its own.
+    String marker = "Marker" + UUID.randomUUID().toString().replace("-", "");
+    Map<String, String> files = new HashMap<>(SAMPLE);
+    files.put(
+        "src/main/java/com/example/sample/" + marker + ".java",
+        "package com.example.sample;\n\nclass " + marker + " {}\n");
+    Repo repo = Fixtures.repo(temp.resolve("shop"), "shop", files);
     Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
-    Set<Path> before = workingCopies(tmp);
 
-    extract(List.of(unbuilt(repo)));
+    List<Fact> facts = extract(List.of(unbuilt(repo)));
 
-    assertThat(workingCopies(tmp)).isEqualTo(before);
+    // The marker's class was read, so its copy existed.
+    assertThat(triples(facts)).anyMatch(t -> t.contains("com.example.sample." + marker));
+    assertThat(workingCopiesHolding(tmp, marker)).isEmpty();
   }
 
-  private static Set<Path> workingCopies(Path tmp) throws IOException {
+  private static List<Path> workingCopiesHolding(Path tmp, String marker) throws IOException {
+    List<Path> holding = new ArrayList<>();
     try (var list = Files.list(tmp)) {
-      return list.filter(p -> p.getFileName().toString().startsWith("lantern-java-"))
-          .collect(Collectors.toSet());
+      for (Path copy :
+          list.filter(p -> p.getFileName().toString().startsWith("lantern-java-")).toList()) {
+        try (var files = Files.walk(copy)) {
+          if (files.anyMatch(f -> f.getFileName().toString().equals(marker + ".java"))) {
+            holding.add(copy);
+          }
+        } catch (IOException | UncheckedIOException e) {
+          // Removed meanwhile by the test that made it.
+        }
+      }
     }
+    return holding;
   }
 
   /** Subject, predicate and object of each fact, without evidence or confidence. */

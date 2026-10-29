@@ -46,7 +46,13 @@ final class TrackedApis {
           // Mail (the mail extractor): JavaMailSender and MailSender, and Jakarta Mail.
           "org.springframework.mail.",
           "jakarta.mail.",
-          "javax.mail.");
+          "javax.mail.",
+          // Redis templates and their operations (the Redis extractor): the keys they are given.
+          "org.springframework.data.redis.core.",
+          "org.springframework.data.redis.cache.",
+          "org.springframework.data.redis.listener.",
+          "org.springframework.integration.redis.util.",
+          "org.springframework.cloud.gateway.filter.ratelimit.");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";

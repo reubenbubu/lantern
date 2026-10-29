@@ -417,6 +417,36 @@
           },
           "description": "The entity IDs of the schemas the unit's migrations build."
         },
+        "server": {
+          "type": "string",
+          "description": "A Redis server as the config names it, host:port, or a sentinel or cluster's nodes."
+        },
+        "ssl": {
+          "type": "boolean",
+          "description": "Present and true when the Redis connection uses TLS."
+        },
+        "defaulted": {
+          "type": "boolean",
+          "description": "Present and true when no config names the Redis server and Spring Boot's default, localhost:6379, is taken because the unit's code or a dependency uses Redis."
+        },
+        "inferred": {
+          "type": "string",
+          "description": "Why the link rests on an inference: the Redis host or port is a placeholder no config resolves, so units that write the same placeholders are taken to share one server."
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The kinds of Redis use the unit's code or config shows: template, hash, session, rate-limiter, lock, cache, pubsub or client."
+        },
+        "stores": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "What the unit keeps in Redis, where the code shows it: for each kind of use and key, its kind, key or channel or hash name, data structure, time to live and operations (read, write, delete, lock, other)."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
@@ -641,7 +671,7 @@
   {
     "name": "display-name",
     "kind": "attribute",
-    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the unit's name and 'database'.",
+    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several.",
     "attributeSchema": {
       "type": "object",
       "properties": {},
