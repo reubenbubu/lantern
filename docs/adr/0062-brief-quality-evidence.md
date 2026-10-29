@@ -1,6 +1,6 @@
 # 0062: Executive Brief quality evidence
 
-Status: accepted (#186), amends ADR 0046, pending the user's review (#24)
+Status: accepted (#186), amends ADR 0046, amended by ADR 0063 (#226), pending the user's review (#24)
 
 ## Context
 
@@ -47,5 +47,5 @@ records quality goals: annotations come in Phase 3.
 ## Not in this issue
 
 Test classes and architecture test classes in test sources, coverage plugins in the build and the
-reports they produce, all needing extractor work (#226); quality goals from annotations
-(Phase 3).
+reports they produce, all needing extractor work (#226, done in ADR 0063 except coverage reports,
+#232); quality goals from annotations (Phase 3).

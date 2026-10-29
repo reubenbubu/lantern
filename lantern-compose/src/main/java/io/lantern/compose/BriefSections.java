@@ -28,6 +28,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The Executive Brief's sections on one repository's blast radius and technology currency, and the
@@ -880,10 +881,46 @@ final class BriefSections {
   /** A test library in use: where it is declared and the facts saying so. */
   private record UsedLibrary(TestLibrary library, SortedSet<EntityId> usedBy, List<Fact> facts) {}
 
+  /** The relationship from a test class to the module whose test sources hold it. */
+  static final String TESTS = "TESTS";
+
+  /** The attribute naming a coverage tool a module's build runs. */
+  static final String COVERAGE_TOOL = "coverage-tool";
+
+  /** The coverage tools Lantern names, by their Maven plugin's {@code groupId:artifactId}. */
+  static final Map<String, String> COVERAGE_TOOLS =
+      Map.of(
+          "org.jacoco:jacoco-maven-plugin", "JaCoCo",
+          "org.codehaus.mojo:cobertura-maven-plugin", "Cobertura",
+          "org.openclover:clover-maven-plugin", "OpenClover",
+          "com.atlassian.maven.plugins:clover-maven-plugin", "Clover",
+          "com.atlassian.maven.plugins:maven-clover2-plugin", "Clover");
+
+  /** What JaCoCo's coverage counters measure, as the brief names them. */
+  private static final Map<String, String> COUNTERS =
+      Map.of(
+          "LINE", "lines",
+          "BRANCH", "branches",
+          "INSTRUCTION", "instructions",
+          "METHOD", "methods",
+          "CLASS", "classes",
+          "COMPLEXITY", "the cyclomatic complexity");
+
+  /** The test evidence of one service or library: its test classes and coverage tools. */
+  private static final class Tested {
+    int classes;
+    int tests;
+    int architecture;
+    final SortedSet<String> tools = new TreeSet<>();
+    final SortedSet<String> minimums = new TreeSet<>();
+    final List<Fact> facts = new ArrayList<>();
+  }
+
   /**
-   * The test libraries the repository's modules that build code declare in test scope, by kind;
-   * which of the services and libraries building them declare none; then what is not known: the
-   * tests themselves, their coverage and the quality goals.
+   * The repository's test evidence: the test classes in the test sources of its modules that build
+   * code, the coverage tools their builds run, and the test libraries they declare in test scope,
+   * by kind; then what is not known: whether the tests pass, the coverage they reach and the
+   * quality goals.
    */
   List<Block> qualityEvidence(String section) {
     List<Block> blocks = new ArrayList<>();
@@ -901,8 +938,39 @@ final class BriefSections {
       // Counted and named by what builds the modules, so a service of several modules is one.
       SortedSet<EntityId> builders = new TreeSet<>(Knowledge.BY_ID);
       SortedSet<EntityId> with = new TreeSet<>(Knowledge.BY_ID);
+      Map<EntityId, Tested> tested = new TreeMap<>(Knowledge.BY_ID);
+      Map<EntityId, List<Fact>> testClasses = new LinkedHashMap<>();
+      for (Fact fact : knowledge.withPredicate(TESTS)) {
+        if (Knowledge.isEntity(fact)) {
+          testClasses.computeIfAbsent(Knowledge.object(fact), m -> new ArrayList<>()).add(fact);
+        }
+      }
       for (EntityId module : code) {
-        builders.add(user(module));
+        EntityId builder = user(module);
+        builders.add(builder);
+        for (Fact fact : testClasses.getOrDefault(module, List.of())) {
+          Tested t = tested.computeIfAbsent(builder, b -> new Tested());
+          t.classes++;
+          JsonNode tests = fact.attributes().get("tests");
+          t.tests += tests == null ? 0 : tests.asInt();
+          JsonNode architecture = fact.attributes().get("architecture");
+          if (architecture != null && architecture.asBoolean()) {
+            t.architecture++;
+          }
+          t.facts.add(fact);
+        }
+        for (Fact fact : knowledge.attributes(module)) {
+          String tool =
+              fact.predicate().equals(COVERAGE_TOOL)
+                  ? COVERAGE_TOOLS.get(fact.object().value())
+                  : null;
+          if (tool != null) {
+            Tested t = tested.computeIfAbsent(builder, b -> new Tested());
+            t.tools.add(tool);
+            t.minimums.addAll(minimums(fact));
+            t.facts.add(fact);
+          }
+        }
         for (Fact fact : knowledge.relations(module, RepoSections.BUILD_DEPENDS_ON)) {
           EntityId target = Knowledge.object(fact);
           if (!Knowledge.isEntity(fact)
@@ -914,7 +982,7 @@ final class BriefSections {
           if (library.isEmpty()) {
             continue;
           }
-          with.add(user(module));
+          with.add(builder);
           UsedLibrary u =
               used.computeIfAbsent(
                   library.get().kind().ordinal()
@@ -923,35 +991,55 @@ final class BriefSections {
                   k ->
                       new UsedLibrary(
                           library.get(), new TreeSet<>(Knowledge.BY_ID), new ArrayList<>()));
-          u.usedBy().add(user(module));
+          u.usedBy().add(builder);
           u.facts().add(fact);
         }
       }
+      int classes = tested.values().stream().mapToInt(t -> t.classes).sum();
+      int architecture = tested.values().stream().mapToInt(t -> t.architecture).sum();
+      if (classes > 0) {
+        blocks.add(testsParagraph(assembler.id(section, "tests"), builders, tested));
+      }
+      if (tested.values().stream().anyMatch(t -> !t.tools.isEmpty())) {
+        blocks.add(coverageParagraph(assembler.id(section, "coverage"), builders, tested));
+      }
+      if (!tested.isEmpty()) {
+        blocks.add(testsTable(assembler.id(section, "tests_table"), builders, tested));
+      }
       List<EntityId> without = builders.stream().filter(b -> !with.contains(b)).toList();
-      if (used.isEmpty()) {
-        blocks.add(
-            note(
-                assembler.id(section, "none"),
-                "No module of "
-                    + repo
-                    + " declares a test library Lantern recognizes, such as JUnit or TestNG, so"
-                    + " Lantern found no evidence of tests, architecture tests or coverage."));
-      } else {
+      if (!used.isEmpty()) {
         List<Fact> facts = new ArrayList<>();
         used.values().forEach(u -> facts.addAll(u.facts()));
         blocks.add(
             new Paragraph(
                 assembler.id(section, "summary"),
-                List.of(TextRun.of(evidenceSummary(builders.size(), without, used.values()))),
+                List.of(
+                    TextRun.of(
+                        evidenceSummary(builders.size(), without, used.values(), architecture))),
                 assembler.facts(facts)));
         blocks.add(librariesTable(assembler.id(section, "libraries"), used.values()));
+      }
+      if (used.isEmpty() && tested.isEmpty()) {
+        blocks.add(
+            note(
+                assembler.id(section, "none"),
+                "No module of "
+                    + repo
+                    + " has test classes, runs a coverage tool or declares a test library"
+                    + " Lantern recognizes, such as JUnit or TestNG, so Lantern found no evidence"
+                    + " of tests, architecture tests or coverage."));
+      } else {
         blocks.add(
             note(
                 assembler.id(section, "limits"),
-                "A declared test library shows that a module is set up for tests, not how many"
-                    + " tests it has or whether they pass: Lantern does not count or run the"
-                    + " tests, and does not read coverage reports, so test coverage is not"
-                    + " known."));
+                classes > 0
+                    ? "Lantern counts the tests in the test sources without running them, so"
+                        + " whether they pass is not known, and it does not read coverage reports,"
+                        + " so the coverage the tests reach is not known."
+                    : "A declared test library or coverage tool shows that a module is set up for"
+                        + " tests, not that it has any or whether they pass: Lantern found no test"
+                        + " classes in the test sources, and does not read coverage reports, so"
+                        + " test coverage is not known."));
       }
     }
     blocks.add(
@@ -964,8 +1052,188 @@ final class BriefSections {
     return blocks;
   }
 
+  /**
+   * The minimum coverage a coverage tool's check enforces on the whole module, as the brief words
+   * it: {@code 80% of lines}. Only JaCoCo's bundle-wide covered ratios are read.
+   */
+  static List<String> minimums(Fact fact) {
+    List<String> found = new ArrayList<>();
+    JsonNode limits = fact.attributes().get("limits");
+    if (limits == null || !limits.isArray()) {
+      return found;
+    }
+    for (JsonNode limit : limits) {
+      String counter = COUNTERS.get(limit.path("counter").asString(""));
+      String minimum = limit.path("minimum").asString("");
+      if (counter == null
+          || !limit.path("element").asString("").equals("BUNDLE")
+          || !limit.path("value").asString("").equals("COVEREDRATIO")
+          || minimum.isEmpty()) {
+        continue;
+      }
+      try {
+        BigDecimal ratio = new BigDecimal(minimum.strip());
+        if (ratio.signum() > 0 && ratio.compareTo(BigDecimal.ONE) <= 0) {
+          found.add(
+              ratio.movePointRight(2).stripTrailingZeros().toPlainString() + "% of " + counter);
+        }
+      } catch (NumberFormatException e) {
+        // Not a ratio; left out.
+      }
+    }
+    return found;
+  }
+
+  private Paragraph testsParagraph(
+      String id, SortedSet<EntityId> builders, Map<EntityId, Tested> tested) {
+    int classes = tested.values().stream().mapToInt(t -> t.classes).sum();
+    int tests = tested.values().stream().mapToInt(t -> t.tests).sum();
+    int architecture = tested.values().stream().mapToInt(t -> t.architecture).sum();
+    List<EntityId> withTests = builders.stream().filter(b -> has(tested, b)).toList();
+    StringBuilder text = new StringBuilder("Lantern found ");
+    text.append(count(tests, "test", "tests"))
+        .append(" in ")
+        .append(count(classes, "test class", "test classes"));
+    if (withTests.size() == builders.size()) {
+      text.append(
+          builders.size() == 1
+              ? " in the one service or library " + repo + " builds"
+              : " across all " + builders.size() + " services and libraries " + repo + " builds");
+    } else {
+      text.append(" in ")
+          .append(withTests.size())
+          .append(" of the ")
+          .append(builders.size())
+          .append(" services and libraries ")
+          .append(repo)
+          .append(" builds");
+    }
+    text.append('.');
+    if (architecture == 0) {
+      text.append(
+          classes == 1
+              ? " It is not an architecture test."
+              : " None of them is an architecture test.");
+    } else if (architecture == classes) {
+      text.append(classes == 1 ? " It is an architecture test." : " All are architecture tests.");
+    } else {
+      text.append(' ')
+          .append(architecture)
+          .append(
+              architecture == 1
+                  ? " of them is an architecture test."
+                  : " of them are architecture tests.");
+    }
+    List<String> named = new ArrayList<>();
+    builders.stream()
+        .filter(b -> !withTests.contains(b))
+        .forEach(b -> named.add(assembler.name(b)));
+    if (!named.isEmpty()) {
+      text.append(" There are no test classes in ").append(names(named));
+    }
+    List<Fact> facts = new ArrayList<>();
+    tested
+        .values()
+        .forEach(
+            t -> t.facts.stream().filter(f -> f.predicate().equals(TESTS)).forEach(facts::add));
+    return new Paragraph(id, List.of(TextRun.of(text.toString())), assembler.facts(facts));
+  }
+
+  private static boolean has(Map<EntityId, Tested> tested, EntityId builder) {
+    Tested t = tested.get(builder);
+    return t != null && t.classes > 0;
+  }
+
+  private Paragraph coverageParagraph(
+      String id, SortedSet<EntityId> builders, Map<EntityId, Tested> tested) {
+    SortedSet<String> tools = new TreeSet<>();
+    List<EntityId> measured = new ArrayList<>();
+    List<String> checks = new ArrayList<>();
+    List<Fact> facts = new ArrayList<>();
+    for (EntityId builder : builders) {
+      Tested t = tested.get(builder);
+      if (t == null || t.tools.isEmpty()) {
+        continue;
+      }
+      measured.add(builder);
+      tools.addAll(t.tools);
+      if (!t.minimums.isEmpty()) {
+        checks.add(assembler.name(builder) + " (" + join(List.copyOf(t.minimums)) + ")");
+      }
+      t.facts.stream().filter(f -> f.predicate().equals(COVERAGE_TOOL)).forEach(facts::add);
+    }
+    StringBuilder text = new StringBuilder();
+    text.append(join(List.copyOf(tools)))
+        .append(tools.size() == 1 ? " measures" : " measure")
+        .append(" test coverage in the build of ");
+    if (measured.size() == builders.size()) {
+      text.append(
+          builders.size() == 1
+              ? "the one service or library " + repo + " builds."
+              : "all " + builders.size() + " services and libraries " + repo + " builds.");
+    } else {
+      text.append(measured.size())
+          .append(" of the ")
+          .append(builders.size())
+          .append(" services and libraries ")
+          .append(repo)
+          .append(" builds.");
+    }
+    if (checks.isEmpty()) {
+      text.append(" No build checks a minimum coverage.");
+    } else {
+      text.append(checks.size() == 1 ? " One build checks" : " " + checks.size() + " builds check")
+          .append(" a minimum coverage: ")
+          .append(join(checks))
+          .append('.');
+    }
+    return new Paragraph(id, List.of(TextRun.of(text.toString())), assembler.facts(facts));
+  }
+
+  private Table testsTable(String id, SortedSet<EntityId> builders, Map<EntityId, Tested> tested) {
+    List<Table.Row> rows = new ArrayList<>();
+    for (EntityId builder : builders) {
+      Tested t = tested.get(builder);
+      if (t == null) {
+        continue;
+      }
+      assembler.entity(builder);
+      String coverage = t.tools.isEmpty() ? "None found" : join(List.copyOf(t.tools));
+      if (!t.minimums.isEmpty()) {
+        coverage += ", at least " + join(List.copyOf(t.minimums));
+      }
+      rows.add(
+          new Table.Row(
+              null,
+              List.of(
+                  List.of(
+                      new CrossReference(
+                          assembler.name(builder), CrossReference.Target.entity(builder))),
+                  List.of(TextRun.of(Integer.toString(t.classes))),
+                  List.of(TextRun.of(Integer.toString(t.tests))),
+                  List.of(TextRun.of(Integer.toString(t.architecture))),
+                  List.of(TextRun.of(coverage))),
+              assembler.facts(t.facts)));
+    }
+    return new Table(
+        id,
+        "Tests and coverage",
+        List.of(
+            new Table.Column("Service or library"),
+            new Table.Column("Test classes"),
+            new Table.Column("Tests"),
+            new Table.Column("Architecture test classes"),
+            new Table.Column("Coverage tool")),
+        rows,
+        List.of());
+  }
+
+  private static String count(int n, String one, String many) {
+    return n + " " + (n == 1 ? one : many);
+  }
+
   private String evidenceSummary(
-      int builders, List<EntityId> without, Collection<UsedLibrary> used) {
+      int builders, List<EntityId> without, Collection<UsedLibrary> used, int architectureTests) {
     int with = builders - without.size();
     StringBuilder text = new StringBuilder();
     if (without.isEmpty()) {
@@ -996,7 +1264,7 @@ final class BriefSections {
                     + String.join(", ", names)
                     + ")"));
     text.append(join(parts)).append('.');
-    if (!byKind.containsKey(TestKind.ARCHITECTURE)) {
+    if (!byKind.containsKey(TestKind.ARCHITECTURE) && architectureTests == 0) {
       text.append(
           " None is an architecture test library such as ArchUnit, so Lantern found no"
               + " architecture tests.");
@@ -1059,9 +1327,5 @@ final class BriefSections {
       return String.join("", parts);
     }
     return String.join(", ", parts.subList(0, parts.size() - 1)) + " and " + parts.getLast();
-  }
-
-  private static String count(int n, String one, String many) {
-    return n + " " + (n == 1 ? one : many);
   }
 }

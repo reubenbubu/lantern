@@ -1,0 +1,22 @@
+[
+  {
+    "name": "test-class",
+    "kind": "entity",
+    "description": "A top-level class in a module's test sources that declares tests. Its key is the module's groupId:artifactId, ':' and the class's binary name.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "TESTS",
+    "kind": "relationship",
+    "description": "The subject test class is in the test sources of the object module, so it tests that module's code.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "tests": { "type": "integer", "description": "How many tests the class and its member classes declare: test methods, and ArchUnit rule fields." },
+        "architecture": { "type": "boolean", "description": "Present and true when the class's file uses an architecture test library, such as ArchUnit." }
+      },
+      "required": ["tests"],
+      "additionalProperties": false
+    }
+  }
+]

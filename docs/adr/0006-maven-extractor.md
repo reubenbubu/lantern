@@ -1,6 +1,6 @@
 # 0006: Maven extractor
 
-Status: accepted (#8), amended (#100, #93), pending the user's review (#24)
+Status: accepted (#8), amended (#100, #93), amended by ADR 0063 (#226), pending the user's review (#24)
 
 ## Context
 
@@ -106,3 +106,9 @@ cover the link, and `MavenRulesTest` a dependency with classifier `all`.
   `groupId:artifactId:version` as its POM writes them, properties resolved, with the `<parent>`
   element as evidence. The linker reads it to find Spring Boot's version without a build
   (ADR 0039).
+
+## Amendment (#226): coverage tools
+
+Each module whose build runs a coverage plugin gets a `coverage-tool` attribute fact, with the
+goals it binds and, for JaCoCo, the limits its `check` goal enforces. The extractor's version
+becomes 3. The details are in ADR 0063.
