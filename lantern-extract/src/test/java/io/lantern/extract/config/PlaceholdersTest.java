@@ -76,4 +76,18 @@ class PlaceholdersTest {
     assertThat(r.value()).isEqualTo("1-${b");
     assertThat(r.resolved()).isTrue();
   }
+
+  @Test
+  void anEscapedPlaceholderIsText() {
+    Resolution r = resolve("\\${a}-${a}", Map.of("a", "1"));
+    assertThat(r.value()).isEqualTo("${a}-1");
+    assertThat(r.unresolved()).isEmpty();
+  }
+
+  @Test
+  void theKeysUsedAreReported() {
+    Resolution r = resolve("${url}?p=${missing:x}", Map.of("url", "${host}", "host", "h"));
+    assertThat(r.value()).isEqualTo("h?p=x");
+    assertThat(r.used()).containsExactly("host", "url");
+  }
 }

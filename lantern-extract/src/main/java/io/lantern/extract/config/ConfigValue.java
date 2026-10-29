@@ -14,10 +14,17 @@ import java.util.TreeSet;
  *     kept as written, {@code ${KEY}}
  * @param written the value as the file writes it
  * @param unresolved the keys of the placeholders that could not be resolved, ordered
+ * @param used the keys whose values were substituted into the value, directly or through other
+ *     values, ordered
  * @param where the file and line that set the value
  */
 public record ConfigValue(
-    String key, String value, String written, SortedSet<String> unresolved, Where where) {
+    String key,
+    String value,
+    String written,
+    SortedSet<String> unresolved,
+    SortedSet<String> used,
+    Where where) {
 
   /**
    * Where a value is written.
@@ -40,6 +47,7 @@ public record ConfigValue(
     Objects.requireNonNull(written, "written");
     Objects.requireNonNull(where, "where");
     unresolved = Collections.unmodifiableSortedSet(new TreeSet<>(unresolved));
+    used = Collections.unmodifiableSortedSet(new TreeSet<>(used));
   }
 
   /** Whether every placeholder in the value was resolved. */

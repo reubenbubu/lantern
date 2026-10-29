@@ -237,6 +237,13 @@ class ConfigExtractorTest {
                 paygate.api-key=${PAYGATE_API_KEY}
                 other.client-secret=${CLIENT_SECRET:letmein}
                 shop.routing-key=order.created
+                jwt.secret-key=k1
+                jwt.secretKey=k2
+                encrypt.key=k3
+                old.passwords[0]=p1
+                app.db-password=s3cret
+                other.datasource.password=${app.db-password}
+                db.url=jdbc:postgresql://db/shop?password=${other.datasource.password}
                 """));
 
     assertThat(extract(repo))
@@ -248,6 +255,21 @@ class ConfigExtractorTest {
                 + " @app:src/main/resources/application.properties#4-4 1.0",
             "module:g:app config-value ****** {\"key\":\"spring.datasource.password\","
                 + "\"masked\":true} @app:src/main/resources/application.properties#1-1 1.0",
+            "module:g:app config-value ****** {\"key\":\"jwt.secret-key\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#6-6 1.0",
+            "module:g:app config-value ****** {\"key\":\"jwt.secretKey\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#7-7 1.0",
+            "module:g:app config-value ****** {\"key\":\"encrypt.key\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#8-8 1.0",
+            "module:g:app config-value ****** {\"key\":\"old.passwords[0]\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#9-9 1.0",
+            "module:g:app config-value ****** {\"key\":\"app.db-password\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#10-10 1.0",
+            // A secret reached through a placeholder is masked too, in a secret's key or not.
+            "module:g:app config-value ****** {\"key\":\"other.datasource.password\","
+                + "\"masked\":true} @app:src/main/resources/application.properties#11-11 1.0",
+            "module:g:app config-value ****** {\"key\":\"db.url\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#12-12 1.0",
             "module:g:app config-value order.created {\"key\":\"shop.routing-key\"}"
                 + " @app:src/main/resources/application.properties#5-5 1.0",
             "module:g:app config-value orders {\"key\":\"spring.datasource.username\"}"

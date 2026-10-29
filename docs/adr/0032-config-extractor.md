@@ -42,7 +42,7 @@ what the facts look like and how a secret written in a config file is handled.
   named in file names and in activations. Combinations of profiles,
   `spring.profiles.active`/`include`/`group` and env vars that would override a value at deploy time
   are not modelled; they are recorded as values only.
-- **Placeholders** are resolved as Spring resolves them: `${key}` takes the key's value from the
+- **Placeholders** are resolved as Spring resolves them (a backslash before `${` makes it text): `${key}` takes the key's value from the
   same view, itself resolved; `${key:default}` takes the default when the key is not set; keys,
   defaults and values may nest. A placeholder nothing resolves (an environment variable no file
   sets, or a value that leads back to itself) is kept as written, `${TAX_SERVICE_URL}`, and its key
@@ -57,16 +57,21 @@ what the facts look like and how a secret written in a config file is handled.
   value differs from the default view (including keys only the profile sets), so a reader takes the
   default facts and overlays a profile's. Confidence is 1.0.
 - **Secrets are masked.** Documents are read by people and summaries are sent to the LLM, so a
-  password written in a config file must not be copied into the knowledge store. A key whose last
-  part, without `-` and `_`, ends in `password`, `passwd`, `pwd`, `secret`, `token`, `apikey`,
-  `accesskey`, `privatekey`, `signingkey` or `encryptionkey`, or names `credential`, gets the value
-  `******` and `masked: true`, with neither `written` nor `unresolved`, unless the value is only
-  placeholders without defaults (`${SHOP_DB_PASSWORD}`), which says where the secret comes from
-  and is kept. Keys merely ending in `key` (a routing key) are not masked. Literal secrets in other
-  keys, such as a password inside a URL, are not detected.
+  password written in a config file must not be copied into the knowledge store. A key names a
+  secret when its last part, without list indexes, `-` and `_`, contains `password`, `passwd`,
+  `secret` or `credential`, or ends in `pwd`, `token`, `apikey`, `accesskey`, `privatekey`,
+  `signingkey` or `encryptionkey` (or their plurals), or when it is Spring Cloud's `encrypt.key`.
+  Its value is recorded as `******` with `masked: true`, and neither `written` nor `unresolved`,
+  unless it is only placeholders that nothing resolves (`${SHOP_DB_PASSWORD}`), which say where the
+  secret comes from. Any value, under any key, that a secret was substituted into through a
+  placeholder is masked the same way (`db.url=...?password=${spring.datasource.password}`). Keys
+  merely ending in `key` (a routing key) are not secrets. Literal secrets under other keys, such as
+  a password written inside a URL, are not detected.
 - **For other extractors**, `ConfigExtractor.read(repo)` gives each module's `ModuleConfig`:
   its profiles, its values per view, and `resolve(profile, text)` for a placeholder in code, such
-  as a `@Value` or a listener's destination. Which module's config applies to code in a library
+  as a `@Value` or a listener's destination. These are not masked; each value and resolution lists
+  the keys it used, and a caller must not record a value that used a secret
+  (`ConfigExtractor.isSecret`). Which module's config applies to code in a library
   (the deployable that packages it) is for those extractors to decide.
 - **New vocabulary**, applied by the app on startup after the Java extractor's, with source
   `config-extractor`: the attribute type `config-value`.

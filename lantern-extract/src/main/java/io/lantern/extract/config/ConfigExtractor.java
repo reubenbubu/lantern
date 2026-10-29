@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
@@ -64,8 +65,11 @@ public final class ConfigExtractor {
    */
   private static final Pattern SECRET =
       Pattern.compile(
-          ".*(password|passwd|pwd|secret|token|apikey|accesskey|privatekey|signingkey"
-              + "|encryptionkey)|.*credential.*");
+          ".*(password|passwd|secret|credential).*"
+              + "|.*(pwd|token|apikey|accesskey|privatekey|signingkey|encryptionkey)s?");
+
+  /** Whole keys that hold a secret though their last part does not say so. */
+  private static final Set<String> SECRET_KEYS = Set.of("encrypt.key");
 
   /** A value that is only placeholders without defaults, which says where a secret comes from. */
   private static final Pattern ONLY_PLACEHOLDERS = Pattern.compile("(\\$\\{[^:{}]+})+");
@@ -150,7 +154,7 @@ public final class ConfigExtractor {
       attributes.put("profile", profile);
     }
     String object = value.value();
-    if (isSecret(value.key()) && !ONLY_PLACEHOLDERS.matcher(value.written()).matches()) {
+    if (exposesSecret(value)) {
       object = MASK;
       attributes.put("masked", true);
     } else {
@@ -183,10 +187,30 @@ public final class ConfigExtractor {
     facts.putIfAbsent(fact.id(), fact);
   }
 
-  /** Whether a key names a secret, judged by its last part. */
-  static boolean isSecret(String key) {
-    String last = key.substring(key.lastIndexOf('.') + 1).replaceAll("\\[\\d+]$", "");
-    String normalized = last.toLowerCase(Locale.ROOT).replace("-", "").replace("_", "");
-    return SECRET.matcher(normalized).matches();
+  /**
+   * Whether recording the value would expose a secret: a value that a secret was substituted into,
+   * or a secret's value unless it is only placeholders nothing resolves (environment variables),
+   * which say where the secret comes from.
+   */
+  private static boolean exposesSecret(ConfigValue value) {
+    if (value.used().stream().anyMatch(ConfigExtractor::isSecret)) {
+      return true;
+    }
+    return isSecret(value.key())
+        && !(ONLY_PLACEHOLDERS.matcher(value.written()).matches() && value.used().isEmpty());
+  }
+
+  /**
+   * Whether a config key names a secret, judged by its last part without list indexes, hyphens and
+   * underscores: one naming a password, secret or credentials, or ending in a token or a kind of
+   * key that is secret, singular or plural; or a key such as {@code encrypt.key} that holds one.
+   */
+  public static boolean isSecret(String key) {
+    String plain = key.replaceAll("\\[\\d+]", "").toLowerCase(Locale.ROOT);
+    if (SECRET_KEYS.contains(plain)) {
+      return true;
+    }
+    String last = plain.substring(plain.lastIndexOf('.') + 1);
+    return SECRET.matcher(last.replace("-", "").replace("_", "")).matches();
   }
 }

@@ -98,6 +98,10 @@ public final class ModuleConfig {
   /**
    * The module's config with a profile active.
    *
+   * <p>Values are not masked: a secret's value is returned as written or resolved. Callers must
+   * never copy a value into a fact if its key, or one of the keys it {@linkplain ConfigValue#used()
+   * used}, names a secret ({@link ConfigExtractor#isSecret}).
+   *
    * @param profile the active profile, or null for the default view
    * @return the values by key
    */
@@ -108,6 +112,10 @@ public final class ModuleConfig {
   /**
    * Resolves the {@code ${...}} placeholders in a text, such as an annotation's value, against the
    * module's config with a profile active.
+   *
+   * <p>The result is not masked: a placeholder naming a secret resolves to the secret. Callers must
+   * never copy a value into a fact if one of the keys it {@linkplain Resolution#used() used} names
+   * a secret ({@link ConfigExtractor#isSecret}).
    *
    * @param profile the active profile, or null for the default view
    * @param text the text
@@ -125,7 +133,8 @@ public final class ModuleConfig {
       Written w = e.getValue();
       Resolution r = Placeholders.resolve(w.value(), key -> value(written, key));
       values.put(
-          e.getKey(), new ConfigValue(e.getKey(), r.value(), w.value(), r.unresolved(), w.where()));
+          e.getKey(),
+          new ConfigValue(e.getKey(), r.value(), w.value(), r.unresolved(), r.used(), w.where()));
     }
     return Collections.unmodifiableSortedMap(values);
   }

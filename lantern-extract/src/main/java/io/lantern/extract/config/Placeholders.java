@@ -12,7 +12,8 @@ import java.util.function.Function;
  * placeholder is replaced by the key's value, itself resolved; a key without a value takes the
  * default if there is one; placeholders may nest, in keys, defaults and values. A placeholder that
  * cannot be resolved (a key nothing sets and without a default, or a key whose value leads back to
- * itself) is kept as written, {@code ${key}}, and its key is reported.
+ * itself) is kept as written, {@code ${key}}, and its key is reported. A placeholder preceded by a
+ * backslash is text, as Spring escapes it: the backslash is dropped and the placeholder kept.
  */
 final class Placeholders {
 
@@ -22,9 +23,11 @@ final class Placeholders {
   private static final String PREFIX = "${";
   private static final char SUFFIX = '}';
   private static final char SEPARATOR = ':';
+  private static final char ESCAPE = '\\';
 
   private final Function<String, String> lookup;
   private final SortedSet<String> unresolved = new TreeSet<>();
+  private final SortedSet<String> used = new TreeSet<>();
   private final Deque<String> resolving = new ArrayDeque<>();
 
   private Placeholders(Function<String, String> lookup) {
@@ -42,7 +45,7 @@ final class Placeholders {
     Objects.requireNonNull(lookup, "lookup");
     Placeholders p = new Placeholders(lookup);
     String value = p.substitute(text);
-    return new Resolution(value, p.unresolved);
+    return new Resolution(value, p.unresolved, p.used);
   }
 
   private String substitute(String text) {
@@ -53,6 +56,12 @@ final class Placeholders {
       if (start < 0) {
         out.append(text, i, text.length());
         break;
+      }
+      if (start > 0 && text.charAt(start - 1) == ESCAPE) {
+        // Spring's escape: a backslash before ${...} makes it text, not a placeholder.
+        out.append(text, i, start - 1).append(PREFIX);
+        i = start + PREFIX.length();
+        continue;
       }
       int end = closing(text, start);
       if (end < 0) {
@@ -79,6 +88,7 @@ final class Placeholders {
     }
     String value = lookup.apply(key);
     if (value != null) {
+      used.add(key);
       resolving.push(key);
       try {
         return substitute(value);
