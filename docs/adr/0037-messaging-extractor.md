@@ -85,7 +85,7 @@ which APIs count.
   `messaging-extractor`: the attribute types `message-listener`, `message-send` and
   `message-binding`. Queue, topic and exchange entities and `PUBLISHES`/`CONSUMES` relationships
   are left to the linker (#94), which sees both ends.
-- **Not covered:** Spring Cloud Stream bindings and `StreamBridge` (#139), `sendDefault` and a
+- **Not covered:** Spring Cloud Stream bindings and `StreamBridge` (since covered by ADR 0039, #139), `sendDefault` and a
   template's configured default topic, exchange or routing key, destinations as `Destination`
   objects, plain Kafka consumers (`subscribe`), Kafka `topicPartitions`, exchange-to-exchange
   bindings, queues and topics declared but neither bound, sent to nor listened on, and values

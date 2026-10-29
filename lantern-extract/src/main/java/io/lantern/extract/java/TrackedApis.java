@@ -26,7 +26,9 @@ final class TrackedApis {
           "org.springframework.kafka.core.",
           "org.apache.kafka.clients.producer.",
           "org.springframework.jms.core.",
-          "org.springframework.amqp.");
+          "org.springframework.amqp.",
+          // Spring Cloud Stream: StreamBridge, and the legacy Source and Processor bindings.
+          "org.springframework.cloud.stream.");
 
   private TrackedApis() {}
 

@@ -463,13 +463,20 @@ final class JavaParserAnalyzer {
                     p.getNameAsString(), annotations(p.getAnnotations())));
           }
         }
+        String returns =
+            switch (declaration) {
+              case MethodDeclaration m -> describe(m.getType(), m);
+              case AnnotationMemberDeclaration m -> describe(m.getType(), m);
+              default -> null;
+            };
         members.add(
             new Member(
                 id,
                 location(declaration),
                 annotations(declaration.getAnnotations()),
                 null,
-                parameters));
+                parameters,
+                returns));
       }
     }
 

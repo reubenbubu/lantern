@@ -306,8 +306,14 @@ final class JavacAnalyzer {
             e.getKind() == ElementKind.FIELD || e.getKind() == ElementKind.ENUM_CONSTANT
                 ? describe(e.asType())
                 : null;
+        TreePath path = e.getKind() == ElementKind.METHOD ? trees.getPath(e) : null;
+        String returns =
+            path != null && path.getLeaf() instanceof MethodTree
+                ? describe(((ExecutableElement) e).getReturnType())
+                : null;
         members.add(
-            new Member(id, where, annotations(e, where, file), type, parameters(e, where, file)));
+            new Member(
+                id, where, annotations(e, where, file), type, parameters(e, where, file), returns));
       }
     }
 

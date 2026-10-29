@@ -1,0 +1,62 @@
+stream:
+  api-token: s3cret
+  payments-topic: payments.done
+spring:
+  cloud:
+    function:
+      definition: process;audit;publishShipment;receiveShipment;uppercase|wrap;missing
+    stream:
+      default-binder: kafka1
+      binders:
+        kafka1:
+          type: kafka
+        rabbit1:
+          type: rabbit
+      function:
+        bindings:
+          receiveShipment-in-0: shipmentsIn
+      bindings:
+        process-in-0:
+          destination: orders
+          group: payments
+        process-out-0:
+          destination: ${stream.payments-topic}
+        audit-in-0:
+          destination: audit.a,audit.b
+        publishShipment-out-0:
+          destination: shipments
+          binder: rabbit1
+        shipmentsIn:
+          destination: shipments
+          group: warehouse
+          binder: rabbit1
+        uppercasewrap-in-0:
+          destination: raw.text
+        refunds:
+          destination: refunds.topic
+        notify:
+          destination: notifications
+          binder: rabbit1
+        input:
+          destination: legacy.in
+          group: legacy
+        output:
+          destination: legacy.out
+        ordersOut:
+          destination: legacy.orders
+          binder: rabbit1
+        secretOut:
+          destination: tenant-${stream.api-token}
+      kafka:
+        bindings:
+          audit-in-0:
+            consumer:
+              destination-is-pattern: false
+      rabbit:
+        bindings:
+          shipmentsIn:
+            consumer:
+              binding-routing-key: shipment.*
+          notify:
+            producer:
+              routing-key-expression: "'notify.email'"
