@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 
 /**
- * A tool the model may call during a request (ADR 0080). Requests with tools need a model with
+ * A tool the model may call during a request (ADR 0081). Requests with tools need a model with
  * {@link Capability#TOOL_USE}.
  *
  * @param name the name the model calls it by: letters, digits, {@code _} and {@code -}, at most 64

@@ -66,7 +66,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>When the model can use tools, it may look further than the prompt with {@link GraphTools}: the
  * facts about an entity, a search of the facts, and the lines of a file at the snapshot's commit;
- * an answer may cite the facts they showed (ADR 0080). Each question is one {@link Conversation},
+ * an answer may cite the facts they showed (ADR 0081). Each question is one {@link Conversation},
  * logged with its turns and tool calls.
  *
  * <p>It runs as the last step of the linker, after {@link CrossRepoLinks}, so its facts are

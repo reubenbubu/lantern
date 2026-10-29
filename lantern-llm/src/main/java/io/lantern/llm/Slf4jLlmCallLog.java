@@ -66,7 +66,7 @@ public final class Slf4jLlmCallLog implements LlmCallLog {
   }
 
   @Override
-  public void record(LlmConversation conversation) {
+  public void recordConversation(LlmConversation conversation) {
     LOG.info(
         "LLM conversation {} {} role={} provider={} model={} purpose=\"{}\" turns={} toolCalls={}"
             + " tokens={} cost=${} duration={}ms{}",

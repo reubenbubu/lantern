@@ -29,7 +29,7 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Tools that let the model look further than its prompt (ADR 0080): look up the facts about an
+ * Tools that let the model look further than its prompt (ADR 0081): look up the facts about an
  * entity, search the facts for a text, and read a range of lines of a file of the snapshot's
  * repositories at the snapshot's commit. The Resolve role uses them, and the Investigate role
  * (#269) builds on them.

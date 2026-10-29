@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * One request to the model with its tool loop (ADR 0080). {@link #answer()} sends the request;
+ * One request to the model with its tool loop (ADR 0081). {@link #answer()} sends the request;
  * while the model's answer asks for tool calls, it runs them with the {@link ToolBox}, sends the
  * results back as the next user turn, and calls again, until the model answers without asking for
  * tools. {@link #reply} sends the caller's next user turn, for example the reason an answer was

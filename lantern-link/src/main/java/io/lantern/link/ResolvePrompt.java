@@ -58,7 +58,7 @@ final class ResolvePrompt {
       input. rationale says why, plainly, in at most two sentences.""";
 
   /**
-   * What the system prompt adds when the model can use tools (ADR 0080): the tools to look further,
+   * What the system prompt adds when the model can use tools (ADR 0081): the tools to look further,
    * and that the facts they show may be cited.
    */
   static final String TOOLS =

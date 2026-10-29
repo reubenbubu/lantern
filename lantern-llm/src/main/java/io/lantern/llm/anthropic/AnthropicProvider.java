@@ -59,7 +59,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>A request's tools are sent as custom tools with their input schemas; an assistant turn's tool
  * calls as {@code tool_use} blocks after its text, and a user turn's tool results as {@code
  * tool_result} blocks before its text. An answer's {@code tool_use} blocks become its tool calls
- * (ADR 0080).
+ * (ADR 0081).
  */
 public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 

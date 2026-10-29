@@ -15,7 +15,7 @@ public final class InMemoryLlmCallLog implements LlmCallLog {
   }
 
   @Override
-  public synchronized void record(LlmConversation conversation) {
+  public synchronized void recordConversation(LlmConversation conversation) {
     conversations.add(conversation);
   }
 

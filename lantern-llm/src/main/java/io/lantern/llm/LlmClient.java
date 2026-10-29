@@ -142,7 +142,7 @@ public final class LlmClient {
 
   /**
    * Starts a conversation: a request whose answers may ask for the tool box's tools, which the
-   * conversation runs and sends back until the model answers (ADR 0080). The request's tools are
+   * conversation runs and sends back until the model answers (ADR 0081). The request's tools are
    * replaced by the tool box's.
    */
   public Conversation converse(LlmRequest request, ToolBox tools) {
@@ -175,7 +175,7 @@ public final class LlmClient {
 
   /** Records how a conversation went. */
   void log(LlmConversation conversation) {
-    log.record(conversation);
+    log.recordConversation(conversation);
   }
 
   /** Sends a request as the given turn of a conversation, or on its own for null. */

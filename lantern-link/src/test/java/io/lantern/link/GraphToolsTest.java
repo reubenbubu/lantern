@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** The tools that let the model look further than its prompt (ADR 0080). */
+/** The tools that let the model look further than its prompt (ADR 0081). */
 class GraphToolsTest {
 
   private static final String COMMIT = "c".repeat(40);

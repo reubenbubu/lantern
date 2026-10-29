@@ -26,7 +26,7 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>Each response is a JSON file in a directory, named by a hash of what is sent to the model: the
  * provider, model, system prompt, prompt-caching flag, messages, output limit (with any thinking
  * headroom) and, only when set, the request to turn thinking off, the tools offered and each turn's
- * tool calls and results (ADR 0080). The role and purpose are not sent and so are not part of the
+ * tool calls and results (ADR 0081). The role and purpose are not sent and so are not part of the
  * key. A recorded answer that asks for tool calls holds them, so a tool loop replays turn by turn.
  *
  * <p>A {@linkplain #replaying replaying} provider only reads files and fails on a request it has no
