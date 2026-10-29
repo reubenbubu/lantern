@@ -1,0 +1,78 @@
+column:com.example:orders:customer#email data-type varchar(200) @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+column:com.example:orders:customer#email nullable false @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+column:com.example:orders:customer#email position 2 @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+column:com.example:orders:customer#id data-type bigserial @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+column:com.example:orders:customer#id nullable false @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+column:com.example:orders:customer#id position 1 @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+column:com.example:orders:event#created data-type date @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:event#created nullable false @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:event#created position 2 @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:event#id data-type bigint @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:event#id nullable false @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:event#id position 1 @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:event#payload data-type jsonb @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:event#payload nullable true @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:event#payload position 3 @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+column:com.example:orders:order_line#line_no data-type int @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#line_no nullable false @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#line_no position 2 @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#order_id data-type bigint @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#order_id nullable false @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#order_id position 1 @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#quantity data-type int @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#quantity nullable false @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#quantity position 4 @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#sku data-type varchar(40) @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:order_line#sku nullable false @orders:src/main/resources/db/migration/V2__changes.sql#3-3 1.0
+column:com.example:orders:order_line#sku position 3 @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+column:com.example:orders:orders#customer_id data-type bigint @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+column:com.example:orders:orders#customer_id nullable false @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+column:com.example:orders:orders#customer_id position 2 @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+column:com.example:orders:orders#id data-type bigserial @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+column:com.example:orders:orders#id nullable false @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+column:com.example:orders:orders#id position 1 @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+column:com.example:orders:orders#placed_at data-type timestamp with time zone @orders:src/main/resources/db/migration/V2__changes.sql#4-4 1.0
+column:com.example:orders:orders#placed_at nullable true @orders:src/main/resources/db/migration/V2__changes.sql#4-4 1.0
+column:com.example:orders:orders#placed_at position 4 @orders:src/main/resources/db/migration/V2__changes.sql#4-4 1.0
+column:com.example:orders:orders#status data-type varchar(40) @orders:src/main/resources/db/migration/V2__changes.sql#2-2 1.0
+column:com.example:orders:orders#status nullable false @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+column:com.example:orders:orders#status position 3 @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+column:com.example:orders:public.shipment#id data-type bigint @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+column:com.example:orders:public.shipment#id nullable false @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+column:com.example:orders:public.shipment#id position 1 @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+column:com.example:orders:public.shipment#order_id data-type bigint @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+column:com.example:orders:public.shipment#order_id nullable false @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+column:com.example:orders:public.shipment#order_id position 2 @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+module:com.example:orders CONTAINS schema:com.example:orders @orders:src/main/resources/db/migration/V1__create_orders.sql 1.0
+schema:com.example:orders CONTAINS table:com.example:orders:customer @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+schema:com.example:orders CONTAINS table:com.example:orders:event @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+schema:com.example:orders CONTAINS table:com.example:orders:order_line @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+schema:com.example:orders CONTAINS table:com.example:orders:orders @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+schema:com.example:orders CONTAINS table:com.example:orders:public.shipment @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+schema:com.example:orders kind flyway @orders:src/main/resources/db/migration/V1__create_orders.sql 1.0
+table:com.example:orders:customer CONTAINS column:com.example:orders:customer#email @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+table:com.example:orders:customer CONTAINS column:com.example:orders:customer#id @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+table:com.example:orders:customer PRIMARY_KEY column:com.example:orders:customer#id {"columns":["id"]} @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+table:com.example:orders:customer UNIQUE_KEY column:com.example:orders:customer#email {"columns":["email"]} @orders:src/main/resources/db/migration/V1__create_orders.sql#2-5 1.0
+table:com.example:orders:event CONTAINS column:com.example:orders:event#created @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+table:com.example:orders:event CONTAINS column:com.example:orders:event#id @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+table:com.example:orders:event CONTAINS column:com.example:orders:event#payload @orders:src/main/resources/db/migration/V10__drop_and_partition.sql#3-7 1.0
+table:com.example:orders:order_line CONTAINS column:com.example:orders:order_line#line_no @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+table:com.example:orders:order_line CONTAINS column:com.example:orders:order_line#order_id @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+table:com.example:orders:order_line CONTAINS column:com.example:orders:order_line#quantity @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+table:com.example:orders:order_line CONTAINS column:com.example:orders:order_line#sku @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+table:com.example:orders:order_line PRIMARY_KEY column:com.example:orders:order_line#line_no {"columns":["order_id","line_no"]} @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+table:com.example:orders:order_line PRIMARY_KEY column:com.example:orders:order_line#order_id {"columns":["order_id","line_no"]} @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+table:com.example:orders:order_line REFERENCES table:com.example:orders:orders {"columns":["order_id"],"name":"order_line_order_fk","referencedColumns":["id"]} @orders:src/main/resources/db/migration/V1.1__order_lines.sql#1-8 1.0
+table:com.example:orders:order_line UNIQUE_KEY column:com.example:orders:order_line#order_id {"columns":["order_id","sku"],"name":"order_line_sku_uk"} @orders:src/main/resources/db/migration/V2__changes.sql#5-5 1.0
+table:com.example:orders:order_line UNIQUE_KEY column:com.example:orders:order_line#sku {"columns":["order_id","sku"],"name":"order_line_sku_uk"} @orders:src/main/resources/db/migration/V2__changes.sql#5-5 1.0
+table:com.example:orders:orders CONTAINS column:com.example:orders:orders#customer_id @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+table:com.example:orders:orders CONTAINS column:com.example:orders:orders#id @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+table:com.example:orders:orders CONTAINS column:com.example:orders:orders#placed_at @orders:src/main/resources/db/migration/V2__changes.sql#4-4 1.0
+table:com.example:orders:orders CONTAINS column:com.example:orders:orders#status @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+table:com.example:orders:orders PRIMARY_KEY column:com.example:orders:orders#id {"columns":["id"],"name":"orders_pk"} @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+table:com.example:orders:orders REFERENCES table:com.example:orders:customer {"columns":["customer_id"],"referencedColumns":["id"]} @orders:src/main/resources/db/migration/V1__create_orders.sql#7-13 1.0
+table:com.example:orders:public.shipment CONTAINS column:com.example:orders:public.shipment#id @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+table:com.example:orders:public.shipment CONTAINS column:com.example:orders:public.shipment#order_id @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+table:com.example:orders:public.shipment PRIMARY_KEY column:com.example:orders:public.shipment#id {"columns":["id"]} @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#1-4 1.0
+table:com.example:orders:public.shipment REFERENCES table:com.example:orders:orders {"columns":["order_id"],"name":"shipment_order_fk","referencedColumns":["id"]} @orders:src/main/resources/db/migration/postgres/V3__shipping.sql#5-5 1.0

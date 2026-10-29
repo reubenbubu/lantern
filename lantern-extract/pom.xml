@@ -49,8 +49,14 @@
       <artifactId>spring-boot</artifactId>
     </dependency>
     <dependency>
-      <!-- The YAML parser Spring Boot's loader needs. Version from Spring Boot; the app already
-           ships it through spring-boot-starter. -->
+      <!-- The SQL extractor's parser for migrations and .sql files. -->
+      <groupId>com.github.jsqlparser</groupId>
+      <artifactId>jsqlparser</artifactId>
+    </dependency>
+    <dependency>
+      <!-- The YAML parser Spring Boot's loader needs, which also reads Liquibase YAML and JSON
+           changelogs with the line of each node. Version from Spring Boot; the app already ships
+           it through spring-boot-starter. -->
       <groupId>org.yaml</groupId>
       <artifactId>snakeyaml</artifactId>
     </dependency>

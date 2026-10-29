@@ -1,0 +1,4 @@
+CREATE TABLE note (
+    id   BIGINT PRIMARY KEY,
+    body TEXT NOT NULL
+);

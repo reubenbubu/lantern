@@ -20,6 +20,7 @@ import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
@@ -223,6 +224,7 @@ public final class AnalysisRun {
       found.addAll(new JavaExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number()));
+      found.addAll(new SqlExtractor().extract(repoBuilds, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       Stored stored = store(snapshot.number(), registered.keySet(), found);
       List<Fact> extracted = stored.facts();

@@ -13,6 +13,7 @@ import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
@@ -133,7 +134,8 @@ public final class Fixtures {
             MavenExtractor.vocabulary(),
             JavaExtractor.vocabulary(),
             ConfigExtractor.vocabulary(),
-            DocsExtractor.vocabulary())) {
+            DocsExtractor.vocabulary(),
+            SqlExtractor.vocabulary())) {
       vocabulary.changes(extractor).forEach(t -> types.put(t.name(), t));
       vocabulary = new Vocabulary(vocabulary.revision() + 1, types.values());
     }

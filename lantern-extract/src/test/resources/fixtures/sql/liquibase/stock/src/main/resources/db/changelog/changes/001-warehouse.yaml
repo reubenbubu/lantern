@@ -1,0 +1,25 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: test
+      changes:
+        - createTable:
+            tableName: warehouse
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: code
+                  type: varchar(10)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: city
+                  type: varchar(100)
+        - addUniqueConstraint:
+            tableName: warehouse
+            columnNames: code
+            constraintName: warehouse_code_uk

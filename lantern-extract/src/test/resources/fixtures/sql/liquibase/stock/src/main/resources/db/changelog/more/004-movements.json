@@ -1,0 +1,30 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "4",
+        "author": "test",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "movement",
+              "columns": [
+                { "column": { "name": "id", "type": "uuid", "constraints": { "primaryKey": true } } },
+                { "column": { "name": "stock_item_id", "type": "bigint" } }
+              ]
+            }
+          },
+          {
+            "addForeignKeyConstraint": {
+              "baseTableName": "movement",
+              "baseColumnNames": "stock_item_id",
+              "referencedTableName": "stock_item",
+              "referencedColumnNames": "id",
+              "constraintName": "movement_item_fk"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

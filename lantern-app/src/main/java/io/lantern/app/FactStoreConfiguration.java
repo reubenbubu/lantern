@@ -7,6 +7,7 @@ import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.extract.sql.SqlExtractor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -37,6 +38,7 @@ class FactStoreConfiguration {
     registry.apply(JavaExtractor.VOCABULARY_SOURCE, JavaExtractor.vocabulary());
     registry.apply(ConfigExtractor.VOCABULARY_SOURCE, ConfigExtractor.vocabulary());
     registry.apply(DocsExtractor.VOCABULARY_SOURCE, DocsExtractor.vocabulary());
+    registry.apply(SqlExtractor.VOCABULARY_SOURCE, SqlExtractor.vocabulary());
   }
 
   @Bean

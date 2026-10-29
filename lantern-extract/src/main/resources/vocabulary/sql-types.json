@@ -1,0 +1,84 @@
+[
+  {
+    "name": "schema",
+    "kind": "entity",
+    "description": "The database schema a build module's migrations build: Flyway migrations, Liquibase changelogs or other SQL files. Its key is the module's groupId:artifactId, or the repository name for a repository without modules. It has no C4 level: which data store holds it is decided from the datasource configuration, since several schemas may share one database.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "table",
+    "kind": "entity",
+    "description": "A table of a schema. Its key is the schema's key, ':' and the table name as the database folds it (unquoted names in lower case), qualified with a database schema when the migrations name one, such as com.acme:orders-app:orders. It has no C4 level: a table is part of a data store.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "column",
+    "kind": "entity",
+    "description": "A column of a table. Its key is the table's key, '#' and the column name, such as com.acme:orders-app:orders#id.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "PRIMARY_KEY",
+    "kind": "relationship",
+    "description": "The subject table's primary key includes the object column.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "columns": { "type": "array", "items": { "type": "string" }, "description": "All the key's column names, in key order." },
+        "name": { "type": "string", "description": "The constraint name, if the migrations give one." }
+      },
+      "required": ["columns"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "UNIQUE_KEY",
+    "kind": "relationship",
+    "description": "A unique key of the subject table includes the object column. A table may have several; the columns attribute tells them apart.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "columns": { "type": "array", "items": { "type": "string" }, "description": "All the key's column names, in key order." },
+        "name": { "type": "string", "description": "The constraint name, if the migrations give one." }
+      },
+      "required": ["columns"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "REFERENCES",
+    "kind": "relationship",
+    "description": "A foreign key of the subject table references the object table. The object may be a table the schema does not create.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "columns": { "type": "array", "items": { "type": "string" }, "description": "The subject table's column names, in key order." },
+        "referencedColumns": { "type": "array", "items": { "type": "string" }, "description": "The object table's column names, in the same order; absent when the key names none and the object's primary key is not known." },
+        "name": { "type": "string", "description": "The constraint name, if the migrations give one." }
+      },
+      "required": ["columns"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "data-type",
+    "kind": "attribute",
+    "description": "The SQL type of the subject column as the migrations write it, in lower case, such as varchar(200) or bigint.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  },
+  {
+    "name": "nullable",
+    "kind": "attribute",
+    "description": "Whether the subject column accepts null.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "boolean"
+  },
+  {
+    "name": "position",
+    "kind": "attribute",
+    "description": "The subject's place among its siblings, from 1. For a column, its place in its table.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "integer"
+  }
+]
