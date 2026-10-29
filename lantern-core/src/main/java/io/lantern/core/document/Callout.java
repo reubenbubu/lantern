@@ -1,5 +1,6 @@
 package io.lantern.core.document;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -13,6 +14,9 @@ import java.util.Objects;
  * @param title the title, or {@code null}
  * @param content the text, not empty
  * @param facts the IDs of the facts the callout came from
+ * @param consequence what a risk means for the reader if nothing is done, or {@code null}; only a
+ *     risk may have one
+ * @param confidence how certain a risk is, from 0 to 1, or {@code null}; only a risk may have one
  */
 public record Callout(
     String id,
@@ -20,8 +24,21 @@ public record Callout(
     Severity severity,
     String title,
     List<Inline> content,
-    List<String> facts)
+    List<String> facts,
+    String consequence,
+    BigDecimal confidence)
     implements Block {
+
+  /** A callout without a consequence or confidence. */
+  public Callout(
+      String id,
+      Variant variant,
+      Severity severity,
+      String title,
+      List<Inline> content,
+      List<String> facts) {
+    this(id, variant, severity, title, content, facts, null, null);
+  }
 
   public Callout {
     Checks.elementId(id, "block ID");
@@ -32,6 +49,18 @@ public record Callout(
     Checks.optionalText(title, "callout title");
     content = Checks.content(content, "callout content");
     facts = Checks.factIds(facts, "callout facts");
+    Checks.optionalText(consequence, "callout consequence");
+    if (consequence != null && variant != Variant.RISK) {
+      throw new IllegalArgumentException("Only a risk callout may have a consequence");
+    }
+    if (confidence != null) {
+      if (variant != Variant.RISK) {
+        throw new IllegalArgumentException("Only a risk callout may have a confidence");
+      }
+      if (confidence.signum() < 0 || confidence.compareTo(BigDecimal.ONE) > 0) {
+        throw new IllegalArgumentException("Confidence must be between 0 and 1: " + confidence);
+      }
+    }
   }
 
   /** What kind of callout it is. */

@@ -85,7 +85,9 @@ final class SampleDocument {
             Callout.Severity.HIGH,
             "Shared database",
             List.of(new TextRun("orders-db", TextRun.Style.CODE), TextRun.of(" is shared.")),
-            facts(READS));
+            facts(READS),
+            "A change to its tables can break another service.",
+            new BigDecimal("0.9"));
     ListBlock highlights =
         new ListBlock(
             "highlights",

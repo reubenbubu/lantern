@@ -48,7 +48,14 @@ public enum SectionKind {
   /** Headline numbers: what the repository builds, how big it is and how connected. */
   HEADLINES("At a glance", EnumSet.of(Level.L0, Level.L1)),
   /** Risks found by fixed checks of the knowledge, most serious first. */
-  RISKS("Risks", EnumSet.of(Level.L0, Level.L1));
+  RISKS("Risks", EnumSet.of(Level.L0, Level.L1)),
+  /**
+   * Who depends on the repository's deployable units and what they depend on, from the linker's
+   * links.
+   */
+  BLAST_RADIUS("Blast radius", EnumSet.of(Level.L0, Level.L1)),
+  /** Runtime and framework versions against the end of their free support. */
+  TECHNOLOGY_CURRENCY("Technology currency", EnumSet.of(Level.L0, Level.L1));
 
   private final String title;
   private final EnumSet<Level> levels;

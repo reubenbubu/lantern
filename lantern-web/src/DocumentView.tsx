@@ -288,6 +288,14 @@ function CalloutView({ callout }: { callout: Callout }) {
       <p>
         <Content content={callout.content} />
       </p>
+      {callout.consequence && (
+        <p className="callout-consequence">
+          <strong>Consequence:</strong> {callout.consequence}
+        </p>
+      )}
+      {callout.confidence !== undefined && (
+        <p className="callout-confidence">Confidence: {Math.round(callout.confidence * 100)}%</p>
+      )}
     </aside>
   );
 }

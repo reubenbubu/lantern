@@ -193,7 +193,7 @@
     },
     "callout": {
       "title": "Callout",
-      "description": "Text set apart from the flow: a note, a warning or a risk. Only a risk may have a severity.",
+      "description": "Text set apart from the flow: a note, a warning or a risk. Only a risk may have a severity, a consequence and a confidence.",
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "id", "variant", "content", "facts"],
@@ -204,10 +204,20 @@
         "severity": { "enum": ["high", "medium", "low"] },
         "title": { "$ref": "#/$defs/nonBlankText" },
         "content": { "$ref": "#/$defs/content" },
-        "facts": { "$ref": "#/$defs/factIds" }
+        "facts": { "$ref": "#/$defs/factIds" },
+        "consequence": {
+          "description": "What a risk means for the reader if nothing is done.",
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "confidence": {
+          "description": "How certain a risk is, from 0 to 1.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       },
       "if": { "properties": { "variant": { "enum": ["note", "warning"] } } },
-      "then": { "properties": { "severity": false } }
+      "then": { "properties": { "severity": false, "consequence": false, "confidence": false } }
     },
     "table": {
       "title": "Table",

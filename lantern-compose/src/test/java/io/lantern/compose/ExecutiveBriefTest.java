@@ -8,8 +8,11 @@ import io.lantern.core.document.CrossReference;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
 import io.lantern.core.document.Inline;
+import io.lantern.core.document.ListBlock;
 import io.lantern.core.document.Metrics;
+import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
+import io.lantern.core.document.Table;
 import io.lantern.core.document.TemplateRef;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
@@ -28,7 +31,10 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
 
-/** The Executive Brief's own sections: headline numbers and risks (ADR 0015). */
+/**
+ * The Executive Brief's own sections: headline numbers and risks (ADR 0015), blast radius and
+ * technology currency (ADR 0052).
+ */
 class ExecutiveBriefTest {
 
   private static final TemplateRef TEMPLATE = new TemplateRef("executive-brief", "1");
@@ -110,7 +116,15 @@ class ExecutiveBriefTest {
     assertThat(document.template()).isEqualTo(TEMPLATE);
     assertThat(document.sections())
         .extracting(Section::id)
-        .containsExactly("overview", "headlines", "risks", "context", "containers", "quality");
+        .containsExactly(
+            "overview",
+            "headlines",
+            "risks",
+            "blast_radius",
+            "technology_currency",
+            "context",
+            "containers",
+            "quality");
     assertThat(section(document, "headlines").title()).isEqualTo("At a glance");
   }
 
@@ -206,22 +220,26 @@ class ExecutiveBriefTest {
             "risks.cycles.service:com.example:app RISK LOW");
     assertThat(text(risks.get(0).content()))
         .isEqualTo(
-            "shop is built against 2 dependencies on unreleased (snapshot) versions, so a release"
-                + " of it cannot be rebuilt exactly and may change without notice:"
+            "shop is built against 2 dependencies on unreleased (snapshot) versions:"
                 + " snap (0.1-SNAPSHOT) and common (2.0-SNAPSHOT).");
+    assertThat(risks.get(0).consequence())
+        .isEqualTo("A release of it cannot be rebuilt exactly and may change without notice.");
     assertThat(risks.get(0).facts()).hasSize(2);
+    assertThat(risks).allSatisfy(r -> assertThat(r.confidence()).isEqualByComparingTo("1"));
     assertThat(text(risks.get(1).content()))
         .isEqualTo(
-            "shop uses different versions of 2 dependencies, which can lead to"
-                + " conflicts when they run together: jackson (1.0, 2.0) and common (1.0,"
+            "shop uses different versions of 2 dependencies: jackson (1.0, 2.0) and common (1.0,"
                 + " 2.0-SNAPSHOT).");
+    assertThat(risks.get(1).consequence())
+        .isEqualTo("The versions can conflict when they run together.");
     assertThat(risks.get(1).facts()).hasSize(4);
     assertThat(risks.get(2).title()).isEqualTo("Tangled packages in app");
     assertThat(text(risks.get(2).content()))
         .isEqualTo(
-            "2 packages of app depend on each other in a cycle, so none of them can be changed,"
-                + " tested or split out on its own. The cycle: com.example.domain and"
+            "2 packages of app depend on each other in a cycle. The cycle: com.example.domain and"
                 + " com.example.web.");
+    assertThat(risks.get(2).consequence())
+        .isEqualTo("None of them can be changed, tested or split out on its own.");
     // The calls in both directions.
     assertThat(risks.get(2).facts()).hasSize(2);
     risks.forEach(
@@ -254,7 +272,7 @@ class ExecutiveBriefTest {
     Callout risk = (Callout) section(compose(facts), "risks").blocks().getFirst();
 
     assertThat(text(risk.content()))
-        .startsWith("shop is built against 1 dependency on an unreleased (snapshot) version, so");
+        .startsWith("shop is built against 1 dependency on an unreleased (snapshot) version:");
   }
 
   @Test
@@ -286,5 +304,318 @@ class ExecutiveBriefTest {
         .extracting(Object::toString)
         .containsExactlyInAnyOrder(
             "[package:m:a, package:m:b, package:m:c]", "[package:m:d, package:m:e]");
+  }
+
+  // Blast radius and technology currency (ADR 0052).
+
+  private static final Instant OCTOBER_2026 = Instant.parse("2026-10-29T10:00:00Z");
+
+  private static Document compose(List<Fact> facts, Instant at) {
+    return new Composer("1")
+        .compose(
+            ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE),
+            new Snapshot(2, SNAPSHOT.commits(), 5, "0.1.0", at),
+            facts,
+            Map.of());
+  }
+
+  private static List<String> rows(Table table) {
+    return table.rows().stream()
+        .map(
+            r ->
+                r.cells().stream().map(ExecutiveBriefTest::text).collect(Collectors.joining(" | ")))
+        .toList();
+  }
+
+  /**
+   * The runtime facts with the technology of {@code shop-app} replaced: Spring Boot at the version,
+   * Java at the release, and a direct dependency of {@code app} on Spring Framework.
+   */
+  private static List<Fact> withTechnology(String boot, String java, String framework) {
+    List<Fact> facts = new ArrayList<>(TestFacts.runtime().list());
+    facts.removeIf(f -> f.predicate().equals("technology") && f.subject().type().equals("service"));
+    TestFacts more =
+        new TestFacts()
+            .attribute(
+                "shop",
+                "service:com.example:app",
+                "technology",
+                "Spring Boot " + boot + " / Java " + java,
+                "{\"framework\": \"Spring Boot\", \"frameworkVersion\": \""
+                    + boot
+                    + "\", \"java\": \""
+                    + java
+                    + "\"}");
+    facts.addAll(more.list());
+    if (framework != null) {
+      facts.add(dependency(APP, "artifact:org.springframework:spring-context", framework));
+    }
+    return facts;
+  }
+
+  @Test
+  void blastRadiusNamesWhoDependsOnTheUnitsAndWhatTheyDependOn() {
+    List<Block> blocks = section(compose(TestFacts.runtime().list()), "blast_radius").blocks();
+
+    assertThat(blocks)
+        .extracting(Block::id)
+        .containsExactly(
+            "blast_radius.summary",
+            "blast_radius.dependents",
+            "blast_radius.dependencies",
+            "blast_radius.unresolved");
+    Paragraph summary = (Paragraph) blocks.get(0);
+    assertThat(text(summary.content()))
+        .isEqualTo(
+            "1 container in the snapshot depends on shop-app. It depends on 1 external system"
+                + " and 1 database.");
+    assertThat(summary.facts()).hasSize(4);
+    Table dependents = (Table) blocks.get(1);
+    assertThat(dependents.title()).isEqualTo("Who depends on it");
+    assertThat(rows(dependents))
+        .containsExactly(
+            "worker | Container in repository base | calls shop-app; receives messages from"
+                + " shop-app");
+    assertThat(dependents.rows().getFirst().facts()).hasSize(2);
+    assertThat(rows((Table) blocks.get(2)))
+        .containsExactly(
+            "shop on db | PostgreSQL database | shop-app stores its data in it",
+            "pay.example.com | External system | shop-app calls it (only under the Spring profile"
+                + " prod)");
+    assertThat(text(((Callout) blocks.get(3)).content()))
+        .isEqualTo(
+            "1 call, message or database connection of shop-app could not be traced to its"
+                + " target, so shop may depend on more than this shows.");
+  }
+
+  /**
+   * The runtime facts with more links: {@code worker} also sends messages to {@code shop-app} and
+   * reads its tables; {@code shop-app} writes {@code worker}'s tables, connects to a cache it holds
+   * no schema in, and calls a sandbox payment host by default, which the {@code prod} profile
+   * replaces with {@code pay.example.com}.
+   */
+  private static List<Fact> moreLinks() {
+    String app = "service:com.example:app";
+    String worker = "service:com.example:worker";
+    List<Fact> facts = new ArrayList<>(TestFacts.runtime().list());
+    facts.addAll(
+        new TestFacts()
+            .relate("base", worker, "SENDS_MESSAGES_TO", app, "{\"protocol\": \"Kafka\"}")
+            .relate(
+                "base",
+                worker,
+                "ACCESSES_DATA_OF",
+                app,
+                "{\"reads\": [\"table:com.example:app:orders\"]}")
+            .relate(
+                "shop",
+                app,
+                "ACCESSES_DATA_OF",
+                worker,
+                "{\"writes\": [\"table:com.example:worker:jobs\"]}")
+            .relate("shop", app, "USES_DATABASE", "database:cache:6379/x", "{}")
+            .relate(
+                "shop",
+                app,
+                "CALLS_HTTP",
+                "external-system:pay-sandbox.example.com",
+                "{\"protocol\": \"HTTPS\", \"exceptProfiles\": [\"prod\"], \"source\":"
+                    + " \"method:com.example.web.Controller#list()\"}")
+            .list());
+    return facts;
+  }
+
+  @Test
+  void blastRadiusReadsEveryKindOfLinkAndLeavesOutReplacedOnes() {
+    List<Block> blocks = section(compose(moreLinks()), "blast_radius").blocks();
+
+    assertThat(rows((Table) blocks.get(1)))
+        .containsExactly(
+            "worker | Container in repository base | calls shop-app; reads the tables of"
+                + " shop-app; receives messages from shop-app");
+    assertThat(rows((Table) blocks.get(2)))
+        .containsExactly(
+            "x on cache | Database | shop-app connects to it",
+            "shop on db | PostgreSQL database | shop-app stores its data in it",
+            "pay-sandbox.example.com | External system | shop-app calls it",
+            "worker | Container in repository base | shop-app receives its messages; shop-app"
+                + " writes its tables");
+  }
+
+  @Test
+  void briefDoesNotDependOnInputOrder() {
+    List<Fact> facts = new ArrayList<>(moreLinks());
+    facts.addAll(withTechnology("2.7.18", "21", "6.2.1"));
+    List<Fact> shuffled = new ArrayList<>(facts);
+    Collections.shuffle(shuffled, new Random(11));
+
+    String first = DocumentJson.write(compose(facts, OCTOBER_2026));
+    assertThat(DocumentJson.write(compose(shuffled, OCTOBER_2026))).isEqualTo(first);
+  }
+
+  @Test
+  void blastRadiusOfALibraryNamesTheUnitsRunningItsCode() {
+    List<Fact> facts = new ArrayList<>(TestFacts.runtime().list());
+    facts.addAll(
+        new TestFacts()
+            .relate("shop", "service:com.example:app", "BUNDLES", "library:com.example:common")
+            .list());
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.executiveBrief("base.brief", "base", TEMPLATE),
+                SNAPSHOT,
+                facts,
+                Map.of());
+    List<Block> blocks = section(document, "blast_radius").blocks();
+
+    assertThat(text(((ListBlock) blocks.getFirst()).items().getFirst().content()))
+        .isEqualTo("shop-app, built in shop, runs its code");
+    // worker is base's own unit; shop-app runs base's code, so their links are within scope.
+    assertThat(text(((Paragraph) blocks.get(1)).content()))
+        .isEqualTo(
+            "No container in the snapshot depends on the deployable units running base's code. They"
+                + " depend on 1"
+                + " external system and 1 database.");
+  }
+
+  @Test
+  void blastRadiusWithoutUnitsSaysSo() {
+    List<Block> blocks = section(compose(TestFacts.shop().list()), "blast_radius").blocks();
+
+    assertThat(blocks).hasSize(1);
+    assertThat(((Callout) blocks.getFirst()).variant()).isEqualTo(Callout.Variant.NOTE);
+  }
+
+  @Test
+  void technologyCurrencyComparesVersionsWithTheirEndOfLife() {
+    Document document = compose(withTechnology("2.7.18", "1.8", "6.2.1"), OCTOBER_2026);
+    List<Block> blocks = section(document, "technology_currency").blocks();
+
+    assertThat(blocks)
+        .extracting(Block::id)
+        .containsExactly(
+            "technology_currency.summary",
+            "technology_currency.versions",
+            "technology_currency.source");
+    assertThat(text(((Paragraph) blocks.get(0)).content()))
+        .isEqualTo(
+            "As of the snapshot's date, 29 Oct 2026, 2 of the 3 versions in use are past the end"
+                + " of free support.");
+    assertThat(rows((Table) blocks.get(1)))
+        .containsExactly(
+            "Java | 8 | shop-app | 31 Dec 2030",
+            "Spring Boot | 2.7.18 | shop-app | Ended 30 Jun 2023",
+            "Spring Framework | 6.2.1 | shop-app | Ended 30 Jun 2026");
+    assertThat(((Table) blocks.get(1)).rows()).allSatisfy(r -> assertThat(r.facts()).hasSize(1));
+
+    List<Callout> risks =
+        section(document, "risks").blocks().stream().map(Callout.class::cast).toList();
+    Callout risk = risks.getFirst();
+    assertThat(risk.id()).isEqualTo("risks.framework-ended");
+    assertThat(risk.severity()).isEqualTo(Callout.Severity.HIGH);
+    assertThat(text(risk.content()))
+        .isEqualTo(
+            "shop's code runs on 2 versions past the end of free support: Spring Boot 2.7.18 (ended 30 Jun"
+                + " 2023) in shop-app and Spring Framework 6.2.1 (ended 30 Jun 2026) in shop-app.");
+    assertThat(risk.consequence()).isNotBlank();
+    assertThat(risk.confidence()).isEqualByComparingTo("1");
+    assertThat(risk.facts()).hasSize(2);
+  }
+
+  @Test
+  void technologyCurrencyFindsSupportEndingSoonAndUnsupportedJava() {
+    Document document = compose(withTechnology("4.0.1", "26", null), OCTOBER_2026);
+
+    assertThat(rows((Table) section(document, "technology_currency").blocks().get(1)))
+        .containsExactly(
+            "Java | 26 | shop-app | Ended 22 Sep 2026",
+            "Spring Boot | 4.0.1 | shop-app | Ends 31 Dec 2026, within six months");
+    List<Callout> risks =
+        section(document, "risks").blocks().stream().map(Callout.class::cast).toList();
+    assertThat(risks)
+        .extracting(c -> c.id() + " " + c.severity() + " " + c.confidence())
+        .containsExactly("risks.framework-ending MEDIUM 1", "risks.java-ended MEDIUM 0.5");
+  }
+
+  @Test
+  void technologyCurrencyKnowsWhatItDoesNotKnow() {
+    Document document = compose(withTechnology("${boot.version}", "99", null), OCTOBER_2026);
+    List<Block> blocks = section(document, "technology_currency").blocks();
+
+    assertThat(rows((Table) blocks.get(1)))
+        .containsExactly(
+            "Java | 99 | shop-app | Not in Lantern's table",
+            "Spring Boot | ${boot.version} | shop-app | Version could not be read");
+    assertThat(text(((Paragraph) blocks.get(0)).content()))
+        .isEqualTo(
+            "As of the snapshot's date, 29 Oct 2026, Lantern does not know whether any of the 2"
+                + " versions in use is past the end of free support.");
+    assertThat(section(document, "risks").blocks())
+        .extracting(Block::id)
+        .containsExactly("risks.none");
+  }
+
+  @Test
+  void technologyCurrencyJudgesReleasesTemurinNeverBuiltAndLinesOlderThanTheTable() {
+    Document document = compose(withTechnology("1.2.0", "1.8", "4.2.9"), OCTOBER_2026);
+    List<Block> blocks = section(document, "technology_currency").blocks();
+
+    assertThat(rows((Table) blocks.get(1)))
+        .containsExactly(
+            "Java | 8 | shop-app | 31 Dec 2030",
+            "Spring Boot | 1.2.0 | shop-app | Ended",
+            "Spring Framework | 4.2.9 | shop-app | Ended");
+    Document gap = compose(withTechnology("3.5.1", "13", null), OCTOBER_2026);
+    assertThat(rows((Table) section(gap, "technology_currency").blocks().get(1)))
+        .contains("Java | 13 | shop-app | Ended 17 Mar 2020");
+    assertThat(text(((Paragraph) section(gap, "technology_currency").blocks().get(0)).content()))
+        .isEqualTo(
+            "As of the snapshot's date, 29 Oct 2026, 2 of the 2 versions in use are past the end"
+                + " of free support.");
+  }
+
+  @Test
+  void technologyCurrencyRisksOfALibraryNameTheUnitsRunningItsCode() {
+    List<Fact> facts = new ArrayList<>(withTechnology("2.7.18", "21", null));
+    facts.add(
+        TestFacts.fact(
+            "shop",
+            "service:com.example:app",
+            "BUNDLES",
+            FactObject.entity(EntityId.parse("library:com.example:common")),
+            FactJson.newObject(),
+            Validity.from(1)));
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.executiveBrief("base.brief", "base", TEMPLATE),
+                new Snapshot(2, SNAPSHOT.commits(), 5, "0.1.0", OCTOBER_2026),
+                facts,
+                Map.of());
+    Callout risk = (Callout) section(document, "risks").blocks().getFirst();
+
+    assertThat(text(risk.content()))
+        .isEqualTo(
+            "base's code runs on a version past the end of free support: Spring Boot 2.7.18"
+                + " (ended 30 Jun 2023) in shop-app.");
+  }
+
+  @Test
+  void technologyCurrencyFindsJavaSupportEndingSoon() {
+    Document document = compose(withTechnology("4.1.0", "27", null), OCTOBER_2026);
+
+    assertThat(section(document, "risks").blocks())
+        .map(Callout.class::cast)
+        .extracting(c -> c.id() + " " + c.severity() + " " + c.confidence())
+        .containsExactly("risks.java-ending LOW 0.5");
+  }
+
+  @Test
+  void technologyCurrencyWithoutVersionsSaysSo() {
+    List<Block> blocks = section(compose(TestFacts.shop().list()), "technology_currency").blocks();
+
+    assertThat(blocks).hasSize(1);
+    assertThat(((Callout) blocks.getFirst()).variant()).isEqualTo(Callout.Variant.NOTE);
   }
 }
