@@ -496,7 +496,7 @@ Renderers turn the document model into a format and make no content decisions. S
 | Service Datasheet | Anyone | One page per repo or service: APIs, dependencies, data, config, owners |
 | Change Report | Reviewers | Snapshot-to-snapshot diff with the change overlay |
 
-What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0052, and its quality evidence in ADR 0061.
+What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0052, and its quality evidence in ADR 0062.
 
 Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository and for the whole system (ADR 0031, ADR 0044).
 

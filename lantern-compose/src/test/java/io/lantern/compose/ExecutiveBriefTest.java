@@ -33,7 +33,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The Executive Brief's own sections: headline numbers and risks (ADR 0015), blast radius and
- * technology currency (ADR 0052), and quality evidence (ADR 0061).
+ * technology currency (ADR 0052), and quality evidence (ADR 0062).
  */
 class ExecutiveBriefTest {
 

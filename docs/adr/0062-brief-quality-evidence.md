@@ -1,4 +1,4 @@
-# 0061: Executive Brief quality evidence
+# 0062: Executive Brief quality evidence
 
 Status: accepted (#186), amends ADR 0046, pending the user's review (#24)
 

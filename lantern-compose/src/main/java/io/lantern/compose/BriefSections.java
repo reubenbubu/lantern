@@ -31,7 +31,7 @@ import java.util.TreeSet;
 
 /**
  * The Executive Brief's sections on one repository's blast radius and technology currency, and the
- * risks technology currency finds (ADR 0052), and its quality evidence (ADR 0061).
+ * risks technology currency finds (ADR 0052), and its quality evidence (ADR 0062).
  *
  * <p>The blast radius is read from the linker's links (ADR 0042) of the deployable units in scope:
  * those running the repository's code. Technology currency compares the units' runtime and
