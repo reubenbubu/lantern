@@ -168,10 +168,14 @@ final class SchemaModel {
     return table;
   }
 
+  /** Drops a table and the foreign keys that reference it, as {@code CASCADE} does. */
   void dropTable(String name) {
     Table table = table(name);
     if (table != null) {
       tables.remove(table.name);
+      for (Table other : tables.values()) {
+        other.foreignKeys.removeIf(k -> k.table().equals(table.name));
+      }
     }
   }
 
@@ -352,11 +356,28 @@ final class SchemaModel {
     if (t == null || name == null) {
       return;
     }
-    if (t.primaryKey != null && sameName(t.primaryKey.name(), name)) {
+    if (t.primaryKey != null && named(t.primaryKey.name(), t.name, List.of(), "pkey", name)) {
       t.primaryKey = null;
     }
-    t.uniqueKeys.removeIf(k -> sameName(k.name(), name));
-    t.foreignKeys.removeIf(k -> sameName(k.name(), name));
+    t.uniqueKeys.removeIf(k -> named(k.name(), t.name, k.columns(), "key", name));
+    t.foreignKeys.removeIf(k -> named(k.name(), t.name, k.columns(), "fkey", name));
+  }
+
+  /**
+   * Whether a key has the name: the one it was declared with, or for a key declared without one,
+   * the name PostgreSQL gives it ({@code orders_pkey}, {@code orders_code_key}, {@code
+   * orders_customer_id_fkey}).
+   */
+  private static boolean named(
+      String declared, String table, List<String> columns, String suffix, String name) {
+    if (declared != null) {
+      return sameName(declared, name);
+    }
+    List<String> parts = new ArrayList<>();
+    parts.add(unqualified(table));
+    parts.addAll(columns);
+    parts.add(suffix);
+    return sameName(String.join("_", parts), name);
   }
 
   /** Drops the unique key with the name; without a name, the one with exactly these columns. */

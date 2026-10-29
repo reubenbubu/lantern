@@ -193,4 +193,73 @@ class SqlScriptTest {
                 """))
         .containsExactly("a(id int, b int)");
   }
+
+  @Test
+  void createTableIfNotExistsKeepsAnExistingTable() {
+    assertThat(
+            schema(
+                """
+                CREATE TABLE a (id int, name text);
+                CREATE TABLE IF NOT EXISTS a (id int);
+                CREATE TABLE IF NOT EXISTS b (id int);
+                """))
+        .containsExactly("a(id int, name text)", "b(id int)");
+  }
+
+  @Test
+  void droppingATableDropsTheForeignKeysToIt() {
+    assertThat(
+            schema(
+                """
+                CREATE TABLE a (id int PRIMARY KEY);
+                CREATE TABLE b (a_id int REFERENCES a (id));
+                DROP TABLE a CASCADE;
+                """))
+        .containsExactly("b(a_id int)");
+  }
+
+  @Test
+  void keysDeclaredWithoutANameAreDroppedByPostgresDefaultNames() {
+    assertThat(
+            schema(
+                """
+                CREATE TABLE a (id int PRIMARY KEY, code int UNIQUE, x int, y int, UNIQUE (x, y));
+                CREATE TABLE b (id int, a_id int REFERENCES a (id), a_code int REFERENCES a (code));
+                ALTER TABLE a DROP CONSTRAINT a_pkey;
+                ALTER TABLE a DROP CONSTRAINT a_x_y_key;
+                ALTER TABLE b DROP CONSTRAINT b_a_id_fkey;
+                """))
+        .containsExactly(
+            "a(id int not null, code int, x int, y int) uk[code]",
+            "b(id int, a_id int, a_code int) fk[a_code]->a[code]");
+  }
+
+  @Test
+  void aStatementTheParserCannotReadIsLoggedWithItsFileAndLines() {
+    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(SqlScript.class.getName());
+    List<String> messages = new ArrayList<>();
+    java.util.logging.Handler handler =
+        new java.util.logging.Handler() {
+          @Override
+          public void publish(java.util.logging.LogRecord record) {
+            messages.add(
+                java.text.MessageFormat.format(record.getMessage(), record.getParameters()));
+          }
+
+          @Override
+          public void flush() {}
+
+          @Override
+          public void close() {}
+        };
+    logger.addHandler(handler);
+    try {
+      schema("CREATE TABLE a (id int);\n\nCREATE TABLE [dbo].[b] (\n[id] int);\n");
+    } finally {
+      logger.removeHandler(handler);
+    }
+
+    assertThat(messages)
+        .containsExactly("Skipped a statement the SQL parser cannot read, in s.sql lines 3-4");
+  }
 }

@@ -40,19 +40,24 @@ modelled, and what happens with SQL the parser cannot read.
   the Liquibase changes that do the same (`createTable`, `addColumn`, `dropColumn`, `renameTable`,
   `renameColumn`, `modifyDataType`, `addNotNullConstraint`, `addPrimaryKey`,
   `addUniqueConstraint`, `addForeignKeyConstraint`, their drops, and SQL in `sql` and `sqlFile`).
-  Indexes, views, data and functions do not shape tables and are skipped. Every Liquibase change
+  `CREATE TABLE IF NOT EXISTS` leaves an existing table as it is, dropping a table drops the foreign
+  keys that reference it, and a key declared without a name can be dropped by the name PostgreSQL
+  gives it (`orders_pkey`, `orders_code_key`, `orders_customer_id_fkey`). Indexes, views, data and
+  functions do not shape tables and are skipped. Every Liquibase change
   set is applied whatever its `dbms`, `context` or `labels`; rollbacks are not.
 - **Parsing.** Scripts are split into statements here (at semicolons outside quotes, dollar quotes
   and comments), so each statement keeps its lines and one the parser cannot read is skipped alone.
   A `CREATE TABLE` the parser rejects is tried again without the options after its column list
   (`PARTITION BY`, `INHERITS`, ...); `SET DATA TYPE` and MySQL's `DROP FOREIGN KEY` are rewritten
   into forms JSqlParser reads. A statement still unreadable is skipped, so its table or change is
-  missing. Each statement may take the parser up to 10 seconds; past that it is skipped, the one
+  missing; a warning names its file and lines. Each statement may take the parser up to 10 seconds; past that it is skipped, the one
   case where the result could depend on the machine.
 - **Names.** Unquoted names are folded to lower case, as PostgreSQL does; quoted ones keep their
   case without the quotes. A qualified name (`app.orders`) is kept; a change naming the table
   without its qualifier, or with one when it was created without, finds it when exactly one table
-  matches, and two different qualifiers never match.
+  matches, and two different qualifiers never match. The folding is PostgreSQL's only: databases
+  that fold unquoted names to upper case (H2, Oracle) are not modelled, so a migration that quotes
+  an upper-case name and elsewhere leaves it unquoted gives two names.
 - **Entity IDs.** `table:<schema key>:<table>` and `column:<schema key>:<table>#<column>`, so two
   services' `orders` tables are different entities. A JPA entity's table (#130) is matched to these
   by name by the linker.

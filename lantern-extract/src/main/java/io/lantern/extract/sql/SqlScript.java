@@ -1,6 +1,7 @@
 package io.lantern.extract.sql;
 
 import io.lantern.extract.sql.SchemaModel.Where;
+import java.lang.System.Logger.Level;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -11,6 +12,7 @@ import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.UnsupportedStatement;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
@@ -42,6 +44,8 @@ final class SqlScript {
   private static final Pattern DROP_FOREIGN_KEY =
       Pattern.compile("(?i)\\bDROP\\s+FOREIGN\\s+KEY\\b");
   private static final Pattern DOLLAR_TAG = Pattern.compile("\\$[A-Za-z_]*\\$");
+
+  private static final System.Logger LOG = System.getLogger(SqlScript.class.getName());
 
   private SqlScript() {}
 
@@ -212,13 +216,22 @@ final class SqlScript {
           model.renameTable(name(entry.getKey()), name(entry.getValue()), where);
         }
       }
-      case null, default -> {}
+      case null, default ->
+          LOG.log(
+              Level.WARNING,
+              "Skipped a statement the SQL parser cannot read, in {0} lines {1}-{2}",
+              where.path(),
+              where.start(),
+              where.end());
     }
   }
 
+  /** The statement, or null if the parser fails, runs out of time, or does not know its kind. */
   private static Statement parse(String sql, ExecutorService executor) {
     try {
-      return CCJSqlParserUtil.parse(sql, executor, p -> p.withTimeOut(PARSE_TIMEOUT_MILLIS));
+      Statement statement =
+          CCJSqlParserUtil.parse(sql, executor, p -> p.withTimeOut(PARSE_TIMEOUT_MILLIS));
+      return statement instanceof UnsupportedStatement ? null : statement;
     } catch (JSQLParserException | RuntimeException | StackOverflowError e) {
       return null;
     }
@@ -249,7 +262,7 @@ final class SqlScript {
 
   private static void createTable(SchemaModel model, CreateTable create, Where where) {
     String table = name(create.getTable());
-    if (table == null) {
+    if (table == null || (create.isIfNotExists() && model.table(table) != null)) {
       return;
     }
     model.createTable(table, where);
