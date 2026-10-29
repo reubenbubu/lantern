@@ -100,6 +100,47 @@ class SpringExtractorTest {
   }
 
   @Test
+  void jobsOfJobRunrAndQuartz() throws IOException {
+    List<String> facts = Fixtures.render(extract(unbuilt(fixtures()))).lines().toList();
+
+    assertThat(facts)
+        .anyMatch(
+            // A request handler is a job, named by @Job, scheduled where its request is built.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.ReminderHandler#run("
+                            + "com.example.shop.app.jobs.ReminderRequest) scheduled Task's reminder"
+                            + " job ")
+                    && l.contains("\"trigger\":\"job-request\"")
+                    && l.contains("Reminders#remindAt(long,java.time.Instant)")
+                    && l.contains("Reminders#remindNow(long)"))
+        .anyMatch(
+            // A Quartz job takes the cron of the trigger it is scheduled with.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.ExpiryJob#execute("
+                            + "org.quartz.JobExecutionContext) scheduled 0 15 2 * * ? ")
+                    && l.contains("QuartzSetup#schedule(org.quartz.Scheduler)"))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "method:com.example.shop.app.jobs.DigestJob#executeInternal("
+                        + "org.quartz.JobExecutionContext) scheduled"
+                        + " com.example.shop.app.jobs.DigestJob "))
+        .anyMatch(
+            // @Recurring resolves its cron like @Scheduled.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.NightlyJob#cleanUp() scheduled 0 0 3")
+                    && l.contains("\"framework\":\"jobrunr\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "method:com.example.shop.app.jobs.NightlyJob#reindex() scheduled Manual"
+                        + " re-index "));
+  }
+
+  @Test
   void compiledGivesTheSameFactsAsParsed() throws IOException {
     List<Repo> repos = fixtures();
     Repo spring = repos.getFirst();

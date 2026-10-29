@@ -892,6 +892,17 @@ final class SequenceFlows {
       default -> {
         String kind = attribute(entry.fact, "trigger");
         String schedule = (kind == null ? "" : kind + " ") + value;
+        String framework = attribute(entry.fact, "framework");
+        if (framework != null) {
+          // A JobRunr or Quartz job: named by its job, or by its cron when that is the value.
+          String job = ExplorerSections.jobKind(entry.fact);
+          boolean timed = "cron".equals(kind) || "interval".equals(kind);
+          String named = timed ? job + " on the schedule " + schedule : job + " " + value;
+          yield new Heading(
+              handler + " on its schedule in " + nameOf(entry.unit),
+              "The " + named + " (" + handler + ")",
+              "the " + named + " runs in " + nameOf(entry.unit));
+        }
         yield new Heading(
             handler + " on its schedule in " + nameOf(entry.unit),
             "The schedule " + schedule + " (" + handler + ")",

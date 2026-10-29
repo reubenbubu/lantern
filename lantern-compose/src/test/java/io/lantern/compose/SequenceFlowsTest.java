@@ -579,6 +579,23 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aJobRunrJobIsNamedByItsJobNotBySchedule() {
+    facts.removeIf(f -> f.predicate().equals("scheduled"));
+    attribute(
+        "ship",
+        NIGHTLY,
+        "scheduled",
+        "Task's reminder job",
+        "{\"framework\": \"jobrunr\", \"trigger\": \"job-request\"}",
+        0);
+
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .first()
+        .isEqualTo(
+            "note []: Starts when the JobRunr job Task's reminder job runs in ship (Nightly.run).");
+  }
+
+  @Test
   void theTraceStopsAfterTheMostMessagesAFlowShows() {
     for (int i = 0; i < SequenceFlows.MAX_MESSAGES + 5; i++) {
       httpCall("ship", SHIP, NIGHTLY, "e" + i + ".example.com", 10 + i);

@@ -12,6 +12,7 @@ import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.Resolution;
+import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.java.ModuleStructure;
@@ -60,7 +61,7 @@ public final class SpringExtractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -102,6 +103,18 @@ public final class SpringExtractor {
   private static final String PROFILE = SPRING + "context.annotation.Profile";
   private static final String BEAN_ANNOTATION = SPRING + "context.annotation.Bean";
   private static final String SCHEDULED_ANNOTATION = SPRING + "scheduling.annotation.Scheduled";
+  private static final String JOBRUNR = "org.jobrunr.";
+  private static final String JOBRUNR_HANDLER = JOBRUNR + "jobs.lambdas.JobRequestHandler";
+  private static final String JOBRUNR_JOB = JOBRUNR + "jobs.annotations.Job";
+  private static final String JOBRUNR_RECURRING = JOBRUNR + "jobs.annotations.Recurring";
+  private static final Set<String> JOBRUNR_SCHEDULERS =
+      Set.of(
+          JOBRUNR + "scheduling.BackgroundJobRequest", JOBRUNR + "scheduling.JobRequestScheduler");
+  private static final Set<String> JOBRUNR_SCHEDULING_METHODS =
+      Set.of("enqueue", "schedule", "scheduleRecurrently", "create");
+  private static final String QUARTZ_JOB = "org.quartz.Job";
+  private static final String QUARTZ_BEAN = SPRING + "scheduling.quartz.QuartzJobBean";
+  private static final String QUARTZ_CONTEXT = "org.quartz.JobExecutionContext";
   private static final String AUTO_CONFIGURATION =
       SPRING + "boot.autoconfigure.EnableAutoConfiguration";
 
@@ -173,6 +186,7 @@ public final class SpringExtractor {
     for (JavaAnalysis.Module module : code.modules()) {
       run.module(module);
     }
+    run.jobs();
     return run.facts.values().stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
@@ -193,6 +207,11 @@ public final class SpringExtractor {
     private JavaAnalysis.Module module;
     private CodeConfig.View config;
 
+    /** Job classes found in the modules read so far, and where jobs are scheduled. */
+    private final List<JobClass> jobClasses = new ArrayList<>();
+
+    private final List<Scheduling> schedulings = new ArrayList<>();
+
     Run(JavaAnalysis code, Validity validity) {
       this.code = code;
       this.validity = validity;
@@ -212,15 +231,22 @@ public final class SpringExtractor {
           endpoints(type);
         }
         profileGate(type.annotations(), typeId(type), type.where());
+        if (bean) {
+          jobClass(type);
+        }
         for (Member member : type.members()) {
           if (!member.id().type().equals(ModuleStructure.METHOD)) {
             continue;
           }
           scheduled(member);
+          jobAnnotations(type, member);
           if (beanMethod(member)) {
             profileGate(member.annotations(), member.id(), member.where());
           }
         }
+      }
+      for (ModuleStructure.Invocation i : m.structure().invocations()) {
+        scheduling(i);
       }
     }
 
@@ -560,21 +586,297 @@ public final class SpringExtractor {
         } else {
           continue;
         }
-        Resolved byDefault = Resolved.of(resolve(null, written), written);
-        for (String profile : views()) {
-          Resolved value =
-              profile == null ? byDefault : Resolved.of(resolve(profile, written), written);
-          if (profile != null && value.equals(byDefault)) {
-            continue;
+        scheduledFact(method, trigger, written, a.where(), scheduled, Map.of());
+      }
+    }
+
+    /**
+     * Records a schedule written in an annotation, one fact for the default view and one per
+     * profile whose value differs.
+     */
+    private void scheduledFact(
+        Member method,
+        String trigger,
+        String written,
+        Location where,
+        Annotation annotation,
+        Map<String, String> extra) {
+      Resolved byDefault = Resolved.of(resolve(null, written), written);
+      for (String profile : views()) {
+        Resolved value =
+            profile == null ? byDefault : Resolved.of(resolve(profile, written), written);
+        if (profile != null && value.equals(byDefault)) {
+          continue;
+        }
+        ObjectNode attributes = value.attributes(profile);
+        attributes.put("trigger", trigger);
+        if (!annotation.values("timeUnit").isEmpty() && !trigger.equals("cron")) {
+          attributes.put("timeUnit", annotation.values("timeUnit").getFirst());
+        }
+        extra.forEach(attributes::put);
+        fact(method.id(), SCHEDULED, value.value(), attributes, where);
+      }
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Jobs of JobRunr and Quartz
+
+    /** A class whose method a job library runs: a JobRunr request handler or a Quartz job. */
+    private record JobClass(
+        JavaAnalysis.Module module,
+        String framework,
+        TypeDecl type,
+        Member method,
+        String request,
+        String name,
+        Location where) {}
+
+    /** Where a job is scheduled: the calling method, the job's class and, if written, the cron. */
+    private record Scheduling(
+        JavaAnalysis.Module module, EntityId caller, String framework, String job, String cron) {}
+
+    /** The nearest supertype named in the lineage of a type declared in the analyzed sources. */
+    private Supertype supertype(TypeDecl type, String... names) {
+      List<String> wanted = List.of(names);
+      for (TypeDecl t : lineage(type)) {
+        for (Supertype s : t.supertypes()) {
+          if (wanted.contains(s.binaryName())) {
+            return s;
           }
-          ObjectNode attributes = value.attributes(profile);
-          attributes.put("trigger", trigger);
-          if (!scheduled.values("timeUnit").isEmpty() && !trigger.equals("cron")) {
-            attributes.put("timeUnit", scheduled.values("timeUnit").getFirst());
-          }
-          fact(method.id(), SCHEDULED, value.value(), attributes, a.where());
         }
       }
+      return null;
+    }
+
+    private Member method(TypeDecl type, String name, String parameter) {
+      for (Member m : type.members()) {
+        String signature = m.id().type().equals(ModuleStructure.METHOD) ? signature(m.id()) : "";
+        if (signature.startsWith(name + "(")
+            && (parameter == null || signature.equals(name + "(" + parameter + ")"))) {
+          return m;
+        }
+      }
+      return null;
+    }
+
+    private void jobClass(TypeDecl type) {
+      Supertype handler = supertype(type, JOBRUNR_HANDLER);
+      if (handler != null && !handler.typeArguments().isEmpty()) {
+        String request = handler.typeArguments().getFirst();
+        Member run = method(type, "run", request);
+        if (run != null) {
+          List<Annotation> job = first(run.annotations(), JOBRUNR_JOB);
+          String name = job == null ? null : firstOf(job.getLast(), "name");
+          Location where = job == null ? run.where() : job.getFirst().where();
+          jobClasses.add(
+              new JobClass(
+                  module,
+                  "jobrunr",
+                  type,
+                  run,
+                  request,
+                  name,
+                  where == null ? type.where() : where));
+        }
+      }
+      Supertype quartz = supertype(type, QUARTZ_JOB, QUARTZ_BEAN);
+      if (quartz != null) {
+        boolean bean = quartz.binaryName().equals(QUARTZ_BEAN);
+        Member execute = method(type, bean ? "executeInternal" : "execute", QUARTZ_CONTEXT);
+        if (execute != null) {
+          jobClasses.add(
+              new JobClass(module, "quartz", type, execute, null, null, execute.where()));
+        }
+      }
+    }
+
+    /** {@code @Job} methods that are not request handlers, and {@code @Recurring} methods. */
+    private void jobAnnotations(TypeDecl type, Member method) {
+      boolean handler = jobClasses.stream().anyMatch(j -> j.type() == type && j.method() == method);
+      List<Annotation> job = first(method.annotations(), JOBRUNR_JOB);
+      List<Annotation> recurring = first(method.annotations(), JOBRUNR_RECURRING);
+      if (job != null && !handler && recurring == null) {
+        String name = firstOf(job.getLast(), "name");
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("framework", "jobrunr");
+        attributes.put("trigger", "job");
+        fact(
+            method.id(),
+            SCHEDULED,
+            name != null ? name : signature(method.id()).replaceAll("\\(.*", ""),
+            attributes,
+            job.getFirst().where());
+      }
+      if (recurring != null) {
+        Annotation r = recurring.getLast();
+        String cron = firstOf(r, "cron");
+        String interval = firstOf(r, "interval");
+        String written = cron != null ? cron : interval;
+        if (written != null) {
+          scheduledFact(
+              method,
+              cron != null ? "cron" : "interval",
+              written,
+              recurring.getFirst().where(),
+              r,
+              Map.of("framework", "jobrunr"));
+        }
+      }
+    }
+
+    /** A call that schedules a JobRunr request or builds a Quartz job and its trigger. */
+    private void scheduling(ModuleStructure.Invocation i) {
+      String root = i.rootType();
+      if (root == null) {
+        return;
+      }
+      List<String> constructed = new ArrayList<>();
+      List<String> literals = new ArrayList<>();
+      List<String> classes = new ArrayList<>();
+      walk(i.expression(), constructed, classes, literals);
+      if (JOBRUNR_SCHEDULERS.contains(root)) {
+        if (!JOBRUNR_SCHEDULING_METHODS.contains(i.expression().chain().getFirst().method())) {
+          return;
+        }
+        List<Expression> arguments = i.expression().chain().getFirst().arguments();
+        String cron =
+            i.expression().chain().getFirst().method().equals("scheduleRecurrently")
+                    && arguments.size() >= 3
+                    && arguments.get(1) instanceof Expression.Literal l
+                ? l.value()
+                : null;
+        for (String request : constructed) {
+          schedulings.add(new Scheduling(module, i.caller(), "jobrunr", request, cron));
+        }
+      } else if (root.startsWith("org.quartz.")) {
+        // Quartz: a class literal given to JobBuilder, a cron expression given to
+        // CronScheduleBuilder
+        // or CronTrigger, and the scheduler call that joins them, in one expression.
+        List<String> crons = new ArrayList<>();
+        for (Expression.Invoke call : allCalls(i.expression())) {
+          if ((call.method().equals("cronSchedule") || call.method().equals("<init>"))
+              && !call.arguments().isEmpty()
+              && call.arguments().getFirst() instanceof Expression.Literal l
+              && l.value().trim().split("\\s+").length >= 6) {
+            crons.add(l.value());
+          }
+        }
+        for (String job : classes) {
+          schedulings.add(
+              new Scheduling(
+                  module,
+                  i.caller(),
+                  "quartz",
+                  job,
+                  classes.size() == 1 && crons.size() == 1 ? crons.getFirst() : null));
+        }
+        if (classes.isEmpty() && crons.size() == 1) {
+          schedulings.add(new Scheduling(module, i.caller(), "quartz", null, crons.getFirst()));
+        }
+      }
+    }
+
+    private static List<Expression.Invoke> allCalls(Expression e) {
+      List<Expression.Invoke> calls = new ArrayList<>();
+      collect(e, calls);
+      return calls;
+    }
+
+    private static void collect(Expression e, List<Expression.Invoke> calls) {
+      switch (e) {
+        case Expression.Invoke call -> {
+          calls.add(call);
+          if (call.receiver() != null) {
+            collect(call.receiver(), calls);
+          }
+          call.arguments().forEach(a -> collect(a, calls));
+        }
+        case Expression.Concat c -> c.parts().forEach(p -> collect(p, calls));
+        default -> {}
+      }
+    }
+
+    /** The types constructed, the class literals and the literals in an expression. */
+    private static void walk(
+        Expression e, List<String> constructed, List<String> classes, List<String> literals) {
+      for (Expression.Invoke call : allCalls(e)) {
+        if (call.method().equals(ModuleStructure.CONSTRUCTOR)
+            && call.receiver() instanceof Expression.TypeRef t) {
+          constructed.add(t.binaryName());
+        }
+        for (Expression a : call.arguments()) {
+          if (a instanceof Expression.TypeRef t) {
+            classes.add(t.binaryName());
+          } else if (a instanceof Expression.Literal l) {
+            literals.add(l.value());
+          }
+        }
+      }
+    }
+
+    /** Records the jobs found, once every module is read: their schedulers may be elsewhere. */
+    void jobs() {
+      for (JobClass job : jobClasses) {
+        String key = job.framework().equals("jobrunr") ? job.request() : job.type().binaryName();
+        SortedSet<String> by = new TreeSet<>();
+        String cron = null;
+        for (Scheduling s : schedulings) {
+          if (s.framework().equals(job.framework()) && Objects.equals(s.job(), key)) {
+            if (s.caller() != null) {
+              by.add(s.caller().toString());
+            }
+            if (cron == null) {
+              cron = s.cron();
+            }
+          }
+        }
+        if (cron == null && job.framework().equals("quartz")) {
+          cron = unpairedCron(job);
+        }
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("framework", job.framework());
+        String value;
+        if (job.framework().equals("jobrunr")) {
+          attributes.put("trigger", "job-request");
+          attributes.put("request", job.request());
+          if (cron != null) {
+            attributes.put("cron", cron);
+          }
+          value = job.name() != null ? job.name() : job.request();
+        } else {
+          attributes.put("trigger", cron != null ? "cron" : "quartz");
+          attributes.put("job", job.type().binaryName());
+          value = cron != null ? cron : job.type().binaryName();
+        }
+        if (!by.isEmpty()) {
+          ArrayNode scheduledBy = attributes.putArray("scheduledBy");
+          by.forEach(scheduledBy::add);
+        }
+        fact(job.method().id(), SCHEDULED, value, attributes, job.where(), job.module());
+      }
+    }
+
+    /**
+     * The cron of a Quartz trigger built apart from its job (Spring beans for each), when the
+     * module has exactly one such trigger and exactly one job without a cron.
+     */
+    private String unpairedCron(JobClass job) {
+      List<Scheduling> crons =
+          schedulings.stream()
+              .filter(s -> s.module() == job.module() && s.job() == null && s.cron() != null)
+              .toList();
+      long jobs =
+          jobClasses.stream()
+              .filter(j -> j.module() == job.module() && j.framework().equals("quartz"))
+              .count();
+      boolean paired =
+          schedulings.stream()
+              .anyMatch(
+                  s ->
+                      s.module() == job.module()
+                          && Objects.equals(s.job(), job.type().binaryName())
+                          && s.cron() != null);
+      return crons.size() == 1 && jobs == 1 && !paired ? crons.getFirst().cron() : null;
     }
 
     /** Records a {@code @Bean} method; returns whether it is one. */

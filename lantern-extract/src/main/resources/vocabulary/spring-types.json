@@ -65,12 +65,17 @@
     "name": "scheduled",
     "kind": "attribute",
     "parent": "entry-point",
-    "description": "The subject method runs on a schedule (@Scheduled): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module.",
+    "description": "The subject method runs on a schedule or as a background job: @Scheduled, a JobRunr job (a JobRequestHandler's run method, an @Job or @Recurring method) or a Quartz job (execute of a Job, executeInternal of a QuartzJobBean). The value is the cron expression, the delay or rate, the job's name or, for a Quartz job without a cron found, its class. Placeholders are resolved against the config of the method's module.",
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "trigger": { "type": "string", "enum": ["cron", "fixed-delay", "fixed-rate"], "description": "What the value is." },
-        "timeUnit": { "type": "string", "description": "The unit of a delay or rate when written, such as SECONDS. Milliseconds when absent." }
+        "trigger": { "type": "string", "enum": ["cron", "fixed-delay", "fixed-rate", "interval", "job-request", "job", "quartz"], "description": "What the value is: a schedule (cron, fixed-delay, fixed-rate, interval), the name of a JobRunr job run when its request is enqueued or scheduled (job-request, or job for an @Job method), or the class of a Quartz job (quartz)." },
+        "timeUnit": { "type": "string", "description": "The unit of a delay or rate when written, such as SECONDS. Milliseconds when absent." },
+        "framework": { "type": "string", "enum": ["jobrunr", "quartz"], "description": "The job library. Absent for @Scheduled." },
+        "request": { "type": "string", "description": "A JobRunr request handler's request type, the binary name." },
+        "job": { "type": "string", "description": "A Quartz job's class, the binary name." },
+        "cron": { "type": "string", "description": "A cron expression the job is recurrently scheduled with in code, next to a job-request trigger." },
+        "scheduledBy": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the methods that enqueue or schedule the job (BackgroundJobRequest, JobRequestScheduler) or build its Quartz trigger. Absent when none is found in the analyzed code." }
       },
       "required": ["trigger"],
       "additionalProperties": false

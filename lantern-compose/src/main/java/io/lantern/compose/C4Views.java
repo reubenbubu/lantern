@@ -1191,7 +1191,7 @@ final class C4Views {
           case MESSAGE_LISTENER ->
               kinds.add(
                   brokerName(RepoSections.attribute(fact, "broker", "message")) + " listener");
-          case SCHEDULED -> kinds.add("Scheduled job");
+          case SCHEDULED -> kinds.add(ExplorerSections.jobKind(fact));
           default -> {}
         }
       }

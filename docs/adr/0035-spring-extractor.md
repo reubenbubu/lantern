@@ -87,3 +87,29 @@ code, what its facts look like and how it handles inherited mappings, libraries 
   without builds, and checks both give the same facts. It runs when `lantern.test.project0` is set,
   with the same command as `Project0BuildIT` (see Commands in `CLAUDE.md`) but `-pl
   lantern-extract` and `-Dit.test=Project0SpringIT`.
+
+## Amendment: JobRunr and Quartz jobs (#263)
+
+Status: accepted, pending the user's review (#24). project-4 runs its task reminders as JobRunr
+jobs, so `@Scheduled` alone left its reminder flow without an entry point. `scheduled` now also
+marks these methods, with extractor VERSION 2 and `framework` (`jobrunr` or `quartz`; absent for
+`@Scheduled`):
+
+- **JobRunr request handler**: the `run(Request)` method of a class that implements
+  `JobRequestHandler<Request>` (also through a supertype in the analyzed sources). Value: the
+  `@Job(name)` or, without one, the request type. `trigger: job-request`, `request`, and
+  `scheduledBy`: the methods that pass `new Request(...)` to `BackgroundJobRequest` or
+  `JobRequestScheduler` (`enqueue`, `schedule`, `scheduleRecurrently`, `create`), found in any
+  module, with `cron` when `scheduleRecurrently` gets a literal one.
+- **JobRunr `@Job` methods** that are not handlers: `trigger: job`, value the name or the method;
+  `@Recurring`: `trigger: cron` or `interval`, the value resolved like `@Scheduled`'s. Jobs queued
+  by a lambda (`BackgroundJob.enqueue(() -> ...)`) are not followed to their target.
+- **Quartz**: `execute(JobExecutionContext)` of a `Job`, `executeInternal` of a `QuartzJobBean`.
+  Value: the cron of the `CronScheduleBuilder.cronSchedule(...)` in the same expression as the
+  `JobBuilder.newJob(X.class)` (a scheduler call joins them), `trigger: cron`; else, when a module
+  has exactly one job and one cron built apart, those; else the class, `trigger: quartz`.
+  Simple, calendar and Spring `SimpleTriggerFactoryBean` triggers are not read.
+
+`org.jobrunr.scheduling.` and `org.quartz.` join the tracked APIs. Flows start at these methods
+like at `@Scheduled` ones, so the call graph from the handler reaches what it publishes; documents
+call them "JobRunr job" and "Quartz job".
