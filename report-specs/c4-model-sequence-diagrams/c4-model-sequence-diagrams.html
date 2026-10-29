@@ -348,6 +348,18 @@ body.editing svg[data-key]:not([data-key=""]) .node .lk{display:none}
 body.editing svg[data-key]:not([data-key=""]) .node{cursor:pointer}
 body.editing svg[data-key]:not([data-key=""]) .node.picked .shape{stroke:var(--accent-2);stroke-width:2.4;stroke-dasharray:7 5}
 body.editing .dcard[data-kind="c4"]{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent-2) 55%,transparent),var(--shadow)}
+body.editing svg[data-key]:not([data-key=""]) .node{cursor:grab}
+svg.dragmode{cursor:grabbing}
+svg.dragmode .edge{opacity:.25}
+svg.dragmode .node:not(.dragging):not(.drop-target){opacity:.55}
+.node.dragging{cursor:grabbing;opacity:.35}
+.node.dragging .shape{stroke:var(--accent-2);stroke-width:2.4}
+.node.drop-target .shape{stroke:var(--accent-2);stroke-width:2.4;fill:color-mix(in srgb,var(--accent-2) 10%,var(--node-base))}
+.boundary.drop-target rect{stroke:var(--accent-2);stroke-width:2.4;stroke-dasharray:none}
+.drop-edge{stroke:var(--accent-2);stroke-width:5;stroke-linecap:round;stroke-dasharray:10 9;pointer-events:none;animation:edgeMarch .6s linear infinite}
+@keyframes edgeMarch{to{stroke-dashoffset:-19}}
+@media (prefers-reduced-motion:reduce){.drop-edge{animation:none}}
+.drop-ghost{fill:color-mix(in srgb,var(--accent-2) 10%,transparent);stroke:var(--accent-2);stroke-width:1.6;stroke-dasharray:6 5;pointer-events:none}
 .dcanvas.busy svg,.mx-canvas.busy svg{opacity:.45;transition:opacity .15s}
 .editbar{position:fixed;left:50%;bottom:22px;translate:-50% 0;z-index:150;display:flex;align-items:center;gap:12px;
   padding:9px 10px 9px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border-strong);box-shadow:var(--shadow-lg);animation:popIn .2s ease both;max-width:calc(100vw - 24px)}
@@ -613,7 +625,7 @@ body.sb-collapsed .mx{left:0}
 <div class="rule-pop" id="rulePop" hidden role="dialog" aria-label="Placement rules"></div>
 <div class="editbar" id="editbar" hidden>
   <span class="eb-dot"></span>
-  <div class="eb-text"><b>Layout edit mode</b><span>Click an element to set where it sits · Ctrl/⌘-click to pick several</span></div>
+  <div class="eb-text"><b>Layout edit mode</b><span>Drag onto another element's edge to place · click for rules · Ctrl/⌘-click to pick several</span></div>
   <button class="eb-btn" data-eb="copy" title="Copy every diagram's layout rules as JSON, ready to paste into the document data">Copy layout</button>
   <span class="eb-group" id="ebDiscard">
     <button class="eb-btn" data-eb="reset" title="Put this diagram's rules back to what the document data says">Discard diagram edits</button>
@@ -5191,16 +5203,23 @@ function attachViewer(svg, signal){
   let drag = null, moved = false;
   svg.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
+    if (isEditing() && svg.dataset.key){
+      const nd = e.target.closest('.node');
+      if (nd){ ACTIVE_DRAG = startNodeDrag(svg, nd, e); moved = false; return; }
+    }
     const r = svg.getBoundingClientRect();
     drag = {x:e.clientX, y:e.clientY, sx:st.x, sy:st.y, scale:Math.max(st.w/r.width, st.h/r.height)}; moved = false;
   });
   window.addEventListener('pointermove', e => {
+    if (ACTIVE_DRAG && ACTIVE_DRAG.svg === svg){ if (moveNodeDrag(ACTIVE_DRAG, e)) moved = true; return; }
     if (!drag) return;
     const dx = e.clientX-drag.x, dy = e.clientY-drag.y;
     if (!moved && Math.abs(dx)+Math.abs(dy) > 4){ moved = true; svg.classList.add('panning'); hideTip(); }
     if (moved){ st.x = drag.sx - dx*drag.scale; st.y = drag.sy - dy*drag.scale; apply(); }
   }, {signal});
-  window.addEventListener('pointerup', () => { if (drag){ drag = null; svg.classList.remove('panning'); } }, {signal});
+  window.addEventListener('pointerup', e => {
+    if (ACTIVE_DRAG && ACTIVE_DRAG.svg === svg){ endNodeDrag(ACTIVE_DRAG, e, false); return; }
+    if (drag){ drag = null; svg.classList.remove('panning'); } }, {signal});
   svg.addEventListener('click', e => {
     if (moved){ e.stopPropagation(); moved = false; return; }
     if (isEditing() && svg.dataset.key){
@@ -5220,7 +5239,8 @@ function attachViewer(svg, signal){
   svg.addEventListener('mouseover', e => {
     const n = e.target.closest('.node'); if (!n) return;
     const id = n.dataset.id;
-    if (isEditing() && svg.dataset.key){ showTip('Set placement rules', EL[id].name, e); return; }   // no tracing while editing
+    if (svg._dragging) return;
+    if (isEditing() && svg.dataset.key){ showTip('Drag to place · click for rules', EL[id].name, e); return; }   // no tracing while editing
     const pill = e.target.closest('.npill');
     svg.classList.add('dim');
     $$('.node', svg).forEach(x => x.classList.toggle('hl', x.dataset.id === id));
@@ -5234,8 +5254,9 @@ function attachViewer(svg, signal){
     if (pill) showTip(pill.dataset.tip, pill.dataset.sub, e);
     else if (n.dataset.tip) showTip(n.dataset.tip, n.dataset.sub, e);
   });
-  svg.addEventListener('mousemove', e => { if (tipEl.classList.contains('on')) moveTip(e); });
+  svg.addEventListener('mousemove', e => { if (svg._dragging) return; if (tipEl.classList.contains('on')) moveTip(e); });
   svg.addEventListener('mouseout', e => {
+    if (svg._dragging) return;
     const n = e.target.closest('.node, .boundary');
     if (n && !n.contains(e.relatedTarget)){
       svg.classList.remove('dim'); $$('.hl', svg).forEach(x => x.classList.remove('hl'));
@@ -5672,6 +5693,9 @@ $('#mxOpenSb').addEventListener('click', toggleSb);
 $('#scrim').addEventListener('click', () => document.body.classList.remove('sb-open'));
 document.addEventListener('keydown', e => {
   const typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if (e.key === 'Escape' && ACTIVE_DRAG){ e.preventDefault(); endNodeDrag(ACTIVE_DRAG, e, true); return; }
+  if (ACTIVE_DRAG && ['Shift','Control','Meta'].includes(e.key)){ moveNodeDrag(ACTIVE_DRAG, {clientX:ACTIVE_DRAG.lx, clientY:ACTIVE_DRAG.ly, shiftKey:e.shiftKey, ctrlKey:e.ctrlKey, metaKey:e.metaKey}); }
+  if (isEditing() && !typing && (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z'){ e.preventDefault(); undoDrop(); return; }
   if (e.altKey && e.code === 'KeyE'){ e.preventDefault(); setEditing(!isEditing()); return; }
   if (e.key === 'Escape'){ if (!$('#rulePop').hidden) closeRuleEditor(); else if (!$('#themePop').hidden) toggleThemePop(false); else if (maxState) closeMax(); else if (typing) document.activeElement.blur(); }
   if (typing) return;
@@ -5759,6 +5783,144 @@ function setEditing(on){
   if (on && !$('.dcard[data-kind="c4"]')) toast('Open a C4 diagram to edit its layout');
 }
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2200); }
+
+/* ---- Drag-to-place: drop an element and the nearest sensible rule is picked from where it lands ----
+   Plain drop replaces the element's own rules · Shift = soft preference · Ctrl/⌘ = keep its other rules · Esc cancels */
+let ACTIVE_DRAG = null;
+const DROP_UNDO = [];
+function svgPoint(svg, x, y){ const p = svg.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(svg.getScreenCTM().inverse()); }
+function startNodeDrag(svg, nd, e){
+  const key = svg.dataset.key, id = nd.dataset.id, lay = layoutDiagram(DIAGRAMS[key]);
+  const me = lay.nodes.find(n => n.id === id); if (!me) return null;
+  const p = svgPoint(svg, e.clientX, e.clientY);
+  return {svg, nd, key, id, lay, me, x0:p.x, y0:p.y, cx0:e.clientX, cy0:e.clientY, lx:e.clientX, ly:e.clientY, started:false, pick:null};
+}
+/* The pointer must sit on an edge band of a target element (or of the boundary frame).
+   The edge it's on decides the rule: top → above, bottom → below, left → left of, right → right of.
+   Elements win over the frame; the middle of an element is a dead zone, so nothing is picked there. */
+const EDGE_OUT = 26, EDGE_IN = 34, EDGE_GAP = 8;   // EDGE_GAP: how far the highlight sits outside the border
+function edgeOf(box, px, py){
+  if (px < box.x - EDGE_OUT || px > box.x + box.w + EDGE_OUT || py < box.y - EDGE_OUT || py > box.y + box.h + EDGE_OUT) return null;
+  const band = (len) => Math.min(EDGE_IN, len * .3);
+  const d = {top: py - box.y, bottom: box.y + box.h - py, left: px - box.x, right: box.x + box.w - px};
+  const lim = {top: band(box.h), bottom: band(box.h), left: band(box.w), right: band(box.w)};
+  const hits = Object.keys(d).filter(k => d[k] < lim[k]);
+  if (!hits.length) return null;                                   // dead centre
+  return hits.sort((a, b) => d[a] - d[b])[0];
+}
+function pickPlacement(d, px, py){
+  const {lay, me} = d, b = lay.boundary;
+  let best = null;
+  for (const n of lay.nodes){
+    if (n.id === me.id) continue;
+    const side = edgeOf(n, px, py); if (!side) continue;
+    const cx = n.x + n.w/2, cy = n.y + n.h/2;
+    const dist = Math.hypot(px - Math.max(n.x, Math.min(px, n.x + n.w)), py - Math.max(n.y, Math.min(py, n.y + n.h)));
+    if (!best || dist < best.dist) best = {dist, n, side};
+  }
+  if (best){
+    const T = best.n, tcx = T.x + T.w/2, tcy = T.y + T.h/2;
+    const R = {top:'above', bottom:'below', left:'leftOf', right:'rightOf'}[best.side];
+    const G = {above:{x:tcx - me.w/2, y:T.y - me.h - 40}, below:{x:tcx - me.w/2, y:T.y + T.h + 40},
+               leftOf:{x:T.x - me.w - 56, y:tcy - me.h/2}, rightOf:{x:T.x + T.w + 56, y:tcy - me.h/2}}[R];
+    return {rel:R, b:T.id, ghost:G, edge:{box:T, side:best.side}};
+  }
+  // boundary frame edges / corners (only for elements inside it)
+  if (b && b.contains.includes(me.id)){
+    const near = (v, edge) => Math.abs(v - edge) < EDGE_OUT + 8;
+    const inX = px > b.x - EDGE_OUT && px < b.x + b.w + EDGE_OUT, inY = py > b.y - EDGE_OUT && py < b.y + b.h + EDGE_OUT;
+    const top = inX && near(py, b.y), bot = inX && near(py, b.y + b.h), left = inY && near(px, b.x), right = inY && near(px, b.x + b.w);
+    if (top || bot || left || right){
+      const C = 90;   // corner zone along each side
+      const tl = (top && px < b.x + C) || (left && py < b.y + C), tr = (top && px > b.x + b.w - C) || (right && py < b.y + C);
+      const bl = (bot && px < b.x + C) || (left && py > b.y + b.h - C), br = (bot && px > b.x + b.w - C) || (right && py > b.y + b.h - C);
+      const rel = tl ? 'atTopLeft' : tr ? 'atTopRight' : bl ? 'atBottomLeft' : br ? 'atBottomRight'
+        : top ? 'atTopEdge' : bot ? 'atBottomEdge' : left ? 'atLeftEdge' : 'atRightEdge';
+      const ix = clamp(px - me.w/2, b.x + 30, b.x + b.w - me.w - 30), iy = clamp(py - me.h/2, b.y + 30, b.y + b.h - me.h - 30);
+      const gx = /Left/.test(rel) ? b.x + 30 : /Right/.test(rel) ? b.x + b.w - me.w - 30 : ix;
+      const gy = /Top/.test(rel) ? b.y + 30 : /Bottom/.test(rel) ? b.y + b.h - me.h - 30 : iy;
+      const sides = /Top/.test(rel) ? ['top'] : /Bottom/.test(rel) ? ['bottom'] : [];
+      if (/Left/.test(rel)) sides.push('left'); if (/Right/.test(rel)) sides.push('right');
+      return {rel, b:b.id, ghost:{x:gx, y:gy}, edge:{box:b, side:sides, corner:sides.length > 1}};
+    }
+  }
+  return null;
+}
+function edgeLines(box, sides, corner){
+  const L = corner ? 70 : Infinity, {x, y, w, h} = box, out = [];
+  for (const s of [].concat(sides)){
+    if (s === 'top' || s === 'bottom'){
+      const yy = s === 'top' ? y - EDGE_GAP : y + h + EDGE_GAP;
+      const x0 = corner && sides.includes('right') ? x + w - Math.min(L, w) : x, x1 = corner && sides.includes('left') ? x + Math.min(L, w) : x + w;
+      out.push([x0, yy, x1, yy]);
+    } else {
+      const xx = s === 'left' ? x - EDGE_GAP : x + w + EDGE_GAP;
+      const y0 = corner && sides.includes('bottom') ? y + h - Math.min(L, h) : y, y1 = corner && sides.includes('top') ? y + Math.min(L, h) : y + h;
+      out.push([xx, y0, xx, y1]);
+    }
+  }
+  return out;
+}
+function clearDropPreview(d){
+  $$('.drop-target', d.svg).forEach(x => x.classList.remove('drop-target'));
+  $$('.drop-ghost, .drop-edge', d.svg).forEach(x => x.remove());
+}
+function moveNodeDrag(d, e){
+  d.lx = e.clientX; d.ly = e.clientY;
+  if (!d.started){
+    if (Math.hypot(e.clientX - d.cx0, e.clientY - d.cy0) < 5) return false;
+    d.started = true; d.svg._dragging = true;
+    d.svg.classList.remove('dim'); $$('.hl', d.svg).forEach(x => x.classList.remove('hl'));
+    d.svg.classList.add('dragmode'); d.nd.classList.add('dragging'); d.svg.appendChild(d.nd);
+  }
+  const p = svgPoint(d.svg, e.clientX, e.clientY), dx = p.x - d.x0, dy = p.y - d.y0;
+  d.nd.setAttribute('transform', `translate(${dx},${dy})`);
+  d.pick = pickPlacement(d, p.x, p.y);
+  clearDropPreview(d);
+  if (!d.pick){ showTip('Drop on an edge of an element', 'top · bottom · left · right', e); return true; }
+  const isB = d.lay.boundary && d.pick.b === d.lay.boundary.id;
+  (isB ? $$('.boundary', d.svg) : $$(`.node[data-id="${CSS.escape(d.pick.b)}"]`, d.svg)).forEach(x => x.classList.add('drop-target'));
+  for (const [x1, y1, x2, y2] of edgeLines(d.pick.edge.box, d.pick.edge.side, d.pick.edge.corner)){
+    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l.setAttribute('class', 'drop-edge'); Object.entries({x1, y1, x2, y2}).forEach(([k, v]) => l.setAttribute(k, v));
+    d.svg.insertBefore(l, d.nd);
+  }
+  if (d.pick.ghost){
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    g.setAttribute('class', 'drop-ghost'); g.setAttribute('rx', 12);
+    ['x','y'].forEach(k => g.setAttribute(k, d.pick.ghost[k])); g.setAttribute('width', d.me.w); g.setAttribute('height', d.me.h);
+    d.svg.insertBefore(g, d.nd);
+  }
+  const strict = !e.shiftKey, keep = e.ctrlKey || e.metaKey;
+  showTip(ruleText({a:d.id, rel:d.pick.rel, b:d.pick.b, strict}), keep ? 'adds to its rules' : 'replaces its rules', e);
+  return true;
+}
+function endNodeDrag(d, e, cancel){
+  ACTIVE_DRAG = null;
+  if (!d) return;
+  d.svg._dragging = false;
+  clearDropPreview(d); hideTip();
+  d.svg.classList.remove('dragmode'); d.nd.classList.remove('dragging'); d.nd.removeAttribute('transform');
+  if (cancel || !d.started || !d.pick) return;
+  applyDropRule(d.key, d.id, d.pick, {strict: !e.shiftKey, keep: e.ctrlKey || e.metaKey});
+}
+function applyDropRule(key, id, pick, {strict, keep}){
+  const spec = DIAGRAMS[key], before = JSON.stringify(spec.constraints || []);
+  const cand = {a:id, rel:pick.rel, b:pick.b};
+  spec.constraints = (spec.constraints || []).filter(c => keep || c.a !== id);
+  // anything that duplicates, implies or contradicts the new placement goes
+  for (let g = 0, pb; (pb = ruleProblem(spec, cand)) && g < 50; g++) spec.constraints.splice(pb.rule.i, 1);
+  spec.constraints.push(strict ? cand : {...cand, strict:false});
+  if (JSON.stringify(spec.constraints) === before){ toast('Already placed there'); return; }
+  DROP_UNDO.push({key, constraints:before}); if (DROP_UNDO.length > 30) DROP_UNDO.shift();
+  saveRules(key); refreshDiagram(key);
+  toast(`${ruleText({...cand, strict})} · ${MOD}+Z to undo`);
+}
+function undoDrop(){
+  const u = DROP_UNDO.pop(); if (!u){ toast('Nothing to undo'); return; }
+  DIAGRAMS[u.key].constraints = JSON.parse(u.constraints);
+  saveRules(u.key); refreshDiagram(u.key); toast('Placement undone');
+}
 
 let ruleState = null;   // {key, ids:[…], x, y, pos, form}
 function diagramIds(key){ return layoutDiagram(DIAGRAMS[key]).nodes.map(n => n.id); }
