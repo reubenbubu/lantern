@@ -82,6 +82,18 @@ public class BuildSandbox {
   static final String DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.10.0";
 
   /** The names of Gradle's build and settings files. */
+  /**
+   * Shell commands that delete the failures Maven recorded in the shared cache, which build.sh runs
+   * too: Maven does not retry a failed download for a day (#314, a mirror that missed once), and
+   * does not need the marker to find what is there. Not {@code -U}, which rechecks all metadata and
+   * snapshots in every build, which hurts the reproducibility of pinned builds and can pull remote
+   * snapshots that shadow the artifacts of the repositories analyzed together.
+   */
+  private static final String FORGET_FAILURES =
+      "find /var/lantern/m2 -name '*.lastUpdated' -type f -delete 2>/dev/null;"
+          + " grep -rl --include=resolver-status.properties '[.]error=' /var/lantern/m2"
+          + " 2>/dev/null | while read -r f; do sed -i '/[.]error=/d' \"$f\"; done; ";
+
   private static final Set<String> GRADLE_FILES =
       Set.of("build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts");
 
@@ -575,7 +587,8 @@ public class BuildSandbox {
       command.add("--non-recursive");
       command.add(HELP_PLUGIN + ":effective-pom");
       command.add("-Doutput=target/lantern/jdk-effective-pom.xml");
-      command.addAll(0, List.of("-c", "umask " + UMASK + " && exec mvn \"$@\"", "sh"));
+      command.addAll(
+          0, List.of("-c", FORGET_FAILURES + "umask " + UMASK + " && exec mvn \"$@\"", "sh"));
       createContainer(
           detector, settings.images().get(settings.defaultJdk()), "sh", command, lantern);
       ContainerExit exit = runContainer(detector);
