@@ -12,13 +12,17 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
 
 /**
  * Explains the acronyms a document uses, from the table bundled with Lantern ({@code glossary.csv},
@@ -59,7 +63,7 @@ final class Glossary {
     List<Block> blocks = new ArrayList<>();
     List<Table.Row> rows = new ArrayList<>();
     List<String> unknown = new ArrayList<>();
-    for (String acronym : used) {
+    for (String acronym : withThoseOfTheirMeanings(used)) {
       Optional<String> meaning = meaning(acronym);
       if (meaning.isPresent()) {
         rows.add(
@@ -103,6 +107,27 @@ final class Glossary {
         List.of(),
         blocks,
         List.of());
+  }
+
+  /**
+   * The acronyms with those their meanings use, and those of their meanings in turn, so a row such
+   * as HTTPS's ("HTTP encrypted with TLS") brings the rows of HTTP and TLS.
+   */
+  private SortedSet<String> withThoseOfTheirMeanings(SortedSet<String> used) {
+    SortedSet<String> all = new TreeSet<>(used);
+    Deque<String> todo = new ArrayDeque<>(used);
+    while (!todo.isEmpty()) {
+      String meaning = meanings.get(todo.pop());
+      if (meaning != null) {
+        Matcher m = QualityBar.ACRONYM.matcher(meaning);
+        while (m.find()) {
+          if (all.add(m.group(1))) {
+            todo.push(m.group(1));
+          }
+        }
+      }
+    }
+    return all;
   }
 
   private static Callout note(String id, List<Inline> content) {

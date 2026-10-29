@@ -40,6 +40,7 @@ describe('DocumentView', () => {
     expect(html).toContain('(async): sent without waiting for an answer');
     expect(html).toContain('(reply): the answer to an earlier step');
     expect(html).toContain('(only with profile …)');
+    expect(html).toContain('alt [condition] … else: only the branch whose condition holds runs');
     expect(html).toContain('Note: a remark on the flow, not a step.');
   });
 

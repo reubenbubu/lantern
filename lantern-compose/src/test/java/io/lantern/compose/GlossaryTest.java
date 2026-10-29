@@ -17,10 +17,7 @@ import org.junit.jupiter.api.Test;
 
 class GlossaryTest {
 
-  /** The acronyms the Quality bar looks for, as {@code QualityBar} matches them. */
-  private static final Pattern ACRONYM =
-      Pattern.compile(
-          "(?<![\\p{L}\\p{N}_-])(\\p{Lu}[\\p{Lu}\\p{N}]*\\p{Lu})s?(?![\\p{L}\\p{N}_-])");
+  private static final Pattern ACRONYM = QualityBar.ACRONYM;
 
   @Test
   void everyMeaningUsesOnlyAcronymsTheTableExplains() {
@@ -65,6 +62,15 @@ class GlossaryTest {
     assertThat(note.content())
         .filteredOn(i -> ((TextRun) i).style() == TextRun.Style.CODE)
         .hasSize(2);
+  }
+
+  @Test
+  void explainsTheAcronymsItsMeaningsUse() {
+    Section section = Glossary.BUNDLED.section("glossary", new TreeSet<>(Set.of("HTTPS")));
+
+    assertThat(((Table) section.blocks().get(0)).rows())
+        .extracting(row -> text(row.cells().get(0)))
+        .containsExactly("HTTP", "HTTPS", "TLS");
   }
 
   @Test

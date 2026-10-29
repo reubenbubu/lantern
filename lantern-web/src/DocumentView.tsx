@@ -203,6 +203,16 @@ function allSteps(steps: SequenceStep[]): SequenceStep[] {
   );
 }
 
+/** What each kind of block of steps means, in the words of UML's combined fragments. */
+const OPERATOR_KEYS = {
+  alt: 'alt [condition] … else: only the branch whose condition holds runs',
+  opt: 'opt [condition]: the steps run only when the condition holds',
+  loop: 'loop [condition]: the steps repeat while the condition holds',
+  par: 'par: the branches run at the same time',
+  break: 'break [condition]: when the condition holds, these steps run and the rest of the flow is skipped',
+  critical: 'critical: the steps run without being interleaved with others',
+} as const;
+
 /** The meaning of each mark the steps use, the legend of a sequence shown as a list. */
 function SequenceKey({ steps }: { steps: SequenceStep[] }) {
   const all = allSteps(steps);
@@ -220,8 +230,11 @@ function SequenceKey({ steps }: { steps: SequenceStep[] }) {
   if (messages.some((m) => m.profiles)) {
     entries.push('(only with profile …): happens only under those Spring profiles');
   }
-  if (all.some((s) => s.kind === 'frame')) {
-    entries.push('a block such as alt or opt [condition]: steps that happen only when the condition holds');
+  const operators = new Set(all.flatMap((s) => (s.kind === 'frame' ? [s.operator] : [])));
+  for (const [operator, meaning] of Object.entries(OPERATOR_KEYS)) {
+    if (operators.has(operator as keyof typeof OPERATOR_KEYS)) {
+      entries.push(meaning);
+    }
   }
   if (all.some((s) => s.kind === 'note')) {
     entries.push('Note: a remark on the flow, not a step');

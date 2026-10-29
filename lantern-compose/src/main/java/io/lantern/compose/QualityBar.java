@@ -148,7 +148,7 @@ final class QualityBar {
    * Two or more capitals, digits between them, and a plural s: AMQP, JDBC, APIs, B2B; not part of a
    * constant or version such as TAX_SERVICE_URL or 1.0-SNAPSHOT.
    */
-  private static final Pattern ACRONYM =
+  static final Pattern ACRONYM =
       Pattern.compile(
           "(?<![\\p{L}\\p{N}_-])(\\p{Lu}[\\p{Lu}\\p{N}]*\\p{Lu})s?(?![\\p{L}\\p{N}_-])");
 

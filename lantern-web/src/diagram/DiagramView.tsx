@@ -71,11 +71,15 @@ function typeName(id: string): string {
  */
 export function DiagramLegend({ diagram }: { diagram: Diagram }) {
   const ids = new Set(diagram.nodes.map((n) => n.id));
-  const boundaries = new Set(diagram.nodes.flatMap((n) => (n.parent && ids.has(n.parent) ? [n.parent] : [])));
+  // As the layout does: a node is drawn inside another only when that is another node of the diagram.
+  const boundaries = new Set(
+    diagram.nodes.flatMap((n) => (n.parent && n.parent !== n.id && ids.has(n.parent) ? [n.parent] : [])),
+  );
   const boxes = diagram.nodes.filter((n) => !boundaries.has(n.id));
   const types = [...new Set(boxes.map((n) => typeName(n.id)))].sort();
   const colors = [
-    ...new Set(diagram.nodes.flatMap((n) => (n.style?.color && COLOR.test(n.style.color) ? [n.style.color] : []))),
+    // A boundary is drawn unfilled, so only the boxes show a color.
+    ...new Set(boxes.flatMap((n) => (n.style?.color && COLOR.test(n.style.color) ? [n.style.color] : []))),
   ].sort();
   const entries: { swatch: ReactNode; text: string }[] = [];
   if (boxes.length > 0) {
