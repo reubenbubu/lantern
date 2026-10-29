@@ -16,6 +16,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,7 +31,7 @@ import java.util.TreeSet;
 
 /**
  * The Executive Brief's sections on one repository's blast radius and technology currency, and the
- * risks technology currency finds (ADR 0052).
+ * risks technology currency finds (ADR 0052), and its quality evidence (ADR 0061).
  *
  * <p>The blast radius is read from the linker's links (ADR 0042) of the deployable units in scope:
  * those running the repository's code. Technology currency compares the units' runtime and
@@ -791,6 +792,248 @@ final class BriefSections {
         .multiply(factor)
         .setScale(2, RoundingMode.HALF_UP)
         .stripTrailingZeros();
+  }
+
+  // Quality evidence.
+
+  /** What a test library is for, in the order the section lists them. */
+  enum TestKind {
+    FRAMEWORK("Test framework", "a test framework", "test frameworks"),
+    MOCKING(
+        "Mocking and assertions",
+        "a mocking or assertion library",
+        "mocking and assertion libraries"),
+    INTEGRATION("Integration testing", "an integration testing tool", "integration testing tools"),
+    ARCHITECTURE(
+        "Architecture tests", "an architecture test library", "architecture test libraries"),
+    COVERAGE("Coverage", "a coverage tool", "coverage tools");
+
+    final String title;
+    final String one;
+    final String many;
+
+    TestKind(String title, String one, String many) {
+      this.title = title;
+      this.one = one;
+      this.many = many;
+    }
+  }
+
+  /** A known test library: the start of its {@code groupId:artifactId}, its name and kind. */
+  record TestLibrary(String prefix, String name, TestKind kind) {}
+
+  /** The test libraries Lantern knows, matched on the start of a dependency's coordinates. */
+  static final List<TestLibrary> TEST_LIBRARIES =
+      List.of(
+          new TestLibrary("junit:", "JUnit", TestKind.FRAMEWORK),
+          new TestLibrary("org.junit:", "JUnit", TestKind.FRAMEWORK),
+          new TestLibrary("org.junit.", "JUnit", TestKind.FRAMEWORK),
+          new TestLibrary("org.testng:", "TestNG", TestKind.FRAMEWORK),
+          new TestLibrary("org.spockframework:", "Spock", TestKind.FRAMEWORK),
+          new TestLibrary("io.cucumber:", "Cucumber", TestKind.FRAMEWORK),
+          new TestLibrary(
+              "org.springframework.boot:spring-boot-starter-test",
+              "Spring Boot Test",
+              TestKind.FRAMEWORK),
+          new TestLibrary(
+              "org.springframework.boot:spring-boot-test", "Spring Boot Test", TestKind.FRAMEWORK),
+          new TestLibrary("org.springframework:spring-test", "Spring Test", TestKind.FRAMEWORK),
+          new TestLibrary("org.mockito:", "Mockito", TestKind.MOCKING),
+          new TestLibrary("org.assertj:", "AssertJ", TestKind.MOCKING),
+          new TestLibrary("org.hamcrest:", "Hamcrest", TestKind.MOCKING),
+          new TestLibrary("org.easymock:", "EasyMock", TestKind.MOCKING),
+          new TestLibrary("com.google.truth:", "Truth", TestKind.MOCKING),
+          new TestLibrary("org.testcontainers:", "Testcontainers", TestKind.INTEGRATION),
+          new TestLibrary("com.github.tomakehurst:wiremock", "WireMock", TestKind.INTEGRATION),
+          new TestLibrary("org.wiremock:", "WireMock", TestKind.INTEGRATION),
+          new TestLibrary("io.rest-assured:", "Rest Assured", TestKind.INTEGRATION),
+          new TestLibrary("org.awaitility:", "Awaitility", TestKind.INTEGRATION),
+          new TestLibrary(
+              "org.springframework.kafka:spring-kafka-test",
+              "Spring for Apache Kafka Test",
+              TestKind.INTEGRATION),
+          new TestLibrary(
+              "org.springframework.amqp:spring-rabbit-test",
+              "Spring for RabbitMQ Test",
+              TestKind.INTEGRATION),
+          new TestLibrary(
+              "org.springframework.cloud:spring-cloud-contract-",
+              "Spring Cloud Contract",
+              TestKind.INTEGRATION),
+          new TestLibrary(
+              "org.springframework.cloud:spring-cloud-starter-contract-",
+              "Spring Cloud Contract",
+              TestKind.INTEGRATION),
+          new TestLibrary("com.tngtech.archunit:", "ArchUnit", TestKind.ARCHITECTURE),
+          new TestLibrary(
+              "org.jmolecules.integrations:jmolecules-archunit",
+              "jMolecules ArchUnit rules",
+              TestKind.ARCHITECTURE),
+          new TestLibrary("com.enofex:taikai", "Taikai", TestKind.ARCHITECTURE),
+          new TestLibrary("org.jacoco:", "JaCoCo", TestKind.COVERAGE));
+
+  /** The known test library a dependency's coordinates name, if any. */
+  static Optional<TestLibrary> testLibrary(String coordinates) {
+    return TEST_LIBRARIES.stream().filter(l -> coordinates.startsWith(l.prefix())).findFirst();
+  }
+
+  /** A test library in use: where it is declared and the facts saying so. */
+  private record UsedLibrary(TestLibrary library, SortedSet<EntityId> usedBy, List<Fact> facts) {}
+
+  /**
+   * The test libraries the repository's modules that build code declare in test scope, by kind;
+   * which modules declare none; then what is not known: the tests themselves, their coverage and
+   * the quality goals.
+   */
+  List<Block> qualityEvidence(String section) {
+    List<Block> blocks = new ArrayList<>();
+    List<EntityId> code =
+        modules.stream()
+            .filter(m -> !knowledge.attribute(m, "packaging").orElse("jar").equals("pom"))
+            .toList();
+    if (code.isEmpty()) {
+      blocks.add(
+          note(
+              assembler.id(section, "none"),
+              repo + " has no module that builds code, so it has no tests to look for."));
+    } else {
+      Map<String, UsedLibrary> used = new TreeMap<>();
+      List<EntityId> without = new ArrayList<>();
+      for (EntityId module : code) {
+        boolean any = false;
+        for (Fact fact : knowledge.relations(module, RepoSections.BUILD_DEPENDS_ON)) {
+          EntityId target = Knowledge.object(fact);
+          if (!Knowledge.isEntity(fact)
+              || !target.type().equals("artifact")
+              || !RepoSections.isTestScope(fact)) {
+            continue;
+          }
+          Optional<TestLibrary> library = testLibrary(target.key());
+          if (library.isEmpty()) {
+            continue;
+          }
+          any = true;
+          UsedLibrary u =
+              used.computeIfAbsent(
+                  library.get().kind().ordinal() + " " + library.get().name(),
+                  k ->
+                      new UsedLibrary(
+                          library.get(), new TreeSet<>(Knowledge.BY_ID), new ArrayList<>()));
+          u.usedBy().add(user(module));
+          u.facts().add(fact);
+        }
+        if (!any) {
+          without.add(module);
+        }
+      }
+      if (used.isEmpty()) {
+        blocks.add(
+            note(
+                assembler.id(section, "none"),
+                "No module of "
+                    + repo
+                    + " declares a test library Lantern recognizes, such as JUnit or TestNG, so"
+                    + " Lantern found no evidence of tests, architecture tests or coverage."));
+      } else {
+        List<Fact> facts = new ArrayList<>();
+        used.values().forEach(u -> facts.addAll(u.facts()));
+        blocks.add(
+            new Paragraph(
+                assembler.id(section, "summary"),
+                List.of(TextRun.of(evidenceSummary(code.size(), without, used.values()))),
+                assembler.facts(facts)));
+        blocks.add(librariesTable(assembler.id(section, "libraries"), used.values()));
+        blocks.add(
+            note(
+                assembler.id(section, "limits"),
+                "A declared test library shows that a module is set up for tests, not how many"
+                    + " tests it has or whether they pass: Lantern does not count or run the"
+                    + " tests, and does not read coverage reports, so test coverage is not"
+                    + " known."));
+      }
+    }
+    blocks.add(
+        note(
+            assembler.id(section, "goals"),
+            "Quality goals are unrecorded: nothing in the snapshot states the availability,"
+                + " performance, security or other targets "
+                + repo
+                + " must meet."));
+    return blocks;
+  }
+
+  private String evidenceSummary(
+      int modules, List<EntityId> without, Collection<UsedLibrary> used) {
+    int with = modules - without.size();
+    StringBuilder text = new StringBuilder();
+    if (without.isEmpty()) {
+      text.append(
+          modules == 1
+              ? "The one module of " + repo + " that builds code declares"
+              : "All " + modules + " modules of " + repo + " that build code declare");
+    } else {
+      text.append(with)
+          .append(" of the ")
+          .append(modules)
+          .append(" modules of ")
+          .append(repo)
+          .append(" that build code ")
+          .append(with == 1 ? "declares" : "declare");
+    }
+    text.append(" test libraries: ");
+    Map<TestKind, List<String>> byKind = new TreeMap<>();
+    for (UsedLibrary u : used) {
+      byKind.computeIfAbsent(u.library().kind(), k -> new ArrayList<>()).add(u.library().name());
+    }
+    List<String> parts = new ArrayList<>();
+    byKind.forEach(
+        (kind, names) ->
+            parts.add(
+                (names.size() == 1 ? kind.one : kind.many)
+                    + " ("
+                    + String.join(", ", names)
+                    + ")"));
+    text.append(join(parts)).append('.');
+    if (!byKind.containsKey(TestKind.ARCHITECTURE)) {
+      text.append(
+          " None is an architecture test library such as ArchUnit, so Lantern found no"
+              + " architecture tests.");
+    }
+    if (!without.isEmpty()) {
+      List<String> named = new ArrayList<>();
+      without.forEach(m -> named.add(assembler.name(user(m))));
+      text.append(" No recognized test library is declared in ").append(names(named));
+    }
+    return text.toString();
+  }
+
+  private Table librariesTable(String id, Collection<UsedLibrary> used) {
+    List<Table.Row> rows = new ArrayList<>();
+    for (UsedLibrary u : used) {
+      List<Inline> users = new ArrayList<>();
+      for (EntityId user : u.usedBy()) {
+        assembler.entity(user);
+        if (!users.isEmpty()) {
+          users.add(TextRun.of(", "));
+        }
+        users.add(new CrossReference(assembler.name(user), CrossReference.Target.entity(user)));
+      }
+      rows.add(
+          new Table.Row(
+              null,
+              List.of(
+                  List.of(TextRun.of(u.library().kind().title)),
+                  List.of(TextRun.of(u.library().name())),
+                  users),
+              assembler.facts(u.facts())));
+    }
+    return new Table(
+        id,
+        "Test libraries",
+        List.of(
+            new Table.Column("Kind"), new Table.Column("Library"), new Table.Column("Declared in")),
+        rows,
+        List.of());
   }
 
   // Text.

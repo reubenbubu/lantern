@@ -65,8 +65,7 @@ final class QualityBar {
 
   static final String TECHNOLOGY_CURRENCY = SectionKind.TECHNOLOGY_CURRENCY.jsonName();
 
-  /** The quality evidence section, which no section kind composes yet. */
-  static final String QUALITY_EVIDENCE = "quality_evidence";
+  static final String QUALITY_EVIDENCE = SectionKind.QUALITY_EVIDENCE.jsonName();
 
   static final String TITLE = "A title naming its type and scope";
   static final String LEGEND = "A legend for every shape, color, line style and arrowhead used";
