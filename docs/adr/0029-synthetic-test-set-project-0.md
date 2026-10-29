@@ -25,8 +25,7 @@ author and dates, and that Lantern pins that repository's commit.
 - **The thin service and its library are two repositories** (#155), so the set also checks
   building in dependency order (ADR 0041): `catalog` uses a parent POM and a library that
   `catalog-lib` builds at a `-SNAPSHOT` version published nowhere, so it builds only when given
-  `catalog-lib`'s build (case `BUILD-1`). Until #118 they were two modules of one repository. (ADR 0041 now does;
-  adding such a case to the source repository is described on #118.)
+  `catalog-lib`'s build (case `BUILD-1`). Until #155 they were two modules of one repository.
 - **Fixed commits.** `setup.sh` in the source makes each local repository with one commit whose
   author, committer, dates (2026-01-15) and message are fixed, ignoring the user's git
   configuration, so the hashes are the same on every run and machine. Changing a made-up repository
@@ -45,6 +44,6 @@ author and dates, and that Lantern pins that repository's commit.
   the builds of those it uses, and checks each succeeds on the JDK its POM asks for, that `catalog`
   had `catalog-lib`'s build and its jar on the classpath, and that `catalog` built alone fails
   (`BUILD-1`); moving the pin moves those commits in the same change. It runs only when
-  `lantern.test.project0` names the set-up folder (see Commands in `CLAUDE.md`). Checks of the facts, links, views and
-  flows Lantern should find belong to the extractor, linker and composer issues (#92, #94, #113,
-  #114), which read the case list.
+  `lantern.test.project0` names the set-up folder (see Commands in `CLAUDE.md`). Checks of the
+  facts, links, views and flows Lantern should find belong to the extractor, linker and composer
+  issues (#92, #94, #113, #114), which read the case list.
