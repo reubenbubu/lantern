@@ -50,4 +50,4 @@ Independent second pass over the first-pass reference for `Enterprise-Spring-Mic
 ## Validation
 
 - `node scripts/build-data.mjs reference.c4.json` then `node scripts/validate.cjs <lantern>/report-specs/c4-model-sequence-diagrams/c4-model-sequence-diagrams.schema.json reference.c4.json`: **schema valid, no cross-reference issues** (spec files unchanged since `65f6030`).
-- `reference.c4.html` re-embedded with `scripts/embed.cjs` and rendered in headless Chrome over all 14 pages with `scripts/render.mjs` (run from `/tmp/claude-1000/v1`, deleted afterwards): no console messages; the new sign-in sequence renders with 19 steps.
+- `reference.c4.html` re-embedded with `scripts/embed.cjs` and rendered in headless Chrome over all 14 pages with `scripts/render.mjs` (run from a temporary folder, deleted afterwards): no console messages; the new sign-in sequence renders with 19 steps.

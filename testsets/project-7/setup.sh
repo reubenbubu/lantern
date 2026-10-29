@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Sets up the HELD-OUT project-7 test set ("Held-out sets" in docs/design.md): clones the repositories in pins.txt and checks each out at its pinned commit.
-# Nobody reads its code or analyzes it before Phase 2 acceptance (2D); see CLAUDE.md, How work is organized.
+# HELD-OUT: pinned only, never read or analyzed before 2D acceptance (rule: docs/design.md, Test sets, and CLAUDE.md). Sets up the pins in pins.txt.
 # Usage: testsets/project-7/setup.sh [destination]   (default ~/workspace/lantern-test-projects/project-7)
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

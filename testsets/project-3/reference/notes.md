@@ -1,8 +1,14 @@
 # project-3 reference: notes (first pass, corrected by the second pass)
 
-> **In the repository:** `build-data.mjs` sits beside this file (run it from here, not from `scripts/`). `embed.cjs` and `render.mjs` are shared and live in `testsets/reference-tools/`; `validate.cjs` is replaced by `lantern-web/scripts/report-spec-check.mjs`. `reference.c4.html` is not committed: make it with `embed.cjs`. Pins are in `../pins.txt`.
+> **In the repository.** Rebuild and check from this folder (`<spec>` is `../../../report-specs/c4-model-sequence-diagrams`):
+>
+> - `node build-data.mjs reference.c4.json` writes the data from the facts.
+> - `node ../../../lantern-web/scripts/report-spec-check.mjs c4-model-sequence-diagrams reference.c4.json` checks schema and cross-references (`lantern-web`'s tests also run it).
+> - `node ../../reference-tools/embed.cjs <spec>/c4-model-sequence-diagrams.html reference.c4.json reference.c4.html` embeds the data into the template; `../../reference-tools/render.mjs` renders it in headless Chrome. The HTML is not committed.
+>
+> **Citations.** The item-level `file:line` citations are in `facts/*.md`; the JSON carries `repo` and `commit` for every element and relationship it sources. Together they are the reading of "every item cited". Pins: `../pins.txt`.
 
-The independent second pass is in `verification.md`; its corrections are applied to `scripts/build-data.mjs`, `reference.c4.json`, `reference.c4.html` and the fact files, and the counts below are updated.
+The independent second pass is in `verification.md`; its corrections are applied to `build-data.mjs`, `reference.c4.json` and the fact files, and the counts below are updated.
 
 ## What it describes
 
@@ -26,11 +32,8 @@ MediaHub, nine repositories under `~/workspace/lantern-test-projects/project-3/`
 ## Files
 
 - `reference.c4.json`: the report data. Validator: `schema: valid`, `cross-reference issues: none` (8 diagrams, all ≤ 11 elements; 7 sequences, frames balanced; every element appears in a diagram or sequence).
-- `reference.c4.html`: the template with the data embedded (`scripts/embed.cjs`). Rendered in headless Chrome (`scripts/render.mjs`, run with `TMPDIR=/tmp/claude-1000/a3`, deleted afterwards): 15 pages visited, no console messages.
 - `facts/edge-config-deployment.md` (gateway, config server, config repo, discovery server, compose, CI), `facts/services.md` (user-, media-, subscription-service), `facts/frontend-and-cross-checks.md` (web app, its calls checked against the backend, and the flow and exposure cross-checks): the cited file:line facts behind every item.
-- `scripts/`: `build-data.mjs` (written for project-3), plus `validate.cjs`, `embed.cjs`, `render.mjs` copied unchanged from the project-4 reference. The schema and template are read from the lantern repository's `report-specs/c4-model-sequence-diagrams/` at `65f6030` (the second pass removed the `tmp/` copies, which were identical).
-
-Rebuild from this folder, with `$SPEC` the lantern repository's `report-specs/c4-model-sequence-diagrams`: `node scripts/build-data.mjs reference.c4.json && node scripts/validate.cjs $SPEC/c4-model-sequence-diagrams.schema.json reference.c4.json && node scripts/embed.cjs $SPEC/c4-model-sequence-diagrams.html reference.c4.json reference.c4.html`.
+- `build-data.mjs`: writes the JSON from the facts.
 
 ## Contents
 

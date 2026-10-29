@@ -1,6 +1,12 @@
 # project-2 reference: notes (first pass, amended by the second pass)
 
-> **In the repository:** `build-data.mjs` sits beside this file (run it from here, not from `scripts/`). `embed.cjs` and `render.mjs` are shared and live in `testsets/reference-tools/`; `validate.cjs` is replaced by `lantern-web/scripts/report-spec-check.mjs` (`node lantern-web/scripts/report-spec-check.mjs c4-model-sequence-diagrams <this folder>/reference.c4.json`), which `lantern-web`'s tests also run. `reference.c4.html` is not committed: make it with `embed.cjs`. Pins are in `../pins.txt`.
+> **In the repository.** Rebuild and check from this folder (`<spec>` is `../../../report-specs/c4-model-sequence-diagrams`):
+>
+> - `node build-data.mjs reference.c4.json` writes the data from the facts.
+> - `node ../../../lantern-web/scripts/report-spec-check.mjs c4-model-sequence-diagrams reference.c4.json` checks schema and cross-references (`lantern-web`'s tests also run it).
+> - `node ../../reference-tools/embed.cjs <spec>/c4-model-sequence-diagrams.html reference.c4.json reference.c4.html` embeds the data into the template; `../../reference-tools/render.mjs` renders it in headless Chrome. The HTML is not committed.
+>
+> **Citations.** The item-level `file:line` citations are in `facts/*.md`; the JSON carries `repo` and `commit` for every element and relationship it sources. Together they are the reading of "every item cited". Pins: `../pins.txt`.
 
 The independent second pass is in `verification.md`: what it checked, each correction, additions
 and the judgement calls a scorer should accept. The numbers below are after that pass (v1.1.0).
@@ -21,28 +27,13 @@ and the judgement calls a scorer should accept. The numbers below are after that
 - `reference.c4.json`: the report data. Validator result: `schema: valid`,
   `cross-reference issues: none` (11 diagrams, all ≤ 15 elements; 6 sequences, frames balanced;
   every element appears in a diagram or sequence).
-- `reference.c4.html`: the template with the data embedded. Rendered in headless Chrome:
-  16 pages visited, no console messages.
 - `facts/*.md`: the cited file:line facts every statement rests on.
   - `edge-auth-deployment.md`: repository shape, shared libraries, frontend, api-gateway,
     auth-service, compose/Dockerfiles/observability/CI, the nine ADRs, stale docs.
   - `event-venue.md`: event-service and venue-service.
   - `attendee-payment-notification.md`: attendee-, payment-, notification-service, Kafka topics,
     cross-checked behaviours behind the main risks.
-- `scripts/`: `build-data.mjs` (written for project-2), and `validate.cjs`, `embed.cjs`,
-  `render.mjs` copied unchanged from the project-4 reference.
-
-Rebuild (from this folder; `<spec>` = `report-specs/c4-model-sequence-diagrams` in the lantern repo):
-
-```
-node scripts/build-data.mjs reference.c4.json
-node scripts/validate.cjs <spec>/c4-model-sequence-diagrams.schema.json reference.c4.json
-node scripts/embed.cjs <spec>/c4-model-sequence-diagrams.html reference.c4.json reference.c4.html
-node scripts/render.mjs $PWD/reference.c4.html <outdir> '#/ctx-emp'
-```
-
-`render.mjs` must run with the default `TMPDIR`: with `TMPDIR` set to this deep scratchpad path,
-Chrome cannot create its socket (path too long) and the script fails waiting for the DevTools port.
+- `build-data.mjs`: writes the JSON from the facts.
 
 ## Contents in numbers
 

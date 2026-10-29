@@ -1,6 +1,12 @@
 # project-1 reference: notes
 
-> **In the repository:** `build-data.mjs` sits beside this file (run it from here, not from `scripts/`). `embed.cjs` and `render.mjs` are shared and live in `testsets/reference-tools/`; `validate.cjs` is replaced by `lantern-web/scripts/report-spec-check.mjs` (`node lantern-web/scripts/report-spec-check.mjs c4-model-sequence-diagrams <this folder>/reference.c4.json`), which `lantern-web`'s tests also run. `reference.c4.html` is not committed: make it with `embed.cjs`. Pins are in `../pins.txt`.
+> **In the repository.** Rebuild and check from this folder (`<spec>` is `../../../report-specs/c4-model-sequence-diagrams`):
+>
+> - `node build-data.mjs reference.c4.json` writes the data from the facts.
+> - `node ../../../lantern-web/scripts/report-spec-check.mjs c4-model-sequence-diagrams reference.c4.json` checks schema and cross-references (`lantern-web`'s tests also run it).
+> - `node ../../reference-tools/embed.cjs <spec>/c4-model-sequence-diagrams.html reference.c4.json reference.c4.html` embeds the data into the template; `../../reference-tools/render.mjs` renders it in headless Chrome. The HTML is not committed.
+>
+> **Citations.** The item-level `file:line` citations are in `facts/*.md`; the JSON carries `repo` and `commit` for every element and relationship it sources. Together they are the reading of "every item cited". Pins: `../pins.txt`.
 
 First pass, then an independent second pass (verification) on 2026-10-29; what the second pass checked and changed is in `verification.md`.
 
@@ -12,10 +18,9 @@ First pass, then an independent second pass (verification) on 2026-10-29; what t
 
 ## Files
 
-- `reference.c4.json`: the report data. **Schema: valid**; cross-reference checks: none (`node scripts/validate.cjs <schema.json> reference.c4.json`).
-- `reference.c4.html`: the spec template with the data embedded (`scripts/embed.cjs`). Rendered in headless Chrome over all 14 pages (`scripts/render.mjs`): no console messages.
+- `reference.c4.json`: the report data. **Schema: valid**; cross-reference checks: none.
 - `facts/edge-ui-bff-gateway.md`, `facts/services-and-shared.md`, `facts/identity-deployment-flows.md`: the cited `file:line` facts behind every item.
-- `scripts/`: `build-data.mjs` (writes the JSON; all statements come from the facts), plus `validate.cjs`, `embed.cjs`, `render.mjs` copied unchanged from the project-4 reference. To rebuild: `node scripts/build-data.mjs reference.c4.json`, then validate and embed with the schema and template from the lantern repo. `render.mjs` needs a short output path: Chrome refuses a profile socket path as long as the scratchpad's, so it was run with `/tmp/claude-1000/p1r` (deleted afterwards).
+- `build-data.mjs`: writes the JSON; all statements come from the facts.
 
 ## Contents
 

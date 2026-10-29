@@ -39,9 +39,16 @@ const sets = readdirSync(testsets).filter((name) =>
   existsSync(`${testsets}${name}/reference/reference.c4.json`),
 );
 
-test('references are committed for the sets that have one', () => {
-  assert.ok(sets.length >= 2, `found references for ${sets.join(', ')}`);
+test('exactly the development sets project-1 to project-4 have a reference', () => {
+  assert.deepEqual(sets.sort(), ['project-1', 'project-2', 'project-3', 'project-4']);
 });
+
+// Every open-source set, held-out ones included, has well-formed pins (format only, no network).
+for (const set of readdirSync(testsets).filter((name) => /^project-[1-9]$/.test(name))) {
+  test(`${set}: pins.txt is well formed`, () => {
+    assert.ok(pins(set).length > 0);
+  });
+}
 
 for (const set of sets) {
   const dir = `${testsets}${set}/reference/`;
@@ -56,6 +63,7 @@ for (const set of sets) {
     const sources = citedSources(data);
     assert.ok(sources.length > 0, 'the reference cites no sources');
     for (const { repo, commit } of sources) {
+      assert.ok(commit.length >= 7, `${repo}: cited commit ${commit} is shorter than 7 characters`);
       const pin = pinned.find((p) => p.name === repo);
       assert.ok(pin, `${repo} is cited but not in pins.txt`);
       assert.ok(pin.commit.startsWith(commit), `${repo}: cites ${commit}, pinned ${pin.commit}`);

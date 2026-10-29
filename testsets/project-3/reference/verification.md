@@ -65,5 +65,5 @@ Apart from the corrections above, everything checks out against the code:
 ## Validation and rendering
 
 - `node scripts/build-data.mjs reference.c4.json`, then `validate.cjs` with the spec schema: `schema: valid`, `cross-reference issues: none`. Every diagram has 11 elements or fewer (the platform page now has 8), and all 7 sequences have balanced frames.
-- `embed.cjs` wrote `reference.c4.html` (300,047 bytes). `render.mjs` ran with `TMPDIR=/tmp/claude-1000/v3`, deleted afterwards: 15 pages visited, no console messages. I checked screenshots of the changed platform diagram and of the watch sequence.
+- `embed.cjs` wrote `reference.c4.html` (300,047 bytes). `render.mjs` ran with `a temporary TMPDIR`, deleted afterwards: 15 pages visited, no console messages. I checked screenshots of the changed platform diagram and of the watch sequence.
 - I removed `tmp/` (its schema and template were byte-identical to `report-specs/c4-model-sequence-diagrams/` at `65f6030`; the scripts take paths as arguments). The rebuild command in `notes.md` now points at the spec folder.

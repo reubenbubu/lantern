@@ -5,8 +5,9 @@
 # Usage: testsets/setup-pins.sh <set folder> [destination]
 # The destination defaults to ~/workspace/lantern-test-projects/<set folder name>. Each repository
 # is cloned to <destination>/<name> if missing, then fetched and checked out detached at its pin;
-# safe to run again. A repository with local changes that conflict with the pin is left as it is
-# and setup fails. Private repositories need git credentials for github.com (`gh auth setup-git`).
+# safe to run again. A checkout whose origin is not the pinned URL, or with local changes that
+# conflict with the pin, makes setup fail. Private repositories need git credentials for github.com
+# (`gh auth setup-git`).
 set -euo pipefail
 
 set_dir="$(cd "${1:?usage: setup-pins.sh <set folder> [destination]}" && pwd)"
@@ -27,11 +28,18 @@ while read -r name url commit extra; do
   repo="$dest/$name"
   if [[ ! -d "$repo/.git" ]]; then
     [[ ! -e "$repo" ]] || fail "$repo exists and is not a git repository"
-    git clone --quiet "$url" "$repo"
+    git clone --quiet "$url" "$repo" < /dev/null || fail "$name: cannot clone $url (git credentials for github.com? does the repository exist?)"
   fi
-  if ! git -C "$repo" cat-file -e "$commit^{commit}" 2> /dev/null; then
-    git -C "$repo" fetch --quiet origin "$commit" || git -C "$repo" fetch --quiet origin
+  origin="$(git -C "$repo" remote get-url origin < /dev/null 2> /dev/null || true)"
+  [[ "${origin%.git}" == "${url%.git}" ]] || fail "$repo has origin '$origin', but pins.txt says $url; move or delete it"
+  if ! git -C "$repo" cat-file -e "$commit^{commit}" < /dev/null 2> /dev/null; then
+    git -C "$repo" fetch --quiet origin "$commit" < /dev/null 2> /dev/null \
+      || git -C "$repo" fetch --quiet origin < /dev/null \
+      || fail "$name: cannot fetch from $url (git credentials?)"
+    git -C "$repo" cat-file -e "$commit^{commit}" < /dev/null 2> /dev/null \
+      || fail "$name: pinned commit $commit not found upstream; was history rewritten?"
   fi
-  git -C "$repo" -c advice.detachedHead=false checkout --quiet --detach "$commit"
+  git -C "$repo" -c advice.detachedHead=false checkout --quiet --detach "$commit" < /dev/null \
+    || fail "$name: cannot check out $commit (local changes in $repo?)"
   echo "$name @ ${commit:0:12}"
 done <<< "$pins"
