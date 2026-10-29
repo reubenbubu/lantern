@@ -61,7 +61,7 @@ public final class SpringExtractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -93,6 +93,12 @@ public final class SpringExtractor {
   /** Attribute: the method defines a bean. */
   public static final String BEAN = "bean";
 
+  /** Attribute: the type is an AspectJ aspect (an {@code @Aspect} class). */
+  public static final String ASPECT = "aspect";
+
+  /** Relationship: an aspect's advice selects the method (the aspect advises it). */
+  public static final String ADVISES = "ADVISES";
+
   /** Main class kinds. */
   public static final String SPRING_BOOT = "spring-boot";
 
@@ -109,6 +115,16 @@ public final class SpringExtractor {
   private static final String PROFILE = SPRING + "context.annotation.Profile";
   private static final String BEAN_ANNOTATION = SPRING + "context.annotation.Bean";
   private static final String SCHEDULED_ANNOTATION = SPRING + "scheduling.annotation.Scheduled";
+  private static final String ASPECTJ = "org.aspectj.lang.annotation.";
+  private static final String ASPECT_ANNOTATION = ASPECTJ + "Aspect";
+  private static final String POINTCUT_ANNOTATION = ASPECTJ + "Pointcut";
+  private static final Map<String, String> ADVICE =
+      Map.of(
+          ASPECTJ + "Before", "before",
+          ASPECTJ + "After", "after",
+          ASPECTJ + "AfterReturning", "after-returning",
+          ASPECTJ + "AfterThrowing", "after-throwing",
+          ASPECTJ + "Around", "around");
   private static final String JOBRUNR = "org.jobrunr.";
   private static final String JOBRUNR_HANDLER = JOBRUNR + "jobs.lambdas.JobRequestHandler";
   private static final String JOBRUNR_JOB = JOBRUNR + "jobs.annotations.Job";
@@ -192,12 +208,14 @@ public final class SpringExtractor {
     for (JavaAnalysis.Module module : code.modules()) {
       run.module(module);
     }
+    run.aspects();
     run.jobs();
     return run.facts.values().stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
                 .thenComparing(Fact::predicate)
                 .thenComparing(f -> f.object().value())
+                .thenComparing(f -> f.attributes().toString())
                 .thenComparing(Fact::id))
         .toList();
   }
@@ -934,6 +952,213 @@ public final class SpringExtractor {
     }
 
     // -------------------------------------------------------------------------------------------
+    // Aspects
+
+    /** One advice method of an aspect. */
+    private record Advice(String kind, String pointcut, Member method, Annotation written) {}
+
+    /**
+     * Records each {@code @Aspect} class of the snapshot with its pointcuts, and which methods of
+     * the analyzed code its advice selects. It runs after every module is read, because an aspect
+     * advises code in other modules and repositories (a shared library's permission check).
+     */
+    void aspects() {
+      List<AspectOf> aspects = new ArrayList<>();
+      for (JavaAnalysis.Module m : code.modules()) {
+        for (TypeDecl type : m.structure().types()) {
+          if (type.kind().equals(ModuleStructure.CLASS)
+              && first(type.annotations(), ASPECT_ANNOTATION) != null) {
+            aspects.add(new AspectOf(m, type));
+          }
+        }
+      }
+      for (AspectOf aspect : aspects) {
+        List<Advice> advice = advice(aspect.type());
+        if (advice.isEmpty()) {
+          continue;
+        }
+        module = aspect.module();
+        aspect(aspect, advice);
+      }
+    }
+
+    private record AspectOf(JavaAnalysis.Module module, TypeDecl type) {}
+
+    private List<Advice> advice(TypeDecl type) {
+      List<Advice> advice = new ArrayList<>();
+      for (Member member : type.members()) {
+        if (!member.id().type().equals(ModuleStructure.METHOD)) {
+          continue;
+        }
+        for (Annotation a : member.annotations()) {
+          String kind = ADVICE.get(a.type());
+          if (kind == null) {
+            continue;
+          }
+          String pointcut = firstOf(a, "pointcut", "value");
+          if (pointcut != null && !pointcut.isBlank()) {
+            advice.add(new Advice(kind, pointcut.strip(), member, a));
+          }
+        }
+      }
+      return advice;
+    }
+
+    private void aspect(AspectOf aspect, List<Advice> advice) {
+      TypeDecl type = aspect.type();
+      Set<String> kinds = new LinkedHashSet<>();
+      Set<String> pointcuts = new LinkedHashSet<>();
+      Set<String> annotations = new LinkedHashSet<>();
+      Map<Advice, AspectPointcuts.Names> names = new LinkedHashMap<>();
+      for (Advice a : advice) {
+        AspectPointcuts.Names n = names(type, a);
+        names.put(a, n);
+        kinds.add(a.kind());
+        pointcuts.add(a.pointcut());
+        annotations.addAll(AspectPointcuts.annotationTypes(a.pointcut(), n));
+      }
+      ObjectNode attributes = FactJson.newObject();
+      ArrayNode kindArray = attributes.putArray("advice");
+      kinds.forEach(kindArray::add);
+      ArrayNode pointcutArray = attributes.putArray("pointcuts");
+      pointcuts.forEach(pointcutArray::add);
+      if (!annotations.isEmpty()) {
+        ArrayNode annotationArray = attributes.putArray("annotations");
+        annotations.forEach(annotationArray::add);
+      }
+      Annotation written = first(type.annotations(), ASPECT_ANNOTATION).getFirst();
+      fact(typeId(type), ASPECT, "aspect", attributes, written.where());
+      for (Advice a : advice) {
+        advised(aspect, a, names.get(a));
+      }
+    }
+
+    private void advised(AspectOf aspect, Advice advice, AspectPointcuts.Names names) {
+      EntityId subject = typeId(aspect.type());
+      for (JavaAnalysis.Module m : code.modules()) {
+        for (TypeDecl type : m.structure().types()) {
+          if (!type.kind().equals(ModuleStructure.CLASS)
+              || type.binaryName().equals(aspect.type().binaryName())
+              || first(type.annotations(), ASPECT_ANNOTATION) != null) {
+            continue;
+          }
+          List<TypeDecl> lineage = lineage(type);
+          for (Member method : type.members()) {
+            if (!method.id().type().equals(ModuleStructure.METHOD)) {
+              continue;
+            }
+            String signature = signature(method.id());
+            String name = signature.substring(0, signature.indexOf('('));
+            if (name.equals(ModuleStructure.CONSTRUCTOR) || name.contains("$")) {
+              continue;
+            }
+            if (AspectPointcuts.selects(
+                advice.pointcut(),
+                new AspectPointcuts.Candidate(type, lineage, method.annotations(), name),
+                names)) {
+              ObjectNode attributes = FactJson.newObject();
+              attributes.put("advice", advice.method().id().toString());
+              attributes.put("kind", advice.kind());
+              attributes.put("pointcut", advice.pointcut());
+              relation(subject, ADVISES, method.id(), attributes, advice.written().where());
+            }
+          }
+        }
+      }
+    }
+
+    /** What an advice's pointcut can mention: its parameters, named pointcuts, annotation types. */
+    private AspectPointcuts.Names names(TypeDecl aspect, Advice advice) {
+      return new AspectPointcuts.Names() {
+        @Override
+        public String annotationType(String argument) {
+          String a = argument.strip();
+          if (a.isEmpty()) {
+            return null;
+          }
+          List<String> types = parameterTypes(advice.method().id());
+          List<ModuleStructure.Parameter> parameters = advice.method().parameters();
+          for (int i = 0; i < parameters.size() && i < types.size(); i++) {
+            if (parameters.get(i).name().equals(a)) {
+              return types.get(i);
+            }
+          }
+          if (a.contains(".")) {
+            return a;
+          }
+          return annotationBySimpleName(a);
+        }
+
+        @Override
+        public String pointcut(String name) {
+          TypeDecl in = aspect;
+          String method = name;
+          int dot = name.lastIndexOf('.');
+          if (dot >= 0) {
+            in = typeBySimpleOrBinaryName(name.substring(0, dot));
+            method = name.substring(dot + 1);
+          }
+          if (in == null) {
+            return null;
+          }
+          for (Member m : in.members()) {
+            if (m.id().type().equals(ModuleStructure.METHOD)
+                && signature(m.id()).startsWith(method + "(")) {
+              for (Annotation a : m.annotations()) {
+                if (a.type().equals(POINTCUT_ANNOTATION)) {
+                  return firstOf(a, "value", "pointcut");
+                }
+              }
+            }
+          }
+          return null;
+        }
+      };
+    }
+
+    private Map<String, List<TypeDecl>> typesBySimpleName;
+
+    private Map<String, List<TypeDecl>> typesBySimpleName() {
+      if (typesBySimpleName == null) {
+        typesBySimpleName = new HashMap<>();
+        for (JavaAnalysis.Module m : code.modules()) {
+          for (TypeDecl t : m.structure().types()) {
+            String binary = t.binaryName();
+            String simple =
+                binary.substring(Math.max(binary.lastIndexOf('.'), binary.lastIndexOf('$')) + 1);
+            typesBySimpleName.computeIfAbsent(simple, k -> new ArrayList<>()).add(t);
+          }
+        }
+      }
+      return typesBySimpleName;
+    }
+
+    private String annotationBySimpleName(String simple) {
+      List<TypeDecl> found =
+          typesBySimpleName().getOrDefault(simple, List.of()).stream()
+              .filter(t -> t.kind().equals(ModuleStructure.ANNOTATION))
+              .toList();
+      return found.size() == 1 ? found.getFirst().binaryName() : null;
+    }
+
+    private TypeDecl typeBySimpleOrBinaryName(String name) {
+      TypeDecl exact = code.type(name);
+      if (exact != null) {
+        return exact;
+      }
+      List<TypeDecl> found = typesBySimpleName().getOrDefault(name, List.of());
+      return found.size() == 1 ? found.getFirst() : null;
+    }
+
+    /** The erased parameter types in a method's key. */
+    private static List<String> parameterTypes(EntityId method) {
+      String signature = signature(method);
+      int open = signature.indexOf('(');
+      String inside = signature.substring(open + 1, signature.lastIndexOf(')'));
+      return inside.isEmpty() ? List.of() : List.of(inside.split(","));
+    }
+
+    // -------------------------------------------------------------------------------------------
     // Annotations
 
     /**
@@ -967,6 +1192,36 @@ public final class SpringExtractor {
     private void fact(
         EntityId subject, String predicate, String object, ObjectNode attributes, Location where) {
       fact(subject, predicate, object, attributes, where, module);
+    }
+
+    private void relation(
+        EntityId subject,
+        String predicate,
+        EntityId object,
+        ObjectNode attributes,
+        Location where) {
+      if (subject == null || object == null) {
+        return;
+      }
+      RepoBuild repo = module.repo();
+      Evidence evidence =
+          new Evidence(
+              repo.repo().name(),
+              repo.commit(),
+              where.file().path(),
+              where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
+              where.file().contentHash());
+      Fact fact =
+          Fact.create(
+              subject,
+              predicate,
+              FactObject.entity(object),
+              attributes,
+              ORIGIN,
+              evidence,
+              module.confidence(),
+              validity);
+      facts.putIfAbsent(fact.id(), fact);
     }
 
     /**

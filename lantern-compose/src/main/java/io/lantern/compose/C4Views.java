@@ -87,6 +87,8 @@ final class C4Views {
   private static final String READS_TABLE = "READS_TABLE";
   private static final String WRITES_TABLE = "WRITES_TABLE";
   private static final String INJECTS = "INJECTS";
+  private static final String ASPECT = "aspect";
+  private static final String ADVISES = "ADVISES";
   private static final Set<String> BEAN_STEREOTYPES =
       Set.of("controller", "service", "repository", "component");
 
@@ -1132,6 +1134,21 @@ final class C4Views {
         beans.add(type);
       }
     }
+    // An aspect that advises an entry point of the unit is a component of its own, built around
+    // the beans only it uses: it is where a check such as authorization is decided. One declared
+    // outside the unit's code (a shared library the linker did not match to the unit) counts when
+    // it selects by annotation, which the unit's code must then use.
+    SortedSet<EntityId> aspects = new TreeSet<>(Knowledge.BY_ID);
+    for (Fact fact : knowledge.withPredicate(ADVISES)) {
+      EntityId aspect = fact.subject();
+      if (!aspects.contains(aspect)
+          && entries.contains(PackageDependencies.ownerType(knowledge, Knowledge.object(fact)))
+          && (code.contains(aspect) || selectsByAnnotation(aspect))) {
+        aspects.add(aspect);
+      }
+    }
+    beans.removeAll(aspects);
+    entries.addAll(aspects);
     Map<EntityId, Set<EntityId>> uses = typeGraph(code);
     Map<EntityId, SortedSet<EntityId>> reachedBy = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId entry : entries) {
@@ -1158,7 +1175,9 @@ final class C4Views {
               types.add(bean);
             }
           });
-      components.add(new Component(entry, types, String.join(" · ", entryKinds(entry))));
+      String technology =
+          aspects.contains(entry) ? "Spring AOP aspect" : String.join(" · ", entryKinds(entry));
+      components.add(new Component(entry, types, technology));
     }
     for (EntityId bean : beans) {
       SortedSet<EntityId> from = reachedBy.get(bean);
@@ -1168,6 +1187,12 @@ final class C4Views {
       }
     }
     return components;
+  }
+
+  /** Whether an aspect's pointcuts select methods by an annotation. */
+  private boolean selectsByAnnotation(EntityId aspect) {
+    return knowledge.attributes(aspect).stream()
+        .anyMatch(f -> f.predicate().equals(ASPECT) && !strings(f, "annotations").isEmpty());
   }
 
   /** The roles that make a type an entry point: web controller, listener, scheduled job. */
@@ -1318,6 +1343,19 @@ final class C4Views {
         }
       }
     }
+    // An aspect to the components whose entry points it advises.
+    for (Component component : components) {
+      for (Fact fact : knowledge.relations(component.main, ADVISES)) {
+        EntityId advised = Knowledge.object(fact);
+        EntityId to = componentOf.get(PackageDependencies.ownerType(knowledge, advised));
+        if (to != null && !to.equals(component.main)) {
+          EdgeBuilder edge = edges.get(component.main, ADVISES, to);
+          edge.add("Advises", "Advises", advisedBy(component.main), null, null);
+          edge.facts.add(fact);
+          edge.phrased(null);
+        }
+      }
+    }
     // Lines to and from other containers, at the code on this unit's end.
     for (Link link : links) {
       if (link.from.equals(unit)) {
@@ -1363,6 +1401,20 @@ final class C4Views {
         List.copyOf(nodes.values()),
         edges.build(assembler, true),
         List.of());
+  }
+
+  /** The annotations an aspect's pointcuts select by, as written in code: {@code @Name}. */
+  private String advisedBy(EntityId aspect) {
+    List<String> names = new ArrayList<>();
+    for (Fact fact : knowledge.attributes(aspect)) {
+      if (fact.predicate().equals(ASPECT)) {
+        for (String type : strings(fact, "annotations")) {
+          names.add(
+              "@" + type.substring(Math.max(type.lastIndexOf('.'), type.lastIndexOf('$')) + 1));
+        }
+      }
+    }
+    return names.isEmpty() ? null : String.join(", ", names);
   }
 
   /** The type and the types of the unit's code implementing it, if it is an interface. */
@@ -1415,7 +1467,13 @@ final class C4Views {
     for (EntityId member : withMethods(component.main)) {
       for (Fact fact : knowledge.attributes(member)) {
         switch (fact.predicate()) {
-          case STEREOTYPE, HTTP_CLIENT, ENDPOINT, MESSAGE_LISTENER, SCHEDULED, BACKGROUND_JOB ->
+          case STEREOTYPE,
+              HTTP_CLIENT,
+              ENDPOINT,
+              MESSAGE_LISTENER,
+              SCHEDULED,
+              BACKGROUND_JOB,
+              ASPECT ->
               facts.add(fact);
           default -> {}
         }
