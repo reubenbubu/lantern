@@ -1,6 +1,7 @@
 # 0065: Evidenced and inferred responsibility sentences
 
-Status: accepted (#216), amends ADR 0050 and ADR 0056, amended by ADR 0066 (#192) and ADR 0068 (#191), pending the user's review (#24)
+Status: accepted (#216), amends ADR 0050 and ADR 0056, amended by ADR 0066 (#192), ADR 0068 (#191)
+and ADR 0069 (#208), pending the user's review (#24)
 
 ## Context
 
@@ -20,7 +21,8 @@ as evidenced or inferred, and for documents to show inferred ones as such.
   `unit_wordings` are unchanged and no call is made again. Of what people write, the Describer's
   prompts show README claims only (a unit's prompt shows them; an element's shows none, so its
   sentence is always inferred). Javadoc and Lantern's annotations will count once a prompt shows
-  them (#208, Phase 3). As in ADR 0059 the check is a bound, not proof: it cannot tell that the
+  them (#208, Phase 3); since ADR 0069 Javadoc in a component's code shown in a unit's prompt
+  does. As in ADR 0059 the check is a bound, not proof: it cannot tell that the
   cited claim says what the sentence says; since ADR 0068 a sentence naming what its cited facts do
   not mention is left out.
 - **Documents show inferred sentences.** The composer opens the description of a unit, component,

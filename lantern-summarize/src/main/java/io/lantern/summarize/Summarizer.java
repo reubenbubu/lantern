@@ -3,7 +3,6 @@ package io.lantern.summarize;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
-import io.lantern.extract.config.SourceSecrets;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmMessage;
@@ -49,10 +48,11 @@ import org.slf4j.LoggerFactory;
  *
  * <p>A type's prompt also shows its whole source file (see {@link Excerpts}), read through {@link
  * SourceFiles} and shown only when the file matches the content hash of the fact's evidence, with
- * its secrets masked or removed ({@link SourceSecrets}) before it is sent. A unit whose inputs do
- * not fit the model's context window is summarized in parts that are then merged (see {@link
- * Prompt}). A module's or repository's prompt also shows its fact sheet ({@link FactSheet}): the
- * entry points, links, data stores and technology of its parts, cited like its own facts.
+ * its secrets masked or removed ({@link io.lantern.extract.config.SourceSecrets}) before it is
+ * sent. A unit whose inputs do not fit the model's context window is summarized in parts that are
+ * then merged (see {@link Prompt}). A module's or repository's prompt also shows its fact sheet
+ * ({@link FactSheet}): the entry points, links, data stores and technology of its parts, cited like
+ * its own facts.
  *
  * <p>Each summary says whether its purpose is evidenced or inferred ({@link Summary.Purpose}). The
  * model marks its answer; a mark of evidenced is kept only if the answer's first sentence is kept
@@ -468,11 +468,7 @@ public final class Summarizer {
           return known;
         }
       }
-      Optional<String> read =
-          sources
-              .read(evidence.repo(), evidence.commit(), evidence.path())
-              .filter(content -> sha256(content).equals(evidence.contentHash()))
-              .map(content -> SourceSecrets.scrub(new String(content, StandardCharsets.UTF_8)));
+      Optional<String> read = sources.shown(evidence);
       synchronized (files) {
         files.put(file, read);
       }

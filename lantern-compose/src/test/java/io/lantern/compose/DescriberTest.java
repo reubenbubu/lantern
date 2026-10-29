@@ -15,7 +15,12 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TemplateRef;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
+import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
@@ -23,11 +28,17 @@ import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelSettings;
+import io.lantern.summarize.SourceFiles;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -35,7 +46,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The LLM's responsibility sentences, intent phrases and flow narration, and how documents use them
- * (ADR 0050, ADR 0056, ADR 0058).
+ * (ADR 0050, ADR 0056, ADR 0058, ADR 0069).
  */
 class DescriberTest {
 
@@ -980,5 +991,222 @@ class DescriberTest {
   void aLowerFirstLetterKeepsAcronyms() {
     assertThat(C4Views.lowerFirst("Reports payments")).isEqualTo("reports payments");
     assertThat(C4Views.lowerFirst("SQL dumps")).isEqualTo("SQL dumps");
+  }
+
+  private static final EntityId CONTROLLER = EntityId.parse("type:com.example.web.Controller");
+  private static final String CONTROLLER_PATH = "src/main/java/com/example/web/Controller.java";
+  private static final String JOBS_PATH = "src/main/java/com/example/web/Jobs.java";
+  private static final String CONTROLLER_CODE =
+      """
+      /*
+       * Licensed under the Apache License.
+       */
+      package com.example.web;
+
+      import java.util.List;
+
+      /** Serves the shop's order list to the web shop. */
+      @RestController
+      class Controller {
+        private String password = "hunter2";
+
+        List<String> list() {
+          return List.of();
+        }
+      }
+      """;
+
+  /** The type's {@code kind} fact, observed in the file with the content at the commit. */
+  private static Fact kind(EntityId type, String path, String content, String commit) {
+    return Fact.create(
+        type,
+        "kind",
+        FactObject.string("class"),
+        FactJson.newObject(),
+        new Origin(Origin.Kind.STATIC, "java", "1"),
+        new Evidence("shop", commit, path, new Evidence.LineRange(1, 10), sha256(content)),
+        1.0,
+        Validity.from(1));
+  }
+
+  private static String sha256(String content) {
+    try {
+      return HexFormat.of()
+          .formatHex(
+              MessageDigest.getInstance("SHA-256")
+                  .digest(content.getBytes(StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  /** Reads the files by path, whatever the commit. */
+  private static SourceFiles files(Map<String, String> files) {
+    return (repo, commit, path) ->
+        Optional.ofNullable(files.get(path)).map(c -> c.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static String appPrompt(FakeLlmProvider fake) {
+    return fake.sent().stream()
+        .map(s -> s.request().messages().getFirst().text())
+        .filter(p -> p.startsWith("The deployable unit shop-app"))
+        .reduce((a, b) -> b)
+        .orElseThrow();
+  }
+
+  @Test
+  void aComponentShowsTheStartOfItsMainTypesCodeWithSecretsMasked() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    Fact controller = kind(CONTROLLER, CONTROLLER_PATH, CONTROLLER_CODE, TestFacts.COMMIT);
+    // The file read is not the version the fact was observed in, so it is not shown.
+    Fact jobs =
+        kind(
+            EntityId.parse("type:com.example.web.Jobs"),
+            JOBS_PATH,
+            "class Jobs {}",
+            TestFacts.COMMIT);
+    List<Fact> withCode = new ArrayList<>(facts.list());
+    withCode.add(controller);
+    withCode.add(jobs);
+    SourceFiles sources =
+        files(Map.of(CONTROLLER_PATH, CONTROLLER_CODE, JOBS_PATH, "class Jobs { int changed; }"));
+
+    Describer.Result result = new Describer(client(fake), store, sources).describe(withCode);
+
+    String app = appPrompt(fake);
+    String declared =
+        "type:com.example.web.Controller kind \"class\" (shop:" + CONTROLLER_PATH + ")";
+    assertThat(app)
+        .contains(
+            "] "
+                + declared
+                + "\n  Code of "
+                + CONTROLLER_PATH
+                + ", without its package and imports:\n"
+                + "```java\n"
+                + "/** Serves the shop's order list to the web shop. */\n"
+                + "@RestController\n"
+                + "class Controller {\n"
+                + "  private String password = \"******\";\n"
+                + "\n"
+                + "  List<String> list() {\n"
+                + "    return List.of();\n"
+                + "  }\n"
+                + "}\n"
+                + "```\n[C2] Jobs")
+        .doesNotContain("hunter2")
+        .doesNotContain("Licensed")
+        .doesNotContain("import java.util.List")
+        .doesNotContain("Code of " + JOBS_PATH);
+    assertThat(result.wordings().documented()).containsExactly(controller.id());
+  }
+
+  @Test
+  void codeIsCutAtALineOnceTheComponentsShareIsReached() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    StringBuilder code = new StringBuilder("class Controller {\n");
+    int lines = Describer.MAX_CODE_CHARS / 20 + 10;
+    for (int i = 0; i < lines; i++) {
+      code.append("  int field").append(String.format("%05d", i)).append(" = 1;\n");
+    }
+    code.append("}\n");
+    List<Fact> withCode = new ArrayList<>(facts.list());
+    withCode.add(kind(CONTROLLER, CONTROLLER_PATH, code.toString(), TestFacts.COMMIT));
+
+    new Describer(client(fake), store, files(Map.of(CONTROLLER_PATH, code.toString())))
+        .describe(withCode);
+
+    String app = appPrompt(fake);
+    String shown =
+        app.substring(app.indexOf("```java\n") + 8, app.indexOf("\n```", app.indexOf("```java")));
+    assertThat(shown.length()).isLessThanOrEqualTo(Describer.MAX_CODE_CHARS);
+    int left = lines + 2 - shown.split("\n").length;
+    assertThat(left).isPositive();
+    assertThat(app)
+        .contains(
+            "Code of "
+                + CONTROLLER_PATH
+                + ", without its package and imports, the last "
+                + left
+                + " lines left out:\n");
+    assertThat(shown).endsWith(" = 1;");
+  }
+
+  @Test
+  void theSameCodeAtANewCommitMakesNoCallAndChangedCodeAsksAgain() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    List<Fact> first = new ArrayList<>(facts.list());
+    first.add(kind(CONTROLLER, CONTROLLER_PATH, CONTROLLER_CODE, TestFacts.COMMIT));
+    Map<String, String> files = new HashMap<>(Map.of(CONTROLLER_PATH, CONTROLLER_CODE));
+    new Describer(client(fake), store, files(files)).describe(first);
+    int calls = fake.sent().size();
+
+    List<Fact> moved = new ArrayList<>(facts.list());
+    moved.add(kind(CONTROLLER, CONTROLLER_PATH, CONTROLLER_CODE, "b".repeat(40)));
+    Describer.Result same = new Describer(client(fake), store, files(files)).describe(moved);
+
+    assertThat(fake.sent()).hasSize(calls);
+    assertThat(same.wordings().documented())
+        .containsExactly(
+            moved.stream()
+                .filter(f -> f.predicate().equals("kind"))
+                .findFirst()
+                .orElseThrow()
+                .id());
+
+    String changed = CONTROLLER_CODE.replace("list()", "orders()");
+    List<Fact> edited = new ArrayList<>(facts.list());
+    edited.add(kind(CONTROLLER, CONTROLLER_PATH, changed, "c".repeat(40)));
+    files.put(CONTROLLER_PATH, changed);
+    new Describer(client(fake), store, files(files)).describe(edited);
+
+    assertThat(fake.sent())
+        .hasSize(calls + 1)
+        .last()
+        .extracting(s -> s.request().purpose())
+        .isEqualTo("word unit " + APP);
+    assertThat(appPrompt(fake)).contains("orders()");
+  }
+
+  @Test
+  void aSentenceCitingCodeWithJavadocIsShownAsWrittenAndThePurposeStaysInferred() {
+    Fact controller = kind(CONTROLLER, CONTROLLER_PATH, CONTROLLER_CODE, TestFacts.COMMIT);
+    List<Fact> withCode = new ArrayList<>(facts.list());
+    withCode.add(controller);
+    Map<EntityId, String> sentences =
+        Map.of(
+            CONTROLLER,
+            "Lists the shop's orders. [fact:" + controller.id() + "]",
+            RepoSections.SYSTEM,
+            "Runs an online shop. [fact:" + controller.id() + "]");
+    Function<Wordings, Document> compose =
+        wordings ->
+            new Composer("1")
+                .compose(
+                    ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                    SNAPSHOT,
+                    withCode,
+                    Map.of(),
+                    wordings);
+    Function<Document, String> description =
+        document ->
+            text(
+                document.entities().stream()
+                    .filter(e -> e.id().equals(CONTROLLER))
+                    .findFirst()
+                    .orElseThrow()
+                    .description());
+
+    Document documented =
+        compose.apply(
+            new Wordings(sentences, Map.of(), Map.of(), java.util.Set.of(controller.id())));
+    Document undocumented = compose.apply(new Wordings(sentences, Map.of()));
+
+    assertThat(description.apply(documented)).isEqualTo("Lists the shop's orders.");
+    assertThat(description.apply(undocumented))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Lists the shop's orders.");
+    // The prompt about the system's purpose shows the fact without its code.
+    Paragraph first = (Paragraph) documented.sections().getFirst().blocks().getFirst();
+    assertThat(text(first.content())).isEqualTo(Assembler.INFERRED + " Runs an online shop.");
   }
 }

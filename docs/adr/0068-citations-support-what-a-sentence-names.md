@@ -1,6 +1,6 @@
 # 0068: Citations support what a sentence names
 
-Status: accepted (#191), amends ADRs 0010, 0050, 0061, 0065 and 0066, pending the user's review (#24)
+Status: accepted (#191), amends ADRs 0010, 0050, 0061, 0065 and 0066, amended by ADR 0069 (#208), pending the user's review (#24)
 
 ## Context
 

@@ -61,5 +61,5 @@ facts, at most 1,000 output tokens.
 
 ## Not in this issue
 
-Code in the Describer's prompts, for generically named components (#208); the glossary in
+Code in the Describer's unit prompt, for generically named components (ADR 0069); the glossary in
 the prompt (annotations, Phase 3).

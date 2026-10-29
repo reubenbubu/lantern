@@ -299,7 +299,7 @@ final class Assembler {
   }
 
   private Text purpose(Text text) {
-    return evidenced(text) ? text : inferred(text);
+    return evidenced(text, false) ? text : inferred(text);
   }
 
   /**
@@ -308,14 +308,22 @@ final class Assembler {
    */
   private Text responsibility(EntityId about, String sentence) {
     Text text = rich(about, sentence);
-    return evidenced(text) ? text : opened(INFERRED_SENTENCE, text);
+    return evidenced(text, true) ? text : opened(INFERRED_SENTENCE, text);
   }
 
-  /** Whether the text cites a README claim, which people wrote (ADR 0059, ADR 0060). */
-  private boolean evidenced(Text text) {
+  /**
+   * Whether the text cites what people wrote (ADR 0059, ADR 0060): a README claim or, when {@code
+   * code}, the fact above code with Javadoc that a unit's prompt showed (ADR 0069). The prompt
+   * about the system's purpose shows the facts its units' sentences cite without their code.
+   */
+  private boolean evidenced(Text text, boolean code) {
     return text.facts().stream()
         .map(knowledge::fact)
-        .anyMatch(f -> f != null && f.predicate().equals(CLAIM));
+        .anyMatch(
+            f ->
+                f != null
+                    && (f.predicate().equals(CLAIM)
+                        || code && wordings.documented().contains(f.id())));
   }
 
   /** The text opened with {@value #INFERRED}, emphasized. */
