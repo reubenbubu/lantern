@@ -192,6 +192,39 @@ class MessagingExtractorTest {
                             + "ShipmentListener#returned(java.lang.String) message-listener"
                             + " ${events.jms.returns} ")
                     && l.contains("\"unresolved\":[\"events.jms.returns\"]"));
+    assertThat(facts)
+        // An exchange from @Value that resolves to "" is the default exchange: a send to the queue
+        // the key names; a profile naming an exchange sends to it.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderPublisher#routed(java.lang.String) message-send"
+                            + " default.routed ")
+                    && l.contains("\"destinationKind\":\"queue\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderPublisher#routed(java.lang.String) message-send"
+                            + " cloud.exchange ")
+                    && l.contains("\"profile\":\"cloud\"")
+                    && l.contains("\"routingKey\":\"default.routed\""))
+        // A routing key that cannot be followed is marked unknown; the send is kept.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderPublisher#keyed(java.lang.String,java.lang.String)"
+                            + " message-send shop.orders ")
+                    && l.contains("\"unknown\":[\"routingKey\"]"))
+        // @Exchange's type from ExchangeTypes.TOPIC, folded by name when parsed.
+        .anyMatch(
+            l ->
+                l.contains("OrderEventsListener#audit(java.lang.String) message-binding")
+                    && l.contains("\"exchangeType\":\"topic\""))
+        // An exchange-to-exchange binding is not a queue's.
+        .noneMatch(l -> l.contains("downstream"));
     // A topic the caller chooses is not guessed, and a method without a handler annotation is not
     // a listener.
     assertThat(facts)

@@ -76,19 +76,20 @@ SQL counts, and how a datasource URL is recorded without its credentials.
   `databaseName`, Oracle's service or SID, H2 and HSQLDB names). The database version is not in a
   URL and is left out.
 - **Credentials never reach a fact.** Usernames and passwords are not recorded. A URL, and its
-  `written` form, loses any user info before the host (`//user:password@`, up to the last `@`
-  before the query, so a password holding `/` or `;` goes too), Oracle's `thin:user/password@`
-  (a quoted password may hold `@`), and
-  every property naming a user (`user`, `username`, ...) or a secret (as
-  `ConfigExtractor.isSecret` judges the name: `password`, `sslpassword`, ...), including in URLs
+  `written` form, loses any user info before the host (`//user:password@`; the rules for where it
+  ends, with a password holding `/ ? # ; @`, are in ADR 0032's amendment for #137), Oracle's
+  `thin:user/password@` (a quoted password may hold `@`), and
+  every property naming a user (`user`, `username`, ...) or a secret (`password`, `sslpassword`,
+  `sig`, `key`, ...; the list is in ADR 0032's amendment), including in URLs
   inside placeholder defaults (`${DB_URL:jdbc:...}`). Placeholders are read whole, nested braces
   included, so their contents (`${DB_PASSWORD:changeme}` in the password, `${DB_HOST}` before
   `;user=sa`) do not end the URL early, and one in a removed part goes with it. This lives in
-  `UrlCredentials` in the config package, for the config extractor to reuse (#137). A URL that a secret was substituted into is
+  `UrlCredentials` in the config package, shared with the config extractor (#137). A URL that a
+  secret was substituted into is
   recorded as written, placeholders kept, credentials removed, with `masked: true`. One that still
   looks like it holds a credential (`password=` in a form not understood) is recorded as `******`,
-  masked. Config-value facts of the config extractor are unchanged; a literal credential in a URL
-  there is its known limitation (ADR 0032, #137).
+  masked. The config extractor's config-value facts lose credentials in URLs the same way (ADR
+  0032, amendment for #137).
 - **New vocabulary**, applied by the app on startup after the SQL extractor's (it uses `table`),
   with source `persistence-extractor`: the attribute type `datasource` (string) and the
   relationship types `MAPS_TO`, `REPOSITORY_FOR`, `READS_TABLE` and `WRITES_TABLE`. The last two

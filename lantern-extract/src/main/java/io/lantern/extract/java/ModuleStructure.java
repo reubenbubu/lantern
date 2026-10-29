@@ -105,35 +105,33 @@ public final class ModuleStructure {
   }
 
   /**
-   * A member: a {@code method:} or {@code field:} entity, its declaration, the annotations written
-   * on it and, for a method or constructor, its parameters in order.
+   * A member: a {@code method:} or {@code field:} entity, its declaration and the annotations
+   * written on it.
+   *
+   * @param type for a field, its erased type as in a member ID; null for a method or constructor
+   * @param parameters for a method or constructor written in the source, its parameters in order;
+   *     empty for a field, for a member the compiler declares implicitly and for a record's
+   *     constructor
    */
   public record Member(
-      EntityId id, Location where, List<Annotation> annotations, List<Parameter> parameters) {
+      EntityId id,
+      Location where,
+      List<Annotation> annotations,
+      String type,
+      List<Parameter> parameters) {
 
     public Member {
       annotations = List.copyOf(annotations);
       parameters = List.copyOf(parameters);
     }
 
-    /** A member without parameters. */
-    Member(EntityId id, Location where, List<Annotation> annotations) {
-      this(id, where, annotations, List.of());
-    }
-
-    /** A member without annotations or parameters. */
+    /** A member without annotations, type or parameters. */
     Member(EntityId id, Location where) {
-      this(id, where, List.of(), List.of());
+      this(id, where, List.of(), null, List.of());
     }
   }
 
-  /**
-   * A parameter of a method or constructor.
-   *
-   * @param name its name as written, or as the class file gives it ({@code arg0} without debug
-   *     information)
-   * @param annotations the annotations written on it
-   */
+  /** A parameter of a method or constructor: its name and the annotations written on it. */
   public record Parameter(String name, List<Annotation> annotations) {
 
     public Parameter {
@@ -147,10 +145,10 @@ public final class ModuleStructure {
    * <p>Each value is a list of strings: one for a single value, one per element of an array. A
    * string or number is its value as Java prints it, a class literal its binary name, and an enum
    * constant its name. A value that cannot be folded (in degraded mode, a constant the parser
-   * cannot find) is left out of its list. Annotations written as values ({@code bindings
-   * = @QueueBinding(...)}) are kept apart, by element, each where the outer one is written; a
-   * container of repeated annotations ({@code @Schedules}) is read as the annotations it contains
-   * instead.
+   * cannot find) is left out of its list, but an element written keeps its (then empty) list.
+   * Annotations written as values ({@code bindings = @QueueBinding(...)}) are kept apart, by
+   * element, each where the outer one is written; a container of repeated annotations
+   * ({@code @Schedules}) is read as the annotations it contains instead.
    *
    * @param type the annotation type's binary name
    * @param values the values written, by element name ({@code value} for a single one)
@@ -212,80 +210,32 @@ public final class ModuleStructure {
   }
 
   /**
-   * A call or object creation as written, with what its receiver and arguments are, for following a
-   * value into the call that uses it (a topic name into a template's {@code send}). Unlike a {@link
-   * Call}, it is kept when the callee does not resolve (in degraded mode, a library type with no
-   * jar), with its declaring type guessed from the receiver as declared.
+   * A chain of calls on an API that extractors follow values into ({@link TrackedApis}), such as an
+   * HTTP client's request: a call that is not itself the receiver of another call, whose innermost
+   * receiver has a type of a tracked API.
    *
-   * @param caller the calling method, or the type for code outside methods
-   * @param callee the method or constructor called, or null if it does not resolve
-   * @param type the binary name of the type declaring the callee; when the callee does not resolve,
-   *     the type the receiver is declared with (or the type created or named), guessed as a
-   *     parameter type is, or null if not known
-   * @param method the method's name, or {@code <init>} for a constructor
-   * @param receiver what the method is called on, or null for a static or unqualified call or a
-   *     creation
-   * @param arguments the arguments, in order
-   * @param where the call
+   * @param caller the method whose code makes it, or the type for code outside methods; a {@link
+   *     Expression.Param} in it is that method's parameter
+   * @param expression the outermost call of the chain
+   * @param where the chain
+   * @param rootType the binary name of the tracked type the chain starts from: of what its
+   *     innermost call is made on, or of the object a constructor call makes
    */
   public record Invocation(
-      EntityId caller,
-      EntityId callee,
-      String type,
-      String method,
-      Value receiver,
-      List<Value> arguments,
-      Location where) {
-
-    public Invocation {
-      arguments = List.copyOf(arguments);
-    }
-
-    /** The callee's parameter types as its ID gives them, or null if it does not resolve. */
-    public List<String> parameterTypes() {
-      if (callee == null) {
-        return null;
-      }
-      String key = callee.key();
-      String list = key.substring(key.indexOf('(') + 1, key.length() - 1);
-      return list.isEmpty() ? List.of() : List.of(list.split(","));
-    }
-  }
+      EntityId caller, Expression.Invoke expression, Location where, String rootType) {}
 
   /**
-   * What an expression in code is, as far as following a value needs: a constant, a field or
-   * parameter read, the result of another invocation, or something else.
-   */
-  public sealed interface Value {}
-
-  /**
-   * A constant expression, folded as javac folds it: a string or number as Java prints it, an enum
-   * constant by name.
-   */
-  public record Constant(String value) implements Value {}
-
-  /** A read of a field that is not a constant, by its {@code field:} entity. */
-  public record FieldRead(EntityId field) implements Value {}
-
-  /** A read of a parameter of the method or constructor the code is in. */
-  public record ParameterRead(int index, String name) implements Value {}
-
-  /** The value another invocation returns, or the object a creation makes. */
-  public record Result(Invocation invocation) implements Value {}
-
-  /** Anything else: a local variable, a lambda, an expression that is not a constant. */
-  public record Other() implements Value {}
-
-  /**
-   * An assignment to a field of the type the code is in ({@code this.topic = topic}), or a field's
-   * initializer.
+   * A value given to a {@code String} field or a field of a tracked API's type ({@link
+   * TrackedApis}) of a named type: its initializer, or an assignment to it in a constructor or
+   * initializer block of its type.
    *
-   * @param in the method or constructor assigning it, or the type for an initializer
    * @param field the field
-   * @param value what is assigned
-   * @param where the assignment
+   * @param in the constructor the assignment is in, or the type for an initializer; a {@link
+   *     Expression.Param} in the value is that constructor's parameter
+   * @param value the value
+   * @param where the initializer or assignment
    */
-  public record Assignment(EntityId in, EntityId field, Value value, Location where) {}
+  public record Assignment(EntityId field, EntityId in, Expression value, Location where) {}
 
   final List<TypeDecl> types = new ArrayList<>();
   final List<Call> calls = new ArrayList<>();
@@ -308,16 +258,12 @@ public final class ModuleStructure {
     return Collections.unmodifiableList(calls);
   }
 
-  /**
-   * The calls and object creations, in the order read, including those whose callee does not
-   * resolve. An invocation nested in another's receiver or arguments is listed too, as the same
-   * object.
-   */
+  /** The calls on tracked APIs, in the order read. */
   public List<Invocation> invocations() {
     return Collections.unmodifiableList(invocations);
   }
 
-  /** The assignments to fields and the fields' initializers, in the order read. */
+  /** The values given to fields, in the order read. */
   public List<Assignment> assignments() {
     return Collections.unmodifiableList(assignments);
   }

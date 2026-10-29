@@ -50,6 +50,12 @@ public class RabbitConfig {
   }
 
   @Bean
+  Binding exchangeToExchange() {
+    return new Binding(
+        "downstream", Binding.DestinationType.EXCHANGE, "shop.orders", "order.#", null);
+  }
+
+  @Bean
   Binding legacyBinding() {
     return new Binding("legacy.queue", Binding.DestinationType.QUEUE, "legacy", "legacy.key", null);
   }

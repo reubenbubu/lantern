@@ -9,23 +9,18 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.RepoBuild;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.config.ModuleConfig;
-import io.lantern.extract.config.Resolution;
+import io.lantern.extract.config.CodeConfig;
+import io.lantern.extract.config.CodeConfig.CodeValue;
+import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.java.ModuleStructure;
 import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Assignment;
-import io.lantern.extract.java.ModuleStructure.Constant;
-import io.lantern.extract.java.ModuleStructure.FieldRead;
 import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
-import io.lantern.extract.java.ModuleStructure.ParameterRead;
-import io.lantern.extract.java.ModuleStructure.Result;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
-import io.lantern.extract.java.ModuleStructure.Value;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -33,8 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -43,6 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Function;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -244,14 +238,28 @@ public final class MessagingExtractor {
       all.add(id.toString());
       return new Text(written, placeholders, all);
     }
+
+    static Text concat(List<Text> parts) {
+      StringBuilder written = new StringBuilder();
+      boolean placeholders = false;
+      SortedSet<String> followed = new TreeSet<>();
+      for (Text t : parts) {
+        written.append(t.written());
+        placeholders |= t.placeholders();
+        followed.addAll(t.followed());
+      }
+      return new Text(written.toString(), placeholders, followed);
+    }
   }
 
   /** A queue or exchange declared in code: its name and, for an exchange, its type if known. */
   private record Declared(Text name, String exchangeType) {}
 
-  /** A value with its placeholders resolved in one view, as it may be recorded. */
-  private record Resolved(
-      String value, String written, SortedSet<String> unresolved, boolean masked) {}
+  /**
+   * What one view of a fact holds before its values are resolved: the object, the attributes
+   * resolved like it, by name, and the attributes that are not values.
+   */
+  private record Shape(Text object, Map<String, Text> named, ObjectNode attributes) {}
 
   /** One extraction: the facts so far, the code indexed, and the config of each repository. */
   private static final class Run {
@@ -259,15 +267,14 @@ public final class MessagingExtractor {
     private final JavaAnalysis code;
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
-    private final Map<RepoBuild, List<ModuleConfig>> configs = new HashMap<>();
+    private final CodeConfig configs = new CodeConfig();
     private final Map<EntityId, Member> members = new HashMap<>();
     private final Map<EntityId, List<Assignment>> assignments = new HashMap<>();
     private final Map<EntityId, List<Invocation>> invocationsByCaller = new HashMap<>();
 
     private JavaAnalysis.Module module;
-    private ModuleConfig config;
+    private CodeConfig.View config;
     private Map<String, EntityId> beans;
-    private Map<Invocation, List<Invocation>> users;
 
     Run(JavaAnalysis code, Validity validity) {
       this.code = code;
@@ -289,20 +296,14 @@ public final class MessagingExtractor {
 
     void module(JavaAnalysis.Module m) {
       this.module = m;
-      this.config = config(m);
+      this.config = configs.forModule(m.repo(), m.directory());
       this.beans = new HashMap<>();
-      this.users = new IdentityHashMap<>();
       for (TypeDecl type : m.structure().types()) {
         for (Member member : type.members()) {
           String bean = beanName(member);
           if (bean != null) {
             beans.putIfAbsent(bean, member.id());
           }
-        }
-      }
-      for (Invocation i : m.structure().invocations()) {
-        if (i.receiver() instanceof Result r) {
-          users.computeIfAbsent(r.invocation(), k -> new ArrayList<>()).add(i);
         }
       }
       for (TypeDecl type : m.structure().types()) {
@@ -316,31 +317,17 @@ public final class MessagingExtractor {
       }
     }
 
-    /**
-     * The config that applies to a module's code: its own, or if it has none (a library), that of
-     * the one module of the repository that has config, if there is exactly one (as ADR 0035).
-     */
-    private ModuleConfig config(JavaAnalysis.Module m) {
-      List<ModuleConfig> all = configs.computeIfAbsent(m.repo(), ConfigExtractor::read);
-      for (ModuleConfig c : all) {
-        if (c.directory().equals(m.directory())) {
-          return c;
-        }
-      }
-      return all.size() == 1 ? all.getFirst() : null;
-    }
-
     // -------------------------------------------------------------------------------------------
     // Listeners
 
     private void listeners(TypeDecl type) {
       for (Map.Entry<String, String> handler : HANDLERS.entrySet()) {
-        List<Annotation> onClass = first(type.annotations(), handler.getKey());
+        List<Annotation> onClass = code.annotationPath(type.annotations(), handler.getKey());
         if (onClass == null) {
           continue;
         }
         for (Member m : type.members()) {
-          if (isMethod(m) && first(m.annotations(), handler.getValue()) != null) {
+          if (isMethod(m) && code.annotationPath(m.annotations(), handler.getValue()) != null) {
             listener(m, onClass);
           }
         }
@@ -349,37 +336,25 @@ public final class MessagingExtractor {
         if (!isMethod(m)) {
           continue;
         }
-        boolean listens = false;
         for (Annotation a : m.annotations()) {
           for (String listener : LISTENERS.keySet()) {
-            List<Annotation> path = find(a, listener, new HashSet<>());
+            List<Annotation> path = code.annotationPath(a, listener);
             if (path != null) {
               listener(m, path);
-              listens = true;
             }
           }
         }
-        if (listens || hasHandler(type, m)) {
-          sendTo(m, type);
+        String broker = listenerBroker(m, type);
+        if (broker != null) {
+          sendTo(m, type, broker);
         }
       }
-    }
-
-    private boolean hasHandler(TypeDecl type, Member m) {
-      for (Map.Entry<String, String> handler : HANDLERS.entrySet()) {
-        if (first(type.annotations(), handler.getKey()) != null
-            && first(m.annotations(), handler.getValue()) != null) {
-          return true;
-        }
-      }
-      return false;
     }
 
     /** The facts of one listener annotation: the path from the one written to the listener. */
     private void listener(Member method, List<Annotation> path) {
       Annotation written = path.getFirst();
-      String type = path.getLast().type();
-      String broker = LISTENERS.get(type);
+      String broker = LISTENERS.get(path.getLast().type());
       ObjectNode attributes = FactJson.newObject();
       attributes.put("broker", broker);
       attributes.put("annotation", written.type());
@@ -444,22 +419,28 @@ public final class MessagingExtractor {
         Member method, Annotation binding, ObjectNode common, Location where) {
       List<Annotation> queues = binding.nested("value");
       List<Annotation> exchanges = binding.nested("exchange");
-      if (queues.isEmpty() || exchanges.isEmpty()) {
+      if (queues.isEmpty()) {
         return;
       }
       String queue = firstOf(queues.getFirst(), "name", "value");
-      String exchange = firstOf(exchanges.getFirst(), "name", "value");
       if (queue == null) {
         return;
       }
       listen(method, Text.annotated(queue), "queue", null, common, where);
+      if (exchanges.isEmpty()) {
+        return;
+      }
+      Annotation written = exchanges.getFirst();
+      String exchange = firstOf(written, "name", "value");
       if (exchange == null) {
         return;
       }
-      String exchangeType = firstOf(exchanges.getFirst(), "type");
-      // @Exchange's type defaults to direct.
-      Declared declared =
-          new Declared(Text.annotated(exchange), exchangeType == null ? "direct" : exchangeType);
+      // @Exchange's type defaults to direct; one written that could not be folded is not known.
+      String exchangeType =
+          !written.values().containsKey("type")
+              ? "direct"
+              : written.values("type").isEmpty() ? null : written.values("type").getFirst();
+      Declared declared = new Declared(Text.annotated(exchange), exchangeType);
       List<String> keys = binding.values("key");
       if (keys.isEmpty()) {
         bindingFact(method.id(), Text.annotated(queue), declared, null, where);
@@ -473,16 +454,12 @@ public final class MessagingExtractor {
      * A listener's reply, {@code @SendTo}: to a Kafka topic or JMS destination, or to a RabbitMQ
      * {@code exchange/routingKey}.
      */
-    private void sendTo(Member method, TypeDecl type) {
-      List<Annotation> path = first(method.annotations(), SEND_TO);
+    private void sendTo(Member method, TypeDecl type, String broker) {
+      List<Annotation> path = code.annotationPath(method.annotations(), SEND_TO);
       if (path == null) {
-        path = first(type.annotations(), SEND_TO);
+        path = code.annotationPath(type.annotations(), SEND_TO);
       }
       if (path == null) {
-        return;
-      }
-      String broker = listenerBroker(method, type);
-      if (broker == null) {
         return;
       }
       Annotation written = path.getFirst();
@@ -502,26 +479,29 @@ public final class MessagingExtractor {
         int slash = to.indexOf('/');
         String exchange = slash < 0 ? "" : to.substring(0, slash);
         String key = slash < 0 ? to : to.substring(slash + 1);
-        sendToExchange(
+        rabbitSend(
             method.id(),
             Text.annotated(exchange),
             key.isEmpty() ? null : Text.annotated(key),
+            false,
             attributes,
             where);
       }
     }
 
+    /** The broker of the listener a method is, or null if it is none. */
     private String listenerBroker(Member method, TypeDecl type) {
       for (Annotation a : method.annotations()) {
         for (String listener : LISTENERS.keySet()) {
-          if (find(a, listener, new HashSet<>()) != null) {
+          if (code.annotationPath(a, listener) != null) {
             return LISTENERS.get(listener);
           }
         }
       }
-      for (String listener : HANDLERS.keySet()) {
-        if (first(type.annotations(), listener) != null) {
-          return LISTENERS.get(listener);
+      for (Map.Entry<String, String> handler : HANDLERS.entrySet()) {
+        if (code.annotationPath(type.annotations(), handler.getKey()) != null
+            && code.annotationPath(method.annotations(), handler.getValue()) != null) {
+          return LISTENERS.get(handler.getKey());
         }
       }
       return null;
@@ -530,51 +510,55 @@ public final class MessagingExtractor {
     // -------------------------------------------------------------------------------------------
     // Sends
 
+    /** A send at the start of a chain on a template or producer ({@code send(...).get()}). */
     private void send(Invocation i) {
-      String type = i.type();
-      if (type == null || i.arguments().isEmpty()) {
+      String type = i.rootType();
+      Expression.Invoke call = i.expression().chain().getFirst();
+      List<Expression> arguments = call.arguments();
+      if (type == null || arguments.isEmpty() || call.receiver() == null) {
         return;
       }
-      List<String> parameters = i.parameterTypes();
-      Value first = i.arguments().getFirst();
+      List<String> parameters = call.parameterTypes();
+      boolean typed = !parameters.isEmpty();
+      Expression first = arguments.getFirst();
+      EntityId caller = i.caller();
       ObjectNode attributes = FactJson.newObject();
       attributes.put("template", type);
-      attributes.put("method", i.method());
-      boolean kafkaTemplate = KAFKA_TEMPLATES.contains(type) && i.method().equals("send");
-      if (kafkaTemplate || (KAFKA_PRODUCERS.contains(type) && i.method().equals("send"))) {
+      attributes.put("method", call.method());
+      boolean kafkaTemplate = KAFKA_TEMPLATES.contains(type) && call.method().equals("send");
+      if (kafkaTemplate || (KAFKA_PRODUCERS.contains(type) && call.method().equals("send"))) {
         attributes.put("broker", KAFKA);
         attributes.put("destinationKind", "topic");
         Text topic = null;
-        if (first instanceof Result r
-            && PRODUCER_RECORD.equals(r.invocation().type())
-            && r.invocation().method().equals(ModuleStructure.CONSTRUCTOR)
-            && !r.invocation().arguments().isEmpty()) {
-          topic = text(r.invocation().arguments().getFirst(), r.invocation().caller());
+        if (first instanceof Expression.Invoke record
+            && record.receiver() instanceof Expression.TypeRef t
+            && t.binaryName().equals(PRODUCER_RECORD)
+            && record.method().equals(ModuleStructure.CONSTRUCTOR)
+            && !record.arguments().isEmpty()) {
+          topic = text(record.arguments().getFirst(), caller);
         } else if (kafkaTemplate
-            && (parameters != null
-                ? parameters.getFirst().equals(STRING)
-                : i.arguments().size() >= 2)) {
-          topic = text(first, i.caller());
+            && (typed ? parameters.getFirst().equals(STRING) : arguments.size() >= 2)) {
+          topic = text(first, caller);
         }
         if (topic != null) {
-          emit(i.caller(), SEND, topic, Map.of(), attributes, i.where());
+          emit(caller, SEND, topic, Map.of(), attributes, i.where());
         }
         return;
       }
-      if (JMS_TEMPLATES.contains(type) && JMS_METHODS.contains(i.method())) {
-        boolean named =
-            parameters != null ? parameters.getFirst().equals(STRING) : i.arguments().size() >= 2;
-        Text destination = named ? text(first, i.caller()) : null;
+      if (JMS_TEMPLATES.contains(type) && JMS_METHODS.contains(call.method())) {
+        boolean named = typed ? parameters.getFirst().equals(STRING) : arguments.size() >= 2;
+        Text destination = named ? text(first, caller) : null;
         if (destination != null) {
           attributes.put("broker", JMS);
           attributes.put("destinationKind", "destination");
-          emit(i.caller(), SEND, destination, Map.of(), attributes, i.where());
+          emit(caller, SEND, destination, Map.of(), attributes, i.where());
         }
         return;
       }
-      if (RABBIT_TEMPLATES.contains(type) && RABBIT_METHODS.contains(i.method())) {
+      if (RABBIT_TEMPLATES.contains(type) && RABBIT_METHODS.contains(call.method())) {
+        // Leading String parameters name the exchange and routing key, or the routing key alone.
         int names;
-        if (parameters != null) {
+        if (typed) {
           names = 0;
           while (names < 2
               && names < parameters.size() - 1
@@ -582,111 +566,124 @@ public final class MessagingExtractor {
             names++;
           }
         } else {
-          names = Math.min(2, i.arguments().size() - 1);
+          names = Math.min(2, arguments.size() - 1);
         }
         attributes.put("broker", RABBITMQ);
         if (names == 1) {
-          // The default exchange routes to the queue the routing key names.
-          sendToExchange(
-              i.caller(), Text.literal(""), text(first, i.caller()), attributes, i.where());
+          rabbitSend(caller, Text.literal(""), text(first, caller), false, attributes, i.where());
         } else if (names == 2) {
-          Text key = text(i.arguments().get(1), i.caller());
-          if (key == null && parameters == null) {
-            // Without types, (routing key, message, post-processor) cannot be told apart.
-            return;
-          }
-          sendToExchange(i.caller(), text(first, i.caller()), key, attributes, i.where());
+          Text key = text(arguments.get(1), caller);
+          // Without types, (routing key, message, post-processor) reads as (exchange, key,
+          // message): the key is then marked unknown rather than the send dropped.
+          rabbitSend(caller, text(first, caller), key, key == null, attributes, i.where());
         }
       }
     }
 
-    /** A RabbitMQ send: to the exchange with the routing key, or to a queue by default. */
-    private void sendToExchange(
-        EntityId subject, Text exchange, Text key, ObjectNode common, Location where) {
+    /**
+     * A RabbitMQ send: to the exchange with the routing key, or, in a view where the exchange is
+     * the default one ({@code ""}), to the queue the routing key names, as the broker routes it.
+     */
+    private void rabbitSend(
+        EntityId subject,
+        Text exchange,
+        Text key,
+        boolean keyUnknown,
+        ObjectNode common,
+        Location where) {
       if (exchange == null) {
         return;
       }
-      ObjectNode attributes = common.deepCopy();
-      if (exchange.written().isEmpty() && !exchange.placeholders()) {
-        if (key == null) {
-          return;
-        }
-        attributes.put("destinationKind", "queue");
-        emit(subject, SEND, key, Map.of(), attributes, where);
-        return;
-      }
-      attributes.put("destinationKind", "exchange");
-      Map<String, Text> named = new LinkedHashMap<>();
-      if (key != null) {
-        named.put("routingKey", key);
-      }
-      emit(subject, SEND, exchange, named, attributes, where);
+      emitViews(
+          subject,
+          SEND,
+          where,
+          profile -> {
+            CodeValue resolved = resolve(profile, exchange);
+            ObjectNode attributes = common.deepCopy();
+            if (!resolved.masked() && resolved.value().isEmpty()) {
+              if (key == null) {
+                return null;
+              }
+              attributes.put("destinationKind", "queue");
+              return new Shape(key, Map.of(), attributes);
+            }
+            attributes.put("destinationKind", "exchange");
+            Map<String, Text> named = new LinkedHashMap<>();
+            if (key != null) {
+              named.put("routingKey", key);
+            } else if (keyUnknown) {
+              attributes.putArray("unknown").add("routingKey");
+            }
+            return new Shape(exchange, named, attributes);
+          });
     }
 
     // -------------------------------------------------------------------------------------------
     // Bindings
 
     private void binding(Invocation i) {
-      if (BINDING_CLASS.equals(i.type())
-          && i.method().equals(ModuleStructure.CONSTRUCTOR)
-          && i.arguments().size() >= 4) {
+      List<Expression.Invoke> chain = i.expression().chain();
+      Expression.Invoke first = chain.getFirst();
+      EntityId caller = i.caller();
+      if (BINDING_CLASS.equals(i.rootType())
+          && first.method().equals(ModuleStructure.CONSTRUCTOR)
+          && first.arguments().size() >= 4) {
         // new Binding(destination, destinationType, exchange, routingKey, arguments)
-        if (i.arguments().get(1) instanceof Constant c && c.value().equals("EXCHANGE")) {
+        if (isExchangeDestination(first.arguments().get(1))) {
           return;
         }
-        Text queue = text(i.arguments().getFirst(), i.caller());
-        Text exchange = text(i.arguments().get(2), i.caller());
+        Text queue = text(first.arguments().getFirst(), caller);
+        Text exchange = text(first.arguments().get(2), caller);
         if (queue != null && exchange != null) {
           bindingFact(
-              i.caller(),
+              caller,
               queue,
               new Declared(exchange, null),
-              text(i.arguments().get(3), i.caller()),
+              text(first.arguments().get(3), caller),
               i.where());
         }
         return;
       }
-      if (!BINDING_BUILDER.equals(i.type())
-          || !i.method().equals("bind")
-          || i.arguments().size() != 1) {
+      if (!BINDING_BUILDER.equals(i.rootType())
+          || !first.method().equals("bind")
+          || first.arguments().size() != 1
+          || chain.size() < 2
+          || !chain.get(1).method().equals("to")
+          || chain.get(1).arguments().size() != 1) {
         return;
       }
-      Declared queue = declared(i.arguments().getFirst(), i.caller(), false, 0);
-      if (queue == null) {
+      Declared queue = declared(first.arguments().getFirst(), caller, false, 0);
+      Expression.Invoke to = chain.get(1);
+      Declared exchange = declared(to.arguments().getFirst(), caller, true, 0);
+      if (queue == null || exchange == null) {
         return;
       }
-      for (Invocation to : users.getOrDefault(i, List.of())) {
-        if (!to.method().equals("to") || to.arguments().size() != 1) {
-          continue;
-        }
-        Declared exchange = declared(to.arguments().getFirst(), to.caller(), true, 0);
-        if (exchange == null) {
-          continue;
-        }
-        if (exchange.exchangeType() == null && to.parameterTypes() != null) {
-          String type = EXCHANGES.get(to.parameterTypes().getFirst());
-          exchange = new Declared(exchange.name(), type);
-        }
-        boolean keyed = false;
-        for (Invocation with : users.getOrDefault(to, List.of())) {
-          Text key =
-              switch (with.method()) {
-                case "with" ->
-                    with.arguments().size() == 1
-                        ? text(with.arguments().getFirst(), with.caller())
-                        : null;
-                case "withQueueName" -> queue.name();
-                default -> null;
-              };
-          if (key != null) {
-            bindingFact(with.caller(), queue.name(), exchange, key, with.where());
-            keyed = true;
-          }
-        }
-        if (!keyed) {
-          bindingFact(to.caller(), queue.name(), exchange, null, to.where());
-        }
+      if (exchange.exchangeType() == null && !to.parameterTypes().isEmpty()) {
+        exchange = new Declared(exchange.name(), EXCHANGES.get(to.parameterTypes().getFirst()));
       }
+      Text key = null;
+      if (chain.size() > 2) {
+        Expression.Invoke with = chain.get(2);
+        key =
+            switch (with.method()) {
+              case "with" ->
+                  with.arguments().size() == 1 ? text(with.arguments().getFirst(), caller) : null;
+              case "withQueueName" -> queue.name();
+              default -> null;
+            };
+      }
+      bindingFact(caller, queue.name(), exchange, key, i.where());
+    }
+
+    /** Whether a binding's destination type is {@code EXCHANGE}, named by its constant. */
+    private static boolean isExchangeDestination(Expression e) {
+      return switch (e) {
+        case Expression.FieldRef f -> f.name().equals("EXCHANGE");
+        case Expression.Literal l -> l.value().equals("EXCHANGE");
+        case Expression.Unknown u -> u.source().endsWith("EXCHANGE");
+        default -> false;
+      };
     }
 
     private void bindingFact(
@@ -710,36 +707,36 @@ public final class MessagingExtractor {
      * The queue or exchange a value is: created where it is used, returned by a {@code @Bean}
      * method it calls, the bean a {@code @Bean} method's parameter names, or a field's initializer.
      */
-    private Declared declared(Value v, EntityId context, boolean exchange, int depth) {
+    private Declared declared(Expression e, EntityId context, boolean exchange, int depth) {
       if (depth > MAX_DEPTH) {
         return null;
       }
-      switch (v) {
-        case Result r -> {
-          Declared d = declaration(r.invocation(), exchange, depth);
+      switch (e) {
+        case Expression.Invoke call -> {
+          Declared d = declaration(call, context, exchange);
           if (d != null) {
             return d;
           }
-          Invocation call = r.invocation();
           if (call.receiver() == null) {
-            EntityId target = call.callee() != null ? call.callee() : ownMethod(call);
-            if (target != null && members.containsKey(target)) {
+            EntityId target = ownMethod(context, call.method(), call.arguments().size());
+            if (target != null) {
               return declaredIn(target, exchange, depth + 1);
             }
           }
           return null;
         }
-        case ParameterRead p -> {
-          EntityId bean = beans.get(p.name());
-          if (bean != null && !bean.equals(context)) {
-            return declaredIn(bean, exchange, depth + 1);
-          }
-          return null;
+        case Expression.Param p -> {
+          ModuleStructure.Parameter parameter = parameter(context, p.index());
+          EntityId bean = parameter == null ? null : beans.get(parameter.name());
+          return bean != null && !bean.equals(context)
+              ? declaredIn(bean, exchange, depth + 1)
+              : null;
         }
-        case FieldRead f -> {
-          List<Assignment> found = assignments.getOrDefault(f.field(), List.of());
-          return found.size() == 1
-              ? declared(found.getFirst().value(), found.getFirst().in(), exchange, depth + 1)
+        case Expression.FieldRef f -> {
+          EntityId id = fieldId(f);
+          List<Assignment> given = id == null ? List.of() : assignments.getOrDefault(id, List.of());
+          return given.size() == 1
+              ? declared(given.getFirst().value(), given.getFirst().in(), exchange, depth + 1)
               : null;
         }
         default -> {
@@ -748,12 +745,58 @@ public final class MessagingExtractor {
       }
     }
 
+    /** The one queue or exchange a method declares, or null if none or several. */
+    private Declared declaredIn(EntityId method, boolean exchange, int depth) {
+      Set<Declared> found = new LinkedHashSet<>();
+      for (Invocation i : invocationsByCaller.getOrDefault(method, List.of())) {
+        Declared d = declaration(i.expression(), method, exchange);
+        if (d != null) {
+          found.add(d);
+        }
+      }
+      return found.size() == 1 ? found.iterator().next() : null;
+    }
+
     /**
-     * The method of the caller's own type an unqualified call that did not resolve (degraded mode)
-     * names: the one with that name and number of parameters, or null.
+     * The queue or exchange a chain creates: a constructor, or a builder's factory method and the
+     * builder's further calls on what it made ({@code durable(true)}, {@code build()}).
      */
-    private EntityId ownMethod(Invocation call) {
-      String key = call.caller().key();
+    private Declared declaration(Expression.Invoke call, EntityId context, boolean exchange) {
+      Expression.Invoke first = call.chain().getFirst();
+      if (!(first.receiver() instanceof Expression.TypeRef t) || first.arguments().isEmpty()) {
+        return null;
+      }
+      String type = t.binaryName();
+      String method = first.method();
+      boolean creation = method.equals(ModuleStructure.CONSTRUCTOR);
+      if (!exchange) {
+        boolean queue =
+            (QUEUE.equals(type) && creation)
+                || (QUEUE_BUILDER.equals(type)
+                    && (method.equals("durable") || method.equals("nonDurable")));
+        return queue ? named(first, context, null) : null;
+      }
+      if (creation && EXCHANGES.containsKey(type)) {
+        return named(first, context, EXCHANGES.get(type));
+      }
+      if ((AMQP + "CustomExchange").equals(type) && creation && first.arguments().size() >= 2) {
+        String kind = first.arguments().get(1) instanceof Expression.Literal l ? l.value() : null;
+        return named(first, context, kind);
+      }
+      if (EXCHANGE_BUILDER.equals(type) && EXCHANGE_FACTORIES.containsKey(method)) {
+        return named(first, context, EXCHANGE_FACTORIES.get(method));
+      }
+      return null;
+    }
+
+    private Declared named(Expression.Invoke call, EntityId context, String exchangeType) {
+      Text name = text(call.arguments().getFirst(), context);
+      return name == null ? null : new Declared(name, exchangeType);
+    }
+
+    /** The method of the caller's own type with that name and number of parameters, or null. */
+    private EntityId ownMethod(EntityId caller, String name, int parameters) {
+      String key = caller.key();
       int hash = key.indexOf('#');
       TypeDecl type = code.type(hash < 0 ? key : key.substring(0, hash));
       if (type == null) {
@@ -763,8 +806,8 @@ public final class MessagingExtractor {
       for (Member m : type.members()) {
         String id = m.id().key();
         if (isMethod(m)
-            && id.substring(id.indexOf('#') + 1, id.indexOf('(')).equals(call.method())
-            && m.parameters().size() == call.arguments().size()) {
+            && id.substring(id.indexOf('#') + 1, id.indexOf('(')).equals(name)
+            && parameterCount(m.id()) == parameters) {
           if (found != null) {
             return null;
           }
@@ -774,91 +817,52 @@ public final class MessagingExtractor {
       return found;
     }
 
-    /** The one queue or exchange a method declares, or null if none or several. */
-    private Declared declaredIn(EntityId method, boolean exchange, int depth) {
-      Set<Declared> found = new LinkedHashSet<>();
-      for (Invocation i : invocationsByCaller.getOrDefault(method, List.of())) {
-        Declared d = declaration(i, exchange, depth);
-        if (d != null) {
-          found.add(d);
-        }
-      }
-      return found.size() == 1 ? found.iterator().next() : null;
-    }
-
-    /** The queue or exchange an invocation creates, directly or through a builder chain. */
-    private Declared declaration(Invocation i, boolean exchange, int depth) {
-      if (depth > MAX_DEPTH) {
-        return null;
-      }
-      String type = i.type();
-      boolean creation = i.method().equals(ModuleStructure.CONSTRUCTOR);
-      if (!exchange) {
-        if (QUEUE.equals(type) && creation && !i.arguments().isEmpty()) {
-          return named(i, 0, null);
-        }
-        if (QUEUE_BUILDER.equals(type)
-            && (i.method().equals("durable") || i.method().equals("nonDurable"))
-            && i.arguments().size() == 1) {
-          return named(i, 0, null);
-        }
-      } else {
-        if (creation && EXCHANGES.containsKey(type) && !i.arguments().isEmpty()) {
-          return named(i, 0, EXCHANGES.get(type));
-        }
-        if ((AMQP + "CustomExchange").equals(type) && creation && i.arguments().size() >= 2) {
-          String kind = i.arguments().get(1) instanceof Constant c ? c.value() : null;
-          return named(i, 0, kind);
-        }
-        if (EXCHANGE_BUILDER.equals(type)
-            && EXCHANGE_FACTORIES.containsKey(i.method())
-            && i.arguments().size() == 1) {
-          return named(i, 0, EXCHANGE_FACTORIES.get(i.method()));
-        }
-      }
-      // A builder's further calls (durable(true), build()) on what a factory method made.
-      if ((type == null || type.startsWith(AMQP)) && i.receiver() instanceof Result r) {
-        return declaration(r.invocation(), exchange, depth + 1);
-      }
-      return null;
-    }
-
-    private Declared named(Invocation i, int argument, String exchangeType) {
-      Text name = text(i.arguments().get(argument), i.caller());
-      return name == null ? null : new Declared(name, exchangeType);
-    }
-
     // -------------------------------------------------------------------------------------------
     // Following values
 
     /**
      * What a value in code is, as a text: a constant as it is, or followed one hop from a field or
-     * parameter with {@code @Value}, or a field assigned once from a constant or such a parameter.
-     * Null if it cannot be told.
+     * parameter with {@code @Value}, or a field given everywhere the same constant or
+     * {@code @Value} constructor parameter, and concatenations of those. Null if it cannot be told.
      */
-    private Text text(Value v, EntityId context) {
-      return switch (v) {
-        case Constant c -> Text.literal(c.value());
-        case FieldRead f -> field(f.field());
-        case ParameterRead p -> parameter(context, p.index());
+    private Text text(Expression e, EntityId context) {
+      return switch (e) {
+        case Expression.Literal l -> Text.literal(l.value());
+        case Expression.FieldRef f -> field(f);
+        case Expression.Param p -> parameter(context, p.index(), context);
+        case Expression.Concat c -> {
+          List<Text> parts = new ArrayList<>();
+          for (Expression part : c.parts()) {
+            Text t = text(part, context);
+            if (t == null) {
+              yield null;
+            }
+            parts.add(t);
+          }
+          yield Text.concat(parts);
+        }
         default -> null;
       };
     }
 
-    private Text field(EntityId field) {
-      Member m = members.get(field);
+    private Text field(Expression.FieldRef f) {
+      EntityId id = fieldId(f);
+      if (id == null) {
+        return null;
+      }
+      Member m = members.get(id);
       if (m != null) {
         String value = valueAnnotation(m.annotations());
         if (value != null) {
-          return Text.annotated(value).via(field);
+          return Text.annotated(value).via(id);
         }
       }
       Set<Text> found = new LinkedHashSet<>();
-      for (Assignment a : assignments.getOrDefault(field, List.of())) {
+      for (Assignment a : assignments.getOrDefault(id, List.of())) {
         Text t =
             switch (a.value()) {
-              case Constant c -> Text.literal(c.value());
-              case ParameterRead p -> parameter(a.in(), p.index());
+              case Expression.Literal l -> Text.literal(l.value());
+              case Expression.Param p -> parameter(a.in(), p.index(), a.in());
               default -> null;
             };
         if (t == null) {
@@ -866,24 +870,23 @@ public final class MessagingExtractor {
         }
         found.add(t);
       }
-      return found.size() == 1 ? found.iterator().next().via(field) : null;
+      return found.size() == 1 ? found.iterator().next().via(id) : null;
     }
 
-    /** A parameter with {@code @Value}, or the one parameter of a method with it (a setter). */
-    private Text parameter(EntityId method, int index) {
+    /** A parameter with {@code @Value}, followed through the method it belongs to. */
+    private Text parameter(EntityId method, int index, EntityId via) {
+      ModuleStructure.Parameter p = parameter(method, index);
+      String value = p == null ? null : valueAnnotation(p.annotations());
+      return value == null ? null : Text.annotated(value).via(via);
+    }
+
+    private ModuleStructure.Parameter parameter(EntityId method, int index) {
       Member m = members.get(method);
-      if (m == null || index >= m.parameters().size()) {
-        return null;
-      }
-      String value = valueAnnotation(m.parameters().get(index).annotations());
-      if (value == null && m.parameters().size() == 1) {
-        value = valueAnnotation(m.annotations());
-      }
-      return value == null ? null : Text.annotated(value).via(method);
+      return m == null || index >= m.parameters().size() ? null : m.parameters().get(index);
     }
 
     private String valueAnnotation(List<Annotation> annotations) {
-      List<Annotation> path = first(annotations, VALUE_ANNOTATION);
+      List<Annotation> path = code.annotationPath(annotations, VALUE_ANNOTATION);
       if (path == null) {
         return null;
       }
@@ -910,40 +913,6 @@ public final class MessagingExtractor {
 
     // -------------------------------------------------------------------------------------------
     // Annotations
-
-    /**
-     * The first annotation written that is, or carries through meta-annotations, the given type:
-     * the path from the one written to the one found, or null.
-     */
-    private List<Annotation> first(List<Annotation> annotations, String type) {
-      for (Annotation a : annotations) {
-        List<Annotation> path = find(a, type, new HashSet<>());
-        if (path != null) {
-          return path;
-        }
-      }
-      return null;
-    }
-
-    /** The path from an annotation to one of the given type among its meta-annotations, or null. */
-    private List<Annotation> find(Annotation a, String type, Set<String> seen) {
-      if (a.type().equals(type)) {
-        return List.of(a);
-      }
-      if (!seen.add(a.type())) {
-        return null;
-      }
-      for (Annotation meta : code.metaAnnotations(a.type())) {
-        List<Annotation> path = find(meta, type, seen);
-        if (path != null) {
-          List<Annotation> full = new ArrayList<>();
-          full.add(a);
-          full.addAll(path);
-          return full;
-        }
-      }
-      return null;
-    }
 
     /** An element's values: from the nearest annotation along the path that sets it. */
     private static List<String> element(List<Annotation> path, String name) {
@@ -979,71 +948,73 @@ public final class MessagingExtractor {
           && !m.id().key().contains("#" + ModuleStructure.CONSTRUCTOR + "(");
     }
 
+    private static int parameterCount(EntityId method) {
+      String key = method.key();
+      String list = key.substring(key.indexOf('(') + 1, key.length() - 1);
+      return list.isEmpty() ? 0 : list.split(",").length;
+    }
+
+    private static EntityId fieldId(Expression.FieldRef f) {
+      try {
+        return new EntityId(ModuleStructure.FIELD, f.owner() + "#" + f.name());
+      } catch (IllegalArgumentException e) {
+        return null;
+      }
+    }
+
     // -------------------------------------------------------------------------------------------
     // Values and facts
 
-    /** The views to resolve placeholders in: the default view (null), then each profile. */
-    private List<String> views() {
-      List<String> views = new ArrayList<>();
-      views.add(null);
-      if (config != null) {
-        views.addAll(config.profiles());
-      }
-      return views;
-    }
-
-    private Resolved resolve(String profile, Text text) {
+    private CodeValue resolve(String profile, Text text) {
       if (!text.placeholders()) {
-        return new Resolved(text.written(), text.written(), new TreeSet<>(), false);
+        return new CodeValue(text.written(), text.written(), new TreeSet<>(), false);
       }
-      Resolution r =
-          config == null
-              ? ConfigExtractor.resolveWithoutConfig(text.written())
-              : config.resolve(profile, text.written());
-      if (r.used().stream().anyMatch(ConfigExtractor::isSecret)) {
-        return new Resolved(text.written(), text.written(), new TreeSet<>(), true);
-      }
-      return new Resolved(r.value(), text.written(), new TreeSet<>(r.unresolved()), false);
+      return CodeValue.of(config.resolve(profile, text.written()), text.written());
     }
 
     /** The attributes whose value as written is recorded too, when it differs. */
     private static final Set<String> WITH_WRITTEN = Set.of("routingKey", "exchange");
 
-    /**
-     * Records a fact for the default view, and one for each profile in which a value resolves
-     * differently, with the values as resolved: the object, and the named attributes. A value a
-     * secret was substituted into is never recorded resolved: all are recorded as written instead,
-     * with {@code masked}.
-     */
     private void emit(
         EntityId subject,
         String predicate,
         Text object,
         Map<String, Text> named,
-        ObjectNode common,
+        ObjectNode attributes,
         Location where) {
-      List<Resolved> byDefault = null;
-      for (String profile : views()) {
-        List<Resolved> values = new ArrayList<>();
-        values.add(resolve(profile, object));
-        for (Text t : named.values()) {
-          values.add(resolve(profile, t));
-        }
-        if (profile == null) {
-          byDefault = values;
-        } else if (values.equals(byDefault)) {
+      Shape shape = new Shape(object, named, attributes);
+      emitViews(subject, predicate, where, profile -> shape);
+    }
+
+    /**
+     * Records a fact for the default view, and one for each profile in which it differs, with the
+     * values as resolved in that view: the object, and the named attributes. A value a secret was
+     * substituted into is never recorded resolved: all are recorded as written instead, with {@code
+     * masked}.
+     *
+     * @param shape what the fact holds in a view (null for the default view), or null for none
+     */
+    private void emitViews(
+        EntityId subject, String predicate, Location where, Function<String, Shape> shape) {
+      ObjectNode byDefault = null;
+      String defaultValue = null;
+      for (String profile : config.views()) {
+        Shape s = shape.apply(profile);
+        if (s == null) {
           continue;
         }
-        boolean masked = values.stream().anyMatch(Resolved::masked);
-        ObjectNode attributes = common.deepCopy();
-        if (profile != null) {
-          attributes.put("profile", profile);
+        List<CodeValue> values = new ArrayList<>();
+        values.add(resolve(profile, s.object()));
+        for (Text t : s.named().values()) {
+          values.add(resolve(profile, t));
         }
-        Resolved first = values.getFirst();
+        boolean masked = values.stream().anyMatch(CodeValue::masked);
+        ObjectNode attributes = s.attributes().deepCopy();
+        CodeValue first = values.getFirst();
         int i = 1;
         SortedSet<String> unresolved = new TreeSet<>(first.unresolved());
-        for (String name : named.keySet()) {
-          Resolved r = values.get(i++);
+        for (String name : s.named().keySet()) {
+          CodeValue r = values.get(i++);
           attributes.put(name, masked ? r.written() : r.value());
           if (!masked && WITH_WRITTEN.contains(name) && !r.written().equals(r.value())) {
             attributes.put(name + "Written", r.written());
@@ -1061,13 +1032,21 @@ public final class MessagingExtractor {
             unresolved.forEach(keys::add);
           }
         }
-        SortedSet<String> followed = new TreeSet<>(object.followed());
-        named.values().forEach(t -> followed.addAll(t.followed()));
+        SortedSet<String> followed = new TreeSet<>(s.object().followed());
+        s.named().values().forEach(t -> followed.addAll(t.followed()));
         if (!followed.isEmpty() && !predicate.equals(LISTENER)) {
           ArrayNode via = attributes.putArray("followed");
           followed.forEach(via::add);
         }
         String value = masked ? first.written() : first.value();
+        if (profile == null) {
+          byDefault = attributes;
+          defaultValue = value;
+        } else if (value.equals(defaultValue) && attributes.equals(byDefault)) {
+          continue;
+        } else {
+          attributes.put("profile", profile);
+        }
         if (!value.isEmpty()) {
           fact(subject, predicate, value, attributes, where);
         }

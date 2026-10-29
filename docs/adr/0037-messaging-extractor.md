@@ -16,25 +16,23 @@ which APIs count.
 
 ## Decisions
 
-- **The code reading records more.** `JavaAnalysis` (ADR 0035) now also gives, per module, every
-  call and object creation as an `Invocation`: caller, callee (when it resolves), the declaring
-  type, the method name, and what the receiver and each argument are: a constant (folded as javac
-  folds it, enum constants by name), a field read, a parameter read, the result of another
-  invocation, or something else. It also gives assignments to the code's own fields and field
-  initializers, the parameters of methods and constructors with their annotations, and
-  annotations written as annotation values (`@QueueBinding(value = @Queue(...))`). Unlike `Call`,
-  an invocation is kept when its callee does not resolve, which in degraded mode is every call
-  into a library without a jar: its declaring type is then guessed from the type the receiver is
-  declared with (a field, parameter or local variable), or the type named or created, as a
-  parameter type is guessed (ADR 0007). Facts of the Java structure and Spring extractors do not
-  change.
-- **Following values.** A value passed to a template is: a constant, used as it is (a string in
-  code is not a placeholder); a field with `@Value`, whose text is resolved; a field assigned
-  everywhere the same constant or the same `@Value` parameter (a constructor's, or a setter whose
-  method carries `@Value`); or a parameter with `@Value` of the method itself (a `@Bean` method's).
-  That is one hop. Anything else (a local variable, a getter, a parameter the caller chooses) is
-  not known, and nothing is recorded for that call. Annotation values (listener destinations,
-  `@SendTo`, `@QueueBinding`) are resolved as Spring resolves them; SpEL is kept as written.
+- **The shared code reading** (ADR 0038's `Expression` model, `TrackedApis`) is used, with the
+  messaging packages added to the tracked APIs: Spring Kafka (`org.springframework.kafka.core`),
+  Kafka's producer, Spring JMS (`org.springframework.jms.core`) and Spring AMQP
+  (`org.springframework.amqp`, templates and declarations). Three additions to it, all
+  additive: an `Invocation` names the tracked type its chain starts from; an `Invoke` carries the
+  callee's parameter types when javac resolved it (empty when parsed), so readers can tell
+  overloads apart; and annotations written as annotation values (`@QueueBinding(value =
+  @Queue(...))`) are kept, by element, instead of dropped. The parser also folds well-known
+  string constants annotations take (`ExchangeTypes.TOPIC`) by name, as it does well-known enum
+  constants.
+- **Following values.** A value passed to a template is: a literal or folded constant, used as it
+  is (a string in code is not a placeholder); a field with `@Value`, whose text is resolved; a
+  field given everywhere the same literal or the same `@Value` constructor parameter; a parameter
+  with `@Value` of the method itself (a `@Bean` method's); or a concatenation of those. That is
+  one hop. Anything else (a getter, a parameter the caller chooses) is not known. Annotation
+  values (listener destinations, `@SendTo`, `@QueueBinding`) are resolved as Spring resolves them;
+  SpEL is kept as written.
 - **Config** is chosen and applied as ADR 0035 does: the module's own config, or for a library the
   config of the one module of its repository that has config; the default view plus a fact per
   profile whose value differs, with `profile`, `written` and `unresolved`. A value a secret was
@@ -59,21 +57,26 @@ which APIs count.
     with a destination name; and the same plus `convertSendAndReceiveAsType` on `RabbitTemplate`,
     `RabbitOperations`, `AmqpTemplate` and `RabbitMessagingTemplate`. RabbitMQ's arguments are
     told apart by the callee's parameter types (leading `String`s: exchange and routing key, or a
-    routing key alone); without types (degraded mode), by their number, and a call whose second
-    argument cannot be followed is then left out, since it may be a message rather than a key. A
-    send through the default exchange (a routing key alone, or the exchange `""`) is recorded as a
-    send to the queue the key names, `destinationKind: queue`, as the broker routes it. A
+    routing key alone); without types (parsed), by their number, so three arguments read as
+    exchange, key and message. A send whose routing key cannot be followed is kept, with `unknown:
+    ["routingKey"]`, rather than dropped; parsed, this is also how `(routingKey, message,
+    postProcessor)` shows, its key then recorded as the exchange. A send through the default
+    exchange (a routing key alone, or an exchange that is `""` in a view, after placeholders are
+    resolved, such as `${app.exchange:}`) is recorded in that view as a send to the queue the key
+    names, `destinationKind: queue`, as the broker routes it. A
     listener's `@SendTo` reply is a send too (`exchange/routingKey` for RabbitMQ), with the
     annotation as `template`. `followed` lists the fields and methods a value came through.
   - `message-binding` on the method declaring it: the queue's name, with `exchange`,
     `exchangeType` when known and `routingKey` (none for fanout and headers exchanges), so the
     linker can match routing keys against `order.*` patterns. Read from `BindingBuilder.bind(q)
     .to(x).with(key)` (or `withQueueName()`, or no key), `new Binding(queue, QUEUE, exchange,
-    key, args)` and `@QueueBinding`. The queue and exchange are followed to where they are
+    key, args)` (one whose destination type is `EXCHANGE`, by its constant's name, is left out) and
+    `@QueueBinding`, whose exchange type is `direct` unless written, and not known when written but
+    not foldable. The queue and exchange are followed to where they are
     declared: created in place (`new Queue`, `QueueBuilder.durable`, `new TopicExchange` and the
     other exchange classes, `ExchangeBuilder.topicExchange` and the like, through the builder's
     further calls), returned by a `@Bean` method called directly or named by a `@Bean` method's
-    parameter, or a field's initializer. The exchange's type comes from its declaration, else from
+    parameter, or a field's single initializer. The exchange's type comes from its declaration, else from
     the `to(...)` overload called.
   - The `@Profile` gate of a producer or listener stays the Spring extractor's fact where it is
     written (ADR 0035); a reader applies a class's gate to its sends and listeners, so a link that

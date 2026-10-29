@@ -34,7 +34,8 @@
         "written": { "type": "string", "description": "The value as written in the code or the @Value it was followed from, when it differs from the resolved value (it had placeholders)." },
         "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders no config value resolved." },
         "masked": { "type": "boolean", "description": "Present and true when a placeholder named a secret, so the values are recorded as written, not resolved." },
-        "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave a value, when a value was followed from one." }
+        "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave a value, when a value was followed from one." },
+        "unknown": { "type": "array", "items": { "type": "string" }, "description": "The values the send has that could not be told, such as routingKey, when the code passes one that cannot be followed." }
       },
       "required": ["broker", "destinationKind", "template"],
       "additionalProperties": false

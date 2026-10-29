@@ -1,5 +1,6 @@
 package com.example.events;
 
+import org.springframework.amqp.core.ExchangeTypes;
 import org.springframework.amqp.rabbit.annotation.Exchange;
 import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.amqp.rabbit.annotation.QueueBinding;
@@ -20,7 +21,7 @@ public class OrderEventsListener {
       bindings =
           @QueueBinding(
               value = @Queue("audit.queue"),
-              exchange = @Exchange(value = "audit", type = "topic"),
+              exchange = @Exchange(value = "audit", type = ExchangeTypes.TOPIC),
               key = {"audit.#", "${events.rabbit.audit-key}"}))
   public void audit(String event) {}
 
