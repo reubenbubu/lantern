@@ -11,6 +11,8 @@ public interface RestClient {
     return null;
   }
 
+  Builder mutate();
+
   Spec get();
 
   Spec post();

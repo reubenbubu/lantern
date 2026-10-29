@@ -31,3 +31,8 @@ quarkus:
   rest-client:
     ratings:
       url: http://ratings:9000
+shop:
+  ledger-books:
+    url: http://books:8080
+  audit-trail:
+    url: http://trail:8080
