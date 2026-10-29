@@ -9,6 +9,7 @@ import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -32,6 +33,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -61,6 +64,11 @@ class Project0LinksIT {
   private static List<String> built;
   private static List<String> unbuilt;
 
+  /** The README claims the code contradicts, with builds and without (DOC-2). */
+  private static List<String> builtClaims;
+
+  private static List<String> unbuiltClaims;
+
   @BeforeAll
   static void derive() throws IOException {
     String setUp = System.getProperty("lantern.test.project0");
@@ -82,8 +90,12 @@ class Project0LinksIT {
       assertThat(build.build().status()).as(e.getKey()).isEqualTo(BuildStatus.SUCCEEDED);
       withBuilds.add(build);
     }
-    built = render(extractAndLink(withBuilds));
-    unbuilt = render(extractAndLink(withoutBuilds));
+    List<String> withBuildsFacts = render(extractAndLink(withBuilds));
+    List<String> withoutBuildsFacts = render(extractAndLink(withoutBuilds));
+    built = withBuildsFacts.stream().filter(l -> !l.startsWith("readme:")).toList();
+    unbuilt = withoutBuildsFacts.stream().filter(l -> !l.startsWith("readme:")).toList();
+    builtClaims = withBuildsFacts.stream().filter(l -> l.startsWith("readme:")).toList();
+    unbuiltClaims = withoutBuildsFacts.stream().filter(l -> l.startsWith("readme:")).toList();
   }
 
   /** The facts the app links, made as the app makes them, and the links. */
@@ -97,8 +109,11 @@ class Project0LinksIT {
     facts.addAll(new PersistenceExtractor().extract(code, 1));
     facts.addAll(new HttpClientExtractor().extract(code, 1));
     facts.addAll(new MessagingExtractor().extract(code, 1));
+    facts.addAll(new DocsExtractor().extract(repos, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
-    List<Fact> links = new CrossRepoLinks().derive(facts, 1);
+    List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
+    facts.addAll(links);
+    links.addAll(new ClaimChecks().derive(facts, 1));
     Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
     links.forEach(vocabulary::validate);
     return links;
@@ -115,6 +130,18 @@ class Project0LinksIT {
               ObjectNode attributes = f.attributes();
               attributes.remove("facts");
               attributes.remove("link");
+              attributes.remove("claim");
+              if (attributes.has("contradictedBy")) {
+                ArrayNode by = attributes.putArray("contradictedBy");
+                for (JsonNode e : f.attributes().get("contradictedBy")) {
+                  by.add(
+                      e.get("subject").asString()
+                          + " "
+                          + e.get("predicate").asString()
+                          + " "
+                          + e.get("object").asString());
+                }
+              }
               String where = f.evidence().repo() + ":" + f.evidence().path();
               if (f.evidence().lines() != null) {
                 where += "#" + f.evidence().lines().start();
@@ -378,5 +405,29 @@ class Project0LinksIT {
               "service:~:storefront-app SENDS_MESSAGES_TO service:~:fulfilment",
               "service:~:storefront-app SENDS_MESSAGES_TO service:~:payments");
     }
+  }
+
+  @Test
+  void doc2ReadmeClaimsTheCodeContradicts() {
+    String storefront =
+        "readme:storefront:README.md claim-contradiction synchronous-calls {\"contradictedBy\":["
+            + "\"service:~:storefront-app unresolved-link GET ${TAX_SERVICE_URL}/v2/quotes\","
+            + "\"service:~:storefront-app CALLS_HTTP service:~:catalog-service\","
+            + "\"service:~:storefront-app CALLS_HTTP service:~:payments\"],"
+            + "\"units\":[\"service:~:storefront-app\"]} @storefront:README.md#5";
+    String ownDatabase =
+        "readme:payments:README.md claim-contradiction own-database {\"contradictedBy\":["
+            + "\"service:~:payments USES_DATABASE database:shop-db:5432/shop\","
+            + "\"service:~:storefront-app USES_DATABASE database:shop-db:5432/shop\"],"
+            + "\"found\":[\"service:~:storefront-app\"],\"units\":[\"service:~:payments\"]}"
+            + " @payments:README.md#5";
+    String othersTables =
+        "readme:payments:README.md claim-contradiction other-services-data {\"contradictedBy\":["
+            + "\"service:~:payments ACCESSES_DATA_OF service:~:storefront-app\"],"
+            + "\"units\":[\"service:~:payments\"]} @payments:README.md#5";
+    // Storefront does publish order.created to RabbitMQ (MSG-2), so that sentence holds. Without
+    // builds the table access is not known (ADR 0036), so only the shared database shows.
+    assertThat(builtClaims).containsExactlyInAnyOrder(storefront, ownDatabase, othersTables);
+    assertThat(unbuiltClaims).containsExactlyInAnyOrder(storefront, ownDatabase);
   }
 }

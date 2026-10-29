@@ -221,7 +221,8 @@ class DeployableUnitsTest {
             HttpClientExtractor.vocabulary(),
             MessagingExtractor.vocabulary(),
             DeployableUnits.vocabulary(),
-            CrossRepoLinks.vocabulary())) {
+            CrossRepoLinks.vocabulary(),
+            ClaimChecks.vocabulary())) {
       vocabulary.changes(step).forEach(t -> types.put(t.name(), t));
       vocabulary = new Vocabulary(vocabulary.revision() + 1, types.values());
     }

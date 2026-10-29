@@ -48,9 +48,13 @@ public final class Linker {
     this.steps = List.copyOf(steps);
   }
 
-  /** The linker of this version of Lantern: deployable units, then the links between them. */
+  /**
+   * The linker of this version of Lantern: deployable units, the links between them, then the
+   * README claims they contradict.
+   */
   public static Linker standard(FactRepository store) {
-    return new Linker(store, List.of(new DeployableUnits(), new CrossRepoLinks()));
+    return new Linker(
+        store, List.of(new DeployableUnits(), new CrossRepoLinks(), new ClaimChecks()));
   }
 
   /** The origin names of the steps' facts. */
