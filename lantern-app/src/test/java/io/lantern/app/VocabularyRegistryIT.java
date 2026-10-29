@@ -146,4 +146,41 @@ class VocabularyRegistryIT {
     assertThat(other.current().revision()).isEqualTo(revision);
     assertThat(other.current().find(name)).isPresent();
   }
+
+  @Test
+  void aTypeMayChangeItsParentAndOldRevisionsKeepTheOldOne() {
+    String name = unique("shelf");
+    VocabularyType underContainer =
+        entity(name, BuiltInTypes.CONTAINER, null, AttributeSchema.NONE);
+    VocabularyType underNothing = entity(name, null, null, AttributeSchema.NONE);
+
+    long added = registry.apply("test", List.of(underContainer));
+    long moved = registry.apply("test", List.of(underNothing));
+
+    assertThat(moved).isGreaterThan(added);
+    assertThat(registry.current().find(name)).contains(underNothing);
+    assertThat(registry.current().c4Level(name)).isEmpty();
+    assertThat(registry.at(added).find(name)).contains(underContainer);
+    assertThat(registry.at(added).c4Level(name)).contains(C4Level.CONTAINER);
+    assertThat(registry.apply("test", List.of(underNothing))).isEqualTo(moved);
+  }
+
+  @Test
+  void aParentChangeThatBreaksTheVocabularyStoresNothing() {
+    String a = unique("outer");
+    String b = unique("inner");
+    long added =
+        registry.apply(
+            "test",
+            List.of(
+                entity(a, null, null, AttributeSchema.NONE),
+                entity(b, a, null, AttributeSchema.NONE)));
+
+    assertThatThrownBy(
+            () -> registry.apply("test", List.of(entity(a, b, null, AttributeSchema.NONE))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("cycle");
+    assertThat(registry.current().revision()).isEqualTo(added);
+    assertThat(registry.current().find(a).orElseThrow().parent()).isNull();
+  }
 }

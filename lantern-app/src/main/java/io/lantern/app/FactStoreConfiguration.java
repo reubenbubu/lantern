@@ -24,10 +24,15 @@ class FactStoreConfiguration {
       JdbcClient jdbcClient, PlatformTransactionManager transactionManager) {
     VocabularyRegistry registry =
         new VocabularyRegistry(jdbcClient, new TransactionTemplate(transactionManager));
+    loadVocabulary(registry);
+    return registry;
+  }
+
+  /** Applies the built-in types, then those of the extractors. Unchanged ones add no revision. */
+  static void loadVocabulary(VocabularyRegistry registry) {
     registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
     registry.apply(MavenExtractor.VOCABULARY_SOURCE, MavenExtractor.vocabulary());
     registry.apply(JavaExtractor.VOCABULARY_SOURCE, JavaExtractor.vocabulary());
-    return registry;
   }
 
   @Bean

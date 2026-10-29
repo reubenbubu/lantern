@@ -218,8 +218,6 @@ class VocabularyTest {
                 entity("b", null),
                 predicate("P", TypeKind.RELATIONSHIP, null, withA)));
 
-    assertThatThrownBy(() -> vocabulary.changes(List.of(entity("b", "a"))))
-        .hasMessageContaining("changes the parent type");
     assertThatThrownBy(
             () -> vocabulary.changes(List.of(predicate("P", TypeKind.ATTRIBUTE, null, withA))))
         .hasMessageContaining("changes the kind");
@@ -233,6 +231,83 @@ class VocabularyTest {
             Map.of("a", Property.of(ValueType.STRING), "b", Property.of(ValueType.NUMBER)),
             Set.of());
     assertThat(vocabulary.changes(List.of(predicate("P", TypeKind.RELATIONSHIP, null, withAB))))
+        .hasSize(1);
+  }
+
+  @Test
+  void anExistingTypeMayGetAnotherParentOrNone() {
+    Vocabulary vocabulary =
+        new Vocabulary(
+            1, List.of(entity("a", null), entity("b", null), entity("c", "a"), entity("d", "c")));
+
+    assertThat(vocabulary.changes(List.of(entity("c", "b")))).containsExactly(entity("c", "b"));
+    assertThat(vocabulary.changes(List.of(entity("c", null)))).containsExactly(entity("c", null));
+    assertThat(vocabulary.changes(List.of(entity("a", "b")))).containsExactly(entity("a", "b"));
+  }
+
+  @Test
+  void aTypeWithoutAParentInheritsNoC4Level() {
+    VocabularyType container =
+        new VocabularyType(
+            "container",
+            TypeKind.ENTITY,
+            null,
+            C4Level.CONTAINER,
+            "box",
+            null,
+            null,
+            AttributeSchema.NONE);
+    Vocabulary before = new Vocabulary(1, List.of(container, entity("lib", "container")));
+    VocabularyType lib = entity("lib", null);
+
+    List<VocabularyType> changes = before.changes(List.of(lib));
+    List<VocabularyType> merged = new ArrayList<>(List.of(container));
+    merged.addAll(changes);
+    Vocabulary after = new Vocabulary(2, merged);
+
+    assertThat(before.c4Level("lib")).contains(C4Level.CONTAINER);
+    assertThat(after.c4Level("lib")).isEmpty();
+  }
+
+  @Test
+  void aParentChangeMustLeaveTheVocabularyConsistent() {
+    Vocabulary vocabulary =
+        new Vocabulary(
+            1,
+            List.of(
+                entity("a", null),
+                entity("b", "a"),
+                entity("c", "b"),
+                predicate("p", TypeKind.RELATIONSHIP, null, AttributeSchema.NONE)));
+
+    assertThatThrownBy(() -> vocabulary.changes(List.of(entity("a", "c"))))
+        .hasMessageContaining("cycle");
+    assertThatThrownBy(() -> vocabulary.changes(List.of(entity("b", "missing"))))
+        .hasMessageContaining("does not exist");
+    assertThatThrownBy(() -> vocabulary.changes(List.of(entity("b", "p"))))
+        .hasMessageContaining("differ in kind");
+  }
+
+  @Test
+  void aParentChangeMustNotMakeATypeAcceptLess() {
+    AttributeSchema withA = schema(Map.of("a", Property.of(ValueType.STRING)), Set.of());
+    Vocabulary vocabulary =
+        new Vocabulary(
+            1,
+            List.of(
+                predicate("Base", TypeKind.RELATIONSHIP, null, withA),
+                predicate("Same", TypeKind.RELATIONSHIP, null, withA),
+                predicate("Child", TypeKind.RELATIONSHIP, "Base", AttributeSchema.NONE)));
+
+    assertThatThrownBy(
+            () ->
+                vocabulary.changes(
+                    List.of(predicate("Child", TypeKind.RELATIONSHIP, null, AttributeSchema.NONE))))
+        .hasMessageContaining("Type 'Child' would accept less than before")
+        .hasMessageContaining("removes attribute 'a'");
+    assertThat(
+            vocabulary.changes(
+                List.of(predicate("Child", TypeKind.RELATIONSHIP, "Same", AttributeSchema.NONE))))
         .hasSize(1);
   }
 }
