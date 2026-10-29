@@ -1,0 +1,96 @@
+[
+  {
+    "name": "repository",
+    "kind": "entity",
+    "description": "A repository of the snapshot, the subject of facts about files that belong to no module, such as a compose file in a deployment repository. Its key is the repository's name. It has no C4 level.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "redis-use",
+    "kind": "attribute",
+    "description": "The subject (a method, a type or a module) uses Redis in the way the value names: template (operations on Redis through a Spring Data Redis template), hash (a @RedisHash type kept as Redis hashes), session (Spring Session's Redis store), rate-limiter (the gateway's RedisRateLimiter), lock (a Redis lock registry), cache (a Redis cache manager or spring.cache.type=redis), pubsub (publishing or subscribing to channels) or client (a Redis client among the module's dependencies). Which server is the config's; the linker matches them.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "api": {
+          "type": "string",
+          "description": "The binary name of the type whose method or annotation it is, or the dependency's artifact ID."
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write",
+            "delete",
+            "lock",
+            "other"
+          ],
+          "description": "What the call does with the data."
+        },
+        "structure": {
+          "type": "string",
+          "description": "The Redis data structure the operation is made on: value, hash, list, set, zset, stream, geo or hyperloglog."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key as the code writes it, with * for what it does not write out, such as bff:session:*."
+        },
+        "channel": {
+          "type": "string",
+          "description": "The channel a message is published to, written as for key."
+        },
+        "hash": {
+          "type": "string",
+          "description": "The keyspace of a @RedisHash type: its value, else its class name."
+        },
+        "namespace": {
+          "type": "string",
+          "description": "The Redis namespace a Spring Session store is configured with."
+        },
+        "ttl": {
+          "type": "string",
+          "description": "The time to live written out, such as 600s or 30m."
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "dependency",
+            "config"
+          ],
+          "description": "Present when the use is shown by a dependency or by config rather than by code."
+        },
+        "configKey": {
+          "type": "string",
+          "description": "The config key that shows the use."
+        }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "redis-image",
+    "kind": "attribute",
+    "description": "A compose file of the subject repository runs a Redis (or Valkey, Redis Stack) image, as the value writes it. The linker takes the data store's technology from it.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "technology": {
+          "type": "string",
+          "description": "The product with its version, such as Redis 8.4.0; without a version when the tag names none."
+        },
+        "service": {
+          "type": "string",
+          "description": "The compose service that runs it."
+        }
+      },
+      "required": [
+        "technology"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

@@ -36,7 +36,7 @@ public final class CrossRepoLinks implements LinkStep {
   public static final String NAME = "cross-repo-links";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -134,6 +134,7 @@ public final class CrossRepoLinks implements LinkStep {
     new HttpLinker(index, found).link();
     new MessageLinker(index, found).link();
     new DataLinker(index, found).link(ORIGIN, validity);
+    new RedisLinker(index, found).link(ORIGIN, validity);
     Map<String, Fact> derived = new LinkedHashMap<>();
     found.facts(index.profiles, ORIGIN, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
     return derived.values().stream()

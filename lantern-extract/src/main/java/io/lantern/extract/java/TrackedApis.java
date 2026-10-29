@@ -42,7 +42,13 @@ final class TrackedApis {
           "org.springframework.jms.core.",
           "org.springframework.amqp.",
           // Spring Cloud Stream: StreamBridge, and the legacy Source and Processor bindings.
-          "org.springframework.cloud.stream.");
+          "org.springframework.cloud.stream.",
+          // Redis templates and their operations (the Redis extractor): the keys they are given.
+          "org.springframework.data.redis.core.",
+          "org.springframework.data.redis.cache.",
+          "org.springframework.data.redis.listener.",
+          "org.springframework.integration.redis.util.",
+          "org.springframework.cloud.gateway.filter.ratelimit.");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";
