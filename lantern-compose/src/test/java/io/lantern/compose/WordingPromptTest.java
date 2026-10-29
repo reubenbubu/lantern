@@ -587,5 +587,23 @@ class WordingPromptTest {
     // Javadoc at the top is kept.
     assertThat(WordingPrompt.code(declaration, "/** Kept. */\nclass A {}", 100).text())
         .isEqualTo("/** Kept. */\nclass A {}");
+    // A licence above the package is left out however it is written, and is not Javadoc.
+    WordingPrompt.Code licensed =
+        WordingPrompt.code(
+            declaration,
+            "\uFEFF\n/**\n * Copyright.\n */\n// Licensed.\npackage a;\n\nclass A {}",
+            100);
+    assertThat(licensed.text()).isEqualTo("class A {}");
+    assertThat(licensed.documented()).isFalse();
+  }
+
+  @Test
+  void onlyALineOpeningWithTwoStarsIsJavadoc() {
+    assertThat(WordingPrompt.javadoc("  /** Takes orders. */\nclass A {}")).isTrue();
+    assertThat(WordingPrompt.javadoc("/**\n * Takes orders.\n */")).isTrue();
+    assertThat(WordingPrompt.javadoc("@RequestMapping(\"/orders/**\")\nclass A {}")).isFalse();
+    assertThat(WordingPrompt.javadoc("/*********\n * Banner\n *********/")).isFalse();
+    assertThat(WordingPrompt.javadoc("/**/ class A {}")).isFalse();
+    assertThat(WordingPrompt.javadoc("/* Not Javadoc. */")).isFalse();
   }
 }

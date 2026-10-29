@@ -235,6 +235,12 @@ final class WordingPrompt {
 
   private static final Pattern REFERENCE = Pattern.compile("F[1-9][0-9]*");
 
+  /**
+   * A line that opens Javadoc: {@code /**} at its start, not a banner such as {@code /*****} or an
+   * empty {@code /**}{@code /}, so a path such as {@code "/orders/**"} is not one.
+   */
+  private static final Pattern JAVADOC = Pattern.compile("(?m)^[ \\t]*/\\*\\*(?![*/])");
+
   /** A fact's line in a user turn, such as {@code [F3] type:p.A has-method ...}. */
   private static final Pattern FACT_LINE = Pattern.compile("(?m)^[ \\t]*\\[F\\d+\\] .*\\n?");
 
@@ -268,7 +274,7 @@ final class WordingPrompt {
 
     /** Whether the code shown holds Javadoc, which people wrote (ADR 0059). */
     boolean documented() {
-      return text.contains("/**");
+      return javadoc(text);
     }
   }
 
@@ -621,16 +627,30 @@ final class WordingPrompt {
    *     fits, and nothing is shown when not even its first line fits
    */
   static Code code(Fact declaration, String file, int maxChars) {
-    List<String> lines = new ArrayList<>(List.of(file.replace("\r\n", "\n").split("\n", -1)));
+    String unmarked = file.startsWith("\uFEFF") ? file.substring(1) : file;
+    List<String> lines = new ArrayList<>(List.of(unmarked.replace("\r\n", "\n").split("\n", -1)));
     int start = 0;
-    // A licence comment above the package declaration, not Javadoc, says nothing about the type.
-    if (!lines.isEmpty()
-        && lines.getFirst().strip().startsWith("/*")
-        && !lines.getFirst().strip().startsWith("/**")) {
-      while (start < lines.size() && !lines.get(start).contains("*/")) {
+    // What comes before the package declaration is a licence or a banner, however it is written,
+    // and says nothing about the type. Without a package declaration, a leading comment that is
+    // not Javadoc is taken for one.
+    int pkg = 0;
+    while (pkg < lines.size() && !lines.get(pkg).strip().startsWith("package ")) {
+      pkg++;
+    }
+    if (pkg < lines.size()) {
+      start = pkg;
+    } else {
+      while (start < lines.size() && lines.get(start).isBlank()) {
         start++;
       }
-      start++;
+      if (start < lines.size()
+          && lines.get(start).strip().startsWith("/*")
+          && !javadoc(lines.get(start))) {
+        while (start < lines.size() && !lines.get(start).contains("*/")) {
+          start++;
+        }
+        start++;
+      }
     }
     List<String> kept = new ArrayList<>();
     for (String line : lines.subList(Math.min(start, lines.size()), lines.size())) {
@@ -663,6 +683,11 @@ final class WordingPrompt {
         declaration.evidence().path(),
         text.toString().stripTrailing(),
         kept.size() - shown);
+  }
+
+  /** Whether the code holds Javadoc, which people wrote (ADR 0059, ADR 0069). */
+  static boolean javadoc(String code) {
+    return JAVADOC.matcher(code).find();
   }
 
   /** A code fence longer than any run of backticks in the code, at least three. */
@@ -954,7 +979,7 @@ final class WordingPrompt {
             .anyMatch(
                 ref ->
                     question.facts().get(ref).predicate().equals(CLAIM)
-                        || question.code().getOrDefault(ref, "").contains("/**"));
+                        || javadoc(question.code().getOrDefault(ref, "")));
     return new WordingAnswer.Item(text, new ArrayList<>(cited), Confidence.of(evidenced, 1, 0));
   }
 }

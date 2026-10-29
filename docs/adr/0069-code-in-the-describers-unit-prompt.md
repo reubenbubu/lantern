@@ -24,8 +24,9 @@ component's code for that, with secrets masked (ADR 0054), cited and cached as i
   method. A type declared in two files shows the first, by repository and path, that can be read. A
   file that cannot be read shows nothing. The analyze run reads every registered repository,
   carried-forward ones included, so the prompt does not depend on which repositories a run names.
-- **The start of the file, bounded.** The package declaration, imports and a licence comment
-  (a leading `/*` comment that is not Javadoc) are left out, and runs of blank lines are folded
+- **The start of the file, bounded.** The package declaration, imports and what comes before the
+  package declaration (a licence or banner, however written; without a package declaration, a
+  leading comment that is not Javadoc) are left out, and runs of blank lines are folded
   into one. What is left is shown up to 4,000 characters per component (`Describer.MAX_CODE_CHARS`),
   cut after the last whole line that fits, and at most 40,000 characters per unit
   (`MAX_UNIT_CODE_CHARS`), given to components in the order shown (entry points first); a
@@ -42,7 +43,9 @@ component's code for that, with secrets masked (ADR 0054), cited and cached as i
   holds the code as shown, without the commit or fact ID, so a new commit that leaves the shown code
   unchanged makes no call, and a change to it asks again. `WordingPrompt.VERSION` is 4 (ADRs 0067 and 0068 had raised it to 3).
 - **Javadoc counts as evidence** (amending ADR 0065), as ADR 0059 does for summaries: a
-  responsibility sentence that cites the `kind` fact of code shown with `/**` in it is evidenced,
+  responsibility sentence that cites the `kind` fact of code shown with Javadoc in it (a line
+  opening with `/**`, not a banner such as `/*****`, so a path such as `"/orders/**"` is not one) is
+  evidenced,
   like one citing a README claim. Which facts those are follows from the prompt, which a cached
   answer shares, so it is worked out in every run (`Wordings.documented`) and not stored. The
   system's purpose still counts README claims only: its prompt shows the facts behind the units'
