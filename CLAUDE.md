@@ -31,6 +31,14 @@ any code that changes the design. This file covers only how you work.
      short summary on the issue and make sure it is closed.
   7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
      containers, temp files or test data the task created. Leave the machine as you found it.
+- Before handing off a task, judge its complexity and set the subagent's `model` to match.
+  Never use `fable`.
+  - `haiku`: mechanical work with no judgment, e.g. a doc or config tweak, a rename, cleanup.
+  - `sonnet`: routine, well-scoped work in one module that follows an existing pattern, and
+    reviews of small diffs.
+  - `opus`: work that touches the design, the data model or several modules, needs new
+    patterns, or has failed before at a lower level; and reviews of large or tricky diffs.
+  - If a subagent struggles or its result is wrong, retry one level up.
 - Tasks may run in parallel only if each task has its own isolated environment, used by every
   subagent of that task that runs commands:
   - its own worktree, as above
@@ -51,6 +59,10 @@ any code that changes the design. This file covers only how you work.
     with `docker port`. The local database (Commands) is the exception: its port is fixed, so
     only one task at a time may run it.
   - reviewer subagents only read; they run nothing that builds or starts containers
+- Running subagents share a budget of 100 agent tokens: `opus` costs 20, `sonnet` 10,
+  `haiku` 4. The subagents running at any moment, reviewers included, must cost 100 or
+  less in total. The budget only caps parallelism: tasks that could clash (same files,
+  the local database, shared resources) still never run together, whatever is left.
 - Keep issues current. If scope changes, a task is blocked, or you find new work, update or
   open an issue right away. An issue's state must always match reality.
 
@@ -109,7 +121,8 @@ Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start
 - Test one module: `./mvnw verify -pl <module> -am`
 - With Node 24 installed, regenerate the TypeScript types and run the frontend tests alone: `npm --prefix lantern-web ci && npm --prefix lantern-web test`
 - With Node 24 installed, build the single-file HTML template and write a document model into it: `npm --prefix lantern-web run build && node lantern-web/scripts/render.mjs <document.json> <out.html>`
-- Start the local database: `docker compose up -d` (stop with `docker compose down`). Inside a task, run both with `COMPOSE_PROJECT_NAME=lantern-<number>`; it publishes the fixed port 5432, so only one task at a time.
+- Start the local database: `docker compose up -d` (stop with `docker compose down`). Inside a task, run both with `COMPOSE_PROJECT_NAME=lantern-<number>`; it publishes the fixed port 5432 (`LANTERN_DB_PORT` changes it), so only one task at a time.
+- Launch a local run in one step (checks JDK 21, Docker and git, checks the database port is free, starts the database, builds the jar if missing, runs `analyze`): `scripts/launch.sh --llm-properties <llm.properties> [--mirror-properties <local.properties>] [<name>=]<path>...`; `--db-only` only starts the database, and `--yes` skips the cost question (required when not at a terminal). Stop it with `scripts/teardown.sh` (`--purge` also deletes the data volume). Both respect `COMPOSE_PROJECT_NAME`; options are in `--help`.
 - Sandbox builds download only from the Maven repositories in `lantern.sandbox.maven-repositories` (Maven Central by default; see `docs/adr/0023-configurable-maven-repositories.md`). To allow others, list them all in a properties file and add it to the app's: `--spring.config.additional-location=file:<repositories.properties>,file:<llm.properties>`.
 - To download everything through one Maven mirror instead, such as a caching proxy on the local network (`http` and a private-network IPv4 address allowed; see `docs/adr/0030-maven-mirror.md`), set `lantern.sandbox.maven-mirror.id` and `.url` in a properties file outside the repository and add it to the app's the same way. The tests that run sandbox builds use the mirror in the file named by the Maven property `lantern.test.properties` (an absolute path), set in Maven's settings, and Maven Central without one. `-Dlantern.test.properties=<absolute path of local.properties>` overrides it, and the `LANTERN_TEST_PROPERTIES` environment variable is used when it is not set. Never commit the mirror's address. The mirror's address must be one the build containers reach, not `localhost`: the host's private-network IPv4 address, which the proxy must listen on. To keep the rest of the build off Maven Central too (`docs/adr/0030-maven-mirror.md`, amendments for #212 and #225), mirror `*` to the proxy in `~/.m2/settings.xml` (host Maven and the tests' own dependencies), with an always-active profile there that sets `lantern.test.properties`; a plain `./mvnw verify` then needs no flags or environment variables. On the development VM the proxy is `http://localhost:8084/proxy` and the file is `~/workspace/lantern-local.properties`.
 - Run the real-provider LLM test (costs money; only with the user's go-ahead), with `ANTHROPIC_API_KEY` already exported: `LANTERN_LLM_REAL_TEST=true LANTERN_LLM_REAL_TEST_MODEL=<model> ./mvnw verify -pl lantern-llm -am`
