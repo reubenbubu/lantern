@@ -54,8 +54,9 @@ import org.slf4j.LoggerFactory;
  * entry points, links, data stores and technology of its parts, cited like its own facts.
  *
  * <p>Each summary says whether its purpose is evidenced or inferred ({@link Summary.Purpose}). The
- * model marks its answer; a mark of evidenced is kept only if the answer's first citation cites a
- * README claim, a source file with Javadoc, or a contained summary whose purpose is evidenced.
+ * model marks its answer; a mark of evidenced is kept only if the answer's first sentence is kept
+ * and its first citation cites a README claim, a source file with Javadoc, or a contained summary
+ * whose purpose is evidenced.
  *
  * <p>Every summary is cached under a key that hashes what the model sees: the prompt version, the
  * model (provider and identifier), the unit's entity and level, its contained units' entities
@@ -68,10 +69,12 @@ import org.slf4j.LoggerFactory;
  * lists the same inputs in the same order). When a unit's prompt changes it is summarized again;
  * its new text then changes its parent's prompt, and so on up to the repository.
  *
- * <p>Every summary must cite the facts or contained summaries it used. An answer that cites
- * nothing, or cites a reference that was not in the prompt, is sent back once with the reason; if
- * the second answer is no better the unit gets no summary and nothing is stored for it. Both
- * rejections are logged with their reason and the rejected answer. The run goes on: the unit's
+ * <p>Every summary must cite the facts or contained summaries it used, in every sentence. A
+ * sentence of an answer that cites nothing is left out of it, and logged, without asking again; if
+ * that leaves out the first sentence, the summary's purpose counts as inferred. An answer that
+ * cites nothing, or cites a reference that was not in the prompt, is sent back once with the
+ * reason; if the second answer is no better the unit gets no summary and nothing is stored for it.
+ * Both rejections are logged with their reason and the rejected answer. The run goes on: the unit's
  * parent is summarized without it, as if the unit had nothing to summarize, and the result lists
  * the units rejected this way. Only if the first {@value #EARLY_STOP} units to finish are all
  * rejected, and none got a summary, does the run fail with {@link SummaryRejectedException}, since
@@ -571,7 +574,7 @@ public final class Summarizer {
       messages.add(LlmMessage.user(prompt));
       LlmResponse first = ask(purpose, node, messages);
       try {
-        return answer(first, inputs, allowed);
+        return answer(purpose, first, inputs, allowed);
       } catch (Citations.Rejected rejected) {
         logRejected(purpose, rejected, first);
         if (first.text().isBlank()) {
@@ -588,7 +591,7 @@ public final class Summarizer {
         }
         LlmResponse second = ask(purpose + " (retry)", node, messages);
         try {
-          return answer(second, inputs, allowed);
+          return answer(purpose + " (retry)", second, inputs, allowed);
         } catch (Citations.Rejected again) {
           logRejected(purpose + " (retry)", again, second);
           throw new SummaryRejectedException(
@@ -613,23 +616,39 @@ public final class Summarizer {
     }
 
     /**
-     * The answer without its purpose line, checked. It keeps an evidenced purpose only if its first
-     * sentence cites what can show one; otherwise its purpose counts as inferred.
+     * The answer without its purpose line and its sentences that cite nothing, checked. The whole
+     * answer is checked first, so what is left out cannot hide a reason to reject it. It keeps an
+     * evidenced purpose only if its first sentence is kept and cites what can show one; otherwise
+     * its purpose counts as inferred.
      */
-    private static Answer answer(LlmResponse response, Inputs inputs, Set<String> allowed) {
+    private static Answer answer(
+        String purpose, LlmResponse response, Inputs inputs, Set<String> allowed) {
       if (response.cutOff()) {
         throw new Citations.Rejected("it was cut off at the length limit; write a shorter one.");
       }
       Prompt.Tagged tagged = Prompt.tagged(response.text());
+      Citations.check(
+          tagged.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
+      Citations.Sentences sentences = Citations.cited(tagged.text());
+      if (!sentences.uncited().isEmpty()) {
+        LOG.info(
+            "Left out {} sentences without references from the answer to {}: {}",
+            sentences.uncited().size(),
+            purpose,
+            String.join(" | ", sentences.uncited()).replace("\n", " "));
+      }
       Citations.Checked checked =
           Citations.check(
-              tagged.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
+              sentences.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
       boolean evidenced =
           tagged.purpose() == Summary.Purpose.EVIDENCED
-              && Citations.firstReferences(tagged.text()).stream()
+              && !sentences.firstUncited()
+              && Citations.firstReferences(sentences.text()).stream()
                   .anyMatch(inputs.evidence::contains);
       return new Answer(
-          tagged.text(), checked, evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED);
+          sentences.text(),
+          checked,
+          evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED);
     }
 
     private LlmResponse ask(String purpose, SummaryNode node, List<LlmMessage> messages) {
@@ -648,7 +667,8 @@ public final class Summarizer {
   /**
    * A checked answer.
    *
-   * @param text the answer as the model wrote it, with its references, without its purpose line
+   * @param text the answer as the model wrote it, with its references, without its purpose line and
+   *     its sentences that cite nothing
    * @param checked the answer with references rewritten to stable IDs
    * @param purpose where its first sentence takes the unit's purpose from, as checked
    */

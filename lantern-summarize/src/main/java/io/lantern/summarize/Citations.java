@@ -27,6 +27,27 @@ final class Citations {
   private static final Pattern MARKER = Pattern.compile("\\[(?:fact|summary):");
   private static final Pattern SPLIT = Pattern.compile("\\s*,\\s*");
 
+  /** A citation as {@link #GROUP} reads it, without capturing. */
+  private static final String CITATION = "\\[\\s*" + REF + "(?:\\s*,\\s*" + REF + ")*\\s*\\]";
+
+  /**
+   * The end of a sentence and the space after it: closing punctuation, then the quotes, brackets or
+   * emphasis that close with it and the citations that follow it, before the end of the text or a
+   * word that does not start in lower case; or a citation at the end of a line; or a blank line.
+   */
+  private static final Pattern SENTENCE_END =
+      Pattern.compile(
+          "(?:[.!?]+[\"'\u2019\u201d)*_]*(?:\\s*"
+              + CITATION
+              + ")*(?=\\s+[^\\s\\p{Ll}]|\\s*\\z)"
+              + "|"
+              + CITATION
+              + "(?=[ \\t]*\\n)"
+              + "|(?=\\n[ \\t]*\\n))\\s*");
+
+  /** Abbreviations whose full stop does not end a sentence. */
+  private static final Pattern ABBREVIATION = Pattern.compile("(?i)(?:^|\\W)(?:e\\.g|i\\.e)\\.\\z");
+
   /** The most references a range may span to be expanded; no prompt gives this many. */
   private static final int MAX_RANGE = 10_000;
 
@@ -154,6 +175,50 @@ final class Citations {
     }
     return new Checked(
         out.toString(), new ArrayList<>(citedFacts), new ArrayList<>(citedSummaries));
+  }
+
+  /**
+   * An answer's sentences split by whether they cite anything.
+   *
+   * @param text the sentences that cite at least one reference, as written, with the space between
+   *     them, or empty if none does
+   * @param uncited the sentences that cite nothing, as written, without the space after them
+   * @param firstUncited whether the answer's first sentence is one of them
+   */
+  record Sentences(String text, List<String> uncited, boolean firstUncited) {}
+
+  /**
+   * Splits an answer into sentences and keeps those that cite a reference, valid or not, so that
+   * every sentence of what is kept ends with what it is based on. A sentence ends with its closing
+   * punctuation and any citations after it, at a line that ends with a citation, or at a blank
+   * line; a full stop followed by a word in lower case, or after {@code e.g} or {@code i.e}, does
+   * not end one.
+   */
+  static Sentences cited(String answer) {
+    String text = answer == null ? "" : answer.strip();
+    StringBuilder kept = new StringBuilder();
+    List<String> uncited = new ArrayList<>();
+    boolean firstUncited = false;
+    int start = 0;
+    Matcher end = SENTENCE_END.matcher(text);
+    while (start < text.length()) {
+      int to = text.length();
+      while (end.find()) {
+        if (!ABBREVIATION.matcher(text.substring(start, end.start() + 1)).find()) {
+          to = end.end();
+          break;
+        }
+      }
+      String sentence = text.substring(start, to);
+      if (GROUP.matcher(sentence).find()) {
+        kept.append(sentence);
+      } else {
+        uncited.add(sentence.strip());
+        firstUncited |= start == 0;
+      }
+      start = to;
+    }
+    return new Sentences(kept.toString().strip(), uncited, firstUncited);
   }
 
   /**
