@@ -100,29 +100,45 @@ public final class Composer {
             new TreeSet<>(snapshot.commits().keySet()),
             LocalDate.ofInstant(snapshot.createdAt(), ZoneOffset.UTC));
     List<Section> sections = new ArrayList<>();
+    int glossary = -1;
     for (SectionKind kind : view.sections()) {
-      sections.add(composition.section(kind));
+      if (kind == SectionKind.GLOSSARY) {
+        glossary = sections.size();
+      } else {
+        sections.add(composition.section(kind));
+      }
     }
     List<QualityReport.Failure> claimFailures = composition.claimFailures();
-    Document composed =
-        new Document(
-            view.id(),
-            view.title(),
-            view.audience(),
-            view.template(),
-            new DocumentSource(snapshot.number(), snapshot.vocabularyRevision(), toolVersion),
-            composition.entities(),
-            composition.facts(),
-            sections);
+    DocumentSource source =
+        new DocumentSource(
+            snapshot.number(),
+            snapshot.vocabularyRevision(),
+            toolVersion,
+            repo == null ? snapshot.commits() : Map.of(repo, snapshot.commits().get(repo)),
+            LocalDate.ofInstant(snapshot.createdAt(), ZoneOffset.UTC));
+    Document composed = document(view, source, composition, sections);
+    // The glossary explains what the other sections use, so it is built from them (ADR 0061).
+    if (glossary >= 0) {
+      sections.add(glossary, composition.glossary(composed));
+      composed = document(view, source, composition, sections);
+    }
     sections.add(qualitySection(composed, claimFailures));
+    return document(view, source, composition, sections);
+  }
+
+  private static Document document(
+      ViewDefinition view,
+      DocumentSource source,
+      RepoSections composition,
+      List<Section> sections) {
     return new Document(
-        composed.id(),
-        composed.title(),
-        composed.audience(),
-        composed.template(),
-        composed.source(),
-        composed.entities(),
-        composed.facts(),
+        view.id(),
+        view.title(),
+        view.audience(),
+        view.template(),
+        source,
+        composition.entities(),
+        composition.facts(),
         sections);
   }
 

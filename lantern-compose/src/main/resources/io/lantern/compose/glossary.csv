@@ -1,0 +1,112 @@
+# What the acronyms Lantern's documents use stand for (ADR 0061): ACRONYM,meaning, split at the
+# first comma. A document's glossary lists those it uses; one missing here is named in the glossary
+# and fails the Quality bar check "Acronyms are explained in the glossary". Add any acronym the
+# documents of the test sets use. A meaning uses no acronym this table does not explain
+# (GlossaryTest checks).
+ADR,Architecture decision record: a short document recording one design decision and its reasons
+AMQP,Advanced Message Queuing Protocol, the wire protocol of message brokers such as RabbitMQ
+AOP,Aspect-oriented programming: code run around methods without changing them, such as transactions
+API,Application programming interface: the operations a program offers to other programs
+AWS,Amazon Web Services, Amazon's cloud platform
+B2B,Business to business
+CD,Continuous delivery: releasing every change that passes its checks
+CDN,Content delivery network
+CI,Continuous integration: building and testing every change automatically
+CLI,Command-line interface
+CMS,Content management system
+CORS,Cross-origin resource sharing: rules that let a web page call another site
+CPU,Central processing unit, the processor
+CQRS,Command query responsibility segregation: separate models for changing and for reading data
+CRM,Customer relationship management
+CRUD,Create, read, update and delete: the basic operations on stored data
+CSRF,Cross-site request forgery, an attack that makes a browser send requests its user did not mean
+CSS,Cascading Style Sheets, the styling language of web pages
+CSV,Comma-separated values, a plain-text table format
+DAO,Data access object: a class that reads and writes stored data
+DB,Database
+DDD,Domain-driven design
+DNS,Domain Name System, which turns host names into network addresses
+DSL,Domain-specific language
+DTO,Data transfer object: a plain object that carries data between layers or programs
+EE,Enterprise Edition, as in Java EE and Jakarta EE
+EJB,Enterprise JavaBeans, a component model of Java EE
+EOL,End of life: when a version stops getting free fixes
+ERP,Enterprise resource planning
+ETL,Extract, transform and load: copying data from one store into another, reshaped
+FTP,File Transfer Protocol
+GC,Garbage collection: freeing memory a program no longer uses
+GUI,Graphical user interface
+HQL,Hibernate Query Language, Hibernate's query language over mapped objects
+HTML,HyperText Markup Language, the language of web pages
+HTTP,Hypertext Transfer Protocol, the request and response protocol of the web
+HTTPS,HTTP encrypted with TLS
+ID,Identifier
+IDE,Integrated development environment
+IO,Input and output
+IP,Internet Protocol
+JAR,Java archive: a zip file of compiled classes and resources
+JDBC,Java Database Connectivity, Java's standard interface to relational databases
+JDK,Java Development Kit
+JMS,Java Message Service, Java's standard interface to message brokers
+JMX,Java Management Extensions, for monitoring and managing a running Java program
+JNDI,Java Naming and Directory Interface, for looking up shared resources by name
+JPA,Jakarta Persistence, formerly the Java Persistence API: Java's standard for storing objects in relational tables
+JPQL,Jakarta Persistence Query Language, the query language of JPA
+JRE,Java Runtime Environment
+JSON,JavaScript Object Notation, a plain-text data format
+JSP,Jakarta Server Pages, Java's templates for web pages
+JTA,Jakarta Transactions, Java's standard for transactions across several resources
+JVM,Java virtual machine, which runs compiled Java code
+JWT,JSON Web Token: a signed token carrying claims about a user
+KPI,Key performance indicator
+LDAP,Lightweight Directory Access Protocol, used for directories of users and groups
+LTS,Long-term support
+MQ,Message queue
+MQTT,MQ Telemetry Transport, a lightweight publish and subscribe messaging protocol
+MVC,Model-view-controller, the pattern Spring's web framework, Spring MVC, is named after
+OIDC,OpenID Connect, a sign-in protocol built on OAuth 2.0
+ORM,Object-relational mapping: storing objects in relational tables
+OS,Operating system
+PDF,Portable Document Format
+PII,Personally identifiable information
+POJO,Plain old Java object
+QA,Quality assurance
+RAM,Random-access memory
+RDBMS,Relational database management system
+REST,Representational state transfer: a style of web interface built on HTTP resources and methods
+RPC,Remote procedure call
+SAML,Security Assertion Markup Language, a single sign-on protocol
+SDK,Software development kit
+SE,Standard Edition, as in Java SE
+SFTP,SSH File Transfer Protocol
+SKU,Stock keeping unit: the code of one kind of item in stock
+SLA,Service-level agreement
+SMS,Short message service: text messages to mobile phones
+SMTP,Simple Mail Transfer Protocol, for sending email
+SNS,Amazon Simple Notification Service, a publish and subscribe service of AWS
+SOAP,An XML protocol for web services, originally Simple Object Access Protocol
+SPA,Single-page application
+SPI,Service provider interface: an interface a library lets others implement
+SQL,Structured Query Language, the language of relational databases
+SQS,Amazon Simple Queue Service, a message queue service of AWS
+SSE,Server-sent events: a stream of messages from a web server to a browser
+SSH,Secure Shell, for encrypted remote logins
+SSL,Secure Sockets Layer, the predecessor of TLS
+SSO,Single sign-on
+STOMP,Simple Text Oriented Messaging Protocol
+TCP,Transmission Control Protocol
+TLS,Transport Layer Security, which encrypts network connections
+TTL,Time to live: how long a value is kept before it expires
+UDP,User Datagram Protocol
+UI,User interface
+URI,Uniform resource identifier
+URL,Uniform resource locator: a web address
+UTC,Coordinated Universal Time
+UUID,Universally unique identifier
+VM,Virtual machine
+WAR,Web application archive: a JAR packaged for a servlet container
+WMS,Warehouse management system
+WSDL,Web Services Description Language, which describes SOAP web services
+XML,Extensible Markup Language
+XSD,XML Schema Definition
+YAML,A plain-text configuration format, short for YAML Ain't Markup Language

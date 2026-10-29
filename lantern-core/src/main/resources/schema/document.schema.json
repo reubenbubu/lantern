@@ -77,14 +77,26 @@
     },
     "documentSource": {
       "title": "DocumentSource",
-      "description": "What the document was composed from, so it can be reproduced.",
+      "description": "What the document was composed from, so it can be reproduced, and what pins it: the commits of the repositories it covers and the date of their snapshot.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["snapshot", "vocabularyRevision", "toolVersion"],
+      "required": ["snapshot", "vocabularyRevision", "toolVersion", "commits", "date"],
       "properties": {
         "snapshot": { "type": "integer", "minimum": 1 },
         "vocabularyRevision": { "type": "integer", "minimum": 0 },
-        "toolVersion": { "$ref": "#/$defs/nonBlankText" }
+        "toolVersion": { "$ref": "#/$defs/nonBlankText" },
+        "commits": {
+          "description": "The full commit hash of each repository the document covers, by repository name, sorted by name.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/nonBlankText" },
+          "additionalProperties": { "type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$" }
+        },
+        "date": {
+          "description": "The day the snapshot was taken, in UTC.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
       }
     },
     "entity": {

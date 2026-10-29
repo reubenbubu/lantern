@@ -73,6 +73,10 @@ class ComposerTest {
     assertThat(document.source().snapshot()).isEqualTo(2);
     assertThat(document.source().vocabularyRevision()).isEqualTo(5);
     assertThat(document.source().toolVersion()).isEqualTo("0.2.0");
+    // It pins the commit of the repository it covers, not of the others in the snapshot.
+    assertThat(document.source().commits()).containsExactly(Map.entry("shop", TestFacts.COMMIT));
+    assertThat(document.source().date()).isEqualTo(java.time.LocalDate.of(1970, 1, 1));
+    assertThat(document.audience()).isEqualTo("architects and senior engineers");
     assertThat(document.sections())
         .extracting(Section::id)
         .containsExactly(
@@ -86,6 +90,7 @@ class ComposerTest {
             "change_guidance",
             "dependencies",
             "structure",
+            "glossary",
             "quality");
   }
 
@@ -373,7 +378,7 @@ class ComposerTest {
     assertThat(document.entities())
         .extracting(e -> e.id().toString())
         .containsExactly("repo:empty", "system:snapshot");
-    assertThat(document.sections()).hasSize(11);
+    assertThat(document.sections()).hasSize(12);
   }
 
   @Test

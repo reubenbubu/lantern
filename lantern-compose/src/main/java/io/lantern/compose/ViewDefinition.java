@@ -27,6 +27,18 @@ public record ViewDefinition(
     TemplateRef template,
     List<SectionKind> sections) {
 
+  /** The reader of the Architecture Explorer, as the design's built-in templates name it. */
+  public static final String EXPLORER_READER = "architects and senior engineers";
+
+  /** The reader of the Executive Brief, as the design's built-in templates name it. */
+  public static final String BRIEF_READER = "leadership";
+
+  /**
+   * The reader of a C4 report: the audience of its system, container and flow levels (L1 in the
+   * design's granularity table).
+   */
+  public static final String C4_READER = "architects and new engineers";
+
   /** The form of document IDs (and section and block IDs) the document model allows. */
   private static final Pattern ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]*");
 
@@ -59,15 +71,15 @@ public record ViewDefinition(
   /**
    * A view of one repository with the sections of the Architecture Explorer, in the order the
    * Quality bar asks: the overview as its orientation, where to start reading, the containers (the
-   * first diagram), context, components, main flows, the catalog, change guidance, then the
-   * dependencies and structure (ADR 0048).
+   * first diagram), context, components, main flows, the catalog, change guidance, the dependencies
+   * and structure (ADR 0048), then the glossary (ADR 0061).
    */
   public static ViewDefinition perRepo(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
         id,
         repo,
         Scope.repo(repo),
-        null,
+        EXPLORER_READER,
         template,
         List.of(
             SectionKind.OVERVIEW,
@@ -79,7 +91,8 @@ public record ViewDefinition(
             SectionKind.CATALOG,
             SectionKind.CHANGE_GUIDANCE,
             SectionKind.DEPENDENCIES,
-            SectionKind.STRUCTURE));
+            SectionKind.STRUCTURE,
+            SectionKind.GLOSSARY));
   }
 
   /**
@@ -92,7 +105,7 @@ public record ViewDefinition(
         id,
         repo,
         Scope.repo(repo),
-        null,
+        C4_READER,
         template,
         List.of(
             SectionKind.OVERVIEW,
@@ -112,7 +125,7 @@ public record ViewDefinition(
         id,
         title,
         Scope.system(),
-        null,
+        C4_READER,
         template,
         List.of(
             SectionKind.OVERVIEW,
@@ -126,14 +139,14 @@ public record ViewDefinition(
   /**
    * A view of one repository with the sections of the Executive Brief: overview, headline numbers,
    * risks, blast radius, technology currency, and the context and container diagrams (ADR 0015, ADR
-   * 0052).
+   * 0052), then the glossary (ADR 0061).
    */
   public static ViewDefinition executiveBrief(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
         id,
         repo,
         Scope.repo(repo),
-        null,
+        BRIEF_READER,
         template,
         List.of(
             SectionKind.OVERVIEW,
@@ -142,6 +155,7 @@ public record ViewDefinition(
             SectionKind.BLAST_RADIUS,
             SectionKind.TECHNOLOGY_CURRENCY,
             SectionKind.CONTEXT,
-            SectionKind.CONTAINERS));
+            SectionKind.CONTAINERS,
+            SectionKind.GLOSSARY));
   }
 }

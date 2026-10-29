@@ -2,8 +2,9 @@
   "document" : {
     "id" : "orders-explorer",
     "title" : "orders",
-    "subtitle" : "The **orders** service [orders](#/structure) packages its library.\n\n**Shared database (high)**\n`orders-db` is shared.\nConsequence: A change to its tables can break another service.\nConfidence: 90%\n\n- One deployable.\n- *Reads one database.*",
-    "version" : "3"
+    "subtitle" : "The **orders** service [orders](#/structure) packages its library.\n\n**Shared database (high)**\n`orders-db` is shared.\nConsequence: A change to its tables can break another service.\nConfidence: 90%\n\n- One deployable.\n- *Reads one database.*\n\nFor architect. Pinned to commit orders `aaaaaaaaaaaa`, as of 2026-01-15.",
+    "version" : "3",
+    "updated" : "2026-01-15"
   },
   "elements" : {
     "database-orders-db" : {

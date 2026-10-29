@@ -124,6 +124,7 @@ class ExecutiveBriefTest {
             "technology_currency",
             "context",
             "containers",
+            "glossary",
             "quality");
     assertThat(section(document, "headlines").title()).isEqualTo("At a glance");
   }

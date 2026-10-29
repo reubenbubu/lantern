@@ -180,7 +180,13 @@ export const sample: Document = {
   id: 'orders-explorer',
   title: 'orders',
   template: { name: 'architecture-explorer', version: '1' },
-  source: { snapshot: 1, vocabularyRevision: 0, toolVersion: '0.1.0-SNAPSHOT' },
+  source: {
+    snapshot: 1,
+    vocabularyRevision: 0,
+    toolVersion: '0.1.0-SNAPSHOT',
+    commits: { orders: 'a'.repeat(40) },
+    date: '2026-01-15',
+  },
   entities: [
     { id: 'library:orders-lib', name: 'orders-lib', parent: 'service:orders', facts: [factId] },
     { id: 'service:orders', name: 'orders', facts: [factId] },

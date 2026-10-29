@@ -2,6 +2,7 @@
   "schemaVersion" : 1,
   "id" : "orders",
   "title" : "orders",
+  "audience" : "architects and senior engineers",
   "template" : {
     "name" : "architecture-explorer",
     "version" : "1"
@@ -9,7 +10,11 @@
   "source" : {
     "snapshot" : 1,
     "vocabularyRevision" : 3,
-    "toolVersion" : "0.1.0-test"
+    "toolVersion" : "0.1.0-test",
+    "commits" : {
+      "orders" : "4748b0129140d98d98ad539e48815823536b3d40"
+    },
+    "date" : "1970-01-01"
   },
   "entities" : [ {
     "id" : "artifact:org.projectlombok:lombok",
@@ -839,6 +844,31 @@
     } ],
     "sections" : [ ]
   }, {
+    "id" : "glossary",
+    "title" : "Glossary",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "table",
+      "id" : "glossary.terms",
+      "columns" : [ {
+        "label" : "Term"
+      }, {
+        "label" : "Meaning"
+      } ],
+      "rows" : [ {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "HTTP"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Hypertext Transfer Protocol, the request and response protocol of the web"
+        } ] ],
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "quality",
     "title" : "Quality report",
     "facts" : [ ],
@@ -846,38 +876,6 @@
       "kind" : "quality-report",
       "id" : "quality.report",
       "failures" : [ {
-        "check" : "A legend for every shape, color, line style and arrowhead used",
-        "target" : {
-          "kind" : "block",
-          "id" : "context.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The template draws no legend."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Acronyms are explained in the glossary",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document has no glossary; it uses HTTP."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "It states its reader",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document names no audience; the view definition it was composed from has none."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "It pins its snapshot (commits) and date",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
-        } ],
-        "facts" : [ ]
-      }, {
         "check" : "A \"start here\" list of the entry points and files to read first",
         "target" : {
           "kind" : "section",

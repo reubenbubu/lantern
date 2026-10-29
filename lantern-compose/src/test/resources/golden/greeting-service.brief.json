@@ -2,6 +2,7 @@
   "schemaVersion" : 1,
   "id" : "greeting-service.brief",
   "title" : "greeting-service",
+  "audience" : "leadership",
   "template" : {
     "name" : "executive-brief",
     "version" : "1"
@@ -9,7 +10,11 @@
   "source" : {
     "snapshot" : 1,
     "vocabularyRevision" : 3,
-    "toolVersion" : "0.1.0-test"
+    "toolVersion" : "0.1.0-test",
+    "commits" : {
+      "greeting-service" : "87b8856deb4831fc7b75b8469d173c0b88dc3288"
+    },
+    "date" : "1970-01-01"
   },
   "entities" : [ {
     "id" : "module:com.example.greeting:greeting-lib",
@@ -897,6 +902,21 @@
     } ],
     "sections" : [ ]
   }, {
+    "id" : "glossary",
+    "title" : "Glossary",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "glossary.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The document uses no acronyms."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "quality",
     "title" : "Quality report",
     "facts" : [ ],
@@ -904,42 +924,6 @@
       "kind" : "quality-report",
       "id" : "quality.report",
       "failures" : [ {
-        "check" : "A legend for every shape, color, line style and arrowhead used",
-        "target" : {
-          "kind" : "block",
-          "id" : "context.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The template draws no legend."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "A legend for every shape, color, line style and arrowhead used",
-        "target" : {
-          "kind" : "block",
-          "id" : "containers.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The template draws no legend."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "It states its reader",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document names no audience; the view definition it was composed from has none."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "It pins its snapshot (commits) and date",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
-        } ],
-        "facts" : [ ]
-      }, {
         "check" : "Quality evidence",
         "detail" : [ {
           "kind" : "text",

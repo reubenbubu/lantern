@@ -23,6 +23,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -111,7 +112,7 @@ class QualityBarTest {
         "Shop",
         audience,
         new TemplateRef(template, "1"),
-        new DocumentSource(1, 1, "test"),
+        new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
         List.copyOf(entities.values()),
         facts,
         List.of(sections));
@@ -153,8 +154,7 @@ class QualityBarTest {
             section("containers", "Containers", goodContainers("d")));
 
     // The legend has no dashed boundary, its protocol is an acronym and there is no glossary.
-    assertThat(checks(document))
-        .containsExactly(QualityBar.LEGEND, QualityBar.ACRONYMS, QualityBar.PINNED);
+    assertThat(checks(document)).containsExactly(QualityBar.LEGEND, QualityBar.ACRONYMS);
     assertThat(failed(document, QualityBar.LEGEND))
         .containsExactly("d: The template's legend has no entry for the dashed boundary.");
   }
@@ -168,11 +168,71 @@ class QualityBarTest {
   }
 
   @Test
-  void lanternsOwnTemplatesDrawNoLegend() {
+  void otherTemplatesDrawNoLegend() {
     Document document = document("other", "a", section("s", "S", goodContainers("d")));
 
     assertThat(failed(document, QualityBar.LEGEND))
         .containsExactly("d: The template draws no legend.");
+  }
+
+  @Test
+  void lanternsOwnTemplatesDrawALegendButNotOfColors() {
+    Diagram good = goodContainers("d");
+    List<Diagram.Node> nodes = new ArrayList<>(good.nodes());
+    Diagram.Node shop = nodes.get(1);
+    nodes.set(
+        1,
+        new Diagram.Node(
+            shop.id(),
+            shop.label(),
+            shop.technology(),
+            shop.parent(),
+            new Diagram.Style(null, null, "#ff0000"),
+            null,
+            shop.facts()));
+    Diagram colored =
+        new Diagram("c", good.diagramKind(), good.title(), nodes, good.edges(), good.facts());
+    SequenceDiagram flow =
+        new SequenceDiagram(
+            "f",
+            "Shop takes payment",
+            List.of(
+                new SequenceDiagram.Participant(SHOP, "shop", null, null, List.of()),
+                new SequenceDiagram.Participant(PAY, "pay", null, null, List.of())),
+            List.of(
+                new SequenceDiagram.Message(
+                    SHOP,
+                    PAY,
+                    "Takes payment",
+                    null,
+                    SequenceDiagram.MessageKind.ASYNC,
+                    null,
+                    null,
+                    List.of(),
+                    List.of(),
+                    List.of(CALL.id()))),
+            List.of());
+
+    for (String template : List.of(QualityBar.EXPLORER, QualityBar.BRIEF)) {
+      Document document =
+          document(template, "a", section("s", "S", good), section("t", "T", colored, flow));
+
+      assertThat(failed(document, QualityBar.LEGEND))
+          .as(template)
+          .containsExactly("c: The template's legend does not say what the colors mean.");
+    }
+  }
+
+  @Test
+  void aGlossaryDefinesWordsSoItNeedsNoFacts() {
+    Document document =
+        document(
+            "c4-model-sequence-diagrams",
+            "a",
+            Glossary.BUNDLED.section("glossary", new java.util.TreeSet<>(Set.of("HTTP", "FOO"))));
+
+    assertThat(failed(document, QualityBar.CLAIMS)).isEmpty();
+    assertThat(failed(document, QualityBar.ACRONYMS)).isEmpty();
   }
 
   @Test

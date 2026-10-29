@@ -55,7 +55,12 @@ public enum SectionKind {
    */
   BLAST_RADIUS("Blast radius", EnumSet.of(Level.L0, Level.L1)),
   /** Runtime and framework versions against the end of their free support. */
-  TECHNOLOGY_CURRENCY("Technology currency", EnumSet.of(Level.L0, Level.L1));
+  TECHNOLOGY_CURRENCY("Technology currency", EnumSet.of(Level.L0, Level.L1)),
+  /**
+   * What the acronyms the rest of the document uses stand for, from the table bundled with Lantern.
+   * Shown at every level; the composer builds it last, from the other sections (ADR 0061).
+   */
+  GLOSSARY("Glossary", EnumSet.noneOf(Level.class));
 
   private final String title;
   private final EnumSet<Level> levels;

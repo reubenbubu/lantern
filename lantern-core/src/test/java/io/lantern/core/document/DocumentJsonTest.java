@@ -10,8 +10,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.FactJson;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -167,7 +169,8 @@ class DocumentJsonTest {
                     "D",
                     null,
                     new TemplateRef("t", "1"),
-                    new DocumentSource(1, 0, "dev"),
+                    new DocumentSource(
+                        1, 0, "dev", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
                     List.of(),
                     List.of(BUILDS, BUILDS),
                     List.of()))
@@ -358,7 +361,7 @@ class DocumentJsonTest {
         "D",
         null,
         new TemplateRef("t", "1"),
-        new DocumentSource(1, 0, "dev"),
+        new DocumentSource(1, 0, "dev", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
         entities,
         List.of(),
         List.of(section));

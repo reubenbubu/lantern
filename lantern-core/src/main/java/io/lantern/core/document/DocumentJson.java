@@ -2,9 +2,13 @@ package io.lantern.core.document;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.FactJson;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import tools.jackson.databind.JsonNode;
@@ -48,6 +52,9 @@ public final class DocumentJson {
     source.put("snapshot", document.source().snapshot());
     source.put("vocabularyRevision", document.source().vocabularyRevision());
     source.put("toolVersion", document.source().toolVersion());
+    ObjectNode commits = source.putObject("commits");
+    document.source().commits().forEach(commits::put);
+    source.put("date", document.source().date().toString());
     ArrayNode entities = node.putArray("entities");
     document.entities().forEach(e -> entities.add(toJson(e)));
     ArrayNode facts = node.putArray("facts");
@@ -74,7 +81,8 @@ public final class DocumentJson {
           "Unsupported document schemaVersion: " + in.required("schemaVersion"));
     }
     Reader template = in.object("template", "name", "version");
-    Reader source = in.object("source", "snapshot", "vocabularyRevision", "toolVersion");
+    Reader source =
+        in.object("source", "snapshot", "vocabularyRevision", "toolVersion", "commits", "date");
     return new Document(
         in.string("id"),
         in.string("title"),
@@ -83,10 +91,28 @@ public final class DocumentJson {
         new DocumentSource(
             source.integer("snapshot"),
             source.integer("vocabularyRevision"),
-            source.string("toolVersion")),
+            source.string("toolVersion"),
+            commits(source.object("commits")),
+            date(source.string("date"))),
         in.array("entities", DocumentJson::entityFromJson),
         in.array("facts", FactJson::fromJson),
         in.array("sections", DocumentJson::sectionFromJson));
+  }
+
+  private static Map<String, String> commits(Reader in) {
+    Map<String, String> commits = new LinkedHashMap<>();
+    for (String repo : in.node().propertyNames()) {
+      commits.put(repo, Reader.string(in.node().get(repo), "commits." + repo));
+    }
+    return commits;
+  }
+
+  private static LocalDate date(String text) {
+    try {
+      return LocalDate.parse(text);
+    } catch (DateTimeParseException e) {
+      throw new IllegalArgumentException("Field 'date' must be a date such as 2026-01-31", e);
+    }
   }
 
   private static ObjectNode toJson(DocumentEntity entity) {

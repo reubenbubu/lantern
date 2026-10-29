@@ -527,11 +527,26 @@ public final class C4ReportRenderer {
                   })
               .filter(s -> !s.isEmpty())
               .collect(Collectors.joining("\n\n"));
-      if (!intro.isEmpty()) {
-        node.put("subtitle", intro);
-      }
+      String pinned = pinnedMarkdown();
+      node.put("subtitle", intro.isEmpty() ? pinned : intro + "\n\n" + pinned);
       node.put("version", Long.toString(document.source().snapshot()));
+      node.put("updated", document.source().date().toString());
       return node;
+    }
+
+    /** Who the document is for and the commits it is pinned to, as Lantern's templates say it. */
+    private String pinnedMarkdown() {
+      StringBuilder text = new StringBuilder();
+      if (document.audience() != null) {
+        text.append("For ").append(oneLine(document.audience())).append(". ");
+      }
+      Map<String, String> commits = document.source().commits();
+      text.append("Pinned to ").append(commits.size() == 1 ? "commit " : "commits ");
+      text.append(
+          commits.entrySet().stream()
+              .map(c -> c.getKey() + " `" + c.getValue().substring(0, 12) + "`")
+              .collect(Collectors.joining(", ")));
+      return text.append(", as of ").append(document.source().date()).append('.').toString();
     }
 
     private String looseMarkdown(Block block) {

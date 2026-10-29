@@ -18,6 +18,7 @@ import io.lantern.core.fact.EntityId;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -155,7 +156,7 @@ class C4ReportRendererTest {
             "orders",
             null,
             AnalysisRun.C4_REPORT,
-            new DocumentSource(1, 1, "test"),
+            new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
             List.of(entity(dotted), entity(dashed)),
             List.of(),
             List.of(
@@ -258,7 +259,7 @@ class C4ReportRendererTest {
         "shop",
         null,
         AnalysisRun.C4_REPORT,
-        new DocumentSource(1, 1, "test"),
+        new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
         entities,
         List.of(),
         List.of(sections));
