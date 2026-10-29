@@ -95,6 +95,11 @@ final class ClaimContradictions {
         for (JsonNode entry : entries) {
           JsonNode id = entry.get("fact");
           Fact found = id == null ? null : knowledge.fact(id.asString());
+          if (found != null && found.predicate().equals(C4Views.UNRESOLVED_LINK)) {
+            // A call the resolver linked is shown as the link it picked.
+            Fact resolution = knowledge.resolution(found);
+            found = resolution == null ? found : resolution;
+          }
           if (found != null && !by.contains(found)) {
             by.add(found);
           }

@@ -90,7 +90,9 @@ final class SequenceFlows {
     for (EntityId unit : C4Views.units(knowledge)) {
       for (Fact fact : knowledge.about(unit)) {
         String source = attribute(fact, "source");
-        if (source != null && !alternatives.contains(fact)) {
+        if (source != null
+            && !alternatives.contains(fact)
+            && !(fact.predicate().equals(C4Views.UNRESOLVED_LINK) && knowledge.resolved(fact))) {
           linksBySource.computeIfAbsent(unit + " " + source, k -> new ArrayList<>()).add(fact);
         }
       }
@@ -309,7 +311,7 @@ final class SequenceFlows {
           through == null ? protocol : join(protocol, through),
           SequenceDiagram.MessageKind.ASYNC,
           later.profiles,
-          bindingInfo(link),
+          deliveryInfo(link),
           withEnds(link));
       if (handler != null) {
         trace.reached.add(receiver + " " + handler);
@@ -565,6 +567,10 @@ final class SequenceFlows {
     if (protocol != null) {
       info.add("Over " + protocol + ".");
     }
+    String resolution = C4Views.resolution(link);
+    if (resolution != null) {
+      info.add(capitalize(resolution) + ".");
+    }
     List<Fact> facts = withEnds(link);
     for (Map.Entry<Fact, Fact> alternative : c4.alternativeLinks().entrySet()) {
       if (alternative.getValue().equals(link)) {
@@ -619,7 +625,7 @@ final class SequenceFlows {
         attribute(link, "protocol"),
         SequenceDiagram.MessageKind.ASYNC,
         profiles,
-        null,
+        C4Views.resolution(link) == null ? null : capitalize(C4Views.resolution(link)) + ".",
         facts,
         plain,
         plainFacts);
@@ -653,6 +659,21 @@ final class SequenceFlows {
             + " the message later.",
         profiles,
         deliveries);
+  }
+
+  private String deliveryInfo(Fact link) {
+    String binding = bindingInfo(link);
+    String resolution = C4Views.resolution(link);
+    if (resolution == null) {
+      return binding;
+    }
+    return binding == null
+        ? capitalize(resolution) + "."
+        : binding + " " + capitalize(resolution) + ".";
+  }
+
+  private static String capitalize(String text) {
+    return Character.toUpperCase(text.charAt(0)) + text.substring(1);
   }
 
   private void unresolved(Trace trace, EntityId unit, Fact fact, List<String> profiles) {

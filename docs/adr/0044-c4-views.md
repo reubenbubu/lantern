@@ -1,7 +1,7 @@
 # 0044: Context, container and component views, and the system's C4 report
 
 Status: accepted (#95), amended by ADR 0046 (#163), ADR 0048 (#97), ADR 0049 (#176), ADR 0050
-(#181), ADR 0060 (#196) and ADR 0070 (#250), pending the user's review (#24)
+(#181), ADR 0060 (#196) and ADR 0070 (#250), #256, pending the user's review (#24)
 
 ## Context
 
@@ -96,6 +96,14 @@ currency and ranked risks were split off to #163 and #164.
   with the repositories built, for its pages, elements and key lines (REPO-1, HTTP-1, MSG-1, SPR-4)
   and against the report spec's schema, and writes it to `lantern-app/target/project-0/` to look
   at. It replaces `Project0C4ReportIT`, which composed the same report outside the run (#167).
+
+## Amendment (#256): links the resolver linked
+
+A link left open that the LLM resolver linked (a link with `resolves` naming it, ADR 0045) is not
+listed as not linked in the overview, the Brief's note, the sequence notes or the claim
+contradictions, which name the resolver's link instead. The line is drawn as before, its technology
+reading "resolved by the LLM, confidence 0.28" (the link's confidence), and so does the message
+in a sequence diagram, in its info.
 
 ## Not in this issue
 

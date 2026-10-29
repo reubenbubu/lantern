@@ -18,6 +18,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -571,8 +572,27 @@ final class C4Views {
     return method == null ? path : method + " " + path;
   }
 
-  private static String protocol(Fact fact) {
-    return attribute(fact, "protocol");
+  /**
+   * A link's protocol; for a link the LLM resolver picked (ADR 0045) it adds that and its
+   * confidence, so the line shows it was not matched statically.
+   */
+  static String protocol(Fact fact) {
+    String protocol = attribute(fact, "protocol");
+    String resolution = resolution(fact);
+    if (resolution == null) {
+      return protocol;
+    }
+    return protocol == null ? resolution : protocol + " · " + resolution;
+  }
+
+  /** "resolved by the LLM, confidence 0.28" for a link the LLM resolver picked, else null. */
+  static String resolution(Fact fact) {
+    // The resolver's links name the link left open they resolve (ADR 0045), whatever their kind.
+    if (!fact.attributes().has("resolves")) {
+      return null;
+    }
+    return "resolved by the LLM, confidence "
+        + String.format(Locale.ROOT, "%.2f", fact.confidence());
   }
 
   private static String attribute(Fact fact, String name) {
@@ -922,7 +942,7 @@ final class C4Views {
     List<Fact> facts = new ArrayList<>();
     for (EntityId unit : units) {
       for (Fact fact : knowledge.attributes(unit)) {
-        if (!fact.predicate().equals(UNRESOLVED_LINK)) {
+        if (!fact.predicate().equals(UNRESOLVED_LINK) || knowledge.resolved(fact)) {
           continue;
         }
         facts.add(fact);
