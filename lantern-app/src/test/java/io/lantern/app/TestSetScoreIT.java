@@ -17,7 +17,6 @@ import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.summarize.SummaryStore;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,9 +29,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -88,7 +87,9 @@ import tools.jackson.databind.json.JsonMapper;
     disabledReason = "lantern.test.set names no test set folder")
 class TestSetScoreIT {
 
-  private static final Path WORKSPACE = tempDirectory();
+  /** The workspace; JUnit removes it after the class. */
+  @TempDir static Path WORKSPACE;
+
   private static final Path REPOSITORY = Path.of("..").toAbsolutePath().normalize();
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -121,15 +122,6 @@ class TestSetScoreIT {
   @Autowired LlmProperties properties;
   @Autowired JdbcLlmCallLog callLog;
   @Autowired FakeLlmProvider fake;
-
-  @AfterAll
-  static void cleanUp() throws IOException {
-    try (Stream<Path> paths = Files.walk(WORKSPACE)) {
-      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-        Files.delete(path);
-      }
-    }
-  }
 
   @Test
   void scoresTheSetTwiceWithSummarizeOnAnotherModel() throws Exception {
@@ -303,14 +295,6 @@ class TestSetScoreIT {
       for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
         Files.delete(path);
       }
-    }
-  }
-
-  private static Path tempDirectory() {
-    try {
-      return Files.createTempDirectory("lantern-test-set-workspace-");
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
   }
 }
