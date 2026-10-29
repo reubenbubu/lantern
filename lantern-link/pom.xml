@@ -14,7 +14,7 @@
   <name>Lantern Link</name>
 
   <properties>
-    <!-- Set to the folder project-0 was set up in to run Project0DeployableUnitsIT. -->
+    <!-- Set to the folder project-0 was set up in to run the Project0*IT tests. -->
     <lantern.test.project0></lantern.test.project0>
   </properties>
 
