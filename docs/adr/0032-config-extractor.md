@@ -65,8 +65,8 @@ what the facts look like and how a secret written in a config file is handled.
   unless it is only placeholders that nothing resolves (`${SHOP_DB_PASSWORD}`), which say where the
   secret comes from. Any value, under any key, that a secret was substituted into through a
   placeholder is masked the same way (`db.url=...?password=${spring.datasource.password}`). Keys
-  merely ending in `key` (a routing key) are not secrets. Literal secrets under other keys, such as
-  a password written inside a URL, are not detected.
+  merely ending in `key` (a routing key) are not secrets. Credentials written inside a URL are
+  removed, see the amendment below; other literal secrets under other keys are not detected.
 - **For other extractors**, `ConfigExtractor.read(repo)` gives each module's `ModuleConfig`:
   its profiles, its values per view, and `resolve(profile, text)` for a placeholder in code, such
   as a `@Value` or a listener's destination. These are not masked; each value and resolution lists
@@ -79,3 +79,20 @@ what the facts look like and how a secret written in a config file is handled.
   MSG-1, MSG-4, ENTRY-1, HTTP-3, HTTP-4 and DB-5 resolve through. It reads the repositories from
   git without building them, and runs when `lantern.test.project0` is set (see Commands in
   `CLAUDE.md`).
+
+## Amendment: credentials inside URLs (#137)
+
+- **Every URL in a value loses its credentials, the rest is kept.** A literal credential inside a
+  URL under a key that is not a secret (`spring.datasource.url=jdbc:postgresql://user:pass@db/shop`)
+  used to be recorded as written. Now the value and its `written` form go through the persistence
+  extractor's `UrlCredentials` (ADR 0036), extended to every URL shape: a URL starts with `jdbc:`,
+  `r2dbc:` or any `scheme://` (`amqp://`, `redis://`, `mongodb+srv://`, `https://`, ...), also
+  inside a placeholder default (`${DB_URL:jdbc:...}`), and ends at whitespace or at a comma before
+  another URL, so a value may hold several. Each loses the user info before the host
+  (`//user:password@`, `redis://:password@`), Oracle's `thin:user/password@`, and every `?`, `&`
+  or `;` property naming a user or a secret (judged by name as keys are: `password`, `pwd`,
+  `token`, `apikey`, `access_key`, ..., any case); a `#fragment` is kept. Host, port, path and
+  other properties stay, as the linker needs them. A value a placeholder resolves into such a URL
+  is cleaned the same way. A fact that lost a credential carries `masked: true`. A value with a URL
+  that still looks like it holds a credential (`password=` in a form not understood) is recorded
+  as `******`, masked. Values without URLs are unchanged. The extractor's version becomes 2.

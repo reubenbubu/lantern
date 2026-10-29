@@ -277,6 +277,48 @@ class ConfigExtractorTest {
   }
 
   @Test
+  void credentialsWrittenInsideUrlsAreRemoved() throws IOException {
+    Repo repo =
+        repo(
+            Map.of(
+                RESOURCES + "application.properties",
+                """
+                spring.datasource.url=jdbc:postgresql://user:pass@db/shop?password=x&ssl=true
+                legacy.url=${DB_URL:jdbc:oracle:thin:scott/tiger@//db:1521/X}
+                broker.uri=amqp://guest:guest@rabbit:5672/orders
+                cache.url=${cache.base}/0
+                cache.base=redis://:pw@cache:6379
+                odd.url=jdbc:mysql://address=(host=db)(password=p)/shop
+                plain.url=http://localhost:8080/api
+                """));
+
+    assertThat(extract(repo))
+        .containsExactlyInAnyOrder(
+            "module:g:app config-value amqp://rabbit:5672/orders"
+                + " {\"key\":\"broker.uri\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#3-3 1.0",
+            "module:g:app config-value http://localhost:8080/api {\"key\":\"plain.url\"}"
+                + " @app:src/main/resources/application.properties#7-7 1.0",
+            "module:g:app config-value jdbc:oracle:thin:@//db:1521/X"
+                + " {\"key\":\"legacy.url\",\"masked\":true,"
+                + "\"written\":\"${DB_URL:jdbc:oracle:thin:@//db:1521/X}\"}"
+                + " @app:src/main/resources/application.properties#2-2 1.0",
+            "module:g:app config-value jdbc:postgresql://db/shop?ssl=true"
+                + " {\"key\":\"spring.datasource.url\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#1-1 1.0",
+            // A URL a placeholder resolves into loses its credentials too.
+            "module:g:app config-value redis://cache:6379"
+                + " {\"key\":\"cache.base\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#5-5 1.0",
+            "module:g:app config-value redis://cache:6379/0"
+                + " {\"key\":\"cache.url\",\"masked\":true,\"written\":\"${cache.base}/0\"}"
+                + " @app:src/main/resources/application.properties#4-4 1.0",
+            // A credential in a form not understood masks the whole value.
+            "module:g:app config-value ****** {\"key\":\"odd.url\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#6-6 1.0");
+  }
+
+  @Test
   void aFileSpringBootCannotReadIsLeftOut() throws IOException {
     Repo repo =
         repo(

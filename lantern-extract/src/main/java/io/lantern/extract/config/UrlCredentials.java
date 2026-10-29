@@ -9,13 +9,16 @@ import java.util.regex.Pattern;
 
 /**
  * Removes credentials from database and other connection URLs in a config value, so that a value
- * can be recorded without them. See {@code docs/adr/0036-persistence-extractor.md}.
+ * can be recorded without them. See {@code docs/adr/0036-persistence-extractor.md} and {@code
+ * docs/adr/0032-config-extractor.md}.
  *
- * <p>Removed: user info before the host ({@code //user:password@host}), Oracle's {@code
- * thin:user/password@}, and every property naming a user or a secret ({@code ?password=...}, {@code
- * ;user=...}). Placeholders are kept whole, except those in a removed part, so a default such as
- * {@code ${DB_PASSWORD:changeme}} in the password goes with it; a URL inside a placeholder's
- * default is cleaned the same way.
+ * <p>A URL starts with {@code jdbc:}, {@code r2dbc:} or any {@code scheme://} ({@code amqp://},
+ * {@code redis://}, {@code mongodb+srv://}, {@code https://}, ...) and ends at whitespace or a
+ * comma before another URL, so a text may hold several. Removed: user info before the host ({@code
+ * //user:password@host}), Oracle's {@code thin:user/password@}, and every property naming a user or
+ * a secret ({@code ?password=...}, {@code &api_key=...}, {@code ;user=...}). Placeholders are kept
+ * whole, except those in a removed part, so a default such as {@code ${DB_PASSWORD:changeme}} in
+ * the password goes with it; a URL inside a placeholder's default is cleaned the same way.
  */
 public final class UrlCredentials {
 
@@ -63,12 +66,38 @@ public final class UrlCredentials {
     List<String> placeholders = new ArrayList<>();
     String protectedText = protect(text, placeholders);
     Matcher start = URL_START.matcher(protectedText);
-    String cleaned =
-        start.find()
-            ? protectedText.substring(0, start.start())
-                + cleanOne(protectedText.substring(start.start()))
-            : protectedText;
-    return restore(cleaned, placeholders);
+    StringBuilder cleaned = new StringBuilder();
+    int from = 0;
+    while (start.find(from)) {
+      cleaned.append(protectedText, from, start.start());
+      int end = end(protectedText, start.end());
+      cleaned.append(cleanOne(protectedText.substring(start.start(), end)));
+      from = end;
+    }
+    cleaned.append(protectedText, from, protectedText.length());
+    return restore(cleaned.toString(), placeholders);
+  }
+
+  /** Whether a text holds a URL, possibly inside a placeholder's default. */
+  public static boolean containsUrl(String text) {
+    return URL_START.matcher(text).find();
+  }
+
+  /**
+   * Where a URL whose start ends at {@code from} ends: at whitespace, or at a comma followed by
+   * another URL ({@code amqp://a,amqp://b}; a comma between hosts stays in the URL).
+   */
+  private static int end(String text, int from) {
+    for (int i = from; i < text.length(); i++) {
+      char c = text.charAt(i);
+      if (Character.isWhitespace(c)) {
+        return i;
+      }
+      if (c == ',' && URL_START.matcher(text).region(i + 1, text.length()).lookingAt()) {
+        return i;
+      }
+    }
+    return text.length();
   }
 
   /**
@@ -144,10 +173,10 @@ public final class UrlCredentials {
     Matcher authority = AUTHORITY.matcher(result);
     if (authority.find()) {
       String rest = result.substring(authority.end());
-      // The user info ends at the last '@' before the query, so a password holding '/' or ';'
-      // goes too.
-      int query = rest.indexOf('?');
-      int at = rest.lastIndexOf('@', (query < 0 ? rest.length() : query) - 1);
+      // The user info ends at the last '@' before the query or fragment, so a password holding
+      // '/' or ';' goes too.
+      int query = firstOf(rest, "?#");
+      int at = rest.lastIndexOf('@', query - 1);
       if (at >= 0) {
         result = result.substring(0, authority.end()) + rest.substring(at + 1);
       }
@@ -155,16 +184,20 @@ public final class UrlCredentials {
     return withoutProperties(result);
   }
 
-  /** Removes user and secret properties from the {@code ?a=b&c=d} and {@code ;a=b} parts. */
+  /**
+   * Removes user and secret properties from the {@code ?a=b&c=d} and {@code ;a=b} parts, keeping a
+   * {@code #fragment}.
+   */
   private static String withoutProperties(String url) {
-    int start = firstOf(url, "?;");
+    int start = firstOf(url, "?;#");
+    int fragment = start + firstOf(url.substring(start), "#");
     StringBuilder out = new StringBuilder(url.substring(0, start));
     boolean query = false;
     int i = start;
-    while (i < url.length()) {
+    while (i < fragment) {
       char separator = url.charAt(i);
       int next = i + 1;
-      while (next < url.length() && "&;?".indexOf(url.charAt(next)) < 0) {
+      while (next < fragment && "&;?".indexOf(url.charAt(next)) < 0) {
         next++;
       }
       String property = url.substring(i + 1, next);
@@ -181,7 +214,7 @@ public final class UrlCredentials {
       }
       i = next;
     }
-    return out.toString();
+    return out.append(url, fragment, url.length()).toString();
   }
 
   private static boolean isCredential(String name) {

@@ -87,8 +87,8 @@ SQL counts, and how a datasource URL is recorded without its credentials.
   `UrlCredentials` in the config package, for the config extractor to reuse (#137). A URL that a secret was substituted into is
   recorded as written, placeholders kept, credentials removed, with `masked: true`. One that still
   looks like it holds a credential (`password=` in a form not understood) is recorded as `******`,
-  masked. Config-value facts of the config extractor are unchanged; a literal credential in a URL
-  there is its known limitation (ADR 0032, #137).
+  masked. The config extractor's config-value facts lose credentials in URLs the same way (ADR
+  0032, amendment for #137).
 - **New vocabulary**, applied by the app on startup after the SQL extractor's (it uses `table`),
   with source `persistence-extractor`: the attribute type `datasource` (string) and the
   relationship types `MAPS_TO`, `REPOSITORY_FOR`, `READS_TABLE` and `WRITES_TABLE`. The last two
