@@ -753,5 +753,95 @@
       "facts" : [ ]
     } ],
     "sections" : [ ]
+  }, {
+    "id" : "quality",
+    "title" : "Quality report",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "quality-report",
+      "id" : "quality.report",
+      "failures" : [ {
+        "check" : "A legend for every shape, color, line style and arrowhead used",
+        "target" : {
+          "kind" : "block",
+          "id" : "context.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The template draws no legend."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "A legend for every shape, color, line style and arrowhead used",
+        "target" : {
+          "kind" : "block",
+          "id" : "containers.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The template draws no legend."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "It states its reader",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document names no audience; the view definition it was composed from has none."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "It pins its snapshot (commits) and date",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "A \"start here\" list of the entry points and files to read first",
+        "target" : {
+          "kind" : "section",
+          "id" : "overview"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "There is none."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "The container diagram first",
+        "target" : {
+          "kind" : "block",
+          "id" : "context.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The first diagram is not the container diagram."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "The main flows as sequence diagrams",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document has no sequence diagram."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "A catalog of containers, components, endpoints, queues, tables and config",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document has no catalog section."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Observed decisions, with rationale or marked unknown",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "No decision records are listed, and none are marked unknown."
+        } ],
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
   } ]
 }

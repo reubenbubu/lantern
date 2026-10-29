@@ -2,6 +2,7 @@ package io.lantern.compose;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.lantern.core.document.Callout;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.Paragraph;
@@ -338,6 +339,8 @@ class SequenceFlowsTest {
                 + " gw.example.com, orders, audit, ship and ship on db. It hands work on"
                 + " asynchronously through audit and orders. One call could not be followed:"
                 + " GET ${TAX_URL}/quotes.");
+    // It cites the facts of the steps it describes.
+    assertThat(prose.facts()).isNotEmpty();
     Table trigger = (Table) order.blocks().get(1);
     assertThat(trigger.rows().getFirst().cells())
         .extracting(SequenceFlowsTest::text)
@@ -382,7 +385,7 @@ class SequenceFlowsTest {
             .toList();
     Section flows = flows(system(inside));
     assertThat(flows.sections()).isEmpty();
-    assertThat(text(((Paragraph) flows.blocks().getFirst()).content()))
+    assertThat(text(((Callout) flows.blocks().getFirst()).content()))
         .isEqualTo(
             "No entry point (HTTP endpoint, message listener or scheduled job) was found whose"
                 + " code reaches another container.");

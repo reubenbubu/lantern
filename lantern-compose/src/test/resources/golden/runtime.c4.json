@@ -1335,7 +1335,7 @@
           "kind" : "text",
           "text" : "Starts when shop-app receives GET /orders, handled by Controller.list. It reaches orders, shop on db, pay.example.com and worker. It hands work on asynchronously through orders."
         } ],
-        "facts" : [ ]
+        "facts" : [ "502fd631503895f4a279b2b468ed915a4abd748c47e15f79b9191efb221bc4e8", "67231df9bd6219f0eca8c18ac55bb5ddf6e2593d055702ddf806900414ef593d", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "aeb875027f22ddf23418b69eaa767b941cf970afd96cf35a1dd74614f0343638", "b8a8543a15540ec8446e6f285236413a3651f536044ea2066406d6db9ef1f54a", "f88a69586e4c4de0dbd0b3a14aace2d47d1c11856869443ea493f7c78fe41680" ]
       }, {
         "kind" : "table",
         "id" : "sequences.shop-app.Controller.list.trigger",
@@ -1464,7 +1464,7 @@
           "kind" : "text",
           "text" : "Starts when the schedule 0 0 * * * * fires in shop-app, handled by Jobs.run. It reaches orders, shop on db and worker. It hands work on asynchronously through orders."
         } ],
-        "facts" : [ ]
+        "facts" : [ "67231df9bd6219f0eca8c18ac55bb5ddf6e2593d055702ddf806900414ef593d", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "aeb875027f22ddf23418b69eaa767b941cf970afd96cf35a1dd74614f0343638", "b8a8543a15540ec8446e6f285236413a3651f536044ea2066406d6db9ef1f54a", "bf76f471ea37f0dc18e515efdc218889fc58ac57b7da38504a8a8c3ec15ef0fb" ]
       }, {
         "kind" : "table",
         "id" : "sequences.shop-app.Jobs.run.trigger",
@@ -1557,5 +1557,125 @@
       } ],
       "sections" : [ ]
     } ]
+  }, {
+    "id" : "quality",
+    "title" : "Quality report",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "quality-report",
+      "id" : "quality.report",
+      "failures" : [ {
+        "check" : "A legend for every shape, color, line style and arrowhead used",
+        "target" : {
+          "kind" : "block",
+          "id" : "containers.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The template's legend has no entry for the dashed boundary."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Containers and components have a technology",
+        "target" : {
+          "kind" : "block",
+          "id" : "containers.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "No technology for worker."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Every line is labelled with an intent phrase",
+        "target" : {
+          "kind" : "block",
+          "id" : "containers.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\")."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "A legend for every shape, color, line style and arrowhead used",
+        "target" : {
+          "kind" : "block",
+          "id" : "components.service:com.example:app.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The template's legend has no entry for the dashed boundary."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Containers and components have a technology",
+        "target" : {
+          "kind" : "block",
+          "id" : "components.service:com.example:app.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "No technology for worker."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Every line is labelled with an intent phrase",
+        "target" : {
+          "kind" : "block",
+          "id" : "components.service:com.example:app.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "A legend for every shape, color, line style and arrowhead used",
+        "target" : {
+          "kind" : "block",
+          "id" : "sequences.shop-app.Controller.list.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The template's legend has no arrowhead for asynchronous messages."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "A legend for every shape, color, line style and arrowhead used",
+        "target" : {
+          "kind" : "block",
+          "id" : "sequences.shop-app.Jobs.run.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The template's legend has no arrowhead for asynchronous messages."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Acronyms are explained in the glossary",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "It states its reader",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document names no audience; the view definition it was composed from has none."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "It pins its snapshot (commits) and date",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
+        } ],
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
   } ]
 }

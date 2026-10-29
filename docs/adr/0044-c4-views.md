@@ -1,6 +1,6 @@
 # 0044: Context, container and component views, and the system's C4 report
 
-Status: accepted (#95), pending the user's review (#24)
+Status: accepted (#95), amended by ADR 0046 (#163), pending the user's review (#24)
 
 ## Context
 
@@ -42,8 +42,8 @@ currency and ranked risks were split off to #163 and #164.
   technology (`AMQP · payments.order-events`), the design's "via" label, so a broker never becomes
   one box and the diagram stays small. A diagram of more than 15 elements is split into one per unit
   with its neighbours, each its own subsection and so its own page. A diagram still above 15
-  elements (one unit with more neighbours, or a scope of one unit) is drawn whole and listed in a
-  quality-report block, "At most 15 elements", until #163 checks every document. Service discovery, config
+  elements (one unit with more neighbours, or a scope of one unit) is drawn whole and fails "At most
+  15 elements" in the document's quality report (ADR 0046). Service discovery, config
   servers, tracing and brokers (`USES_INFRASTRUCTURE`, `USES_BROKER`) are left out, and
   `SENDS_MESSAGES_TO` is drawn through the topic or queue it goes through.
 - **Lines** are one per pair of elements and relationship, built from the link facts: the label

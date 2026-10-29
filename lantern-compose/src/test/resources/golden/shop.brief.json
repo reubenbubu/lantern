@@ -935,11 +935,69 @@
     "entity" : "repo:shop",
     "facts" : [ ],
     "blocks" : [ {
-      "kind" : "paragraph",
+      "kind" : "callout",
       "id" : "containers.none",
+      "variant" : "note",
       "content" : [ {
         "kind" : "text",
         "text" : "No deployable unit was found in the code."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "quality",
+    "title" : "Quality report",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "quality-report",
+      "id" : "quality.report",
+      "failures" : [ {
+        "check" : "A legend for every shape, color, line style and arrowhead used",
+        "target" : {
+          "kind" : "block",
+          "id" : "context.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The template draws no legend."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "It states its reader",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document names no audience; the view definition it was composed from has none."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "It pins its snapshot (commits) and date",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Who depends on it and what it depends on (blast radius)",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The brief has no section on who depends on it and what it depends on."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Technology currency",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The brief has no section on runtime and framework versions."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Quality evidence",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The brief has no section on tests, architecture tests or coverage."
+        } ],
+        "facts" : [ ]
       } ],
       "facts" : [ ]
     } ],

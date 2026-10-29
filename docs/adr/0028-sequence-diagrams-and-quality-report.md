@@ -1,6 +1,6 @@
 # 0028: Sequence diagrams and the quality report in the document model
 
-Status: accepted (#91), pending the user's review (#24)
+Status: accepted (#91), amended by ADR 0046 (#163), pending the user's review (#24)
 
 ## Context
 

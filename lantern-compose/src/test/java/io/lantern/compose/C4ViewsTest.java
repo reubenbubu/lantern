@@ -11,7 +11,6 @@ import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.ListBlock;
 import io.lantern.core.document.Metrics;
-import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
 import io.lantern.core.document.Table;
@@ -267,7 +266,8 @@ class C4ViewsTest {
           "{\"protocol\": \"Kafka\"}");
     }
 
-    Section containers = section(system(many.list()), "containers");
+    Document document = system(many.list());
+    Section containers = section(document, "containers");
 
     assertThat(containers.blocks()).noneMatch(Diagram.class::isInstance);
     assertThat(containers.sections())
@@ -276,16 +276,15 @@ class C4ViewsTest {
     Diagram worker = block(containers.sections().get(1), Diagram.class);
     assertThat(worker.title()).isEqualTo("Containers around worker of base and shop");
     // shop-app's own neighbourhood still has more than 15 elements: a quality gap, not hidden.
-    QualityReport gaps = block(containers, QualityReport.class);
+    QualityReport gaps = block(document.sections().getLast(), QualityReport.class);
     assertThat(gaps.failures())
+        .filteredOn(f -> f.check().equals("At most 15 elements"))
         .singleElement()
         .satisfies(
-            f -> {
-              assertThat(f.check()).isEqualTo("At most 15 elements");
-              assertThat(f.target())
-                  .isEqualTo(
-                      CrossReference.Target.block("containers.service:com.example:app.diagram"));
-            });
+            f ->
+                assertThat(f.target())
+                    .isEqualTo(
+                        CrossReference.Target.block("containers.service:com.example:app.diagram")));
   }
 
   @Test
@@ -338,7 +337,7 @@ class C4ViewsTest {
   void aRepositoryWithoutUnitsSaysSo() {
     Section containers = section(repo(TestFacts.shop().list()), "containers");
 
-    assertThat(text(block(containers, Paragraph.class).content()))
+    assertThat(text(block(containers, Callout.class).content()))
         .isEqualTo("No deployable unit was found in the code.");
   }
 }

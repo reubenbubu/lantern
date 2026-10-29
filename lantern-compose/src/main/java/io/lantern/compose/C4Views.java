@@ -2,12 +2,9 @@ package io.lantern.compose;
 
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
-import io.lantern.core.document.CrossReference;
 import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.Metrics;
-import io.lantern.core.document.Paragraph;
-import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
 import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
@@ -336,42 +333,6 @@ final class C4Views {
             "Under other profiles",
             content,
             assembler.facts(facts)));
-  }
-
-  /**
-   * The diagrams that show more than {@link #MAX_ELEMENTS} elements, boundaries not counted, as
-   * failures of the Quality bar's check (#163 makes the checks of every document).
-   */
-  private Optional<QualityReport> tooLarge(String id, List<Diagram> diagrams) {
-    List<QualityReport.Failure> failures = new ArrayList<>();
-    for (Diagram diagram : diagrams) {
-      Set<EntityId> boundaries = new HashSet<>();
-      diagram
-          .nodes()
-          .forEach(
-              n -> {
-                if (n.parent() != null) {
-                  boundaries.add(n.parent());
-                }
-              });
-      int elements = diagram.nodes().size() - boundaries.size();
-      if (elements > MAX_ELEMENTS) {
-        failures.add(
-            new QualityReport.Failure(
-                "At most " + MAX_ELEMENTS + " elements",
-                CrossReference.Target.block(diagram.id()),
-                List.of(
-                    TextRun.of(
-                        "It shows "
-                            + elements
-                            + " elements, and one unit's direct neighbours cannot be split"
-                            + " further.")),
-                List.of()));
-      }
-    }
-    return failures.isEmpty()
-        ? Optional.empty()
-        : Optional.of(new QualityReport(id, "Quality gaps", failures, List.of()));
   }
 
   /** The links of every unit, with RabbitMQ queues an exchange routes to folded into the line. */
@@ -770,17 +731,19 @@ final class C4Views {
    */
   void containers(String section, List<Block> blocks, List<Section> subsections) {
     if (units.isEmpty()) {
+      // A note: what the code does not show cites no fact (Quality bar, ADR 0046).
       blocks.add(
-          new Paragraph(
+          new Callout(
               assembler.id(section, "none"),
+              Callout.Variant.NOTE,
+              null,
+              null,
               List.of(TextRun.of("No deployable unit was found in the code.")),
               List.of()));
     } else {
       Diagram whole = containerDiagram(assembler.id(section, "diagram"), units, "Containers");
-      List<Diagram> drawn = new ArrayList<>();
       if (whole.nodes().size() - 1 <= MAX_ELEMENTS || units.size() == 1) {
         blocks.add(whole);
-        drawn.add(whole);
       } else {
         for (EntityId unit : units) {
           String id = assembler.id(section, unit.toString());
@@ -789,7 +752,6 @@ final class C4Views {
                   assembler.id(id, "diagram"),
                   only(unit),
                   "Containers around " + assembler.name(unit));
-          drawn.add(around);
           subsections.add(
               new Section(
                   id,
@@ -801,7 +763,6 @@ final class C4Views {
                   List.of()));
         }
       }
-      tooLarge(assembler.id(section, "quality"), drawn).ifPresent(blocks::add);
     }
     alternativesNote(assembler.id(section, "profiles"), units, false).ifPresent(blocks::add);
     unresolved(section).ifPresent(blocks::add);
@@ -975,7 +936,6 @@ final class C4Views {
       Diagram diagram = componentDiagram(assembler.id(id, "diagram"), unit, components);
       List<Block> blocks = new ArrayList<>(List.of(diagram));
       alternativesNote(assembler.id(id, "profiles"), only(unit), false).ifPresent(blocks::add);
-      tooLarge(assembler.id(id, "quality"), List.of(diagram)).ifPresent(blocks::add);
       result.add(
           new Section(
               id,

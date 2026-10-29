@@ -1,6 +1,6 @@
 # 0031: Rendering into a report spec, starting with the C4 report
 
-Status: accepted (#112), amended by ADR 0044 (#95), pending the user's review (#24)
+Status: accepted (#112), amended by ADR 0044 (#95) and ADR 0046 (#163), pending the user's review (#24)
 
 ## Context
 
@@ -42,7 +42,8 @@ decided ID mapping is in a comment on #112.
   Content on no page (the overview) becomes the index's introduction where it is text or a list.
   Other block kinds map to their nearest section type: tables, lists, callouts, headline numbers as
   stats, trees as indented lists, dependency diagrams as a table of their lines, quality reports
-  as a list of failed checks (or a success callout).
+  as a list of failed checks (or a success callout). The document's own quality report, on no
+  page, is split by page (ADR 0046).
 - **Element kinds come from how the diagrams draw an entity**, since the document model holds no
   vocabulary: a box on a context diagram is a system, on a container diagram a container, on a
   component diagram a component, and a node others are drawn inside is the system (container

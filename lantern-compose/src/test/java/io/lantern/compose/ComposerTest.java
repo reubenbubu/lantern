@@ -76,7 +76,13 @@ class ComposerTest {
     assertThat(document.sections())
         .extracting(Section::id)
         .containsExactly(
-            "overview", "context", "containers", "components", "dependencies", "structure");
+            "overview",
+            "context",
+            "containers",
+            "components",
+            "dependencies",
+            "structure",
+            "quality");
   }
 
   @Test
@@ -93,7 +99,9 @@ class ComposerTest {
     Document document = new Composer("1").compose(view, SNAPSHOT, facts.list(), Map.of());
 
     assertThat(document.audience()).isEqualTo("architect");
-    assertThat(document.sections()).extracting(Section::id).containsExactly("structure", "context");
+    assertThat(document.sections())
+        .extracting(Section::id)
+        .containsExactly("structure", "context", "quality");
   }
 
   @Test
@@ -338,7 +346,7 @@ class ComposerTest {
     assertThat(document.entities())
         .extracting(e -> e.id().toString())
         .containsExactly("repo:empty", "system:snapshot");
-    assertThat(document.sections()).hasSize(6);
+    assertThat(document.sections()).hasSize(7);
   }
 
   @Test

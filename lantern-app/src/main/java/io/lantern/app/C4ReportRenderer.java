@@ -45,7 +45,9 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>A section that holds a C4 or sequence diagram becomes a page, at the level of its first
  *       such diagram; its other blocks, and those of subsections without such a diagram, become the
  *       page's sections, with the leading paragraphs as the page summary. Content on no page
- *       becomes the index's introduction where it is text or a list, and is left out otherwise.
+ *       becomes the index's introduction where it is text or a list, and is left out otherwise,
+ *       except a quality report: each failure goes to the end of the page showing what failed, or
+ *       of the first page.
  *   <li>The entities drawn in diagrams become elements, of the kind the diagrams draw them as: a
  *       box on a context diagram is a system, on a container diagram a container, on a component
  *       diagram a component, and a node other nodes are drawn inside is the system or container
@@ -196,6 +198,7 @@ public final class C4ReportRenderer {
       pages.forEach(this::collectElements);
       elements.values().forEach(e -> elementIds.id(e.id.toString()));
       pages.forEach(this::catalogue);
+      distributeQualityReports();
 
       ObjectNode data = MAPPER.createObjectNode();
       data.set("document", documentNode());
@@ -267,6 +270,64 @@ public final class C4ReportRenderer {
         }
       }
       return null;
+    }
+
+    /**
+     * Puts each failure of a quality report on no page (the document's own, ADR 0046) on the page
+     * that shows what failed, or the first page when that is the document or on no page, as a list
+     * at the end of the page. A report without failures is a success callout on the first page.
+     */
+    private void distributeQualityReports() {
+      if (pages.isEmpty()) {
+        return;
+      }
+      for (Part part : loose) {
+        if (!(part.block instanceof QualityReport report)) {
+          continue;
+        }
+        Map<PagePlan, List<QualityReport.Failure>> byPage = new LinkedHashMap<>();
+        if (report.failures().isEmpty()) {
+          byPage.put(pages.getFirst(), new ArrayList<>());
+        }
+        for (QualityReport.Failure failure : report.failures()) {
+          PagePlan page = failure.target() == null ? null : pageOf(failure.target());
+          byPage
+              .computeIfAbsent(page == null ? pages.getFirst() : page, p -> new ArrayList<>())
+              .add(failure);
+        }
+        String title = report.title() == null ? "Quality gaps" : report.title();
+        byPage.forEach(
+            (page, failures) ->
+                page.quality.add(
+                    new PageReport(
+                        page.sectionIds.id(report.id()),
+                        new QualityReport(report.id(), title, failures, report.facts()))));
+        if (!blocks.containsKey(report.id())) {
+          blocks.put(report.id(), new Location(pages.getFirst(), null));
+        }
+      }
+    }
+
+    /** The page a cross-reference target is on, or null. */
+    private PagePlan pageOf(CrossReference.Target target) {
+      Location location =
+          switch (target.kind()) {
+            case SECTION -> sections.get(target.id());
+            case BLOCK -> blocks.get(target.id());
+            case ENTITY -> {
+              EntityId entity = EntityId.parse(target.id());
+              String about = pageAbout.get(entity);
+              if (about != null) {
+                yield pages.stream()
+                    .filter(p -> p.id.equals(about))
+                    .findFirst()
+                    .map(p -> new Location(p, null))
+                    .orElse(null);
+              }
+              yield catalogue.get(entity);
+            }
+          };
+      return location == null ? null : location.page;
     }
 
     /** Gives each block on the page its section ID; leading paragraphs form the summary. */
@@ -532,6 +593,9 @@ public final class C4ReportRenderer {
           made.getFirst().put("title", part.heading);
         }
         made.forEach(sectionsNode::add);
+      }
+      for (PageReport report : page.quality) {
+        sectionsNode.add(qualityReport(report.sectionId, report.report));
       }
       return node;
     }
@@ -984,6 +1048,9 @@ public final class C4ReportRenderer {
     final List<Part> summary = new ArrayList<>();
     final ReportSpecIds sectionIds = new ReportSpecIds("section");
 
+    /** The failures of the document's quality report shown on this page. */
+    final List<PageReport> quality = new ArrayList<>();
+
     PagePlan(Section section, String level, String id) {
       this.section = section;
       this.level = level;
@@ -996,6 +1063,9 @@ public final class C4ReportRenderer {
    * block of a subsection placed on another section's page.
    */
   private record Part(Section owner, Block block, String heading) {}
+
+  /** The part of a quality report shown on one page, and its section ID there. */
+  private record PageReport(String sectionId, QualityReport report) {}
 
   /** A page, and the section of it, or none for the page itself. */
   private record Location(PagePlan page, String sectionId) {}

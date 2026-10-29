@@ -1,6 +1,7 @@
 package io.lantern.compose;
 
 import io.lantern.core.document.Block;
+import io.lantern.core.document.Callout;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
@@ -717,9 +718,13 @@ final class SequenceFlows {
       }
     }
     if (kept.isEmpty()) {
+      // A note: what the code does not show cites no fact (Quality bar, ADR 0046).
       blocks.add(
-          new Paragraph(
+          new Callout(
               assembler.id(section, "none"),
+              Callout.Variant.NOTE,
+              null,
+              null,
               List.of(
                   TextRun.of(
                       "No entry point (HTTP endpoint, message listener or scheduled job) was found"
@@ -762,9 +767,8 @@ final class SequenceFlows {
       }
     }
     List<Block> blocks = new ArrayList<>();
-    blocks.add(
-        new Paragraph(
-            assembler.id(id, "prose"), List.of(TextRun.of(prose(trace, starts))), List.of()));
+    String proseId = assembler.id(id, "prose");
+    String prose = prose(trace, starts);
     blocks.add(
         new Table(
             assembler.id(id, "trigger"),
@@ -789,6 +793,10 @@ final class SequenceFlows {
             List.of(TextRun.of("Starts when " + starts + " (" + handler + ").")),
             assembler.facts(List.of(entry.fact))));
     steps.addAll(frames(trace.items));
+    // The prose says what the steps show, so it cites their facts (Quality bar, ADR 0046).
+    Set<String> proseFacts = new TreeSet<>();
+    collectFacts(steps, proseFacts);
+    blocks.addFirst(new Paragraph(proseId, List.of(TextRun.of(prose)), List.copyOf(proseFacts)));
     List<SequenceDiagram.Participant> participants = new ArrayList<>();
     for (EntityId participant : trace.participants) {
       assembler.entity(participant);
@@ -809,6 +817,18 @@ final class SequenceFlows {
             assembler.facts(List.of(entry.fact))));
     return new Section(
         id, title, SectionKind.SEQUENCES.levels(), null, List.of(), blocks, List.of());
+  }
+
+  private static void collectFacts(List<SequenceDiagram.Step> steps, Set<String> into) {
+    for (SequenceDiagram.Step step : steps) {
+      into.addAll(step.facts());
+      if (step instanceof SequenceDiagram.Frame frame) {
+        for (SequenceDiagram.Operand operand : frame.operands()) {
+          into.addAll(operand.facts());
+          collectFacts(operand.steps(), into);
+        }
+      }
+    }
   }
 
   /** Two to four sentences of what the flow does, from what the trace found. */
