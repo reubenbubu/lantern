@@ -107,12 +107,35 @@ public final class ModuleStructure {
   /**
    * A member: a {@code method:} or {@code field:} entity, its declaration and the annotations
    * written on it.
+   *
+   * @param type for a field, its erased type as in a member ID; null for a method or constructor
+   * @param parameters for a method or constructor written in the source, its parameters in order;
+   *     empty for a field, for a member the compiler declares implicitly and for a record's
+   *     constructor
    */
-  public record Member(EntityId id, Location where, List<Annotation> annotations) {
+  public record Member(
+      EntityId id,
+      Location where,
+      List<Annotation> annotations,
+      String type,
+      List<Parameter> parameters) {
 
-    /** A member without annotations. */
+    public Member {
+      annotations = List.copyOf(annotations);
+      parameters = List.copyOf(parameters);
+    }
+
+    /** A member without annotations, type or parameters. */
     Member(EntityId id, Location where) {
-      this(id, where, List.of());
+      this(id, where, List.of(), null, List.of());
+    }
+  }
+
+  /** A parameter of a method or constructor: its name and the annotations written on it. */
+  public record Parameter(String name, List<Annotation> annotations) {
+
+    public Parameter {
+      annotations = List.copyOf(annotations);
     }
   }
 
@@ -166,8 +189,34 @@ public final class ModuleStructure {
     }
   }
 
+  /**
+   * A chain of calls on an API that extractors follow values into ({@link TrackedApis}), such as an
+   * HTTP client's request: a call that is not itself the receiver of another call, whose innermost
+   * receiver has a type of a tracked API.
+   *
+   * @param caller the method whose code makes it, or the type for code outside methods; a {@link
+   *     Expression.Param} in it is that method's parameter
+   * @param expression the outermost call of the chain
+   * @param where the chain
+   */
+  public record Invocation(EntityId caller, Expression.Invoke expression, Location where) {}
+
+  /**
+   * A value given to a field of a named type: its initializer, or an assignment to it in a
+   * constructor or initializer block of its type.
+   *
+   * @param field the field
+   * @param in the constructor the assignment is in, or the type for an initializer; a {@link
+   *     Expression.Param} in the value is that constructor's parameter
+   * @param value the value
+   * @param where the initializer or assignment
+   */
+  public record Assignment(EntityId field, EntityId in, Expression value, Location where) {}
+
   final List<TypeDecl> types = new ArrayList<>();
   final List<Call> calls = new ArrayList<>();
+  final List<Invocation> invocations = new ArrayList<>();
+  final List<Assignment> assignments = new ArrayList<>();
 
   /**
    * The annotations on annotation types read from the classpath (meta-annotations), by the
@@ -183,6 +232,16 @@ public final class ModuleStructure {
   /** The calls the code makes, in the order read. */
   public List<Call> calls() {
     return Collections.unmodifiableList(calls);
+  }
+
+  /** The calls on tracked APIs, in the order read. */
+  public List<Invocation> invocations() {
+    return Collections.unmodifiableList(invocations);
+  }
+
+  /** The values given to fields, in the order read. */
+  public List<Assignment> assignments() {
+    return Collections.unmodifiableList(assignments);
   }
 
   /** The meta-annotations of the annotation types read from the classpath, by binary name. */

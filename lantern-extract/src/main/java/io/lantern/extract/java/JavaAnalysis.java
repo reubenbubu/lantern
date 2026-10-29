@@ -4,10 +4,13 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * The Java code of a snapshot's repositories as the Java structure extractor read it, one {@link
@@ -94,6 +97,54 @@ public final class JavaAnalysis {
    * @return the meta-annotations, or an empty list if the type is unknown
    */
   public List<Annotation> metaAnnotations(String binaryName) {
+    return metaAnnotationsOf(binaryName);
+  }
+
+  /**
+   * The first annotation written that is, or carries through meta-annotations, the given type: the
+   * path from the one written to the one found, or null.
+   *
+   * @param annotations the annotations written on an element
+   * @param type the binary name of the annotation type looked for
+   */
+  public List<Annotation> annotationPath(List<Annotation> annotations, String type) {
+    for (Annotation a : annotations) {
+      List<Annotation> path = annotationPath(a, type);
+      if (path != null) {
+        return path;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The path from an annotation to one of the given type among its meta-annotations, the annotation
+   * itself first, or null if it is not one and carries none.
+   */
+  public List<Annotation> annotationPath(Annotation a, String type) {
+    return find(a, type, new HashSet<>());
+  }
+
+  private List<Annotation> find(Annotation a, String type, Set<String> seen) {
+    if (a.type().equals(type)) {
+      return List.of(a);
+    }
+    if (!seen.add(a.type())) {
+      return null;
+    }
+    for (Annotation meta : metaAnnotationsOf(a.type())) {
+      List<Annotation> path = find(meta, type, seen);
+      if (path != null) {
+        List<Annotation> full = new ArrayList<>();
+        full.add(a);
+        full.addAll(path);
+        return full;
+      }
+    }
+    return null;
+  }
+
+  private List<Annotation> metaAnnotationsOf(String binaryName) {
     TypeDecl declared = types.get(binaryName);
     if (declared != null) {
       return declared.annotations();

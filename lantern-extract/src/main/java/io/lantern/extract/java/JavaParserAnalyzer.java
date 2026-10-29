@@ -11,12 +11,14 @@ import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.AnnotationDeclaration;
 import com.github.javaparser.ast.body.AnnotationMemberDeclaration;
 import com.github.javaparser.ast.body.BodyDeclaration;
+import com.github.javaparser.ast.body.CallableDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.CompactConstructorDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
 import com.github.javaparser.ast.body.EnumConstantDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.body.InitializerDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.RecordDeclaration;
@@ -24,6 +26,7 @@ import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.ArrayInitializerExpr;
+import com.github.javaparser.ast.expr.AssignExpr;
 import com.github.javaparser.ast.expr.BinaryExpr;
 import com.github.javaparser.ast.expr.BooleanLiteralExpr;
 import com.github.javaparser.ast.expr.CastExpr;
@@ -31,9 +34,9 @@ import com.github.javaparser.ast.expr.CharLiteralExpr;
 import com.github.javaparser.ast.expr.ClassExpr;
 import com.github.javaparser.ast.expr.DoubleLiteralExpr;
 import com.github.javaparser.ast.expr.EnclosedExpr;
-import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.IntegerLiteralExpr;
+import com.github.javaparser.ast.expr.LambdaExpr;
 import com.github.javaparser.ast.expr.LongLiteralExpr;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.MethodCallExpr;
@@ -44,10 +47,20 @@ import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.expr.TextBlockLiteralExpr;
+import com.github.javaparser.ast.expr.ThisExpr;
 import com.github.javaparser.ast.expr.UnaryExpr;
 import com.github.javaparser.ast.expr.VariableDeclarationExpr;
+import com.github.javaparser.ast.nodeTypes.NodeWithSimpleName;
 import com.github.javaparser.ast.nodeTypes.NodeWithTypeParameters;
+import com.github.javaparser.ast.stmt.BlockStmt;
+import com.github.javaparser.ast.stmt.CatchClause;
 import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
+import com.github.javaparser.ast.stmt.ExpressionStmt;
+import com.github.javaparser.ast.stmt.ForEachStmt;
+import com.github.javaparser.ast.stmt.ForStmt;
+import com.github.javaparser.ast.stmt.Statement;
+import com.github.javaparser.ast.stmt.SwitchEntry;
+import com.github.javaparser.ast.stmt.TryStmt;
 import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.PrimitiveType;
@@ -179,6 +192,8 @@ final class JavaParserAnalyzer {
       }
       structure.types.addAll(one.types);
       structure.calls.addAll(one.calls);
+      structure.invocations.addAll(one.invocations);
+      structure.assignments.addAll(one.assignments);
     }
     return structure;
   }
@@ -227,6 +242,15 @@ final class JavaParserAnalyzer {
       for (MethodReferenceExpr reference : unit.findAll(MethodReferenceExpr.class)) {
         call(reference, () -> reference.resolve(), null, List.of());
       }
+      for (MethodCallExpr call : unit.findAll(MethodCallExpr.class)) {
+        chain(call);
+      }
+      for (ObjectCreationExpr creation : unit.findAll(ObjectCreationExpr.class)) {
+        if (creation.getAnonymousClassBody().isEmpty()) {
+          chain(creation);
+        }
+      }
+      fieldValues();
     }
 
     private void readType(TypeDeclaration<?> type, String binary, String outer) {
@@ -266,7 +290,12 @@ final class JavaParserAnalyzer {
             EntityId id = ModuleStructure.fieldId(binary, constant.getNameAsString());
             if (id != null) {
               members.add(
-                  new Member(id, location(constant), annotations(constant.getAnnotations())));
+                  new Member(
+                      id,
+                      location(constant),
+                      annotations(constant.getAnnotations()),
+                      binary,
+                      List.of()));
             }
           }
           if (!hasConstructor) {
@@ -314,7 +343,13 @@ final class JavaParserAnalyzer {
             for (VariableDeclarator v : f.getVariables()) {
               EntityId id = ModuleStructure.fieldId(binary, v.getNameAsString());
               if (id != null) {
-                members.add(new Member(id, location(f), annotations(f.getAnnotations())));
+                members.add(
+                    new Member(
+                        id,
+                        location(f),
+                        annotations(f.getAnnotations()),
+                        describe(v.getType(), v),
+                        List.of()));
               }
             }
           }
@@ -361,7 +396,16 @@ final class JavaParserAnalyzer {
       }
       for (Parameter component : record.getParameters()) {
         String name = component.getNameAsString();
-        add(members, ModuleStructure.fieldId(binary, name), location(component));
+        EntityId field = ModuleStructure.fieldId(binary, name);
+        if (field != null) {
+          members.add(
+              new Member(
+                  field,
+                  location(component),
+                  List.of(),
+                  describe(component.getType(), record),
+                  List.of()));
+        }
         EntityId accessor = ModuleStructure.methodId(binary, name, List.of());
         if (!declared.contains(accessor)) {
           add(members, accessor, location(component));
@@ -408,8 +452,24 @@ final class JavaParserAnalyzer {
     private void callable(List<Member> members, BodyDeclaration<?> declaration, EntityId id) {
       if (id != null) {
         callables.put(declaration, id);
+        List<ModuleStructure.Parameter> parameters = new ArrayList<>();
+        // As javac reads them: none for a record's constructors.
+        if (declaration instanceof MethodDeclaration
+            || declaration instanceof ConstructorDeclaration
+                && !(declaration.getParentNode().orElse(null) instanceof RecordDeclaration)) {
+          for (Parameter p : ((CallableDeclaration<?>) declaration).getParameters()) {
+            parameters.add(
+                new ModuleStructure.Parameter(
+                    p.getNameAsString(), annotations(p.getAnnotations())));
+          }
+        }
         members.add(
-            new Member(id, location(declaration), annotations(declaration.getAnnotations())));
+            new Member(
+                id,
+                location(declaration),
+                annotations(declaration.getAnnotations()),
+                null,
+                parameters));
       }
     }
 
@@ -493,11 +553,12 @@ final class JavaParserAnalyzer {
     }
 
     /** An element's value as strings, constants folded; nested annotations go to {@code nested}. */
-    private List<String> values(Expression value, List<AnnotationExpr> nested) {
-      List<Expression> items =
+    private List<String> values(
+        com.github.javaparser.ast.expr.Expression value, List<AnnotationExpr> nested) {
+      List<com.github.javaparser.ast.expr.Expression> items =
           value instanceof ArrayInitializerExpr array ? array.getValues() : List.of(value);
       List<String> values = new ArrayList<>();
-      for (Expression item : items) {
+      for (com.github.javaparser.ast.expr.Expression item : items) {
         if (item instanceof AnnotationExpr a) {
           if (nested != null) {
             nested.add(a);
@@ -517,7 +578,7 @@ final class JavaParserAnalyzer {
      * class literal's or enum constant's name as a String, or null if it cannot be folded. Integer
      * arithmetic is done in {@code long}, so a result that overflows an {@code int} differs.
      */
-    private Object constant(Expression e, int depth) {
+    private Object constant(com.github.javaparser.ast.expr.Expression e, int depth) {
       if (depth > MAX_CONSTANT_DEPTH) {
         return null;
       }
@@ -698,7 +759,7 @@ final class JavaParserAnalyzer {
         Node node,
         Supplier<? extends ResolvedMethodLikeDeclaration> resolve,
         Position name,
-        List<Expression> arguments) {
+        List<com.github.javaparser.ast.expr.Expression> arguments) {
       EntityId caller = owner(node);
       if (caller == null) {
         return;
@@ -756,6 +817,570 @@ final class JavaParserAnalyzer {
         }
       }
       return null;
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Expressions: calls on tracked APIs and values given to fields, read as javac reads them
+
+    /** Records a call on a tracked API that is not what another call is made on. */
+    private void chain(com.github.javaparser.ast.expr.Expression call) {
+      if (isReceiver(call) || !TrackedApis.isTracked(rootType(call))) {
+        return;
+      }
+      EntityId caller = owner(call);
+      if (caller != null && expression(call, caller, 0) instanceof Expression.Invoke invoke) {
+        structure.invocations.add(new ModuleStructure.Invocation(caller, invoke, location(call)));
+      }
+    }
+
+    private static boolean isReceiver(Node node) {
+      return node.getParentNode().orElse(null) instanceof MethodCallExpr parent
+          && parent.getScope().orElse(null) == node;
+    }
+
+    /** Field initializers, and assignments to a type's own fields in its constructors. */
+    private void fieldValues() {
+      for (FieldDeclaration f : unit.findAll(FieldDeclaration.class)) {
+        String type = binaryNames.get(f.getParentNode().orElse(null));
+        if (type == null) {
+          continue;
+        }
+        EntityId in = ModuleStructure.typeId(type);
+        for (VariableDeclarator v : f.getVariables()) {
+          if (v.getInitializer().isEmpty() || in == null || isConstant(f, v)) {
+            continue;
+          }
+          EntityId field = ModuleStructure.fieldId(type, v.getNameAsString());
+          if (field != null) {
+            structure.assignments.add(
+                new ModuleStructure.Assignment(
+                    field, in, expression(v.getInitializer().get(), in, 0), location(v)));
+          }
+        }
+      }
+      for (AssignExpr a : unit.findAll(AssignExpr.class)) {
+        if (a.getOperator() != AssignExpr.Operator.ASSIGN) {
+          continue;
+        }
+        String name;
+        if (a.getTarget() instanceof NameExpr n) {
+          name = n.getNameAsString();
+        } else if (a.getTarget() instanceof FieldAccessExpr f
+            && f.getScope() instanceof ThisExpr t
+            && t.getTypeName().isEmpty()) {
+          name = f.getNameAsString();
+        } else {
+          continue;
+        }
+        Binding binding =
+            a.getTarget() instanceof NameExpr ? bind(a.getTarget(), name) : field(a, name);
+        if (!(binding instanceof Binding.Field field) || field.declarator() == null) {
+          continue;
+        }
+        EntityId in = owner(a);
+        String type = field.type();
+        if (in == null
+            || !(in.type().equals(BuiltInTypes.TYPE)
+                ? in.key().equals(type)
+                : in.key().startsWith(type + "#" + ModuleStructure.CONSTRUCTOR + "("))) {
+          continue;
+        }
+        EntityId id = ModuleStructure.fieldId(type, name);
+        if (id != null) {
+          structure.assignments.add(
+              new ModuleStructure.Assignment(id, in, expression(a.getValue(), in, 0), location(a)));
+        }
+      }
+    }
+
+    /** Whether a field is a constant variable: final, of a primitive type or String, folded. */
+    private boolean isConstant(FieldDeclaration f, VariableDeclarator v) {
+      boolean isFinal =
+          f.isFinal()
+              || f.getParentNode().orElse(null) instanceof ClassOrInterfaceDeclaration c
+                  && c.isInterface();
+      String type = v.getType().asString();
+      boolean constantType =
+          v.getType().isPrimitiveType() || type.equals("String") || type.equals("java.lang.String");
+      return isFinal
+          && constantType
+          && v.getInitializer().isPresent()
+          && constant(v.getInitializer().get(), 0) != null;
+    }
+
+    /** What a name in the code refers to. */
+    private sealed interface Binding {
+
+      /** A local variable declared in a block. */
+      record Local(VariableDeclarator declarator) implements Binding {}
+
+      /** A parameter of a method or constructor. */
+      record Param(CallableDeclaration<?> callable, int index, Type type) implements Binding {}
+
+      /**
+       * A field of a named type, declared as a variable or as a record component (declarator null).
+       */
+      record Field(
+          String type, FieldDeclaration declaration, VariableDeclarator declarator, Type fieldType)
+          implements Binding {}
+
+      /** Something else in scope, not followed: a lambda or catch parameter, a loop variable. */
+      record Other() implements Binding {}
+    }
+
+    /** The variable a simple name refers to where it is written, or null if none is in scope. */
+    private Binding bind(Node at, String name) {
+      Node child = at;
+      for (Node p = at.getParentNode().orElse(null);
+          p != null;
+          child = p, p = p.getParentNode().orElse(null)) {
+        switch (p) {
+          case BlockStmt block -> {
+            VariableDeclarator found = null;
+            for (Statement st : block.getStatements()) {
+              if (st == child) {
+                break;
+              }
+              if (st instanceof ExpressionStmt es
+                  && es.getExpression() instanceof VariableDeclarationExpr declaration) {
+                for (VariableDeclarator v : declaration.getVariables()) {
+                  if (v.getNameAsString().equals(name)) {
+                    found = v;
+                  }
+                }
+              }
+            }
+            if (found != null) {
+              return new Binding.Local(found);
+            }
+          }
+          case SwitchEntry entry -> {
+            for (Statement st : entry.getStatements()) {
+              if (st == child) {
+                break;
+              }
+              if (declares(st, name)) {
+                return new Binding.Other();
+              }
+            }
+          }
+          case LambdaExpr lambda -> {
+            if (lambda.getParameters().stream().anyMatch(x -> x.getNameAsString().equals(name))) {
+              return new Binding.Other();
+            }
+          }
+          case CatchClause c -> {
+            if (c.getParameter().getNameAsString().equals(name)) {
+              return new Binding.Other();
+            }
+          }
+          case ForEachStmt f -> {
+            if (f.getVariable().getVariables().stream()
+                .anyMatch(v -> v.getNameAsString().equals(name))) {
+              return new Binding.Other();
+            }
+          }
+          case ForStmt f -> {
+            if (f.getInitialization().stream().anyMatch(i -> declares(i, name))) {
+              return new Binding.Other();
+            }
+          }
+          case TryStmt t -> {
+            if (t.getResources().stream().anyMatch(r -> declares(r, name))) {
+              return new Binding.Other();
+            }
+          }
+          case CallableDeclaration<?> callable -> {
+            NodeList<Parameter> parameters = callable.getParameters();
+            for (int i = 0; i < parameters.size(); i++) {
+              if (parameters.get(i).getNameAsString().equals(name)) {
+                return new Binding.Param(callable, i, parameters.get(i).getType());
+              }
+            }
+          }
+          case ObjectCreationExpr anonymous when anonymous.getAnonymousClassBody().isPresent() -> {
+            for (BodyDeclaration<?> m : anonymous.getAnonymousClassBody().get()) {
+              if (m instanceof FieldDeclaration f
+                  && f.getVariables().stream().anyMatch(v -> v.getNameAsString().equals(name))) {
+                return new Binding.Other();
+              }
+            }
+          }
+          case TypeDeclaration<?> type -> {
+            Binding field = ownField(type, name);
+            if (field != null) {
+              return field;
+            }
+          }
+          default -> {}
+        }
+      }
+      return null;
+    }
+
+    /** The field {@code this.name} refers to: one of the type whose code it is written in. */
+    private Binding field(Node at, String name) {
+      for (Node p = at.getParentNode().orElse(null);
+          p != null;
+          p = p.getParentNode().orElse(null)) {
+        if (p instanceof ObjectCreationExpr anonymous
+            && anonymous.getAnonymousClassBody().isPresent()) {
+          return new Binding.Other();
+        }
+        if (p instanceof TypeDeclaration<?> type) {
+          return ownField(type, name);
+        }
+      }
+      return null;
+    }
+
+    private Binding ownField(TypeDeclaration<?> type, String name) {
+      String binary = binaryNames.get(type);
+      if (binary == null) {
+        return null;
+      }
+      for (BodyDeclaration<?> m : type.getMembers()) {
+        if (m instanceof FieldDeclaration f) {
+          for (VariableDeclarator v : f.getVariables()) {
+            if (v.getNameAsString().equals(name)) {
+              return new Binding.Field(binary, f, v, v.getType());
+            }
+          }
+        }
+      }
+      if (type instanceof RecordDeclaration record) {
+        for (Parameter component : record.getParameters()) {
+          if (component.getNameAsString().equals(name)) {
+            return new Binding.Field(binary, null, null, component.getType());
+          }
+        }
+      }
+      return null;
+    }
+
+    private static boolean declares(Node node, String name) {
+      return node.findAll(VariableDeclarator.class).stream()
+          .anyMatch(v -> v.getNameAsString().equals(name));
+    }
+
+    /** Whether a local variable is assigned anywhere in the code it is declared in. */
+    private static boolean isReassigned(VariableDeclarator v) {
+      Node scope = v;
+      while (scope.getParentNode().isPresent()
+          && !(scope instanceof CallableDeclaration<?>)
+          && !(scope instanceof InitializerDeclaration)
+          && !(scope instanceof LambdaExpr)) {
+        scope = scope.getParentNode().get();
+      }
+      String name = v.getNameAsString();
+      for (AssignExpr a : scope.findAll(AssignExpr.class)) {
+        if (a.getTarget() instanceof NameExpr n && n.getNameAsString().equals(name)) {
+          return true;
+        }
+      }
+      for (UnaryExpr u : scope.findAll(UnaryExpr.class)) {
+        if (u.getExpression() instanceof NameExpr n
+            && n.getNameAsString().equals(name)
+            && (u.isPrefix() || u.isPostfix())
+            && u.getOperator() != UnaryExpr.Operator.PLUS
+            && u.getOperator() != UnaryExpr.Operator.MINUS
+            && u.getOperator() != UnaryExpr.Operator.LOGICAL_COMPLEMENT
+            && u.getOperator() != UnaryExpr.Operator.BITWISE_COMPLEMENT) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    private Expression expression(Node e, EntityId owner, int depth) {
+      if (depth > JavacAnalyzer.MAX_EXPRESSION_DEPTH) {
+        return unknown(e);
+      }
+      switch (e) {
+        case StringLiteralExpr x -> {
+          return new Expression.Literal(x.asString());
+        }
+        case TextBlockLiteralExpr x -> {
+          return new Expression.Literal(x.asString());
+        }
+        case CharLiteralExpr x -> {
+          return literal(x);
+        }
+        case IntegerLiteralExpr x -> {
+          return literal(x);
+        }
+        case LongLiteralExpr x -> {
+          return literal(x);
+        }
+        case DoubleLiteralExpr x -> {
+          return literal(x);
+        }
+        case BooleanLiteralExpr x -> {
+          return literal(x);
+        }
+        case EnclosedExpr x -> {
+          return expression(x.getInner(), owner, depth + 1);
+        }
+        case CastExpr x -> {
+          return expression(x.getExpression(), owner, depth + 1);
+        }
+        case BinaryExpr b when b.getOperator() == BinaryExpr.Operator.PLUS && isString(b) -> {
+          return Expression.concat(
+              List.of(
+                  expression(b.getLeft(), owner, depth + 1),
+                  expression(b.getRight(), owner, depth + 1)));
+        }
+        case NameExpr n -> {
+          return name(n, owner, depth);
+        }
+        case FieldAccessExpr f -> {
+          return fieldAccess(f);
+        }
+        case MethodCallExpr call -> {
+          Expression receiver =
+              call.getScope().isPresent()
+                  ? expression(call.getScope().get(), owner, depth + 1)
+                  : null;
+          return new Expression.Invoke(
+              receiver, call.getNameAsString(), arguments(call.getArguments(), owner, depth));
+        }
+        case ObjectCreationExpr created -> {
+          return new Expression.Invoke(
+              new Expression.TypeRef(describe(created.getType(), created)),
+              ModuleStructure.CONSTRUCTOR,
+              arguments(created.getArguments(), owner, depth));
+        }
+        default -> {
+          return unknown(e);
+        }
+      }
+    }
+
+    private List<Expression> arguments(
+        NodeList<com.github.javaparser.ast.expr.Expression> arguments, EntityId owner, int depth) {
+      List<Expression> list = new ArrayList<>();
+      for (com.github.javaparser.ast.expr.Expression a : arguments) {
+        list.add(expression(a, owner, depth + 1));
+      }
+      return list;
+    }
+
+    private Expression literal(com.github.javaparser.ast.expr.Expression e) {
+      Object value = constant(e, 0);
+      return value == null ? unknown(e) : new Expression.Literal(String.valueOf(value));
+    }
+
+    /** A simple name: a local variable, parameter, field, constant or type. */
+    private Expression name(NameExpr n, EntityId owner, int depth) {
+      String name = n.getNameAsString();
+      Binding binding = bind(n, name);
+      switch (binding) {
+        case Binding.Local local -> {
+          if (!(local.declarator().getParentNode().orElse(null) instanceof VariableDeclarationExpr)
+              || local.declarator().getInitializer().isEmpty()
+              || isReassigned(local.declarator())) {
+            return unknown(n);
+          }
+          return expression(local.declarator().getInitializer().get(), owner, depth + 1);
+        }
+        case Binding.Param param -> {
+          return owner.equals(callables.get(param.callable()))
+              ? new Expression.Param(param.index())
+              : unknown(n);
+        }
+        case Binding.Field field -> {
+          return field(field, n);
+        }
+        case Binding.Other other -> {
+          return unknown(n);
+        }
+        case null -> {}
+      }
+      Object constant = constant(n, 0);
+      if (constant != null) {
+        return new Expression.Literal(String.valueOf(constant));
+      }
+      try {
+        SymbolReference<? extends ResolvedValueDeclaration> ref =
+            JavaParserFacade.get(solver).solve(n);
+        if (ref.isSolved() && ref.getCorrespondingDeclaration().isField()) {
+          return new Expression.FieldRef(
+              binaryName(
+                  (ResolvedReferenceTypeDeclaration)
+                      ref.getCorrespondingDeclaration().asField().declaringType()),
+              name);
+        }
+        if (ref.isSolved() && ref.getCorrespondingDeclaration().isEnumConstant()) {
+          return new Expression.FieldRef(
+              binaryName(
+                  ref.getCorrespondingDeclaration()
+                      .asEnumConstant()
+                      .getType()
+                      .asReferenceType()
+                      .getTypeDeclaration()
+                      .orElseThrow()),
+              name);
+        }
+      } catch (RuntimeException | StackOverflowError ex) {
+        // Not resolvable; named from the imports below.
+      }
+      return Character.isUpperCase(name.charAt(0))
+          ? new Expression.TypeRef(guessType(name))
+          : unknown(n);
+    }
+
+    /** A field of a type in the snapshot's sources, by its declaration. */
+    private Expression field(Binding.Field field, Node at) {
+      if (field.declaration() != null && isConstant(field.declaration(), field.declarator())) {
+        return new Expression.Literal(
+            String.valueOf(constant(field.declarator().getInitializer().get(), 0)));
+      }
+      String name =
+          field.declarator() != null
+              ? field.declarator().getNameAsString()
+              : ((NodeWithSimpleName<?>) at).getNameAsString();
+      return new Expression.FieldRef(field.type(), name);
+    }
+
+    /** {@code this.name}, {@code Type.NAME} or {@code object.name}. */
+    private Expression fieldAccess(FieldAccessExpr f) {
+      String name = f.getNameAsString();
+      if (f.getScope() instanceof ThisExpr t && t.getTypeName().isEmpty()) {
+        Binding binding = field(f, name);
+        return binding instanceof Binding.Field field ? field(field, f) : unknown(f);
+      }
+      Object constant = constant(f, 0);
+      if (constant != null) {
+        return new Expression.Literal(String.valueOf(constant));
+      }
+      if (!isTypeName(f.getScope())) {
+        return unknown(f);
+      }
+      try {
+        SymbolReference<? extends ResolvedValueDeclaration> ref =
+            JavaParserFacade.get(solver).solve(f);
+        if (ref.isSolved() && ref.getCorrespondingDeclaration().isField()) {
+          return new Expression.FieldRef(
+              binaryName(
+                  (ResolvedReferenceTypeDeclaration)
+                      ref.getCorrespondingDeclaration().asField().declaringType()),
+              name);
+        }
+      } catch (RuntimeException | StackOverflowError ex) {
+        // Named from the imports below.
+      }
+      return new Expression.FieldRef(guessType(f.getScope().toString()), name);
+    }
+
+    /** Whether an expression names a type rather than a value: no variable is in scope by it. */
+    private boolean isTypeName(Node scope) {
+      return switch (scope) {
+        case NameExpr n ->
+            bind(n, n.getNameAsString()) == null
+                && Character.isUpperCase(n.getNameAsString().charAt(0));
+        case FieldAccessExpr f ->
+            isPackageOrTypeName(f.getScope())
+                && Character.isUpperCase(f.getNameAsString().charAt(0));
+        default -> false;
+      };
+    }
+
+    private boolean isPackageOrTypeName(Node scope) {
+      return switch (scope) {
+        case NameExpr n -> bind(n, n.getNameAsString()) == null;
+        case FieldAccessExpr f -> isPackageOrTypeName(f.getScope());
+        default -> false;
+      };
+    }
+
+    /** Whether a {@code +} concatenates strings, as far as parsing can tell. */
+    private boolean isString(Node e) {
+      return switch (e) {
+        case StringLiteralExpr x -> true;
+        case TextBlockLiteralExpr x -> true;
+        case EnclosedExpr x -> isString(x.getInner());
+        case BinaryExpr b ->
+            b.getOperator() == BinaryExpr.Operator.PLUS
+                && (isString(b.getLeft()) || isString(b.getRight()));
+        case NameExpr n -> {
+          Binding binding = bind(n, n.getNameAsString());
+          yield binding != null
+              ? "java.lang.String".equals(declaredType(binding, n))
+              : constant(n, 0) instanceof String;
+        }
+        case FieldAccessExpr f -> constant(f, 0) instanceof String;
+        default -> false;
+      };
+    }
+
+    /** The declared type of a variable, or null if it cannot be named (a {@code var}). */
+    private String declaredType(Binding binding, Node at) {
+      Type type =
+          switch (binding) {
+            case Binding.Local local -> local.declarator().getType();
+            case Binding.Param param -> param.type();
+            case Binding.Field field -> field.fieldType();
+            default -> null;
+          };
+      if (type == null || type.isVarType()) {
+        return null;
+      }
+      return describe(type, at);
+    }
+
+    /**
+     * The type of what the innermost call of a chain is made on, or of the object a constructor
+     * call makes; null for a call without a receiver or when parsing cannot name it.
+     */
+    private String rootType(Node e) {
+      Node n = e;
+      while (true) {
+        switch (n) {
+          case MethodCallExpr call -> {
+            if (call.getScope().isEmpty()) {
+              return null;
+            }
+            n = call.getScope().get();
+          }
+          case EnclosedExpr x -> n = x.getInner();
+          case ObjectCreationExpr created -> {
+            return describe(created.getType(), created);
+          }
+          case CastExpr cast -> {
+            return describe(cast.getType(), cast);
+          }
+          case NameExpr name -> {
+            Binding binding = bind(name, name.getNameAsString());
+            if (binding instanceof Binding.Other) {
+              return null;
+            }
+            if (binding != null) {
+              return declaredType(binding, name);
+            }
+            return isTypeName(name) ? guessType(name.getNameAsString()) : null;
+          }
+          case FieldAccessExpr f -> {
+            if (f.getScope() instanceof ThisExpr t && t.getTypeName().isEmpty()) {
+              Binding binding = field(f, f.getNameAsString());
+              return binding != null ? declaredType(binding, f) : null;
+            }
+            try {
+              return describe(f.calculateResolvedType());
+            } catch (RuntimeException | StackOverflowError ex) {
+              return isTypeName(f) ? guessType(f.toString()) : null;
+            }
+          }
+          default -> {
+            return null;
+          }
+        }
+      }
+    }
+
+    /** An expression not followed, with its source text. */
+    private static Expression unknown(Node e) {
+      return new Expression.Unknown(
+          e.getTokenRange().map(r -> r.toString()).orElseGet(e::toString));
     }
 
     // -------------------------------------------------------------------------------------------
