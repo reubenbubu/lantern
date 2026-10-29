@@ -1,4 +1,4 @@
-# 0066: Prompt inputs are data, not instructions
+# 0067: Prompt inputs are data, not instructions
 
 Status: accepted (#200), amends ADRs 0025, 0045, 0050, 0056, 0058 and 0060, pending the user's
 review (#24)
@@ -23,7 +23,7 @@ inputs are data, not instructions.
   since it is only something the input says. The paragraph names each prompt's own inputs rather
   than being one shared constant, so it reads as part of the prompt and needs no new interface
   between the modules.
-- **Every changed prompt's version is raised**: summarize 9 to 10, resolve 2 to 3, and the unit,
+- **Every changed prompt's version is raised**: summarize 10 to 11 (ADR 0066 had raised it from 9), resolve 2 to 3, and the unit,
   element, flow and purpose wording prompts 1 to 2. Cached answers made with the old prompts are
   not reused, so the next run makes those calls again.
 - **The user turns are unchanged.** Inputs are not wrapped in new delimiters: they are already

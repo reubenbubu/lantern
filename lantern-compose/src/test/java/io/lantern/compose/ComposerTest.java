@@ -415,6 +415,7 @@ class ComposerTest {
         SummaryLevel.of(entity),
         text,
         purpose,
+        purpose == Summary.Purpose.EVIDENCED ? 0.5 : 0.35,
         cited,
         List.of(),
         cited,

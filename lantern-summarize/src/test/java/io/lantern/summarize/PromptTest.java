@@ -19,7 +19,7 @@ class PromptTest {
    * changed: raise {@link Prompt#VERSION} so cached summaries made with the old prompt are not
    * reused, then update both values here.
    */
-  private static final String VERSION = "10";
+  private static final String VERSION = "11";
 
   private static final String FINGERPRINT =
       "12f3a3f8fe3dffa143d323138864e89c6cc50be2bd8d0deea8cc23ff68795cbc";
@@ -55,6 +55,7 @@ class PromptTest {
             SummaryLevel.TYPE,
             "A line. [fact:" + "1".repeat(64) + "]\nSecond line.",
             Summary.Purpose.INFERRED,
+            0.35,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -230,6 +231,7 @@ class PromptTest {
             SummaryLevel.MODULE,
             "The shop. [fact:" + "1".repeat(64) + "]",
             Summary.Purpose.INFERRED,
+            0.35,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -269,6 +271,7 @@ class PromptTest {
             SummaryLevel.MODULE,
             "The parent. [fact:" + "1".repeat(64) + "]",
             Summary.Purpose.INFERRED,
+            0.35,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -295,6 +298,7 @@ class PromptTest {
             SummaryLevel.PACKAGE,
             "Prices. [fact:" + "1".repeat(64) + "]",
             Summary.Purpose.INFERRED,
+            0.35,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
