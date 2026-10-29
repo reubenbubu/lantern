@@ -151,17 +151,26 @@ test('subjects match on identifiers and longer words', () => {
   assert.equal(subjectOverlap(a, subjectWords('Single PostgreSQL instance.')), 0);
 });
 
-test('elements match by kind and name or alias; the unrelated system is out of scope', () => {
+test('elements match by kind and name or alias; precision counts the whole report', () => {
   const s = score(report, reference, aliases);
-  assert.deepEqual(
-    { ...s.elements.containers, missing: undefined, extra: undefined },
-    { reference: 2, report: 2, matched: 2, recall: 1, precision: 1, reportWhole: 3, precisionWhole: 0.667, missing: undefined, extra: undefined },
-  );
+  assert.deepEqual(s.elements.containers, {
+    reference: 2,
+    report: 3,
+    matched: 2,
+    recall: 1,
+    precision: 0.667,
+    reportConnected: 2,
+    precisionConnected: 1,
+    missing: [],
+    extra: ['billing'],
+  });
   assert.equal(s.elements.queues.matched, 1);
   assert.deepEqual(s.elements.queues.extra, ['orders.dead-letters']);
   assert.deepEqual(s.elements.dataStores.missing, ['orders_db']);
-  assert.equal(s.elements.dataStores.report, 0, 'billing_db is not about this system');
-  assert.equal(s.elements.dataStores.reportWhole, 1);
+  assert.equal(s.elements.dataStores.report, 1, 'billing_db is wrong, wherever it is');
+  assert.equal(s.elements.dataStores.precision, 0);
+  assert.deepEqual(s.elements.dataStores.extra, ['billing_db']);
+  assert.equal(s.elements.dataStores.reportConnected, 0);
   assert.deepEqual(s.elements.people.missing, ['User']);
   assert.deepEqual(s.outOfScope.sort(), ['billing', 'billing_db']);
   assert.equal(s.components.report, 1);
@@ -177,11 +186,12 @@ test('connections match by their ends and direction, once per pair', () => {
   const s = score(report, reference, aliases);
   const c = s.connections;
   assert.equal(c.reference, 4, 'orders -> orders_db is drawn twice and counted once');
-  assert.equal(c.report, 3);
-  assert.equal(c.reportWhole, 4);
+  assert.equal(c.report, 4);
+  assert.equal(c.reportConnected, 3);
   assert.equal(c.matched, 1);
+  assert.equal(c.precision, 0.25);
   assert.deepEqual(c.missing, ['User -> api-gateway', 'order-service -> orders_db', 'order-service -> orders.events']);
-  assert.deepEqual(c.extra, ['orders.events -> orders', 'orders -> orders.dead-letters']);
+  assert.deepEqual(c.extra, ['orders.events -> orders', 'orders -> orders.dead-letters', 'billing -> billing_db']);
   assert.deepEqual(c.byProtocol.HTTP, { reference: 1, matched: 1, report: 1 });
   assert.deepEqual(c.byProtocol.messaging, { reference: 1, matched: 0, report: 2 });
 });
@@ -205,6 +215,11 @@ test('flows match by trigger and are compared by participants', () => {
   assert.equal(score(renamed, reference, aliases).flows.matched, 0);
   const withAlias = { ...aliases, triggers: { 'POST /orders/{x}/items': 'POST /api/orders/{x}/items' } };
   assert.equal(score(renamed, reference, withAlias).flows.matched, 1);
+  // Aliases rewrite only the report's triggers: the reference's spelling is what lists show.
+  const reversed = { ...aliases, triggers: { 'POST /api/orders/{x}/items': 'POST /orders/{x}/items' } };
+  const missed = score(renamed, reference, reversed).flows;
+  assert.equal(missed.matched, 0);
+  assert.deepEqual(missed.missing, ['Place an order (POST /api/orders/{}/items)']);
 });
 
 test('risks match by subject, decisions and glossary terms are counted', () => {
@@ -241,6 +256,27 @@ for (const set of ['project-1', 'project-2', 'project-3', 'project-4']) {
   });
 }
 
+test('a second report element for the same reference element is extra, as a duplicate', () => {
+  const twice = structuredClone(report);
+  twice.elements.g2 = { kind: 'container', name: 'api_gateway', parent: 's', technology: 'Boot' };
+  twice.pages[0].sections[0].relationships.push({ from: 'g2', to: 'o', label: 'Routes', technology: 'HTTP' });
+  const c = score(twice, reference, aliases).elements.containers;
+  assert.equal(c.matched, 2);
+  assert.equal(c.report, 4);
+  assert.deepEqual(c.extra, ['billing', 'api_gateway (duplicate of API-Gateway)']);
+});
+
+test('commits count as pinned only in the subtitle or revisions', () => {
+  const pins = (data) => score(data, reference, aliases).checks.find((c) => c.id === 'pins-snapshot').pass;
+  assert.equal(pins(report), true);
+  const elsewhere = structuredClone(report);
+  elsewhere.document.subtitle = 'No commits here.';
+  elsewhere.elements.o.description = 'Built at abcdef1234.';
+  assert.equal(pins(elsewhere), false);
+  elsewhere.document.revisions = [{ version: '1', date: '2026-10-29', summary: 'From `abcdef1`.' }];
+  assert.equal(pins(elsewhere), true);
+});
+
 test('an alias to an element the reference does not have is refused', () => {
   assert.throws(() => score(report, reference, { elements: { orders: 'nope' } }), /unknown reference element nope/);
 });
@@ -252,40 +288,50 @@ test('an alias to an element the reference does not have is refused', () => {
 // 10/11, store 0/5, SMTP 0/1. Recounts: risks are 16, not 13 (the second pass added three, see
 // testsets/project-4/reference/verification.md); HTTP is 6/10 because frontend -> gateway and
 // gateway -> eureka-service count as HTTP here, while the assessment counted them apart (8).
+// The assessment counted precision on the CRM part only; that is the connected part's precision
+// here, a secondary figure kept for reports from before #253. The headline precision is over the
+// whole report, project-0's shop included.
 test('snapshot-4 project-4 report scores as the assessment counted', () => {
   const s = scoreFiles(fixture, `${testsets}project-4`).scores;
-  const counts = (c) => `${c.matched}/${c.reference} recall, ${c.matched}/${c.report} precision`;
-  assert.equal(counts(s.elements.containers), '6/7 recall, 6/6 precision');
-  assert.equal(counts(s.elements.dataStores), '0/4 recall, 0/0 precision');
-  assert.equal(counts(s.elements.queues), '4/4 recall, 4/4 precision');
-  assert.equal(counts(s.elements.external), '0/1 recall, 0/0 precision');
-  assert.equal(counts(s.elements.people), '0/2 recall, 0/0 precision');
-  assert.equal(s.components.report, 81);
+  const counts = (c) =>
+    `${c.matched}/${c.reference} recall, ${c.matched}/${c.report} precision, ${c.matched}/${
+      c.reportConnected ?? c.report
+    } connected`;
+  assert.equal(counts(s.elements.containers), '6/7 recall, 6/10 precision, 6/6 connected');
+  assert.equal(counts(s.elements.dataStores), '0/4 recall, 0/2 precision, 0/0 connected');
+  assert.equal(counts(s.elements.queues), '4/4 recall, 4/9 precision, 4/4 connected');
+  assert.equal(counts(s.elements.external), '0/1 recall, 0/1 precision, 0/0 connected');
+  assert.equal(counts(s.elements.people), '0/2 recall, 0/0 precision, 0/0 connected');
+  assert.equal(s.components.reportConnected, 81);
+  assert.equal(s.components.report, 95);
   assert.equal(s.components.reference, 38);
   assert.deepEqual(
     s.components.byContainer.find((c) => c.container === 'api-gateway'),
     { container: 'api-gateway', reference: 7, report: 2, matchedByName: 0 },
   );
-  assert.equal(counts(s.connections), '16/28 recall, 16/16 precision');
-  assert.equal(s.connections.reportWhole, 37);
+  assert.equal(counts(s.connections), '16/28 recall, 16/37 precision, 16/16 connected');
+  // The report counts per protocol are over the whole report, project-0's shop included.
   assert.deepEqual(s.connections.byProtocol, {
     person: { reference: 1, matched: 0, report: 0 },
-    HTTP: { reference: 10, matched: 6, report: 6 },
-    'data store': { reference: 5, matched: 0, report: 0 },
+    HTTP: { reference: 10, matched: 6, report: 12 },
+    'data store': { reference: 5, matched: 0, report: 4 },
     email: { reference: 1, matched: 0, report: 0 },
-    messaging: { reference: 11, matched: 10, report: 10 },
+    messaging: { reference: 11, matched: 10, report: 21 },
   });
   assert.ok(s.connections.missing.includes('main-service -> notification-service.send-message'));
-  assert.equal(counts(s.flows), '3/6 recall, 3/6 precision');
+  assert.equal(counts(s.flows), '3/6 recall, 3/7 precision, 3/6 connected');
+  // The alias rewrites the report's spelling; the reference's trigger is what is listed.
+  assert.ok(s.flows.missing.includes('Task reminder (POST /api/composite/organizations/{}/tasks)'));
   assert.ok(s.flows.matches.every((m) => !m.complete), 'all three are partial');
   assert.deepEqual(
     s.flows.matches.map((m) => m.reference),
     ['Create an organization', 'Invite a member', 'Password reset by email'],
   );
-  assert.equal(counts(s.risks), '0/16 recall, 0/0 precision');
-  assert.equal(counts(s.decisions), '0/9 recall, 0/0 precision');
-  assert.equal(counts(s.glossary), '0/15 recall, 0/0 precision');
-  assert.equal(s.outOfScope.length, 12, "project-0's shop is not scored");
+  assert.equal(counts(s.risks), '0/16 recall, 0/0 precision, 0/0 connected');
+  assert.equal(counts(s.decisions), '0/9 recall, 0/0 precision, 0/0 connected');
+  assert.equal(counts(s.glossary), '0/15 recall, 0/0 precision, 0/0 connected');
+  assert.equal(s.outOfScope.length, 12, "project-0's shop is not connected to the reference");
+  assert.ok(s.elements.containers.extra.includes('storefront'), 'and counts as extra');
   const failing = s.checks.filter((c) => !c.pass).map((c) => c.id);
   assert.deepEqual(failing, ['diagram-size', 'decisions', 'risks', 'glossary']);
   assert.ok(s.checks[0].failures.includes('main-service / Components of main-service (45 elements)'));
@@ -315,13 +361,13 @@ test('the command line reads HTML reports and writes the scorecard, and compares
     const b = scoreFiles(fixture, `${testsets}project-4`, join(dir, 'run-b.json'));
     const markdown = scorecardMarkdown(b);
     assert.match(markdown, /SUMMARIZE: fake\/fake-large \(6 calls, \$0\.12\)/);
-    assert.match(markdown, /\| Container connections \| 16\/28 \(57%\) \| 16\/16 \(100%\) \| 16\/37 \(43%\) \|/);
+    assert.match(markdown, /\| Container connections \| 16\/28 \(57%\) \| 16\/37 \(43%\) \| 16\/16 \(100%\) \|/);
 
     const side = compareMarkdown(a, b, 'fake-model', 'fake-large');
     assert.match(side, /\| SUMMARIZE \| fake\/fake-model \(6 calls, \$0\) \| fake\/fake-large \(6 calls, \$0\.12\) \|/);
     assert.match(side, /\| COMPOSE \| fake\/fake-model \(4 calls, \$0\) \| fake\/fake-model \(4 calls, \$0\) \|/);
     assert.match(side, /\| Run cost \| \$0 \(10 calls\) \| \$0\.12 \(10 calls\) \|/);
-    assert.match(side, /\| Container connections \| 16\/28 recall, 16\/16 precision \| 16\/28 recall, 16\/16 precision \|/);
+    assert.match(side, /\| Container connections \| 16\/28 recall, 16\/37 precision \| 16\/28 recall, 16\/37 precision \|/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

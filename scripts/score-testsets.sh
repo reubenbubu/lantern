@@ -33,7 +33,14 @@ Options:
                             an earlier run of that label.
   --sets-dir DIR            Where the sets were set up (testsets/<set>/setup.sh).
                             Default: ~/workspace/lantern-test-projects.
-  --score-only              Do not analyze: score each set's newest report as it is.
+  --fake-llm                Use a free fake model for every role instead of a settings file
+                            (Spring profile fake-llm; models fake and fake-priced, the latter
+                            priced like a real model so costs show). Nothing is called.
+  --held-out                Allow the held-out sets project-5 to project-7. Nobody analyzes
+                            them before Phase 2's real-model acceptance (docs/design.md, Test
+                            sets); without this option they are refused.
+  --score-only              Do not analyze: score each set's newest report as it is. The
+                            sets need not be set up.
   -y, --yes                 Do not ask before analyzing (a real model costs money).
   -h, --help                Show this help.
 
@@ -59,6 +66,8 @@ label="$(date +%Y%m%d-%H%M)"
 compare_with=""
 sets_dir="$HOME/workspace/lantern-test-projects"
 score_only=false
+fake_llm=false
+held_out=false
 assume_yes=false
 sets=()
 
@@ -90,6 +99,8 @@ while [[ $# -gt 0 ]]; do
     --sets-dir) [[ $# -ge 2 ]] || die "--sets-dir needs a folder"; sets_dir="$2"; shift 2 ;;
     --sets-dir=*) sets_dir="${1#*=}"; shift ;;
     --score-only) score_only=true; shift ;;
+    --fake-llm) fake_llm=true; shift ;;
+    --held-out) held_out=true; shift ;;
     -y | --yes) assume_yes=true; shift ;;
     -h | --help) usage; exit 0 ;;
     -*) die "unknown option $1 (see --help)" ;;
@@ -108,9 +119,38 @@ node_bin="$(command -v node || true)"
 [[ -x "$node_bin" ]] || die "no node on the PATH and none in lantern-web/target/node; run ./mvnw install -DskipTests"
 
 for set in "${sets[@]}"; do
+  [[ -f "$REPO/testsets/$set/pins.txt" ]] || die "$set is not a test set (no testsets/$set/pins.txt)"
+  if grep -q '^#.*HELD-OUT' "$REPO/testsets/$set/pins.txt" && ! $held_out; then
+    die "$set is held out: nobody analyzes it before Phase 2's real-model acceptance (docs/design.md, Test sets); pass --held-out only then"
+  fi
   [[ -f "$REPO/testsets/$set/reference/reference.c4.json" ]] || die "$set has no reference in testsets/$set/reference"
-  [[ -d "$sets_dir/$set" ]] || die "$set is not set up in $sets_dir/$set; run testsets/$set/setup.sh"
+  if ! $score_only; then
+    [[ -d "$sets_dir/$set" ]] || die "$set is not set up in $sets_dir/$set; run testsets/$set/setup.sh"
+  fi
 done
+
+if $fake_llm && ! $score_only; then
+  [[ -z "$llm_file" ]] || die "--fake-llm and --llm-properties exclude each other"
+  # The settings of the fake models, outside the repository as launch.sh requires.
+  llm_file="$(mktemp "${TMPDIR:-/tmp}/lantern-fake-llm-XXXXXX.properties")"
+  trap 'rm -f "$llm_file"' EXIT
+  cat > "$llm_file" <<'PROPERTIES'
+lantern.llm.models.fake.provider=fake
+lantern.llm.models.fake.id=fake-model
+lantern.llm.models.fake.context-window=1000000
+lantern.llm.models.fake.prices.input=0
+lantern.llm.models.fake.prices.output=0
+lantern.llm.models.fake-priced.provider=fake
+lantern.llm.models.fake-priced.id=fake-priced
+lantern.llm.models.fake-priced.context-window=1000000
+lantern.llm.models.fake-priced.prices.input=3
+lantern.llm.models.fake-priced.prices.output=15
+lantern.llm.tiers.high-volume=fake
+lantern.llm.tiers.reasoning=fake
+PROPERTIES
+  overrides+=("--set" "spring.profiles.active=fake-llm")
+  assume_yes=true
+fi
 
 if ! $score_only && ! $assume_yes; then
   [[ -t 0 ]] || die "pass --yes to analyze when not at a terminal (a real model costs money)"

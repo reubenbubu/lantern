@@ -23,7 +23,8 @@ measurement, the assessment of snapshot-4's project-4 report, was counted by han
   file) with `testsets/<set>/reference/reference.c4.json`:
   - Elements by kind (container, database, queue, external, person), matched by name lower-cased
     with every run of other characters than letters and digits as one dash, by the reference's
-    id, or by the set's alias table. Components are counted per container, and matched by name
+    id, or by the set's alias table. Only the first report element that matches a reference
+    element counts; each later one is extra, listed as a duplicate of the first. Components are counted per container, and matched by name
     only, since a hand-made and a generated component rarely share a name.
   - Connections: the lines of the diagrams on `containers` pages, once per ordered pair of
     elements, so direction matters. Each is grouped by protocol from its ends' kinds and its
@@ -39,18 +40,20 @@ measurement, the assessment of snapshot-4's project-4 report, was counted by han
     other, best pairs first, one to one. Glossary terms by name.
   - The quality-bar checks the data alone can show: at most 15 elements a diagram, a description
     for every element shown, a technology for every container and component, an intent phrase on
-    every line, a protocol on every line between containers, no diagram repeated, commits and date
-    pinned, sequences, decisions, risks and a glossary present. Checks marked *(review)* are the
+    every line, a protocol on every line between containers, no diagram repeated, commits (a
+    hash in the document's subtitle or revisions) and date pinned, sequences, decisions, risks and a glossary present. Checks marked *(review)* are the
     judge's (#277). The report's own quality gaps are counted, and the reference's own failures
     listed.
 - **The alias table** is `testsets/<set>/reference/aliases.json`, optional: `elements` maps a
   report's name for an element to the reference's id, `triggers` maps a trigger to the reference's
-  spelling of it. An alias to an id the reference lacks is an error. Aliases are for names that
+  spelling of it; it rewrites only the report's triggers, so lists show the reference's. An
+  alias to an id the reference lacks is an error. Aliases are for names that
   mean the same thing, never to make a wrong item count.
-- **A report that holds another system** (as before #253) is scored on its own part: the elements
-  connected by a diagram line to one that matches the reference, and the components inside them.
-  Precision is given for that part and for the whole report; the rest is listed as not about the
-  set.
+- **Precision is over the whole report**, so a wrong item counts wherever it is, and every extra
+  item is listed. For a report that also holds another system (as before #253), the precision of
+  the part connected to the reference (the elements a diagram line links to one that matches it,
+  and the components inside them) is a secondary figure, and the unconnected elements are listed;
+  the reproduction of the snapshot-4 assessment, which counted the CRM part only, uses it.
 - **The run record.** `analyze` writes `run.json` next to its documents: each role with the
   provider and model it was configured with, its calls, tokens and cost, the run's totals, and the
   calls by the model that served them, from the stored call log since the run started. The
@@ -60,7 +63,10 @@ measurement, the assessment of snapshot-4's project-4 report, was counted by han
   `--set lantern.llm.roles.summarize=<name>` serves one role with another model of the settings
   file. `scripts/score-testsets.sh` runs the development sets with a named settings file and
   `--role`/`--tier` overrides, scores each and, with `--compare-with`, writes a side-by-side
-  comparison with an earlier run. Recordings were already keyed by provider and model (ADR 0008),
+  comparison with an earlier run. With `--fake-llm` it runs every role on a free fake model: the
+  Spring profile `fake-llm` adds a fake provider bean, which ADR 0009 already lets models name, so
+  a whole run of the sets costs nothing. It refuses the held-out sets unless `--held-out` is given
+  (design, Test sets); `TestSetScoreIT` likewise needs `lantern.test.held-out`. Recordings were already keyed by provider and model (ADR 0008),
   so replaying with one role switched makes new calls only for that role; a test shows it.
 - **Output.** `score.mjs` writes `<prefix>.scorecard.json` and `.md` (default: the report's path
   without `.html`); the script writes `workspace/scores/<label>/`.

@@ -255,9 +255,9 @@ function matchElements(report, reference, aliases) {
 
 /**
  * The report's elements that are about the reference's system: those connected, by a line of any
- * diagram, to an element that matches the reference's, and the components inside them. A report
- * that holds another system too (as before #253) is scored on its own part, and its precision is
- * also given over the whole report.
+ * diagram, to an element that matches the reference's, and the components inside them. Precision
+ * is over the whole report; for a report that holds another system too (as before #253), the
+ * precision of this connected part is given as well, as a secondary figure.
  */
 function inScope(report, matched) {
   const neighbours = new Map();
@@ -294,15 +294,21 @@ function ratio(numerator, denominator) {
 }
 
 /** Recall and precision of a category, with what is missing and extra, by name. */
-function category(reference, report, matched, missing, extra, wholeReport) {
+/**
+ * Recall and precision of a category, with what is missing and extra, by name. Precision is over
+ * the whole report, so a wrong item counts wherever it is. When the report also holds items not
+ * connected to the reference's system (a report from before #253), `connected` gives the count of
+ * the connected part and its precision as a secondary figure.
+ */
+function category(reference, report, matched, missing, extra, connected) {
   return {
     reference,
     report,
     matched,
     recall: ratio(matched, reference),
     precision: ratio(matched, report),
-    ...(wholeReport !== undefined && wholeReport !== report
-      ? { reportWhole: wholeReport, precisionWhole: ratio(matched, wholeReport) }
+    ...(connected !== undefined && connected !== report
+      ? { reportConnected: connected, precisionConnected: ratio(matched, connected) }
       : {}),
     missing,
     extra,
@@ -432,7 +438,11 @@ export function qualityChecks(data) {
       failures.technology.push(element.name);
     }
   }
-  const text = JSON.stringify(data);
+  // Commits are pinned where the document says what it describes: its subtitle and revisions.
+  const metadata = [
+    data.document.subtitle ?? '',
+    ...(data.document.revisions ?? []).map((r) => r.summary ?? ''),
+  ].join('\n');
   const has = (type) => data.pages.some((p) => p.sections.some((s) => s.type === type));
   const checks = [
     ['diagram-size', 'Every diagram has at most 15 elements'],
@@ -451,7 +461,7 @@ export function qualityChecks(data) {
   present(
     'pins-snapshot',
     'The document pins its commits and date',
-    Boolean(data.document.updated) && /`?\b[0-9a-f]{7,40}\b`?/.test(text),
+    Boolean(data.document.updated) && /\b[0-9a-f]{7,40}\b/.test(metadata),
   );
   present('sequences', 'The main flows are sequence diagrams', has('sequence'));
   present('decisions', 'Observed decisions are stated', decisionsOf(data).length > 0);
@@ -490,15 +500,25 @@ export function score(report, reference, aliases = {}) {
   for (const [name, kind] of ELEMENT_CATEGORIES) {
     const refIds = Object.keys(reference.elements).filter((id) => reference.elements[id].kind === kind);
     const all = Object.keys(report.elements).filter((id) => report.elements[id].kind === kind);
-    const repIds = all.filter((id) => scope.has(id));
-    const found = new Set(repIds.filter((id) => matched.has(id)).map((id) => matched.get(id)));
+    // The first report element that matches a reference element counts; later ones are extra.
+    const first = new Map();
+    const extra = [];
+    for (const id of all) {
+      if (!matched.has(id)) {
+        extra.push(repName(id));
+      } else if (first.has(matched.get(id))) {
+        extra.push(`${repName(id)} (duplicate of ${repName(first.get(matched.get(id)))})`);
+      } else {
+        first.set(matched.get(id), id);
+      }
+    }
     result.elements[name] = category(
       refIds.length,
-      repIds.length,
-      found.size,
-      refIds.filter((id) => !found.has(id)).map(refName),
-      repIds.filter((id) => !matched.has(id)).map(repName),
       all.length,
+      first.size,
+      refIds.filter((id) => !first.has(id)).map(refName),
+      extra,
+      all.filter((id) => scope.has(id)).length,
     );
   }
 
@@ -507,7 +527,8 @@ export function score(report, reference, aliases = {}) {
     Object.entries(data.elements).filter(([, e]) => e.kind === 'component' && e.parent === parent);
   result.components = {
     reference: Object.values(reference.elements).filter((e) => e.kind === 'component').length,
-    report: Object.entries(report.elements).filter(
+    report: Object.values(report.elements).filter((e) => e.kind === 'component').length,
+    reportConnected: Object.entries(report.elements).filter(
       ([id, e]) => e.kind === 'component' && scope.has(id),
     ).length,
     byContainer: Object.entries(reference.elements)
@@ -531,7 +552,7 @@ export function score(report, reference, aliases = {}) {
   const refLines = connections(reference, (id) => id);
   const repKey = (id) => (matched.has(id) ? matched.get(id) : `report:${id}`);
   const allRepLines = connections(report, repKey);
-  const repLines = allRepLines.filter((l) => scope.has(l.from) || scope.has(l.to));
+  const repLines = allRepLines;
   const refKeys = new Set(refLines.map((l) => l.key));
   const repKeys = new Set(repLines.map((l) => l.key));
   const lineName = (line, name) => `${name(line.from)} -> ${name(line.to)}`;
@@ -542,7 +563,7 @@ export function score(report, reference, aliases = {}) {
     matchedLines.length,
     refLines.filter((l) => !repKeys.has(l.key)).map((l) => lineName(l, refName)),
     repLines.filter((l) => !refKeys.has(l.key)).map((l) => lineName(l, repName)),
-    allRepLines.length,
+    repLines.filter((l) => scope.has(l.from) || scope.has(l.to)).length,
   );
   result.connections.byProtocol = {};
   for (const line of refLines) {
@@ -556,7 +577,8 @@ export function score(report, reference, aliases = {}) {
     (result.connections.byProtocol[protocol] ??= { reference: 0, matched: 0, report: 0 }).report++;
   }
 
-  // Flows: matched by trigger, then compared by participants.
+  // Flows: matched by trigger, then compared by participants. The alias table writes a report's
+  // trigger the reference's way; the reference's own triggers stay as they are.
   const triggerAliases = new Map(
     Object.entries(aliases.triggers ?? {}).map(([from, to]) => [
       normalizeTrigger(from),
@@ -564,9 +586,8 @@ export function score(report, reference, aliases = {}) {
     ]),
   );
   const canonical = (trigger) => (trigger === null ? null : triggerAliases.get(trigger) ?? trigger);
-  const refFlows = flowsOf(reference).map((f) => ({ ...f, trigger: canonical(f.trigger) }));
-  const allRepFlows = flowsOf(report).map((f) => ({ ...f, trigger: canonical(f.trigger) }));
-  const repFlows = allRepFlows.filter((f) => f.participants.some((p) => scope.has(p)));
+  const refFlows = flowsOf(reference);
+  const repFlows = flowsOf(report).map((f) => ({ ...f, trigger: canonical(f.trigger) }));
   const usedRep = new Set();
   const flowMatches = [];
   for (const ref of refFlows) {
@@ -592,7 +613,7 @@ export function score(report, reference, aliases = {}) {
     flowMatches.length,
     refFlows.filter((f) => !matchedRefTitles.has(f.title)).map((f) => `${f.title} (${f.trigger ?? 'no trigger'})`),
     repFlows.filter((_, j) => !usedRep.has(j)).map((f) => f.title),
-    allRepFlows.length,
+    repFlows.filter((f) => f.participants.some((p) => scope.has(p))).length,
   );
   result.flows.matches = flowMatches;
 
@@ -649,11 +670,14 @@ export function scorecardMarkdown(card) {
     lines.push('- Run: not recorded (no run.json given)');
   }
   lines.push('', '## Counts', '');
-  lines.push('| What | Recall | Precision | Precision, whole report |', '| --- | --- | --- | --- |');
+  lines.push(
+    '| What | Recall | Precision | Precision, part connected to the reference |',
+    '| --- | --- | --- | --- |',
+  );
   const row = (key, c) =>
     lines.push(
       `| ${CATEGORY_LABELS[key]} | ${fraction(c.matched, c.reference)} | ${fraction(c.matched, c.report)} | ${
-        c.reportWhole === undefined ? 'same' : fraction(c.matched, c.reportWhole)
+        c.reportConnected === undefined ? 'same' : fraction(c.matched, c.reportConnected)
       } |`,
     );
   for (const [key] of ELEMENT_CATEGORIES) row(key, s.elements[key]);
@@ -692,7 +716,7 @@ export function scorecardMarkdown(card) {
   if (s.outOfScope.length > 0) {
     lines.push(
       '',
-      `Not about this set (not connected to anything the reference has; left out of recall and precision): ${s.outOfScope.join('; ')}.`,
+      `Not connected to anything the reference has (counted as extra; left out of the connected part's precision): ${s.outOfScope.join('; ')}.`,
     );
   }
   lines.push('', '## Quality-bar checks', '');

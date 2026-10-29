@@ -55,8 +55,10 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Runs only when {@code lantern.test.set} names, as an absolute path, a folder a set's {@code
  * setup.sh} set up, such as {@code ~/workspace/lantern-test-projects/project-4}; the set is the
  * folder's name, and {@code testsets/<set>/} must have pins and a reference. Repositories without a
- * {@code pom.xml} are left out until #254. Both runs share one database, so the second makes new
- * calls only for the switched role: everything else is reused.
+ * {@code pom.xml} are left out until #254. A held-out set (project-5 to project-7) fails the test
+ * unless {@code lantern.test.held-out} is {@code true} (docs/design.md, Test sets). Both runs share
+ * one database, so the second makes new calls only for the switched role: everything else is
+ * reused.
  *
  * <p>Writes to {@code target/test-sets/<set>/}: for each model, the system report and the run
  * record in {@code <model>/}, the scorecard as {@code <model>.scorecard.json} and {@code .md}, and
@@ -134,6 +136,12 @@ class TestSetScoreIT {
     Path setFolder = Path.of(System.getProperty("lantern.test.set")).toAbsolutePath().normalize();
     String set = setFolder.getFileName().toString();
     Path testset = REPOSITORY.resolve("testsets").resolve(set);
+    assertThat(heldOut(testset.resolve("pins.txt")) && !Boolean.getBoolean("lantern.test.held-out"))
+        .as(
+            set
+                + " is held out: nobody analyzes it before Phase 2's real-model acceptance"
+                + " (docs/design.md, Test sets); set lantern.test.held-out=true only then")
+        .isFalse();
     assertThat(testset.resolve("reference/reference.c4.json")).isRegularFile();
     Map<String, Path> repos = mavenRepos(testset.resolve("pins.txt"), setFolder);
     Path out = Path.of("target", "test-sets", set).toAbsolutePath();
@@ -284,6 +292,12 @@ class TestSetScoreIT {
     }
     assertThat(repos).isNotEmpty();
     return repos;
+  }
+
+  /** Whether the set's pins mark it held out (docs/design.md, Test sets). */
+  static boolean heldOut(Path pins) throws IOException {
+    return Files.readAllLines(pins).stream()
+        .anyMatch(line -> line.startsWith("#") && line.contains("HELD-OUT"));
   }
 
   private static void deleteRecursively(Path dir) throws IOException {
