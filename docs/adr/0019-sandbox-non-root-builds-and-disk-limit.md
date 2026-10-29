@@ -74,12 +74,12 @@ VM's rootless Docker.
   read through its attached process into the build log, since Docker removes the container, and
   its logs, when it ends; it logs with Docker's `none` driver. If a helper's attached process ends
   while the build runs, the build is stopped with a `SandboxException` naming the helper, not
-  recorded as a failed build. There is no startup sweep: it could not tell a dead build's
-  leftovers from those of another Lantern process still building. A killed process still leaves
-  the build or detector container (it runs Maven to its end, then stays exited) and the build's
-  network, both labelled, and a helper killed between its `docker create` and `docker start` stays
-  in state Created (#174). Tested with Docker only; Podman's handling of the attached input is
-  untested.
+  recorded as a failed build. Nothing removes all that is labelled: it could not tell a dead build's
+  leftovers from those of another Lantern process still building. What a killed process still
+  leaves, the stopped build or detector container, the build's network and a helper killed between
+  its `docker create` and `docker start`, is removed by a later build once its owner process is
+  known to have ended (ADR 0053). Tested with Docker only; Podman's handling of the attached input
+  is untested.
 - **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. With
   several builds at once, the free-space guard stops them all. What a build wrote to the shared
   cache stays there; cleaning the cache is manual, and until then every analysis stops at its

@@ -72,6 +72,12 @@ public class BuildSandbox {
   /** The label on every container and network the sandbox creates, for finding leftovers. */
   public static final String LABEL = "io.lantern.sandbox";
 
+  /**
+   * The label naming the process that created a container or network (see {@link OwnerProcess}), so
+   * that a later build can remove what a process that died left behind (#174).
+   */
+  public static final String OWNER_LABEL = "io.lantern.sandbox.owner";
+
   static final String HELP_PLUGIN = "org.apache.maven.plugins:maven-help-plugin:3.5.2";
   static final String DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.10.0";
 
@@ -121,12 +127,14 @@ public class BuildSandbox {
   private static final String UMASK = "0002";
 
   /**
-   * The shell command the helper containers, the egress proxy and the disk monitor, run their
-   * command under, with the command as its arguments. It ends when the command ends, or when the
-   * container's standard input ends: Lantern holds that open through {@code docker start --attach
-   * --interactive} for as long as the build runs, and it ends when that process or Lantern's own
-   * process goes away, even when killed. The helpers are created with {@code --rm}, so a build
-   * whose cleanup never ran leaves no helper running or behind (#171).
+   * The shell command every long-running container, the build, the JDK detection and the helpers
+   * (the egress proxy and the disk monitor), runs its command under, with the command as its
+   * arguments. It ends when the command ends, or when the container's standard input ends: Lantern
+   * holds that open through {@code docker start --attach --interactive} for as long as the
+   * container should run, and it ends when that process or Lantern's own process goes away, even
+   * when killed. The helpers are created with {@code --rm}, so a build whose cleanup never ran
+   * leaves no helper running or behind (#171); the build and detection containers stop, and the
+   * next build removes them (#174).
    */
   static final String LIFELINE =
       "exec 3<&0; \"$@\" </dev/null & p=$!; { cat <&3 >/dev/null; kill $p; } & wait $p";
@@ -140,6 +148,9 @@ public class BuildSandbox {
   private final Docker docker;
   private final Semaphore slots;
   private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
+
+  /** This process, as its containers and networks name it, or null if it cannot be told. */
+  private final OwnerProcess owner = OwnerProcess.current().orElse(null);
 
   public BuildSandbox(SandboxSettings settings) {
     this.settings = Objects.requireNonNull(settings, "settings");
@@ -193,11 +204,62 @@ public class BuildSandbox {
       throw new SandboxException("Interrupted while waiting for a build slot", e);
     }
     try {
+      removeLeftovers();
       return buildInto(repo, commit, given, directory);
     } finally {
       slots.release();
       lock.unlock();
     }
+  }
+
+  /**
+   * Removes the containers and networks that sandboxes of processes that have ended left behind,
+   * such as a build container and network of a process that was killed, or a helper it had created
+   * but not yet started. Only what names its owner (see {@link OwnerProcess}) is removed, and only
+   * when that owner ran on this machine's current boot, in this process's PID namespace, as this
+   * process's user, and is no longer there, so the builds of another live process are never
+   * touched. Best effort: failures are ignored.
+   */
+  void removeLeftovers() {
+    if (owner == null) {
+      return;
+    }
+    try {
+      List<String> containers = leftBehind(List.of("ps", "--all"));
+      if (!containers.isEmpty()) {
+        List<String> rm = new ArrayList<>(List.of("rm", "--force", "--volumes"));
+        rm.addAll(containers);
+        docker.quietly(CLEANUP_TIMEOUT, rm);
+      }
+      List<String> networks = leftBehind(List.of("network", "ls"));
+      if (!networks.isEmpty()) {
+        List<String> rm = new ArrayList<>(List.of("network", "rm"));
+        rm.addAll(networks);
+        docker.quietly(CLEANUP_TIMEOUT, rm);
+      }
+    } catch (RuntimeException e) {
+      // Best effort; the next build tries again.
+    }
+  }
+
+  /** The IDs of the containers or networks the listing finds whose owner process has ended. */
+  private List<String> leftBehind(List<String> listing) {
+    List<String> args = new ArrayList<>(listing);
+    args.addAll(
+        List.of(
+            "--filter",
+            "label=" + OWNER_LABEL,
+            "--format",
+            "{{.ID}} {{.Label \"" + OWNER_LABEL + "\"}}"));
+    List<String> ended = new ArrayList<>();
+    for (String line : docker.check(CLEANUP_TIMEOUT, args).out().lines().toList()) {
+      String[] parts = line.strip().split(" ", 2);
+      if (parts.length == 2
+          && OwnerProcess.parse(parts[1]).filter(p -> p.endedAsSeenBy(owner)).isPresent()) {
+        ended.add(parts[0]);
+      }
+    }
+    return ended;
   }
 
   /** The stored result of building the repository at the commit, if there is one. */
@@ -798,7 +860,8 @@ public class BuildSandbox {
 
     /**
      * Creates a limited container on the build's internal network with the shared Maven cache, and
-     * copies the repository into {@code /work} and the Lantern files into {@code /lantern}.
+     * copies the repository into {@code /work} and the Lantern files into {@code /lantern}. Its
+     * command runs under {@link #LIFELINE}, so it stops when Lantern's process ends.
      */
     private void createContainer(
         String name, String image, String entrypoint, List<String> command, Path lantern)
@@ -836,9 +899,14 @@ public class BuildSandbox {
                       "MAVEN_OPTS=-XX:MaxRAMPercentage=50 -Duser.home=/tmp",
                       "--workdir",
                       "/work",
+                      "--interactive",
                       "--entrypoint",
-                      entrypoint,
-                      image)));
+                      "sh",
+                      image,
+                      "-c",
+                      LIFELINE,
+                      "sh",
+                      entrypoint)));
       args.addAll(command);
       docker.create(DOCKER_TIMEOUT, args);
       copyIn(name);
@@ -850,13 +918,17 @@ public class BuildSandbox {
 
     /**
      * The Docker arguments up to the labels, the labels of this build's containers and networks
-     * (the sandbox label, then the owner label if one is set), then the other arguments.
+     * (the sandbox label, then the owner label if one is set, then the owner process's if it can be
+     * told), then the other arguments.
      */
     private List<String> labelled(List<String> head, List<String> rest) {
       List<String> args = new ArrayList<>(head);
       args.addAll(List.of("--label", LABEL + "=" + id));
       if (settings.ownerLabel() != null) {
         args.addAll(List.of("--label", settings.ownerLabel()));
+      }
+      if (owner != null) {
+        args.addAll(List.of("--label", OWNER_LABEL + "=" + owner.label()));
       }
       args.addAll(rest);
       return args;
@@ -981,13 +1053,28 @@ public class BuildSandbox {
 
     /**
      * Starts the container, copies its output into the log and waits up to the build timeout,
-     * checking its disk use every few seconds and stopping it when it uses too much.
+     * checking its disk use every few seconds and stopping it when it uses too much. Its standard
+     * input stays open while it runs, for {@link #LIFELINE}.
      */
     private ContainerExit runContainer(String name) throws IOException {
       ProcessBuilder start =
-          docker.builder(List.of("start", "--attach", name)).redirectErrorStream(true);
+          docker
+              .builder(List.of("start", "--attach", "--interactive", name))
+              .redirectErrorStream(true);
       Process process = Docker.start(start);
-      process.getOutputStream().close();
+      try {
+        return awaitContainer(name, process);
+      } finally {
+        try {
+          // Ends the container's input, should it still run.
+          process.getOutputStream().close();
+        } catch (IOException e) {
+          // The process has gone.
+        }
+      }
+    }
+
+    private ContainerExit awaitContainer(String name, Process process) throws IOException {
       CompletableFuture<Void> pump =
           CompletableFuture.runAsync(
               () -> log.copy(process.getInputStream()), Thread.ofVirtual()::start);

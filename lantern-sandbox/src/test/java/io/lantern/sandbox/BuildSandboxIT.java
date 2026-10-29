@@ -547,7 +547,7 @@ class BuildSandboxIT {
   }
 
   @Test
-  void helpersEndWhenTheProcessRunningTheBuildIsKilled() throws Exception {
+  void whatAKilledProcessLeavesEndsAndIsRemovedByTheNextBuild() throws Exception {
     Repo repo = repo(sandboxFixture("sleeper"), "killed", RepoSettings.DEFAULT);
     List<String> command =
         new ArrayList<>(
@@ -591,11 +591,109 @@ class BuildSandboxIT {
             .isLessThan(deadline);
         Thread.sleep(200);
       }
+      // The build sleeps for ten minutes, unless its input ends with the process (#174). A build
+      // of a test running at the same time may already have removed it.
+      while (!ownRunningContainers().isEmpty()) {
+        assertThat(System.nanoTime())
+            .as("the build container outlived the killed process")
+            .isLessThan(deadline);
+        Thread.sleep(200);
+      }
+
+      // The next build of any sandbox of this user removes what the killed process left.
+      new BuildSandbox(settings()).removeLeftovers();
+
+      assertThat(ownContainers("label=" + RUN_LABEL)).as("containers left behind").isEmpty();
+      assertThat(ownNetworks()).as("networks left behind").isEmpty();
     } finally {
       child.destroyForcibly().waitFor();
-      // What a killed process does leave, the exited build container and the network.
       removeOwn();
     }
+  }
+
+  @Test
+  void removesOnlyWhatProcessesThatEndedLeft() throws Exception {
+    OwnerProcess self = OwnerProcess.current().orElse(null);
+    assumeTrue(self != null, "needs Linux's /proc");
+    Process child = new ProcessBuilder("sleep", "60").start();
+    OwnerProcess ended;
+    try {
+      ended = OwnerProcess.of(child.pid()).orElseThrow();
+    } finally {
+      child.destroyForcibly().waitFor();
+    }
+    OwnerProcess elsewhere =
+        new OwnerProcess(
+            "00000000-0000-0000-0000-000000000000",
+            ended.pidNamespace(),
+            ended.uid(),
+            ended.pid(),
+            ended.startTicks());
+    try {
+      // As a helper a killed process created but never started: it stays in state Created.
+      String created = createOwned("created", ended);
+      String network = createOwnedNetwork("net", ended);
+      String live = createOwned("live", self);
+      String foreign = createOwned("foreign", elsewhere);
+
+      new BuildSandbox(settings()).removeLeftovers();
+
+      String left = ownContainers("label=" + RUN_LABEL);
+      assertThat(left).doesNotContain(created.substring(0, 12));
+      assertThat(left).contains(live.substring(0, 12)).contains(foreign.substring(0, 12));
+      assertThat(ownNetworks()).doesNotContain(network.substring(0, 12));
+    } finally {
+      removeOwn();
+    }
+  }
+
+  /** Creates a container of this test, not started, naming the process as its owner. */
+  private String createOwned(String purpose, OwnerProcess owner) {
+    return DOCKER
+        .check(
+            TIMEOUT,
+            List.of(
+                "create",
+                "--name",
+                "lantern-build-test-" + purpose + "-" + run,
+                "--label",
+                RUN_LABEL + "=" + run,
+                "--label",
+                BuildSandbox.OWNER_LABEL + "=" + owner.label(),
+                "--network",
+                "none",
+                settings().proxyImage(),
+                "true"))
+        .out();
+  }
+
+  /** Creates a network of this test, naming the process as its owner. */
+  private String createOwnedNetwork(String purpose, OwnerProcess owner) {
+    return DOCKER
+        .check(
+            TIMEOUT,
+            List.of(
+                "network",
+                "create",
+                "--internal",
+                "--label",
+                RUN_LABEL + "=" + run,
+                "--label",
+                BuildSandbox.OWNER_LABEL + "=" + owner.label(),
+                "lantern-build-test-" + purpose + "-" + run))
+        .out();
+  }
+
+  /** The IDs of this test's running containers. */
+  private String ownRunningContainers() {
+    return DOCKER.check(TIMEOUT, List.of("ps", "--quiet", "--filter", ownFilter())).out();
+  }
+
+  /** The IDs of this test's networks. */
+  private String ownNetworks() {
+    return DOCKER
+        .check(TIMEOUT, List.of("network", "ls", "--quiet", "--filter", ownFilter()))
+        .out();
   }
 
   @Test

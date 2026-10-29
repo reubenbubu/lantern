@@ -141,5 +141,8 @@ class SandboxSettingsTest {
     assertThatThrownBy(
             () -> SandboxSettings.defaults(BUILDS).withOwnerLabel(BuildSandbox.LABEL, "y"))
         .hasMessageContaining("owner label");
+    assertThatThrownBy(
+            () -> SandboxSettings.defaults(BUILDS).withOwnerLabel(BuildSandbox.OWNER_LABEL, "y"))
+        .hasMessageContaining("owner label");
   }
 }
