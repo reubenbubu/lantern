@@ -280,9 +280,12 @@ public final class JavaExtractor {
   /** The facts of a whole extraction, and the calls kept until every module is read. */
   private static final class Facts {
 
-    /** Types whose methods every class, enum or record inherits. */
+    /**
+     * Types whose methods every class, enum, record or exception inherits: calls to them through a
+     * type of the sources are not kept.
+     */
     private static final Set<String> UNIVERSAL_SUPERTYPES =
-        Set.of("java.lang.Object", "java.lang.Enum", "java.lang.Record");
+        Set.of("java.lang.Object", "java.lang.Enum", "java.lang.Record", "java.lang.Throwable");
 
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
@@ -403,9 +406,9 @@ public final class JavaExtractor {
 
     /**
      * What a call is recorded against: the method called when the sources declare it; when it is
-     * inherited from a type outside them (not {@code Object}, {@code Enum} or {@code Record}) and
-     * the call is written on a type the sources declare, the method as a member of that type, as in
-     * {@code orders.save(o)} on a Spring Data repository; otherwise null.
+     * inherited from a type outside them (not {@link #UNIVERSAL_SUPERTYPES}) and the call is
+     * written on a type the sources declare, the method as a member of that type, as in {@code
+     * orders.save(o)} on a Spring Data repository; otherwise null.
      */
     private EntityId callee(Call call) {
       EntityId callee = call.callee();

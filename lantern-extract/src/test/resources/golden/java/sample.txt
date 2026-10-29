@@ -1,3 +1,4 @@
+method:com.example.sample.Failure#explain(java.lang.String) CALLS method:com.example.sample.Lookup#apply(java.lang.Object) @compiled:src/main/java/com/example/sample/Failure.java#11-11 1.0
 method:com.example.sample.Names#of(java.lang.String) CALLS method:com.example.sample.Names#<init>() @compiled:src/main/java/com/example/sample/Names.java#8-8 1.0
 method:com.example.sample.Names#of(java.lang.String) CALLS method:com.example.sample.Names#add(java.lang.Object) @compiled:src/main/java/com/example/sample/Names.java#9-9 1.0
 method:com.example.sample.Names#of(java.lang.String) CALLS method:com.example.sample.Names#check(java.lang.String) @compiled:src/main/java/com/example/sample/Names.java#10-10 1.0
@@ -18,6 +19,8 @@ method:com.example.sample.Ticks#instant() CALLS method:com.example.sample.Ticks#
 method:com.example.sample.Ticks#utc() CALLS method:com.example.sample.Ticks#systemUTC() @compiled:src/main/java/com/example/sample/Ticks.java#8-8 1.0
 module:com.example:sample CONTAINS package:com.example:sample:com.example.sample @compiled:src/main/java/com/example/sample 1.0
 package:com.example:sample:com.example.sample CONTAINS type:com.example.sample.Base @compiled:src/main/java/com/example/sample/Base.java#3-5 1.0
+package:com.example:sample:com.example.sample CONTAINS type:com.example.sample.Failure @compiled:src/main/java/com/example/sample/Failure.java#3-13 1.0
+package:com.example:sample:com.example.sample CONTAINS type:com.example.sample.Lookup @compiled:src/main/java/com/example/sample/Lookup.java#5-5 1.0
 package:com.example:sample:com.example.sample CONTAINS type:com.example.sample.Named @compiled:src/main/java/com/example/sample/Named.java#3-5 1.0
 package:com.example:sample:com.example.sample CONTAINS type:com.example.sample.Names @compiled:src/main/java/com/example/sample/Names.java#6-22 1.0
 package:com.example:sample:com.example.sample CONTAINS type:com.example.sample.Shapes @compiled:src/main/java/com/example/sample/Shapes.java#6-105 1.0
@@ -25,6 +28,13 @@ package:com.example:sample:com.example.sample CONTAINS type:com.example.sample.T
 type:com.example.sample.Base CONTAINS method:com.example.sample.Base#<init>() @compiled:src/main/java/com/example/sample/Base.java#3-3 1.0
 type:com.example.sample.Base CONTAINS method:com.example.sample.Base#base() @compiled:src/main/java/com/example/sample/Base.java#4-4 1.0
 type:com.example.sample.Base kind class @compiled:src/main/java/com/example/sample/Base.java#3-5 1.0
+type:com.example.sample.Failure CONTAINS field:com.example.sample.Failure#lookup @compiled:src/main/java/com/example/sample/Failure.java#4-4 1.0
+type:com.example.sample.Failure CONTAINS method:com.example.sample.Failure#<init>(com.example.sample.Lookup) @compiled:src/main/java/com/example/sample/Failure.java#6-8 1.0
+type:com.example.sample.Failure CONTAINS method:com.example.sample.Failure#explain(java.lang.String) @compiled:src/main/java/com/example/sample/Failure.java#10-12 1.0
+type:com.example.sample.Failure EXTENDS type:java.lang.RuntimeException @compiled:src/main/java/com/example/sample/Failure.java#3-3 1.0
+type:com.example.sample.Failure kind class @compiled:src/main/java/com/example/sample/Failure.java#3-13 1.0
+type:com.example.sample.Lookup EXTENDS type:java.util.function.Function @compiled:src/main/java/com/example/sample/Lookup.java#5-5 1.0
+type:com.example.sample.Lookup kind interface @compiled:src/main/java/com/example/sample/Lookup.java#5-5 1.0
 type:com.example.sample.Named CONTAINS method:com.example.sample.Named#name() @compiled:src/main/java/com/example/sample/Named.java#4-4 1.0
 type:com.example.sample.Named EXTENDS type:java.io.Serializable @compiled:src/main/java/com/example/sample/Named.java#3-3 1.0
 type:com.example.sample.Named kind interface @compiled:src/main/java/com/example/sample/Named.java#3-5 1.0

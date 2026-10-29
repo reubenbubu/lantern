@@ -174,6 +174,30 @@ class JavaExtractorTest {
             }
           }
           """,
+          "src/main/java/com/example/sample/Lookup.java",
+          """
+          package com.example.sample;
+
+          import java.util.function.Function;
+
+          public interface Lookup extends Function<String, String> {}
+          """,
+          "src/main/java/com/example/sample/Failure.java",
+          """
+          package com.example.sample;
+
+          public class Failure extends RuntimeException {
+            private final Lookup lookup;
+
+            Failure(Lookup lookup) {
+              this.lookup = lookup;
+            }
+
+            String explain(String key) {
+              return lookup.apply(key) + getMessage() + this.getMessage();
+            }
+          }
+          """,
           "src/main/java/com/example/sample/Ticks.java",
           """
           package com.example.sample;

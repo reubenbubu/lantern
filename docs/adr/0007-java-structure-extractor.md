@@ -1,6 +1,6 @@
 # 0007: Java structure extractor
 
-Status: accepted (#9), pending the user's review (#24)
+Status: accepted (#9), amended by ADR 0048 (#176), pending the user's review (#24)
 
 ## Context
 
@@ -72,8 +72,8 @@ where, which calls are kept and how the fallback relates to the compiler.
   `method CALLS method` for method calls, constructor calls (`new`, `this(...)`, `super(...)`) and
   method references whose target is declared in the analyzed sources (or, since ADR 0048, is
   inherited from third-party code by a type the sources declare that the call is written on).
-  Calls in field initializers and initializer blocks have the type as subject. Calls into the JDK and third-party code are
-  left out, to keep the graph to the system's own code. There is one `CALLS` fact per caller and
+  Calls in field initializers and initializer blocks have the type as subject. Calls into the JDK
+  and third-party code are left out, to keep the graph to the system's own code. There is one `CALLS` fact per caller and
   callee, with the first call as evidence. Evidence is the source file with its content hash and
   the declaration's or call's lines; members Lombok generates have the annotation's line. A
   package's evidence is its directory, and a generated source's path is relative to the build's

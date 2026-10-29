@@ -66,7 +66,7 @@ final class PackageDependencies {
 
   /**
    * The type itself, or the type that declares a method or field; for a method no type declares,
-   * such as one a type inherits from third-party code and is called on (ADR 0007), the type its ID
+   * such as one a type inherits from third-party code and is called on (ADR 0048), the type its ID
    * names.
    */
   static EntityId ownerType(Knowledge knowledge, EntityId entity) {

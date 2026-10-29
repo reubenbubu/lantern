@@ -885,7 +885,13 @@ final class JavaParserAnalyzer {
         }
       }
       try {
-        return type == null ? null : binaryName(type);
+        // A local or anonymous class is not an entity, as for javac.
+        boolean local =
+            type != null
+                && type.toAst().orElse(null) instanceof Node declaration
+                && (declaration.findAncestor(BlockStmt.class).isPresent()
+                    || declaration.findAncestor(ObjectCreationExpr.class).isPresent());
+        return type == null || local ? null : binaryName(type);
       } catch (RuntimeException e) {
         return null;
       }
