@@ -38,7 +38,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Turns test sources into facts: the test classes of each module, how many tests each declares, and
  * which test the code's architecture. The sources are read from git at the commit and parsed, never
- * compiled or run. See {@code docs/adr/0063-test-evidence.md}.
+ * compiled or run. See {@code docs/adr/0064-test-evidence.md}.
  *
  * <p>Entity IDs: {@code test-class:<groupId>:<artifactId>:<binary name>}, keyed by module like a
  * package, since test classes of the same name are common across modules.
