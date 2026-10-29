@@ -116,10 +116,16 @@ amendment for #212 changes as follows:
   `~/.m2/wrapper`, so after the first run it does not reach Maven Central. A machine that must
   avoid even that first download can still export it.
 
-## Amendment for #314: a failed download is retried
+## Amendment for #314: failures left in the cache are forgotten
 
-Maven keeps a failed download, such as a mirror that was down for a moment, in the shared cache and
-does not try again for a day; all five Maven builds of project-3 failed on one such entry for
+Maven keeps a failed download, such as a mirror that missed once, in the shared cache as a
+`*.lastUpdated` marker (or a failed entry in `resolver-status.properties`) and does not try again
+for a day. All Maven builds of project-3 failed on one such marker for
 `spring-cloud-kubernetes-dependencies:5.0.0`, which Maven Central and the mirror both serve. Every
-Maven run in the sandbox now passes `--update-snapshots`, which makes Maven try again; it fetches
-nothing the cache already holds.
+sandbox Maven run, including the JDK detection, now starts by deleting those markers and failed
+entries from the cache, inside the container (`build.sh`, `BuildSandbox.FORGET_FAILURES`). A
+marker records only a failure, so nothing a build needs is lost.
+
+`-U` (`--update-snapshots`) would also retry, but it rechecks all metadata and snapshots in every
+build, which hurts the reproducibility of pinned builds and can pull remote snapshots that shadow
+the artifacts of repositories analyzed together.

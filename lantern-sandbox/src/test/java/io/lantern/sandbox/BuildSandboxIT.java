@@ -29,6 +29,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -997,32 +998,69 @@ class BuildSandboxIT {
 
   /**
    * A download that failed once (#314: a mirror that was down for a moment) is recorded in the
-   * Maven cache, and Maven would not try again for a day. The build tries again.
+   * Maven cache, and Maven would not try again for a day. The next build forgets the failure.
    */
   @Test
-  void retriesADownloadThatFailedBefore() throws IOException {
-    // A cache of its own, with the failure Maven records for the POM of the dependency, as it
-    // keeps it for the repository the build reads from.
+  void forgetsADownloadThatFailedBefore() throws IOException {
     Path cache = temp.resolve("failed-cache");
     try {
-      String url = (MIRROR != null ? MIRROR.url() : MavenRepository.CENTRAL.url()).toString();
-      Path failed =
-          cache.resolve("org/projectlombok/lombok/1.18.48/lombok-1.18.48.pom.lastUpdated");
-      Files.createDirectories(failed.getParent());
-      String key = (url.endsWith("/") ? url : url + "/").replace(":", "\\:");
-      Files.writeString(
-          failed, key + ".lastUpdated=" + System.currentTimeMillis() + "\n" + key + ".error=\n");
       Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+      // First a build against a mirror nothing answers at, so Maven itself records the failures.
+      URI dead = URI.create("http://192.168.255.254:9/");
+      BuildResult failed =
+          new BuildSandbox(
+                  settings()
+                      .withMavenCacheDirectory(cache)
+                      .withMavenMirror(new MavenMirror("dead", dead)))
+              .build(repo, TestRepos.head(repo));
+      assertThat(failed.status()).isEqualTo(BuildStatus.FAILED);
+      List<Path> markers = markers(cache);
+      assertThat(markers).as("failures Maven recorded").isNotEmpty();
+      // Point them at the repository the next build reads from, as if it had answered "not found"
+      // there, which is what the mirror did in #314.
+      MavenRepository liveRepository = MavenRepository.CENTRAL;
+      String liveUrl = (MIRROR != null ? MIRROR.url() : liveRepository.url()).toString();
+      String from = escapeColons(dead.toString());
+      String to = escapeColons(liveUrl.endsWith("/") ? liveUrl : liveUrl + "/");
+      // ...and for the POM of a dependency, which the build needs (where the first build stopped
+      // short of dependencies).
+      Path lombok =
+          cache.resolve("org/projectlombok/lombok/1.18.48/lombok-1.18.48.pom.lastUpdated");
+      Files.createDirectories(lombok.getParent());
+      Files.writeString(
+          lombok,
+          Files.readString(markers.getFirst())
+              .replaceAll(
+                  "(?m)^@.*?>@default-dead-" + Pattern.quote(from), Matcher.quoteReplacement(to))
+              .replace(from, to)
+              // Maven retries a transfer error, not a "not found", which has no text.
+              .replaceAll("[.]error=.*", ".error="));
+      Files.delete(markers.getFirst());
+      markers = markers(cache);
 
       BuildResult result =
           new BuildSandbox(settings().withMavenCacheDirectory(cache))
               .build(repo, TestRepos.head(repo));
 
       assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
-      // Without the retry the build still succeeds, but the POM is missing and Maven warns.
+      // Left in place, the failure makes Maven report the POM missing.
       assertThat(Files.readString(result.log())).as(log(result)).doesNotContain("is missing");
+      assertThat(markers(cache)).as("failures left in the cache").isEmpty();
     } finally {
       deleteIfExists(cache);
+    }
+  }
+
+  private static String escapeColons(String text) {
+    return text.replace(":", "\\:");
+  }
+
+  private static List<Path> markers(Path cache) throws IOException {
+    if (!Files.isDirectory(cache)) {
+      return List.of();
+    }
+    try (Stream<Path> files = Files.walk(cache)) {
+      return files.filter(f -> f.getFileName().toString().endsWith(".lastUpdated")).toList();
     }
   }
 
