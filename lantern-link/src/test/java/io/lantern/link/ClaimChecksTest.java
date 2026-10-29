@@ -709,7 +709,16 @@ class ClaimChecksTest {
         "payments",
         "src/main/java/g/Config.java",
         1.0);
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.PUBLISHES,
+        "topic:kafka:orders.send",
+        "{\"protocol\":\"Kafka\"}",
+        1.0);
     claim("orders", "README.md", "It publishes to the orders.created topic.");
+    // A verb inside a name does not end it.
+    claim("orders", "README.md", "It publishes to the topic orders.send.");
     claim("orders", "README.md", "Orders publishes to the RabbitMQ topic exchange `shop.orders`.");
     claim("orders", "README.md", "Paid orders reach the payments.orders queue: it sends them.");
     claim("orders", "README.md", "It sends paid orders to the payments.orders queue.");
@@ -731,8 +740,8 @@ class ClaimChecksTest {
     assertThat(f.object().value()).isEqualTo(ClaimChecks.DESTINATION);
     assertThat(f.attributes().get("stated").asString()).isEqualTo("orders.placed");
     assertThat(f.attributes().get("found").toString())
-        .isEqualTo("[\"orders.created\",\"shop.orders\"]");
-    assertThat(contradictedBy(f)).contains(kafka.id()).hasSize(2);
+        .isEqualTo("[\"orders.created\",\"orders.send\",\"shop.orders\"]");
+    assertThat(contradictedBy(f)).contains(kafka.id()).hasSize(3);
   }
 
   @Test
@@ -852,6 +861,7 @@ class ClaimChecksTest {
     claim("orders", "README.md", "server.port=8082");
     claim("orders", "README.md", "The service is available on port 8083.");
     claim("orders", "README.md", "Billing charges orders. It listens on port 8084.");
+    claim("orders", "README.md", "Billing handles payments. Its HTTP port is 8086.");
     claim("orders", "README.md", "When it fails, the watchdog runs on port 8085.");
 
     assertThat(checks()).containsExactlyInAnyOrder("port port 8081", "port port 8082");

@@ -115,7 +115,7 @@ final class NamedClaimChecks {
               + PUBLISH
               + "|"
               + CONSUME
-              + ")\\b((?:(?!\\b(?:and|"
+              + ")\\b((?:(?!\\s(?:and|"
               + PUBLISH
               + "|"
               + CONSUME
@@ -245,7 +245,8 @@ final class NamedClaimChecks {
 
   private static final Pattern PRONOUN_SUBJECT =
       Pattern.compile(
-          "^(?:it|this service|this application|this app|the service|the application)\\b");
+          "^(?:it|its|their|this service|this application|this app|the service|the application)"
+              + "\\b");
 
   private static final Pattern WORD = Pattern.compile("[a-z0-9][a-z0-9._\\-]*[a-z0-9]|[a-z0-9]");
 

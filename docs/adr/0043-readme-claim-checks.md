@@ -89,7 +89,7 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
   as "also" or "is" after it; "our mobile app" or "when it fails, the watchdog" is not read. A unit's names are its artifact
   ID and application names, lowercase, each also without a `-service`, `-app`, `-svc` or `-api`
   ending; a name two units share is no one's. A sentence with "it" as its subject after one in
-  the same claim that names another unit is about that unit and is not read. Sentences about tests,
+  the same claim that names another unit is about that unit and is not read, and so is one starting with "its" or "their". Sentences about tests,
   local set-ups and plans are skipped, as for technologies.
 - **More checks**, each the value of the fact it makes (`NamedClaimChecks`; the step's version is
   now 2):
@@ -105,8 +105,8 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
   - `endpoint`: "exposes `GET /orders/{id}`", "provides the endpoint `/refunds`": a path after a
     verb such as exposes, serves, provides, offers or handles, read only with its HTTP method or
     after words about endpoints (endpoint, API, route, resource, path, request), so "serves files
-    from /data" is not read; the paths end with the clause (a semicolon or colon, "which", or
-    "and" before another verb, so "exposes an API and writes reports to /reports" reads none);
+    from /data" is not read; the paths end with the clause (a semicolon or colon, a relative or
+    contrasting word such as "which" or "but", or "and" before another verb, so "exposes an API and writes reports to /reports" reads none);
     framework and file paths (`/actuator`, `/swagger-ui`, `/h2-console`, `/error`, `/health`,
     `/var`, ...) are left alone. Contradicted when the units' endpoints are known (every unit the
     README speaks for has at least one controller endpoint, each with a path; Spring Data REST and
