@@ -14,6 +14,7 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
+import io.lantern.extract.mail.MailExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
@@ -1312,5 +1313,97 @@ class CrossRepoLinksTest {
   @Test
   void noFactsNoLinks() {
     assertThat(new CrossRepoLinks().derive(List.of(), 1)).isEmpty();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Mail
+
+  private void mailSend(String repo, String method, int line) {
+    add(
+        MailExtractor.NAME,
+        "method:" + method,
+        MailExtractor.MAIL_SEND,
+        FactObject.string("send"),
+        "{\"method\":\"send\",\"template\":\"org.springframework.mail.javamail.JavaMailSender\"}",
+        repo
+            + ":src/main/java/"
+            + method.substring(0, method.indexOf('#')).replace('.', '/')
+            + ".java#"
+            + line,
+        1.0);
+  }
+
+  @Test
+  void aUnitThatSendsMailThroughTheHostInItsConfigSendsMailToAnExternalSystem() {
+    unit("n", "notification", "notification");
+    type("n", "notification", "n.EmailService");
+    config(
+        "n", "notification", "application.properties", "spring.mail.host", "smtp.gmail.com", null);
+    config("n", "notification", "application.properties", "spring.mail.port", "587", null);
+    mailSend("n", "n.EmailService#send(java.lang.String)", 35);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+        .containsExactly(
+            "service:g:notification SENDS_MAIL external-system:smtp.gmail.com"
+                + " {\"host\":\"smtp.gmail.com\",\"key\":\"spring.mail.host\","
+                + "\"port\":\"587\",\"protocol\":\"SMTP\","
+                + "\"source\":\"method:n.EmailService#send(java.lang.String)\"} 1.0");
+  }
+
+  @Test
+  void port465OrTheSmtpsProtocolMakesItSmtps() {
+    unit("n", "notification", "notification");
+    type("n", "notification", "n.EmailService");
+    config(
+        "n",
+        "notification",
+        "application.properties",
+        "spring.mail.host",
+        "smtp.example.org",
+        null);
+    config("n", "notification", "application.properties", "spring.mail.port", "465", null);
+    mailSend("n", "n.EmailService#send()", 12);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+        .singleElement()
+        .asString()
+        .contains("\"protocol\":\"SMTPS\"");
+  }
+
+  @Test
+  void aMailHostInConfigWithoutRecognisedCodeIsOneLinkWithoutASource() {
+    unit("n", "notification", "notification");
+    config(
+        "n", "notification", "application.properties", "spring.mail.host", "smtp.gmail.com", null);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+        .containsExactly(
+            "service:g:notification SENDS_MAIL external-system:smtp.gmail.com"
+                + " {\"host\":\"smtp.gmail.com\",\"key\":\"spring.mail.host\","
+                + "\"protocol\":\"SMTP\"} 1.0");
+  }
+
+  @Test
+  void aMailHostWithoutADomainOrWithAnUnresolvedPlaceholderIsNotAnExternalSystem() {
+    unit("n", "notification", "notification");
+    type("n", "notification", "n.EmailService");
+    config("n", "notification", "application.properties", "spring.mail.host", "mailhog", null);
+    mailSend("n", "n.EmailService#send()", 12);
+    for (String local :
+        List.of("localhost", "127.0.0.1", "10.0.0.5", "mail.internal", "smtp.corp.local")) {
+      config("n", "notification", "application.properties", "spring.mail.host", local, null);
+      assertThat(derive(CrossRepoLinks.SENDS_MAIL)).as(local).isEmpty();
+      facts.removeIf(f -> f.object().value().equals(local));
+    }
+    unit("m", "mailer", "mailer");
+    config(
+        "m",
+        "mailer",
+        "application.properties",
+        "spring.mail.host",
+        "${SMTP_HOST}",
+        "\"unresolved\":[\"SMTP_HOST\"]");
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL)).isEmpty();
   }
 }

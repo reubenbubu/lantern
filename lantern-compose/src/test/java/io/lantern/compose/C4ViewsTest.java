@@ -219,6 +219,56 @@ class C4ViewsTest {
                 + " [JSON/HTTP]");
   }
 
+  /** The runtime facts plus an aspect advising the controller's {@code list()}. */
+  private Diagram componentsWithAspect(String aspect, boolean inUnit, String aspectJson) {
+    List<Fact> withAspect = new ArrayList<>(facts.list());
+    TestFacts more = new TestFacts();
+    if (inUnit) {
+      more.relate("shop", "package:com.example:app:com.example.web", "CONTAINS", aspect);
+    }
+    more.attribute("shop", aspect, "stereotype", "component")
+        .attribute("shop", aspect, "aspect", "aspect", aspectJson)
+        .relate(
+            "shop",
+            aspect,
+            "ADVISES",
+            "method:com.example.web.Controller#list()",
+            "{\"advice\":\"method:x.A#check()\",\"kind\":\"before\",\"pointcut\":\"p\"}");
+    withAspect.addAll(more.list());
+    return block(section(repo(withAspect), "components").sections().getFirst(), Diagram.class);
+  }
+
+  private static final String BY_ANNOTATION =
+      "{\"advice\":[\"before\"],\"pointcuts\":[\"@annotation(p)\"],"
+          + "\"annotations\":[\"com.example.rbac.RequiresPermission\"]}";
+  private static final String BY_NAME =
+      "{\"advice\":[\"before\"],\"pointcuts\":[\"execution(* *(..))\"]}";
+
+  @Test
+  void anAspectThatAdvisesAnEntryPointIsAComponentLinkedToIt() {
+    Diagram diagram = componentsWithAspect("type:com.example.web.PermissionAspect", true, BY_NAME);
+
+    assertThat(nodes(diagram))
+        .contains(
+            "type:com.example.web.PermissionAspect \"PermissionAspect\" [Spring AOP aspect]"
+                + " in service:com.example:app");
+    assertThat(edges(diagram))
+        .contains(
+            "type:com.example.web.PermissionAspect -> type:com.example.web.Controller: Advises");
+  }
+
+  @Test
+  void aLibraryAspectOutsideTheUnitCountsOnlyWhenItSelectsByAnnotation() {
+    Diagram selecting = componentsWithAspect("type:com.lib.rbac.LibAspect", false, BY_ANNOTATION);
+    assertThat(edges(selecting))
+        .contains(
+            "type:com.lib.rbac.LibAspect -> type:com.example.web.Controller: Advises"
+                + " @RequiresPermission");
+
+    Diagram byName = componentsWithAspect("type:com.lib.rbac.LibAspect", false, BY_NAME);
+    assertThat(nodes(byName)).noneMatch(n -> n.contains("LibAspect"));
+  }
+
   @Test
   void aUnitWithOneComponentGetsNoComponentDiagram() {
     // Without the scheduled job, the repository's bean is reached only from the controller.
@@ -375,6 +425,40 @@ class C4ViewsTest {
     assertThat(block(section(repo(more.list()), "context"), Metrics.class).items())
         .extracting(i -> i.label() + " " + i.value())
         .contains("Databases 1");
+  }
+
+  @Test
+  void aProfileOnlyMailHostIsANoteNotAnotherSystem() {
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "SENDS_MAIL",
+            "external-system:smtp.dev.example.com",
+            "{\"protocol\": \"SMTP\", \"source\": \"method:com.example.Mailer#send()\","
+                + " \"profile\": \"staging\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "SENDS_MAIL",
+            "external-system:smtp.gmail.com",
+            "{\"protocol\": \"SMTP\", \"source\": \"method:com.example.Mailer#send()\","
+                + " \"exceptProfiles\": [\"staging\"]}");
+
+    Section context = section(repo(more.list()), "context");
+
+    assertThat(nodes(block(context, Diagram.class)))
+        .noneMatch(n -> n.startsWith("external-system:smtp.dev"));
+    Callout note =
+        context.blocks().stream()
+            .filter(b -> b instanceof Callout c && "Under other profiles".equals(c.title()))
+            .map(Callout.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(note.content()))
+        .isEqualTo(
+            "Under the Spring profile staging, shop-app sends mail through smtp.dev.example.com"
+                + " instead of Gmail SMTP.");
   }
 
   @Test

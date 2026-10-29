@@ -106,7 +106,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | --- | --- | --- |
 | Maven | Effective POM and reactor (POMs as written when there is no effective POM) | Modules, artifacts, internal vs. third-party dependencies, deployable vs. library, the library a thin service packages, each module's parent and Java release, and the coverage tools its build runs |
 | Java structure | javac Tree API with symbol resolution (JavaParser as fallback) | Packages, types, members, inheritance, resolved call graph |
-| Spring / Jakarta | Annotations, including meta-annotations (a custom annotation carrying `@RestController` or `@Service` counts as one), and bean definitions | Application main classes, controllers and endpoints, beans by stereotype, configuration, `@Scheduled` jobs, JobRunr and Quartz jobs with where they are scheduled, `@Profile` gates |
+| Spring / Jakarta | Annotations, including meta-annotations (a custom annotation carrying `@RestController` or `@Service` counts as one), and bean definitions | Application main classes, controllers and endpoints, beans by stereotype, configuration, `@Scheduled` jobs, JobRunr and Quartz jobs with where they are scheduled, `@Profile` gates, `@Aspect` types with the methods their pointcuts advise |
 | HTTP clients | Feign, Spring HTTP interfaces (`@HttpExchange`), RestTemplate, RestClient, WebClient, JAX-RS and MicroProfile clients, `java.net.http`, OkHttp and Apache HttpClient | Outbound calls with target service name, URL or property key, and path. The caller of a client interface is the code that enables or injects it, not the jar that defines it |
 | Messaging | Kafka, JMS, RabbitMQ listeners and templates; Spring Cloud Stream bindings and `StreamBridge` | Topics, exchanges, queues, bindings and routing keys produced and consumed |
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
@@ -134,7 +134,7 @@ Which files the README and ADR extractor reads, which decision record formats it
 
 Which migrations and SQL files the SQL extractor reads, in what order, and how it names and models schemas, tables, columns and keys is in ADR 0034.
 
-How the Spring / Jakarta extractor reads annotations and meta-annotations through the Java extractor's reading of the code, what facts it makes of stereotypes, main classes, endpoints, scheduled jobs (including JobRunr and Quartz) and profile gates, and which config resolves their placeholders is in ADR 0035.
+How the Spring / Jakarta extractor reads annotations and meta-annotations through the Java extractor's reading of the code, what facts it makes of stereotypes, main classes, endpoints, scheduled jobs (including JobRunr and Quartz) and profile gates, and which config resolves their placeholders is in ADR 0035. Aspects and the methods they advise are in ADR 0079.
 
 How the Persistence extractor finds entities, repositories and SQL in code, names the tables they touch, and records datasource URLs per profile without credentials is in ADR 0036.
 
@@ -143,6 +143,8 @@ How Redis becomes a data store, found from the code, config, dependencies and co
 Which listeners, templates and bindings the Messaging extractor reads, how it follows a name from a constant, a placeholder or a `@Value` into the call that uses it, and what facts it makes of listeners, sends and RabbitMQ bindings is in ADR 0037. How it reads Spring Cloud Stream, whose destinations come from config through bindings, into the same facts is in ADR 0040.
 
 Which HTTP clients the HTTP client extractor reads, how it follows a URL one hop through the code, what facts it makes of calls and of the code that enables or injects a client, and what a recorded URL leaves out is in ADR 0038.
+
+How the Mail extractor and linker make the mail server a unit's config names an external system, linked by `SENDS_MAIL` and shown as a step in the flows that reach the sending code, is in ADR 0076.
 
 **Why javac instead of only a parser:** production Spring code relies on Lombok, MapStruct and generated OpenAPI or Protobuf clients. Analyzing through the compiler, with annotation processing on, sees generated members and resolves calls exactly as the build does.
 
@@ -443,7 +445,7 @@ How the first composer builds per-repository documents from view definitions is 
 | Landscape | Every system in scope and the people using them; no internals | Container relationships, aggregated per system |
 | System context | One system in focus, its users and the external systems it talks to directly; no technology. Unknown users are marked unknown, not invented | Relationships leaving the system; people the code shows (sign-in, roles, a frontend); annotations for people and for external systems no code names |
 | Container | One view of the whole system, split by concern when above 15 elements. One box per deployable unit, folding in the in-set libraries it packages (a thin service and its library are one box), and one per frontend; each service's own schema as a separate data store; queues, topics and exchanges as elements or "via" labels, never one broker box | Deployable evidence (a Spring Boot main class, a repackaged executable artifact, a Dockerfile), `spring.application.name`, linked HTTP client, messaging and persistence facts, frontend and deployment facts |
-| Component | Inside one container, one component per role: each controller, message listener or scheduled job with the services and repositories reachable only from it; a bean reachable from several entry points is its own component. Domain, DTO, mapper, configuration and util classes are left out. Above 15 elements, split by groups of entry points. Drawn only when it adds value: more than one component, and not a repeat of the container diagram | Spring stereotypes (including meta-annotations) and the resolved call graph |
+| Component | Inside one container, one component per role: each controller, message listener or scheduled job with the services and repositories reachable only from it; a bean reachable from several entry points is its own component. Domain, DTO, mapper, configuration and util classes are left out. Above 15 elements, split by groups of entry points. Drawn only when it adds value: more than one component, and not a repeat of the container diagram | Spring stereotypes (including meta-annotations), aspects that advise an entry point (shown as components with a line to what they advise, ADR 0079) and the resolved call graph |
 | Sequence | See Sequence diagrams below | Entry points and the resolved call graph, linked across containers |
 | Deployment | Nodes and container instances in one environment | The Deployment extractor's facts; omitted with a note when there are none |
 | Dependency | Modules and artifacts with their build-time dependencies; not a C4 view | Maven facts |
