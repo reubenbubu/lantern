@@ -9,6 +9,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.sql.SchemaModel.Where;
@@ -42,7 +43,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Turns database migrations into the schema they build as of the commit: tables, their columns and
  * keys. It reads Flyway migrations, Liquibase changelogs (XML, YAML, JSON and formatted SQL) and
- * other {@code .sql} files with JSqlParser. See {@code docs/adr/0033-sql-extractor.md}.
+ * other {@code .sql} files with JSqlParser. See {@code docs/adr/0034-sql-extractor.md}.
  *
  * <p>Each Maven module with migrations has one schema, {@code schema:<groupId>:<artifactId>}, which
  * the module contains. Its tables are {@code table:<schema key>:<table>} and their columns {@code
@@ -174,7 +175,7 @@ public final class SqlExtractor {
 
   private void extract(
       RepoBuild repo, Validity validity, Map<String, Fact> facts, ExecutorService executor) {
-    List<String> paths = RepoFiles.list(repo);
+    List<String> paths = GitFiles.list(repo, "");
     SortedMap<String, EntityId> modules = MavenExtractor.moduleDirectories(repo);
     Map<String, RepoFiles.Content> cache = new HashMap<>();
     Function<String, RepoFiles.Content> reader =
