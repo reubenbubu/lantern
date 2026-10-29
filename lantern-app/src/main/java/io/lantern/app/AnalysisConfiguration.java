@@ -44,6 +44,11 @@ class AnalysisConfiguration {
   }
 
   @Bean
+  C4ReportRenderer c4ReportRenderer() {
+    return C4ReportRenderer.fromClassPath();
+  }
+
+  @Bean
   AnalysisRun analysisRun(
       RepoRegistry registry,
       SnapshotStore snapshots,
@@ -56,6 +61,7 @@ class AnalysisConfiguration {
       SummaryStore summaries,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
+      C4ReportRenderer c4Renderer,
       @Value("${lantern.version}") String toolVersion,
       @Value("${lantern.workspace}") Path workspace) {
     return new AnalysisRun(
@@ -70,6 +76,7 @@ class AnalysisConfiguration {
         summaries,
         views,
         renderer,
+        c4Renderer,
         toolVersion,
         absolute(workspace).resolve("documents"));
   }

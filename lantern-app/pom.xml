@@ -94,6 +94,32 @@
   <build>
     <plugins>
       <plugin>
+        <!-- The report specs' HTML templates, for the renderers that write documents into them
+             (docs/adr/0030-report-spec-renderer.md). -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>report-spec-templates</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.outputDirectory}/report-specs</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${project.basedir}/../report-specs</directory>
+                  <includes>
+                    <include>*/*.html</include>
+                  </includes>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <configuration>

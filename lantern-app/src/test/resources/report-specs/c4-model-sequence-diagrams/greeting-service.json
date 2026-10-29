@@ -1,0 +1,120 @@
+{
+  "document" : {
+    "id" : "greeting-service",
+    "title" : "greeting-service",
+    "subtitle" : "It builds on its parts.\n\n- [greeting-service](#/containers/el-service-com-example-greeting-greeting-service), a service",
+    "version" : "1"
+  },
+  "elements" : {
+    "library-com-example-greeting-greeting-lib" : {
+      "kind" : "container",
+      "name" : "greeting-lib",
+      "parent" : "repo-greeting-lib",
+      "tag" : "Library",
+      "technology" : "Library, jar"
+    },
+    "package-com-example-greeting-greeting-service-com-example-greeting-service" : {
+      "kind" : "component",
+      "name" : "com.example.greeting.service",
+      "parent" : "service-com-example-greeting-greeting-service",
+      "tag" : "Package",
+      "description" : "It builds on its parts. It is described by its facts."
+    },
+    "repo-greeting-lib" : {
+      "kind" : "system",
+      "name" : "greeting-lib",
+      "tag" : "Repository"
+    },
+    "repo-greeting-service" : {
+      "kind" : "system",
+      "name" : "greeting-service",
+      "tag" : "Repository",
+      "description" : "It builds on its parts."
+    },
+    "service-com-example-greeting-greeting-service" : {
+      "kind" : "container",
+      "name" : "greeting-service",
+      "parent" : "repo-greeting-service",
+      "tag" : "Service",
+      "technology" : "Service, jar"
+    }
+  },
+  "pages" : [ {
+    "id" : "context",
+    "level" : "context",
+    "title" : "System context",
+    "element" : "repo-greeting-service",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "context-diagram",
+      "title" : "System context of greeting-service",
+      "caption" : "System context of greeting-service",
+      "focus" : "repo-greeting-service",
+      "relationships" : [ {
+        "from" : "repo-greeting-service",
+        "to" : "repo-greeting-lib",
+        "label" : "depends on"
+      } ]
+    }, {
+      "type" : "elements",
+      "id" : "context-diagram-elements",
+      "title" : "Elements",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "repo-greeting-lib", "repo-greeting-service" ]
+      }
+    } ]
+  }, {
+    "id" : "containers",
+    "level" : "containers",
+    "title" : "Containers",
+    "element" : "repo-greeting-service",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "containers-diagram",
+      "title" : "Containers of greeting-service",
+      "caption" : "Containers of greeting-service",
+      "boundary" : "repo-greeting-service",
+      "relationships" : [ {
+        "from" : "service-com-example-greeting-greeting-service",
+        "to" : "library-com-example-greeting-greeting-lib",
+        "label" : "depends on"
+      }, {
+        "from" : "service-com-example-greeting-greeting-service",
+        "to" : "library-com-example-greeting-greeting-lib",
+        "label" : "packages"
+      } ]
+    }, {
+      "type" : "elements",
+      "id" : "containers-diagram-elements",
+      "title" : "Elements",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "library-com-example-greeting-greeting-lib", "service-com-example-greeting-greeting-service" ]
+      }
+    } ]
+  }, {
+    "id" : "components-service-com-example-greeting-greeting-service",
+    "level" : "components",
+    "title" : "greeting-service",
+    "summary" : "It builds on its parts. It is described by its facts.",
+    "element" : "service-com-example-greeting-greeting-service",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "components-service-com-example-greeting-greeting-service-diagram",
+      "title" : "Components of greeting-service",
+      "caption" : "Components of greeting-service",
+      "boundary" : "service-com-example-greeting-greeting-service",
+      "elements" : [ "package-com-example-greeting-greeting-service-com-example-greeting-service" ],
+      "relationships" : [ ]
+    }, {
+      "type" : "elements",
+      "id" : "components-service-com-example-greeting-greeting-service-diagram-elements",
+      "title" : "Elements",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "package-com-example-greeting-greeting-service-com-example-greeting-service" ]
+      }
+    } ]
+  } ]
+}

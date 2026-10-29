@@ -54,8 +54,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * One analysis run over a set of local repositories, every stage in order: register the
  * repositories, take a snapshot of their checked-out commits, build them in the sandbox, extract
- * and store their facts, summarize them with the LLM, compose an Architecture Explorer document and
- * an Executive Brief per repository, and render both as single-file HTML (ADR 0016).
+ * and store their facts, summarize them with the LLM, compose an Architecture Explorer document, an
+ * Executive Brief and a C4 report per repository, and render each as single-file HTML (ADR 0016,
+ * ADR 0030).
  *
  * <p>The snapshot describes the whole system: every repository an earlier snapshot analyzed that is
  * not named in this run is carried forward at its commit in the latest snapshot that analyzed it,
@@ -76,6 +77,9 @@ public final class AnalysisRun {
   /** The template of the per-repository Executive Brief. */
   static final TemplateRef BRIEF = new TemplateRef("executive-brief", "1");
 
+  /** The template of the per-repository C4 report, the report spec of the same name (ADR 0030). */
+  static final TemplateRef C4_REPORT = new TemplateRef(C4ReportRenderer.SPEC, "1");
+
   private static final Logger LOG = LoggerFactory.getLogger(AnalysisRun.class);
 
   private final RepoRegistry registry;
@@ -89,6 +93,7 @@ public final class AnalysisRun {
   private final SummaryStore summaries;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
+  private final C4ReportRenderer c4Renderer;
   private final String toolVersion;
   private final Path documentsDirectory;
 
@@ -107,6 +112,7 @@ public final class AnalysisRun {
       SummaryStore summaries,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
+      C4ReportRenderer c4Renderer,
       String toolVersion,
       Path documentsDirectory) {
     this.registry = Objects.requireNonNull(registry, "registry");
@@ -120,6 +126,7 @@ public final class AnalysisRun {
     this.summaries = Objects.requireNonNull(summaries, "summaries");
     this.views = Objects.requireNonNull(views, "views");
     this.renderer = Objects.requireNonNull(renderer, "renderer");
+    this.c4Renderer = Objects.requireNonNull(c4Renderer, "c4Renderer");
     this.toolVersion = Objects.requireNonNull(toolVersion, "toolVersion");
     this.documentsDirectory = Objects.requireNonNull(documentsDirectory, "documentsDirectory");
   }
@@ -386,16 +393,17 @@ public final class AnalysisRun {
   private record Stored(List<Fact> facts, int added) {}
 
   /**
-   * The repository's two views, the Architecture Explorer document {@code <repo>} and the Executive
-   * Brief {@code <repo>.brief}. A view stored before is used as stored; a missing one is stored
-   * with the default sections.
+   * The repository's three views, the Architecture Explorer document {@code <repo>}, the Executive
+   * Brief {@code <repo>.brief} and the C4 report {@code <repo>.c4}. A view stored before is used as
+   * stored; a missing one is stored with the default sections.
    */
   private List<ViewDefinition> views(String repo) {
     List<ViewDefinition> result = new ArrayList<>();
     for (ViewDefinition fallback :
         List.of(
             ViewDefinition.perRepo(repo, repo, EXPLORER),
-            ViewDefinition.executiveBrief(repo + ".brief", repo, BRIEF))) {
+            ViewDefinition.executiveBrief(repo + ".brief", repo, BRIEF),
+            ViewDefinition.c4Report(repo + ".c4", repo, C4_REPORT))) {
       result.add(
           views
               .find(fallback.id())
@@ -412,7 +420,11 @@ public final class AnalysisRun {
     try {
       Files.createDirectories(directory);
       Path file = directory.resolve(viewId + ".html");
-      Files.writeString(file, renderer.render(document));
+      String html =
+          document.template().name().equals(C4ReportRenderer.SPEC)
+              ? c4Renderer.render(document)
+              : renderer.render(document);
+      Files.writeString(file, html);
       return file;
     } catch (IOException e) {
       throw new UncheckedIOException("Cannot write the document " + viewId, e);

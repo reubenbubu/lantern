@@ -1,6 +1,6 @@
 # 0016: End-to-end analysis run
 
-Status: accepted (#17), amended (#100, #58), pending the user's review (#24)
+Status: accepted (#17), amended (#100, #58), amended by ADR 0030 (#112), pending the user's review (#24)
 
 ## Context
 
@@ -36,9 +36,10 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
   4. runs the Maven and Java extractors over all repositories of the snapshot and stores the
      analyzed repositories' facts in one transaction (ADR 0018);
   5. summarizes with the `SUMMARIZE` role's model through the cached summarizer (ADR 0010);
-  6. composes an Architecture Explorer document (view `<repo>`) and an Executive Brief (view
-     `<repo>.brief`) per repository. A view definition stored before is used as stored; a
-     missing one is stored with the template's default sections (ADR 0012, 0015);
+  6. composes an Architecture Explorer document (view `<repo>`), an Executive Brief (view
+     `<repo>.brief`) and, since ADR 0030, a C4 report (view `<repo>.c4`) per repository. A view
+     definition stored before is used as stored; a missing one is stored with the template's
+     default sections (ADR 0012, 0015);
   7. renders each as one HTML file, `<workspace>/documents/<snapshot>/<view>.html`.
 - **A fact found again stays as stored.** Extractors give facts the new snapshot as the start of
   their validity, while the same fact (same ID) is stored from an earlier snapshot. The run records
