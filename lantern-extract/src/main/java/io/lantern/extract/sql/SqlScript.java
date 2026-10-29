@@ -17,7 +17,6 @@ import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.alter.RenameTableStatement;
-import net.sf.jsqlparser.statement.create.table.CheckConstraint;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
@@ -391,21 +390,23 @@ final class SqlScript {
 
   /** Adds a primary, unique or foreign key; other constraints and plain indexes are skipped. */
   private static void addConstraint(SchemaModel model, String table, Index index, Where where) {
-    if (index instanceof CheckConstraint) {
-      return; // check constraints have no columns to read (ADR 0034)
-    }
-    List<String> columns = names(index.getColumnsNames());
     String name = SchemaModel.name(index.getName());
     if (index instanceof ForeignKeyIndex fk) {
       model.addForeignKey(
-          table, name, columns, name(fk.getTable()), names(fk.getReferencedColumnNames()), where);
+          table,
+          name,
+          names(fk.getColumnsNames()),
+          name(fk.getTable()),
+          names(fk.getReferencedColumnNames()),
+          where);
       return;
     }
     String type = index.getType() == null ? "" : index.getType().toUpperCase(Locale.ROOT);
+    // Columns are read only for the kinds mapped here: check and exclude constraints have none.
     if (type.startsWith("PRIMARY")) {
-      model.setPrimaryKey(table, name, columns, where);
+      model.setPrimaryKey(table, name, names(index.getColumnsNames()), where);
     } else if (type.startsWith("UNIQUE")) {
-      model.addUniqueKey(table, name, columns, where);
+      model.addUniqueKey(table, name, names(index.getColumnsNames()), where);
     }
   }
 
