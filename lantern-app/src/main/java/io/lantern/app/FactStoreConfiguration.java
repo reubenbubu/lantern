@@ -8,6 +8,7 @@ import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
+import io.lantern.extract.mail.MailExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
@@ -56,6 +57,7 @@ class FactStoreConfiguration {
     registry.apply(PersistenceExtractor.VOCABULARY_SOURCE, PersistenceExtractor.vocabulary());
     registry.apply(HttpClientExtractor.VOCABULARY_SOURCE, HttpClientExtractor.vocabulary());
     registry.apply(MessagingExtractor.VOCABULARY_SOURCE, MessagingExtractor.vocabulary());
+    registry.apply(MailExtractor.VOCABULARY_SOURCE, MailExtractor.vocabulary());
     registry.apply(RedisExtractor.VOCABULARY_SOURCE, RedisExtractor.vocabulary());
     registry.apply(GatewayExtractor.VOCABULARY_SOURCE, GatewayExtractor.vocabulary());
     registry.apply(TestExtractor.VOCABULARY_SOURCE, TestExtractor.vocabulary());

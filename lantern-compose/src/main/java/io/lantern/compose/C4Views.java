@@ -48,6 +48,7 @@ final class C4Views {
   static final String TECHNOLOGY = "technology";
   static final String BUNDLES = "BUNDLES";
   static final String CALLS_HTTP = "CALLS_HTTP";
+  static final String SENDS_MAIL = "SENDS_MAIL";
   static final String PUBLISHES = "PUBLISHES";
   static final String CONSUMES = "CONSUMES";
   static final String ROUTES_TO = "ROUTES_TO";
@@ -305,7 +306,7 @@ final class C4Views {
 
   /** The relationships whose profile-only links may replace a default link of their unit. */
   private static final List<String> REPLACEABLE =
-      List.of(CALLS_HTTP, PUBLISHES, CONSUMES, USES_DATABASE, ACCESSES_DATA_OF);
+      List.of(CALLS_HTTP, SENDS_MAIL, PUBLISHES, CONSUMES, USES_DATABASE, ACCESSES_DATA_OF);
 
   /**
    * The profile-only links that stand in for a default link of the same unit, relationship and code
@@ -371,6 +372,7 @@ final class C4Views {
       String verb =
           switch (profiled.predicate()) {
             case CALLS_HTTP -> "calls";
+            case SENDS_MAIL -> "sends mail through";
             case PUBLISHES -> "sends to";
             case CONSUMES -> "listens on";
             case USES_DATABASE -> "connects to";
@@ -423,6 +425,18 @@ final class C4Views {
                 route ? "Routes requests" : "Calls",
                 route ? "Routes" : "Calls",
                 route ? (paths.isEmpty() ? null : paths.getFirst()) : endpoint(fact),
+                protocol(fact),
+                fact));
+      }
+      for (Fact fact : knowledge.relations(unit, SENDS_MAIL)) {
+        result.add(
+            link(
+                unit,
+                SENDS_MAIL,
+                Knowledge.object(fact),
+                "Sends mail through",
+                "Sends mail",
+                null,
                 protocol(fact),
                 fact));
       }
