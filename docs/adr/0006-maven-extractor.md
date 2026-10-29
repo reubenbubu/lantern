@@ -133,6 +133,16 @@ unit bundled it.
   and keeps the declared `version`, which for JitPack is a git tag, branch or commit, not
   necessarily the version the repository's POM declares. The linker compares the two (ADR 0039,
   amendment for #265).
+- **Known false positive.** The match is by repository name only. A dependency from a Maven
+  repository other than JitPack whose group ID starts with `com.github.` (some projects publish to
+  Maven Central under `com.github.<owner>`) is taken for the analyzed repository whenever one has
+  the dependency's artifact ID as its name, though its code is someone else's. Checking the
+  owner against the repository's git remote would rule that out; it is not done.
+- **The version is JitPack's.** A JitPack version is a git tag, a `<branch>-SNAPSHOT` or a commit
+  hash, not a version from a POM. The skew check compares it with the version the library's POM
+  declares as text, so a tag spelt differently from that version (`v0.3.0` for `0.3.0`) or a
+  commit hash reads as skew even when it names the analyzed commit. Tags are not resolved to
+  commits.
 - The build is unchanged: the sandbox still resolves JitPack coordinates from the Maven
   repositories or mirror it is given (ADR 0023, ADR 0030), and does not give the library's own
   build under them; whether the extractor finds the library does not depend on the build.

@@ -72,6 +72,11 @@ final class LinkIndex {
   /** The callers of each method, from {@code CALLS} facts; built on first use. */
   private Map<EntityId, Set<EntityId>> callers;
 
+  /** Each type's direct supertypes and subtypes, from {@code EXTENDS} and {@code IMPLEMENTS}. */
+  private Map<EntityId, Set<EntityId>> supertypes;
+
+  private Map<EntityId, Set<EntityId>> subtypes;
+
   /** Every fact by predicate, in ID order. */
   private final Map<String, List<Fact>> byPredicate = new HashMap<>();
 
@@ -232,9 +237,12 @@ final class LinkIndex {
   /**
    * The units that run an entity's code and call it: of the units running it ({@link #unitsOf}),
    * those whose own module declares it, or that run other code calling it, directly or through
-   * other methods ({@code CALLS}). Library code bundled by several units thus belongs to the units
-   * that use it. When no unit calls it (it runs on its own, from a listener or a schedule, say), or
-   * only one unit runs it, every unit running it does.
+   * other methods ({@code CALLS}). A call may point at the method as an interface or a supertype
+   * declares it, or as a subtype inherits it, so each method's callers include those of the same
+   * signature on its type's supertypes and subtypes ({@code EXTENDS}, {@code IMPLEMENTS}). Library
+   * code bundled by several units thus belongs to the units that use it. When no unit calls it (it
+   * runs on its own, from a listener or a schedule, say), or only one unit runs it, every unit
+   * running it does.
    */
   List<Unit> unitsCalling(EntityId entity) {
     List<Unit> running = unitsOf(entity);
@@ -250,16 +258,33 @@ final class LinkIndex {
               .add(call.subject());
         }
       }
+      supertypes = new HashMap<>();
+      subtypes = new HashMap<>();
+      for (String relation : List.of(BuiltInTypes.EXTENDS, BuiltInTypes.IMPLEMENTS)) {
+        for (Fact f : of(relation)) {
+          if (f.object().kind() == FactObject.Kind.ENTITY) {
+            supertypes
+                .computeIfAbsent(f.subject(), t -> new LinkedHashSet<>())
+                .add(f.object().entityId());
+            subtypes
+                .computeIfAbsent(f.object().entityId(), t -> new LinkedHashSet<>())
+                .add(f.subject());
+          }
+        }
+      }
     }
     Set<EntityId> declaring = new HashSet<>(modulesOf(entity));
     Set<EntityId> callerModules = new HashSet<>();
     Set<EntityId> seen = new HashSet<>(Set.of(entity));
     Deque<EntityId> queue = new ArrayDeque<>(List.of(entity));
     while (!queue.isEmpty()) {
-      for (EntityId caller : callers.getOrDefault(queue.poll(), Set.of())) {
-        if (seen.add(caller)) {
-          queue.add(caller);
-          callerModules.addAll(modulesOf(caller));
+      EntityId current = queue.poll();
+      for (EntityId target : dispatchedAs(current)) {
+        for (EntityId caller : callers.getOrDefault(target, Set.of())) {
+          if (seen.add(caller)) {
+            queue.add(caller);
+            callerModules.addAll(modulesOf(caller));
+          }
         }
       }
     }
@@ -272,6 +297,33 @@ final class LinkIndex {
                         || u.modules().stream().anyMatch(callerModules::contains))
             .toList();
     return calling.isEmpty() ? running : calling;
+  }
+
+  /**
+   * The methods a call may point at to run this one: itself, and the method of the same signature
+   * on each supertype and subtype of its type, through {@code EXTENDS} and {@code IMPLEMENTS}.
+   */
+  private Set<EntityId> dispatchedAs(EntityId method) {
+    Set<EntityId> result = new LinkedHashSet<>(List.of(method));
+    int hash = method.key().indexOf('#');
+    if (hash < 0) {
+      return result;
+    }
+    String signature = method.key().substring(hash);
+    EntityId own = typeOf(method);
+    for (Map<EntityId, Set<EntityId>> relation : List.of(supertypes, subtypes)) {
+      Set<EntityId> seen = new HashSet<>(Set.of(own));
+      Deque<EntityId> todo = new ArrayDeque<>(List.of(own));
+      while (!todo.isEmpty()) {
+        for (EntityId next : relation.getOrDefault(todo.poll(), Set.of())) {
+          if (seen.add(next)) {
+            todo.add(next);
+            result.add(new EntityId(method.type(), next.key() + signature));
+          }
+        }
+      }
+    }
+    return result;
   }
 
   /** The type that declares a member ({@code method:a.B#m()} is in {@code type:a.B}). */

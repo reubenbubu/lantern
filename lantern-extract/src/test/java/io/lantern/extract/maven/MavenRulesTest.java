@@ -208,6 +208,77 @@ class MavenRulesTest {
   }
 
   @Test
+  void jitPackCoordinatesOfEveryGitHostAreMatchedAndMalformedOnesAreNot() throws IOException {
+    Repo service =
+        repo(
+            "svc",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "orders-service",
+                    dependencies(
+                            dependency("com.gitlab.acme", "lib-a", ""),
+                            dependency("org.bitbucket.acme.lib-b", "core", ""),
+                            dependency("com.gitee.acme", "LIB-C", ""),
+                            dependency("com.github.", "lib-a", ""),
+                            dependency("com.github..lib-a", "core", ""))
+                        + BOOT)));
+    Repo a = repo("lib-a", Map.of("pom.xml", pom("com.acme", "a", "")));
+    Repo b = repo("lib-b", Map.of("pom.xml", pom("com.acme", "core", "")));
+    Repo c = repo("lib-c", Map.of("pom.xml", pom("com.acme", "c", "")));
+
+    List<String> deps =
+        extract(service, a, b, c).stream()
+            .filter(f -> f.startsWith("module:g:orders-service BUILD_DEPENDS_ON"))
+            .toList();
+
+    assertThat(deps)
+        .anyMatch(
+            f ->
+                f.contains(
+                    "BUILD_DEPENDS_ON module:com.acme:a {\"coordinates\":\"com.gitlab.acme:lib-a\","))
+        .anyMatch(
+            f ->
+                f.contains(
+                    "BUILD_DEPENDS_ON module:com.acme:core"
+                        + " {\"coordinates\":\"org.bitbucket.acme.lib-b:core\","))
+        .anyMatch(
+            f ->
+                f.contains(
+                    "BUILD_DEPENDS_ON module:com.acme:c {\"coordinates\":\"com.gitee.acme:LIB-C\","))
+        .anyMatch(f -> f.contains("BUILD_DEPENDS_ON artifact:com.github.:lib-a "))
+        .anyMatch(f -> f.contains("BUILD_DEPENDS_ON artifact:com.github..lib-a:core "))
+        .hasSize(5);
+  }
+
+  @Test
+  void coordinatesARepositoryBuildsWinOverJitPacksReading() throws IOException {
+    Repo service =
+        repo(
+            "svc",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "orders-service",
+                    dependencies(dependency("com.github.acme", "shared-lib", "")) + BOOT)));
+    // A repository builds exactly those coordinates; another is named like the JitPack repository.
+    Repo exact = repo("publisher", Map.of("pom.xml", pom("com.github.acme", "shared-lib", "")));
+    Repo named = repo("shared-lib", Map.of("pom.xml", pom("com.acme", "shared", "")));
+
+    List<String> deps =
+        extract(service, exact, named).stream()
+            .filter(f -> f.startsWith("module:g:orders-service BUILD_DEPENDS_ON"))
+            .toList();
+
+    assertThat(deps)
+        .singleElement()
+        .asString()
+        .contains("BUILD_DEPENDS_ON module:com.github.acme:shared-lib {\"scope\"");
+  }
+
+  @Test
   void aClassifiedLibraryDependencyStillLinksAServiceToItsLibrary() throws IOException {
     Repo service =
         repo(

@@ -144,7 +144,10 @@ senders where only main-service calls the service.
 
 - **The senders of a send in library code** are, of the units running it, those whose own module
   declares it or that run other code calling its method, directly or through other methods (the
-  Java extractor's `CALLS`). When none of them calls it (it runs from a listener or a schedule of
+  Java extractor's `CALLS`). A call may point at the method as an interface or a supertype
+  declares it, or as a subtype inherits it, so the callers of a method include those of the same
+  signature on its type's supertypes and subtypes (`EXTENDS`, `IMPLEMENTS`), as the sequence
+  flows resolve dispatch. When none of them calls it (it runs from a listener or a schedule of
   the library, say), or only one unit runs it, every unit running it sends, as before. Listeners
   and bindings are unchanged.
-- The step's version becomes 5.
+- The step's version becomes 6.
