@@ -369,6 +369,7 @@ final class SequenceFlows {
       Runnable action =
           switch (link.predicate()) {
             case C4Views.CALLS_HTTP -> () -> httpCall(trace, unit, link, profiles);
+            case C4Views.SENDS_MAIL -> () -> mail(trace, unit, link, profiles);
             case C4Views.PUBLISHES -> () -> send(trace, unit, method, link, profiles);
             case C4Views.UNRESOLVED_LINK -> () -> unresolved(trace, unit, link, profiles);
             default -> null;
@@ -640,6 +641,30 @@ final class SequenceFlows {
       trace.reached.add(to + " " + handler);
       sync(trace, to, handler, profiles);
     }
+  }
+
+  /** A step that sends mail through the mail server: the flow ends in an email. */
+  private void mail(Trace trace, EntityId unit, Fact link, List<String> outer) {
+    EntityId server = Knowledge.object(link);
+    List<String> profiles = profiles(link, outer);
+    Assembler.Phrased phrase = assembler.phrase(link);
+    List<Fact> facts = withEnds(link);
+    List<Fact> plainFacts = List.copyOf(facts);
+    String plain = "Sends an email";
+    if (phrase != null) {
+      facts.addAll(phrase.facts());
+    }
+    trace.message(
+        unit,
+        server,
+        phrase != null ? phrase.text() : plain,
+        attribute(link, "protocol"),
+        null,
+        profiles,
+        null,
+        facts,
+        plain,
+        plainFacts);
   }
 
   private void send(Trace trace, EntityId unit, EntityId method, Fact link, List<String> outer) {
