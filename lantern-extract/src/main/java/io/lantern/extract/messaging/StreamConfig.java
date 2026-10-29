@@ -6,8 +6,10 @@ import io.lantern.extract.config.CodeConfig.CodeValue;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
 import io.lantern.sandbox.BuildModule;
+import java.lang.System.Logger.Level;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +49,12 @@ final class StreamConfig {
 
   private final CodeConfig.View config;
   private final List<String> jars;
+  private final RepoBuild repo;
+  private final String directory;
+  private List<String> declared;
+  private final Set<String> warned = new HashSet<>();
+
+  private static final System.Logger LOG = System.getLogger(StreamConfig.class.getName());
 
   /**
    * @param config the module's config
@@ -66,10 +74,40 @@ final class StreamConfig {
       }
     }
     this.jars = List.copyOf(names);
+    this.repo = repo;
+    this.directory = directory;
+  }
+
+  /** The artifact IDs the module's POM and its in-repository parents declare, read once. */
+  private List<String> declared() {
+    if (declared == null) {
+      declared = PomDependencies.artifactIds(repo, directory);
+    }
+    return declared;
   }
 
   /**
-   * Whether the module uses Spring Cloud Stream: its config sets it up, or it is on the classpath.
+   * The brokers of the binders the build classpath holds, or when there is no build, the binders
+   * (or their starters) the POMs declare.
+   */
+  private Set<String> binderBrokers() {
+    Set<String> found = new TreeSet<>();
+    List<String> artifacts = repo.build() != null ? jars : declared();
+    for (String artifact : artifacts) {
+      if (artifact.startsWith("spring-cloud-stream-binder-kafka")
+          || artifact.startsWith("spring-cloud-starter-stream-kafka")) {
+        found.add(MessagingExtractor.KAFKA);
+      } else if (artifact.startsWith("spring-cloud-stream-binder-rabbit")
+          || artifact.startsWith("spring-cloud-starter-stream-rabbit")) {
+        found.add(MessagingExtractor.RABBITMQ);
+      }
+    }
+    return found;
+  }
+
+  /**
+   * Whether the module uses Spring Cloud Stream: its config sets it up, or it is on the classpath,
+   * or, without a build, its POMs declare it.
    */
   boolean inUse(String profile) {
     for (String key : config.values(profile).keySet()) {
@@ -77,12 +115,16 @@ final class StreamConfig {
         return true;
       }
     }
-    return jars.stream().anyMatch(j -> j.startsWith("spring-cloud-stream-"));
+    List<String> artifacts = repo.build() != null ? jars : declared();
+    return artifacts.stream()
+        .anyMatch(
+            a ->
+                a.startsWith("spring-cloud-stream") || a.startsWith("spring-cloud-starter-stream"));
   }
 
   /**
-   * The function definition: each function bound, as the functions it composes ({@code a|b}), or
-   * null when none is set.
+   * The function definition: each function bound, as the functions it composes ({@code a|b} or
+   * {@code a,b}), or null when none is set.
    */
   List<List<String>> definition(String profile) {
     String written =
@@ -92,9 +134,11 @@ final class StreamConfig {
       return null;
     }
     List<List<String>> functions = new ArrayList<>();
-    for (String item : written.split("[;,]")) {
+    // As Spring Cloud Stream reads it: ';' separates the functions bound, and ',' is the same as
+    // '|', composing functions into one.
+    for (String item : written.split(";")) {
       List<String> composed =
-          Arrays.stream(item.split("\\|")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+          Arrays.stream(item.split("[|,]")).map(String::trim).filter(s -> !s.isEmpty()).toList();
       if (!composed.isEmpty()) {
         functions.add(composed);
       }
@@ -104,12 +148,16 @@ final class StreamConfig {
 
   /** A function binding's name, or the name it is given instead ({@code function.bindings}). */
   String alias(String profile, String binding) {
-    String alias =
-        setting(
-            profile,
-            "spring.cloud.stream.function.bindings." + binding,
-            "spring.cloud.stream.function.bindings[" + binding + "]");
-    return alias == null || alias.isBlank() ? binding : alias.trim();
+    // The key names a binding, which may look like a secret's (passwordReset-in-0): only the
+    // value is checked.
+    Map<String, ConfigValue> values = config.values(profile);
+    ConfigValue v = values.get("spring.cloud.stream.function.bindings." + binding);
+    if (v == null) {
+      v = values.get("spring.cloud.stream.function.bindings[" + binding + "]");
+    }
+    boolean exposes =
+        v == null || CodeValue.of(v.value(), v.written(), v.unresolved(), v.used()).masked();
+    return exposes || v.value().isBlank() ? binding : v.value().trim();
   }
 
   /**
@@ -134,14 +182,29 @@ final class StreamConfig {
 
   /**
    * The broker a binding goes to: through the binder given (by {@code StreamBridge}), else the
-   * binding's own binder, else the default binder, else the one binder configured, on the
-   * classpath, or that the config's keys point to. Null if none can be told or it is not Kafka or
-   * RabbitMQ.
+   * binding's own binder, else the default binder, else the one binder configured, on the build
+   * classpath (or declared in the POMs without a build), or that the config's keys point to. Null
+   * if none can be told or it is not Kafka or RabbitMQ.
    *
    * @param binding the binding's name, or null if not known
    * @param binder a binder's name given in code, or null
    */
   String broker(String profile, String binding, String binder) {
+    String broker = find(profile, binding, binder);
+    if (broker == null && warned.add(profile + "\0" + binding)) {
+      LOG.log(
+          Level.WARNING,
+          "No Kafka or RabbitMQ binder can be told for Spring Cloud Stream binding {0} of {1}"
+              + " ({2}){3}; it gives no messaging facts",
+          binding == null ? "(unknown name)" : binding,
+          repo.repo().name(),
+          directory.isEmpty() ? "top module" : directory,
+          profile == null ? "" : " in profile " + profile);
+    }
+    return broker;
+  }
+
+  private String find(String profile, String binding, String binder) {
     if (binder != null) {
       String broker = brokerOf(profile, binder);
       if (broker != null) {
@@ -167,14 +230,7 @@ final class StreamConfig {
     if (!configured.isEmpty()) {
       return configured.size() == 1 && !configured.contains("") ? configured.first() : null;
     }
-    Set<String> found = new TreeSet<>();
-    for (String jar : jars) {
-      if (jar.startsWith("spring-cloud-stream-binder-kafka")) {
-        found.add(MessagingExtractor.KAFKA);
-      } else if (jar.startsWith("spring-cloud-stream-binder-rabbit")) {
-        found.add(MessagingExtractor.RABBITMQ);
-      }
-    }
+    Set<String> found = binderBrokers();
     if (found.isEmpty()) {
       for (String key : config.values(profile).keySet()) {
         HINTS.forEach(

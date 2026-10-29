@@ -330,6 +330,134 @@ class StreamBindingsTest {
     assertThat(extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)))).isEmpty();
   }
 
+  @Test
+  void aCommaComposesAndAnAliasKeyMayLookSecret() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("definition"),
+            "orders",
+            Map.of(
+                "pom.xml",
+                POM,
+                "src/main/resources/application.properties",
+                """
+                spring.cloud.stream.binders.k.type=kafka
+                spring.cloud.function.definition=passwordReset;orders,wrap
+                spring.cloud.stream.function.bindings.passwordReset-in-0=resets
+                spring.cloud.stream.bindings.resets.destination=password.resets
+                """,
+                "src/main/java/com/example/orders/Functions.java",
+                """
+                package com.example.orders;
+
+                import java.util.function.Consumer;
+                import java.util.function.Function;
+                import org.springframework.context.annotation.Bean;
+                import org.springframework.context.annotation.Configuration;
+
+                @Configuration
+                public class Functions {
+                  @Bean
+                  public Consumer<String> passwordReset() {
+                    return reset -> {};
+                  }
+
+                  @Bean
+                  public Function<String, String> orders() {
+                    return order -> order;
+                  }
+
+                  @Bean
+                  public Function<String, String> wrap() {
+                    return text -> text;
+                  }
+                }
+                """));
+
+    List<String> facts = lines(extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null))));
+
+    String functions = "method:com.example.orders.Functions#";
+    assertThat(facts)
+        // The alias is read though its key names a password.
+        .anyMatch(
+            l ->
+                l.startsWith(functions + "passwordReset() message-listener password.resets ")
+                    && l.contains("\"binding\":\"resets\""))
+        // ',' composes as '|' does: one binding, orders' input and wrap's output.
+        .anyMatch(l -> l.startsWith(functions + "orders() message-listener orderswrap-in-0 "))
+        .anyMatch(l -> l.startsWith(functions + "wrap() message-send orderswrap-out-0 "))
+        .noneMatch(
+            l ->
+                l.contains("orders-in-0")
+                    || l.contains("wrap-out-0 ") && !l.contains("orderswrap"));
+  }
+
+  @Test
+  void theBinderIsToldFromThePomsWithoutABuild() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("poms"),
+            "orders",
+            Map.of(
+                "pom.xml",
+                """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>orders-parent</artifactId>
+                  <version>1.0.0</version>
+                  <packaging>pom</packaging>
+                  <modules>
+                    <module>app</module>
+                  </modules>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.springframework.cloud</groupId>
+                        <artifactId>spring-cloud-stream-binder-kafka</artifactId>
+                        <version>4.1.0</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.springframework.cloud</groupId>
+                      <artifactId>spring-cloud-starter-stream-rabbit</artifactId>
+                      <version>4.1.0</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """,
+                "app/pom.xml",
+                """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>orders-parent</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <artifactId>orders</artifactId>
+                </project>
+                """,
+                "app/src/main/resources/application.properties",
+                "spring.cloud.stream.bindings.orders-in-0.group=shop\n",
+                "app/src/main/java/com/example/orders/OrdersConfig.java",
+                CONSUMER));
+
+    List<String> facts = lines(extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null))));
+
+    // Inherited from the parent; the managed Kafka binder is only a version, not a dependency.
+    assertThat(facts)
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "method:com.example.orders.OrdersConfig#orders() message-listener"
+                            + " orders-in-0.shop ")
+                    && l.contains("\"broker\":\"rabbitmq\""))
+        .noneMatch(l -> l.contains("\"broker\":\"kafka\""));
+  }
+
   private static List<String> withoutConfidence(List<Fact> facts) {
     return Fixtures.render(facts).lines().map(l -> l.replaceAll(" [01]\\.[07]$", "")).toList();
   }
