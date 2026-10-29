@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -633,7 +634,13 @@ public final class Summarizer {
       Prompt.Tagged tagged = Prompt.tagged(response.text());
       Citations.check(
           tagged.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
-      Citations.Sentences sentences = Citations.cited(tagged.text());
+      Citations.Sentences sentences = Citations.cited(tagged.text(), inputs::unsupported);
+      if (sentences.text().isEmpty() && !sentences.unsupported().isEmpty()) {
+        throw new Citations.Rejected(
+            "every sentence names something that the references it cites do not mention: "
+                + names(sentences.unsupported())
+                + "; name only what the input you cite shows.");
+      }
       if (sentences.text().isEmpty()) {
         // Only a citation split by a blank line inside its brackets gets here.
         throw new Citations.Rejected(
@@ -646,18 +653,42 @@ public final class Summarizer {
             purpose,
             logged(String.join(" | ", sentences.uncited())));
       }
+      if (!sentences.unsupported().isEmpty()) {
+        LOG.info(
+            "Left out {} sentences naming what their references do not mention from the answer"
+                + " to {}: {}",
+            sentences.unsupported().size(),
+            purpose,
+            logged(
+                String.join(
+                    " | ",
+                    sentences.unsupported().stream()
+                        .map(u -> u.sentence() + " (" + String.join(", ", u.names()) + ")")
+                        .toList())));
+      }
       Citations.Checked checked =
           Citations.check(
               sentences.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
       boolean evidenced =
           tagged.purpose() == Summary.Purpose.EVIDENCED
-              && !sentences.firstUncited()
+              && !sentences.firstLeftOut()
               && Citations.firstReferences(sentences.text()).stream()
                   .anyMatch(inputs.evidence::contains);
       return new Answer(
           sentences.text(),
           checked,
           evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED);
+    }
+
+    /** The names the sentences left out name without support, each once, at most some. */
+    private static String names(List<Citations.Unsupported> unsupported) {
+      Set<String> names = new LinkedHashSet<>();
+      unsupported.forEach(u -> names.addAll(u.names()));
+      List<String> listed = names.stream().limit(10).toList();
+      return String.join(", ", listed)
+          + (names.size() > listed.size()
+              ? " and " + (names.size() - listed.size()) + " more"
+              : "");
     }
 
     private LlmResponse ask(String purpose, SummaryNode node, List<LlmMessage> messages) {
@@ -705,6 +736,12 @@ public final class Summarizer {
      */
     final Set<String> evidence = new HashSet<>();
 
+    /** What each reference stands for, as the prompt writes it. */
+    private final Map<String, String> texts = new HashMap<>();
+
+    /** The unit as the prompt names it. */
+    private final String subject;
+
     private final SummaryNode node;
 
     Inputs(SummaryNode node, List<Excerpts.Excerpt> excerpts, List<Summary> children) {
@@ -717,6 +754,11 @@ public final class Summarizer {
       this.sheet = Prompt.sheet(sheet, node.facts().size());
       this.excerpts = Prompt.excerpts(excerpts);
       this.children = Prompt.children(children);
+      this.subject = Prompt.describe(node.level(), node.entity());
+      for (List<Prompt.Item> items :
+          List.of(this.facts, this.sheet, this.excerpts, this.children)) {
+        items.forEach(item -> texts.put(item.ref(), item.text()));
+      }
       List<Fact> facts = promptFacts(node);
       for (int i = 0; i < facts.size(); i++) {
         if (facts.get(i).predicate().equals(DocsExtractor.CLAIM)) {
@@ -733,6 +775,22 @@ public final class Summarizer {
           evidence.add("S" + (i + 1));
         }
       }
+    }
+
+    /**
+     * What a sentence names that neither the inputs it cites nor the unit's name mention (ADR
+     * 0066).
+     */
+    List<String> unsupported(String sentence) {
+      List<String> support = new ArrayList<>();
+      support.add(subject);
+      for (String ref : Citations.references(sentence)) {
+        String text = texts.get(ref);
+        if (text != null) {
+          support.add(text);
+        }
+      }
+      return Grounding.unsupported(sentence, support);
     }
 
     /** All items split into parts that each fit the budget with a part prompt's own text. */

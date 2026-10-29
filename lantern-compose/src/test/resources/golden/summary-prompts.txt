@@ -7,7 +7,7 @@ Start your answer with a line of its own saying where the first sentence takes t
 Call things by their plain names, such as the class Order, the package com.example.orders or the module shop-core, never by the identifiers the facts use, which start with a kind and a colon.
 Do not restate the summaries of the parts sentence by sentence; say what the unit as a whole is for, drawing on them.
 A module or repository also comes with a fact sheet: facts about its parts that list their entry points, links, data stores and technology. Use it to say specifically what the unit offers and works with, rather than what would be true of any application.
-Say only what the input shows or what follows from it. End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a sentence about purpose cites the facts, source files or summaries it is inferred from. A sentence without references is left out of the summary. Cite only references from the input, each one on its own, such as [F1, F2, F3], never a range such as [F1-F3].
+Say only what the input shows or what follows from it. End every sentence with the references it is based on, in square brackets, for example [F1] or [F2, E1, S1]; a sentence about purpose cites the facts, source files or summaries it is inferred from. A sentence without references is left out of the summary, and so is one that names a class, method, table, topic, path or technology that none of the references it cites mention. Cite only references from the input, each one on its own, such as [F1, F2, F3], never a range such as [F1-F3].
 Write plain prose without headings, lists or a title.
 
 ##### summarize type type:com.example.greeting.lib.Greeter

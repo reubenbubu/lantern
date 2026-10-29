@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.llm.LlmResponse;
+import io.lantern.summarize.Grounding;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -16,6 +17,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -42,16 +45,16 @@ import tools.jackson.databind.node.ObjectNode;
 final class WordingPrompt {
 
   /** The version of the prompt about a unit, part of every answer's cache key. */
-  static final String VERSION = "1";
+  static final String VERSION = "2";
 
   /** The version of the prompt about a data store or destination, part of its cache key. */
-  static final String ELEMENT_VERSION = "1";
+  static final String ELEMENT_VERSION = "2";
 
   /** The version of the prompt about a sequence flow, part of its cache key. */
-  static final String FLOW_VERSION = "1";
+  static final String FLOW_VERSION = "2";
 
   /** The version of the prompt about the system's purpose, part of its cache key. */
-  static final String PURPOSE_VERSION = "1";
+  static final String PURPOSE_VERSION = "2";
 
   /** The field of the answer about the system that holds its purpose. */
   static final String PURPOSE = "purpose";
@@ -99,6 +102,8 @@ final class WordingPrompt {
       "connects to", and leave out the protocol, which is shown separately.
       Leave out the unit, a component or a relationship when the facts do not show its \
       responsibility or intent, rather than guessing.
+      A text that names a class, method, table, topic, path or technology that none of the \
+      facts it cites mention is left out.
       Answer with one JSON object and nothing else, in this form:
       {"unit": {"text": "Sentence.", "cites": ["F1", "F2"]}, \
       "components": {"C1": {"text": "Sentence.", "cites": ["F4"]}}, \
@@ -121,6 +126,8 @@ final class WordingPrompt {
       understands. Do not restate its name or its kind; say what it is for.
       Leave the sentence out when the facts do not show its responsibility, rather than \
       guessing.
+      A text that names a class, method, table, topic, path or technology that none of the \
+      facts it cites mention is left out.
       Answer with one JSON object and nothing else, in this form:
       {"element": {"text": "Sentence.", "cites": ["F1", "F2"]}}
       or {} to leave it out. cites lists the references of the facts the text rests on, each on \
@@ -146,6 +153,8 @@ final class WordingPrompt {
       when the flow ends, such as data written or messages sent.
       Leave out the walkthrough, the pre-conditions or the post-conditions when the facts do \
       not show them, rather than guessing.
+      A text that names a class, method, table, topic, path or technology that none of the \
+      facts it cites mention is left out.
       Answer with one JSON object and nothing else, in this form:
       {"walkthrough": {"text": "Sentences.", "cites": ["F1", "F2"]}, \
       "preconditions": {"text": "Conditions.", "cites": ["F1"]}, \
@@ -168,6 +177,8 @@ final class WordingPrompt {
       the units do together, citing the facts behind their sentences. Never invent a business, \
       a user or a capability the facts do not show.
       Leave the purpose out when neither the claims nor the units show it, rather than guessing.
+      A text that names a class, method, table, topic, path or technology that none of the \
+      facts it cites mention is left out.
       Answer with one JSON object and nothing else, in this form:
       {"purpose": {"text": "Sentence.", "cites": ["F1", "F2"]}}
       or {} to leave it out. cites lists the references of the facts the text rests on, each on \
@@ -197,6 +208,11 @@ final class WordingPrompt {
           "writes");
 
   private static final Pattern REFERENCE = Pattern.compile("F[1-9][0-9]*");
+
+  /** A fact's line in a user turn, such as {@code [F3] type:p.A has-method ...}. */
+  private static final Pattern FACT_LINE = Pattern.compile("(?m)^[ \\t]*\\[F\\d+\\] .*\\n?");
+
+  private static final Logger LOG = LoggerFactory.getLogger(WordingPrompt.class);
 
   private WordingPrompt() {}
 
@@ -246,6 +262,9 @@ final class WordingPrompt {
    * @param relationships the link fact of each relationship shown, by reference
    * @param texts the fields of the answer that hold a text about the element itself, each with the
    *     most words it may have
+   * @param subjects what the prompt shows about what each text of the answer is about, by field or
+   *     reference, besides the facts it cites: a text may name what this or the facts it cites
+   *     mention (ADR 0066)
    */
   record Question(
       EntityId element,
@@ -258,7 +277,8 @@ final class WordingPrompt {
       Map<String, EntityId> components,
       Map<String, String> componentNames,
       Map<String, Fact> relationships,
-      Map<String, Integer> texts) {}
+      Map<String, Integer> texts,
+      Map<String, String> subjects) {}
 
   /**
    * A deployable unit as the prompt about the system's purpose shows it: its responsibility
@@ -305,12 +325,15 @@ final class WordingPrompt {
     Map<String, EntityId> componentRefs = new LinkedHashMap<>();
     Map<String, String> componentNames = new LinkedHashMap<>();
     Map<String, Fact> relationshipRefs = new LinkedHashMap<>();
+    Map<String, String> subjects = new LinkedHashMap<>();
     StringBuilder user = new StringBuilder();
     user.append("The deployable unit ").append(oneLine(name));
     if (technology != null) {
       user.append(", built with ").append(oneLine(technology));
     }
-    user.append(".\n\nFacts about the unit:\n");
+    user.append('.');
+    subjects.put(WordingAnswer.UNIT, user.toString());
+    user.append("\n\nFacts about the unit:\n");
     unitFacts.forEach(f -> user.append(fact(f, facts, "")).append('\n'));
     if (!claims.isEmpty()) {
       user.append("\nWhat its README claims:\n");
@@ -327,11 +350,12 @@ final class WordingPrompt {
         String ref = "C" + (i + 1);
         componentRefs.put(ref, component.type());
         componentNames.put(ref, component.name());
-        user.append('[').append(ref).append("] ").append(oneLine(component.name()));
+        String line = oneLine(component.name());
         if (component.role() != null) {
-          user.append(", ").append(oneLine(component.role()));
+          line += ", " + oneLine(component.role());
         }
-        user.append('\n');
+        subjects.put(ref, line);
+        user.append('[').append(ref).append("] ").append(line).append('\n');
         component.facts().forEach(f -> user.append(fact(f, facts, "  ")).append('\n'));
       }
     }
@@ -341,15 +365,15 @@ final class WordingPrompt {
         RelationshipInput relationship = relationships.get(i);
         String ref = "R" + (i + 1);
         relationshipRefs.put(ref, relationship.link());
-        user.append('[')
-            .append(ref)
-            .append("] ")
-            .append(relationship.verb())
-            .append(' ')
-            .append(oneLine(relationship.other()))
-            .append(" (")
-            .append(relationship.kind())
-            .append(")\n");
+        String line =
+            relationship.verb()
+                + ' '
+                + oneLine(relationship.other())
+                + " ("
+                + relationship.kind()
+                + ")";
+        subjects.put(ref, line);
+        user.append('[').append(ref).append("] ").append(line).append('\n');
         user.append(fact(relationship.link(), facts, "  ")).append('\n');
       }
     }
@@ -364,7 +388,8 @@ final class WordingPrompt {
         componentRefs,
         componentNames,
         relationshipRefs,
-        Map.of(WordingAnswer.UNIT, SENTENCE_WORDS));
+        Map.of(WordingAnswer.UNIT, SENTENCE_WORDS),
+        subjects);
   }
 
   /**
@@ -393,6 +418,7 @@ final class WordingPrompt {
       user.append(", ").append(oneLine(technology));
     }
     user.append(".\n");
+    String subject = user.toString().strip();
     if (!elementFacts.isEmpty()) {
       user.append("\nFacts about it:\n");
       elementFacts.forEach(f -> user.append(fact(f, facts, "")).append('\n'));
@@ -419,7 +445,8 @@ final class WordingPrompt {
         Map.of(),
         Map.of(),
         Map.of(),
-        Map.of(ELEMENT, SENTENCE_WORDS));
+        Map.of(ELEMENT, SENTENCE_WORDS),
+        Map.of(ELEMENT, subject));
   }
 
   /**
@@ -449,6 +476,9 @@ final class WordingPrompt {
     texts.put(WALKTHROUGH, WALKTHROUGH_WORDS);
     texts.put(PRECONDITIONS, CONDITION_WORDS);
     texts.put(POSTCONDITIONS, CONDITION_WORDS);
+    String shown = withoutFacts(user.toString());
+    Map<String, String> subjects = new LinkedHashMap<>();
+    texts.keySet().forEach(field -> subjects.put(field, shown));
     return new Question(
         method,
         title,
@@ -460,7 +490,8 @@ final class WordingPrompt {
         Map.of(),
         Map.of(),
         Map.of(),
-        texts);
+        texts,
+        subjects);
   }
 
   /**
@@ -506,7 +537,8 @@ final class WordingPrompt {
         Map.of(),
         Map.of(),
         Map.of(),
-        Map.of(PURPOSE, SENTENCE_WORDS));
+        Map.of(PURPOSE, SENTENCE_WORDS),
+        Map.of(PURPOSE, withoutFacts(user.toString())));
   }
 
   /** What an element is, with an article, such as {@code a deployable unit}. */
@@ -566,6 +598,11 @@ final class WordingPrompt {
     return oneLine(line.toString());
   }
 
+  /** A user turn without its fact lines: what it shows besides facts, such as names and steps. */
+  private static String withoutFacts(String user) {
+    return FACT_LINE.matcher(user).replaceAll("");
+  }
+
   private static String oneLine(String text) {
     return text.replace('\r', ' ').replace('\n', ' ');
   }
@@ -585,7 +622,8 @@ final class WordingPrompt {
    * the prompt shows; sentences of at most {@link #SENTENCE_WORDS} words that are not just the
    * element's name, a walkthrough of at most {@link #WALKTHROUGH_WORDS} and conditions of at most
    * {@link #CONDITION_WORDS}, and phrases of at most {@link #PHRASE_WORDS} words that are not just
-   * "uses" or the like.
+   * "uses" or the like. A text that names what neither the facts it cites nor what it is about
+   * mention is left out (ADR 0066).
    *
    * @return the texts, by reference ({@link WordingAnswer#UNIT}, {@code C1}, {@code R1}, ...)
    * @throws Rejected if it does not meet the rules
@@ -626,7 +664,52 @@ final class WordingPrompt {
     }
     group(json, "components", question.components().keySet(), question, false, items);
     group(json, "relationships", question.relationships().keySet(), question, true, items);
-    return items;
+    return supported(items, question);
+  }
+
+  /**
+   * The texts that name only what the facts they cite, or what they are about, mention (ADR 0066);
+   * the others are left out, as if the model had left them out.
+   *
+   * @throws Rejected if every text is left out
+   */
+  private static Map<String, WordingAnswer.Item> supported(
+      Map<String, WordingAnswer.Item> items, Question question) {
+    Map<String, WordingAnswer.Item> kept = new TreeMap<>();
+    Map<String, List<String>> left = new TreeMap<>();
+    Map<String, String> texts = new TreeMap<>();
+    items.forEach(
+        (ref, item) -> {
+          List<String> support = new ArrayList<>();
+          support.add(question.subjects().getOrDefault(ref, ""));
+          item.cites().forEach(cite -> support.add(fact(question.facts().get(cite))));
+          List<String> names = Grounding.unsupported(item.text(), support);
+          if (names.isEmpty()) {
+            kept.put(ref, item);
+          } else {
+            left.put(ref, names);
+            texts.put(ref, item.text() + " (" + String.join(", ", names) + ")");
+          }
+        });
+    if (left.isEmpty()) {
+      return items;
+    }
+    Set<String> names = new LinkedHashSet<>();
+    left.values().forEach(names::addAll);
+    if (kept.isEmpty()) {
+      throw new Rejected(
+          "every text names something that the facts it cites do not mention: "
+              + String.join(", ", names.stream().limit(10).toList())
+              + (names.size() > 10 ? " and " + (names.size() - 10) + " more" : "")
+              + "; name only what the facts you cite show.");
+    }
+    LOG.info(
+        "Left out {} texts naming what the facts they cite do not mention from the answer about"
+            + " {}: {}",
+        left.size(),
+        question.element(),
+        texts);
+    return kept;
   }
 
   private static void group(

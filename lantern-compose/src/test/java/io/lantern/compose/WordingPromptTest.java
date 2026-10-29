@@ -51,7 +51,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.VERSION and update this fingerprint")
-        .isEqualTo("1 81abfde38fb1eac342e9044851484f7cc4c058f89fad435b5020514b0a32c207");
+        .isEqualTo("2 477f50aa1fa1e773b249bf1d94db253175e0abbe830bab74558f84d02332f96e");
   }
 
   /**
@@ -78,7 +78,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.ELEMENT_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.ELEMENT_VERSION and update this fingerprint")
-        .isEqualTo("1 8c8d775e08082d7fbfb8e1fd6b11d064d45fa96ae65d784e5bbaa979683b2016");
+        .isEqualTo("2 0b696d5ffd205eb8299bee4563cde554904c6b6c8cf66e20baa37d54c3cc2386");
   }
 
   /**
@@ -105,7 +105,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.FLOW_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.FLOW_VERSION and update this fingerprint")
-        .isEqualTo("1 ac2d234d87f5b4c912e95c1a2414daa57a19853b88767f61b7e8adbdf7ca7bd3");
+        .isEqualTo("2 7b24ad1e7c879bc7d4033cd13245e841942c46ab7f05306b45edef80a3cf5beb");
   }
 
   /**
@@ -133,7 +133,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.PURPOSE_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.PURPOSE_VERSION and update this fingerprint")
-        .isEqualTo("1 a50f6b9d7ff281cf681e7bf396d31fcadd83c170d4bd75fda9d2904cac8d57a3");
+        .isEqualTo("2 4ae339d11fc96292b29e8854c5c886d9ab0a6392d9c1773c2e56d77f8487d16e");
   }
 
   private Question flow() {
@@ -341,6 +341,50 @@ class WordingPromptTest {
             Map.entry("C1", new WordingAnswer.Item("Serves the order pages.", List.of("F2"))),
             Map.entry("R1", new WordingAnswer.Item("Announces new orders", List.of("F3"))),
             Map.entry("unit", new WordingAnswer.Item("Takes orders.", List.of("F1"))));
+  }
+
+  @Test
+  void textsNamingWhatTheirFactsDoNotMentionAreLeftOut() {
+    // F2 is the Controller's stereotype, F3 the link to the orders topic over Kafka.
+    assertThat(
+            check(
+                """
+                {"unit": {"text": "Takes orders and caches them in Redis.", "cites": ["F1"]},
+                 "components": {"C1": {"text": "Controller serves the order pages.", "cites": ["F2"]}},
+                 "relationships": {"R1": {"text": "Announces new orders over Kafka", "cites": ["F3"]}}}"""))
+        .containsExactly(
+            Map.entry(
+                "C1", new WordingAnswer.Item("Controller serves the order pages.", List.of("F2"))),
+            Map.entry(
+                "R1", new WordingAnswer.Item("Announces new orders over Kafka", List.of("F3"))));
+    // A name the cited fact mentions is kept; one only a fact it does not cite mentions is not.
+    assertThat(
+            check(
+                """
+                {"components": {"C1": {"text": "The OrderController serves pages.", "cites": ["F1"]}},
+                 "relationships": {"R1": {"text": "Announces orders via JpaOrders", "cites": ["F3"]}}}"""))
+        .containsOnlyKeys("R1");
+    assertThatThrownBy(
+            () ->
+                check(
+                    "{\"unit\": {\"text\": \"Takes orders through OrderController.\","
+                        + " \"cites\": [\"F1\"]}}"))
+        .hasMessage(
+            "every text names something that the facts it cites do not mention: OrderController;"
+                + " name only what the facts you cite show.");
+  }
+
+  @Test
+  void aFlowMayNameWhatItsTriggerAndStepsShow() {
+    // Controller.list is named by what starts the flow, not by the fact cited.
+    assertThat(
+            WordingPrompt.check(
+                response(
+                    """
+                    {"walkthrough": {"text": "Controller.list announces orders.", "cites": ["F2"]},
+                     "postconditions": {"text": "Orders sit in Redis.", "cites": ["F2"]}}"""),
+                flow()))
+        .containsOnlyKeys(WordingPrompt.WALKTHROUGH);
   }
 
   @Test

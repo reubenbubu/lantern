@@ -1,6 +1,6 @@
 # 0061: Every summary sentence cites something
 
-Status: accepted (#77), amends ADRs 0010, 0025 and 0059, pending the user's review (#24)
+Status: accepted (#77), amends ADRs 0010, 0025 and 0059, amended by ADR 0066 (#191), pending the user's review (#24)
 
 ## Context
 
@@ -44,7 +44,8 @@ for when nothing is left.
   is made again once.
 - **The Describer is unchanged.** Its answers (ADR 0050, 0056, 0058) are single sentences or short
   texts that each come with their own list of citations, not citations inside the text, so there
-  are no sentences to split.
+  are no sentences to split. Since ADR 0066 each of its texts that names what the facts it cites do
+  not mention is left out, as a summary sentence is.
 
 ## Not verified
 
