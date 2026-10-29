@@ -361,24 +361,48 @@ svg.dragmode .node:not(.dragging):not(.drop-target){opacity:.55}
 @media (prefers-reduced-motion:reduce){.drop-edge{animation:none}}
 .drop-ghost{fill:color-mix(in srgb,var(--accent-2) 10%,transparent);stroke:var(--accent-2);stroke-width:1.6;stroke-dasharray:6 5;pointer-events:none}
 .dcanvas.busy svg,.mx-canvas.busy svg{opacity:.45;transition:opacity .15s}
-.editbar{position:fixed;left:50%;bottom:22px;translate:-50% 0;z-index:150;display:flex;align-items:center;gap:12px;
-  padding:9px 10px 9px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--border-strong);box-shadow:var(--shadow-lg);animation:popIn .2s ease both;max-width:calc(100vw - 24px)}
+.editbar{position:fixed;left:calc(var(--sidebar-w) + 16px);top:50%;translate:0 -50%;z-index:150;display:flex;flex-direction:column;align-items:stretch;gap:8px;
+  width:216px;padding:10px;border-radius:14px;background:var(--surface);border:1px solid var(--border-strong);box-shadow:var(--shadow-lg);animation:popIn .2s ease both;
+  max-height:calc(100vh - 24px);overflow-y:auto;scrollbar-width:thin;transition:left .28s cubic-bezier(.2,.8,.2,1)}
 .editbar[hidden]{display:none}
-body:not(.sb-collapsed) .editbar{left:calc(var(--sidebar-w) + (100vw - var(--sidebar-w))/2);max-width:calc(100vw - var(--sidebar-w) - 24px)}
-@media (max-width:900px){body:not(.sb-collapsed) .editbar{left:50%;max-width:calc(100vw - 24px)}}
+body.sb-collapsed .editbar{left:16px}
+@media (max-width:900px){.editbar{left:16px}}
+.editbar.moved{translate:none;transition:none}
+.eb-toggle{position:relative;display:flex;align-items:center;gap:10px;padding:4px 4px 6px;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--text);user-select:none}
+.eb-toggle input{position:absolute;opacity:0;pointer-events:none}
+.eb-toggle small{display:block;font-size:11px;font-weight:400;color:var(--muted);line-height:1.35}
+.eb-switch{width:30px;height:18px;border-radius:9px;background:var(--surface-3);border:1px solid var(--border-strong);position:relative;flex:none;transition:background .15s,border-color .15s}
+.eb-switch::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--muted);transition:left .15s,background .15s}
+.eb-toggle input:checked + .eb-switch{background:var(--accent-2);border-color:transparent}
+.eb-toggle input:checked + .eb-switch::after{left:14px;background:var(--on-accent)}
+.eb-toggle input:focus-visible + .eb-switch{outline:2px solid var(--accent);outline-offset:2px}
+.eb-pending{display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:10px;background:color-mix(in srgb,var(--warn) 9%,transparent);border:1px solid color-mix(in srgb,var(--warn) 38%,transparent)}
+.eb-pending[hidden]{display:none}
+.eb-pending.nudge{animation:nudge .45s ease}
+@keyframes nudge{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.eb-btn.commit{background:var(--ok);border-color:transparent;color:var(--on-accent);font-weight:600}
+.eb-btn.commit:hover{filter:brightness(1.07);color:var(--on-accent)}
+svg.dragmode.live .node:not(.dragging){opacity:1}
+svg.dragmode.live .edge{opacity:.55}
+.node.preview-me .shape{stroke:var(--accent-2);stroke-width:2.4;stroke-dasharray:7 5;fill:color-mix(in srgb,var(--accent-2) 10%,var(--node-base))}
+.eb-head{display:flex;align-items:flex-start;gap:10px;padding:2px 2px 10px;margin-bottom:2px;border-bottom:1px solid var(--border);cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}
+.eb-head.dragging{cursor:grabbing}
+.eb-grip{width:14px;height:14px;flex:none;color:var(--faint);margin-top:1px}
+.eb-head:hover .eb-grip{color:var(--muted)}
+.eb-head .eb-dot{margin-top:4px;flex:none}
 .eb-dot{width:9px;height:9px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent-2) 22%,transparent);animation:pulse 2s ease-in-out infinite}
 @keyframes pulse{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--accent-2) 8%,transparent)}}
 .eb-text{display:flex;flex-direction:column;line-height:1.25;margin-right:6px;min-width:0}
-.eb-text b{font-size:13px} .eb-text span{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.eb-text{flex:0 1 auto} #editbar.confirming .eb-text span{display:none}
+.eb-text b{font-size:13px} .eb-text span{font-size:11.5px;line-height:1.4;color:var(--muted);margin-top:3px}
+.eb-text{flex:1 1 auto;margin-right:0} #editbar.confirming .eb-text span{display:none}
 #editbar.confirming [data-eb="copy"]{display:none}
-.eb-btn{border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);border-radius:9px;height:32px;padding:0 12px;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:8px}
+.eb-btn{border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);border-radius:9px;height:32px;padding:0 12px;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
 .eb-btn:hover{color:var(--text);border-color:var(--border-strong)}
 .eb-btn[disabled]{opacity:.45;cursor:not-allowed}
 .eb-btn[disabled]:hover{color:var(--text-2);border-color:var(--border)}
-.eb-group{display:flex;align-items:center;gap:8px}
+.eb-group{display:flex;flex-direction:column;align-items:stretch;gap:8px}
 .eb-group[hidden]{display:none}
-.eb-q{font-size:12.5px;font-weight:500;color:var(--text);white-space:nowrap}
+.eb-q{font-size:12.5px;font-weight:500;color:var(--text);line-height:1.4;padding:2px 2px 0}
 .eb-btn.danger{background:var(--bad);border-color:transparent;color:#fff}
 .eb-btn.danger:hover{filter:brightness(1.08);color:#fff}
 .eb-btn.primary{background:var(--accent-2);border-color:transparent;color:var(--on-accent)}
@@ -623,9 +647,21 @@ body.sb-collapsed .mx{left:0}
 </div>
 <div class="tip" id="tip"></div>
 <div class="rule-pop" id="rulePop" hidden role="dialog" aria-label="Placement rules"></div>
-<div class="editbar" id="editbar" hidden>
-  <span class="eb-dot"></span>
-  <div class="eb-text"><b>Layout edit mode</b><span>Drag onto another element's edge to place · click for rules · Ctrl/⌘-click to pick several</span></div>
+<div class="editbar" id="editbar" hidden role="toolbar" aria-orientation="vertical" aria-label="Layout edit mode">
+  <div class="eb-head" title="Drag to move · double-click to put back">
+    <svg class="eb-grip" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+    <span class="eb-dot"></span>
+    <div class="eb-text"><b>Layout edit mode</b><span>Drag onto another element's edge to place · click for rules · Ctrl/⌘-click to pick several</span></div>
+  </div>
+  <label class="eb-toggle" title="Re-lay out the whole diagram while you drag, and hold changes until you commit them">
+    <input type="checkbox" id="ebLive"><span class="eb-switch"></span>
+    <span>Live update<small>Preview while dragging · save with Commit</small></span>
+  </label>
+  <div class="eb-pending" id="ebPending" hidden>
+    <span class="eb-q" id="ebPendQ"></span>
+    <button class="eb-btn commit" data-eb="commit" title="Save the previewed layout rules">Commit</button>
+    <button class="eb-btn" data-eb="revert" title="Throw away the changes made since the last commit">Revert</button>
+  </div>
   <button class="eb-btn" data-eb="copy" title="Copy every diagram's layout rules as JSON, ready to paste into the document data">Copy layout</button>
   <span class="eb-group" id="ebDiscard">
     <button class="eb-btn" data-eb="reset" title="Put this diagram's rules back to what the document data says">Discard diagram edits</button>
@@ -4553,23 +4589,47 @@ function constraintGap(c, c0, c1, r0, r1, bb){
     }
     return 0;
   }
-  const rov = Math.min(r1[i], r1[j]) - Math.max(r0[i], r0[j]), rowGap = rov >= 0 ? 0 : -rov;
-  const cov = Math.min(c1[i], c1[j]) - Math.max(c0[i], c0[j]), colGap = cov >= 0 ? 0 : -cov;
+  // an outside element placed relative to the boundary measures against the boundary's box
+  let jr0, jr1, jc0, jc1;
+  if (c.bref){ if (!bb) return 0; jr0 = bb.r0; jr1 = bb.r1; jc0 = bb.c0; jc1 = bb.c1; }
+  else { jr0 = r0[j]; jr1 = r1[j]; jc0 = c0[j]; jc1 = c1[j]; }
+  const ir0 = r0[i], ir1 = r1[i], ic0 = c0[i], ic1 = c1[i];
+  const rov = Math.min(ir1, jr1) - Math.max(ir0, jr0), rowGap = rov >= 0 ? 0 : -rov;
+  const cov = Math.min(ic1, jc1) - Math.max(ic0, jc0), colGap = cov >= 0 ? 0 : -cov;
   switch (c.rel){
-    case 'above':      return colGap + Math.max(0, r1[i] - r0[j] + 1);
-    case 'below':      return colGap + Math.max(0, r1[j] - r0[i] + 1);
-    case 'leftOf':     return rowGap + Math.max(0, c1[i] - c0[j] + 1);
-    case 'rightOf':    return rowGap + Math.max(0, c1[j] - c0[i] + 1);
+    case 'above':      return colGap + Math.max(0, ir1 - jr0 + 1);
+    case 'below':      return colGap + Math.max(0, jr1 - ir0 + 1);
+    case 'leftOf':     return rowGap + Math.max(0, ic1 - jc0 + 1);
+    case 'rightOf':    return rowGap + Math.max(0, jc1 - ic0 + 1);
     case 'alignRow':   return rowGap;
     case 'alignCol':   return colGap;
     case 'near':       return Math.max(0, Math.max(colGap, rowGap) - 1);
-    case 'higherThan': return Math.max(0, r1[i] - r0[j] + 1);
-    case 'lowerThan':  return Math.max(0, r1[j] - r0[i] + 1);
+    case 'higherThan': return Math.max(0, ir1 - jr0 + 1);
+    case 'lowerThan':  return Math.max(0, jr1 - ir0 + 1);
   }
   return 0;
 }
 // The cell that would satisfy a constraint for element i, given where j currently is.
 function constraintTarget(c, st, G){
+  if (c.bref){
+    let minC = 99, maxC = -1, minR = 99, maxR = -1;
+    for (let k=0;k<G.N;k++) if (G.isIn[k]){ const cc = st[2*k], rr = st[2*k+1]; minC = Math.min(minC,cc); maxC = Math.max(maxC,cc); minR = Math.min(minR,rr); maxR = Math.max(maxR,rr); }
+    const ci = st[2*c.i], ri = st[2*c.i+1];
+    if (maxC < 0) return [ci, ri];
+    const cc = clamp(ci, minC, maxC), rr = clamp(ri, minR, maxR);
+    switch (c.rel){
+      case 'above':      return [cc, minR-1];
+      case 'below':      return [cc, maxR+1];
+      case 'leftOf':     return [minC-1, rr];
+      case 'rightOf':    return [maxC+1, rr];
+      case 'alignRow':   return [ci, rr];
+      case 'alignCol':   return [cc, ri];
+      case 'near':       return [maxC+1, rr];
+      case 'higherThan': return [ci, Math.min(ri, minR-1)];
+      case 'lowerThan':  return [ci, Math.max(ri, maxR+1)];
+    }
+    return [ci, ri];
+  }
   if (c.bnd){
     let minC = 99, maxC = -1, minR = 99, maxR = -1;
     for (let k=0;k<G.N;k++) if (G.isIn[k] && k !== c.i){ const cc = st[2*k], rr = st[2*k+1]; minC = Math.min(minC,cc); maxC = Math.max(maxC,cc); minR = Math.min(minR,rr); maxR = Math.max(maxR,rr); }
@@ -4617,6 +4677,12 @@ function prepareGraph(spec){
       if (!spec.boundary || b !== spec.boundary.id) throw new Error(`Layout constraint "${a} ${rel} ${b}": "${rel}" places an element inside this diagram's boundary, so "${b}" must be the boundary (${spec.boundary ? spec.boundary.id : 'this diagram has none'})`);
       if (!inside.has(a)) throw new Error(`Layout constraint "${a} ${rel} ${b}": "${a}" is not inside the ${b} boundary`);
       cons.push({i:ix[a], j:-1, a, b, rel, bnd:true, strict: strict !== false, w: strict === false ? 4 : 60});
+      return;
+    }
+    if (spec.boundary && b === spec.boundary.id){
+      if (!(a in ix)) throw new Error(`Layout constraint "${a} ${rel} ${b}" refers to "${a}", which is not in this diagram`);
+      if (inside.has(a)) throw new Error(`Layout constraint "${a} ${rel} ${b}": "${a}" is inside the ${b} boundary, so place it with ${BOUNDARY_RELATIONS.join(', ')}`);
+      cons.push({i:ix[a], j:-1, a, b, rel, bref:true, strict: strict !== false, w: strict === false ? 4 : 60});
       return;
     }
     for (const id of [a, b]) if (!(id in ix)) throw new Error(`Layout constraint "${a} ${rel} ${b}" refers to "${id}", which is not in this diagram`);
@@ -5713,6 +5779,10 @@ const REL_TEXT = {atTopEdge:'along the top edge of', atBottomEdge:'along the bot
   above:'directly above', below:'directly below', leftOf:'directly left of', rightOf:'directly right of',
   alignRow:'on the same row as', alignCol:'in the same column as', near:'next to', higherThan:'anywhere above', lowerThan:'anywhere below'};
 const ORIGINAL_RULES = {};
+const COMMITTED = {};   // last saved rules per diagram; anything different is an uncommitted (live) change
+const rulesJSON = k => JSON.stringify(DIAGRAMS[k].constraints || []);
+const pendingKeys = () => Object.keys(DIAGRAMS).filter(k => COMMITTED[k] !== undefined && rulesJSON(k) !== COMMITTED[k]);
+const isLive = () => $('#ebLive').checked;
 
 // every rule on a spec, whether written as a node hint or in constraints[]
 function specRules(spec){
@@ -5730,9 +5800,11 @@ function normaliseRules(spec){
   if (!spec.nodes.length) delete spec.nodes;
   spec.constraints = rules.map(r => r.strict ? {a:r.a, rel:r.rel, b:r.b} : {a:r.a, rel:r.rel, b:r.b, strict:false});
 }
-function saveRules(key){ store.set('arc-rules3-'+key, JSON.stringify(DIAGRAMS[key].constraints)); updateEditbar(); }
+function saveRules(key){ store.set('arc-rules3-'+key, JSON.stringify(DIAGRAMS[key].constraints)); COMMITTED[key] = rulesJSON(key); updateEditbar(); }
+/* With live update on, edits stay in memory until Commit; otherwise they're saved straight away. */
+function persistRules(key){ if (isLive()) updateEditbar(); else saveRules(key); }
 /* A diagram counts as edited when its rules differ from the document data. */
-const isEdited = k => !!store.get('arc-rules3-'+k) && JSON.stringify(DIAGRAMS[k].constraints || []) !== JSON.stringify(JSON.parse(ORIGINAL_RULES[k]).constraints || []);
+const isEdited = k => rulesJSON(k) !== JSON.stringify(JSON.parse(ORIGINAL_RULES[k]).constraints || []);
 const editedDiagrams = () => Object.keys(DIAGRAMS).filter(isEdited);
 /* The diagram being edited: the open rule editor's, else the maximized one, else the first on the page. */
 function currentDiagramKey(){
@@ -5744,6 +5816,7 @@ function discardRules(keys){
   keys.forEach(k => {
     try { localStorage.removeItem('arc-rules3-'+k); } catch(e){}
     const o = JSON.parse(ORIGINAL_RULES[k]); DIAGRAMS[k].nodes = o.nodes; DIAGRAMS[k].constraints = o.constraints;
+    COMMITTED[k] = rulesJSON(k);
     refreshDiagram(k);
   });
   updateEditbar();
@@ -5762,6 +5835,12 @@ function updateEditbar(){
   allBtn.disabled = !all.length;
   allBtn.title = all.length ? `Reset the layout rules on ${all.length} edited diagram${all.length === 1 ? '' : 's'} (asks first)` : 'No diagram has edits';
   if (!$('#ebConfirm').hidden && !all.length) showConfirm(false);
+  const pend = pendingKeys();
+  $('#ebPending').hidden = !pend.length;
+  if (pend.length) $('#ebPendQ').textContent = `Uncommitted changes on ${pend.length} diagram${pend.length === 1 ? '' : 's'}`;
+}
+function nudgePending(msg){
+  toast(msg); const el = $('#ebPending'); el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge');
 }
 addEventListener('hashchange', () => setTimeout(updateEditbar, 50));
 // one canonical form for every diagram (so layouts don't change when editing starts),
@@ -5771,10 +5850,12 @@ Object.keys(DIAGRAMS).forEach(k => {
   ORIGINAL_RULES[k] = JSON.stringify({nodes:DIAGRAMS[k].nodes, constraints:DIAGRAMS[k].constraints});
   const saved = store.get('arc-rules3-'+k);
   if (saved) try { DIAGRAMS[k].constraints = JSON.parse(saved); } catch(e){}
+  COMMITTED[k] = rulesJSON(k);
 });
 
 const isEditing = () => document.body.classList.contains('editing');
 function setEditing(on){
+  if (!on && pendingKeys().length){ nudgePending('Commit or revert your layout changes first'); return; }
   document.body.classList.toggle('editing', on);
   $('#editbar').hidden = !on;
   if (!on){ closeRuleEditor(); showConfirm(false); }
@@ -5844,6 +5925,17 @@ function pickPlacement(d, px, py){
       return {rel, b:b.id, ghost:{x:gx, y:gy}, edge:{box:b, side:sides, corner:sides.length > 1}};
     }
   }
+  // outside elements: drop on an edge of the boundary frame to place it above / below / left / right of it
+  if (b && !b.contains.includes(me.id)){
+    const side = edgeOf(b, px, py);
+    if (side){
+      const R = {top:'above', bottom:'below', left:'leftOf', right:'rightOf'}[side];
+      const gx = clamp(px - me.w/2, b.x, b.x + b.w - me.w), gy = clamp(py - me.h/2, b.y, b.y + b.h - me.h);
+      const G = {above:{x:gx, y:b.y - me.h - 40}, below:{x:gx, y:b.y + b.h + 40},
+                 leftOf:{x:b.x - me.w - 56, y:gy}, rightOf:{x:b.x + b.w + 56, y:gy}}[R];
+      return {rel:R, b:b.id, ghost:G, edge:{box:b, side}};
+    }
+  }
   return null;
 }
 function edgeLines(box, sides, corner){
@@ -5869,57 +5961,121 @@ function moveNodeDrag(d, e){
   d.lx = e.clientX; d.ly = e.clientY;
   if (!d.started){
     if (Math.hypot(e.clientX - d.cx0, e.clientY - d.cy0) < 5) return false;
-    d.started = true; d.svg._dragging = true;
+    d.started = true; d.svg._dragging = true; d.live = isLive();
     d.svg.classList.remove('dim'); $$('.hl', d.svg).forEach(x => x.classList.remove('hl'));
-    d.svg.classList.add('dragmode'); d.nd.classList.add('dragging'); d.svg.appendChild(d.nd);
+    d.svg.classList.add('dragmode'); d.svg.classList.toggle('live', d.live);
+    d.nd.classList.add('dragging'); d.svg.appendChild(d.nd);
   }
   const p = svgPoint(d.svg, e.clientX, e.clientY), dx = p.x - d.x0, dy = p.y - d.y0;
   d.nd.setAttribute('transform', `translate(${dx},${dy})`);
-  d.pick = pickPlacement(d, p.x, p.y);
-  clearDropPreview(d);
+  // after a live re-layout the elements under the pointer have moved; keep the previewed placement
+  // until the pointer travels a clear distance, so the new layout can't trigger another one by itself
+  const held = d.live && d.anchor && Math.hypot(e.clientX - d.anchor.x, e.clientY - d.anchor.y) < LIVE_HOLD_PX;
+  if (!held){ d.anchor = null; d.pick = pickPlacement(d, p.x, p.y); }
+  d.mods = {strict: !e.shiftKey, keep: !!(e.ctrlKey || e.metaKey)};
+  drawPick(d);
+  if (d.live) schedulePreview(d);
   if (!d.pick){ showTip('Drop on an edge of an element', 'top · bottom · left · right', e); return true; }
+  showTip(ruleText({a:d.id, rel:d.pick.rel, b:d.pick.b, strict:d.mods.strict}), d.mods.keep ? 'adds to its rules' : 'replaces its rules', e);
+  return true;
+}
+/* Highlight the drop target's edge (and, without live update, a ghost of where the element would go). */
+function drawPick(d){
+  clearDropPreview(d);
+  if (!d.pick) return;
   const isB = d.lay.boundary && d.pick.b === d.lay.boundary.id;
-  (isB ? $$('.boundary', d.svg) : $$(`.node[data-id="${CSS.escape(d.pick.b)}"]`, d.svg)).forEach(x => x.classList.add('drop-target'));
+  (isB ? $$('.boundary', d.svg) : $$(`.node[data-id="${CSS.escape(d.pick.b)}"]:not(.dragging)`, d.svg)).forEach(x => x.classList.add('drop-target'));
   for (const [x1, y1, x2, y2] of edgeLines(d.pick.edge.box, d.pick.edge.side, d.pick.edge.corner)){
     const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     l.setAttribute('class', 'drop-edge'); Object.entries({x1, y1, x2, y2}).forEach(([k, v]) => l.setAttribute(k, v));
     d.svg.insertBefore(l, d.nd);
   }
-  if (d.pick.ghost){
+  if (d.pick.ghost && !d.live){
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     g.setAttribute('class', 'drop-ghost'); g.setAttribute('rx', 12);
     ['x','y'].forEach(k => g.setAttribute(k, d.pick.ghost[k])); g.setAttribute('width', d.me.w); g.setAttribute('height', d.me.h);
     d.svg.insertBefore(g, d.nd);
   }
-  const strict = !e.shiftKey, keep = e.ctrlKey || e.metaKey;
-  showTip(ruleText({a:d.id, rel:d.pick.rel, b:d.pick.b, strict}), keep ? 'adds to its rules' : 'replaces its rules', e);
-  return true;
+}
+/* Live update: once the pointer settles on a placement, re-lay out the diagram as if it were dropped there. */
+const LIVE_HOLD_PX = 40, LIVE_DWELL_MS = 300;
+/* Live update: re-lay out only once the pointer has rested on a new placement (every move restarts the wait). */
+function schedulePreview(d){
+  const sig = d.pick ? [d.pick.rel, d.pick.b, d.mods.strict, d.mods.keep].join('|') : '';
+  clearTimeout(d.pt);
+  if (sig === (d.shown ?? '')) return;          // already showing this
+  d.pt = setTimeout(() => {
+    if (ACTIVE_DRAG !== d) return;
+    showPreview(d, d.pick ? candidateRules(d.key, d.id, d.pick, d.mods) : DIAGRAMS[d.key].constraints);
+    d.shown = sig; d.anchor = {x:d.lx, y:d.ly};
+    drawPick(d);
+  }, LIVE_DWELL_MS);
+}
+function showPreview(d, constraints){
+  const spec = {...DIAGRAMS[d.key], constraints};
+  let html; try { html = c4SVG(spec, d.key, d.key); } catch(err){ console.warn('[layout] preview failed:', err); return; }
+  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  const fresh = tmp.firstElementChild;
+  // swap everything except the element being carried; the viewBox stays put so the pointer maths still holds
+  const lay = layoutDiagram(spec), was = {};
+  d.lay.nodes.forEach(n => was[n.id] = n);
+  [...d.svg.childNodes].forEach(n => { if (n !== d.nd) n.remove(); });
+  const moved = [], faded = [];
+  [...fresh.childNodes].forEach(n => {
+    if (n.nodeType === 1){
+      if (n.classList.contains('node')){
+        if (n.dataset.id === d.id) n.classList.add('preview-me');
+        const a = was[n.dataset.id], b = lay.nodes.find(x => x.id === n.dataset.id);
+        if (a && b && (a.x !== b.x || a.y !== b.y)){ n.style.transition = 'none'; n.style.transform = `translate(${a.x - b.x}px,${a.y - b.y}px)`; moved.push(n); }
+      } else if (n.classList.contains('edge') || n.classList.contains('boundary')){ n.style.transition = 'none'; n.style.opacity = '0'; faded.push(n); }
+    }
+    d.svg.insertBefore(n, d.nd);
+  });
+  void d.svg.getBoundingClientRect();
+  requestAnimationFrame(() => {
+    moved.forEach(n => { n.style.transition = 'transform .34s cubic-bezier(.2,.8,.2,1), opacity .2s'; n.style.transform = ''; });
+    faded.forEach(n => { n.style.transition = 'opacity .25s ease .2s'; n.style.opacity = ''; });
+  });
+  d.lay = lay; d.previewed = true;
+  if (d.pick){
+    const nb = d.lay.boundary && d.pick.b === d.lay.boundary.id ? d.lay.boundary : d.lay.nodes.find(n => n.id === d.pick.b);
+    if (nb) d.pick.edge.box = nb;
+  }
 }
 function endNodeDrag(d, e, cancel){
   ACTIVE_DRAG = null;
   if (!d) return;
+  clearTimeout(d.pt);
   d.svg._dragging = false;
   clearDropPreview(d); hideTip();
-  d.svg.classList.remove('dragmode'); d.nd.classList.remove('dragging'); d.nd.removeAttribute('transform');
-  if (cancel || !d.started || !d.pick) return;
-  applyDropRule(d.key, d.id, d.pick, {strict: !e.shiftKey, keep: e.ctrlKey || e.metaKey});
+  d.svg.classList.remove('dragmode', 'live'); d.nd.classList.remove('dragging'); d.nd.removeAttribute('transform');
+  const applied = !cancel && d.started && d.pick && applyDropRule(d.key, d.id, d.pick, {strict: !e.shiftKey, keep: !!(e.ctrlKey || e.metaKey)});
+  if (!applied && d.previewed) refreshDiagram(d.key);   // put the un-previewed layout back
 }
-function applyDropRule(key, id, pick, {strict, keep}){
-  const spec = DIAGRAMS[key], before = JSON.stringify(spec.constraints || []);
+/* The rules an element would end up with if dropped with this placement. */
+function candidateRules(key, id, pick, {strict, keep}){
+  const spec = DIAGRAMS[key];
+  const tmp = {...spec, constraints:(spec.constraints || []).filter(c => keep || c.a !== id)};
   const cand = {a:id, rel:pick.rel, b:pick.b};
-  spec.constraints = (spec.constraints || []).filter(c => keep || c.a !== id);
   // anything that duplicates, implies or contradicts the new placement goes
-  for (let g = 0, pb; (pb = ruleProblem(spec, cand)) && g < 50; g++) spec.constraints.splice(pb.rule.i, 1);
-  spec.constraints.push(strict ? cand : {...cand, strict:false});
-  if (JSON.stringify(spec.constraints) === before){ toast('Already placed there'); return; }
+  for (let g = 0, pb; (pb = ruleProblem(tmp, cand)) && g < 50; g++) tmp.constraints.splice(pb.rule.i, 1);
+  tmp.constraints.push(strict ? cand : {...cand, strict:false});
+  return tmp.constraints;
+}
+function applyDropRule(key, id, pick, mods){
+  const spec = DIAGRAMS[key], before = JSON.stringify(spec.constraints || []);
+  const next = candidateRules(key, id, pick, mods);
+  if (JSON.stringify(next) === before){ toast('Already placed there'); return false; }
+  spec.constraints = next;
   DROP_UNDO.push({key, constraints:before}); if (DROP_UNDO.length > 30) DROP_UNDO.shift();
-  saveRules(key); refreshDiagram(key);
-  toast(`${ruleText({...cand, strict})} · ${MOD}+Z to undo`);
+  persistRules(key); refreshDiagram(key);
+  toast(`${ruleText({a:id, rel:pick.rel, b:pick.b, strict:mods.strict})} · ${MOD}+Z to undo${isLive() ? ' · not committed yet' : ''}`);
+  return true;
 }
 function undoDrop(){
   const u = DROP_UNDO.pop(); if (!u){ toast('Nothing to undo'); return; }
   DIAGRAMS[u.key].constraints = JSON.parse(u.constraints);
-  saveRules(u.key); refreshDiagram(u.key); toast('Placement undone');
+  persistRules(u.key); refreshDiagram(u.key); toast('Placement undone');
 }
 
 let ruleState = null;   // {key, ids:[…], x, y, pos, form}
@@ -5928,6 +6084,9 @@ const X_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
 // the boundary can be a rule target when every element involved sits inside it
 const boundaryFor = (spec, ids) => spec.boundary && ids.every(id => spec.boundary.contains.includes(id)) ? spec.boundary.id : null;
+// outside elements can be placed relative to the boundary as a whole (above, left of, …)
+const boundaryOutside = (spec, ids) => spec.boundary && ids.every(id => !spec.boundary.contains.includes(id)) ? spec.boundary.id : null;
+const boundaryTarget = (spec, ids) => boundaryFor(spec, ids) || boundaryOutside(spec, ids);
 const targetName = (spec, t) => spec.boundary && t === spec.boundary.id ? `${EL[t].name} (boundary)` : EL[t].name;
 function relOptions(selected, withBoundary){
   const o = list => list.map(x => `<option value="${x}"${x===selected?' selected':''}>${REL_TEXT[x]}</option>`).join('');
@@ -5950,11 +6109,12 @@ function targetOptions(spec, list, selected, bnd, connected = []){
   return bnd ? `${els}<optgroup label="Boundary"><option value="${bnd}"${bnd===selected?' selected':''}>${esc(targetName(spec, bnd))}</option></optgroup>` : els;
 }
 // keep relation and target compatible: boundary placements need the boundary, element ones need an element
-function reconcile(spec, a, rel, b, changed, elementChoices){
-  const bnd = spec.boundary && spec.boundary.id;
-  if (isBoundaryRel(rel) === (b === bnd)) return {rel, b};
-  if (changed === 'rel') return {rel, b: isBoundaryRel(rel) ? bnd : elementChoices.filter(t => t !== a)[0]};
-  return {rel: b === bnd ? 'atTopEdge' : 'above', b};
+function reconcile(spec, ids, rel, b, changed, elementChoices){
+  const bnd = spec.boundary && spec.boundary.id, inside = !!boundaryFor(spec, ids);
+  const ok = isBoundaryRel(rel) ? (b === bnd && inside) : (b !== bnd || !!boundaryOutside(spec, ids));
+  if (ok) return {rel, b};
+  if (changed === 'rel') return {rel, b: isBoundaryRel(rel) ? bnd : elementChoices.filter(t => !ids.includes(t) && t !== bnd)[0]};
+  return {rel: b === bnd && inside ? 'atTopEdge' : 'above', b};
 }
 
 /* Rule equivalence and contradiction. Each rule maps to a canonical "fact" so that, e.g.,
@@ -6014,12 +6174,13 @@ function renderRuleEditor(){
   const isMissed = r => missed.has(`${r.a} ${r.rel} ${r.b}${r.strict ? '' : ' (soft)'}`);
   const allIds = diagramIds(key).sort((a,b) => EL[a].name.localeCompare(EL[b].name));
   const targets = allIds.filter(t => !ids.includes(t));
-  const bnd = boundaryFor(spec, ids);
+  const bnd = boundaryFor(spec, ids), bndT = boundaryTarget(spec, ids);
   const connected = connectedTo(spec, ids);
   // a fresh selection targets the element it's wired to; a choice the user made sticks until the selection changes
-  if (!form.target || (!targets.includes(form.target) && form.target !== bnd)) form.target = connected[0] || targets[0];
+  if (!form.target || (!targets.includes(form.target) && form.target !== bndT)) form.target = connected[0] || targets[0];
   if (isBoundaryRel(form.rel) && bnd) form.target = bnd;
-  if (isBoundaryRel(form.rel) && !bnd){ form.rel = 'above'; form.target = targets[0]; }
+  if (isBoundaryRel(form.rel) && !bnd) form.rel = 'above';
+  if (!isBoundaryRel(form.rel) && bnd && form.target === bnd) form.rel = 'atTopEdge';
   const sentence = r => `${single ? (r.strict ? 'Must' : 'Should ideally') : `<b>${esc(EL[r.a].name)}</b> ${r.strict ? 'must' : 'should ideally'}`} be ${REL_TEXT[r.rel]} <b>${esc(targetName(spec, r.b))}</b>`;
   const head = single
     ? `<span class="kdot"></span><div class="rp-title"><b>${esc(e.name)}</b><small>Placement rules · ${esc(DIAGRAMS[key].sub || '')}</small></div>`
@@ -6034,7 +6195,7 @@ function renderRuleEditor(){
             <select data-idx="${r.idx}" data-field="strict" aria-label="Strength"><option value="1"${r.strict?' selected':''}>must</option><option value="0"${r.strict?'':' selected'}>should ideally</option></select>
             <span>be</span>
             <select data-idx="${r.idx}" data-field="rel" aria-label="Relation">${relOptions(r.rel, !!boundaryFor(spec, [r.a]))}</select>
-            <select data-idx="${r.idx}" data-field="b" aria-label="Other element">${targetOptions(spec, allIds.filter(t => t !== r.a), r.b, boundaryFor(spec, [r.a]), connectedTo(spec, [r.a]))}</select>
+            <select data-idx="${r.idx}" data-field="b" aria-label="Other element">${targetOptions(spec, allIds.filter(t => t !== r.a), r.b, boundaryTarget(spec, [r.a]), connectedTo(spec, [r.a]))}</select>
             ${isMissed(r)?'<span class="warn">Couldn’t be met — it conflicts with another rule</span>':''}
           </div>
           <button class="rp-x" data-rp="del" data-idx="${r.idx}" title="Remove rule" aria-label="Remove rule">${X_ICON}</button></div>`).join('')
@@ -6045,7 +6206,7 @@ function renderRuleEditor(){
       <div class="rp-sentence"><b>${single ? esc(e.name) : `All ${ids.length}`}</b>
         <select id="rpStrict" aria-label="Strength"><option value="1">must</option><option value="0">should ideally</option></select> be
         <select id="rpRel" aria-label="Relation">${relOptions(form.rel, !!bnd)}</select>
-        <select id="rpTarget" aria-label="Other element">${targetOptions(spec, targets, form.target, bnd, connected)}</select>
+        <select id="rpTarget" aria-label="Other element">${targetOptions(spec, targets, form.target, bndT, connected)}</select>
       </div>
       <div class="rp-hint" id="rpHint" hidden></div>
       <div class="rp-actions"><small>${single ? `Tip: ${MOD}-click more elements to give them the same rule.` : 'One rule is added for each selected element.'}</small><button class="rp-add" data-rp="add">Add rule</button></div>
@@ -6053,7 +6214,7 @@ function renderRuleEditor(){
   $('#rpStrict').value = form.strict; $('#rpRel').value = form.rel; $('#rpTarget').value = form.target;
   const sync = ev => {
     const changed = ev && ev.target.id === 'rpRel' ? 'rel' : ev && ev.target.id === 'rpTarget' ? 'b' : null;
-    if (changed){ const f = reconcile(spec, null, $('#rpRel').value, $('#rpTarget').value, changed, targets); $('#rpRel').value = f.rel; $('#rpTarget').value = f.b; }
+    if (changed){ const f = reconcile(spec, ids, $('#rpRel').value, $('#rpTarget').value, changed, targets); $('#rpRel').value = f.rel; $('#rpTarget').value = f.b; }
     ruleState.form = {strict:$('#rpStrict').value, rel:$('#rpRel').value, target:$('#rpTarget').value};
     const rel = $('#rpRel').value, target = $('#rpTarget').value;
     const problems = ids.map(id => ({id, pb: ruleProblem(spec, {a:id, rel, b:target})}));
@@ -6106,12 +6267,12 @@ $('#rulePop').addEventListener('change', e => {
   if (sel.dataset.field === 'strict'){ if (sel.value === '0') next.strict = false; else delete next.strict; }
   else {
     next[sel.dataset.field] = sel.value;
-    const f = reconcile(spec, next.a, next.rel, next.b, sel.dataset.field, diagramIds(key)); next.rel = f.rel; next.b = f.b;
+    const f = reconcile(spec, [next.a], next.rel, next.b, sel.dataset.field, diagramIds(key)); next.rel = f.rel; next.b = f.b;
   }
   const pb = sel.dataset.field === 'strict' ? null : ruleProblem(spec, next, idx);
   if (pb){ toast(pb.kind === 'contradicts' ? `That would contradict “${ruleText(pb.rule)}”` : `That's the same as “${ruleText(pb.rule)}”`); return renderRuleEditor(); }
   spec.constraints[idx] = next;
-  saveRules(key); refreshDiagram(key);
+  persistRules(key); refreshDiagram(key);
 });
 
 // drag the dialog by its header
@@ -6171,7 +6332,7 @@ $('#rulePop').addEventListener('click', e => {
       spec.constraints.push(strict ? {a:id, rel, b:target} : {a:id, rel, b:target, strict:false});
     });
   }
-  saveRules(key); refreshDiagram(key);
+  persistRules(key); refreshDiagram(key);
 });
 document.addEventListener('pointerdown', e => {
   if (!ruleState || e.target.closest('#rulePop') || e.target.closest('svg[data-key] .node')) return;
@@ -6200,12 +6361,55 @@ $('#editbar').addEventListener('click', async e => {
     discardRules([k]); toast(`Edits discarded on “${PAGE[pageOf(k)].title}”`);
   }
   if (b.dataset.eb === 'reset-all' && !b.disabled) showConfirm(true);
+  if (b.dataset.eb === 'commit'){
+    const ks = pendingKeys(); ks.forEach(k => saveRules(k));
+    toast(`Layout committed on ${ks.length} diagram${ks.length === 1 ? '' : 's'}`);
+  }
+  if (b.dataset.eb === 'revert'){
+    const ks = pendingKeys(); closeRuleEditor();
+    ks.forEach(k => { DIAGRAMS[k].constraints = JSON.parse(COMMITTED[k]); refreshDiagram(k); });
+    DROP_UNDO.length = 0; updateEditbar(); toast('Uncommitted changes reverted');
+  }
   if (b.dataset.eb === 'cancel') showConfirm(false);
   if (b.dataset.eb === 'confirm-all'){
     const keys = editedDiagrams(); showConfirm(false); closeRuleEditor();
     discardRules(keys); toast(`Edits discarded on ${keys.length} diagram${keys.length === 1 ? '' : 's'}`);
   }
 });
+
+// live update toggle: remembered per browser; can't be switched off while changes are waiting
+$('#ebLive').checked = store.get('arc-live') === '1';
+$('#ebLive').addEventListener('change', e => {
+  if (!e.target.checked && pendingKeys().length){ e.target.checked = true; nudgePending('Commit or revert your changes before turning live update off'); return; }
+  store.set('arc-live', e.target.checked ? '1' : '0');
+  toast(e.target.checked ? 'Live update on — the diagram re-lays out as you drag; save with Commit' : 'Live update off — changes are saved as you make them');
+});
+addEventListener('beforeunload', e => { if (pendingKeys().length){ e.preventDefault(); e.returnValue = ''; } });
+
+// the edit bar can be dragged by its header; its position is remembered, double-click puts it back
+(() => {
+  const bar = $('#editbar'), head = $('.eb-head', bar);
+  const fit = (x, y) => { const r = bar.getBoundingClientRect();
+    return [clamp(x, 8, Math.max(8, innerWidth - r.width - 8)), clamp(y, 8, Math.max(8, innerHeight - r.height - 8))]; };
+  const place = (x, y) => { [x, y] = fit(x, y); bar.classList.add('moved'); bar.style.left = x + 'px'; bar.style.top = y + 'px'; return [x, y]; };
+  const reset = () => { bar.classList.remove('moved'); bar.style.left = bar.style.top = ''; try { localStorage.removeItem('arc-editbar'); } catch(e){} };
+  let saved = null; try { saved = JSON.parse(store.get('arc-editbar')); } catch(e){}
+  // apply a remembered spot once the bar is actually showing (it has no size while hidden)
+  new MutationObserver(() => { if (!bar.hidden && saved){ place(saved[0], saved[1]); saved = null; } }).observe(bar, {attributes:true, attributeFilter:['hidden']});
+  let drag = null;
+  head.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const r = bar.getBoundingClientRect();
+    drag = {dx:e.clientX - r.left, dy:e.clientY - r.top};
+    head.setPointerCapture(e.pointerId); head.classList.add('dragging'); e.preventDefault();
+  });
+  head.addEventListener('pointermove', e => { if (drag) place(e.clientX - drag.dx, e.clientY - drag.dy); });
+  const end = () => { if (!drag) return; drag = null; head.classList.remove('dragging');
+    store.set('arc-editbar', JSON.stringify([parseFloat(bar.style.left), parseFloat(bar.style.top)])); };
+  head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
+  head.addEventListener('dblclick', reset);
+  addEventListener('resize', () => { if (bar.classList.contains('moved') && !bar.hidden) place(parseFloat(bar.style.left), parseFloat(bar.style.top)); });
+})();
 
 // document identity in the chrome
 (() => {
