@@ -810,10 +810,47 @@ class BuildSandboxIT {
     Files.writeString(source.resolve("README.md"), "Not a Maven project\n");
     Repo repo = repo(source, "no-pom", RepoSettings.DEFAULT);
 
+    assertThat(BuildSandbox.hasMavenBuild(repo, TestRepos.head(repo))).isFalse();
+
     BuildResult result = new BuildSandbox(settings()).build(repo, TestRepos.head(repo));
 
     assertThat(result.status()).isEqualTo(BuildStatus.FAILED);
     assertThat(result.failure()).isEqualTo("No pom.xml at the top of the repository");
+  }
+
+  @Test
+  void hasAMavenBuildOnlyWithAPomFileAtTheTop() throws IOException {
+    Path source = Files.createDirectories(temp.resolve("nested-pom"));
+    Files.createDirectories(source.resolve("pom.xml"));
+    Files.writeString(source.resolve("pom.xml").resolve("README.md"), "A folder\n");
+    Repo folder = repo(source, "nested-pom", RepoSettings.DEFAULT);
+    Repo maven = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+
+    assertThat(BuildSandbox.hasMavenBuild(folder, TestRepos.head(folder))).isFalse();
+    assertThat(BuildSandbox.hasMavenBuild(maven, TestRepos.head(maven))).isTrue();
+    // Only a missing path means no Maven build; git failing to read the commit is an error.
+    assertThatThrownBy(() -> BuildSandbox.hasMavenBuild(maven, "0".repeat(40)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot read the files of lombok@");
+  }
+
+  @Test
+  void findsCodeThatOnlyABuildWouldLetBeAnalyzed() throws IOException {
+    Path plain = Files.createDirectories(temp.resolve("plain-files"));
+    Files.writeString(plain.resolve("README.md"), "Deployment files\n");
+    Files.writeString(plain.resolve("compose.yaml"), "services: {}\n");
+    Repo files = repo(plain, "plain-files", RepoSettings.DEFAULT);
+    Path code = Files.createDirectories(temp.resolve("gradle-code").resolve("app/src/main/java"));
+    Files.writeString(code.resolve("App.java"), "class App {}\n");
+    Path top = temp.resolve("gradle-code");
+    Files.writeString(top.resolve("settings.gradle.kts"), "include(\"app\")\n");
+    Files.writeString(top.resolve("app/pom.xml"), "<project/>\n");
+    Repo gradle = repo(top, "gradle-code", RepoSettings.DEFAULT);
+
+    assertThat(BuildSandbox.codeWithoutMavenBuild(files, TestRepos.head(files))).isEmpty();
+    assertThat(BuildSandbox.hasMavenBuild(gradle, TestRepos.head(gradle))).isFalse();
+    assertThat(BuildSandbox.codeWithoutMavenBuild(gradle, TestRepos.head(gradle)))
+        .containsExactly("Java sources", "Gradle build files", "POMs below the top");
   }
 
   @Test
