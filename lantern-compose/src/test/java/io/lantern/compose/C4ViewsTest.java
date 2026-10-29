@@ -428,6 +428,40 @@ class C4ViewsTest {
   }
 
   @Test
+  void aProfileOnlyMailHostIsANoteNotAnotherSystem() {
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "SENDS_MAIL",
+            "external-system:smtp.dev.example.com",
+            "{\"protocol\": \"SMTP\", \"source\": \"method:com.example.Mailer#send()\","
+                + " \"profile\": \"staging\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "SENDS_MAIL",
+            "external-system:smtp.gmail.com",
+            "{\"protocol\": \"SMTP\", \"source\": \"method:com.example.Mailer#send()\","
+                + " \"exceptProfiles\": [\"staging\"]}");
+
+    Section context = section(repo(more.list()), "context");
+
+    assertThat(nodes(block(context, Diagram.class)))
+        .noneMatch(n -> n.startsWith("external-system:smtp.dev"));
+    Callout note =
+        context.blocks().stream()
+            .filter(b -> b instanceof Callout c && "Under other profiles".equals(c.title()))
+            .map(Callout.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(note.content()))
+        .isEqualTo(
+            "Under the Spring profile staging, shop-app sends mail through smtp.dev.example.com"
+                + " instead of Gmail SMTP.");
+  }
+
+  @Test
   void composesTheSameWhateverTheOrderOfTheFacts() {
     List<Fact> reversed = new ArrayList<>(facts.list());
     Collections.reverse(reversed);

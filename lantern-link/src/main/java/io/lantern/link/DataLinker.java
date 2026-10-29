@@ -514,6 +514,13 @@ final class DataLinker {
    * ignored); masked values and values with placeholders nothing resolves are left out.
    */
   private List<Fact> values(Unit unit, String view, String key) {
+    return values(index, unit, view, key);
+  }
+
+  /**
+   * The config values a unit sees in a view for a key, as {@link #values(Unit, String, String)}.
+   */
+  static List<Fact> values(LinkIndex index, Unit unit, String view, String key) {
     List<Fact> values = new ArrayList<>();
     String wanted = relaxed(key);
     for (String k : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
@@ -532,7 +539,7 @@ final class DataLinker {
     return values;
   }
 
-  private static String relaxed(String key) {
+  static String relaxed(String key) {
     return key.toLowerCase(Locale.ROOT).replace("-", "").replace("_", "");
   }
 

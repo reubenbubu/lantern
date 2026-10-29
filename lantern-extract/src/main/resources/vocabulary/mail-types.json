@@ -1,0 +1,17 @@
+[
+  {
+    "name": "mail-send",
+    "kind": "attribute",
+    "description": "The subject method sends mail through Spring's JavaMailSender or MailSender, or Jakarta Mail's Transport. The mail server is not named here: it comes from the config (spring.mail.host), which the linker reads (ADR 0076).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "template": { "type": "string", "description": "The binary name of the type whose method sends, such as org.springframework.mail.javamail.JavaMailSender." },
+        "method": { "type": "string", "description": "The name of the method called, such as send." }
+      },
+      "required": ["template", "method"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]
