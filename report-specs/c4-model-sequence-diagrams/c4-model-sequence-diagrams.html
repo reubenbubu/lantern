@@ -4408,7 +4408,7 @@ function wrap(text, max, lines){
 /* Markdown-lite: **bold**, *italic*, `code` (kept literal), [links](url), paragraphs and "- " lists. */
 function mdInline(s){
   const spans = [];
-  return esc(s)
+  return esc(s).replace(/\u0000/g, '')
     .replace(/`([^`]+)`/g, (m, c) => '\u0000' + (spans.push(c) - 1) + '\u0000')
     .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')

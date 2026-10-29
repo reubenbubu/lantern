@@ -53,3 +53,15 @@ test('markdown outside code spans renders as before', () => {
   );
   assert.equal(mdInline('**a `/x/**` b**'), '<b>a <code>/x/**</code> b</b>');
 });
+
+test('NUL characters in the input cannot forge a code span', () => {
+  assert.equal(mdInline('a\u00000\u0000b `x`'), 'a0b <code>x</code>');
+});
+
+test('a code span inside link text and an unmatched backtick', () => {
+  assert.equal(
+    mdInline('[`/api/**`](https://a.b)'),
+    '<a href="https://a.b" target="_blank" rel="noopener"><code>/api/**</code></a>',
+  );
+  assert.equal(mdInline('a ` b **c**'), 'a ` b <b>c</b>');
+});
