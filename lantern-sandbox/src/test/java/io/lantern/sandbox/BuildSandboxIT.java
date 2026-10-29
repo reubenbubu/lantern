@@ -89,6 +89,11 @@ class BuildSandboxIT {
     fixtures = Path.of(path);
   }
 
+  /**
+   * Checks that the test's sandboxes left no container or network, the cache hand-over containers
+   * included: everything a sandbox creates carries the owner label, and the sandbox waits for each
+   * create to finish, even when interrupted or timed out, so nothing appears after the build ends.
+   */
   @AfterEach
   void nothingLeftRunning() {
     assertThat(

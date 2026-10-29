@@ -468,7 +468,7 @@ public class BuildSandbox {
       }
       List<String> handover =
           labelled(
-              List.of("run", "--name", cacheOwner),
+              List.of("create", "--name", cacheOwner),
               List.of(
                   "--network",
                   "none",
@@ -511,7 +511,9 @@ public class BuildSandbox {
                   user[0],
                   user[1]));
       try {
-        Docker.Result result = docker.run(settings.timeout(), handover);
+        docker.create(DOCKER_TIMEOUT, handover);
+        Docker.Result result =
+            docker.run(settings.timeout(), List.of("start", "--attach", cacheOwner));
         if (!result.ok() || !result.err().isBlank()) {
           log.note("could not hand the Maven cache to the build user: " + result.err());
         }
@@ -545,7 +547,7 @@ public class BuildSandbox {
      * problem of the host, not of the build.
      */
     private void startMonitor() {
-      docker.check(
+      docker.create(
           DOCKER_TIMEOUT,
           labelled(
               List.of("run", "--detach", "--name", monitor),
@@ -593,9 +595,9 @@ public class BuildSandbox {
         Files.copy(in, target);
       }
       permit(proxyDir, false);
-      docker.check(
+      docker.create(
           DOCKER_TIMEOUT, labelled(List.of("network", "create", "--internal"), List.of(network)));
-      docker.check(
+      docker.create(
           DOCKER_TIMEOUT,
           labelled(
               List.of("create", "--name", proxy),
@@ -710,7 +712,7 @@ public class BuildSandbox {
                       entrypoint,
                       image)));
       args.addAll(command);
-      docker.check(DOCKER_TIMEOUT, args);
+      docker.create(DOCKER_TIMEOUT, args);
       copyIn(name);
       permit(lantern, false);
       docker.check(COPY_TIMEOUT, List.of("cp", lantern.toString(), name + ":/lantern"));

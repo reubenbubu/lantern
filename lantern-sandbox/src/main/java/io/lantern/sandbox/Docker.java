@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -74,6 +75,33 @@ final class Docker {
               + result.exitCode()
               + "): "
               + result.err());
+    }
+    return result;
+  }
+
+  /**
+   * Runs {@code docker args...} that create something, such as a container or a network, and fails
+   * unless it exits with 0. An interrupt does not stop the command: it is waited for, so what it
+   * creates exists when this returns and cleanup can remove it by name. Killing it instead would
+   * leave the daemon to finish creating it after cleanup ran. Fails afterwards, with the interrupt
+   * flag still set, if the thread was interrupted.
+   */
+  Result create(Duration timeout, List<String> args) {
+    Result result;
+    try {
+      // Runs on its own thread, which the caller's interrupt does not reach; join waits for it
+      // without being interrupted.
+      result =
+          CompletableFuture.supplyAsync(() -> check(timeout, args), Thread.ofVirtual()::start)
+              .join();
+    } catch (CompletionException e) {
+      if (e.getCause() instanceof RuntimeException cause) {
+        throw cause;
+      }
+      throw e;
+    }
+    if (Thread.currentThread().isInterrupted()) {
+      throw new SandboxException("Interrupted while running docker " + args);
     }
     return result;
   }
