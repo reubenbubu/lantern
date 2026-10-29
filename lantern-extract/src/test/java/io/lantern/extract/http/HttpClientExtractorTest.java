@@ -73,6 +73,8 @@ class HttpClientExtractorTest {
         .doesNotContain("s3cret")
         .doesNotContain("pa55word")
         .doesNotContain("abc123");
+    // A fluent request made but not executed where it is made is not a call there.
+    assertThat(rendered).doesNotContain("drafts:8080");
     // A base URL's unfollowed parts are listed only where the base is part of the URL: not for a
     // method whose own URL is a whole URL.
     assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#quote(")))

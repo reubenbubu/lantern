@@ -5,6 +5,7 @@ import com.example.shop.clients.exchange.LedgerApi;
 import com.example.shop.clients.exchange.PricesApi;
 import com.example.shop.clients.exchange.QuotesApi;
 import com.example.shop.clients.exchange.ShippingApi;
+import com.example.shop.clients.exchange.StockApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
@@ -58,8 +59,25 @@ public class HttpInterfaces {
   }
 
   @Bean
+  HttpServiceProxyFactory inventoryFactory(
+      RestClient.Builder builder, @Value("${clients.inventory.url}") String inventoryUrl) {
+    RestClient restClient = builder.baseUrl(inventoryUrl).build();
+    return HttpServiceProxyFactory.builderFor(RestClientAdapter.create(restClient)).build();
+  }
+
+  @Bean
   InventoryApi inventoryApi(HttpServiceProxyFactory factory) {
     return factory.createClient(InventoryApi.class);
+  }
+
+  @Bean
+  RestClientAdapter stockAdapter(RestClient.Builder builder) {
+    return RestClientAdapter.create(builder.baseUrl("http://stock:8080/api").build());
+  }
+
+  @Bean
+  StockApi stockApi(RestClientAdapter stockAdapter) {
+    return HttpServiceProxyFactory.builderFor(stockAdapter).build().createClient(StockApi.class);
   }
 
   private static String region() {

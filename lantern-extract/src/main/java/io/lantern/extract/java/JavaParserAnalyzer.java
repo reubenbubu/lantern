@@ -58,6 +58,7 @@ import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.stmt.ForEachStmt;
 import com.github.javaparser.ast.stmt.ForStmt;
+import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.stmt.Statement;
 import com.github.javaparser.ast.stmt.SwitchEntry;
 import com.github.javaparser.ast.stmt.TryStmt;
@@ -66,6 +67,7 @@ import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.PrimitiveType;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.type.TypeParameter;
+import com.github.javaparser.ast.type.UnknownType;
 import com.github.javaparser.resolution.TypeSolver;
 import com.github.javaparser.resolution.declarations.AssociableToAST;
 import com.github.javaparser.resolution.declarations.ResolvedMethodLikeDeclaration;
@@ -981,7 +983,10 @@ final class JavaParserAnalyzer {
           String type, FieldDeclaration declaration, VariableDeclarator declarator, Type fieldType)
           implements Binding {}
 
-      /** Something else in scope, not followed: a lambda or catch parameter, a loop variable. */
+      /** A lambda's parameter, not followed; its type is known only in some cases. */
+      record LambdaParam(LambdaExpr lambda, int index) implements Binding {}
+
+      /** Something else in scope, not followed: a catch parameter, a loop variable. */
       record Other() implements Binding {}
     }
 
@@ -1022,8 +1027,11 @@ final class JavaParserAnalyzer {
             }
           }
           case LambdaExpr lambda -> {
-            if (lambda.getParameters().stream().anyMatch(x -> x.getNameAsString().equals(name))) {
-              return new Binding.Other();
+            NodeList<Parameter> parameters = lambda.getParameters();
+            for (int i = 0; i < parameters.size(); i++) {
+              if (parameters.get(i).getNameAsString().equals(name)) {
+                return new Binding.LambdaParam(lambda, i);
+              }
             }
           }
           case CatchClause c -> {
@@ -1251,6 +1259,9 @@ final class JavaParserAnalyzer {
         case Binding.Field field -> {
           return field(field, n);
         }
+        case Binding.LambdaParam lambda -> {
+          return unknown(n);
+        }
         case Binding.Other other -> {
           return unknown(n);
         }
@@ -1313,6 +1324,10 @@ final class JavaParserAnalyzer {
       if (constant != null) {
         return new Expression.Literal(String.valueOf(constant));
       }
+      if (isPackageName(f.getScope()) && Character.isUpperCase(name.charAt(0))) {
+        // A type named in full, a static call's receiver: org.apache.http.client.fluent.Request
+        return new Expression.TypeRef(f.toString());
+      }
       if (!isTypeName(f.getScope())) {
         return unknown(f);
       }
@@ -1341,6 +1356,18 @@ final class JavaParserAnalyzer {
         case FieldAccessExpr f ->
             isPackageOrTypeName(f.getScope())
                 && Character.isUpperCase(f.getNameAsString().charAt(0));
+        default -> false;
+      };
+    }
+
+    /** Whether an expression names a package: lower-case names, no variable in scope by one. */
+    private boolean isPackageName(Node scope) {
+      return switch (scope) {
+        case NameExpr n ->
+            bind(n, n.getNameAsString()) == null
+                && Character.isLowerCase(n.getNameAsString().charAt(0));
+        case FieldAccessExpr f ->
+            isPackageName(f.getScope()) && Character.isLowerCase(f.getNameAsString().charAt(0));
         default -> false;
       };
     }
@@ -1414,6 +1441,9 @@ final class JavaParserAnalyzer {
             if (binding instanceof Binding.Other) {
               return null;
             }
+            if (binding instanceof Binding.LambdaParam lambda) {
+              return lambdaParameterType(lambda.lambda(), lambda.index());
+            }
             if (binding != null) {
               return declaredType(binding, name);
             }
@@ -1435,6 +1465,103 @@ final class JavaParserAnalyzer {
           }
         }
       }
+    }
+
+    /**
+     * The type of a lambda's parameter, as javac infers it: its type if written, else, for the
+     * lambdas of the tracked APIs whose functional types {@link TrackedApis} names, the type it
+     * gives; null if parsing cannot tell.
+     */
+    private String lambdaParameterType(LambdaExpr lambda, int index) {
+      Parameter parameter = lambda.getParameters().get(index);
+      if (!(parameter.getType() instanceof UnknownType)) {
+        return describe(parameter.getType(), parameter);
+      }
+      Node parent = lambda.getParentNode().orElse(null);
+      if (parent instanceof MethodCallExpr call && call.getArguments().contains(lambda)) {
+        // groups.forEachClient((group, builder) -> ...): the receiver's type, and its type argument
+        // for a parameter of the receiver's generic type.
+        String receiver = call.getScope().map(this::rootType).orElse(null);
+        List<String> types =
+            TrackedApis.lambdaParameters(
+                receiver, call.getNameAsString(), lambda.getParameters().size());
+        String type = index < types.size() ? types.get(index) : null;
+        if (TrackedApis.TYPE_ARGUMENT.equals(type)) {
+          return call.getScope().map(this::typeArgument).orElse(null);
+        }
+        return type;
+      }
+      String functional = functionalType(lambda);
+      List<String> types = TrackedApis.lambdaParameters(functional);
+      return index < types.size() ? types.get(index) : null;
+    }
+
+    /**
+     * The functional type a lambda is written for, from where it is written: the return type of the
+     * method it is returned from, the type of the variable it initializes, or a cast.
+     */
+    private String functionalType(LambdaExpr lambda) {
+      Node parent = lambda.getParentNode().orElse(null);
+      Type type = null;
+      if (parent instanceof ReturnStmt) {
+        for (Node p = parent.getParentNode().orElse(null);
+            p != null && !(p instanceof LambdaExpr);
+            p = p.getParentNode().orElse(null)) {
+          if (p instanceof MethodDeclaration method) {
+            type = method.getType();
+            break;
+          }
+          if (p instanceof CallableDeclaration<?> || p instanceof TypeDeclaration<?>) {
+            break;
+          }
+        }
+      } else if (parent instanceof VariableDeclarator v) {
+        type = v.getType();
+      } else if (parent instanceof CastExpr cast) {
+        type = cast.getType();
+      }
+      return type == null || type.isVarType() ? null : describe(type, lambda);
+    }
+
+    /**
+     * The first type argument of the type of what the innermost call of a chain is made on, when it
+     * is a parameter written with one ({@code Groups<RestClient.Builder> groups}) or a lambda's
+     * parameter whose functional type {@link TrackedApis} names it for.
+     */
+    private String typeArgument(Node e) {
+      Node n = e;
+      while (n instanceof MethodCallExpr call && call.getScope().isPresent()) {
+        n = call.getScope().get();
+      }
+      if (!(n instanceof NameExpr name)) {
+        return null;
+      }
+      Binding binding = bind(name, name.getNameAsString());
+      Type type =
+          switch (binding) {
+            case Binding.Param param -> param.type();
+            case Binding.Local local -> local.declarator().getType();
+            case Binding.Field field -> field.fieldType();
+            case Binding.LambdaParam lambda -> {
+              Parameter p = lambda.lambda().getParameters().get(lambda.index());
+              if (p.getType() instanceof UnknownType) {
+                yield null;
+              }
+              yield p.getType();
+            }
+            case null, default -> null;
+          };
+      if (type == null) {
+        return binding instanceof Binding.LambdaParam lambda
+            ? TrackedApis.typeArgument(functionalType(lambda.lambda()))
+            : null;
+      }
+      if (type instanceof ClassOrInterfaceType c
+          && c.getTypeArguments().isPresent()
+          && !c.getTypeArguments().get().isEmpty()) {
+        return describe(c.getTypeArguments().get().get(0), e);
+      }
+      return null;
     }
 
     /** An expression not followed, with its source text. */

@@ -1,3 +1,8 @@
+spring:
+  http:
+    serviceclient:
+      orders:
+        base-url: http://localhost:8084
 clients:
   payments:
     url: http://localhost:8082

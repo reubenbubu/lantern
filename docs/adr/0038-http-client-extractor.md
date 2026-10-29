@@ -1,6 +1,6 @@
 # 0038: HTTP client extractor
 
-Status: accepted (#128, part of #92; extended by #145), pending the user's review (#24)
+Status: accepted (#128, part of #92; extended by #145 and #149), pending the user's review (#24)
 
 ## Context
 
@@ -24,7 +24,8 @@ without what must not be.
     annotations (none for a record's constructors or implicit members, which parsing cannot see);
   - the chains of calls on a tracked API (`TrackedApis`: Spring's `web.client`, Boot's
     `RestTemplateBuilder`, WebClient, the Jakarta and javax REST client packages, Spring's
-    `web.service` (HTTP interface proxies), `java.net.http`, OkHttp and Apache HttpClient 4 and 5),
+    `web.service` (HTTP interface proxies and groups), `java.net.http`, OkHttp and Apache HttpClient
+    4 and 5, with their fluent APIs),
     a chain being a call that is not itself what another call is made on and whose innermost
     receiver has a tracked type, read as an `Expression`;
   - the values given to `String` fields and fields of a tracked type: their initializers (unless
@@ -36,7 +37,12 @@ without what must not be.
   (`FieldRef`), the enclosing method's parameters (`Param`), types (`TypeRef`, also for a class
   literal, `Foo.class`) and calls (`Invoke`); anything else, a lambda for one, is `Unknown` with
   its source. Only these APIs are recorded, so the analysis stays small; another extractor adds
-  its packages to `TrackedApis`.
+  its packages to `TrackedApis`. A chain on a lambda's parameter counts as javac infers the
+  parameter's type (#149); parsing takes it as written, else from `TrackedApis`, which names the
+  parameters of the group configurers' lambdas (`groups -> groups.filterByName("a")
+  .forEachClient((group, builder) -> ...)`, the client builder being the configurer's, or the type
+  argument of a `Groups<RestClient.Builder>` parameter); parsing also reads a type named in full
+  (`org.apache.http.client.fluent.Request.Get(url)`) as a type, as javac does.
 - **Following a value one hop.** A URL part that is a `@Value` field or parameter is its
   placeholder (`${clients.payments.url}`); a field given one value in its constructor, a `@Value`
   parameter or a constant, is that value; a client held in a field is the chain that built it
@@ -68,6 +74,25 @@ without what must not be.
   the config of the module that makes the proxy; a call per distinct base URL, and none (the path
   alone) when no proxy is found or its client comes from elsewhere. A URL that is a whole URL
   itself stands alone, as Spring sends it, without the base's `expressions`.
+- **Beans made in another method** (#149): a proxy factory (or its builder) or an adapter that the
+  code making the proxy takes as a parameter or field, rather than making it, is the bean of its
+  type that a method of the same repository's code returns (by its declared return type; an
+  `HttpExchangeAdapter` matches any adapter): the only one, else the one whose method is named as
+  the parameter or field, as Spring picks it; none if several match otherwise. Its base URL is read
+  from that method's code as above, so the chain may run through a factory bean to an adapter
+  bean. A client (`RestClient`, `RestTemplate`) injected into an adapter still gives no base URL.
+- **HTTP service groups** (#149, Spring Framework 7): `@ImportHttpServices` on a type (repeatable)
+  puts into its `group` (`default` if none) the HTTP interfaces in `value` or `types`, and those
+  in `basePackages` or the packages of `basePackageClasses` (and sub-packages), across all
+  analyzed repositories, as Spring does; without either it imports none. The group's base URL is
+  the one the group configurers of the same repository's code set: a chain on the configurer's
+  `Groups`, `filterByName("a", ...)` with constant names or nothing (all groups), then
+  `forEachClient` or `forEachGroup` with a lambda that calls `baseUrl(url)` on the client builder,
+  the URL followed as above. Configurers naming the group win over those for all groups, as a
+  configurer runs after Spring Boot's properties, a call per distinct base URL; one with another
+  filter (`filter(predicate)`) is not read. Without a configurer it is Spring Boot 4's property
+  `${spring.http.serviceclient.<group>.base-url}` (Boot's `HttpServiceClientProperties`),
+  resolved in the config of the module of the importing type, and left as written if unset.
 - **Request objects** (#145): `java.net.http` (`HttpRequest.newBuilder(uri)` or `.uri(uri)`, then
   `GET()`, `POST(...)` or `method(...)`), OkHttp (`new Request.Builder().url(...)`, then `get()`,
   `post(...)` or `method(...)`) and Apache HttpClient (`new HttpGet(uri)` and the other request
@@ -78,7 +103,11 @@ without what must not be.
   where it is made: the chain must end in `build()` (or be the constructor or `create` call alone),
   so one kept in a variable before it is finished counts once. An HTTP method not said is `GET`, as
   the builders default, except for Apache's builders, which always say. Where the request is sent is
-  not read: the method that builds it is the one recorded as calling.
+  not read: the method that builds it is the one recorded as calling. Apache's fluent API (#149),
+  4 (`Request.Get(uri)` and the like) and 5 (`Request.get(uri)` and the like, or
+  `Request.create(method, uri)`), is the exception: a fluent request is recorded where it is
+  executed, a chain from the factory call through `execute()`, or `executor.execute(request)`, so
+  one kept in a variable counts once and one only made is not a call.
 - **Facts**, attributes with a string object unless said, evidence the call (an imperative client)
   or the mapping (a declarative one), in the module that declares it:
   - `http-call` on the method sending the request (the type for code outside methods; the nearest
@@ -101,7 +130,8 @@ without what must not be.
     `clients`, else those in `value`, `basePackages` or the packages of `basePackageClasses`, else
     in its own package (and sub-packages), across all analyzed repositories, with `annotation`;
     and from a type whose code makes an HTTP interface's proxy to that interface, with `member`
-    (the method, constructor or type whose code calls `createClient`) instead.
+    (the method, constructor or type whose code calls `createClient`) instead; and from a type
+    with `@ImportHttpServices` to each HTTP interface it imports, with `annotation`.
   - `INJECTS` from a type to a client interface it takes as a field or constructor parameter,
     with `member`, one fact per member.
 
@@ -117,9 +147,12 @@ without what must not be.
 - **New vocabulary**, applied by the app on startup after the other extractors', with source
   `http-client-extractor`: the attribute types `http-call` and `http-client` and the relationship
   types `ENABLES` and `INJECTS`.
-- **Not covered:** HTTP interface groups (`@ImportHttpServices` and their configured base URLs), a
-  proxy factory or adapter made in another method (a `HttpServiceProxyFactory` bean), Apache's
-  fluent API (`Request.get(url).execute()`), a builder changed by separate statements
+- **Not covered:** groups registered in code (an `AbstractHttpServiceRegistrar`), a group
+  configurer whose `baseUrl` is not in its lambda (a method reference, a helper method), a
+  lambda's parameter typed by a generic method's inference other than the configurers', or a
+  nested type inherited from a supertype and written by its simple name (`Groups` in a class
+  implementing a configurer) (both when parsed),
+  a bean picked by `@Qualifier` or `@Primary`, a builder changed by separate statements
   (`builder.uri(uri); builder.GET();`), a URL built across methods or from several fields' values, a
   `RestTemplate` bean's `rootUri` set in another class, and Kotlin.
 - **project-0.** `Project0HttpIT` checks the cases HTTP-1 to HTTP-5, VAL-1, VAL-2, VAL-5 and the
