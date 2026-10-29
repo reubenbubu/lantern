@@ -67,6 +67,7 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
@@ -100,6 +101,9 @@ final class JavacAnalyzer {
 
   /** The element a single annotation value is written for. */
   private static final String VALUE = "value";
+
+  /** How deep a constant expression is folded, against pathological code. */
+  private static final int MAX_CONSTANT_DEPTH = 16;
 
   private JavacAnalyzer() {}
 
@@ -234,7 +238,12 @@ final class JavacAnalyzer {
         if (!IMPLICIT_SUPERCLASSES.contains(name)) {
           Tree clause = tree == null ? null : tree.getExtendsClause();
           supertypes.add(
-              new Supertype(BuiltInTypes.EXTENDS, name, clauseLocation(type, clause, where, file)));
+              new Supertype(
+                  BuiltInTypes.EXTENDS,
+                  name,
+                  clauseLocation(type, clause, where, file),
+                  typeArguments(superclass),
+                  typeVariables(type, superclass)));
         }
       }
       List<? extends Tree> clauses = tree == null ? List.of() : tree.getImplementsClause();
@@ -249,7 +258,9 @@ final class JavacAnalyzer {
             new Supertype(
                 isInterface ? BuiltInTypes.EXTENDS : BuiltInTypes.IMPLEMENTS,
                 name,
-                clauseLocation(type, clause, where, file)));
+                clauseLocation(type, clause, where, file),
+                typeArguments(interfaces.get(i)),
+                typeVariables(type, interfaces.get(i))));
       }
       List<Member> members = new ArrayList<>();
       List<TypeElement> nested = new ArrayList<>();
@@ -520,6 +531,34 @@ final class JavacAnalyzer {
       return ModuleStructure.methodId(binaryName(owner), name, parameters);
     }
 
+    /** The erasures of a declared supertype's type arguments, as {@link #describe} names them. */
+    private List<String> typeArguments(TypeMirror supertype) {
+      List<String> arguments = new ArrayList<>();
+      for (TypeMirror argument : ((DeclaredType) supertype).getTypeArguments()) {
+        arguments.add(describe(argument));
+      }
+      return arguments;
+    }
+
+    /**
+     * For each type argument of a supertype, the index of the type's own parameter it is, or -1.
+     */
+    private List<Integer> typeVariables(TypeElement type, TypeMirror supertype) {
+      List<Integer> indexes = new ArrayList<>();
+      for (TypeMirror argument : ((DeclaredType) supertype).getTypeArguments()) {
+        int index = -1;
+        if (argument.getKind() == TypeKind.TYPEVAR) {
+          index = type.getTypeParameters().indexOf(((TypeVariable) argument).asElement());
+          if (index < 0) {
+            // A type variable of an enclosing type or method: not one of the type's own.
+            index = Integer.MAX_VALUE;
+          }
+        }
+        indexes.add(index);
+      }
+      return indexes;
+    }
+
     /** A type's erasure as it appears in a member ID: binary names, arrays with {@code []}. */
     private String describe(TypeMirror type) {
       TypeMirror erased = types.erasure(type);
@@ -574,7 +613,7 @@ final class JavacAnalyzer {
           // The line of the method's name, which in a chain of calls is not the chain's first.
           long name = end(unit, node.getMethodSelect());
           long start = name > 0 ? name - 1 : positions.getStartPosition(unit, node);
-          call(start, end(unit, node));
+          call(start, end(unit, node), node.getArguments());
           invocation(getCurrentPath());
         }
         return super.visitMethodInvocation(node, unused);
@@ -585,7 +624,7 @@ final class JavacAnalyzer {
         // An anonymous class is not an entity; calls in its body count for the enclosing code.
         // An enum constant's creation is not written as a call, and parsing does not see one.
         if (node.getClassBody() == null && !isEnumConstant(getCurrentPath().getParentPath())) {
-          call(positions.getStartPosition(unit, node), end(unit, node));
+          call(positions.getStartPosition(unit, node), end(unit, node), node.getArguments());
           invocation(getCurrentPath());
         }
         return super.visitNewClass(node, unused);
@@ -827,11 +866,11 @@ final class JavacAnalyzer {
 
       @Override
       public Void visitMemberReference(MemberReferenceTree node, Void unused) {
-        call(positions.getStartPosition(unit, node), end(unit, node));
+        call(positions.getStartPosition(unit, node), end(unit, node), List.of());
         return super.visitMemberReference(node, unused);
       }
 
-      private void call(long start, long end) {
+      private void call(long start, long end, List<? extends ExpressionTree> arguments) {
         TreePath path = getCurrentPath();
         if (!(trees.getElement(path) instanceof ExecutableElement callee)
             || !(callee.getEnclosingElement() instanceof TypeElement declaring)
@@ -841,8 +880,46 @@ final class JavacAnalyzer {
         EntityId caller = owner(path);
         EntityId target = methodId(callee);
         if (caller != null && target != null) {
-          structure.calls.add(new Call(caller, target, lines(unit, file, start, end, null)));
+          List<String> constants = new ArrayList<>();
+          for (int i = 0; i < arguments.size(); i++) {
+            constants.add(
+                ModuleStructure.stringParameter(target, i)
+                        && constant(new TreePath(path, arguments.get(i)), 0) instanceof String s
+                    ? s
+                    : null);
+          }
+          structure.calls.add(
+              new Call(caller, target, lines(unit, file, start, end, null), constants));
         }
+      }
+
+      /**
+       * Folds a constant expression as javac does for the parts that make strings: literals,
+       * parentheses, casts, {@code +} and constant variables. Returns null if it is not one.
+       */
+      private Object constant(TreePath path, int depth) {
+        if (depth > MAX_CONSTANT_DEPTH) {
+          return null;
+        }
+        return switch (path.getLeaf()) {
+          case LiteralTree literal -> literal.getValue();
+          case ParenthesizedTree p -> constant(new TreePath(path, p.getExpression()), depth + 1);
+          case TypeCastTree cast -> constant(new TreePath(path, cast.getExpression()), depth + 1);
+          case BinaryTree b when b.getKind() == Tree.Kind.PLUS -> {
+            Object left = constant(new TreePath(path, b.getLeftOperand()), depth + 1);
+            Object right = constant(new TreePath(path, b.getRightOperand()), depth + 1);
+            yield left instanceof String || right instanceof String
+                ? left == null || right == null ? null : String.valueOf(left) + right
+                : null;
+          }
+          case IdentifierTree id -> variableConstant(path);
+          case MemberSelectTree select -> variableConstant(path);
+          default -> null;
+        };
+      }
+
+      private Object variableConstant(TreePath path) {
+        return trees.getElement(path) instanceof VariableElement v ? v.getConstantValue() : null;
       }
 
       private boolean isEnumConstant(TreePath path) {
