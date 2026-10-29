@@ -14,6 +14,7 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import java.util.ArrayList;
 import java.util.List;
@@ -652,7 +653,10 @@ class ClaimChecksTest {
     Fact post = endpoint("orders", "orders", "POST", "/orders");
     endpoint("orders", "orders", "GET", "/health-checks");
     claim("orders", "README.md", "It exposes `GET /orders/{id}` and `POST /orders`.");
-    claim("orders", "README.md", "Behind the gateway it serves `GET /shop/api/orders/42`.");
+    claim("orders", "README.md", "It serves `GET /shop/api/orders/42` behind the gateway.");
+    claim("orders", "README.md", "It exposes its REST API under /api.");
+    claim("orders", "README.md", "It exposes a REST API and writes reports to /reports.");
+    claim("orders", "README.md", "Our mobile app exposes `GET /app-only`.");
     claim("orders", "README.md", "It exposes `DELETE /orders/{id}` and the endpoint `/refunds`.");
     claim("orders", "README.md", "It serves files from /data.");
     claim("orders", "README.md", "It exposes /actuator/health.");
@@ -711,6 +715,12 @@ class ClaimChecksTest {
     claim("orders", "README.md", "It sends paid orders to the payments.orders queue.");
     claim("orders", "README.md", "It publishes an `order.created` event to RabbitMQ.");
     claim("orders", "README.md", "It sends failures to the dead-letter queue.");
+    claim("orders", "README.md", "It publishes to a fan-out exchange.");
+    claim("orders", "README.md", "It publishes to a topic e.g. orders.created.");
+    claim(
+        "orders",
+        "README.md",
+        "It consumes payment events and publishes to the shop.orders exchange.");
     claim("orders", "README.md", "It consumes from the shipments.ready queue.");
     claim("orders", "README.md", "It publishes order events to the Kafka topic orders.placed.");
 
@@ -819,6 +829,10 @@ class ClaimChecksTest {
     claim("orders", "README.md", "All communication with other services is asynchronous.");
     claim("orders", "README.md", "It talks to other services only through Kafka events.");
     claim("orders", "README.md", "It only communicates with catalog through events.");
+    claim(
+        "orders", "README.md", "It only talks to Stripe over REST and publishes events to Kafka.");
+    claim("orders", "README.md", "Catalog calls billing. It only communicates asynchronously.");
+    claim("orders", "README.md", "Consumers only communicate with it through Kafka events.");
     claim("orders", "README.md", "It does not only communicate asynchronously.");
     claim("orders", "README.md", "Orders is event-driven.");
 
@@ -827,5 +841,114 @@ class ClaimChecksTest {
             ClaimChecks.SYNCHRONOUS_CALLS,
             ClaimChecks.SYNCHRONOUS_CALLS,
             ClaimChecks.SYNCHRONOUS_CALLS);
+  }
+
+  @Test
+  void portsAreReadOnlyWithTheUnitsAsSubjectAndNotForHostMappings() {
+    service("orders", "orders");
+    service("billing", "billing");
+    config("orders", "orders", "application.yml", "server.port", "8080");
+    claim("orders", "README.md", "The HTTP port is 8081.");
+    claim("orders", "README.md", "server.port=8082");
+    claim("orders", "README.md", "The service is available on port 8083.");
+    claim("orders", "README.md", "Billing charges orders. It listens on port 8084.");
+    claim("orders", "README.md", "When it fails, the watchdog runs on port 8085.");
+
+    assertThat(checks()).containsExactlyInAnyOrder("port port 8081", "port port 8082");
+  }
+
+  @Test
+  void anEndpointClaimNeedsEveryUnitOfTheReadmeToHaveEndpoints() {
+    service("shop", "orders");
+    service("shop", "billing");
+    endpoint("shop", "orders", "GET", "/orders");
+    claim("shop", "README.md", "It exposes `GET /invoices`.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void consumedDestinationsAreComparedWithListenersRoutesAndPatterns() {
+    service("orders", "orders");
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.CONSUMES,
+        "queue:rabbitmq:orders.inbox",
+        "{\"protocol\":\"AMQP\"}",
+        1.0);
+    add(
+        Origin.Kind.STATIC,
+        CrossRepoLinks.NAME,
+        "exchange:rabbitmq:shop.payments",
+        CrossRepoLinks.ROUTES_TO,
+        FactObject.entity(EntityId.parse("queue:rabbitmq:orders.inbox")),
+        "{\"protocol\":\"AMQP\"}",
+        "payments",
+        "src/main/java/g/Config.java",
+        1.0);
+    endpoint("orders", "orders", "GET", "/orders");
+    add(
+        Origin.Kind.STATIC,
+        MessagingExtractor.NAME,
+        "method:g.orders.Controller#listen()",
+        MessagingExtractor.LISTENER,
+        FactObject.string("payments\\..*"),
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic-pattern\"}",
+        "orders",
+        "src/main/java/g/Controller.java",
+        1.0);
+    claim("orders", "README.md", "It consumes from the shop.payments exchange.");
+    claim("orders", "README.md", "It listens on the payments.settled topic.");
+    claim("orders", "README.md", "It reads from queue shipments.ready.");
+
+    assertThat(checks()).containsExactly("destination shipments.ready");
+  }
+
+  @Test
+  void aMaskedSendLeavesDestinationsAlone() {
+    service("orders", "orders");
+    link(
+        "orders",
+        "orders",
+        CrossRepoLinks.PUBLISHES,
+        "topic:kafka:orders.created",
+        "{\"protocol\":\"Kafka\"}",
+        1.0);
+    endpoint("orders", "orders", "GET", "/orders");
+    add(
+        Origin.Kind.STATIC,
+        MessagingExtractor.NAME,
+        "method:g.orders.Controller#send()",
+        MessagingExtractor.SEND,
+        FactObject.string("${secret.topic}"),
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\",\"masked\":true}",
+        "orders",
+        "src/main/java/g/Controller.java",
+        1.0);
+    claim("orders", "README.md", "It publishes to the orders.placed topic.");
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void namedServiceListsAndQualifiedCallsAreReadPlainlyOrNotAtAll() {
+    service("orders", "orders");
+    service("billing", "billing");
+    service("catalog", "catalog");
+    service("search-a", "search");
+    service("search-b", "search-service");
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:catalog", null, 1.0);
+    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:search", null, 1.0);
+    claim("orders", "README.md", "It never calls billing or catalog.");
+    claim("orders", "README.md", "It never calls billing or PayGate.");
+    claim("orders", "README.md", "It never calls search.");
+    claim("orders", "README.md", "It calls search-service via RabbitMQ.");
+    claim("orders", "README.md", "It calls search-service asynchronously.");
+    claim("orders", "README.md", "It only calls billing when an order is paid.");
+    claim("orders", "README.md", "It only calls billing for invoices and catalog for prices.");
+
+    assertThat(checks()).containsExactly("named-services no calls to billing; no calls to catalog");
   }
 }

@@ -83,9 +83,10 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
 
 ## Amendment (#160): ports, endpoints, destinations, named services and "only asynchronous"
 
-- **The subject.** The new checks read a sentence only when what stands before its verb is
+- **The subject.** The new checks read a sentence only when all that stands before its verb is
   nothing (a list item), "it", "this service" (or "the service", "the application", "we", ...)
-  or one of the README's units by name, and names no other unit. A unit's names are its artifact
+  or one of the README's units by name ("orders", "the orders service"), with at most words such
+  as "also" or "is" after it; "our mobile app" or "when it fails, the watchdog" is not read. A unit's names are its artifact
   ID and application names, lowercase, each also without a `-service`, `-app`, `-svc` or `-api`
   ending; a name two units share is no one's. A sentence with "it" as its subject after one in
   the same claim that names another unit is about that unit and is not read. Sentences about tests,
@@ -94,7 +95,9 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
   now 2):
   - `port`: "runs on port 8081", "listens on port 8080", "the HTTP port is 8081",
     "server.port=8081"; exactly one port in the claim, and not in a sentence about another port
-    (database, broker, management, debug, a proxy or gateway, HTTPS, `localhost`, ...).
+    (database, broker, management, debug, a proxy or gateway, HTTPS, `localhost`, ...). "Available",
+    "exposed" or "reachable on port" is not read: it is usually a compose or Kubernetes mapping,
+    and deploy-time overrides are not known (ADR 0042).
     Contradicted when every unit sets `server.port` to a number in every view (ADR 0042's config
     lookup) and none is the stated one; a unit that leaves it unset, or sets it from a placeholder
     or a secret, means the port is not known. Found: the ports set; contradicted by those
@@ -102,18 +105,24 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
   - `endpoint`: "exposes `GET /orders/{id}`", "provides the endpoint `/refunds`": a path after a
     verb such as exposes, serves, provides, offers or handles, read only with its HTTP method or
     after words about endpoints (endpoint, API, route, resource, path, request), so "serves files
-    from /data" is not read; framework and file paths (`/actuator`, `/swagger-ui`, `/h2-console`,
-    `/error`, `/health`, `/var`, ...) are left alone. Contradicted when the units' endpoints are
-    known (at least one, each with a path) and none serves the path with the method: with or
-    without the unit's context and servlet paths in any view, or behind leading segments the
-    README adds (a gateway's prefix); variables match any segment. Contradicted by the endpoints
+    from /data" is not read; the paths end with the clause (a semicolon or colon, "which", or
+    "and" before another verb, so "exposes an API and writes reports to /reports" reads none);
+    framework and file paths (`/actuator`, `/swagger-ui`, `/h2-console`, `/error`, `/health`,
+    `/var`, ...) are left alone. Contradicted when the units' endpoints are known (every unit the
+    README speaks for has at least one controller endpoint, each with a path; Spring Data REST and
+    functional routes are not extracted, so a unit without controller endpoints means nothing is
+    known) and none serves the path with the method: with or without the unit's context and
+    servlet paths in any view, behind leading segments the README adds (a gateway's prefix), or as
+    a base the endpoint's path starts with ("a REST API under /api"); variables match any segment. Contradicted by the endpoints
     sharing the most leading segments with the path stated, or all of them when none does.
   - `destination`: "publishes to the `orders.created` topic", "consumes from queue
     `shipments.ready`", "the RabbitMQ topic exchange `shop.orders`": a topic, queue or exchange
     named after a verb of sending (publish, send, emit, produce, write, put) or receiving (consume,
-    listen, subscribe, read, receive) in the same clause. Only names with a dot, dash or
-    underscore are read, since a plain word ("the orders topic") may describe a destination rather
-    than name it, and names of a role (`dead-letter`, `retry`, `reply`, ...) are not. An event's
+    listen, subscribe, read, receive), up to the end of the clause, "and" or the next such verb.
+    Only names with a dot, dash or underscore are read after the word ("topic orders-created"),
+    and only with a dot or underscore before it ("the orders.created topic", not "a fan-out
+    exchange"), since a plain word ("the orders topic") may describe a destination rather than name
+    it; names of a role (`dead-letter`, `retry`, `reply`, ...) are not read. An event's
     name ("publishes an `order.created` event") is not a destination. Contradicted when the units
     publish (or consume) somewhere, no send or listener of theirs is unknown (an `unresolved-link`
     of kind `message`, or a masked one or one of a broker the linker does not know), and the name
@@ -124,7 +133,11 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
   - `named-services`: "never calls billing", "does not call the catalog service over HTTP" (the
     negated forms `synchronous-calls` reads, with a leading list of unit names in place of "another
     service"): contradicted by the units' `CALLS_HTTP` links to a named unit, in any view. "Calls
-    catalog" or "only calls billing", with the units or "it" as the subject: "calls" is
+    catalog" (or "invokes", "sends requests to") or "only calls billing", with the units or "it"
+    as the subject: read only when nothing follows the names but HTTP as the way ("over HTTP",
+    "directly") or, for "calls", a purpose ("for prices", "to charge orders") without a broker, a
+    gateway, "asynchronously" or a condition; "only" only when the names end the clause, so "only
+    calls billing when an order is paid" is a scope qualifier and not read. "Calls" is
     contradicted when the units make HTTP calls, every one of them linked (no `unresolved-link` of
     kind `http`, so a call the LLM resolver may still link is not taken as missing), and none
     reaches the named unit; "only" also by their calls to any other unit or system. Every name in
@@ -133,12 +146,16 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
     units call.
   - `synchronous-calls` also reads positive phrasings that all communication is asynchronous:
     "only communicates asynchronously", "talks to other services only through Kafka events", "all
-    communication with other services is asynchronous", without a negation before them and naming
-    no unit, with the same contradiction.
+    communication with other services is asynchronous", with the way right after the verb (or after
+    "with other services"), so "only talks to Stripe over REST and publishes events" is not read,
+    and with the subject rule above; the same contradiction.
 - **What stays open** is #221: scope qualifiers, claims in decision records and the LLM's judgment
   of free-text claims, none of which is a fixed reading of words.
 - **Checks.** `ClaimChecksTest` covers each check's contradiction and the claims each leaves
-  alone: another subject, a port under a profile or from a placeholder, file and framework paths,
-  an event's name, a role's name, an unknown send, an unlinked call, a pronoun about another unit,
-  tests. `Project0LinksIT` still finds only DOC-2's contradictions, so none of the new checks
+  alone: another subject, a host mapping, a port under a profile or from a placeholder, file and
+  framework paths, a base path, a path in a later clause, a unit without endpoints, an event's or
+  a role's name, a kind of exchange, a verb of the other direction in the clause, an unknown or
+  masked send, consumed destinations through routes and topic patterns, name lists with a name no
+  unit has or two units share, a call via a broker or with a condition, an unlinked call, a
+  pronoun about another unit, tests. `Project0LinksIT` still finds only DOC-2's contradictions, so none of the new checks
   misreads project-0's READMEs.

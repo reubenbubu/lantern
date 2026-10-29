@@ -45,12 +45,14 @@ final class NamedClaimChecks {
       List.of(
           Pattern.compile(
               "\\b(?:runs?|running|listens?|listening|served|serves|serving|starts?|started"
-                  + "|available|reachable|exposed|accessible|bound|binds|up)\\s+(?:on|at|to)"
+                  + "|bound|binds)\\s+(?:on|at|to)"
                   + "\\s+(?:the\\s+)?(?:http\\s+)?port\\s+(\\d{2,5})\\b"),
           Pattern.compile(
-              "\\b(?:http|server|web|application|service)\\s+port\\s+(?:is\\s+|:\\s*|=\\s*)?"
+              "\\b(?:(?:the|its|their)\\s+)?(?:http|server|web|application|service)\\s+port"
+                  + "\\s+(?:is\\s+|:\\s*|=\\s*)?"
                   + "(\\d{2,5})\\b"),
-          Pattern.compile("\\bserver\\.port\\s*(?:is\\s+|[:=]\\s*)(\\d{2,5})\\b"));
+          Pattern.compile(
+              "\\b(?:(?:the|its|their)\\s+)?server\\.port\\s*(?:is\\s+|[:=]\\s*)(\\d{2,5})\\b"));
 
   /** Sentences that talk about another port than the units' own HTTP one. */
   private static final Pattern OTHER_PORT =
@@ -75,6 +77,16 @@ final class NamedClaimChecks {
           "(?:^|[\\s(\\[\"'])(?:(get|post|put|patch|delete|head|options)\\s+)?"
               + "(/[a-z0-9{}_~*\\-]+(?:[./][a-z0-9{}_~*\\-]+)*/?)(?![\\w/:])");
 
+  /**
+   * Where the paths a verb serves end: at a semicolon or colon, a relative clause, or "and" before
+   * another verb ("exposes an API and writes reports to /reports"), not before another path.
+   */
+  private static final Pattern END_OF_PATHS =
+      Pattern.compile(
+          "[;:]|\\b(?:which|that|while|but|then|where|whereas)\\b"
+              + "|\\band\\s+(?!(?:get|post|put|patch|delete|head|options|the|an?)\\b|/|endpoints?\\b)"
+              + "[a-z]+s\\b");
+
   private static final Pattern ENDPOINT_WORDS =
       Pattern.compile(
           "\\b(endpoints?|apis?|rest-api|routes?|resources?|urls?|paths?|requests?|operations?)\\b");
@@ -98,7 +110,16 @@ final class NamedClaimChecks {
           + "|read|reads|reading|receive|receives|receiving";
 
   private static final Pattern MESSAGING_VERB =
-      Pattern.compile("\\b(" + PUBLISH + "|" + CONSUME + ")\\b([^,;:]*)");
+      Pattern.compile(
+          "\\b("
+              + PUBLISH
+              + "|"
+              + CONSUME
+              + ")\\b((?:(?!\\b(?:and|"
+              + PUBLISH
+              + "|"
+              + CONSUME
+              + ")\\b)[^,;:])*)");
 
   private static final String NAME = "([a-z0-9][a-z0-9_\\-]*(?:\\.[a-z0-9_\\-]+)*)";
 
@@ -114,10 +135,9 @@ final class NamedClaimChecks {
                   + ")?(?:(?:topic|direct|fanout|headers)\\s+)?(?:topic|queue|exchange)\\s+"
                   + "(?:named\\s+|called\\s+)?"
                   + NAME),
+          // Before the word, only a name with a dot or underscore: "a fan-out exchange" is a kind.
           Pattern.compile(
-              "\\b(?:the|a|an)\\s+"
-                  + NAME
-                  + "\\s+(?:"
+              "\\b(?:the|a|an)\\s+([a-z0-9][a-z0-9\\-]*(?:[._][a-z0-9\\-]+)+)\\s+(?:"
                   + BROKER_WORD
                   + ")?(?:topic|queue|exchange)\\b"));
 
@@ -125,7 +145,37 @@ final class NamedClaimChecks {
   private static final Pattern ROLE_NAME =
       Pattern.compile(
           "^(?:dead-letter|deadletter|dead-lettered|retry|reply|reply-to|error|errors|poison"
-              + "|fallback|request-reply|work|default)$");
+              + "|fallback|request-reply|work|default|e\\.g|i\\.e|etc)$");
+
+  // ---------------------------------------------------------------------------------------------
+  // Only asynchronous
+
+  private static final String TALK =
+      "(?:communicates?|communicating|talks?|talking|interacts?|interacting|integrates?"
+          + "|integrating)";
+
+  private static final String OTHERS =
+      "(?:\\s+(?:with|to)\\s+(?:other|the other|all other)\\s+services)?";
+
+  /** The way right after the verb: "asynchronously", "through Kafka events", "via a broker". */
+  private static final String ASYNC_WAY =
+      "\\s+(?:asynchronously|async|(?:through|via|over|by|using)\\s+(?:(?:a|an|the)\\s+)?"
+          + "(?:(?:kafka|rabbitmq|message|domain)\\s+)?(?:events?|messages?|messaging"
+          + "|message brokers?|brokers?|kafka|rabbitmq|queues?|topics?))\\b";
+
+  private static final String ONLY = "(?:only|solely|exclusively|purely|entirely)";
+
+  /** Positive phrasings that every call the units make is asynchronous. */
+  private static final List<Pattern> ONLY_ASYNCHRONOUS =
+      List.of(
+          Pattern.compile("\\b" + ONLY + "\\s+" + TALK + OTHERS + ASYNC_WAY),
+          Pattern.compile("\\b" + TALK + OTHERS + "\\s+" + ONLY + ASYNC_WAY),
+          Pattern.compile(
+              "\\b(?:all|its|their)\\s+(?:communication|integration|interaction)s?\\b"
+                  + OTHERS
+                  + "\\s+(?:is|are)\\s+(?:"
+                  + ONLY
+                  + "\\s+)?(?:asynchronous|async|event-driven|event-based|message-based)\\b"));
 
   // ---------------------------------------------------------------------------------------------
   // Named services
@@ -156,13 +206,42 @@ final class NamedClaimChecks {
   /** A positive call, after the sentence's subject: "calls payments", "only calls catalog". */
   private static final Pattern CALLS =
       Pattern.compile(
-          "^(?:also\\s+)?(only\\s+)?(?:calls|invokes|talks to|sends requests to)\\s+(only\\s+)?(.*)$");
+          "^(?:also\\s+)?(only\\s+)?(?:calls|invokes|sends requests to)\\s+(only\\s+)?(.*)$");
 
-  /** Words that make the README's units the subject of what follows. */
+  /**
+   * What may follow the names of a positive call: nothing, or HTTP as the way. Anything else (via a
+   * broker or gateway, asynchronously, when an order is paid) is not read.
+   */
+  private static final Pattern PLAIN_CALL_END =
+      Pattern.compile(
+          "^\\s*(?:(?:over|via|using)\\s+(?:http|https|rest-api)|synchronously|directly)?\\s*[.!?]?\\s*$");
+
+  /** A purpose after a positive call's names: "calls catalog for prices", "... to charge it". */
+  private static final Pattern PURPOSE = Pattern.compile("^\\s+(?:for|to)\\s");
+
+  /** Words that make a call indirect or asynchronous, so it is not compared with HTTP calls. */
+  private static final Pattern INDIRECT =
+      Pattern.compile(
+          "\\b(via|through|gateway|proxy|asynchronous|asynchronously|async|broker|queues?|topics?"
+              + "|kafka|rabbitmq|events?|messages?|messaging|when|whenever|if|unless|while)\\b");
+
+  /** Words after a subject before its verb: "it also", "the service is". */
+  private static final String SUBJECT_TAIL =
+      "(?:\\s+(?:is|are|also|only|always|currently|still|itself|now))*\\s*$";
+
+  /** The whole text before the verb, when it makes the README's units the subject. */
   private static final Pattern OWN_SUBJECT =
       Pattern.compile(
-          "\\b(it|its|this service|the service|this application|the application|this app|the app"
-              + "|this api|the api|we|our)\\b");
+          "^\\s*(?:it|this service|the service|this application|the application|this app|the app"
+              + "|this api|the api|its api|its rest-api|we)"
+              + SUBJECT_TAIL);
+
+  /** A subject that is a unit's name: "orders", "the orders service", "orders' api". */
+  private static final Pattern NAME_SUBJECT =
+      Pattern.compile(
+          "^\\s*(?:the\\s+)?([a-z0-9][a-z0-9._\\-]*?)(?:'s?)?(?:\\s+(?:service|application|app|api"
+              + "|rest-api))?"
+              + SUBJECT_TAIL);
 
   private static final Pattern PRONOUN_SUBJECT =
       Pattern.compile(
@@ -261,16 +340,34 @@ final class NamedClaimChecks {
   /** Whether a sentence's start before its verb is nothing, "it", or one of the README's units. */
   private boolean ownSubject(String subject) {
     return namedUnits(subject).isEmpty()
-        && (subject.isBlank() || OWN_SUBJECT.matcher(subject).find() || namesOwnUnit(subject));
+        && (subject.isBlank() || OWN_SUBJECT.matcher(subject).find() || isOwnName(subject));
   }
 
-  /** Whether a text names one of the README's units. */
-  private boolean namesOwnUnit(String text) {
-    Matcher m = WORD.matcher(text);
-    while (m.find()) {
-      EntityId unit = names.get(m.group());
-      if (unit != null && units.contains(unit)) {
-        return true;
+  /** Whether a subject is one of the README's units by name. */
+  private boolean isOwnName(String subject) {
+    Matcher m = NAME_SUBJECT.matcher(subject);
+    if (!m.find()) {
+      return false;
+    }
+    EntityId unit = names.get(m.group(1));
+    return unit != null && units.contains(unit);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // only asynchronous (read for synchronous-calls)
+
+  /**
+   * Whether a sentence says all of the units' communication is asynchronous: "only communicates
+   * asynchronously", "talks to other services only through Kafka events", "all communication with
+   * other services is asynchronous", with the units as the subject and not negated.
+   */
+  boolean saysOnlyAsynchronous() {
+    for (int i = 0; i < sentences.size(); i++) {
+      for (Pattern pattern : ONLY_ASYNCHRONOUS) {
+        Matcher m = pattern.matcher(sentences.get(i));
+        if (m.find() && readable(i, m.start())) {
+          return true;
+        }
       }
     }
     return false;
@@ -351,8 +448,10 @@ final class NamedClaimChecks {
       if (!verb.find() || !readable(i, verb.start())) {
         continue;
       }
+      Matcher end = END_OF_PATHS.matcher(s);
+      int clauseEnd = end.find(verb.end()) ? end.start() : s.length();
       Matcher m = PATH.matcher(s);
-      m.region(verb.end(), s.length());
+      m.region(verb.end(), clauseEnd);
       while (m.find()) {
         String path = m.group(2);
         // A path with no method is read only after words about endpoints, not files ("/data").
@@ -405,6 +504,7 @@ final class NamedClaimChecks {
   /** The units' endpoints with the paths each is served at; null when one has no known path. */
   private List<Served> served() {
     List<Served> served = new ArrayList<>();
+    Set<EntityId> serving = new HashSet<>();
     for (Fact f : links.of(SpringExtractor.ENDPOINT)) {
       String controller = LinkIndex.text(f, "controller");
       EntityId code =
@@ -431,20 +531,30 @@ final class NamedClaimChecks {
         }
         List<String> lower = paths.stream().map(p -> p.toLowerCase(Locale.ROOT)).toList();
         served.add(new Served(f, LinkIndex.text(f, "httpMethod"), lower));
+        serving.add(unit.id());
       }
     }
-    return served;
+    // A unit without controller endpoints may serve the path some other way (Spring Data REST,
+    // functional routes), so every unit the README speaks for must have some.
+    return serving.containsAll(units) ? served : null;
   }
 
-  /** Whether an endpoint serves a request, also behind leading segments the README adds. */
+  /**
+   * Whether an endpoint serves a request, also behind leading segments the README adds, or under a
+   * path the README gives as a base ("an API under /api/v1").
+   */
   private static boolean serves(Served served, String method, String path) {
     if (method != null && served.method() != null && !served.method().equals(method)) {
       return false;
     }
     String request = path;
     while (true) {
+      int length = segments(request).size();
       for (String p : served.paths()) {
-        if (LinkText.pathMatch(request, p) >= 0) {
+        List<String> segments = segments(p);
+        String base =
+            segments.size() > length ? "/" + String.join("/", segments.subList(0, length)) : p;
+        if (LinkText.pathMatch(request, p) >= 0 || LinkText.pathMatch(request, base) >= 0) {
           return true;
         }
       }
@@ -635,7 +745,7 @@ final class NamedClaimChecks {
       Matcher no = ClaimChecks.NO_CALLS.matcher(s);
       while (no.find()) {
         if (ownSubject(s.substring(0, no.start()))) {
-          never.addAll(nameList(no.group(2)));
+          never.addAll(nameList(no.group(2)).units());
         }
       }
       String rest = afterSubject(s);
@@ -644,11 +754,20 @@ final class NamedClaimChecks {
       }
       Matcher m = CALLS.matcher(rest);
       if (m.find()) {
-        Set<EntityId> named = nameList(m.group(3));
-        if (named.isEmpty()) {
+        Names named = nameList(m.group(3));
+        if (named.units().isEmpty()) {
           continue;
         }
-        (m.group(1) != null || m.group(2) != null ? only : calls).addAll(named);
+        String after = m.group(3).substring(named.end());
+        boolean plain = PLAIN_CALL_END.matcher(after).find();
+        if (m.group(1) != null || m.group(2) != null) {
+          // "Only" is read only when the names end the clause, not "only calls billing when ...".
+          if (plain) {
+            only.addAll(named.units());
+          }
+        } else if (plain || (PURPOSE.matcher(after).find() && !INDIRECT.matcher(after).find())) {
+          calls.addAll(named.units());
+        }
       }
     }
     List<Fact> http = index.from(CrossRepoLinks.CALLS_HTTP, units);
@@ -742,10 +861,13 @@ final class NamedClaimChecks {
   }
 
   /** The units other than the README's that a leading list of names names, all of them known. */
-  private Set<EntityId> nameList(String text) {
+  /** The units a list of names names, and where the list ends in the text. */
+  private record Names(Set<EntityId> units, int end) {}
+
+  private Names nameList(String text) {
     Matcher m = NAME_LIST.matcher(text);
     if (!m.find()) {
-      return Set.of();
+      return new Names(Set.of(), 0);
     }
     List<String> words = new ArrayList<>();
     words.add(m.group(1));
@@ -757,10 +879,10 @@ final class NamedClaimChecks {
     for (String w : words) {
       EntityId unit = names.get(w);
       if (unit == null || units.contains(unit)) {
-        return Set.of();
+        return new Names(Set.of(), 0);
       }
       named.add(unit);
     }
-    return named;
+    return new Names(named, m.end());
   }
 }

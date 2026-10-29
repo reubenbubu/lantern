@@ -111,35 +111,6 @@ public final class ClaimChecks implements LinkStep {
       Pattern.compile(
           "^[\\s.!?]*$|\\b(another|other|any|anything|external|services|systems|apis|each other)\\b");
 
-  private static final String TALK =
-      "(?:communicates?|communicating|talks?|talking|interacts?|interacting|integrates?"
-          + "|integrating)";
-
-  private static final String ASYNC =
-      "(?:asynchronous|asynchronously|async|events?|messages?|messaging|a message broker"
-          + "|the message broker|a broker|the broker|kafka|rabbitmq|queues?|topics?)";
-
-  private static final String ONLY = "(?:only|solely|exclusively|purely|entirely)";
-
-  /** Positive phrasings that every call the units make is asynchronous. */
-  private static final List<Pattern> ONLY_ASYNCHRONOUS =
-      List.of(
-          Pattern.compile("\\b" + ONLY + "\\s+" + TALK + "\\b[^,;:]*?\\b" + ASYNC + "\\b"),
-          Pattern.compile(
-              "\\b"
-                  + TALK
-                  + "\\b(?:\\s+(?:with|to)\\s+(?:other|the other|all other)\\s+services)?\\s+"
-                  + ONLY
-                  + "\\s+(?:asynchronously|async|(?:through|via|over|by|using)\\b[^,;:]*?\\b"
-                  + ASYNC
-                  + "\\b)"),
-          Pattern.compile(
-              "\\b(?:all|its|their)\\s+(?:communication|integration|interaction)s?\\b"
-                  + "(?:\\s+with\\s+(?:other|the other|all other)\\s+services)?"
-                  + "\\s+(?:is|are)\\s+(?:"
-                  + ONLY
-                  + "\\s+)?(?:asynchronous|async|event-driven|event-based|message-based)\\b"));
-
   private static final String READ = "read|reads|reading|query|queries|querying|select|selects";
   private static final String WRITE = "write|writes|writing|update|updates|updating|insert|inserts";
   private static final String ACCESS =
@@ -360,8 +331,8 @@ public final class ClaimChecks implements LinkStep {
       Index index,
       NamedClaimChecks named,
       List<Contradiction> out) {
-    if (sentences.stream()
-        .noneMatch(s -> saysNoSynchronousCalls(s) || saysOnlyAsynchronous(s, named))) {
+    if (sentences.stream().noneMatch(ClaimChecks::saysNoSynchronousCalls)
+        && !named.saysOnlyAsynchronous()) {
       return;
     }
     List<Fact> calls = new ArrayList<>(index.from(CrossRepoLinks.CALLS_HTTP, units));
@@ -672,26 +643,6 @@ public final class ClaimChecks implements LinkStep {
   /** The links that hold in the default view: those without a profile. */
   private static List<Fact> defaultView(List<Fact> links) {
     return links.stream().filter(f -> LinkIndex.text(f, "profile") == null).toList();
-  }
-
-  /**
-   * "Only communicates asynchronously", "talks to other services only through events", "all
-   * communication is asynchronous": the units' communication is all asynchronous, said without a
-   * negation and without naming one unit it is about.
-   */
-  private static boolean saysOnlyAsynchronous(String sentence, NamedClaimChecks named) {
-    if (NOT_RUNTIME.matcher(sentence).find()) {
-      return false;
-    }
-    for (Pattern pattern : ONLY_ASYNCHRONOUS) {
-      Matcher m = pattern.matcher(sentence);
-      if (m.find()
-          && !NEGATION_WORD.matcher(sentence.substring(0, m.end())).find()
-          && named.namedUnits(sentence).isEmpty()) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /** Whether a sentence says the units make no synchronous calls to other services. */
