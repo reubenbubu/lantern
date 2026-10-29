@@ -1,6 +1,6 @@
 # 0008: LLM provider interface and test fake
 
-Status: accepted (#10), amended by ADR 0021 (#44) and ADR 0022 (#69), pending the user's review (#24)
+Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69) and ADR 0081 (#169), pending the user's review (#24)
 
 ## Context
 
@@ -19,7 +19,8 @@ where model settings come from.
 - **Requests are plain text for now.** A request has a role, a purpose (for the log only, never
   sent), an optional system prompt, user and assistant turns, an output limit and a flag to cache
   the system prompt. Tool use and structured output are capability flags callers can check, but
-  requests cannot ask for them yet; they come with the first role that needs them (Resolve).
+  requests cannot ask for them yet; they come with the first role that needs them (Resolve;
+  tool use came with ADR 0081).
 - **Capabilities are checked before sending.** A request that caches its system prompt on a model
   without prompt caching, or whose estimated input plus output limit exceeds the context window,
   is refused with `UnsupportedCapabilityException` and logged as refused.

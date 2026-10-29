@@ -1,6 +1,6 @@
 # 0045: LLM resolver for links left open
 
-Status: accepted (#152), amended by ADR 0067 (#200), pending the user's review (#24)
+Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169), pending the user's review (#24)
 
 ## Context
 
@@ -37,7 +37,7 @@ where the resolver runs.
   listeners, else every listener on the same broker. Facts are written as subject, predicate,
   object, attributes (without `facts`, `link` and `candidates`) and `repo:path`, never with fact
   IDs, which change with every commit, nor line numbers, so an edit above a call costs no new
-  call; the recorded link keeps the evidence's line. Tools to look further are #169.
+  call; the recorded link keeps the evidence's line. Tools to look further came with ADR 0081.
 - **A JSON answer that must pick a candidate.** The model answers one JSON object: `target` (a
   candidate's reference, or `unknown`), `confidence` (`high`, `medium` or `low`), `cites` (the
   references it rests on) and `rationale` (at most two sentences). It is plain text, not the
@@ -95,6 +95,6 @@ where the resolver runs.
 
 ## Not in this issue
 
-Tools to query the graph and read files, with tool use in `LlmRequest` (#169), and the questions
+Tools to query the graph and read files, with tool use in `LlmRequest` (#169, now ADR 0081), and the questions
 queue for links that stay open (#170, Phase 3). Database links are not asked about: they have no
 candidates.
