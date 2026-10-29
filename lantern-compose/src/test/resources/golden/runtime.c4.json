@@ -309,54 +309,6 @@
       "from" : 1
     }
   }, {
-    "id" : "5248197d8a22e8589081f645018aa435aa63e581e3833b763c15fe4d3d642fd7",
-    "subject" : "readme:shop:README.md",
-    "predicate" : "claim-contradiction",
-    "object" : {
-      "kind" : "string",
-      "value" : "database-technology"
-    },
-    "attributes" : {
-      "claim" : "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44",
-      "contradictedBy" : [ {
-        "fact" : "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502",
-        "object" : "database:db:5432/shop",
-        "path" : "pom.xml",
-        "predicate" : "USES_DATABASE",
-        "repo" : "shop",
-        "subject" : "service:com.example:app"
-      }, {
-        "fact" : "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54",
-        "object" : "PostgreSQL",
-        "path" : "pom.xml",
-        "predicate" : "technology",
-        "repo" : "shop",
-        "subject" : "database:db:5432/shop"
-      } ],
-      "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ],
-      "found" : [ "PostgreSQL" ],
-      "stated" : "MySQL",
-      "units" : [ "service:com.example:app" ]
-    },
-    "origin" : {
-      "kind" : "static",
-      "name" : "claim-checks",
-      "version" : "1"
-    },
-    "evidence" : {
-      "repo" : "shop",
-      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "path" : "README.md",
-      "lines" : {
-        "start" : 3,
-        "end" : 3
-      }
-    },
-    "confidence" : 0.8,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
     "id" : "562c093935193deea17395a2cb186dd2e4b57be3a332766966c11a8bbf70554d",
     "subject" : "service:com.example:app",
     "predicate" : "unresolved-link",
@@ -974,6 +926,47 @@
       "from" : 1
     }
   }, {
+    "id" : "eac7517edf6100dc209d840b862376ebcac870c9a20b0ca047ac964643610575",
+    "subject" : "readme:shop:README.md",
+    "predicate" : "claim-contradiction",
+    "object" : {
+      "kind" : "string",
+      "value" : "database-technology"
+    },
+    "attributes" : {
+      "claim" : "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44",
+      "contradictedBy" : [ {
+        "fact" : "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502",
+        "object" : "database:db:5432/shop",
+        "path" : "pom.xml",
+        "predicate" : "USES_DATABASE",
+        "repo" : "shop",
+        "subject" : "service:com.example:app"
+      } ],
+      "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ],
+      "found" : [ "PostgreSQL" ],
+      "stated" : "MySQL",
+      "units" : [ "service:com.example:app" ]
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "claim-checks",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "README.md",
+      "lines" : {
+        "start" : 3,
+        "end" : 3
+      }
+    },
+    "confidence" : 0.8,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
     "id" : "f365f73583a3221726526f14d45b9238ffa080727ed15e9c8995ccdf6be5f512",
     "subject" : "service:com.example:app",
     "predicate" : "CONTAINS",
@@ -1506,38 +1499,9 @@
         "facts" : [ "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
       }, {
         "kind" : "text",
-        "text" : "; "
-      }, {
-        "kind" : "ref",
-        "text" : "shop on db",
-        "target" : {
-          "kind" : "entity",
-          "id" : "database:db:5432/shop"
-        }
-      }, {
-        "kind" : "text",
-        "text" : "'s technology is PostgreSQL"
-      }, {
-        "kind" : "text",
-        "text" : " ("
-      }, {
-        "kind" : "text",
-        "text" : "pom.xml",
-        "style" : "code"
-      }, {
-        "kind" : "text",
-        "text" : ", in shop"
-      }, {
-        "kind" : "text",
-        "text" : ")"
-      }, {
-        "kind" : "citation",
-        "facts" : [ "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
-      }, {
-        "kind" : "text",
         "text" : "."
       } ],
-      "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "5248197d8a22e8589081f645018aa435aa63e581e3833b763c15fe4d3d642fd7", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
+      "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "eac7517edf6100dc209d840b862376ebcac870c9a20b0ca047ac964643610575" ]
     } ],
     "sections" : [ ]
   }, {
@@ -2024,9 +1988,9 @@
           "text" : ", line 3, in shop"
         }, {
           "kind" : "text",
-          "text" : ": “The app keeps its orders in MySQL.” is contradicted by 2 facts of the code."
+          "text" : ": “The app keeps its orders in MySQL.” is contradicted by 1 fact of the code."
         } ],
-        "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "5248197d8a22e8589081f645018aa435aa63e581e3833b763c15fe4d3d642fd7", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
+        "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "eac7517edf6100dc209d840b862376ebcac870c9a20b0ca047ac964643610575" ]
       } ],
       "facts" : [ ]
     } ],

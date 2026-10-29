@@ -15,6 +15,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.snapshot.Snapshot;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -79,7 +80,6 @@ class ClaimContradictionsTest {
     Fact claim = find("claim");
     Fact contradiction = find("claim-contradiction");
     Fact uses = TestFacts.runtime().find("service:com.example:app", "USES_DATABASE");
-    Fact technology = TestFacts.runtime().find("database:db:5432/shop", "technology");
 
     List<Callout> callouts = contradictions(document);
 
@@ -90,14 +90,13 @@ class ClaimContradictionsTest {
         .isEqualTo(
             "`README.md`, line 3, in shop says: “The app keeps its orders in MySQL.”^. It"
                 + " states MySQL; the code shows PostgreSQL. The code shows otherwise: [shop-app]"
-                + " uses [shop on db] (`pom.xml`, in shop)^; [shop on db]'s technology is"
-                + " PostgreSQL (`pom.xml`, in shop)^.");
+                + " uses [shop on db] (`pom.xml`, in shop)^.");
     // The claim is cited where it is quoted, each fact of the code where it is told.
     assertThat(callout.content().stream().filter(Citation.class::isInstance))
         .map(i -> ((Citation) i).facts())
-        .containsExactly(List.of(claim.id()), List.of(uses.id()), List.of(technology.id()));
+        .containsExactly(List.of(claim.id()), List.of(uses.id()));
     assertThat(callout.facts())
-        .containsExactlyInAnyOrder(contradiction.id(), claim.id(), uses.id(), technology.id());
+        .containsExactlyInAnyOrder(contradiction.id(), claim.id(), uses.id());
     assertThat(document.facts()).contains(claim, contradiction);
   }
 
@@ -114,7 +113,7 @@ class ClaimContradictionsTest {
     assertThat(text(failure.detail()))
         .isEqualTo(
             "`README.md`, line 3, in shop: “The app keeps its orders in MySQL.” is contradicted"
-                + " by 2 facts of the code.");
+                + " by 1 fact of the code.");
     assertThat(failure.facts()).contains(find("claim-contradiction").id(), find("claim").id());
   }
 
@@ -147,9 +146,7 @@ class ClaimContradictionsTest {
   @Test
   void aContradictionWhoseCodeSideDoesNotHoldIsNotShown() {
     Fact uses = TestFacts.runtime().find("service:com.example:app", "USES_DATABASE");
-    Fact technology = TestFacts.runtime().find("database:db:5432/shop", "technology");
-    List<Fact> facts =
-        FACTS.stream().filter(f -> !f.equals(uses) && !f.equals(technology)).toList();
+    List<Fact> facts = FACTS.stream().filter(f -> !f.equals(uses)).toList();
 
     Document document =
         new Composer("1")
@@ -157,5 +154,40 @@ class ClaimContradictionsTest {
 
     assertThat(contradictions(document)).isEmpty();
     assertThat(claimFailures(document)).isEmpty();
+  }
+
+  @Test
+  void callsUnderAProfileUnlinkedCallsAndLongClaimsReadPlainly() {
+    TestFacts runtime = TestFacts.runtime();
+    Fact pay = runtime.find("service:com.example:app", "CALLS_HTTP");
+    Fact tax = runtime.find("service:com.example:app", "unresolved-link");
+    String text =
+        "The app never calls another service synchronously. "
+            + "It is fully event driven. ".repeat(6);
+    List<Fact> facts = new ArrayList<>(FACTS);
+    facts.addAll(
+        TestFacts.contradictedClaim(
+            text, 9, "synchronous-calls", null, List.of(), List.of(pay, tax)));
+
+    Document document =
+        new Composer("1")
+            .compose(ViewDefinition.perRepo("shop", "shop", EXPLORER), SNAPSHOT, facts, Map.of());
+
+    List<Callout> callouts = contradictions(document);
+    assertThat(callouts)
+        .extracting(Callout::id)
+        .containsExactly("containers.contradicted-claim", "containers.contradicted-claim-2");
+    assertThat(text(callouts.get(1).content()))
+        .isEqualTo(
+            "`README.md`, line 9, in shop says: “"
+                + text.strip()
+                + "”^. The code shows otherwise: [shop-app] calls [pay.example.com] under the prod"
+                + " profile (`pom.xml`, in shop)^; [shop-app] makes a call Lantern could not link:"
+                + " GET ${TAX_URL}/quotes (`pom.xml`, in shop)^.");
+    QualityReport.Failure failure = claimFailures(document).get(1);
+    assertThat(failure.target()).isEqualTo(CrossReference.Target.block(callouts.get(1).id()));
+    assertThat(text(failure.detail()))
+        .startsWith("`README.md`, line 9, in shop: “The app never calls")
+        .endsWith("…” is contradicted by 2 facts of the code.");
   }
 }
