@@ -10,8 +10,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -40,8 +42,8 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * except those of the tests of configured repositories, which use Maven Central. Builds use the
  * default shared Maven cache directory, which keeps downloads between runs. The tests that need a
  * cache of their own use one in their temporary directory, and delete it as the user running the
- * tests can; it starts as a copy of the shared cache unless the test must see the downloads, so
- * that the tests download little.
+ * tests can; it starts seeded from the shared cache unless the test must see the downloads, so that
+ * the tests download little.
  *
  * <p>The tests run at the same time, as many as the failsafe configuration of this module allows,
  * which is the number of builds a sandbox runs at once by default. Each has its own temporary
@@ -230,9 +232,9 @@ class BuildSandboxIT {
     Path source = fixtures.resolve("lib-and-service");
     Repo lib = repo(source.resolve("lib"), "greeting-lib", RepoSettings.DEFAULT);
     Repo service = repo(source.resolve("service"), "greeting-service", RepoSettings.DEFAULT);
-    // A cache of its own, which the library is put into, so it is in no other cache. It starts as
-    // a copy of the shared cache, without the library, so the builds download little.
-    Path cache = seededCache("lib-cache", "com/example/greeting");
+    // A cache of its own, which the library is put into, so it is in no other cache. It starts
+    // seeded from the shared cache, without the library, so the builds download little.
+    Path cache = seededCache("lib-cache");
     try {
       assertThat(cache.resolve("com/example/greeting")).doesNotExist();
       BuildSandbox sandbox = new BuildSandbox(settings().withMavenCacheDirectory(cache));
@@ -348,7 +350,7 @@ class BuildSandboxIT {
 
   @Test
   void givesTheCacheToTheBuildUserAndKeepsItDeletable() throws IOException {
-    // A cache of its own, a copy of the shared cache, so the builds download little. That the
+    // A cache of its own, seeded from the shared cache, so the builds download little. That the
     // sandbox creates a cache that does not exist yet shows in a test of configured repositories.
     Path cache = seededCache("own-cache");
     String mount = "type=bind,source=" + cache + ",target=/m2";
@@ -658,27 +660,29 @@ class BuildSandboxIT {
   }
 
   /**
-   * A new Maven cache in the test's temporary directory, holding a copy of the shared Maven cache
-   * so builds download only what that lacks, except the directories to leave out, given relative to
-   * the cache. Files that cannot be read, or that builds remove meanwhile, are left out too: a
-   * build downloads them if it needs them.
+   * A new Maven cache in the test's temporary directory, holding a copy of the artifacts of the
+   * shared Maven cache that {@code /sandbox/seed-cache.txt} lists, so builds of the fixtures
+   * download only what that lacks. Not the whole shared cache, which grows with every analysis.
+   * Files that cannot be read, or that builds remove meanwhile, are left out too: a build downloads
+   * them if it needs them.
    */
-  private Path seededCache(String name, String... leaveOut) throws IOException {
+  private Path seededCache(String name) throws IOException {
     Path shared = SandboxSettings.defaultMavenCacheDirectory();
     Path cache = Files.createDirectories(temp.resolve(name));
-    if (!Files.isDirectory(shared)) {
-      return cache;
+    List<String> artifacts;
+    try (InputStream in = BuildSandboxIT.class.getResourceAsStream("/sandbox/seed-cache.txt")) {
+      artifacts =
+          new String(in.readAllBytes(), StandardCharsets.UTF_8)
+              .lines()
+              .map(String::strip)
+              .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+              .toList();
     }
-    List<Path> skipped = Stream.of(leaveOut).map(shared::resolve).toList();
-    Files.walkFileTree(
-        shared,
+    SimpleFileVisitor<Path> copy =
         new SimpleFileVisitor<>() {
           @Override
           public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
               throws IOException {
-            if (skipped.contains(dir)) {
-              return FileVisitResult.SKIP_SUBTREE;
-            }
             Files.createDirectories(cache.resolve(shared.relativize(dir).toString()));
             return FileVisitResult.CONTINUE;
           }
@@ -699,7 +703,13 @@ class BuildSandboxIT {
           public FileVisitResult visitFileFailed(Path file, IOException e) {
             return FileVisitResult.CONTINUE;
           }
-        });
+        };
+    for (String artifact : artifacts) {
+      Path dir = shared.resolve(artifact);
+      if (Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
+        Files.walkFileTree(dir, copy);
+      }
+    }
     return cache;
   }
 
