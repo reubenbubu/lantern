@@ -412,8 +412,10 @@ class JavaExtractorTest {
     Repo repo = Fixtures.repo(temp.resolve("shop"), "shop", files);
     Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
 
-    extract(List.of(unbuilt(repo)));
+    List<Fact> facts = extract(List.of(unbuilt(repo)));
 
+    // The marker's class was read, so its copy existed.
+    assertThat(triples(facts)).anyMatch(t -> t.contains("com.example.sample." + marker));
     assertThat(workingCopiesHolding(tmp, marker)).isEmpty();
   }
 
