@@ -101,8 +101,8 @@ class Project0EndToEndIT {
      * A fake model that cites the first fact and the first part's summary it is given, words
      * nothing when asked for responsibilities and intent phrases (ADR 0050) or to narrate a flow
      * (ADR 0058), so the report keeps the static labels and prose this test checks, and answers
-     * unknown when asked to resolve a link left open (ADR 0045), so those links stay open;
-     * Project0LinksIT checks the resolver's picks.
+     * unknown when asked to resolve a link left open (ADR 0045), so those links stay open; {@code
+     * Project0LinksIT} checks the resolver's picks.
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {

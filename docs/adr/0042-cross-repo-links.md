@@ -124,6 +124,6 @@ its path is known, and what is matched when.
 - **project-0.** `Project0LinksIT` checks HTTP-1 to HTTP-7, EXT-1, MSG-1 to MSG-5, SPR-4, DB-5
   and the container links of FLOW-1 (HTTP-6, HTTP-7 and MSG-5 are links left open with
   candidates, for the resolver of ADR 0045), with the repositories built in the sandbox and read
-  without builds; DB-5's table access needs the build (ADR 0036). It runs when `lantern.test.project0` is
-  set, with the same command as `Project0BuildIT` (see Commands in `CLAUDE.md`) but `-pl
-  lantern-link` and `-Dit.test=Project0LinksIT`.
+  without builds; DB-5's table access needs the build (ADR 0036). It runs when
+  `lantern.test.project0` is set, with the same command as `Project0BuildIT` (see Commands in
+  `CLAUDE.md`) but `-pl lantern-link` and `-Dit.test=Project0LinksIT`.

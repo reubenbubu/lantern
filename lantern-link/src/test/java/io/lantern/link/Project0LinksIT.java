@@ -352,9 +352,11 @@ class Project0LinksIT {
             + J
             + "fulfilment/OrderClient.java#18");
     // What decides it is in the prompt: the host, and the candidate's application name.
-    assertThat(prompt(builtPrompts, "OrderClient"))
-        .contains("storefront-web")
-        .contains("service:com.acme.shop:storefront-app application-name \"storefront\"");
+    for (List<String> prompts : List.of(builtPrompts, unbuiltPrompts)) {
+      assertThat(prompt(prompts, "OrderClient"))
+          .contains("storefront-web")
+          .contains("service:com.acme.shop:storefront-app application-name \"storefront\"");
+    }
     assertBothResolved(
         "service:~:fulfilment CALLS_HTTP service:~:storefront-app {\"client\":\"web-client\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
@@ -377,9 +379,11 @@ class Project0LinksIT {
             + " @fulfilment:"
             + J
             + "fulfilment/PaymentStatusClient.java#19");
-    assertThat(prompt(builtPrompts, "PaymentStatusClient"))
-        .contains("placeholders no config resolves: PAYMENTS_SERVICE_URL")
-        .contains("service:com.acme.shop:payments application-name \"payments\"");
+    for (List<String> prompts : List.of(builtPrompts, unbuiltPrompts)) {
+      assertThat(prompt(prompts, "PaymentStatusClient"))
+          .contains("placeholders no config resolves: PAYMENTS_SERVICE_URL")
+          .contains("service:com.acme.shop:payments application-name \"payments\"");
+    }
     assertBothResolved(
         "service:~:fulfilment CALLS_HTTP service:~:payments {\"client\":\"web-client\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
@@ -406,10 +410,16 @@ class Project0LinksIT {
             + " @fulfilment:"
             + J
             + "fulfilment/ReturnsPublisher.java#19");
-    // Each candidate's binding is in the prompt: only payments' takes refund keys.
-    assertThat(prompt(builtPrompts, "ReturnsPublisher"))
-        .contains("\"routingKey\":\"refund.*\"")
-        .contains("\"routingKey\":\"return.*\"");
+    // Each candidate's binding is in the prompt, under it: only payments' takes refund keys.
+    for (List<String> prompts : List.of(builtPrompts, unbuiltPrompts)) {
+      String prompt = prompt(prompts, "ReturnsPublisher");
+      int payments = prompt.indexOf("\n[C1] service:com.acme.shop:payments\n");
+      int refund = prompt.indexOf("\"routingKey\":\"refund.*\"");
+      int storefront = prompt.indexOf("\n[C2] service:com.acme.shop:storefront-app\n");
+      int returned = prompt.indexOf("\"routingKey\":\"return.*\"");
+      assertThat(List.of(payments, refund, storefront, returned)).as(prompt).isSorted();
+      assertThat(payments).as(prompt).isNotNegative();
+    }
     assertBothResolved(
         "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"model\":\"fake/fake\","
             + "\"protocol\":\"AMQP\",\"rationale\":\"The answer project-0 documents.\","
@@ -422,10 +432,9 @@ class Project0LinksIT {
 
   /** The one prompt about the code of a class. */
   private static String prompt(List<String> prompts, String type) {
-    return prompts.stream()
-        .filter(p -> p.contains("." + type + "#"))
-        .reduce((a, b) -> a + "\n---\n" + b)
-        .orElseThrow();
+    List<String> about = prompts.stream().filter(p -> p.contains("." + type + "#")).toList();
+    assertThat(about).as("prompts about " + type).hasSize(1);
+    return about.getFirst();
   }
 
   /** Checks links the resolver picked, both with builds and without, each once. */
