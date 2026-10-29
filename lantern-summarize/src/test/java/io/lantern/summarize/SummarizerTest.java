@@ -795,6 +795,29 @@ class SummarizerTest {
         .isEqualTo(Summarizer.key(order, List.of(), List.of(), fake.model("model-a")));
   }
 
+  @Test
+  void secretsInSourceFilesAreNotSentToTheModel() throws Exception {
+    String source =
+        """
+        package p;
+
+        class Order {
+          private static final String API_KEY = "sk-live-123";
+          private final String url = "jdbc:postgresql://app:s3cret@db/shop";
+        }
+        """;
+    // The file is checked against the evidence as read, and masked only after.
+    SummaryNode order = orderWithSource(sha256(source));
+    SourceFiles files =
+        (repo, commit, path) -> Optional.of(source.getBytes(StandardCharsets.UTF_8));
+
+    new Summarizer(client("model-a", fake), store, files).summarize(List.of(order));
+
+    assertThat(fake.sent().getFirst().request().messages().getFirst().text())
+        .contains("API_KEY = \"******\"", "\"jdbc:postgresql://db/shop\"")
+        .doesNotContain("sk-live-123", "s3cret");
+  }
+
   /** A type with many methods: about 60 characters a fact, so about 15 tokens. */
   private static SummaryNode largeType(int methods) {
     TestFacts facts = new TestFacts().attribute("r", "type:p.Big", "kind", "class");

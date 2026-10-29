@@ -13,7 +13,8 @@ found in the facts, how summaries are stored and cited, and what happens to unci
 
 ## Decisions
 
-- **A module of its own, `lantern-summarize`**, depending on `lantern-core` and `lantern-llm`.
+- **A module of its own, `lantern-summarize`**, depending on `lantern-core` and `lantern-llm` (and on `lantern-extract` for its secret
+  rules, ADR 0054).
   Extractors may not use the LLM (ArchUnit rule), and `lantern-llm` stays a thin access layer
   (0008) that knows nothing about facts.
 - **The hierarchy comes from facts.** `SummaryTree` builds one tree per repository from the facts

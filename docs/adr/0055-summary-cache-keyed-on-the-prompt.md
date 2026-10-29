@@ -23,7 +23,7 @@ to the model. The Resolve and wording caches (ADRs 0045, 0050) already key on wh
   it and the model's limits.
 - **Facts are listed in a fixed order** that does not depend on their IDs: by the fact as the
   prompt writes it, then by where it was observed (repository, file, first line) and last by ID.
-  `SummaryNode` holds its facts in this order. `Prompt.VERSION` is 5, so every cached summary is
+  `SummaryNode` holds its facts in this order. `Prompt.VERSION` is 6, so every cached summary is
   made again once.
 - **A reused summary is rebound to the current run.** The stored text cites the fact IDs of the run
   that wrote it. The same key means the same prompt, which lists the same inputs in the same order,

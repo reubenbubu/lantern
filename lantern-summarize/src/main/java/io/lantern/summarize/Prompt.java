@@ -18,13 +18,14 @@ import tools.jackson.databind.node.ObjectNode;
  * keeps the references they cite.
  *
  * <p>Change {@link #VERSION} whenever the text of the prompt or the way inputs are written into it
- * changes (including which source files {@link Excerpts} shows), so cached summaries made with the
- * old prompt are not reused. {@code PromptTest} fails until it is changed.
+ * changes (including which source files {@link Excerpts} shows, and what is masked in them), so
+ * cached summaries made with the old prompt are not reused. {@code PromptTest} fails until it is
+ * changed.
  */
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "5";
+  static final String VERSION = "6";
 
   static final String SYSTEM =
       """
