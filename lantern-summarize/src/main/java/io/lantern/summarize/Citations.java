@@ -34,16 +34,18 @@ final class Citations {
    * The end of a sentence and the space after it: closing punctuation, then the quotes, brackets or
    * emphasis that close with it and the citations that follow it, before the end of the text or a
    * word that does not start in lower case; or a citation at the end of a line; or a blank line.
+   * The citations after the punctuation are taken whole or not at all, so a sentence is never split
+   * from the citations that follow it.
    */
   private static final Pattern SENTENCE_END =
       Pattern.compile(
           "(?:[.!?]+[\"'\u2019\u201d)*_]*(?:\\s*"
               + CITATION
-              + ")*(?=\\s+[^\\s\\p{Ll}]|\\s*\\z)"
+              + ")*+(?=\\s+[^\\s\\p{Ll}]|\\s*\\z)"
               + "|"
               + CITATION
-              + "(?=[ \\t]*\\n)"
-              + "|(?=\\n[ \\t]*\\n))\\s*");
+              + "(?=[ \\t\\r]*\\n)"
+              + "|(?=\\r?\\n[ \\t\\r]*\\n))\\s*");
 
   /** Abbreviations whose full stop does not end a sentence. */
   private static final Pattern ABBREVIATION = Pattern.compile("(?i)(?:^|\\W)(?:e\\.g|i\\.e)\\.\\z");

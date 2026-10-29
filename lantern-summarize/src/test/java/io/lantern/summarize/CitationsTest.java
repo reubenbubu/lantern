@@ -361,6 +361,30 @@ class CitationsTest {
   }
 
   @Test
+  void citationsAfterTheFullStopStayWithTheirSentence() {
+    for (String text :
+        List.of(
+            "Ships them. [F2].",
+            "Sells books. [F1], [F2]",
+            "Sells books. [F1] and more [F3].",
+            "Sells books.\u201d [F1] Ships them. [F2]")) {
+      Citations.Sentences sentences = Citations.cited(text);
+
+      assertThat(sentences.text()).as(text).isEqualTo(text);
+      assertThat(sentences.uncited()).as(text).isEmpty();
+    }
+  }
+
+  @Test
+  void windowsLineEndsEndSentencesToo() {
+    Citations.Sentences sentences =
+        Citations.cited("Sells books [F1]\r\nShips them\r\n\r\nA heading\r\n\r\nNote [S1]");
+
+    assertThat(sentences.text()).isEqualTo("Sells books [F1]\r\nNote [S1]");
+    assertThat(sentences.uncited()).containsExactly("Ships them", "A heading");
+  }
+
+  @Test
   void aSentenceCitingAnUnknownReferenceIsKeptForTheCheckToReject() {
     assertThat(Citations.cited("Sells books [F9]. Ships them.").text())
         .isEqualTo("Sells books [F9].");

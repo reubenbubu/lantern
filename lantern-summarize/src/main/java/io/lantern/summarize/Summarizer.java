@@ -604,15 +604,19 @@ public final class Summarizer {
     }
 
     private static void logRejected(String purpose, Citations.Rejected reason, LlmResponse answer) {
-      String text = answer.text();
-      if (text.length() > LOGGED_ANSWER) {
-        text = text.substring(0, LOGGED_ANSWER) + "... (" + text.length() + " characters)";
-      }
       LOG.warn(
           "Rejected the answer to {}: {} The answer: {}",
           purpose,
           reason.getMessage(),
-          text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n"));
+          logged(answer.text()));
+    }
+
+    /** A model's text on one line, cut to its first {@value #LOGGED_ANSWER} characters. */
+    private static String logged(String text) {
+      if (text.length() > LOGGED_ANSWER) {
+        text = text.substring(0, LOGGED_ANSWER) + "... (" + text.length() + " characters)";
+      }
+      return text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n");
     }
 
     /**
@@ -630,12 +634,17 @@ public final class Summarizer {
       Citations.check(
           tagged.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
       Citations.Sentences sentences = Citations.cited(tagged.text());
+      if (sentences.text().isEmpty()) {
+        // Only a citation split by a blank line inside its brackets gets here.
+        throw new Citations.Rejected(
+            "none of its sentences ends with the references it is based on.");
+      }
       if (!sentences.uncited().isEmpty()) {
         LOG.info(
             "Left out {} sentences without references from the answer to {}: {}",
             sentences.uncited().size(),
             purpose,
-            String.join(" | ", sentences.uncited()).replace("\n", " "));
+            logged(String.join(" | ", sentences.uncited())));
       }
       Citations.Checked checked =
           Citations.check(
