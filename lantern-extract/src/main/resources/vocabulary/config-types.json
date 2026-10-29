@@ -1,0 +1,20 @@
+[
+  {
+    "name": "config-value",
+    "kind": "attribute",
+    "description": "A config property of the subject module, from its application and bootstrap files, as Spring Boot sees it: by default, or with the attribute profile active. The value has its placeholders resolved; one that cannot be resolved, such as an environment variable no file sets, stays as ${KEY}.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "The property key as Spring Boot flattens it, such as spring.application.name or shop.hosts[0]." },
+        "profile": { "type": "string", "description": "The profile active instead of the default one. Absent for the default view; present only where the value differs from it." },
+        "written": { "type": "string", "description": "The value as written, when it differs from the resolved value." },
+        "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders that could not be resolved." },
+        "masked": { "type": "boolean", "description": "Present and true when the key names a secret written in the file, so the value is not recorded." }
+      },
+      "required": ["key"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

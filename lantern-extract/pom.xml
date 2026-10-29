@@ -13,6 +13,10 @@
   <artifactId>lantern-extract</artifactId>
   <name>Lantern Extract</name>
 
+  <properties>
+    <lantern.test.project0></lantern.test.project0>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>io.lantern</groupId>
@@ -38,6 +42,19 @@
       <artifactId>lombok</artifactId>
     </dependency>
     <dependency>
+      <!-- Spring Boot's own loaders read the analyzed repositories' application and bootstrap
+           config, so documents, profiles and keys come out as Spring Boot reads them, with the
+           line of each value. Version from Spring Boot; the app already ships it. -->
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot</artifactId>
+    </dependency>
+    <dependency>
+      <!-- The YAML parser Spring Boot's loader needs. Version from Spring Boot; the app already
+           ships it through spring-boot-starter. -->
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
@@ -56,6 +73,9 @@
             <lantern.test.mvnw>${maven.multiModuleProjectDirectory}/mvnw</lantern.test.mvnw>
             <!-- ...reading, but never writing, the local repository of the outer build. -->
             <lantern.test.localRepository>${settings.localRepository}</lantern.test.localRepository>
+            <!-- The folder project-0 was set up in (testsets/project-0/setup.sh); the Project0*IT
+                 tests run if set. -->
+            <lantern.test.project0>${lantern.test.project0}</lantern.test.project0>
           </systemPropertyVariables>
         </configuration>
       </plugin>

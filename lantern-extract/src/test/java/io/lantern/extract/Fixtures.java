@@ -9,6 +9,7 @@ import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.sandbox.MavenMirror;
@@ -127,7 +128,10 @@ public final class Fixtures {
     BuiltInTypes.definitions().forEach(t -> types.put(t.name(), t));
     Vocabulary vocabulary = new Vocabulary(1, types.values());
     for (List<VocabularyType> extractor :
-        List.of(MavenExtractor.vocabulary(), JavaExtractor.vocabulary())) {
+        List.of(
+            MavenExtractor.vocabulary(),
+            JavaExtractor.vocabulary(),
+            ConfigExtractor.vocabulary())) {
       vocabulary.changes(extractor).forEach(t -> types.put(t.name(), t));
       vocabulary = new Vocabulary(vocabulary.revision() + 1, types.values());
     }
