@@ -1,6 +1,6 @@
 # 0018: Snapshots carry repositories forward
 
-Status: accepted (#60), amended (#61), amended by ADR 0070 (#250), pending the user's review (#24)
+Status: accepted (#60), amended (#61), amended by ADR 0070 (#250) and ADR 0071 (#253), pending the user's review (#24)
 
 ## Context
 

@@ -192,14 +192,29 @@ public class FactRepository {
    * @throws IllegalStateException if facts of that origin were recorded for a later snapshot
    */
   public SnapshotUpdate recordDerived(long snapshot, Origin origin, Collection<Fact> found) {
+    return recordDerived(snapshot, origin, null, found);
+  }
+
+  /**
+   * Records a derivation step's facts as {@link #recordDerived(long, Origin, Collection)} does, for
+   * the snapshot of one system: only facts of that origin whose evidence names one of the
+   * snapshot's repositories stop holding when not found, so a snapshot of one system never ends
+   * another system's derived facts (ADR 0071).
+   *
+   * @param repos the snapshot's repositories, or {@code null} for any repository
+   * @throws IllegalArgumentException also if a found fact's evidence names another repository
+   */
+  public SnapshotUpdate recordDerived(
+      long snapshot, Origin origin, Set<String> repos, Collection<Fact> found) {
     Objects.requireNonNull(origin, "origin");
+    Set<String> scope = repos == null ? null : Set.copyOf(repos);
     for (Fact fact : Objects.requireNonNull(found, "found")) {
       if (!fact.origin().name().equals(origin.name())) {
         throw new IllegalArgumentException(
             "Fact " + fact.id() + " comes from " + fact.origin().name() + ", not " + origin.name());
       }
     }
-    return record(snapshot, new Scope(origin.kind(), null, origin.name(), Set.of()), found);
+    return record(snapshot, new Scope(origin.kind(), scope, origin.name(), Set.of()), found);
   }
 
   /**
@@ -459,7 +474,31 @@ public class FactRepository {
         .list();
   }
 
-  /** The facts that hold in the given snapshot. */
+  /**
+   * The facts that hold in the given snapshot and whose evidence names one of the repositories:
+   * those of the snapshot's own repositories, since snapshot numbers are shared by all systems and
+   * another system's facts can hold at the same number (ADR 0071).
+   */
+  public List<Fact> findValidAt(long snapshot, Collection<String> repos) {
+    List<String> names = List.copyOf(repos);
+    if (names.isEmpty()) {
+      return List.of();
+    }
+    return jdbc.sql(
+            "SELECT "
+                + COLUMNS
+                + " FROM facts WHERE validity @> CAST(:snapshot AS bigint)"
+                + " AND evidence->>'repo' IN (:repos) ORDER BY id")
+        .param("snapshot", snapshot)
+        .param("repos", names)
+        .query(FactRepository::mapRow)
+        .list();
+  }
+
+  /**
+   * The facts that hold in the given snapshot, whichever repositories their evidence names; with
+   * several systems, those of other systems too (see {@link #findValidAt(long, Collection)}).
+   */
   public List<Fact> findValidAt(long snapshot) {
     return jdbc.sql(
             "SELECT "

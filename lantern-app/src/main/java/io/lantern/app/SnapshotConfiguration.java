@@ -2,6 +2,7 @@ package io.lantern.app;
 
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.repo.RepoRegistry;
+import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import javax.sql.DataSource;
@@ -12,13 +13,22 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Wires the repository registry, snapshots and the analysis lock to the app's database. */
+/**
+ * Wires the repository and system registries, snapshots and the analysis lock to the app's
+ * database.
+ */
 @Configuration(proxyBeanMethods = false)
 class SnapshotConfiguration {
 
   @Bean
   RepoRegistry repoRegistry(JdbcClient jdbcClient) {
     return new RepoRegistry(jdbcClient);
+  }
+
+  @Bean
+  SystemRegistry systemRegistry(
+      JdbcClient jdbcClient, PlatformTransactionManager transactionManager) {
+    return new SystemRegistry(jdbcClient, new TransactionTemplate(transactionManager));
   }
 
   /** Snapshots record the Lantern version, which the build writes into application.properties. */

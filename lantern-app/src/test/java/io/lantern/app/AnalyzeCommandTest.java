@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +31,66 @@ class AnalyzeCommandTest {
     assertThat(AnalyzeCommand.requested()).isFalse();
     assertThat(AnalyzeCommand.requested("--debug")).isFalse();
     assertThat(AnalyzeCommand.requested("repo", "analyze")).isFalse();
+    assertThat(AnalyzeCommand.requested("--system=s", "remove", "repo")).isTrue();
+  }
+
+  @Test
+  void namesTheSystemAfterTheRepositoriesFolderUnlessNamed() {
+    Map<String, Path> together =
+        AnalyzeCommand.repos(List.of("/sets/project-4/Auth-Service", "/sets/project-4/Main"));
+    assertThat(AnalyzeCommand.system(null, together)).isEqualTo("project-4");
+    assertThat(AnalyzeCommand.system("crm", together)).isEqualTo("crm");
+
+    Map<String, Path> apart = AnalyzeCommand.repos(List.of("/a/one", "/b/two"));
+    assertThatThrownBy(() -> AnalyzeCommand.system(null, apart))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("--system=<name>");
+    assertThat(AnalyzeCommand.system("both", apart)).isEqualTo("both");
+    assertThatThrownBy(() -> AnalyzeCommand.system(null, AnalyzeCommand.repos(List.of("/one"))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("--system=<name>");
+    assertThatThrownBy(
+            () -> AnalyzeCommand.system(null, AnalyzeCommand.repos(List.of("/my set/one"))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a valid system name");
+  }
+
+  @Test
+  void passesTheSystemAndTitleToTheRun() {
+    AnalysisRun run = mock(AnalysisRun.class);
+    when(run.run(any(), any(), any()))
+        .thenReturn(result(new JdbcLlmCallLog.Spending(0, 0, BigDecimal.ZERO, Map.of())));
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+
+    command.run(
+        new DefaultApplicationArguments(
+            "analyze", "--system=crm", "--title=APA CRM", "/sets/project-4/Main"));
+
+    assertThat(command.getExitCode()).isZero();
+    verify(run).run("crm", "APA CRM", Map.of("Main", Path.of("/sets/project-4/Main")));
+    assertThat(bytes.toString(StandardCharsets.UTF_8)).startsWith("System clones (shop)\n");
+  }
+
+  @Test
+  void removesRepositoriesFromTheNamedSystem() {
+    AnalysisRun run = mock(AnalysisRun.class);
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+
+    command.run(new DefaultApplicationArguments("remove", "--system=crm", "Deployment", "Docs"));
+
+    assertThat(command.getExitCode()).isZero();
+    verify(run).remove("crm", List.of("Deployment", "Docs"));
+    assertThat(bytes.toString(StandardCharsets.UTF_8))
+        .contains("Removed from crm: Deployment, Docs");
+
+    AnalyzeCommand withoutSystem =
+        new AnalyzeCommand(run, new PrintStream(new ByteArrayOutputStream()));
+    withoutSystem.run(new DefaultApplicationArguments("remove", "Deployment"));
+    assertThat(withoutSystem.getExitCode()).isEqualTo(1);
   }
 
   @Test
@@ -71,7 +132,7 @@ class AnalyzeCommandTest {
   @Test
   void aFailedRunExitsWithOneAndSaysWhy() {
     AnalysisRun run = mock(AnalysisRun.class);
-    when(run.run(any())).thenThrow(new LlmNotConfiguredException("no tiers"));
+    when(run.run(any(), any(), any())).thenThrow(new LlmNotConfiguredException("no tiers"));
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     AnalyzeCommand command =
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
@@ -112,6 +173,8 @@ class AnalyzeCommandTest {
 
   private static AnalysisRun.Result result(JdbcLlmCallLog.Spending llm) {
     return new AnalysisRun.Result(
+        "clones",
+        "shop",
         new Snapshot(1, Map.of("shop", "abc"), 0, "test", Instant.EPOCH),
         Map.of(),
         List.of(),
@@ -131,7 +194,7 @@ class AnalyzeCommandTest {
   /** What a successful run with the given result prints. */
   private static String printed(AnalysisRun.Result result) {
     AnalysisRun run = mock(AnalysisRun.class);
-    when(run.run(any())).thenReturn(result);
+    when(run.run(any(), any(), any())).thenReturn(result);
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     AnalyzeCommand command =
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));

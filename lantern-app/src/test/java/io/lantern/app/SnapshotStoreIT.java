@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.core.vocabulary.VocabularyRegistry;
@@ -35,6 +36,7 @@ class SnapshotStoreIT {
 
   @Autowired SnapshotStore snapshots;
   @Autowired RepoRegistry repos;
+  @Autowired SystemRegistry systems;
   @Autowired VocabularyRegistry vocabulary;
 
   @Value("${lantern.version}")
@@ -47,6 +49,14 @@ class SnapshotStoreIT {
     TestGitRepo git = TestGitRepo.init(Files.createDirectory(temp.resolve(name)));
     git.commit("pom.xml", "<project/>");
     repos.register(name, git.dir(), RepoSettings.DEFAULT);
+    return name;
+  }
+
+  /** A new system with the repositories in it. */
+  private String system(String... members) {
+    String name = "system-" + UUID.randomUUID().toString().substring(0, 8);
+    systems.define(name, null);
+    systems.join(name, List.of(members));
     return name;
   }
 
@@ -89,15 +99,18 @@ class SnapshotStoreIT {
     analyzed(billingOnly, billing);
     String billingHead = billingOnly.commits().get(billing);
     String second = orders.commit("a.txt", "two");
+    String system = system(ordersName, billing);
 
     // orders moved on, but is not named: it stays at the commit it was last analyzed at.
-    Snapshot withBilling = snapshots.createCarryingForward(Map.of(billing, RepoRegistry.HEAD));
+    Snapshot withBilling =
+        snapshots.createCarryingForward(system, Map.of(billing, RepoRegistry.HEAD));
     assertThat(withBilling.commits())
         .containsEntry(ordersName, first)
         .containsEntry(billing, billingHead);
     analyzed(withBilling, billing);
 
-    Snapshot withOrders = snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD));
+    Snapshot withOrders =
+        snapshots.createCarryingForward(system, Map.of(ordersName, RepoRegistry.HEAD));
     assertThat(withOrders.commits())
         .containsEntry(ordersName, second)
         .containsEntry(billing, billingHead);
@@ -114,22 +127,29 @@ class SnapshotStoreIT {
     TestGitRepo orders = TestGitRepo.init(Files.createDirectory(temp.resolve(ordersName)));
     String first = orders.commit("a.txt", "one");
     repos.register(ordersName, orders.dir(), RepoSettings.DEFAULT);
-    analyzed(snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD)), ordersName);
     String billing = register("billing");
+    String never = register("never");
+    String system = system(ordersName, billing, never);
+    analyzed(
+        snapshots.createCarryingForward(system, Map.of(ordersName, RepoRegistry.HEAD)), ordersName);
 
     // A run at a new commit of orders stops before its facts are stored, so it marks nothing.
     String second = orders.commit("a.txt", "two");
-    Snapshot failed = snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD));
+    Snapshot failed =
+        snapshots.createCarryingForward(system, Map.of(ordersName, RepoRegistry.HEAD));
     assertThat(failed.commits()).containsEntry(ordersName, second);
 
     // The next run carries orders forward at the commit last analyzed, not the failed run's.
-    Snapshot withBilling = snapshots.createCarryingForward(Map.of(billing, RepoRegistry.HEAD));
+    Snapshot withBilling =
+        snapshots.createCarryingForward(system, Map.of(billing, RepoRegistry.HEAD));
     assertThat(withBilling.commits()).containsEntry(ordersName, first).containsKey(billing);
 
     // A repository no run analyzed is not carried forward; billing was not marked either.
-    String never = register("never");
-    snapshots.createCarryingForward(Map.of(never, RepoRegistry.HEAD));
-    assertThat(snapshots.createCarryingForward(Map.of(ordersName, RepoRegistry.HEAD)).commits())
+    snapshots.createCarryingForward(system, Map.of(never, RepoRegistry.HEAD));
+    assertThat(
+            snapshots
+                .createCarryingForward(system, Map.of(ordersName, RepoRegistry.HEAD))
+                .commits())
         .containsEntry(ordersName, second)
         .doesNotContainKeys(never, billing);
 
@@ -139,14 +159,75 @@ class SnapshotStoreIT {
     assertThatThrownBy(() -> snapshots.markAnalyzed(failed.number(), List.of(ordersName, missing)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(missing);
-    assertThat(snapshots.createCarryingForward(Map.of(never, RepoRegistry.HEAD)).commits())
+    assertThat(snapshots.createCarryingForward(system, Map.of(never, RepoRegistry.HEAD)).commits())
         .containsEntry(ordersName, first)
         .containsEntry(billing, withBilling.commits().get(billing));
 
     // Once marked (marking again changes nothing), the commit is carried forward.
     analyzed(failed, ordersName, ordersName);
-    assertThat(snapshots.createCarryingForward(Map.of(never, RepoRegistry.HEAD)).commits())
+    assertThat(snapshots.createCarryingForward(system, Map.of(never, RepoRegistry.HEAD)).commits())
         .containsEntry(ordersName, second);
+  }
+
+  @Test
+  void carriesForwardOnlyTheSystemsRepositories() throws Exception {
+    String a = register("a");
+    String b = register("b");
+    String other = register("other");
+    String loose = register("loose");
+    String system = system(a, b);
+    String otherSystem = system(other);
+    analyzed(
+        snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD, b, "HEAD")), a, b);
+    analyzed(snapshots.createCarryingForward(otherSystem, Map.of(other, RepoRegistry.HEAD)), other);
+    analyzed(snapshots.create(Map.of(loose, RepoRegistry.HEAD)), loose);
+
+    // Another system's and no system's repositories are not carried forward.
+    Snapshot ofSystem = snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD));
+    assertThat(ofSystem.commits()).containsOnlyKeys(a, b);
+    assertThat(snapshots.system(ofSystem.number())).contains(system);
+    assertThat(snapshots.system(snapshots.create(Map.of(a, RepoRegistry.HEAD)).number())).isEmpty();
+
+    // A removed repository is not carried forward either.
+    systems.remove(system, List.of(b));
+    assertThat(systems.members(system)).containsExactly(a);
+    assertThat(snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD)).commits())
+        .containsOnlyKeys(a);
+  }
+
+  @Test
+  void aRepositoryBelongsToOneSystem() throws Exception {
+    String repo = register("shared");
+    String first = system(repo);
+    String second = system();
+
+    assertThatThrownBy(() -> systems.join(second, List.of(repo)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("belongs to the system " + first);
+    assertThatThrownBy(() -> systems.remove(second, List.of(repo)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not belong to the system " + second);
+    assertThatThrownBy(() -> systems.join(second, List.of("never-registered")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not registered");
+    assertThat(systems.systemOf(repo)).contains(first);
+
+    systems.remove(first, List.of(repo));
+    systems.join(second, List.of(repo));
+    assertThat(systems.systemOf(repo)).contains(second);
+  }
+
+  @Test
+  void storesKeepsAndClearsATitle() {
+    String system = system();
+    assertThat(systems.title(system)).isEmpty();
+    systems.define(system, " APA CRM ");
+    systems.define(system, null);
+    assertThat(systems.title(system)).contains("APA CRM");
+    systems.define(system, "");
+    assertThat(systems.title(system)).isEmpty();
+    assertThatThrownBy(() -> systems.define("no spaces", null))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   /** Marks the repositories analyzed in the snapshot, as a run does once their facts are stored. */

@@ -67,7 +67,7 @@ Repos are cloned onto the service host, and each analysis builds its Maven repos
 **Repository registry**
 
 - Each repo is registered with a local path on the host (or a clone URL the host pulls from), a default branch, and optional per-repo settings (JDK version, Maven profiles, modules to skip).
-- Repos belong to a named **system**, the software system its documents describe. One analysis covers one system: it names the system, and only that system's repos take part. A repo can be removed from a system.
+- Repos belong to a named **system**, the software system its documents describe. One analysis covers one system: it names the system, and only that system's repos take part. A repo belongs to at most one system and can be removed from it. How a run names its system and title, and how a repo is removed, is in ADR 0071.
 - A repo needs no Maven build. One without a `pom.xml` (a frontend, a repository of deployment files) is registered and snapshotted, is not built, and is read by the extractors that apply to its files; that is not degraded mode.
 - An analysis run targets a specific commit per repo. The set of `repo@commit` pairs is a **snapshot** (see Versioning).
 - Git credentials for pulling live on the host, outside the knowledge store.
@@ -194,9 +194,9 @@ Lantern works like a build system: every derived artifact records its inputs, an
 
 **Snapshots**
 
-- A snapshot is a numbered set of `repo@commit` pairs, plus the vocabulary revision, annotation revision and tool version used. Snapshots are numbered 1, 2, 3 and so on in creation order, because fact validity is a range of snapshot numbers.
+- A snapshot is a numbered set of `repo@commit` pairs, plus the vocabulary revision, annotation revision and tool version used. Snapshots are numbered 1, 2, 3 and so on in creation order across all systems, because fact validity is a range of snapshot numbers; a snapshot's facts are those that hold at its number and come from its repos (ADR 0071).
 - A snapshot belongs to one named system and always describes the whole of it: a repo of that system that a run does not analyze is carried forward at its commit in the latest snapshot of the system that analyzed it (stored its facts), and its facts keep holding. Repos of other systems are never carried in, and a repo removed from the system is not carried forward. A run only ends facts of the repos it re-extracted.
-- Every document is tied to exactly one snapshot, and is titled by its system's name.
+- Every document is tied to exactly one snapshot and names its system by the system's title: the one people gave, else one derived from the repos' names (ADR 0071). The system's documents are titled by it, a repo's by the repo's name.
 - Only one analysis runs at a time. Starting one takes a PostgreSQL advisory lock, held on one database connection until the analysis ends; a second start fails at once with an "analysis already running" error, even from another Lantern process on the same database. If the process dies, the connection drops and the lock is released.
 
 **Cache keys**

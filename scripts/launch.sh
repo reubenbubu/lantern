@@ -13,13 +13,17 @@ Usage: scripts/launch.sh [options] [--] [<name>=]<path>...
 
 Starts this project's PostgreSQL database (compose project "$PROJECT"), waits until it
 is healthy, builds the app jar if it is missing, and runs "analyze" on the given
-repositories. Stop the database afterwards with scripts/teardown.sh.
+repositories as one named system (docs/adr/0071-named-systems.md). Stop the database
+afterwards with scripts/teardown.sh.
 
 Options:
   --llm-properties FILE     LLM settings (docs/adr/0009-llm-configuration.md). Required
                             unless --db-only. Default: \$LANTERN_LLM_PROPERTIES.
   --mirror-properties FILE  Optional Maven mirror settings (docs/adr/0030-maven-mirror.md).
                             Default: \$LANTERN_MIRROR_PROPERTIES.
+  --system NAME             The system the repositories belong to. Default: the name of
+                            the folder they are all in.
+  --title TITLE             The system's title, kept for later runs (blank clears it).
   --auto-port               If the database port is taken, use the next free port instead
                             of failing.
   --rebuild                 Build the app jar even if one exists. An existing jar is not
@@ -50,6 +54,9 @@ info() {
 llm_file="${LANTERN_LLM_PROPERTIES:-}"
 mirror_file="${LANTERN_MIRROR_PROPERTIES:-}"
 auto_port=false
+system=""
+title=""
+title_given=false
 rebuild=false
 db_only=false
 assume_yes=false
@@ -69,6 +76,19 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --mirror-properties=*) mirror_file="${1#*=}"; shift ;;
+    --system)
+      [[ $# -ge 2 ]] || die "--system needs a name"
+      system="$2"
+      shift 2
+      ;;
+    --system=*) system="${1#*=}"; shift ;;
+    --title)
+      [[ $# -ge 2 ]] || die "--title needs a title"
+      title="$2"
+      title_given=true
+      shift 2
+      ;;
+    --title=*) title="${1#*=}"; title_given=true; shift ;;
     --auto-port) auto_port=true; shift ;;
     --rebuild) rebuild=true; shift ;;
     --db-only) db_only=true; shift ;;
@@ -230,5 +250,8 @@ fi
 # Relative repository paths stay relative to the caller's directory; documents still go to the
 # repository's workspace folder, as when the app runs from the repository root.
 export LANTERN_WORKSPACE="${LANTERN_WORKSPACE:-$REPO/workspace}"
-info "documents go to $LANTERN_WORKSPACE/documents"
-exec java -jar "$jar" --spring.config.additional-location="$locations" analyze "${args[@]}"
+info "documents go to $LANTERN_WORKSPACE/documents/<system>"
+options=()
+[[ -n "$system" ]] && options+=("--system=$system")
+$title_given && options+=("--title=$title")
+exec java -jar "$jar" --spring.config.additional-location="$locations" analyze "${options[@]}" "${args[@]}"

@@ -341,6 +341,31 @@ class FactRepositoryIT {
   }
 
   @Test
+  void derivedFactsOfAnotherSystemKeepHolding() {
+    // Two systems share snapshot numbers: orders' in snapshot 1, billing's in snapshot 2 (ADR
+    // 0071).
+    Fact orders = consumes(ORDERS, Validity.from(1));
+    facts.recordDerived(1, ORIGIN, Set.of("orders"), List.of(orders));
+    Fact billing = consumes(PAYMENTS, 0.9, BILLING_EVIDENCE, Validity.from(2));
+
+    FactRepository.SnapshotUpdate update =
+        facts.recordDerived(2, ORIGIN, Set.of("billing"), List.of(billing));
+
+    assertThat(update.closed()).isZero();
+    assertThat(facts.findValidAt(2)).containsExactlyInAnyOrder(orders, billing);
+    assertThat(facts.findValidAt(2, List.of("billing"))).containsExactly(billing);
+    assertThat(facts.findValidAt(2, List.of())).isEmpty();
+    assertThatThrownBy(
+            () ->
+                facts.recordDerived(
+                    3, ORIGIN, Set.of("billing"), List.of(consumes(ORDERS, Validity.from(3)))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("orders");
+    // Unscoped, a derivation step ends its facts in every repository.
+    assertThat(facts.recordDerived(3, ORIGIN, List.of()).closed()).isEqualTo(2);
+  }
+
+  @Test
   void recordingRefusesFactsOfRepositoriesNotAnalyzed() {
     assertThatThrownBy(
             () ->
