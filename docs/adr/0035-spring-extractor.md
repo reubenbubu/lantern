@@ -91,25 +91,28 @@ code, what its facts look like and how it handles inherited mappings, libraries 
 ## Amendment: JobRunr and Quartz jobs (#263)
 
 Status: accepted, pending the user's review (#24). project-4 runs its task reminders as JobRunr
-jobs, so `@Scheduled` alone left its reminder flow without an entry point. `scheduled` now also
-marks these methods, with extractor VERSION 2 and `framework` (`jobrunr` or `quartz`; absent for
-`@Scheduled`):
+jobs, so `@Scheduled` alone left its reminder flow without an entry point. With extractor VERSION 2,
+a new `entry-point` child `background-job` and optional attributes on `scheduled` mark them
+(vocabulary changes are additive, ADR 0002, so `scheduled`'s `trigger` values stay as they were).
+`framework` (`jobrunr` or `quartz`) is on both; it is absent on `@Scheduled`.
 
 - **JobRunr request handler**: the `run(Request)` method of a class that implements
-  `JobRequestHandler<Request>` (also through a supertype in the analyzed sources). Value: the
-  `@Job(name)` or, without one, the request type. `trigger: job-request`, `request`, and
-  `scheduledBy`: the methods that pass `new Request(...)` to `BackgroundJobRequest` or
-  `JobRequestScheduler` (`enqueue`, `schedule`, `scheduleRecurrently`, `create`), found in any
-  module, with `cron` when `scheduleRecurrently` gets a literal one.
-- **JobRunr `@Job` methods** that are not handlers: `trigger: job`, value the name or the method;
-  `@Recurring`: `trigger: cron` or `interval`, the value resolved like `@Scheduled`'s. Jobs queued
-  by a lambda (`BackgroundJob.enqueue(() -> ...)`) are not followed to their target.
+  `JobRequestHandler<Request>` (also through a supertype in the analyzed sources).
+  `background-job`, value the `@Job(name)` or, without one, the request type; `kind:
+  job-request`, `request`, and `scheduledBy`: the methods that pass `new Request(...)` to
+  `BackgroundJobRequest` or `JobRequestScheduler` (`enqueue`, `schedule`, `scheduleRecurrently`,
+  `create`), found in any module, with `cron` when `scheduleRecurrently` gets a literal one.
+- **JobRunr `@Job` methods** that are not handlers: `background-job`, `kind: job`, value the name
+  or the method. `@Recurring(cron)`: `scheduled`, `trigger: cron`, resolved like `@Scheduled`'s;
+  `@Recurring(interval)`: `background-job`, `kind: interval`. Jobs queued by a lambda
+  (`BackgroundJob.enqueue(() -> ...)`) are not followed to their target.
 - **Quartz**: `execute(JobExecutionContext)` of a `Job`, `executeInternal` of a `QuartzJobBean`.
-  Value: the cron of the `CronScheduleBuilder.cronSchedule(...)` in the same expression as the
-  `JobBuilder.newJob(X.class)` (a scheduler call joins them), `trigger: cron`; else, when a module
-  has exactly one job and one cron built apart, those; else the class, `trigger: quartz`.
-  Simple, calendar and Spring `SimpleTriggerFactoryBean` triggers are not read.
+  With the cron of the `CronScheduleBuilder.cronSchedule(...)` in the same expression as the
+  `JobBuilder.newJob(X.class)` (a scheduler call joins them), or the only unpaired one of a module
+  that has exactly one such job: `scheduled`, `trigger: cron`, with `job` and `scheduledBy`; else
+  `background-job`, `kind: quartz`, value the class. Simple, calendar and Spring
+  `SimpleTriggerFactoryBean` triggers are not read.
 
-`org.jobrunr.scheduling.` and `org.quartz.` join the tracked APIs. Flows start at these methods
+`org.jobrunr.scheduling.` and `org.quartz.` join the tracked APIs. Flows start at both predicates
 like at `@Scheduled` ones, so the call graph from the handler reaches what it publishes; documents
 call them "JobRunr job" and "Quartz job".

@@ -81,6 +81,12 @@ public final class SpringExtractor {
   /** Attribute: the method runs on a schedule. */
   public static final String SCHEDULED = "scheduled";
 
+  /**
+   * Attribute: the method runs as a background job that is not on a schedule of {@code trigger}'s
+   * kinds: a JobRunr job or a Quartz job without a cron found.
+   */
+  public static final String BACKGROUND_JOB = "background-job";
+
   /** Attribute: the bean class or method is registered only under a profile expression. */
   public static final String PROFILE_GATE = "profile-gate";
 
@@ -699,10 +705,10 @@ public final class SpringExtractor {
         String name = firstOf(job.getLast(), "name");
         ObjectNode attributes = FactJson.newObject();
         attributes.put("framework", "jobrunr");
-        attributes.put("trigger", "job");
+        attributes.put("kind", "job");
         fact(
             method.id(),
-            SCHEDULED,
+            BACKGROUND_JOB,
             name != null ? name : signature(method.id()).replaceAll("\\(.*", ""),
             attributes,
             job.getFirst().where());
@@ -712,14 +718,19 @@ public final class SpringExtractor {
         String cron = firstOf(r, "cron");
         String interval = firstOf(r, "interval");
         String written = cron != null ? cron : interval;
-        if (written != null) {
+        if (cron != null) {
           scheduledFact(
               method,
-              cron != null ? "cron" : "interval",
-              written,
+              "cron",
+              cron,
               recurring.getFirst().where(),
               r,
               Map.of("framework", "jobrunr"));
+        } else if (written != null) {
+          ObjectNode attributes = FactJson.newObject();
+          attributes.put("framework", "jobrunr");
+          attributes.put("kind", "interval");
+          fact(method.id(), BACKGROUND_JOB, written, attributes, recurring.getFirst().where());
         }
       }
     }
@@ -836,23 +847,30 @@ public final class SpringExtractor {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("framework", job.framework());
         String value;
+        String predicate = BACKGROUND_JOB;
         if (job.framework().equals("jobrunr")) {
-          attributes.put("trigger", "job-request");
+          attributes.put("kind", "job-request");
           attributes.put("request", job.request());
           if (cron != null) {
             attributes.put("cron", cron);
           }
           value = job.name() != null ? job.name() : job.request();
         } else {
-          attributes.put("trigger", cron != null ? "cron" : "quartz");
           attributes.put("job", job.type().binaryName());
-          value = cron != null ? cron : job.type().binaryName();
+          if (cron != null) {
+            predicate = SCHEDULED;
+            attributes.put("trigger", "cron");
+            value = cron;
+          } else {
+            attributes.put("kind", "quartz");
+            value = job.type().binaryName();
+          }
         }
         if (!by.isEmpty()) {
           ArrayNode scheduledBy = attributes.putArray("scheduledBy");
           by.forEach(scheduledBy::add);
         }
-        fact(job.method().id(), SCHEDULED, value, attributes, job.where(), job.module());
+        fact(job.method().id(), predicate, value, attributes, job.where(), job.module());
       }
     }
 

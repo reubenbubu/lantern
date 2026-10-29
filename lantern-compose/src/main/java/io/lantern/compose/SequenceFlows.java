@@ -58,6 +58,7 @@ final class SequenceFlows {
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
   private static final String SCHEDULED = "scheduled";
+  private static final String BACKGROUND_JOB = "background-job";
   private static final String PROFILE_GATE = "profile-gate";
   private static final String SENDS_MESSAGES_TO = "SENDS_MESSAGES_TO";
   private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
@@ -127,7 +128,8 @@ final class SequenceFlows {
                   f ->
                       f.predicate().equals(ENDPOINT)
                           || f.predicate().equals(MESSAGE_LISTENER)
-                          || f.predicate().equals(SCHEDULED))
+                          || f.predicate().equals(SCHEDULED)
+                          || f.predicate().equals(BACKGROUND_JOB))
               .findFirst()
               .ifPresent(f -> result.add(new Entry(unit, method, f)));
         }
@@ -891,6 +893,9 @@ final class SequenceFlows {
               "a message arrives on " + value + " for " + nameOf(entry.unit));
       default -> {
         String kind = attribute(entry.fact, "trigger");
+        if (kind == null) {
+          kind = attribute(entry.fact, "kind");
+        }
         String schedule = (kind == null ? "" : kind + " ") + value;
         String framework = attribute(entry.fact, "framework");
         if (framework != null) {

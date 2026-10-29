@@ -109,9 +109,9 @@ class SpringExtractorTest {
             l ->
                 l.startsWith(
                         "method:com.example.shop.app.jobs.ReminderHandler#run("
-                            + "com.example.shop.app.jobs.ReminderRequest) scheduled Task's reminder"
+                            + "com.example.shop.app.jobs.ReminderRequest) background-job Task's reminder"
                             + " job ")
-                    && l.contains("\"trigger\":\"job-request\"")
+                    && l.contains("\"kind\":\"job-request\"")
                     && l.contains("Reminders#remindAt(long,java.time.Instant)")
                     && l.contains("Reminders#remindNow(long)"))
         .anyMatch(
@@ -125,7 +125,7 @@ class SpringExtractorTest {
             l ->
                 l.startsWith(
                     "method:com.example.shop.app.jobs.DigestJob#executeInternal("
-                        + "org.quartz.JobExecutionContext) scheduled"
+                        + "org.quartz.JobExecutionContext) background-job"
                         + " com.example.shop.app.jobs.DigestJob "))
         .anyMatch(
             // @Recurring resolves its cron like @Scheduled.
@@ -136,7 +136,7 @@ class SpringExtractorTest {
         .anyMatch(
             l ->
                 l.startsWith(
-                    "method:com.example.shop.app.jobs.NightlyJob#reindex() scheduled Manual"
+                    "method:com.example.shop.app.jobs.NightlyJob#reindex() background-job Manual"
                         + " re-index "));
   }
 

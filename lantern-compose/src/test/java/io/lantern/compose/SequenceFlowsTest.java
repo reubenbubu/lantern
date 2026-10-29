@@ -584,9 +584,9 @@ class SequenceFlowsTest {
     attribute(
         "ship",
         NIGHTLY,
-        "scheduled",
+        "background-job",
         "Task's reminder job",
-        "{\"framework\": \"jobrunr\", \"trigger\": \"job-request\"}",
+        "{\"framework\": \"jobrunr\", \"kind\": \"job-request\"}",
         0);
 
     assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
