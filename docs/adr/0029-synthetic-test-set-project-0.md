@@ -25,7 +25,8 @@ author and dates, and that Lantern pins that repository's commit.
 - **The thin service and its library are two modules of one repository**, not two repositories:
   the sandbox builds each repository alone and installs nothing (ADR 0005), so a repository using
   a library built by another would not build. A cross-repository library dependency waits until
-  the sandbox can build a snapshot's repositories in dependency order (#118).
+  the sandbox can build a snapshot's repositories in dependency order (#118). (ADR 0041 now does;
+  adding such a case to the source repository is described on #118.)
 - **Fixed commits.** `setup.sh` in the source makes each local repository with one commit whose
   author, committer, dates (2026-01-15) and message are fixed, ignoring the user's git
   configuration, so the hashes are the same on every run and machine. Changing a made-up repository

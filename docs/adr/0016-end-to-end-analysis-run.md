@@ -29,7 +29,9 @@ runs before incremental runs exist (Phase 3), and how the Java side renders the 
      repository an earlier snapshot analyzed forward at its last analyzed commit (ADR 0018);
   3. builds the repositories in the sandbox, in parallel up to the sandbox's limit, reusing a
      stored successful build of the same `repo@commit` and building a failed one again (see the
-     amendment for #58). To rebuild a successful build, delete its directory under `builds/`.
+     amendment for #58). Each build comes after those of the repositories whose modules it uses
+     and gets their artifacts, those of carried-forward repositories included (ADR 0041). To
+     rebuild a successful build, delete its directory under `builds/`.
      Reuse is keyed by
      `repo@commit` alone; the design's key also has the JDK image and `settings.xml` hash, which
      matter once images or settings change (#31);
