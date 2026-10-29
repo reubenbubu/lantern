@@ -149,9 +149,6 @@ final class DataLinker {
       }
       EntityId database = database(unit, f);
       if (database == null) {
-        if (!LinkIndex.texts(f, "unresolved").isEmpty()) {
-          unresolved(unit, view, f, "database");
-        }
         continue;
       }
       String technology = LinkIndex.text(f, "technology");
@@ -190,13 +187,26 @@ final class DataLinker {
   /**
    * The database a datasource points to: {@code database:<server>/<database>}, so units on the same
    * server and database share it; an embedded one ({@code jdbc:h2:mem:x}, no server) is the unit's
-   * own. Null when the URL does not say.
+   * own. One whose server or database is a placeholder no config resolves is the unit's own too,
+   * named by its database when that is written out, else by the unit (and by the datasource key
+   * when that is not the main one), never shared. Null when the URL does not say.
    */
   private static EntityId database(Unit unit, Fact datasource) {
     String server = LinkIndex.text(datasource, "server");
     String name = LinkIndex.text(datasource, "database");
     if (!LinkIndex.texts(datasource, "unresolved").isEmpty()) {
-      return null;
+      String technology = LinkIndex.text(datasource, "technology");
+      String key = LinkIndex.text(datasource, "key");
+      String own = name == null || name.contains("${") ? unit.id().key() : name;
+      if (key != null && !key.equals("spring.datasource.url")) {
+        own += "@" + key;
+      }
+      return new EntityId(
+          CrossRepoLinks.DATABASE,
+          unit.id().key()
+              + "/"
+              + (technology == null ? "" : technology.toLowerCase(Locale.ROOT) + ":")
+              + own);
     }
     if (server != null && name != null) {
       return new EntityId(CrossRepoLinks.DATABASE, server.toLowerCase(Locale.ROOT) + "/" + name);
@@ -497,35 +507,5 @@ final class DataLinker {
       }
     }
     return a.substring(a.lastIndexOf('@') + 1).toLowerCase(Locale.ROOT);
-  }
-
-  /** Records a datasource whose URL static matching cannot place. */
-  private void unresolved(Unit unit, String view, Fact f, String kind) {
-    ObjectNode attributes = FactJson.newObject();
-    attributes.put("kind", kind);
-    attributes.put("reason", "unresolved-placeholder");
-    attributes.put("source", f.subject().toString());
-    ArrayNode keys = attributes.putArray("unresolved");
-    LinkIndex.texts(f, "unresolved").forEach(keys::add);
-    out.add(
-        view,
-        new Found(
-            CrossRepoLinks.UNRESOLVED_LINK
-                + "|"
-                + unit.id()
-                + "|"
-                + f.subject()
-                + "|"
-                + LinkIndex.text(f, "key"),
-            unit.id(),
-            CrossRepoLinks.UNRESOLVED_LINK,
-            FactObject.string(
-                LinkIndex.text(f, "written") != null
-                    ? LinkIndex.text(f, "written")
-                    : f.object().value()),
-            attributes,
-            f.evidence(),
-            CrossRepoLinks.round(f.confidence()),
-            List.of(f.id())));
   }
 }
