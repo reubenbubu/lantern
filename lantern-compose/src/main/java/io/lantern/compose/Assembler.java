@@ -65,7 +65,8 @@ final class Assembler {
 
   /**
    * @param wordings the responsibility sentences that describe units and components instead of
-   *     their summaries, and the intent phrases of links (ADR 0050)
+   *     their summaries, and data stores and destinations (ADR 0050, ADR 0056), and the intent
+   *     phrases of links
    */
   Assembler(
       Knowledge knowledge,
@@ -86,7 +87,8 @@ final class Assembler {
   record Text(List<Inline> content, List<String> facts) {}
 
   /**
-   * Adds the entity to the document, with its parent; if it is in scope and has a summary, its
+   * Adds the entity to the document, with its parent; if it is in scope and has a summary or a
+   * responsibility sentence, or is a data store or destination with a responsibility sentence, its
    * description is added by {@link #entities()}. Its facts are its attributes, the facts placing it
    * in its parent and, for a service or library, the facts saying which modules it builds. Returns
    * the entity.
@@ -112,7 +114,10 @@ final class Assembler {
     entities.put(id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts)));
     adding.remove(id);
     if (described.contains(id)
-        && (summaries.containsKey(summarized(id)) || responsibility(id) != null)) {
+            && (summaries.containsKey(summarized(id)) || responsibility(id) != null)
+        // A data store or destination has no summary; it is described wherever a diagram draws
+        // it, by its responsibility sentence (ADR 0056).
+        || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)) {
       undescribed.add(id);
     }
     return id;

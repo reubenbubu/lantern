@@ -20,7 +20,8 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The prompt that asks the LLM to word a deployable unit's responsibility sentence, its components'
- * and the intent phrases of its relationships (ADR 0050), and the check of its answers. The prompt
+ * and the intent phrases of its relationships (ADR 0050), the prompt that asks for a data store's
+ * or destination's responsibility sentence (ADR 0056), and the check of their answers. The prompt
  * shows extracted facts only, listed as {@code [F1]}, ...; components are listed as {@code [C1]}
  * and relationships as {@code [R1]}. Fact IDs and line numbers are not shown, since they change
  * with every commit and every edit above the code; so the same unit gives the same prompt, and the
@@ -28,14 +29,21 @@ import tools.jackson.databind.node.ObjectNode;
  * the repositories a run analyzes, so showing them would make the prompt, and so the calls, depend
  * on which repositories a run names.
  *
- * <p>Change {@link #VERSION} whenever the text of the prompt or the way inputs are written into it
- * changes, so answers cached for the old prompt are not reused. {@code WordingPromptTest} fails
- * until it is changed.
+ * <p>Change {@link #VERSION}, or {@link #ELEMENT_VERSION} for the prompt about a data store or
+ * destination, whenever the text of the prompt or the way inputs are written into it changes, so
+ * answers cached for the old prompt are not reused. {@code WordingPromptTest} fails until it is
+ * changed.
  */
 final class WordingPrompt {
 
-  /** The prompt's version, part of every answer's cache key. */
+  /** The version of the prompt about a unit, part of every answer's cache key. */
   static final String VERSION = "1";
+
+  /** The version of the prompt about a data store or destination, part of its cache key. */
+  static final String ELEMENT_VERSION = "1";
+
+  /** The field of the answer about a data store or destination that holds its sentence. */
+  static final String ELEMENT = "element";
 
   /** The most words a responsibility sentence may have. */
   static final int SENTENCE_WORDS = 30;
@@ -69,6 +77,16 @@ final class WordingPrompt {
       cites lists the references of the facts each text rests on, each on its own; every text \
       cites at least one. Cite only [F...] references from the input. Write no references inside \
       the texts.""";
+
+  static final String ELEMENT_SYSTEM =
+      """
+      You help document the architecture of a system of Java services for readers who do not       know its code. You are given one element the services use, a database, topic, queue,       exchange or external system, with facts that static analysis extracted from their code       and configuration, each with a reference such as [F1]: the facts about the element, the       tables built in it, and how the system's deployable units and other elements use it.
+      Word only what the facts show. Never invent a responsibility. Infer purpose from names,       paths, routing keys, tables and the code that uses it.
+      Write a responsibility sentence: one plain sentence of at most 25 words saying what the       element holds or carries, or what it does for the system, in words a non-engineer       understands. Do not restate its name or its kind; say what it is for.
+      Leave the sentence out when the facts do not show its responsibility, rather than       guessing.
+      Answer with one JSON object and nothing else, in this form:
+      {"element": {"text": "Sentence.", "cites": ["F1", "F2"]}}
+      or {} to leave it out. cites lists the references of the facts the text rests on, each on       its own; the text cites at least one. Cite only [F...] references from the input. Write       no references inside the text.""";
 
   static final String RETRY =
       """
@@ -117,10 +135,22 @@ final class WordingPrompt {
   record RelationshipInput(String verb, String other, String kind, Fact link) {}
 
   /**
+   * How another element uses a data store or destination, as the prompt shows it.
+   *
+   * @param use who uses it and how, such as {@code shop-app (a deployable unit) connects to it}
+   * @param facts the link facts
+   */
+  record UseInput(String use, List<Fact> facts) {}
+
+  /**
    * One prompt and what its references stand for.
    *
-   * @param unit the deployable unit it asks about
-   * @param name the unit's name
+   * @param element the deployable unit, data store or destination it asks about
+   * @param name the element's name
+   * @param about the field of the answer that holds the element's sentence: {@link
+   *     WordingAnswer#UNIT} or {@link #ELEMENT}
+   * @param version the prompt's version
+   * @param system the system prompt
    * @param user the user turn
    * @param facts the facts shown, by reference
    * @param components the main type of each component shown, by reference
@@ -128,8 +158,11 @@ final class WordingPrompt {
    * @param relationships the link fact of each relationship shown, by reference
    */
   record Question(
-      EntityId unit,
+      EntityId element,
       String name,
+      String about,
+      String version,
+      String system,
       String user,
       Map<String, Fact> facts,
       Map<String, EntityId> components,
@@ -210,7 +243,70 @@ final class WordingPrompt {
       }
     }
     return new Question(
-        unit, name, user.toString(), facts, componentRefs, componentNames, relationshipRefs);
+        unit,
+        name,
+        WordingAnswer.UNIT,
+        VERSION,
+        SYSTEM,
+        user.toString(),
+        facts,
+        componentRefs,
+        componentNames,
+        relationshipRefs);
+  }
+
+  /**
+   * Writes the prompt for a data store or destination (ADR 0056).
+   *
+   * @param element the database, topic, queue, exchange or external system
+   * @param kind what it is, such as {@code database}
+   * @param name its name
+   * @param technology what it is, such as {@code PostgreSQL}, or null
+   * @param elementFacts the facts about it
+   * @param tables the facts placing tables in the schemas built in it
+   * @param uses how the units and other elements use it
+   */
+  static Question element(
+      EntityId element,
+      String kind,
+      String name,
+      String technology,
+      List<Fact> elementFacts,
+      List<Fact> tables,
+      List<UseInput> uses) {
+    Map<String, Fact> facts = new LinkedHashMap<>();
+    StringBuilder user = new StringBuilder();
+    user.append("The ").append(kind).append(' ').append(oneLine(name));
+    if (technology != null) {
+      user.append(", ").append(oneLine(technology));
+    }
+    user.append(".\n");
+    if (!elementFacts.isEmpty()) {
+      user.append("\nFacts about it:\n");
+      elementFacts.forEach(f -> user.append(fact(f, facts, "")).append('\n'));
+    }
+    if (!tables.isEmpty()) {
+      user.append("\nTables of the schemas built in it:\n");
+      tables.forEach(f -> user.append(fact(f, facts, "")).append('\n'));
+    }
+    if (!uses.isEmpty()) {
+      user.append("\nHow it is used:\n");
+      for (UseInput use : uses) {
+        user.append(oneLine(use.use())).append(":\n");
+        use.facts().forEach(f -> user.append(fact(f, facts, "  ")).append('\n'));
+      }
+    }
+    return new Question(
+        element,
+        name,
+        ELEMENT,
+        ELEMENT_VERSION,
+        ELEMENT_SYSTEM,
+        user.toString(),
+        facts,
+        Map.of(),
+        Map.of(),
+        Map.of());
   }
 
   /** A fact's line with its reference, a new one unless the prompt shows it already. */
@@ -295,9 +391,10 @@ final class WordingPrompt {
       throw new Rejected("it is not one JSON object.");
     }
     Map<String, WordingAnswer.Item> items = new TreeMap<>();
-    JsonNode unit = json.get(WordingAnswer.UNIT);
-    if (unit != null && !unit.isNull()) {
-      items.put(WordingAnswer.UNIT, item(unit, "the unit", question, question.name(), false));
+    JsonNode element = json.get(question.about());
+    if (element != null && !element.isNull()) {
+      String what = question.about().equals(WordingAnswer.UNIT) ? "the unit" : "the element";
+      items.put(question.about(), item(element, what, question, question.name(), false));
     }
     group(json, "components", question.components().keySet(), question, false, items);
     group(json, "relationships", question.relationships().keySet(), question, true, items);

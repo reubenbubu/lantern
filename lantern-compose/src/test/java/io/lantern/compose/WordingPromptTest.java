@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.lantern.compose.WordingPrompt.ComponentInput;
 import io.lantern.compose.WordingPrompt.Question;
 import io.lantern.compose.WordingPrompt.RelationshipInput;
+import io.lantern.compose.WordingPrompt.UseInput;
 import io.lantern.core.fact.EntityId;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.TokenUsage;
@@ -51,6 +52,80 @@ class WordingPromptTest {
     assertThat(WordingPrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.VERSION and update this fingerprint")
         .isEqualTo("1 81abfde38fb1eac342e9044851484f7cc4c058f89fad435b5020514b0a32c207");
+  }
+
+  /**
+   * The fingerprint of the texts and limits of the prompt about a data store or destination for
+   * {@link WordingPrompt#ELEMENT_VERSION} (ADR 0056), as above.
+   */
+  @Test
+  void theElementVersionIsRaisedWhenItsPromptChanges() throws Exception {
+    String texts =
+        String.join(
+            "\n--\n",
+            WordingPrompt.ELEMENT_SYSTEM,
+            WordingPrompt.RETRY,
+            Integer.toString(WordingPrompt.SENTENCE_WORDS),
+            Integer.toString(Describer.MAX_ELEMENT_OUTPUT_TOKENS),
+            Integer.toString(Describer.MAX_ELEMENT_FACTS),
+            Integer.toString(Describer.MAX_TABLES),
+            Integer.toString(Describer.MAX_USES));
+    String fingerprint =
+        HexFormat.of()
+            .formatHex(
+                MessageDigest.getInstance("SHA-256")
+                    .digest(texts.getBytes(StandardCharsets.UTF_8)));
+
+    assertThat(WordingPrompt.ELEMENT_VERSION + " " + fingerprint)
+        .as("The prompt changed: raise WordingPrompt.ELEMENT_VERSION and update this fingerprint")
+        .isEqualTo("1 1d76a0951d9dad8222b75341fa81b8a89c6dab77fe003257d3e049f508425308");
+  }
+
+  private Question element() {
+    return WordingPrompt.element(
+        EntityId.parse("database:db:5432/shop"),
+        "database",
+        "shop on db",
+        "PostgreSQL",
+        List.of(facts.find("database:db:5432/shop", "technology")),
+        List.of(),
+        List.of(
+            new UseInput(
+                "shop-app (a deployable unit) connects to it",
+                List.of(facts.find("service:com.example:app", "USES_DATABASE")))));
+  }
+
+  @Test
+  void theAnswerAboutADataStoreHoldsOneSentence() {
+    assertThat(WordingPrompt.check(response("{}"), element())).isEmpty();
+    assertThat(
+            WordingPrompt.check(
+                response("{\"element\": {\"text\": \"Keeps orders.\", \"cites\": [\"F2\"]}}"),
+                element()))
+        .containsExactly(
+            Map.entry(
+                WordingPrompt.ELEMENT, new WordingAnswer.Item("Keeps orders.", List.of("F2"))));
+    assertThatThrownBy(
+            () ->
+                WordingPrompt.check(
+                    response("{\"element\": {\"text\": \"Shop on db.\", \"cites\": [\"F1\"]}}"),
+                    element()))
+        .hasMessage(
+            "the responsibility sentence of the element only restates its name; say what it does.");
+    assertThatThrownBy(
+            () ->
+                WordingPrompt.check(
+                    response("{\"element\": {\"text\": \"Keeps orders.\", \"cites\": [\"F3\"]}}"),
+                    element()))
+        .hasMessage("the element cites F3, which is not a fact in the input.");
+    assertThatThrownBy(
+            () ->
+                WordingPrompt.check(
+                    response(
+                        "{\"relationships\": {\"R1\": {\"text\": \"Stores orders\","
+                            + " \"cites\": [\"F1\"]}}}"),
+                    element()))
+        .hasMessage("relationships names R1, which is not in the input.");
   }
 
   private Question question() {
