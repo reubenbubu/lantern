@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -75,6 +77,54 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             });
     return new Spending(totals[0], totals[1], cost[0], byRole);
   }
+
+  /**
+   * The calls that started at or after the given time, whatever their outcome, grouped by role,
+   * provider and model, in the roles' order and then by provider and model.
+   */
+  public List<ModelSpending> spentByModelSince(Instant since) {
+    return jdbc
+        .sql(
+            """
+            SELECT role, provider, model, count(*) AS calls,
+                   coalesce(sum(input_tokens + output_tokens + cache_write_tokens
+                       + cache_read_tokens), 0) AS tokens,
+                   coalesce(sum(cost_usd), 0) AS cost
+            FROM llm_calls
+            WHERE started_at >= :since
+            GROUP BY role, provider, model
+            """)
+        .param("since", since.atOffset(ZoneOffset.UTC))
+        .query(
+            (rs, row) ->
+                new ModelSpending(
+                    Role.valueOf(rs.getString("role")),
+                    rs.getString("provider"),
+                    rs.getString("model"),
+                    rs.getLong("calls"),
+                    rs.getLong("tokens"),
+                    rs.getBigDecimal("cost")))
+        .list()
+        .stream()
+        .sorted(
+            Comparator.comparing(ModelSpending::role)
+                .thenComparing(ModelSpending::provider)
+                .thenComparing(ModelSpending::model))
+        .toList();
+  }
+
+  /**
+   * What the calls of one role to one model used.
+   *
+   * @param role what the calls were for
+   * @param provider the provider name
+   * @param model the model identifier
+   * @param calls how many calls were logged, including failed and refused ones
+   * @param tokens all tokens, input of every kind plus output
+   * @param costUsd US dollars
+   */
+  public record ModelSpending(
+      Role role, String provider, String model, long calls, long tokens, BigDecimal costUsd) {}
 
   /**
    * Tokens and money used by a set of calls.

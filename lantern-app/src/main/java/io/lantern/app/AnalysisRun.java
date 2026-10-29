@@ -199,6 +199,8 @@ public final class AnalysisRun {
    * @param wordingsReused how many of their wordings came from the cache
    * @param llm the LLM calls made during the run, whatever their outcome, by role
    * @param documents the rendered documents, in the order written
+   * @param runRecord the file that records each role's model and the run's cost, next to the
+   *     documents
    */
   public record Result(
       String system,
@@ -216,7 +218,8 @@ public final class AnalysisRun {
       int wordingsAsked,
       int wordingsReused,
       JdbcLlmCallLog.Spending llm,
-      List<Rendered> documents) {
+      List<Rendered> documents,
+      Path runRecord) {
 
     public Result {
       summariesRejected = List.copyOf(summariesRejected);
@@ -388,6 +391,12 @@ public final class AnalysisRun {
               systemTitle);
       documents.add(new Rendered(document, write(out, systemView.id(), document)));
       documents.forEach(d -> LOG.info("Wrote {}", d.file()));
+      Path runRecord =
+          RunRecord.write(
+              out,
+              RunRecord.of(
+                  system, snapshot.number(), llm.models(), callLog.spentByModelSince(started)));
+      LOG.info("Wrote {}", runRecord);
       return new Result(
           system,
           systemTitle,
@@ -404,7 +413,8 @@ public final class AnalysisRun {
           described.asked(),
           described.reused(),
           callLog.spentSince(started),
-          documents);
+          documents,
+          runRecord);
     }
   }
 
