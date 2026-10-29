@@ -1,6 +1,6 @@
 # 0010: Hierarchical summarizer
 
-Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76), by ADR 0055 (#190) and by ADR 0056 (#197), pending the user's review (#24)
+Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76), by ADR 0055 (#190) and by ADR 0057 (#197), pending the user's review (#24)
 
 ## Context
 
@@ -25,7 +25,7 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   type. A unit's facts are those about it, about its methods and fields, and about what contains
   it outside the hierarchy (the `service` or `library` that builds a module). Facts with the unit
   as object, such as calls into it, are left out, so a unit is summarized again only when it
-  changes itself (since ADR 0056 a module or repository is also summarized again when a fact
+  changes itself (since ADR 0057 a module or repository is also summarized again when a fact
   of its fact sheet changes). All facts about a containing `service` or `library` go to each module it
   contains; they are few today, but if later stages add many, this should narrow to the
   container's own `CONTAINS` and attribute facts. Types are keyed by name alone (0007), so a type

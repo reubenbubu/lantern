@@ -60,6 +60,9 @@ final class C4Views {
   static final String EXTERNAL_SYSTEM = "external-system";
   static final String DECISION = "decision";
 
+  /** The kinds of container that are not deployable units: data stores and destinations. */
+  static final Set<String> DESTINATIONS = Set.of(DATABASE, TOPIC, QUEUE, EXCHANGE, EXTERNAL_SYSTEM);
+
   /** A decision record's rationale when it has no context section. */
   static final String NOT_RECORDED = "Not recorded.";
 
@@ -122,6 +125,61 @@ final class C4Views {
    */
   Map<Fact, Fact> alternativeLinks() {
     return alternatives;
+  }
+
+  /**
+   * A line of the container diagrams seen from one of its ends (ADR 0056).
+   *
+   * @param other the element at the other end
+   * @param relationship the relationship the line draws, such as {@code CALLS_HTTP}
+   * @param incoming whether the line runs from the other end to this one
+   * @param via what it goes through (the name of a queue, or the tables read), or null
+   * @param facts its link facts
+   */
+  record Neighbour(
+      EntityId other, String relationship, boolean incoming, String via, List<Fact> facts) {}
+
+  /**
+   * The data stores, topics, queues, exchanges and external systems the container diagrams draw:
+   * the ends of their lines to and from units that are not units themselves, profile alternatives
+   * and queues folded into a line left out. Routes between exchanges and queues add nothing, as on
+   * the diagrams, which draw them only between elements drawn already.
+   */
+  SortedSet<EntityId> destinations() {
+    SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
+    for (Link link : links) {
+      if (!link.from.type().equals(BuiltInTypes.SERVICE)
+          && !link.to.type().equals(BuiltInTypes.SERVICE)) {
+        continue;
+      }
+      for (EntityId end : List.of(link.from, link.to)) {
+        if (DESTINATIONS.contains(end.type())) {
+          result.add(end);
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * The lines of the container diagrams that touch the element, in the order of the links: those to
+   * and from units, and routes between it and another of the {@link #destinations()}.
+   */
+  List<Neighbour> neighbours(EntityId element) {
+    Set<EntityId> drawn = destinations();
+    List<Neighbour> result = new ArrayList<>();
+    for (Link link : links) {
+      if (link.relationship.equals(ROUTES_TO)
+          && !(drawn.contains(link.from) && drawn.contains(link.to))) {
+        continue;
+      }
+      if (link.to.equals(element)) {
+        result.add(new Neighbour(link.from, link.relationship, true, link.via, link.facts));
+      } else if (link.from.equals(element)) {
+        result.add(new Neighbour(link.to, link.relationship, false, link.via, link.facts));
+      }
+    }
+    return result;
   }
 
   // The deployable units and their names.

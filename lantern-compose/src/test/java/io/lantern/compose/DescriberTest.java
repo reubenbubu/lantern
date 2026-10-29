@@ -39,16 +39,34 @@ class DescriberTest {
           2, Map.of("shop", TestFacts.COMMIT, "base", TestFacts.COMMIT), 5, "0.1.0", Instant.EPOCH);
   private static final EntityId APP = EntityId.parse("service:com.example:app");
   private static final EntityId WORKER = EntityId.parse("service:com.example:worker");
+  private static final EntityId DATABASE = EntityId.parse("database:db:5432/shop");
+  private static final EntityId TOPIC = EntityId.parse("topic:kafka:orders");
+  private static final EntityId PAY = EntityId.parse("external-system:pay.example.com");
 
   private final TestFacts facts = TestFacts.runtime();
   private final InMemoryWordingStore store = new InMemoryWordingStore();
 
   /**
    * Words each unit, its components and relationships from what its prompt shows: the shop app's
-   * components and its send, the worker's call, each citing the first fact.
+   * components and its send, the worker's call, each citing the first fact; and the database and
+   * the topic, citing their uses, leaving the external system out.
    */
   private static String answer(LlmRequest request) {
     String prompt = request.messages().getFirst().text();
+    if (prompt.startsWith("The database")) {
+      return """
+          {"element": {"text": "Keeps the shop's orders.", "cites": ["F%s"]}}"""
+          .formatted(ref(prompt, "USES_DATABASE"));
+    }
+    if (prompt.startsWith("The topic")) {
+      return """
+          {"element": {"text": "Carries new orders to background processing.",
+                       "cites": ["F%s", "F%s"]}}"""
+          .formatted(ref(prompt, "PUBLISHES"), ref(prompt, "CONSUMES"));
+    }
+    if (prompt.startsWith("The external system")) {
+      return "{}";
+    }
     if (prompt.startsWith("The deployable unit shop-app")) {
       return """
           {"unit": {"text": "Takes and lists the shop's orders.", "cites": ["F1", "F2"]},
@@ -129,14 +147,18 @@ class DescriberTest {
 
     Describer.Result result = describe(fake);
 
-    assertThat(result.asked()).isEqualTo(2);
+    assertThat(result.asked()).isEqualTo(5);
     assertThat(result.reused()).isZero();
     assertThat(result.rejected()).isEmpty();
     assertThat(result.skipped()).isEmpty();
     assertThat(fake.sent())
         .extracting(s -> s.request().role() + " " + s.request().purpose())
         .containsExactlyInAnyOrder(
-            "INFER_INTENT word unit " + APP, "INFER_INTENT word unit " + WORKER);
+            "INFER_INTENT word unit " + APP,
+            "INFER_INTENT word unit " + WORKER,
+            "INFER_INTENT word element " + DATABASE,
+            "INFER_INTENT word element " + TOPIC,
+            "INFER_INTENT word element " + PAY);
     String app =
         fake.sent().stream()
             .map(s -> s.request().messages().getFirst().text())
@@ -157,6 +179,71 @@ class DescriberTest {
         .contains("[R3] connects to shop on db (a database)\n")
         // No fact IDs: they change with every commit.
         .doesNotContain(facts.find(APP.toString(), "CALLS_HTTP").id());
+  }
+
+  @Test
+  void asksOncePerDataStoreAndDestinationShowingItsFactsTablesAndUses() {
+    TestFacts withTables =
+        TestFacts.runtime()
+            .relate("shop", "schema:com.example:app", "CONTAINS", "table:com.example:app:orders");
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+
+    new Describer(client(fake), store).describe(withTables.list());
+
+    Function<String, LlmRequest> request =
+        purpose ->
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .filter(r -> r.purpose().equals(purpose))
+                .findFirst()
+                .orElseThrow();
+    LlmRequest database = request.apply("word element " + DATABASE);
+    assertThat(database.system()).isEqualTo(WordingPrompt.ELEMENT_SYSTEM);
+    assertThat(database.maxOutputTokens()).isEqualTo(Describer.MAX_ELEMENT_OUTPUT_TOKENS);
+    assertThat(database.messages().getFirst().text())
+        .isEqualTo(
+            """
+            The database shop on db, PostgreSQL.
+
+            Facts about it:
+            [F1] database:db:5432/shop technology "PostgreSQL" (shop:pom.xml)
+
+            Tables of the schemas built in it:
+            [F2] schema:com.example:app CONTAINS table:com.example:app:orders (shop:pom.xml)
+
+            How it is used:
+            shop-app (a deployable unit) connects to it:
+              [F3] service:com.example:app USES_DATABASE database:db:5432/shop\
+             {"protocol":"JDBC","schemas":["schema:com.example:app"]} (shop:pom.xml)
+            """);
+    assertThat(request.apply("word element " + TOPIC).messages().getFirst().text())
+        .startsWith("The topic orders, Kafka topic.\n\nHow it is used:\n")
+        .contains("\nshop-app (a deployable unit) sends messages to it:\n  [F1] ")
+        .contains("\nworker (a deployable unit) receives messages from it:\n  [F2] ");
+    assertThat(request.apply("word element " + PAY).messages().getFirst().text())
+        .startsWith(
+            "The external system pay.example.com.\n\nHow it is used:\n"
+                + "shop-app (a deployable unit) calls it:\n");
+  }
+
+  @Test
+  void anExchangeAndQueueJoinedOnlyByARouteAreNotAskedAbout() {
+    TestFacts routed =
+        TestFacts.runtime()
+            .relate(
+                "shop",
+                "exchange:rabbitmq:audit",
+                "ROUTES_TO",
+                "queue:rabbitmq:audit.log",
+                "{\"protocol\": \"AMQP\", \"bindingKey\": \"#\"}");
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+
+    Describer.Result result = new Describer(client(fake), store).describe(routed.list());
+
+    assertThat(result.asked()).isEqualTo(5);
+    assertThat(fake.sent())
+        .extracting(s -> s.request().purpose())
+        .noneMatch(p -> p.contains("audit"));
   }
 
   @Test
@@ -183,6 +270,22 @@ class DescriberTest {
             .findFirst()
             .orElseThrow();
     assertThat(text(controller.description())).isEqualTo("Lists orders for the web shop.");
+    DocumentEntity database =
+        document.entities().stream().filter(e -> e.id().equals(DATABASE)).findFirst().orElseThrow();
+    assertThat(text(database.description())).isEqualTo("Keeps the shop's orders.");
+    assertThat(database.description().getLast())
+        .isEqualTo(new Citation(List.of(facts.find(APP.toString(), "USES_DATABASE").id())));
+    DocumentEntity topic =
+        document.entities().stream().filter(e -> e.id().equals(TOPIC)).findFirst().orElseThrow();
+    assertThat(text(topic.description())).isEqualTo("Carries new orders to background processing.");
+    // Left out by the model: no description, as before.
+    assertThat(
+            document.entities().stream()
+                .filter(e -> e.id().equals(PAY))
+                .findFirst()
+                .orElseThrow()
+                .description())
+        .isEmpty();
 
     Diagram containers = diagrams(document, Diagram.Kind.C4_CONTAINER).getFirst();
     assertThat(edges(containers))
@@ -228,34 +331,36 @@ class DescriberTest {
 
     assertThat(fake.sent()).hasSize(calls);
     assertThat(second.asked()).isZero();
-    assertThat(second.reused()).isEqualTo(2);
+    assertThat(second.reused()).isEqualTo(5);
     assertThat(second.wordings()).isEqualTo(first);
   }
 
   @Test
-  void anAnswerRejectedTwiceLeavesTheUnitAsItWasAndCachesNothing() {
+  void anAnswerRejectedTwiceLeavesTheElementAsItWasAndCachesNothing() {
     FakeLlmProvider fake =
         new FakeLlmProvider()
             .answering(
                 request ->
                     """
-                    {"unit": {"text": "Uses things.", "cites": ["F99"]}}""");
+                    {"unit": {"text": "Uses things.", "cites": ["F99"]},
+                     "element": {"text": "Holds things.", "cites": ["F99"]}}""");
 
     Describer.Result result = describe(fake);
 
-    assertThat(fake.sent()).hasSize(4);
+    assertThat(fake.sent()).hasSize(10);
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
-        .contains("word unit " + APP + " (retry)");
+        .contains("word unit " + APP + " (retry)", "word element " + DATABASE + " (retry)");
     assertThat(fake.sent())
         .filteredOn(s -> s.request().purpose().endsWith("(retry)"))
         .allSatisfy(
             s ->
                 assertThat(s.request().messages().getLast().text())
                     .startsWith(
-                        "Your answer was rejected: the unit cites F99, which is not a fact in the"
-                            + " input."));
-    assertThat(result.rejected()).containsExactlyInAnyOrder(APP, WORKER);
+                        "Your answer was rejected: the "
+                            + (s.request().purpose().startsWith("word unit") ? "unit" : "element")
+                            + " cites F99, which is not a fact in the input."));
+    assertThat(result.rejected()).containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY);
     assertThat(result.wordings()).isEqualTo(Wordings.NONE);
     assertThat(store.size()).isZero();
     // The documents keep summaries and static labels.
@@ -275,7 +380,7 @@ class DescriberTest {
 
     Describer.Result result = describe(fake);
 
-    assertThat(result.skipped()).containsExactlyInAnyOrder(APP, WORKER);
+    assertThat(result.skipped()).containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY);
     assertThat(result.wordings()).isEqualTo(Wordings.NONE);
   }
 
@@ -347,7 +452,7 @@ class DescriberTest {
     Describer.Result second = new Describer(client(fake), store).describe(moved);
 
     assertThat(fake.sent()).hasSize(calls);
-    assertThat(second.reused()).isEqualTo(2);
+    assertThat(second.reused()).isEqualTo(5);
     // The answers cite the new commit's facts.
     assertThat(second.wordings().phrases())
         .containsKey(
