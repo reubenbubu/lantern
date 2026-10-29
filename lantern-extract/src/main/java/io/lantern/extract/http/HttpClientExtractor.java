@@ -152,6 +152,15 @@ public final class HttpClientExtractor {
   private static final String APACHE_SIMPLE_REQUEST =
       "org.apache.hc.client5.http.async.methods.SimpleHttpRequest";
 
+  /**
+   * Apache HttpClient 5's static request factories: {@code get(uri)} and the like, or {@code
+   * create(method, uri)}.
+   */
+  private static final Set<String> APACHE_FACTORIES =
+      Set.of(
+          "org.apache.hc.client5.http.classic.methods.ClassicHttpRequests",
+          "org.apache.hc.client5.http.async.methods.SimpleHttpRequests");
+
   private static final String WEB = SPRING + "web.client.";
   private static final String REACTIVE = SPRING + "web.reactive.function.client.";
 
@@ -189,6 +198,9 @@ public final class HttpClientExtractor {
             "org.apache.hc.core5.http.io.support.ClassicRequestBuilder",
             "org.apache.hc.client5.http.async.methods.SimpleRequestBuilder",
             APACHE_SIMPLE_REQUEST)) {
+      k.put(t, APACHE_CLIENT);
+    }
+    for (String t : APACHE_FACTORIES) {
       k.put(t, APACHE_CLIENT);
     }
     return Map.copyOf(k);
@@ -557,18 +569,21 @@ public final class HttpClientExtractor {
         }
         for (Base b : bases) {
           for (String path : paths) {
-            String url =
+            String own =
                 client.kind().equals(HTTP_INTERFACE)
                     // Spring joins the interface's and the method's URL, then applies the base
                     // URL unless the result is a whole URL itself.
-                    ? joinUrl(b.url().text(), joinUrl(classPath, path))
-                    : joinUrl(b.url().text(), SpringExtractor.join(basePath, path));
+                    ? joinUrl(classPath, path)
+                    : SpringExtractor.join(basePath, path);
+            String url = joinUrl(b.url().text(), own);
+            // The base's unfollowed parts count only if the base is part of the URL.
+            List<String> unknown = ABSOLUTE.matcher(own).find() ? List.of() : b.url().unknown();
             for (String method : methods.isEmpty() ? List.of("") : methods) {
               Call call =
                   new Call(
                       e.getValue().id(),
                       method.isEmpty() ? null : method,
-                      new Text(url.isEmpty() ? "/" : url, b.url().unknown()),
+                      new Text(url.isEmpty() ? "/" : url, unknown),
                       service,
                       client.kind(),
                       type.binaryName(),
@@ -986,19 +1001,23 @@ public final class HttpClientExtractor {
       Expression.Invoke last = links.getLast().call();
       Scope scope = links.getLast().scope();
       String apache = APACHE_REQUESTS.get(rootType);
-      if (apache != null || rootType.equals(APACHE_SIMPLE_REQUEST)) {
-        // new HttpGet(uri), or SimpleHttpRequest.create(method, uri)
+      boolean factory = APACHE_FACTORIES.contains(rootType);
+      if (apache != null || factory || rootType.equals(APACHE_SIMPLE_REQUEST)) {
+        // new HttpGet(uri), SimpleHttpRequest.create(method, uri), ClassicHttpRequests.get(uri)
         if (links.size() != 1) {
           return null;
         }
         List<Expression> args = last.arguments();
-        if (apache != null
-            && last.method().equals(ModuleStructure.CONSTRUCTOR)
-            && !args.isEmpty()) {
-          return new Request(apache, url(args.getFirst(), scope));
+        if (apache != null) {
+          return last.method().equals(ModuleStructure.CONSTRUCTOR) && !args.isEmpty()
+              ? new Request(apache, url(args.getFirst(), scope))
+              : null;
         }
-        return apache == null && last.method().equals("create") && args.size() == 2
-            ? new Request(httpMethod(args.getFirst()), url(args.get(1), scope))
+        if (last.method().equals("create") && args.size() == 2) {
+          return new Request(httpMethod(args.getFirst()), url(args.get(1), scope));
+        }
+        return factory && args.size() == 1 && HTTP_METHODS.contains(upper(last.method()))
+            ? new Request(upper(last.method()), url(args.getFirst(), scope))
             : null;
       }
       if (!last.method().equals("build") || !last.arguments().isEmpty()) {

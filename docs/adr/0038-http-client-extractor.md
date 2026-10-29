@@ -67,17 +67,18 @@ without what must not be.
   wraps a client whose `baseUrl`, `create(url)` or `rootUri` is followed as above, resolved in
   the config of the module that makes the proxy; a call per distinct base URL, and none (the path
   alone) when no proxy is found or its client comes from elsewhere. A URL that is a whole URL
-  itself stands alone, as Spring sends it.
+  itself stands alone, as Spring sends it, without the base's `expressions`.
 - **Request objects** (#145): `java.net.http` (`HttpRequest.newBuilder(uri)` or `.uri(uri)`, then
   `GET()`, `POST(...)` or `method(...)`), OkHttp (`new Request.Builder().url(...)`, then `get()`,
   `post(...)` or `method(...)`) and Apache HttpClient (`new HttpGet(uri)` and the other request
   classes of 4 and 5 classic, `RequestBuilder`, `ClassicRequestBuilder` and `SimpleRequestBuilder`
-  with `get(uri)` and the like or `create(method)` and `setUri(uri)`, and
-  `SimpleHttpRequest.create(method, uri)`). A request is recorded where it is made: the chain
-  must end in `build()` (or be the constructor or `create` call alone), so one kept in a variable
-  before it is finished counts once. An HTTP method not said is `GET`, as the builders default,
-  except for Apache's builders, which always say. Where the request is sent is not read: the
-  method that builds it is the one recorded as calling.
+  with `get(uri)` and the like or `create(method)` and `setUri(uri)`,
+  `SimpleHttpRequest.create(method, uri)`, and 5's static factories `ClassicHttpRequests` and
+  `SimpleHttpRequests`, `get(uri)` and the like or `create(method, uri)`). A request is recorded
+  where it is made: the chain must end in `build()` (or be the constructor or `create` call alone),
+  so one kept in a variable before it is finished counts once. An HTTP method not said is `GET`, as
+  the builders default, except for Apache's builders, which always say. Where the request is sent is
+  not read: the method that builds it is the one recorded as calling.
 - **Facts**, attributes with a string object unless said, evidence the call (an imperative client)
   or the mapping (a declarative one), in the module that declares it:
   - `http-call` on the method sending the request (the type for code outside methods; the nearest

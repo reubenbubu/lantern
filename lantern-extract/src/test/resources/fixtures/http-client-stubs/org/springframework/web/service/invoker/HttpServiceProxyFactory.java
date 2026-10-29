@@ -9,6 +9,10 @@ public final class HttpServiceProxyFactory {
     return null;
   }
 
+  public static Builder builder(HttpExchangeAdapter adapter) {
+    return null;
+  }
+
   public <S> S createClient(Class<S> serviceType) {
     return null;
   }

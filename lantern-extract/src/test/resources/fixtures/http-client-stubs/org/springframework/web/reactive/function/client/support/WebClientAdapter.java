@@ -7,4 +7,8 @@ public final class WebClientAdapter implements HttpExchangeAdapter {
   public static WebClientAdapter create(WebClient webClient) {
     return null;
   }
+
+  public static WebClientAdapter forClient(WebClient webClient) {
+    return null;
+  }
 }
