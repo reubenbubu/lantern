@@ -54,4 +54,4 @@ author and dates, and that Lantern pins that repository's commit.
   tests it needs no property: plain `./mvnw verify` runs it when project-0 is set up at its pinned
   commits in the default folder, and skips it, with the reason, when it is not, so the build passes
   on a machine without the private set. When `lantern.test.project0` is set, it runs on that folder
-  and fails if a repository is not at its pin. It adds about 35 seconds.
+  and fails if a repository is not at its pin. It adds about 50 seconds.
