@@ -98,9 +98,10 @@ class Project0EndToEndIT {
   @TestConfiguration(proxyBeanMethods = false)
   static class Fake {
     /**
-     * A fake model that cites the first fact and the first part's summary it is given, and words
+     * A fake model that cites the first fact and the first part's summary it is given, words
      * nothing when asked for responsibilities and intent phrases (ADR 0050), so the report keeps
-     * the static labels this test checks.
+     * the static labels this test checks, and answers unknown when asked to resolve a link left
+     * open (ADR 0045), so those links stay open; Project0LinksIT checks the resolver's picks.
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -110,6 +111,9 @@ class Project0EndToEndIT {
                 String prompt = request.messages().getFirst().text();
                 if (request.role() == Role.INFER_INTENT) {
                   return "{}";
+                }
+                if (request.role() == Role.RESOLVE) {
+                  return "{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}";
                 }
                 List<String> sentences = new ArrayList<>();
                 if (prompt.contains("[S1]")) {
@@ -202,7 +206,10 @@ class Project0EndToEndIT {
     assertThat(first.newFacts()).isEqualTo(first.facts());
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.wordingsAsked()).isPositive();
-    assertThat(calls).isEqualTo(first.summariesGenerated() + first.wordingsAsked());
+    // The links project-0 leaves open with candidates: HTTP-6, HTTP-7 and MSG-5.
+    long resolves = fake.sent().stream().filter(s -> s.request().role() == Role.RESOLVE).count();
+    assertThat(resolves).isEqualTo(3);
+    assertThat(calls).isEqualTo(first.summariesGenerated() + first.wordingsAsked() + resolves);
     assertThat(first.llm().calls()).isEqualTo(calls);
     List<String> files = new ArrayList<>();
     for (String name : commits.keySet()) {

@@ -191,6 +191,8 @@ class Project0MessagingIT {
                   + "java.lang.String)",
               "method:com.acme.shop.payments.OrderEventsListener#orderEvent(java.lang.String)",
               "method:com.acme.shop.payments.OrderEventsListener#refund(java.lang.String)",
+              "method:com.acme.shop.payments.RefundListener#refundRequested(java.lang.String)",
+              "method:com.acme.shop.storefront.order.ReturnListener#returned(java.lang.String)",
               "method:com.acme.shop.storefront.order.ShipmentListener#dispatched("
                   + "java.lang.String)");
     }

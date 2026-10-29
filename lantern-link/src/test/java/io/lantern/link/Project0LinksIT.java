@@ -63,8 +63,28 @@ class Project0LinksIT {
 
   private static List<String> unbuiltClaims;
 
+  /**
+   * The candidate the LLM resolver should pick for each link project-0 leaves open with candidates,
+   * by the code that makes the call or send (HTTP-6, HTTP-7, MSG-5).
+   */
+  private static final Map<String, String> ANSWERS =
+      Map.of(
+          "method:com.acme.shop.fulfilment.OrderClient#order(long)",
+          "service:com.acme.shop:storefront-app",
+          "method:com.acme.shop.fulfilment.PaymentStatusClient#paymentOf(long)",
+          "service:com.acme.shop:payments",
+          "method:com.acme.shop.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)",
+          "service:com.acme.shop:payments");
+
   /** What the LLM resolver, with a fake model, was asked with builds and without. */
-  private static final List<LlmRequest> resolverRequests = new ArrayList<>();
+  private static final List<String> builtPrompts = new ArrayList<>();
+
+  private static final List<String> unbuiltPrompts = new ArrayList<>();
+
+  /** The links the LLM resolver picked with builds and without. */
+  private static List<String> builtResolved;
+
+  private static List<String> unbuiltResolved;
 
   @BeforeAll
   static void derive() throws IOException {
@@ -72,16 +92,25 @@ class Project0LinksIT {
     Map<String, Repo> project = Project0.repos();
     List<RepoBuild> withoutBuilds = Project0.unbuilt(project);
     List<RepoBuild> withBuilds = Project0.built(project, sandbox);
-    List<String> withBuildsFacts = render(extractAndLink(withBuilds));
-    List<String> withoutBuildsFacts = render(extractAndLink(withoutBuilds));
+    List<Fact> resolved = new ArrayList<>();
+    List<String> withBuildsFacts = render(extractAndLink(withBuilds, builtPrompts, resolved));
+    builtResolved = render(resolved);
+    resolved.clear();
+    List<String> withoutBuildsFacts =
+        render(extractAndLink(withoutBuilds, unbuiltPrompts, resolved));
+    unbuiltResolved = render(resolved);
     built = withBuildsFacts.stream().filter(l -> !l.startsWith("readme:")).toList();
     unbuilt = withoutBuildsFacts.stream().filter(l -> !l.startsWith("readme:")).toList();
     builtClaims = withBuildsFacts.stream().filter(l -> l.startsWith("readme:")).toList();
     unbuiltClaims = withoutBuildsFacts.stream().filter(l -> l.startsWith("readme:")).toList();
   }
 
-  /** The facts the app links, made as the app makes them, and the links. */
-  private static List<Fact> extractAndLink(List<RepoBuild> repos) {
+  /**
+   * The facts the app links, made as the app makes them, and the links; the LLM resolver's prompts
+   * and the links it picks, with a fake model that gives the known answers, go to the lists given.
+   */
+  private static List<Fact> extractAndLink(
+      List<RepoBuild> repos, List<String> prompts, List<Fact> resolved) {
     List<Fact> facts = new ArrayList<>(new MavenExtractor().extract(repos, 1));
     JavaAnalysis code = JavaExtractor.analyze(repos);
     facts.addAll(new JavaExtractor().extract(code, 1));
@@ -95,26 +124,56 @@ class Project0LinksIT {
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
     facts.addAll(links);
-    links.addAll(new ClaimChecks().derive(facts, 1));
-    // The LLM resolver with a fake model that answers unknown, to see what a real run would ask.
-    FakeLlmProvider fake =
-        new FakeLlmProvider()
-            .answering("{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}");
+    List<Fact> claims = new ClaimChecks().derive(facts, 1);
+    links.addAll(claims);
+    // The LLM resolver with a fake model that gives the known answer, to see what a real run
+    // would ask and that the answer is recorded as the link.
+    FakeLlmProvider fake = new FakeLlmProvider().answering(Project0LinksIT::knownAnswer);
     List<Fact> all = new ArrayList<>(facts);
-    all.addAll(links);
-    new LinkResolver(
-            new LlmClient(
-                ModelSettings.single(fake.model("fake")),
-                List.of(fake),
-                BudgetGuard.unlimited("project-0"),
-                new InMemoryLlmCallLog(),
-                Clock.systemUTC()),
-            new InMemoryResolutionStore())
-        .resolve(all, 1);
-    fake.sent().forEach(sent -> resolverRequests.add(sent.request()));
+    all.addAll(claims);
+    LinkResolver.Result result =
+        new LinkResolver(
+                new LlmClient(
+                    ModelSettings.single(fake.model("fake")),
+                    List.of(fake),
+                    BudgetGuard.unlimited("project-0"),
+                    new InMemoryLlmCallLog(),
+                    Clock.systemUTC()),
+                new InMemoryResolutionStore())
+            .resolve(all, 1);
+    assertThat(result.rejected()).as("answers rejected").isEmpty();
+    assertThat(result.skipped()).as("calls skipped").isEmpty();
+    assertThat(result.unknown()).as("answered unknown").isZero();
+    resolved.addAll(result.facts());
+    fake.sent().forEach(sent -> prompts.add(sent.request().messages().getFirst().text()));
     Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
     links.forEach(vocabulary::validate);
+    resolved.forEach(vocabulary::validate);
     return links;
+  }
+
+  /**
+   * The answer a model that knows project-0 gives: the reference of the candidate {@link #ANSWERS}
+   * names for the code the prompt asks about, citing it; unknown for any other prompt.
+   */
+  private static String knownAnswer(LlmRequest request) {
+    String prompt = request.messages().getFirst().text();
+    for (Map.Entry<String, String> answer : ANSWERS.entrySet()) {
+      if (!prompt.contains(", in " + answer.getKey() + ".")) {
+        continue;
+      }
+      for (String line : prompt.lines().toList()) {
+        if (line.matches("\\[C\\d+] .*") && line.endsWith("] " + answer.getValue())) {
+          String ref = line.substring(1, line.indexOf(']'));
+          return "{\"target\": \""
+              + ref
+              + "\", \"confidence\": \"high\", \"cites\": [\""
+              + ref
+              + "\"], \"rationale\": \"The answer project-0 documents.\"}";
+        }
+      }
+    }
+    return "{\"target\": \"unknown\", \"rationale\": \"Not a project-0 case.\"}";
   }
 
   /**
@@ -258,10 +317,121 @@ class Project0LinksIT {
   }
 
   @Test
-  void http5HasNoCandidatesSoTheResolverAsksTheModelNothing() {
-    // Every link project-0 leaves open lacks candidates, with builds and without: HTTP-5's tax
-    // service is outside the set, so a real run makes no Resolve call.
-    assertThat(resolverRequests).isEmpty();
+  void http5HasNoCandidatesSoTheResolverAsksTheModelNothingAboutIt() {
+    // HTTP-5's tax service is outside the set, so no unit serves its path: nothing to pick from.
+    assertThat(builtPrompts).noneMatch(p -> p.contains("TaxClient"));
+    assertThat(unbuiltPrompts).noneMatch(p -> p.contains("TaxClient"));
+  }
+
+  @Test
+  void theResolverIsAskedOnceAboutEachLinkLeftOpenWithCandidates() {
+    for (List<String> prompts : List.of(builtPrompts, unbuiltPrompts)) {
+      assertThat(prompts)
+          .extracting(p -> p.substring(p.indexOf(", in ") + 5, p.indexOf(".\n")))
+          .containsExactlyInAnyOrderElementsOf(ANSWERS.keySet());
+      // The candidates by unit ID, not ranked (ADR 0045): payments first in every case.
+      for (String prompt : prompts) {
+        assertThat(prompt)
+            .contains("\n[C1] service:com.acme.shop:payments\n")
+            .contains("\n[C2] service:com.acme.shop:storefront-app\n")
+            .doesNotContain("[C3]");
+      }
+    }
+    assertThat(builtResolved).hasSize(ANSWERS.size());
+    assertThat(unbuiltResolved).hasSize(ANSWERS.size());
+  }
+
+  @Test
+  void http6AHostThatNamesNoUnitOnAPathTwoUnitsServe() {
+    assertBoth(
+        "service:~:fulfilment unresolved-link GET http://storefront-web:8080/api/orders/{id}"
+            + " {\"candidates\":[\"service:~:payments\",\"service:~:storefront-app\"],"
+            + "\"kind\":\"http\",\"reason\":\"unknown-host\","
+            + "\"source\":\"method:~.fulfilment.OrderClient#order(long)\"}"
+            + " @fulfilment:"
+            + J
+            + "fulfilment/OrderClient.java#18");
+    // What decides it is in the prompt: the host, and the candidate's application name.
+    assertThat(prompt(builtPrompts, "OrderClient"))
+        .contains("storefront-web")
+        .contains("service:com.acme.shop:storefront-app application-name \"storefront\"");
+    assertBothResolved(
+        "service:~:fulfilment CALLS_HTTP service:~:storefront-app {\"client\":\"web-client\","
+            + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
+            + "\"path\":\"/api/orders/{id}\",\"protocol\":\"HTTP\","
+            + "\"rationale\":\"The answer project-0 documents.\",\"resolves\":\"50bc052e7262ce21\","
+            + "\"source\":\"method:~.fulfilment.OrderClient#order(long)\"}"
+            + " @fulfilment:"
+            + J
+            + "fulfilment/OrderClient.java#18");
+  }
+
+  @Test
+  void http7AnUnresolvableUrlOnAPathTwoUnitsServe() {
+    assertBoth(
+        "service:~:fulfilment unresolved-link GET ${PAYMENTS_SERVICE_URL}/api/orders/{id}"
+            + " {\"candidates\":[\"service:~:payments\",\"service:~:storefront-app\"],"
+            + "\"kind\":\"http\",\"reason\":\"unresolved-placeholder\","
+            + "\"source\":\"method:~.fulfilment.PaymentStatusClient#paymentOf(long)\","
+            + "\"unresolved\":[\"PAYMENTS_SERVICE_URL\"]}"
+            + " @fulfilment:"
+            + J
+            + "fulfilment/PaymentStatusClient.java#19");
+    assertThat(prompt(builtPrompts, "PaymentStatusClient"))
+        .contains("placeholders no config resolves: PAYMENTS_SERVICE_URL")
+        .contains("service:com.acme.shop:payments application-name \"payments\"");
+    assertBothResolved(
+        "service:~:fulfilment CALLS_HTTP service:~:payments {\"client\":\"web-client\","
+            + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
+            + "\"path\":\"/api/orders/{id}\",\"protocol\":\"HTTP\","
+            + "\"rationale\":\"The answer project-0 documents.\",\"resolves\":\"d50bdb199adaf990\","
+            + "\"source\":\"method:~.fulfilment.PaymentStatusClient#paymentOf(long)\"}"
+            + " @fulfilment:"
+            + J
+            + "fulfilment/PaymentStatusClient.java#19");
+  }
+
+  @Test
+  void msg5ARoutingKeyKnownOnlyAtRunTimeToAnExchangeTwoUnitsBindTo() {
+    assertBoth(
+        "service:~:fulfilment unresolved-link shop.returns"
+            + " {\"candidates\":[\"service:~:payments\",\"service:~:storefront-app\"],"
+            + "\"kind\":\"message\",\"reason\":\"unknown-routing-key\","
+            + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\"}"
+            + " @fulfilment:"
+            + J
+            + "fulfilment/ReturnsPublisher.java#19",
+        "service:~:fulfilment PUBLISHES exchange:rabbitmq:shop.returns {\"protocol\":\"AMQP\","
+            + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\"}"
+            + " @fulfilment:"
+            + J
+            + "fulfilment/ReturnsPublisher.java#19");
+    // Each candidate's binding is in the prompt: only payments' takes refund keys.
+    assertThat(prompt(builtPrompts, "ReturnsPublisher"))
+        .contains("\"routingKey\":\"refund.*\"")
+        .contains("\"routingKey\":\"return.*\"");
+    assertBothResolved(
+        "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"model\":\"fake/fake\","
+            + "\"protocol\":\"AMQP\",\"rationale\":\"The answer project-0 documents.\","
+            + "\"resolves\":\"f9995358ef8d1925\","
+            + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\"}"
+            + " @fulfilment:"
+            + J
+            + "fulfilment/ReturnsPublisher.java#19");
+  }
+
+  /** The one prompt about the code of a class. */
+  private static String prompt(List<String> prompts, String type) {
+    return prompts.stream()
+        .filter(p -> p.contains("." + type + "#"))
+        .reduce((a, b) -> a + "\n---\n" + b)
+        .orElseThrow();
+  }
+
+  /** Checks links the resolver picked, both with builds and without, each once. */
+  private static void assertBothResolved(String... lines) {
+    assertThat(builtResolved).as("picked with builds").containsOnlyOnce(lines);
+    assertThat(unbuiltResolved).as("picked without builds").containsOnlyOnce(lines);
   }
 
   @Test
