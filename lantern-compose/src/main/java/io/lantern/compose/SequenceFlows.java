@@ -311,6 +311,9 @@ final class SequenceFlows {
       Later later = trace.later.removeFirst();
       if (later.job != null) {
         Entry job = later.job;
+        if (trace.visited.contains(job.key())) {
+          continue;
+        }
         trace.note(
             List.of(job.unit),
             "Later: the " + jobName(job) + " runs (" + methodName(job.method) + ").",
@@ -941,8 +944,11 @@ final class SequenceFlows {
       if (partOfKept || !inScope) {
         continue;
       }
-      // A flow that holds flows already kept, ranked level with them, takes the first one's place.
-      List<Trace> held = kept.stream().filter(k -> trace.reached.contains(k.entry.key())).toList();
+      // A flow that holds flows already kept and touches as many takes the first one's place.
+      List<Trace> held =
+          kept.stream()
+              .filter(k -> trace.reached.contains(k.entry.key()) && trace.touches() >= k.touches())
+              .toList();
       if (!held.isEmpty()) {
         kept.set(kept.indexOf(held.getFirst()), trace);
         kept.removeAll(held.subList(1, held.size()));

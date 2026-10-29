@@ -103,7 +103,9 @@ that creates the task and goes on into the job, so the flows now do too.
 - **Jobs on a schedule are not continued.** A job with a cron (`scheduled`) runs on its schedule,
   not because of the code that registered it, so it keeps its own flow.
 - **Choosing.** The job's entry point is reached by the scheduling flow, so it is not shown apart.
-  When a candidate ranks level with a flow already shown and holds it, it takes that flow's place,
-  so the containing flow is shown, not the part.
+  This refines the rule above, kept by ADR 0070, that a flow reached by one already shown is not
+  shown: when a candidate holds a flow already shown and touches as many participants, as a
+  scheduling flow and its job's flow can when they tie, it takes that flow's place, so the
+  containing flow is shown, not the part. This holds for every flow, not only jobs.
 - **Checks.** `SequenceFlowsTest` covers the continuation, the deduplication (including the job's
   flow ranking first) and a job scheduled from code no flow reaches.

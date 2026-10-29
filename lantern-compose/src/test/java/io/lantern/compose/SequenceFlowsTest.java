@@ -668,6 +668,24 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aJobOnACronIsNotContinuedFromTheCodeThatRegistersIt() {
+    facts.removeIf(f -> f.predicate().equals("scheduled"));
+    attribute(
+        "ship",
+        NIGHTLY,
+        "scheduled",
+        "0 0 1 * * *",
+        "{\"framework\": \"jobrunr\", \"trigger\": \"cron\", \"scheduledBy\": [\""
+            + STATUS
+            + "\"]}",
+        0);
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .containsExactly("POST /orders on front", "Nightly.run on its schedule in ship");
+  }
+
+  @Test
   void aJobScheduledByCodeNoFlowReachesKeepsItsOwnFlow() {
     facts.removeIf(f -> f.predicate().equals("scheduled"));
     attribute(
