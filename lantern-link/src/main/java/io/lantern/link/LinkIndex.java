@@ -26,7 +26,7 @@ import tools.jackson.databind.JsonNode;
 /**
  * The facts of a snapshot that the cross-repo linker reads, indexed: the deployable units with
  * their modules and names, where code and tables are declared, the units' config, the profiles and
- * the profile gates. See {@code docs/adr/0041-cross-repo-links.md}.
+ * the profile gates. See {@code docs/adr/0042-cross-repo-links.md}.
  */
 final class LinkIndex {
 

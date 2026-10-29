@@ -25,7 +25,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Links HTTP calls to the units that serve them, or to external systems (ADR 0041): by a Feign
+ * Links HTTP calls to the units that serve them, or to external systems (ADR 0042): by a Feign
  * client's name against {@code spring.application.name}, else by the URL's host against unit names,
  * then the path against the target's endpoints; a call to this machine by its path alone.
  */

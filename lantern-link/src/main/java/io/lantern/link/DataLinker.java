@@ -25,7 +25,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Links units to what their config connects them to (ADR 0041): databases by their datasources'
+ * Links units to what their config connects them to (ADR 0042): databases by their datasources'
  * server and database, so two units on one database share it; the tables a unit's code reads or
  * writes in another unit's schema on a shared database; message brokers; and, as infrastructure
  * rather than business dependencies, service discovery, config servers and tracing.

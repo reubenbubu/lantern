@@ -20,7 +20,7 @@ import tools.jackson.databind.JsonNode;
 /**
  * Links the deployable units of a snapshot at runtime, matching what one exposes with what another
  * uses: HTTP calls with endpoints, messages sent with listeners, datasources with databases, and
- * config with brokers and infrastructure. See {@code docs/adr/0041-cross-repo-links.md}.
+ * config with brokers and infrastructure. See {@code docs/adr/0042-cross-repo-links.md}.
  *
  * <p>It runs after {@link DeployableUnits} and reads its facts with the extractors'. Each link is
  * found in every view (the default one and each profile the facts name, one profile active at a

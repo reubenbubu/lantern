@@ -18,7 +18,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Links what units send to what units listen on (ADR 0041): Kafka topics by name or a listener's
+ * Links what units send to what units listen on (ADR 0042): Kafka topics by name or a listener's
  * topic pattern, JMS destinations by name, and RabbitMQ exchanges through the bindings declared for
  * them to queues, routing keys matched as the exchange's type routes them, AMQP topic wildcards
  * included. Records the topics, queues and exchanges as entities with what each unit publishes to

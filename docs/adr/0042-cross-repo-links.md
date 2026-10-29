@@ -1,4 +1,4 @@
-# 0041: Cross-repo links
+# 0042: Cross-repo links
 
 Status: accepted (#94), pending the user's review (#24)
 
