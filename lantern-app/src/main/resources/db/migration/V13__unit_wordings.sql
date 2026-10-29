@@ -1,7 +1,7 @@
 -- Cached answers of the LLM's wording of deployable units: the responsibility sentences of a unit
 -- and its components and the intent phrases of its links (see docs/design.md, LLM integration,
 -- Grounding, and docs/adr/0050-responsibility-sentences-and-intent-phrases.md). An answer is keyed
--- by a hash of the prompt version, model and prompt, so a changed input gives a new key and the old
+-- by a hash of the prompt version, provider, model and prompt, so a changed input gives a new key and the old
 -- row is simply no longer used. Its items are texts by the prompt's references, each citing the
 -- references it rests on.
 CREATE TABLE unit_wordings (

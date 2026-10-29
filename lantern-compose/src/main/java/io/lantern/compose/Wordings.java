@@ -10,8 +10,7 @@ import java.util.Objects;
  * composer to use instead of summaries and static labels where it has them.
  *
  * @param responsibilities the responsibility sentence of each deployable unit and component (by its
- *     main type), with citation markers as summaries have them: {@code [fact:<fact ID>]} and {@code
- *     [summary:<entity ID>]}
+ *     main type), with citation markers as summaries have them, {@code [fact:<fact ID>]}
  * @param phrases the intent phrase of each link, by the ID of the link fact
  */
 public record Wordings(Map<EntityId, String> responsibilities, Map<String, Phrase> phrases) {

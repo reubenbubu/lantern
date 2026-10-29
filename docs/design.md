@@ -199,6 +199,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 | Linked graph | Set of fact IDs in scope + linker version |
 | LLM summaries | Hash of input facts + child summaries + prompt version + model |
 | LLM link resolutions | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
+| LLM wordings of units | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
 | Layouts | Diagram ID; updated incrementally, never recomputed by default |
 | Document prose | Hash of the facts a section draws from + template version |
 

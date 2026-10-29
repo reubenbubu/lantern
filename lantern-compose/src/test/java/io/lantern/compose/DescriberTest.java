@@ -318,4 +318,100 @@ class DescriberTest {
     assertThat(result.asked()).isZero();
     assertThat(new ArrayList<>(result.wordings().responsibilities().keySet())).isEmpty();
   }
+
+  @Test
+  void aNewCommitThatChangesNothingShownMakesNoCall() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    describe(fake);
+    int calls = fake.sent().size();
+    List<Fact> moved =
+        facts.list().stream()
+            .map(
+                f ->
+                    Fact.create(
+                        f.subject(),
+                        f.predicate(),
+                        f.object(),
+                        f.attributes(),
+                        f.origin(),
+                        new io.lantern.core.fact.Evidence(
+                            f.evidence().repo(),
+                            "b".repeat(40),
+                            f.evidence().path(),
+                            f.evidence().lines(),
+                            f.evidence().contentHash()),
+                        f.confidence(),
+                        f.validity()))
+            .toList();
+
+    Describer.Result second = new Describer(client(fake), store).describe(moved);
+
+    assertThat(fake.sent()).hasSize(calls);
+    assertThat(second.reused()).isEqualTo(2);
+    // The answers cite the new commit's facts.
+    assertThat(second.wordings().phrases())
+        .containsKey(
+            moved.stream()
+                .filter(f -> f.subject().equals(APP) && f.predicate().equals("PUBLISHES"))
+                .findFirst()
+                .orElseThrow()
+                .id());
+  }
+
+  @Test
+  void aLineIsLabelledWithItsPhrasesOnlyWhenEveryLinkHasOne() {
+    String other =
+        """
+        {"protocol": "Kafka", "routingKey": "order.paid", "source": \
+        "method:com.example.web.Controller#list()"}""";
+    TestFacts more =
+        TestFacts.runtime()
+            .relate("shop", APP.toString(), "PUBLISHES", "topic:kafka:orders", other);
+    List<Fact> sends =
+        more.list().stream()
+            .filter(f -> f.subject().equals(APP) && f.predicate().equals("PUBLISHES"))
+            .toList();
+    assertThat(sends).hasSize(2);
+    Function<Wordings, String> label =
+        wordings ->
+            diagrams(
+                    new Composer("1")
+                        .compose(
+                            ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                            SNAPSHOT,
+                            more.list(),
+                            Map.of(),
+                            wordings),
+                    Diagram.Kind.C4_CONTAINER)
+                .getFirst()
+                .edges()
+                .stream()
+                .filter(e -> e.from().equals(APP) && e.to().toString().equals("topic:kafka:orders"))
+                .findFirst()
+                .orElseThrow()
+                .label();
+
+    assertThat(
+            label.apply(
+                new Wordings(
+                    Map.of(),
+                    Map.of(sends.get(0).id(), new Wordings.Phrase("Announces orders", List.of())))))
+        .isEqualTo("Sends order.paid");
+    assertThat(
+            label.apply(
+                new Wordings(
+                    Map.of(),
+                    Map.of(
+                        sends.get(0).id(),
+                        new Wordings.Phrase("Announces orders", List.of()),
+                        sends.get(1).id(),
+                        new Wordings.Phrase("Reports payments", List.of())))))
+        .isEqualTo("Announces orders; reports payments");
+  }
+
+  @Test
+  void aLowerFirstLetterKeepsAcronyms() {
+    assertThat(C4Views.lowerFirst("Reports payments")).isEqualTo("reports payments");
+    assertThat(C4Views.lowerFirst("SQL dumps")).isEqualTo("SQL dumps");
+  }
 }

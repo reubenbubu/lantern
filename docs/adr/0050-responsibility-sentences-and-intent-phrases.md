@@ -32,7 +32,8 @@ or static label as it was.
   written as in ADR 0045, without fact IDs or line numbers. Summaries are not shown: they exist only
   for the repositories a run analyzes, so showing them would make the prompt, and so the calls,
   depend on which repositories a run names, and a run over commits analyzed before would call the
-  model again. The issue asks for wording from extracted facts in any case. A unit with nothing
+  model again. Facts are listed in the order of their lines, not by fact ID, which holds the
+  commit, so a new commit that changes nothing shown gives the same prompt. The issue asks for wording from extracted facts in any case. A unit with nothing
   but the facts that make it a unit is not asked about.
 - **The prompt** asks, in ADR 0025's spirit, for one plain sentence of at most 25 words saying
   what the unit or component does for the system, not restating its name or kind, and for an intent
@@ -58,15 +59,17 @@ or static label as it was.
   citations, becomes the entity's description in every document instead of the summary (ADR
   0044), so the C4 report's element descriptions and catalogues carry it. A type has one
   description, so a component class's longer summary is no longer shown in the Explorer; its
-  module's and package's summaries are. Citations of facts not in a document's facts are left out;
-  a sentence left with none is not used.
+  module's and package's summaries are. A class that is a component of two units gets the sentence
+  of the first by ID. Citations of facts not in a document's facts are left out; a sentence left
+  with none is not used, while a phrase still is, since its line cites the link it words.
 - **Labels.** A container, context or component line whose links all have an intent phrase is
   labelled with them, naming two (`Looks up product prices; places orders`) and counting the rest;
   the facts they cite join the line's. A line with a link without one keeps its static label, as do
   calls between components, data access from components and routes between exchanges and queues.
   A sequence message for an HTTP call or a send takes its link's phrase, the endpoint or protocol
   after it as before ("Create order [POST /orders]", as the design asks); deliveries, data access
-  and notes keep what the facts say.
+  and notes keep what the facts say. A `CONSUMES` link is worded from the receiving unit's side and
+  labels the line from the queue or exchange to it.
 - **The analyze run** prints how many units the LLM worded and how many came from the cache;
   `AnalysisRun.Result` gains `wordingsAsked` and `wordingsReused`. `EndToEndIT` checks that the
   second run reuses every wording, and its call report counts the calls by role.

@@ -265,7 +265,8 @@ final class Assembler {
 
   /**
    * The intent phrase of a link (ADR 0050) and the facts it cites that are in the snapshot, or
-   * {@code null} if it has none.
+   * {@code null} if the link has none. A phrase none of whose cited facts are in the snapshot is
+   * still used: its line or message cites the link fact it words.
    */
   Phrased phrase(Fact link) {
     Wordings.Phrase phrase = wordings.phrases().get(link.id());

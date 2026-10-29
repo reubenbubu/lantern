@@ -204,7 +204,7 @@ public final class Describer {
     // Components are drawn only for a unit with more than one (docs/design.md, Diagrams).
     if (found.size() > 1) {
       for (C4Views.Component component : found.subList(0, Math.min(MAX_COMPONENTS, found.size()))) {
-        List<Fact> shown = c4.componentFacts(component);
+        List<Fact> shown = byLine(c4.componentFacts(component));
         components.add(
             new ComponentInput(
                 component.main(),
@@ -216,7 +216,7 @@ public final class Describer {
     List<Fact> entryPoints = components.isEmpty() ? entryPoints(unit, knowledge) : List.of();
     List<RelationshipInput> relationships = new ArrayList<>();
     for (String predicate : LINKS) {
-      for (Fact link : knowledge.relations(unit, predicate)) {
+      for (Fact link : byLine(knowledge.relations(unit, predicate))) {
         if (alternatives.contains(link) || relationships.size() >= MAX_RELATIONSHIPS) {
           continue;
         }
@@ -237,11 +237,21 @@ public final class Describer {
             unit,
             assembler.name(unit),
             c4.technology(unit),
-            c4.containerFacts(unit),
+            byLine(c4.containerFacts(unit)),
             claims,
             entryPoints,
             components,
             relationships));
+  }
+
+  /**
+   * The facts in the order of their lines in the prompt. Fact IDs hold the commit, so an order by
+   * ID would change the prompt, and miss the cache, at every commit.
+   */
+  private static List<Fact> byLine(List<Fact> facts) {
+    List<Fact> sorted = new ArrayList<>(facts);
+    sorted.sort(Comparator.comparing(WordingPrompt::fact));
+    return sorted;
   }
 
   /** The endpoints, listeners and scheduled jobs of the unit's code, by method ID, at most some. */
@@ -256,7 +266,7 @@ public final class Describer {
     List<Fact> result = new ArrayList<>();
     for (EntityId type : code) {
       for (EntityId method : knowledge.parts(type, METHOD)) {
-        for (Fact fact : knowledge.attributes(method)) {
+        for (Fact fact : byLine(knowledge.attributes(method))) {
           if (ENTRY_POINTS.contains(fact.predicate()) && result.size() < MAX_ENTRY_POINTS) {
             result.add(fact);
           }

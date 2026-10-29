@@ -49,7 +49,7 @@ public record WordingAnswer(
    * One text of the answer.
    *
    * @param text a responsibility sentence or an intent phrase, without citation markers
-   * @param cites the references of the facts and summaries it rests on, at least one
+   * @param cites the references of the facts it rests on, at least one
    */
   public record Item(String text, List<String> cites) {
 
