@@ -306,6 +306,7 @@ public class BuildSandbox {
             // What the build wrote to the cache, in whatever modes, stays deletable by the user.
             handOverCache();
           }
+          removeLabelled();
           if (interrupted) {
             Thread.currentThread().interrupt();
           }
@@ -425,6 +426,40 @@ public class BuildSandbox {
             exit.code() == 0
                 ? "default; the effective POM does not name a Java version"
                 : "default; Maven could not compute the effective POM";
+      }
+    }
+
+    /**
+     * Removes whatever containers and networks with this build's sandbox label are still there,
+     * such as one a create that was killed at its timeout made late. Best effort, like all cleanup.
+     */
+    private void removeLabelled() {
+      String filter = "label=" + LABEL + "=" + id;
+      try {
+        List<String> containers =
+            docker
+                .check(CLEANUP_TIMEOUT, List.of("ps", "--all", "--quiet", "--filter", filter))
+                .out()
+                .lines()
+                .toList();
+        if (!containers.isEmpty()) {
+          List<String> rm = new ArrayList<>(List.of("rm", "--force", "--volumes"));
+          rm.addAll(containers);
+          docker.quietly(CLEANUP_TIMEOUT, rm);
+        }
+        List<String> networks =
+            docker
+                .check(CLEANUP_TIMEOUT, List.of("network", "ls", "--quiet", "--filter", filter))
+                .out()
+                .lines()
+                .toList();
+        if (!networks.isEmpty()) {
+          List<String> rm = new ArrayList<>(List.of("network", "rm"));
+          rm.addAll(networks);
+          docker.quietly(CLEANUP_TIMEOUT, rm);
+        }
+      } catch (RuntimeException e) {
+        // Cleanup is best effort; leftovers carry the sandbox label.
       }
     }
 

@@ -57,6 +57,13 @@ VM's rootless Docker.
   does not count. Since it cannot tell which build used the space, it is treated as a problem of
   the host, not of the build: `SandboxException`, nothing stored, so no repository is recorded as
   failed for it.
+- **Cleanup waits for creates (#144, #98).** Every Docker call that creates a container or
+  network runs to its end even when the build is interrupted or times out, up to the 5-minute
+  Docker timeout, because a killed `docker create` or `docker run` can still be completed by the
+  daemon after cleanup ran. The hand-over is a `docker create` followed by `docker start
+  --attach`, and only the start is bound by the build timeout. Cleanup removes the build's
+  containers and network by name and then, for any a create killed at the Docker timeout left
+  behind, by the build's sandbox label.
 - **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. With
   several builds at once, the free-space guard stops them all. What a build wrote to the shared
   cache stays there; cleaning the cache is manual, and until then every analysis stops at its
