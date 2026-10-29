@@ -52,7 +52,6 @@ final class TrackedApis {
           // Spring Cloud Gateway (the gateway extractor): routes built with RouteLocatorBuilder.
           "org.springframework.cloud.gateway.");
 
-
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";
   private static final String GROUP = REGISTRY + "HttpServiceGroup";
