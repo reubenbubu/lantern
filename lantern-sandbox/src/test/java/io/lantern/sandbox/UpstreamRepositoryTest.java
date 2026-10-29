@@ -74,13 +74,15 @@ class UpstreamRepositoryTest {
     List<BuildModule> modules = List.of(module("", "parent", "pom"), module("lib", "lib", "jar"));
     Path into = temp.resolve("upstream");
 
-    List<String> notes =
+    UpstreamRepository.Written written =
         UpstreamRepository.write(
             List.of(
                 new UpstreamBuild(failed, build(failed, BuildStatus.FAILED, modules)),
                 new UpstreamBuild(first, build(first, BuildStatus.SUCCEEDED, modules)),
                 new UpstreamBuild(second, build(second, BuildStatus.SUCCEEDED, modules))),
-            into);
+            into,
+            Instant.parse("2026-10-29T08:09:10Z"));
+    List<String> notes = written.notes();
 
     Path parent = into.resolve("com/example/parent/1.0-SNAPSHOT");
     assertThat(parent.resolve("parent-1.0-SNAPSHOT.pom"))
@@ -98,6 +100,27 @@ class UpstreamRepositoryTest {
               "com/example/",
               "com/example/Lib.class");
     }
+    // A snapshot gets the metadata of a local install, so Maven prefers it to a remote snapshot.
+    assertThat(lib.resolve("maven-metadata-local.xml"))
+        .content()
+        .contains("<localCopy>true</localCopy>")
+        .contains("<lastUpdated>20261029080910</lastUpdated>")
+        .contains("<extension>jar</extension>")
+        .contains("<value>1.0-SNAPSHOT</value>");
+    assertThat(parent.resolve("maven-metadata-local.xml"))
+        .content()
+        .contains("<extension>pom</extension>")
+        .doesNotContain("<extension>jar</extension>");
+    assertThat(written.builds())
+        .containsExactlyInAnyOrder(
+            "first@" + TestRepos.head(first), "second@" + TestRepos.head(second));
+    assertThat(written.artifacts())
+        .containsEntry(
+            "com.example:lib:1.0-SNAPSHOT",
+            List.of(
+                "com/example/lib/1.0-SNAPSHOT/lib-1.0-SNAPSHOT.pom",
+                "com/example/lib/1.0-SNAPSHOT/lib-1.0-SNAPSHOT.jar"))
+        .hasSize(2);
     assertThat(notes)
         .anySatisfy(n -> assertThat(n).startsWith("not using the artifacts of failed@"))
         .anySatisfy(
@@ -121,8 +144,10 @@ class UpstreamRepositoryTest {
 
     List<String> notes =
         UpstreamRepository.write(
-            List.of(new UpstreamBuild(repo, build(repo, BuildStatus.SUCCEEDED, List.of(odd)))),
-            Files.createDirectories(into));
+                List.of(new UpstreamBuild(repo, build(repo, BuildStatus.SUCCEEDED, List.of(odd)))),
+                Files.createDirectories(into),
+                Instant.EPOCH)
+            .notes();
 
     try (var files = Files.list(into)) {
       assertThat(files).isEmpty();

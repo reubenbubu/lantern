@@ -302,6 +302,18 @@ class EndToEndIT {
     assertThat(fake.sent()).as("LLM requests after the failed run").hasSize(sent);
     assertThat(validIn(afterFailure, "greeting-lib")).isEqualTo(libFacts);
     assertThat(validIn(afterFailure, "greeting-service")).isEqualTo(serviceFacts);
+    assertThat(afterFailure.reusedBuilds()).containsExactly("greeting-service");
+
+    // Once the library moves to a new commit, the service's stored build was made with classes
+    // the snapshot no longer has, so it is built again with the library's new build (ADR 0041).
+    AnalysisRun.Result moved = run.run(Map.of("greeting-lib", lib, "greeting-service", service));
+    assertThat(moved.snapshot().commits()).containsEntry("greeting-lib", failedLib);
+    // The failed run built the library at that commit already.
+    assertThat(moved.reusedBuilds()).containsExactly("greeting-lib");
+    BuildResult rebuiltService = moved.builds().get("greeting-service");
+    assertThat(rebuiltService.status()).isEqualTo(BuildStatus.SUCCEEDED);
+    assertThat(rebuiltService.upstream()).containsExactly("greeting-lib@" + failedLib);
+    assertThat(rebuiltService.startedAt()).isAfter(serviceBuild.startedAt());
   }
 
   @Test

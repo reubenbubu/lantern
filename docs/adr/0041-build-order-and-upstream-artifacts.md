@@ -39,6 +39,16 @@ snapshots would pick it up (ADR 0005, 0019).
   does not find in the shared cache and writes nothing there, nor what it found there into the
   cache: `BuildSandboxIT` checks that the cache gains none of those artifacts. JDK detection gets
   the same tail, so a parent POM from another repository is found.
+- **Precedence.** Maven looks in the shared cache first and in the tail only for what the cache
+  lacks; it cannot be made to prefer the tail without writing into the cache. So the snapshot's
+  build wins over a download from any repository (the tail is local, so Maven does not look
+  remotely), and a `-SNAPSHOT` version also gets a `maven-metadata-local.xml` marking it a local
+  install updated when the build starts, so it is newer than a snapshot of the same version in a
+  remote repository. But where the shared cache already holds an artifact with the same
+  coordinates (another build downloaded that version, or an older build of the same version), the
+  cache's copy wins. Before the build, the sandbox checks the cache for each given artifact's POM
+  and jar; each one found is a warning in the build log naming the coordinates, and is recorded in
+  `build.json` as `shadowed`.
 - **Only successful builds are given.** A failed build's classes may be partial; the build log says
   which builds were left out and why. When two builds have a module with the same coordinates, the
   first one's is used, in name order, and the log says so. Coordinates that are not plain path
@@ -49,16 +59,26 @@ snapshots would pick it up (ADR 0005, 0019).
 - **The analysis run** (`AnalysisRun`) orders the analyzed and carried-forward repositories
   together. A build waits for the builds it depends on (several still run at once, up to the
   sandbox's limit). A repository carried forward is not built (ADR 0018); its stored build, if it
-  succeeded, is given to the builds that need it. Reuse is unchanged (ADR 0016): a stored successful
-  build of a `repo@commit` is reused, a failed one is built again, now with the artifacts it lacked.
+  succeeded, is given to the builds that need it.
+- **Reuse also checks the builds given.** Each build records, in `build.json` as `upstream`, the
+  `repo@commit` of the successful builds it was given. A stored successful build is reused (ADR
+  0016) only if those are the same as the successful builds the run would give it now; otherwise
+  it is built again, so the extractors never see classes compiled against a library the snapshot
+  no longer has. A failed one is built again as before. Builds stored before this record no
+  builds given, so a repository with upstream builds is built once more. If the sandbox cannot run
+  such a rebuild, the stored build is used, with a warning, as for a failed one.
 
 ## Consequences
 
 - A repository that uses a library or parent POM another repository of the snapshot builds now
   builds, if the version it asks for is the one that repository builds at its commit. A different
   version still comes from the Maven repositories, or fails into degraded mode.
-- Reuse stays keyed by `repo@commit` alone: a stored successful build is not built again when a
-  repository it depends on moves to a new commit with the same version. A failed one is.
+- A build copies the other repositories' artifacts into its own container, so they count
+  against its disk limit (ADR 0019); a large library given to many builds costs each of them its
+  size.
+- `<modules>` of every profile are followed when ordering, active or not, so a module only an
+  inactive profile builds can add a dependency that is not there, or a cycle that makes
+  repositories build as if alone.
 - A build that used another repository's artifacts runs that repository's code only as far as
   compiling against it runs it (annotation processors in its jar, for example); both are builds of
   the same snapshot, which is already trusted no further than any build.
@@ -69,8 +89,9 @@ snapshots would pick it up (ADR 0005, 0019).
 - The build order reads POMs as written, so a dependency added only by a parent POM outside the
   snapshot is not seen, and such a repository may be built before the one it needs.
 - `BuildSandboxIT` builds the `lib-and-service` fixture's service with the library's build, and a
-  repository on another's unpublished `-SNAPSHOT` parent POM and library. `EndToEndIT` now has the
-  carried-forward library's build given to the service's, which builds. `BuildOrderTest` and
+  repository on another's unpublished `-SNAPSHOT` parent POM and library. `BuildSandboxIT` also checks that an artifact already in the cache is reported as `shadowed`.
+  `EndToEndIT` now has the carried-forward library's build given to the service's, which builds,
+  and checks the service is built again once the library moves to a new commit. `BuildOrderTest` and
   `UpstreamRepositoryTest` check the order, cycles and the written repository.
 - project-0 still keeps its thin service and library in one repository; splitting them is a change
   to its source repository, outside this one (ADR 0029), described on #118.

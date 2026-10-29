@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * The stored outcome of building one {@code repo@commit}.
@@ -23,6 +24,11 @@ import java.util.Objects;
  * @param effectivePom the effective POM of all modules, relative to {@link #directory}, or null
  * @param modules the modules that left outputs, ordered by path
  * @param directory the directory holding the build's outputs, log and this result
+ * @param upstream the other repositories' successful builds whose artifacts the build was given, as
+ *     {@code repo@commit} (ADR 0041)
+ * @param shadowed the coordinates ({@code groupId:artifactId:version}) of those artifacts that the
+ *     shared Maven cache already held when the build started, so Maven may have used the cache's
+ *     copy instead (ADR 0041)
  */
 public record BuildResult(
     String repo,
@@ -37,7 +43,42 @@ public record BuildResult(
     Duration duration,
     String effectivePom,
     List<BuildModule> modules,
-    Path directory) {
+    Path directory,
+    Set<String> upstream,
+    List<String> shadowed) {
+
+  /** A build that was given no other repository's artifacts. */
+  public BuildResult(
+      String repo,
+      String commit,
+      BuildStatus status,
+      String failure,
+      int jdk,
+      String jdkSource,
+      String image,
+      Integer mavenExitCode,
+      Instant startedAt,
+      Duration duration,
+      String effectivePom,
+      List<BuildModule> modules,
+      Path directory) {
+    this(
+        repo,
+        commit,
+        status,
+        failure,
+        jdk,
+        jdkSource,
+        image,
+        mavenExitCode,
+        startedAt,
+        duration,
+        effectivePom,
+        modules,
+        directory,
+        Set.of(),
+        List.of());
+  }
 
   public BuildResult {
     Objects.requireNonNull(repo, "repo");
@@ -48,6 +89,8 @@ public record BuildResult(
     Objects.requireNonNull(duration, "duration");
     Objects.requireNonNull(directory, "directory");
     modules = List.copyOf(modules);
+    upstream = Set.copyOf(upstream);
+    shadowed = List.copyOf(shadowed);
     if ((status == BuildStatus.FAILED) != (failure != null)) {
       throw new IllegalArgumentException("A failed build, and only a failed one, has a failure");
     }

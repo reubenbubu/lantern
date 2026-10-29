@@ -276,11 +276,19 @@ public class BuildSandbox {
     private List<BuildModule> modules = List.of();
     private String effectivePom;
     private boolean hasUpstream;
+    private final Set<String> given;
+    private final List<String> shadowed = new ArrayList<>();
 
     Run(Repo repo, String commit, List<UpstreamBuild> upstream, Path outputs, Path staging) {
       this.repo = repo;
       this.commit = commit;
       this.upstream = upstream;
+      this.given =
+          upstream.stream()
+              .map(UpstreamBuild::build)
+              .filter(b -> !b.degraded())
+              .map(b -> b.repo() + "@" + b.commit())
+              .collect(Collectors.toSet());
       this.outputs = outputs;
       this.staging = staging;
       this.log = new Log(outputs.resolve(LOG_FILE), settings.maxLogBytes());
@@ -356,7 +364,9 @@ public class BuildSandbox {
           Duration.between(started, Instant.now()),
           effectivePom,
           modules,
-          directory);
+          directory,
+          given,
+          shadowed);
     }
 
     /**
@@ -726,8 +736,25 @@ public class BuildSandbox {
       if (!upstream.isEmpty()) {
         // Copied in with the other Lantern files, owned by root, so the build can only read it.
         Path tail = Files.createDirectories(lantern.resolve(UPSTREAM));
-        UpstreamRepository.write(upstream, tail).forEach(log::note);
+        UpstreamRepository.Written written =
+            UpstreamRepository.write(upstream, tail, Instant.now());
+        written.notes().forEach(log::note);
         hasUpstream = true;
+        // Maven looks in the shared cache before the tail, so where the cache already holds an
+        // artifact, Maven uses the cache's copy, which may be another build's of the same version.
+        Path cache = settings.mavenCacheDirectory();
+        written
+            .artifacts()
+            .forEach(
+                (gav, files) -> {
+                  if (files.stream().anyMatch(f -> Files.exists(cache.resolve(f)))) {
+                    shadowed.add(gav);
+                    log.note(
+                        "WARNING: the Maven cache already holds "
+                            + gav
+                            + ", so the build may use the cache's copy instead of this snapshot's");
+                  }
+                });
       }
       return lantern;
     }

@@ -27,6 +27,7 @@ import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarFile;
+import java.util.jar.JarOutputStream;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -314,7 +315,24 @@ class BuildSandboxIT {
       assertThat(built.modules().getFirst().classpath())
           .containsExactly(
               "lib/com/example/shared/shared-lib/1.0.0-SNAPSHOT/shared-lib-1.0.0-SNAPSHOT.jar");
+      assertThat(built.upstream()).containsExactly("shared@" + sharedResult.commit());
+      assertThat(built.shadowed()).isEmpty();
       assertThat(cache.resolve("com/example/shared")).doesNotExist();
+
+      // Maven looks in the cache first: where it already holds one of those artifacts, here an
+      // empty jar of the same snapshot, the build may use that copy, and says so.
+      Path stale =
+          cache.resolve(
+              "com/example/shared/shared-lib/1.0.0-SNAPSHOT/shared-lib-1.0.0-SNAPSHOT.jar");
+      Files.createDirectories(stale.getParent());
+      new JarOutputStream(Files.newOutputStream(stale)).close();
+      BuildResult shadowed =
+          sandbox.build(
+              consumer, TestRepos.head(consumer), List.of(new UpstreamBuild(shared, sharedResult)));
+      assertThat(shadowed.shadowed())
+          .containsExactly("com.example.shared:shared-lib:1.0.0-SNAPSHOT");
+      assertThat(Files.readString(shadowed.log()))
+          .contains("WARNING: the Maven cache already holds com.example.shared:shared-lib");
     } finally {
       deleteIfExists(cache);
     }

@@ -7,11 +7,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -31,16 +37,31 @@ final class UpstreamRepository {
   /** A group ID, artifact ID or version that can become part of a path. */
   private static final Pattern PART = Pattern.compile("[A-Za-z0-9_+-][A-Za-z0-9_.+-]*");
 
+  private static final DateTimeFormatter TIMESTAMP =
+      DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneOffset.UTC);
+
   private UpstreamRepository() {}
 
   /**
-   * Writes the artifacts of the successful builds into the directory, in Maven repository layout.
-   * When two builds have a module with the same coordinates, the first one's is used.
+   * What was written.
    *
-   * @return notes for the build log: which builds and modules were given, and which not and why
+   * @param notes for the build log: which builds and modules were given, and which not and why
+   * @param builds the successful builds given, as {@code repo@commit}
+   * @param artifacts the paths of the written artifacts' files in Maven repository layout, by
+   *     {@code groupId:artifactId:version}
    */
-  static List<String> write(List<UpstreamBuild> upstream, Path into) throws IOException {
+  record Written(List<String> notes, Set<String> builds, Map<String, List<String>> artifacts) {}
+
+  /**
+   * Writes the artifacts of the successful builds into the directory, in Maven repository layout.
+   * When two builds have a module with the same coordinates, the first one's is used. A {@code
+   * -SNAPSHOT} version also gets the metadata Maven writes when it installs one locally, updated
+   * now, so Maven takes it as newer than a snapshot of the same version in a remote repository.
+   */
+  static Written write(List<UpstreamBuild> upstream, Path into, Instant now) throws IOException {
     List<String> notes = new ArrayList<>();
+    Set<String> builds = new TreeSet<>();
+    Map<String, List<String>> artifacts = new LinkedHashMap<>();
     Set<String> written = new HashSet<>();
     for (UpstreamBuild one : upstream) {
       BuildResult build = one.build();
@@ -49,6 +70,7 @@ final class UpstreamRepository {
         notes.add("not using the artifacts of " + name + ": its build failed");
         continue;
       }
+      builds.add(name);
       List<String> given = new ArrayList<>();
       for (BuildModule module : build.modules()) {
         String gav = module.groupId() + ":" + module.artifactId() + ":" + module.version();
@@ -76,16 +98,73 @@ final class UpstreamRepository {
         Files.createDirectories(directory);
         String base = module.artifactId() + "-" + module.version();
         Files.writeString(directory.resolve(base + ".pom"), pom.out(), StandardCharsets.UTF_8);
+        String layout =
+            module.groupId().replace('.', '/')
+                + "/"
+                + module.artifactId()
+                + "/"
+                + module.version()
+                + "/";
+        List<String> files = new ArrayList<>(List.of(layout + base + ".pom"));
+        List<String> extensions = new ArrayList<>(List.of("pom"));
         if (!module.packaging().equals("pom")) {
           Path classes = module.classes() == null ? null : build.resolve(module.classes());
           jar(classes, directory.resolve(base + ".jar"));
+          files.add(layout + base + ".jar");
+          extensions.add("jar");
         }
+        if (module.version().endsWith("-SNAPSHOT")) {
+          Files.writeString(
+              directory.resolve("maven-metadata-local.xml"),
+              snapshotMetadata(module, extensions, now),
+              StandardCharsets.UTF_8);
+        }
+        artifacts.put(gav, List.copyOf(files));
         written.add(gav);
         given.add(gav);
       }
       notes.add("artifacts of " + name + ": " + (given.isEmpty() ? "none" : given));
     }
-    return notes;
+    return new Written(List.copyOf(notes), builds, artifacts);
+  }
+
+  /** The metadata of a locally installed snapshot, as Maven writes it, updated at the time. */
+  static String snapshotMetadata(BuildModule module, List<String> extensions, Instant now) {
+    String updated = TIMESTAMP.format(now);
+    StringBuilder versions = new StringBuilder();
+    for (String extension : extensions) {
+      versions
+          .append("      <snapshotVersion>\n")
+          .append("        <extension>")
+          .append(extension)
+          .append("</extension>\n")
+          .append("        <value>")
+          .append(module.version())
+          .append("</value>\n")
+          .append("        <updated>")
+          .append(updated)
+          .append("</updated>\n")
+          .append("      </snapshotVersion>\n");
+    }
+    // The coordinates are plain path parts (checked above), so they need no escaping.
+    return """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <metadata modelVersion="1.1.0">
+          <groupId>%s</groupId>
+          <artifactId>%s</artifactId>
+          <version>%s</version>
+          <versioning>
+            <snapshot>
+              <localCopy>true</localCopy>
+            </snapshot>
+            <lastUpdated>%s</lastUpdated>
+            <snapshotVersions>
+        %s    </snapshotVersions>
+          </versioning>
+        </metadata>
+        """
+        .formatted(
+            module.groupId(), module.artifactId(), module.version(), updated, versions.toString());
   }
 
   /** A jar of the class directory's regular files, empty but for the manifest if there is none. */

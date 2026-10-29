@@ -53,6 +53,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -324,10 +325,10 @@ public final class AnalysisRun {
    * Builds every repository at its snapshot commit, in parallel up to the sandbox's limit, each at
    * most once, and each after the repositories of the snapshot whose modules it uses, with their
    * successful builds' artifacts (ADR 0041). Repositories carried forward are not built; their
-   * stored builds are used. A stored successful build of the same commit is reused; a stored failed
-   * one is built again, since its failure may have been transient or fixed by a settings change
-   * (ADR 0016, #58). If the sandbox cannot build it again, the stored failed build is used, as
-   * before #58.
+   * stored builds are used. A stored successful build of the same commit is reused if it was given
+   * the same builds of other repositories, at the same commits; a stored failed one is built again,
+   * since its failure may have been transient or fixed by a settings change (ADR 0016, #58). If the
+   * sandbox cannot build it again, the stored failed build is used, as before #58.
    */
   private Map<String, BuildResult> build(
       Map<String, Repo> repos, List<RepoBuild> carried, Snapshot snapshot, List<String> reused) {
@@ -357,24 +358,40 @@ public final class AnalysisRun {
         if (stored != null) {
           storedBuilds.put(name, stored);
         }
-        if (stored != null && stored.status() == BuildStatus.SUCCEEDED) {
-          running.put(name, CompletableFuture.completedFuture(stored));
-          continue;
-        }
         running.put(
             name,
             executor.submit(
                 () -> {
                   List<UpstreamBuild> upstream = new ArrayList<>();
+                  Set<String> given = new TreeSet<>();
                   for (int i = 0; i < before.size(); i++) {
                     BuildResult build = before.get(i).get();
                     if (build != null) {
                       upstream.add(new UpstreamBuild(all.get(upstreamNames.get(i)), build));
+                      if (!build.degraded()) {
+                        given.add(build.repo() + "@" + build.commit());
+                      }
                     }
+                  }
+                  // A stored successful build is reused only if it had the same builds of other
+                  // repositories, so it never compiled against classes the snapshot no longer has.
+                  if (stored != null
+                      && stored.status() == BuildStatus.SUCCEEDED
+                      && stored.upstream().equals(given)) {
+                    return stored;
                   }
                   if (stored == null) {
                     LOG.info("Building {}@{}", name, commit);
                     return sandbox.build(repo, commit, upstream);
+                  }
+                  if (stored.status() == BuildStatus.SUCCEEDED) {
+                    LOG.info(
+                        "Building {}@{} again: it was built with {}, now {}",
+                        name,
+                        commit,
+                        stored.upstream(),
+                        given);
+                    return rebuild(repo, commit, upstream, stored);
                   }
                   LOG.info("Building {}@{} again: its stored build failed", name, commit);
                   return rebuild(repo, commit, upstream, stored);
@@ -415,21 +432,21 @@ public final class AnalysisRun {
   }
 
   /**
-   * Builds a repository whose stored build failed again, or uses the stored build if the sandbox
-   * cannot run the build: a stored result is better than none, and the run went ahead with it
-   * before #58.
+   * Builds a repository with a stored build again, because it failed or was built with other
+   * repositories' builds than now, or uses the stored build if the sandbox cannot run the build: a
+   * stored result is better than none, and the run went ahead with it before #58.
    */
   private BuildResult rebuild(
-      Repo repo, String commit, List<UpstreamBuild> upstream, BuildResult failed) {
+      Repo repo, String commit, List<UpstreamBuild> upstream, BuildResult stored) {
     try {
       return sandbox.build(repo, commit, upstream);
     } catch (SandboxException e) {
       LOG.warn(
-          "Could not build {}@{} again, so its stored failed build is used: {}",
+          "Could not build {}@{} again, so its stored build is used: {}",
           repo.name(),
           commit,
           e.getMessage());
-      return failed;
+      return stored;
     }
   }
 
