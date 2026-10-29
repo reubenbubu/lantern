@@ -43,6 +43,12 @@ final class TrackedApis {
           "org.springframework.amqp.",
           // Spring Cloud Stream: StreamBridge, and the legacy Source and Processor bindings.
           "org.springframework.cloud.stream.",
+          // Redis templates and their operations (the Redis extractor): the keys they are given.
+          "org.springframework.data.redis.core.",
+          "org.springframework.data.redis.cache.",
+          "org.springframework.data.redis.listener.",
+          "org.springframework.integration.redis.util.",
+          "org.springframework.cloud.gateway.filter.ratelimit.",
           // Jobs (the Spring extractor): JobRunr's schedulers and Quartz's builders and scheduler.
           "org.jobrunr.scheduling.",
           "org.quartz.");
