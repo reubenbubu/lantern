@@ -79,6 +79,7 @@ final class C4Views {
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
   private static final String SCHEDULED = "scheduled";
+  private static final String BACKGROUND_JOB = "background-job";
   private static final String GATEWAY_ROUTE = "gateway-route";
   private static final String GATEWAY_FILTER = "gateway-filter";
 
@@ -1241,7 +1242,7 @@ final class C4Views {
           case MESSAGE_LISTENER ->
               kinds.add(
                   brokerName(RepoSections.attribute(fact, "broker", "message")) + " listener");
-          case SCHEDULED -> kinds.add("Scheduled job");
+          case SCHEDULED, BACKGROUND_JOB -> kinds.add(ExplorerSections.jobKind(fact));
           case GATEWAY_ROUTE -> kinds.add("Gateway routes");
           default -> {}
         }
@@ -1498,6 +1499,7 @@ final class C4Views {
               ENDPOINT,
               MESSAGE_LISTENER,
               SCHEDULED,
+              BACKGROUND_JOB,
               GATEWAY_ROUTE,
               GATEWAY_FILTER ->
               facts.add(fact);
