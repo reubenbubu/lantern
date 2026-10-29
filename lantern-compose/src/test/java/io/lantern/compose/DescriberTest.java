@@ -602,7 +602,7 @@ class DescriberTest {
   }
 
   @Test
-  void aPurposeCitingAReadmeClaimAndUnitFactsIsShownWithoutTheInferredNote() {
+  void aPurposeCitingAReadmeClaimAndUnitFactsIsShownAsWritten() {
     List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
     Fact claim =
         withClaim.stream().filter(f -> f.predicate().equals("claim")).findFirst().orElseThrow();
@@ -660,13 +660,25 @@ class DescriberTest {
   }
 
   @Test
-  void aPurposeCitingNoReadmeClaimIsSaidToBeInferredFromTheUnits() {
+  void aPurposeCitingNoReadmeClaimIsMarkedAsInferred() {
     Wordings wordings = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
 
-    Paragraph first = (Paragraph) system(wordings).sections().getFirst().blocks().getFirst();
+    Document document = system(wordings);
 
+    // Marked as an inferred summary is (ADR 0059), in the overview and the system's description.
+    Paragraph first = (Paragraph) document.sections().getFirst().blocks().getFirst();
+    assertThat(first.content().getFirst())
+        .isEqualTo(new TextRun(Assembler.INFERRED, TextRun.Style.EMPHASIS));
     assertThat(text(first.content()))
-        .isEqualTo("Runs an online shop's orders. " + RepoSections.INFERRED_PURPOSE);
+        .isEqualTo(Assembler.INFERRED + " Runs an online shop's orders.");
+    assertThat(
+            text(
+                document.entities().stream()
+                    .filter(e -> e.id().equals(RepoSections.SYSTEM))
+                    .findFirst()
+                    .orElseThrow()
+                    .description()))
+        .isEqualTo(Assembler.INFERRED + " Runs an online shop's orders.");
     assertThat(first.facts()).containsExactly(facts.find(APP.toString(), "application-name").id());
   }
 

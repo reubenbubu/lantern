@@ -150,7 +150,7 @@ class C4ViewsTest {
 
     assertThat(edges(diagram))
         .contains("topic:kafka:orders -> service:com.example:worker: Delivers messages [Kafka]");
-    // The system's purpose, unknown without the LLM's wording (ADR 0059), then its repositories.
+    // The system's purpose, unknown without the LLM's wording (ADR 0060), then its repositories.
     assertThat(section(document, "overview").blocks()).hasSize(2);
     assertThat(section(document, "overview").blocks().getLast())
         .satisfies(

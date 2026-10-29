@@ -110,7 +110,7 @@ class WordingPromptTest {
 
   /**
    * The fingerprint of the texts and limits of the prompt about the system's purpose for {@link
-   * WordingPrompt#PURPOSE_VERSION} (ADR 0059), as above. The way units and claims are written into
+   * WordingPrompt#PURPOSE_VERSION} (ADR 0060), as above. The way units and claims are written into
    * it is checked by {@code DescriberTest}.
    */
   @Test

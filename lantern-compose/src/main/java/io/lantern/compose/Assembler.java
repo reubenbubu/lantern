@@ -32,6 +32,13 @@ import java.util.regex.Pattern;
 final class Assembler {
 
   private static final Pattern MARKER = Pattern.compile("\\[(fact|summary):([^\\]\\s]+)\\]");
+
+  /** The predicate of a README claim (ADR 0033). */
+  private static final String CLAIM = "claim";
+
+  /** What opens a summary whose purpose is inferred from the code (ADR 0059). */
+  static final String INFERRED = "Purpose inferred from the code:";
+
   private static final Pattern NOT_ID_CHAR = Pattern.compile("[^A-Za-z0-9._:-]");
 
   private final Knowledge knowledge;
@@ -239,12 +246,14 @@ final class Assembler {
   /**
    * The summary as rich text: {@code [fact:...]} markers become citations (adjacent ones merged)
    * and {@code [summary:<entity>]} markers cross-references to the entity that are marked as
-   * citations; the entity is added to the document.
+   * citations; the entity is added to the document. A summary whose purpose is inferred from the
+   * code rather than taken from what people wrote opens with {@value #INFERRED}, emphasized.
    *
    * @throws IllegalArgumentException if the summary cites a fact that is not in the snapshot
    */
   Text summary(Summary summary) {
-    return rich(summary.entity(), summary.text());
+    Text text = rich(summary.entity(), summary.text());
+    return summary.purpose() == Summary.Purpose.EVIDENCED ? text : inferred(text);
   }
 
   /**
@@ -264,11 +273,31 @@ final class Assembler {
   }
 
   /**
-   * The system's purpose (ADR 0059) as rich text citing the facts that are in the snapshot, or
-   * {@code null} if the LLM worded none or none of its citations is in the snapshot.
+   * The system's purpose (ADR 0060) as rich text citing the facts that are in the snapshot, or
+   * {@code null} if the LLM worded none or none of its citations is in the snapshot. A purpose that
+   * cites no README claim is inferred from the code, through the units' sentences, and opens with
+   * {@value #INFERRED}, emphasized, as an inferred summary does (ADR 0059).
    */
   Text purpose() {
-    return worded(RepoSections.SYSTEM, wordings.responsibilities().get(RepoSections.SYSTEM));
+    String kept = known(wordings.responsibilities().get(RepoSections.SYSTEM));
+    return kept == null ? null : purpose(rich(RepoSections.SYSTEM, kept));
+  }
+
+  private Text purpose(Text text) {
+    boolean evidenced =
+        text.facts().stream()
+            .map(knowledge::fact)
+            .anyMatch(f -> f != null && f.predicate().equals(CLAIM));
+    return evidenced ? text : inferred(text);
+  }
+
+  /** The text opened with {@value #INFERRED}, emphasized. */
+  private static Text inferred(Text text) {
+    List<Inline> content = new ArrayList<>();
+    content.add(new TextRun(INFERRED, TextRun.Style.EMPHASIS));
+    content.add(TextRun.of(" "));
+    content.addAll(text.content());
+    return new Text(List.copyOf(content), text.facts());
   }
 
   /**
@@ -445,9 +474,11 @@ final class Assembler {
       DocumentEntity entity = entities.get(undescribed.removeFirst());
       String responsibility = responsibility(entity.id());
       List<Inline> description =
-          responsibility != null
-              ? rich(entity.id(), responsibility).content()
-              : summary(summaries.get(summarized(entity.id()))).content();
+          entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+              ? purpose().content()
+              : responsibility != null
+                  ? rich(entity.id(), responsibility).content()
+                  : summary(summaries.get(summarized(entity.id()))).content();
       entities.put(
           entity.id(),
           new DocumentEntity(

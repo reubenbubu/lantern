@@ -1,4 +1,4 @@
-# 0059: The system's purpose
+# 0060: The system's purpose
 
 Status: accepted (#196), amends ADR 0044 and ADR 0050, pending the user's review (#24)
 
@@ -6,7 +6,8 @@ Status: accepted (#196), amends ADR 0044 and ADR 0050, pending the user's review
 
 `docs/design.md` (Quality bar) wants every document's first paragraph to give the system's purpose,
 and LLM integration, Grounding, lists "a system's purpose" among what the LLM words, while business
-purpose comes from annotations or README claims or is stated once, plainly, as unknown. Summaries
+purpose comes from what people wrote where there is any, and otherwise is inferred from the code
+and shown as inferred (ADR 0059). Summaries
 and wordings stop at the deployable unit (ADRs 0010, 0050), so the system scope's C4 report
 (`_system.c4.html`, ADR 0044) has no source for the system's purpose. Issue #196 asks for a
 system-level wording made from the units' sentences and README claims, or the purpose stated plainly
@@ -49,15 +50,16 @@ as unknown.
 - **In the system's report.** The purpose, with its citations, is kept with the responsibility
   sentences under `system:snapshot` (`Wordings.responsibilities`), so it becomes the system's
   description wherever the system is drawn in the system scope, and it opens the overview, before
-  the repositories, which the C4 report renders as the first paragraph of its introduction. Whether
-  it is evidenced or inferred is read from its citations: one citing a README claim is shown as it
-  is; one citing none is followed by "No readme states the system's purpose; this is inferred from
-  what its deployable units do.", in line with Grounding and with what #193 asks for summaries'
-  purpose sentences the same way. Without a purpose (none asked, left out, rejected, skipped, or
-  citing no fact of the snapshot) the overview opens with a note: "The system's purpose is not
-  known." It gives no reason, since the model may have been left out, refused or not asked. A
-  note cites nothing, as the context's note on people does; "readme" in the inferred note is
-  lowercase, as elsewhere in documents, so it is not taken for an acronym. Per-repository documents are unchanged.
+  the repositories, which the C4 report renders as the first paragraph of its introduction.
+  Whether it is evidenced or inferred is read from its citations, in the spirit of ADR 0059: one
+  citing a README claim is evidenced and shown as written; one citing none rests only on the
+  units' sentences, so on the code, and opens with ADR 0059's emphasized "Purpose inferred from the
+  code:", in the overview and in the system's description alike. The model is not asked to mark
+  it, since its citations say which it is. Without a purpose (none asked, left out, rejected,
+  skipped, or citing no fact of the snapshot) the overview opens with a note: "The system's purpose
+  is not known." It gives no reason, since the model may have been left out, refused or not asked.
+  A note cites nothing, as the context's note on people does. Per-repository documents are
+  unchanged.
 - **Counts.** `Describer.Result`, `AnalysisRun.Result.wordingsAsked` and `wordingsReused` count the
   system with the units, data stores, destinations and flows, so `EndToEndIT`'s checks that every
   call is counted and that the second run reuses every wording cover it; the analyze run prints

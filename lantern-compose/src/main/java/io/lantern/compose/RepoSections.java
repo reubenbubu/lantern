@@ -47,21 +47,11 @@ final class RepoSections {
   /** The software system all repositories of a snapshot form, the system scope's subject. */
   static final EntityId SYSTEM = new EntityId(BuiltInTypes.SYSTEM, "snapshot");
 
-  /** The predicate of a README claim (ADR 0033). */
-  private static final String CLAIM = "claim";
-
   /**
    * What the system's overview says when no purpose is known: plainly, without a reason, since the
    * model may have been left out, refused or not asked.
    */
   static final String UNKNOWN_PURPOSE = "The system's purpose is not known.";
-
-  /**
-   * What follows a purpose that cites no README claim; "readme" is lowercase, as elsewhere in
-   * documents, so it is not taken for an acronym the glossary must explain.
-   */
-  static final String INFERRED_PURPOSE =
-      "No readme states the system's purpose; this is inferred from what its deployable units do.";
 
   /** How many repositories the system's name lists before it counts them instead. */
   private static final int NAMED_REPOS = 4;
@@ -253,7 +243,7 @@ final class RepoSections {
   }
 
   /**
-   * The system's purpose (ADR 0059), then its repositories, each with the deployable units whose
+   * The system's purpose (ADR 0060), then its repositories, each with the deployable units whose
    * own code it holds.
    */
   private void systemOverview(String section, List<Block> blocks) {
@@ -293,9 +283,9 @@ final class RepoSections {
   }
 
   /**
-   * The system's purpose as the LLM worded it, said to be inferred from the deployable units when
-   * it cites no README claim, or stated plainly as unknown in a note, which cites nothing
-   * (docs/design.md, LLM integration, Grounding).
+   * The system's purpose as the LLM worded it, marked as inferred when it cites no README claim
+   * (ADR 0059), or stated plainly as unknown in a note, which cites nothing (docs/design.md, LLM
+   * integration, Grounding).
    */
   private Block purpose(String section) {
     String id = assembler.id(section, "purpose");
@@ -304,16 +294,7 @@ final class RepoSections {
       return new Callout(
           id, Callout.Variant.NOTE, null, null, List.of(TextRun.of(UNKNOWN_PURPOSE)), List.of());
     }
-    boolean fromReadme =
-        purpose.facts().stream()
-            .map(knowledge::fact)
-            .anyMatch(f -> f != null && f.predicate().equals(CLAIM));
-    if (fromReadme) {
-      return new Paragraph(id, purpose.content(), purpose.facts());
-    }
-    List<Inline> content = new ArrayList<>(purpose.content());
-    content.add(TextRun.of(" " + INFERRED_PURPOSE));
-    return new Paragraph(id, content, purpose.facts());
+    return new Paragraph(id, purpose.content(), purpose.facts());
   }
 
   private Optional<Paragraph> paragraph(String section, EntityId entity) {

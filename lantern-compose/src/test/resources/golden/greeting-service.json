@@ -22,6 +22,13 @@
     "parent" : "repo:greeting-service",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
@@ -50,6 +57,13 @@
     "parent" : "module:com.example.greeting:greeting-service",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
@@ -76,6 +90,13 @@
     "name" : "greeting-service",
     "description" : [ {
       "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
       "text" : "It builds on its parts."
     }, {
       "kind" : "ref",
@@ -98,6 +119,13 @@
     "name" : "greeting-service",
     "parent" : "repo:greeting-service",
     "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
       "kind" : "text",
       "text" : "It builds on its parts."
     }, {
@@ -125,6 +153,13 @@
     "name" : "GreetingServiceMain",
     "parent" : "package:com.example.greeting:greeting-service:com.example.greeting.service",
     "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
       "kind" : "text",
       "text" : "It is described by its facts."
     }, {
@@ -594,6 +629,13 @@
       "kind" : "paragraph",
       "id" : "overview.summary",
       "content" : [ {
+        "kind" : "text",
+        "text" : "Purpose inferred from the code:",
+        "style" : "emphasis"
+      }, {
+        "kind" : "text",
+        "text" : " "
+      }, {
         "kind" : "text",
         "text" : "It builds on its parts."
       }, {

@@ -24,7 +24,7 @@ import tools.jackson.databind.node.ObjectNode;
  * and the intent phrases of its relationships (ADR 0050), the prompt that asks for a data store's
  * or destination's responsibility sentence (ADR 0056), the prompt that asks for a sequence flow's
  * walkthrough and pre- and post-conditions (ADR 0058), the prompt that asks for the system's
- * purpose from its units' sentences and README claims (ADR 0059), and the check of their answers.
+ * purpose from its units' sentences and README claims (ADR 0060), and the check of their answers.
  * The prompts show extracted facts only, the one about the purpose with the units' sentences that
  * cite them, listed as {@code [F1]}, ...; components are listed as {@code [C1]} and relationships
  * as {@code [R1]}. Fact IDs and line numbers are not shown, since they change with every commit and

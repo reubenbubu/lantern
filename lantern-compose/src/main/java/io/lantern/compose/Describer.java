@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
  * walkthrough and pre- and post-conditions from what starts it and the facts behind its steps (ADR
  * 0058); what the model leaves out keeps its static prose or "Not known from the code.". Last, one
  * call asks for the system's purpose from the units' sentences, with the facts they cite, and the
- * README claims of its repositories (ADR 0059); without a purpose the system's report states it as
+ * README claims of its repositories (ADR 0060); without a purpose the system's report states it as
  * unknown.
  *
  * <p>Answers are cached by the hash of the prompt, which shows no fact IDs, so a run over unchanged
@@ -406,7 +406,7 @@ public final class Describer {
   }
 
   /**
-   * The prompt about the system's purpose (ADR 0059): the responsibility sentence of each unit the
+   * The prompt about the system's purpose (ADR 0060): the responsibility sentence of each unit the
    * model worded, with the facts it cites, and the claims of each repository's README with the
    * fewest folders; or none when there is neither, so the purpose is stated as unknown without a
    * call. Units are listed by name and READMEs by repository, so the order does not depend on fact

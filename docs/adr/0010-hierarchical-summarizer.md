@@ -1,6 +1,6 @@
 # 0010: Hierarchical summarizer
 
-Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76), by ADR 0055 (#190) and by ADR 0057 (#197), pending the user's review (#24)
+Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76), by ADR 0055 (#190), by ADR 0057 (#197) and by ADR 0059 (#193), pending the user's review (#24)
 
 ## Context
 
@@ -36,9 +36,9 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   and the design lists cached LLM results as their own kind of state. They are kept in a
   `summaries` table keyed by cache key (`JdbcSummaryStore`; `InMemorySummaryStore` for tests), with
   the entity, level, text, cited and input fact IDs, cited and input child summary keys, prompt
-  version, provider and model. Summaries are not tied to snapshots: whoever needs a snapshot's
-  summaries runs the summarizer on its facts, which reuses every stored summary without calling
-  the model.
+  version, provider and model (and since ADR 0059 whether its purpose is evidenced). Summaries
+  are not tied to snapshots: whoever needs a snapshot's summaries runs the summarizer on its
+  facts, which reuses every stored summary without calling the model.
 - **Cache key** is the SHA-256 of the prompt version, provider, model identifier, level, entity,
   the sorted IDs of the unit's facts, and each contained unit's entity, summary key and the
   SHA-256 of its summary's text, so a parent's recorded inputs always point at the child summaries

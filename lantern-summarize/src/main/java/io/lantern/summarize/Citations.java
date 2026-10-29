@@ -162,6 +162,18 @@ final class Citations {
    * written, without spaces, so it matches no reference.
    */
   static Set<String> references(String text) {
+    return references(text, false);
+  }
+
+  /**
+   * The references the text's first citation cites, in the form {@link #references(String)} lists
+   * them: those of its first sentence, since every sentence ends with its references.
+   */
+  static Set<String> firstReferences(String text) {
+    return references(text, true);
+  }
+
+  private static Set<String> references(String text, boolean firstOnly) {
     Set<String> refs = new LinkedHashSet<>();
     Matcher matcher = GROUP.matcher(text);
     while (matcher.find()) {
@@ -174,6 +186,9 @@ final class Citations {
         } else {
           refs.add(range.written());
         }
+      }
+      if (firstOnly) {
+        break;
       }
     }
     return refs;

@@ -6,6 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.FactObject;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -18,10 +19,10 @@ class PromptTest {
    * changed: raise {@link Prompt#VERSION} so cached summaries made with the old prompt are not
    * reused, then update both values here.
    */
-  private static final String VERSION = "7";
+  private static final String VERSION = "8";
 
   private static final String FINGERPRINT =
-      "a65bf523e3a79ca1a4aed5c910480d489405edfcf5a6e666412ecddf76c5b700";
+      "c3df9294bcace7d82991f5204f01edf5345a316e37bb1d9535c1d5e817ee45ff";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -53,6 +54,7 @@ class PromptTest {
             order.children().getFirst().entity(),
             SummaryLevel.TYPE,
             "A line. [fact:" + "1".repeat(64) + "]\nSecond line.",
+            Summary.Purpose.INFERRED,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -81,18 +83,20 @@ class PromptTest {
                 Prompt.excerpts(excerpts),
                 List.of(),
                 new Prompt.Part(2, 3)));
-    all.append('\u0000').append(Prompt.merge(order, List.of("One [F1].", "Two [E1, S1].")));
+    all.append('\u0000').append(Prompt.merge(order, parts("One [F1].", "Two [E1, S1].")));
     // A repository whose only module is an aggregator, and a module with a single part.
     all.append('\u0000').append(Prompt.user(repo, List.of(), List.of(child)));
     all.append('\u0000').append(Prompt.user(repo.children().getFirst(), List.of(), List.of(child)));
     // A repository of one plain module, and a repository merged from parts.
     all.append('\u0000').append(Prompt.user(singleModule(repo), List.of(), List.of(child)));
-    all.append('\u0000').append(Prompt.merge(repo, List.of("One [S1].")));
+    all.append('\u0000').append(Prompt.merge(repo, parts("One [S1].")));
     // A repository and a module with fact sheets, one group of them cut short.
     SummaryNode service = SummaryTree.fromFacts(FactSheetTest.service(12).list()).getFirst();
     all.append('\u0000').append(Prompt.user(service, List.of(), List.of(child)));
     all.append('\u0000')
         .append(Prompt.user(service.children().getFirst(), List.of(), List.of(child)));
+    // How many README claims a repository shows.
+    all.append(SummaryTree.README_CLAIMS);
     all.append(FactSheet.MAX_PER_GROUP);
     for (FactSheet.Group group : FactSheet.Group.values()) {
       all.append(group.title()).append(group.predicates());
@@ -168,7 +172,7 @@ class PromptTest {
             [F2] %s
             """
                 .formatted(Prompt.fact(priceService.facts().get(1))));
-    assertThat(Prompt.merge(priceService, List.of("It is an interface. [F1]", "It prices. [F2]\n")))
+    assertThat(Prompt.merge(priceService, parts("It is an interface. [F1]", "It prices. [F2]\n")))
         .isEqualTo(
             """
             What is known about the type PriceService in package com.example.shop was too long for one \
@@ -178,8 +182,8 @@ class PromptTest {
             cite for what you take from them.
 
             Summaries of the parts:
-            Part 1: It is an interface. [F1]
-            Part 2: It prices. [F2]
+            Part 1 (purpose inferred): It is an interface. [F1]
+            Part 2 (purpose inferred): It prices. [F2]
             """);
   }
 
@@ -214,6 +218,7 @@ class PromptTest {
             singleModule(repo).children().getFirst().entity(),
             SummaryLevel.MODULE,
             "The shop. [fact:" + "1".repeat(64) + "]",
+            Summary.Purpose.INFERRED,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -233,7 +238,7 @@ class PromptTest {
             libraries briefly, if at all.
 
             Summaries of the parts it contains:
-            [S1] Maven module shop-core: The shop.
+            [S1] Maven module shop-core (purpose inferred): The shop.
             """);
   }
 
@@ -252,6 +257,7 @@ class PromptTest {
             repo.children().getFirst().entity(),
             SummaryLevel.MODULE,
             "The parent. [fact:" + "1".repeat(64) + "]",
+            Summary.Purpose.INFERRED,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -264,7 +270,7 @@ class PromptTest {
     assertThat(Prompt.user(repo, List.of(), List.of(parent)))
         .contains("in 1 to 3 sentences and at most 60 words")
         .contains("Write for a reader who wants to know what this repository does");
-    assertThat(Prompt.merge(repo, List.of("One [S1]."))).contains("lead with its role");
+    assertThat(Prompt.merge(repo, parts("One [S1]."))).contains("lead with its role");
   }
 
   @Test
@@ -277,6 +283,7 @@ class PromptTest {
             core.children().getFirst().entity(),
             SummaryLevel.PACKAGE,
             "Prices. [fact:" + "1".repeat(64) + "]",
+            Summary.Purpose.INFERRED,
             List.of("1".repeat(64)),
             List.of(),
             List.of("1".repeat(64)),
@@ -307,5 +314,37 @@ class PromptTest {
               "in %d to %d sentences and at most %d words"
                   .formatted(level.minSentences(), level.maxSentences(), level.maxWords()));
     }
+  }
+
+  @Test
+  void anAnswersPurposeLineIsReadAndLeftOut() {
+    assertThat(Prompt.tagged("Purpose: evidenced\nSells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.EVIDENCED, "Sells books. [F1]"));
+    assertThat(Prompt.tagged("  **Purpose:** Inferred.\n\nSells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.INFERRED, "Sells books. [F1]"));
+    assertThat(Prompt.tagged("## purpose: EVIDENCED Sells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.EVIDENCED, "Sells books. [F1]"));
+    // The summary's own Markdown is kept, and a note after the mark is left out.
+    assertThat(Prompt.tagged("Purpose: inferred\n**Orders** are taken. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.INFERRED, "**Orders** are taken. [F1]"));
+    assertThat(Prompt.tagged("Purpose: evidenced (README)\nSells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.EVIDENCED, "Sells books. [F1]"));
+    // Without a purpose line, or with one that is not first, the purpose counts as inferred.
+    assertThat(Prompt.tagged("Sells books. [F1]"))
+        .isEqualTo(new Prompt.Tagged(Summary.Purpose.INFERRED, "Sells books. [F1]"));
+    assertThat(Prompt.tagged("Sells books. [F1]\nPurpose: evidenced"))
+        .isEqualTo(
+            new Prompt.Tagged(Summary.Purpose.INFERRED, "Sells books. [F1]\nPurpose: evidenced"));
+    assertThat(Prompt.tagged("Purpose: evidenced-ish\nSells books. [F1]").purpose())
+        .isEqualTo(Summary.Purpose.INFERRED);
+    assertThat(Prompt.tagged("Purposes: evidenced\nSells books. [F1]").purpose())
+        .isEqualTo(Summary.Purpose.INFERRED);
+  }
+
+  /** Parts' summaries whose purpose is inferred, as a merge prompt is given them. */
+  private static List<Prompt.Tagged> parts(String... texts) {
+    return Arrays.stream(texts)
+        .map(text -> new Prompt.Tagged(Summary.Purpose.INFERRED, text))
+        .toList();
   }
 }

@@ -107,7 +107,7 @@ class EndToEndIT {
      * A fake model that cites the first fact and the first part's summary it is given, picks the
      * first candidate of a link left open, citing it, and words a unit, its first component and its
      * first relationship, a data store or destination, a flow's walkthrough and the system's
-     * purpose, citing the first fact (ADR 0050, ADR 0056, ADR 0058, ADR 0059).
+     * purpose, citing the first fact (ADR 0050, ADR 0056, ADR 0058, ADR 0060).
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -598,7 +598,7 @@ class EndToEndIT {
     assertThat(second.summariesReused()).isEqualTo(first.summariesGenerated());
     assertThat(second.wordingsAsked()).isZero();
     // The first run may already reuse wordings of repositories carried forward from earlier runs,
-    // such as the system's purpose when nothing it shows changed (ADR 0059).
+    // such as the system's purpose when nothing it shows changed (ADR 0060).
     assertThat(second.wordingsReused()).isEqualTo(first.wordingsAsked() + first.wordingsReused());
     // The documents differ only in the snapshot they are of.
     for (int i = 0; i < 4; i++) {
