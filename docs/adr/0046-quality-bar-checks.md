@@ -1,6 +1,6 @@
 # 0046: The Quality bar checks the composer makes
 
-Status: accepted (#163), pending the user's review (#24)
+Status: accepted (#163), amended by ADR 0048 (#97), pending the user's review (#24)
 
 ## Context
 

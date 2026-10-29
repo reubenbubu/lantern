@@ -549,6 +549,50 @@
     } ],
     "sections" : [ ]
   }, {
+    "id" : "start_here",
+    "title" : "Start here",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "repo:orders",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "start_here.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No entry point, main class, readme or decision record was found, so there is no obvious place to start reading."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "containers",
+    "title" : "Containers",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "repo:orders",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "containers.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No deployable unit was found in the code."
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "containers.decisions",
+      "variant" : "note",
+      "title" : "Decisions",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No decision records were found in orders, so the reasons for its design are not known."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "context",
     "title" : "System context",
     "levels" : [ "L0", "L1" ],
@@ -599,29 +643,63 @@
     } ],
     "sections" : [ ]
   }, {
-    "id" : "containers",
-    "title" : "Containers",
-    "levels" : [ "L1", "L2" ],
-    "entity" : "repo:orders",
-    "facts" : [ ],
-    "blocks" : [ {
-      "kind" : "callout",
-      "id" : "containers.none",
-      "variant" : "note",
-      "content" : [ {
-        "kind" : "text",
-        "text" : "No deployable unit was found in the code."
-      } ],
-      "facts" : [ ]
-    } ],
-    "sections" : [ ]
-  }, {
     "id" : "components",
     "title" : "Components",
     "levels" : [ "L2", "L3" ],
     "entity" : "repo:orders",
     "facts" : [ ],
     "blocks" : [ ],
+    "sections" : [ ]
+  }, {
+    "id" : "sequences",
+    "title" : "Main flows",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "repo:orders",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "sequences.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No entry point (HTTP endpoint, message listener or scheduled job) was found whose code reaches another container."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "catalog",
+    "title" : "Catalog",
+    "levels" : [ "L2", "L3" ],
+    "entity" : "repo:orders",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "catalog.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No deployable unit, component, entry point, topic, queue, table or configuration was found in the code."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "change_guidance",
+    "title" : "Change guidance",
+    "levels" : [ "L2", "L3" ],
+    "entity" : "repo:orders",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "change_guidance.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The code has no endpoint, listener, scheduled job, send, call to another service, schema or configuration to follow as an example."
+      } ],
+      "facts" : [ ]
+    } ],
     "sections" : [ ]
   }, {
     "id" : "dependencies",
@@ -690,6 +768,13 @@
         } ],
         "facts" : [ ]
       }, {
+        "check" : "Acronyms are explained in the glossary",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document has no glossary; it uses HTTP."
+        } ],
+        "facts" : [ ]
+      }, {
         "check" : "It states its reader",
         "detail" : [ {
           "kind" : "text",
@@ -707,11 +792,11 @@
         "check" : "A \"start here\" list of the entry points and files to read first",
         "target" : {
           "kind" : "section",
-          "id" : "overview"
+          "id" : "start_here"
         },
         "detail" : [ {
           "kind" : "text",
-          "text" : "There is none."
+          "text" : "It lists nothing."
         } ],
         "facts" : [ ]
       }, {
@@ -734,16 +819,13 @@
         "facts" : [ ]
       }, {
         "check" : "A catalog of containers, components, endpoints, queues, tables and config",
+        "target" : {
+          "kind" : "section",
+          "id" : "catalog"
+        },
         "detail" : [ {
           "kind" : "text",
-          "text" : "The document has no catalog section."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Observed decisions, with rationale or marked unknown",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "No decision records are listed, and none are marked unknown."
+          "text" : "It lists nothing."
         } ],
         "facts" : [ ]
       } ],

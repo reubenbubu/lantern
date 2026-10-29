@@ -754,6 +754,16 @@
       } ],
       "edges" : [ ],
       "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "containers.decisions",
+      "variant" : "note",
+      "title" : "Decisions",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No decision records were found in greeting-service, so the reasons for its design are not known."
+      } ],
+      "facts" : [ ]
     } ],
     "sections" : [ ]
   }, {

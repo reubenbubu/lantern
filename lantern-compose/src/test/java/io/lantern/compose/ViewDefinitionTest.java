@@ -35,9 +35,13 @@ class ViewDefinitionTest {
     assertThat(perRepo.sections())
         .containsExactly(
             SectionKind.OVERVIEW,
-            SectionKind.CONTEXT,
+            SectionKind.START_HERE,
             SectionKind.CONTAINERS,
+            SectionKind.CONTEXT,
             SectionKind.COMPONENTS,
+            SectionKind.SEQUENCES,
+            SectionKind.CATALOG,
+            SectionKind.CHANGE_GUIDANCE,
             SectionKind.DEPENDENCIES,
             SectionKind.STRUCTURE);
     ViewDefinition brief = ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE);

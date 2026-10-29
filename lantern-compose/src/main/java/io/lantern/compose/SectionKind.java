@@ -16,6 +16,11 @@ public enum SectionKind {
    * level.
    */
   OVERVIEW("Overview", EnumSet.noneOf(Level.class)),
+  /**
+   * Where to start reading: the entry points of the main flows, where each unit starts, the READMEs
+   * and the decision records.
+   */
+  START_HERE("Start here", EnumSet.of(Level.L1, Level.L2)),
   /** C4 system context: the system, its users and the external systems it calls. */
   CONTEXT("System context", EnumSet.of(Level.L0, Level.L1)),
   /**
@@ -29,6 +34,13 @@ public enum SectionKind {
    * The main flows as sequence diagrams: traced from entry points and stitched across containers.
    */
   SEQUENCES("Main flows", EnumSet.of(Level.L1, Level.L2)),
+  /**
+   * Tables of the containers, components, entry points, topics and queues, tables and configuration
+   * in scope, each row linked to its facts.
+   */
+  CATALOG("Catalog", EnumSet.of(Level.L2, Level.L3)),
+  /** How to make the common changes, each by an example the code already has. */
+  CHANGE_GUIDANCE("Change guidance", EnumSet.of(Level.L2, Level.L3)),
   /** The Maven dependency tree of each module. */
   DEPENDENCIES("Dependencies", EnumSet.of(Level.L2, Level.L3)),
   /** The modules and packages, as a tree. */

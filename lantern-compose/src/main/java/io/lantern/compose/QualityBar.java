@@ -738,11 +738,19 @@ final class QualityBar {
           CrossReference.Target.section(orientation.id()),
           "It has " + words[0] + " words.");
     }
-    boolean startHere =
-        orientation.sections().stream().anyMatch(s -> titled(s.title(), "start here"))
-            || (sections.size() > 1 && titled(sections.get(1).title(), "start here"));
-    if (!startHere) {
+    // A start-here section counts only with a list in it, not a note that nothing was found.
+    Section start =
+        orientation.sections().stream()
+            .filter(s -> titled(s.title(), "start here"))
+            .findFirst()
+            .orElse(
+                sections.size() > 1 && titled(sections.get(1).title(), "start here")
+                    ? sections.get(1)
+                    : null);
+    if (start == null) {
       fail(START_HERE, CrossReference.Target.section(orientation.id()), "There is none.");
+    } else if (start.blocks().stream().noneMatch(b -> b instanceof ListBlock)) {
+      fail(START_HERE, CrossReference.Target.section(start.id()), "It lists nothing.");
     }
     Block first =
         all.stream()
@@ -760,8 +768,13 @@ final class QualityBar {
     if (all.stream().noneMatch(b -> b instanceof SequenceDiagram)) {
       fail(FLOWS, null, "The document has no sequence diagram.");
     }
-    if (sections.stream().noneMatch(s -> titled(s.title(), "catalog"))) {
+    // A catalog counts only with a table in it, not a note that nothing was found.
+    Section catalog =
+        sections.stream().filter(s -> titled(s.title(), "catalog")).findFirst().orElse(null);
+    if (catalog == null) {
       fail(CATALOG, null, "The document has no catalog section.");
+    } else if (!hasTable(catalog)) {
+      fail(CATALOG, CrossReference.Target.section(catalog.id()), "It lists nothing.");
     }
     boolean decisions =
         all.stream()
@@ -772,6 +785,11 @@ final class QualityBar {
     if (!decisions) {
       fail(DECISIONS, null, "No decision records are listed, and none are marked unknown.");
     }
+  }
+
+  private static boolean hasTable(Section section) {
+    return section.blocks().stream().anyMatch(b -> b instanceof Table)
+        || section.sections().stream().anyMatch(QualityBar::hasTable);
   }
 
   private static boolean titled(String title, String expected) {

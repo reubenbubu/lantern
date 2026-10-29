@@ -45,9 +45,9 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>A section that holds a C4 or sequence diagram becomes a page, at the level of its first
  *       such diagram; its other blocks, and those of subsections without such a diagram, become the
  *       page's sections, with the leading paragraphs as the page summary. Content on no page
- *       becomes the index's introduction where it is text or a list, and is left out otherwise,
- *       except a quality report: each failure goes to the end of the page showing what failed, or
- *       of the first page.
+ *       becomes the index's introduction where it is text or a list, each later section's title in
+ *       bold before its first block, and is left out otherwise, except a quality report: each
+ *       failure goes to the end of the page showing what failed, or of the first page.
  *   <li>The entities drawn in diagrams become elements, of the kind the diagrams draw them as: a
  *       box on a context diagram is a system, on a container diagram a container, on a component
  *       diagram a component, and a node other nodes are drawn inside is the system or container
@@ -510,9 +510,20 @@ public final class C4ReportRenderer {
       ObjectNode node = MAPPER.createObjectNode();
       node.put("id", document.id());
       node.put("title", document.title());
+      // A later section's title heads its first block, as on a page, unless the block has its own.
+      Section first = document.sections().isEmpty() ? null : document.sections().getFirst();
       String intro =
           loose.stream()
-              .map(part -> looseMarkdown(part.block))
+              .map(
+                  part -> {
+                    String markdown = looseMarkdown(part.block);
+                    return markdown.isEmpty()
+                            || markdown.startsWith("**")
+                            || part.heading == null
+                            || part.owner == first
+                        ? markdown
+                        : "**" + oneLine(part.heading) + "**\n" + markdown;
+                  })
               .filter(s -> !s.isEmpty())
               .collect(Collectors.joining("\n\n"));
       if (!intro.isEmpty()) {
@@ -680,7 +691,7 @@ public final class C4ReportRenderer {
 
     /**
      * Decision records: each row's cells by column, ID, Decision (the title, else the entity's
-     * name), Status and Outcome (the body).
+     * name), Status, and Outcome and Rationale (the body, the rationale under its label).
      */
     private ObjectNode decisions(String id, Table table) {
       ObjectNode node = section("decisions", id, table.title());
@@ -694,7 +705,13 @@ public final class C4ReportRenderer {
         putNonEmpty(item, "id", oneLine(cells.getOrDefault("ID", "")));
         String title = oneLine(cells.getOrDefault("Decision", ""));
         item.put("title", title.isEmpty() ? entities.get(row.entity()).name() : title);
-        putNonEmpty(item, "body", cells.getOrDefault("Outcome", ""));
+        String outcome = cells.getOrDefault("Outcome", "");
+        String rationale = cells.getOrDefault("Rationale", "");
+        String body =
+            rationale.isEmpty()
+                ? outcome
+                : (outcome.isEmpty() ? "" : outcome + "\n\n") + "**Rationale:** " + rationale;
+        putNonEmpty(item, "body", body);
         putNonEmpty(item, "status", oneLine(cells.getOrDefault("Status", "")));
       }
       return node;
