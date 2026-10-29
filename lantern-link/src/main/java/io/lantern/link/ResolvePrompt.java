@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.llm.LlmResponse;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -29,7 +30,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class ResolvePrompt {
 
   /** The prompt's version, part of every answer's cache key and the version of the facts. */
-  static final String VERSION = "1";
+  static final String VERSION = "2";
 
   static final String SYSTEM =
       """
@@ -37,7 +38,8 @@ final class ResolvePrompt {
       an HTTP call or a message send in one deployable unit but could not tell which unit it \
       reaches. You are given the call or send, facts that static analysis extracted about it, \
       each with a reference such as [F1], and the candidate units it might reach, each with a \
-      reference such as [C1] and the facts about it.
+      reference such as [C1] and the facts about it. The candidates are listed in the order of \
+      their IDs, which says nothing about which is more likely.
       Decide which one candidate the evidence shows it reaches. Weigh the names in the code and \
       config, such as client, class, property and placeholder names, and the paths, methods, \
       exchanges and routing keys, against each candidate's name, endpoints, listeners and \
@@ -104,7 +106,8 @@ final class ResolvePrompt {
    *
    * @param unresolved the {@code unresolved-link} fact
    * @param about the facts about the call or send: its unit's and those it comes from
-   * @param candidates the facts shown about each candidate unit, in the order of its candidates
+   * @param candidates the facts shown about each candidate unit; they are shown in the order of
+   *     their unit IDs, not in this map's, so the order carries no ranking the model could favour
    */
   static Question question(
       Fact unresolved, List<Fact> about, Map<EntityId, List<Fact>> candidates) {
@@ -139,7 +142,10 @@ final class ResolvePrompt {
     }
     user.append("\nCandidates:\n");
     List<Candidate> shown = new ArrayList<>();
-    for (Map.Entry<EntityId, List<Fact>> e : candidates.entrySet()) {
+    // By unit ID, a stable order with no ranking in it: models tend to favour the first option.
+    List<Map.Entry<EntityId, List<Fact>>> ordered = new ArrayList<>(candidates.entrySet());
+    ordered.sort(Map.Entry.comparingByKey(Comparator.comparing(EntityId::toString)));
+    for (Map.Entry<EntityId, List<Fact>> e : ordered) {
       String ref = "C" + (shown.size() + 1);
       user.append('[').append(ref).append("] ").append(e.getKey()).append('\n');
       List<String> factRefs = new ArrayList<>();

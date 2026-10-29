@@ -29,8 +29,10 @@ where the resolver runs.
   names it, its unit, its code, why it was left open and the placeholders nothing resolves; then
   the facts about it (its unit's `deployable-unit` and `application-name`, and the facts the link
   comes from: the call or send and the config used) as `[F1]`, `[F2]`, ...; then each candidate
-  as `[C1]`, ... with its unit's facts and at most 10 facts of its code: for HTTP the endpoints a
-  request with the call's method and path matches, best first, as the linker ranks them; for
+  as `[C1]`, ..., in the order of their unit IDs, not ranked, since models tend to favour the
+  first option (#199), and the prompt says the order means nothing; each with its unit's facts
+  and at most 10 facts of its code: for HTTP the endpoints a request with the call's method and
+  path matches, best first, as the linker ranks them; for
   messages the bindings of the exchange sent to that reach a queue the unit listens on, then those
   listeners, else every listener on the same broker. Facts are written as subject, predicate,
   object, attributes (without `facts`, `link` and `candidates`) and `repo:path`, never with fact
