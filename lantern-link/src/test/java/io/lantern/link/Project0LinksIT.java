@@ -16,12 +16,19 @@ import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.llm.BudgetGuard;
+import io.lantern.llm.FakeLlmProvider;
+import io.lantern.llm.InMemoryLlmCallLog;
+import io.lantern.llm.LlmClient;
+import io.lantern.llm.LlmRequest;
+import io.lantern.llm.ModelSettings;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +63,9 @@ class Project0LinksIT {
 
   private static List<String> unbuiltClaims;
 
+  /** What the LLM resolver, with a fake model, was asked with builds and without. */
+  private static final List<LlmRequest> resolverRequests = new ArrayList<>();
+
   @BeforeAll
   static void derive() throws IOException {
     BuildSandbox sandbox = new BuildSandbox(sandboxSettings(temp.resolve("builds")));
@@ -86,6 +96,22 @@ class Project0LinksIT {
     List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
     facts.addAll(links);
     links.addAll(new ClaimChecks().derive(facts, 1));
+    // The LLM resolver with a fake model that answers unknown, to see what a real run would ask.
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering("{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}");
+    List<Fact> all = new ArrayList<>(facts);
+    all.addAll(links);
+    new LinkResolver(
+            new LlmClient(
+                ModelSettings.single(fake.model("fake")),
+                List.of(fake),
+                BudgetGuard.unlimited("project-0"),
+                new InMemoryLlmCallLog(),
+                Clock.systemUTC()),
+            new InMemoryResolutionStore())
+        .resolve(all, 1);
+    fake.sent().forEach(sent -> resolverRequests.add(sent.request()));
     Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
     links.forEach(vocabulary::validate);
     return links;
@@ -229,6 +255,13 @@ class Project0LinksIT {
             + J
             + "payments/PaymentGatewayClient.java#22");
     assertThat(of(built, "CALLS_HTTP")).filteredOn(l -> l.contains("external-system")).hasSize(2);
+  }
+
+  @Test
+  void http5HasNoCandidatesSoTheResolverAsksTheModelNothing() {
+    // Every link project-0 leaves open lacks candidates, with builds and without: HTTP-5's tax
+    // service is outside the set, so a real run makes no Resolve call.
+    assertThat(resolverRequests).isEmpty();
   }
 
   @Test

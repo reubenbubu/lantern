@@ -16,8 +16,10 @@ import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.link.ResolutionStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
+import io.lantern.llm.Role;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
@@ -100,13 +102,20 @@ class EndToEndIT {
 
   @TestConfiguration(proxyBeanMethods = false)
   static class Fake {
-    /** A fake model that cites the first fact and the first part's summary it is given. */
+    /**
+     * A fake model that cites the first fact and the first part's summary it is given, and picks
+     * the first candidate of a link left open, citing it.
+     */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
       return new FakeLlmProvider()
           .answering(
               request -> {
                 String prompt = request.messages().getFirst().text();
+                if (request.role() == Role.RESOLVE) {
+                  return "{\"target\": \"C1\", \"confidence\": \"low\", \"cites\": [\"C1\"],"
+                      + " \"rationale\": \"The first candidate.\"}";
+                }
                 List<String> sentences = new ArrayList<>();
                 if (prompt.contains("[S1]")) {
                   sentences.add("It builds on its parts. [S1]");
@@ -463,6 +472,7 @@ class EndToEndIT {
         context.getBean(LlmAccess.class),
         context.getBean(JdbcLlmCallLog.class),
         context.getBean(SummaryStore.class),
+        context.getBean(ResolutionStore.class),
         context.getBean(ViewDefinitionStore.class),
         context.getBean(HtmlRenderer.class),
         context.getBean(C4ReportRenderer.class),

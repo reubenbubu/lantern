@@ -198,6 +198,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 | Static facts | File content hash + extractor name and version |
 | Linked graph | Set of fact IDs in scope + linker version |
 | LLM summaries | Hash of input facts + child summaries + prompt version + model |
+| LLM link resolutions | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
 | Layouts | Diagram ID; updated incrementally, never recomputed by default |
 | Document prose | Hash of the facts a section draws from + template version |
 
@@ -232,7 +233,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 
 A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
 
-Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue.
+Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; tools to query the graph and read files come with #169, the questions queue with #170.
 
 What the links look like (one relationship per call, send, datasource or setting between units and the topics, queues, exchanges, databases, brokers, external systems and infrastructure they reach, each with the facts on both ends, its protocol, its profile and a stable link ID), how profiles are applied, and how a library's code takes the config of each unit that bundles it are in ADR 0042.
 
