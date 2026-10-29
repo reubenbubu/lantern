@@ -46,8 +46,8 @@ class FactRepositoryIT {
       new Evidence("orders", COMMIT, "src/Foo.java", new Evidence.LineRange(3, 9), CONTENT_HASH);
 
   /**
-   * The types these tests use besides the built-in ones. CONSUMES declares one attribute and allows
-   * others; owner's objects must be strings.
+   * The types these tests use besides the built-in and the app's ones. LISTENS_ON declares one
+   * attribute and allows others; owner's objects must be strings.
    */
   static final List<VocabularyType> TEST_TYPES =
       List.of(
@@ -61,7 +61,7 @@ class FactRepositoryIT {
               null,
               AttributeSchema.NONE),
           new VocabularyType(
-              "CONSUMES",
+              "LISTENS_ON",
               TypeKind.RELATIONSHIP,
               null,
               null,
@@ -118,7 +118,7 @@ class FactRepositoryIT {
     attributes.put("a-last-but-sorts-first", true);
     return Fact.create(
         subject,
-        "CONSUMES",
+        "LISTENS_ON",
         FactObject.entity(TOPIC),
         attributes,
         ORIGIN,
@@ -429,7 +429,7 @@ class FactRepositoryIT {
     facts.save(owner);
 
     assertThat(facts.findBySubject(ORDERS)).containsExactlyInAnyOrder(current, owner);
-    assertThat(facts.findByPredicate("CONSUMES")).containsExactlyInAnyOrder(current, billing);
+    assertThat(facts.findByPredicate("LISTENS_ON")).containsExactlyInAnyOrder(current, billing);
     assertThat(facts.findByObject(FactObject.entity(TOPIC)))
         .containsExactlyInAnyOrder(current, billing);
     assertThat(facts.findByObject(FactObject.string(TOPIC.toString()))).containsExactly(owner);
@@ -444,7 +444,7 @@ class FactRepositoryIT {
     Fact wrongAttributes =
         Fact.create(
             ORDERS,
-            "CONSUMES",
+            "LISTENS_ON",
             FactObject.entity(TOPIC),
             badGroup,
             ORIGIN,
@@ -470,8 +470,8 @@ class FactRepositoryIT {
         .hasMessageContaining("not in the vocabulary");
     Fact unknownEntityType =
         Fact.create(
-            EntityId.parse("queue:orders"),
-            "CONSUMES",
+            EntityId.parse("mailbox:orders"),
+            "LISTENS_ON",
             FactObject.entity(TOPIC),
             FactJson.newObject(),
             ORIGIN,
@@ -490,7 +490,7 @@ class FactRepositoryIT {
             Validity.from(1));
     assertThatThrownBy(() -> facts.save(unknownEntityType))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Subject 'queue:orders' has type 'queue'");
+        .hasMessageContaining("Subject 'mailbox:orders' has type 'mailbox'");
     assertThatThrownBy(() -> facts.save(wrongObjectKind))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must be a string, not an integer");
@@ -510,7 +510,7 @@ class FactRepositoryIT {
         """
         INSERT INTO facts (id, subject, predicate, object_kind, object, origin, evidence,
                            confidence, validity)
-        VALUES (:id, 'service:orders', 'CONSUMES', 'string', 'x', CAST(:origin AS jsonb),
+        VALUES (:id, 'service:orders', 'LISTENS_ON', 'string', 'x', CAST(:origin AS jsonb),
                 CAST(:evidence AS jsonb), 1, int8range(1, NULL))
         """;
     String origin = "{\"kind\":\"static\",\"name\":\"messaging\"}";
