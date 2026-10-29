@@ -18,8 +18,10 @@ import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildResult;
@@ -221,10 +223,13 @@ public final class AnalysisRun {
       // repositories' facts are recorded.
       List<Fact> found =
           new ArrayList<>(new MavenExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new JavaExtractor().extract(repoBuilds, snapshot.number()));
+      // The code is read once, for the Java structure and the Spring extractors.
+      JavaAnalysis code = JavaExtractor.analyze(repoBuilds);
+      found.addAll(new JavaExtractor().extract(code, snapshot.number()));
       found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new SqlExtractor().extract(repoBuilds, snapshot.number()));
+      found.addAll(new SpringExtractor().extract(code, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       Stored stored = store(snapshot.number(), registered.keySet(), found);
       List<Fact> extracted = stored.facts();
