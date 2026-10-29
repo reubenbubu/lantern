@@ -146,7 +146,7 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     out.println(
         "Responsibilities and intent phrases: "
             + result.wordingsAsked()
-            + " units worded by the LLM, "
+            + " units, data stores and destinations worded by the LLM, "
             + result.wordingsReused()
             + " reused");
     out.println(

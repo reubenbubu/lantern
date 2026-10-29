@@ -3,6 +3,7 @@ package io.lantern.compose;
 import io.lantern.compose.WordingPrompt.ComponentInput;
 import io.lantern.compose.WordingPrompt.Question;
 import io.lantern.compose.WordingPrompt.RelationshipInput;
+import io.lantern.compose.WordingPrompt.UseInput;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
@@ -21,12 +22,14 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -42,7 +45,10 @@ import org.slf4j.LoggerFactory;
  * shows extracted facts only: those that make it a unit, its README's claims, its components (when
  * it has more than one, as the component diagram draws them) with their facts, or else its entry
  * points, and its links; the answer cites them. Nothing is added: a unit, component or link the
- * model leaves out keeps its summary or static label.
+ * model leaves out keeps its summary or static label. One call per data store, topic, queue,
+ * exchange and external system the container diagrams draw asks for its responsibility sentence
+ * from its facts, the tables built in it and how the units use it (ADR 0056); one the model leaves
+ * out has no description, as before.
  *
  * <p>Answers are cached by the hash of the prompt, which shows no fact IDs, so a run over unchanged
  * facts makes no call. It never fails the run: an answer rejected twice, and a call refused by a
@@ -70,6 +76,18 @@ public final class Describer {
   /** The most relationships of one unit the prompt shows. */
   static final int MAX_RELATIONSHIPS = 40;
 
+  /** The most tokens an answer about a data store or destination may take. */
+  static final int MAX_ELEMENT_OUTPUT_TOKENS = 1_000;
+
+  /** The most facts about a data store or destination itself the prompt shows. */
+  static final int MAX_ELEMENT_FACTS = 8;
+
+  /** The most tables of a database the prompt shows. */
+  static final int MAX_TABLES = 30;
+
+  /** The most link facts of a data store or destination the prompt shows. */
+  static final int MAX_USES = 40;
+
   /** The links a unit's relationships are drawn from, as the container diagram draws them. */
   private static final List<String> LINKS =
       List.of(
@@ -81,6 +99,7 @@ public final class Describer {
 
   private static final String METHOD = "method";
   private static final String CLAIM = "claim";
+  private static final String TABLE = "table";
   private static final Set<String> ENTRY_POINTS =
       Set.of("endpoint", "message-listener", "scheduled");
 
@@ -93,11 +112,11 @@ public final class Describer {
    * What a run did.
    *
    * @param wordings the responsibility sentences and intent phrases, for the composer
-   * @param asked how many units the model was asked about in this run
+   * @param asked how many units, data stores and destinations the model was asked about in this run
    * @param reused how many answers came from the cache
-   * @param rejected the units whose answer was rejected twice
-   * @param skipped the units the model could not be asked about, because a budget or the model's
-   *     capabilities refused the call or the provider failed
+   * @param rejected the units, data stores and destinations whose answer was rejected twice
+   * @param skipped the units, data stores and destinations the model could not be asked about,
+   *     because a budget or the model's capabilities refused the call or the provider failed
    */
   public record Result(
       Wordings wordings, int asked, int reused, List<EntityId> rejected, List<EntityId> skipped) {
@@ -122,7 +141,8 @@ public final class Describer {
   }
 
   /**
-   * Words the deployable units of the facts.
+   * Words the deployable units of the facts, and the data stores and destinations their diagrams
+   * draw.
    *
    * @param facts the facts that hold in a snapshot, the linker's included
    */
@@ -136,6 +156,9 @@ public final class Describer {
     List<Question> questions = new ArrayList<>();
     for (EntityId unit : C4Views.units(knowledge)) {
       question(unit, knowledge, assembler, c4, alternatives).ifPresent(questions::add);
+    }
+    for (EntityId element : c4.destinations()) {
+      questions.add(question(element, knowledge, assembler, c4));
     }
     ModelConfig model = client.model(Role.INFER_INTENT);
     List<Outcome> outcomes = new ArrayList<>();
@@ -166,10 +189,10 @@ public final class Describer {
       Question question = questions.get(i);
       Outcome outcome = outcomes.get(i);
       switch (outcome.kind()) {
-        case SKIPPED -> skipped.add(question.unit());
+        case SKIPPED -> skipped.add(question.element());
         case REJECTED -> {
           asked++;
-          rejected.add(question.unit());
+          rejected.add(question.element());
         }
         case ANSWERED -> {
           if (outcome.cached()) {
@@ -182,7 +205,8 @@ public final class Describer {
       }
     }
     LOG.info(
-        "Wordings: {} units asked, {} cached, {} rejected, {} skipped",
+        "Wordings: {} units, data stores and destinations asked, {} cached, {} rejected, {}"
+            + " skipped",
         asked,
         reused,
         rejected.size(),
@@ -242,6 +266,87 @@ public final class Describer {
             entryPoints,
             components,
             relationships));
+  }
+
+  /**
+   * The prompt about a data store or destination (ADR 0056): the facts about it, the tables of the
+   * schemas built in it, and how each of the other ends of its lines uses it, by the link facts of
+   * those lines. Uses are listed by what they say, so the order does not depend on fact IDs.
+   */
+  private static Question question(
+      EntityId element, Knowledge knowledge, Assembler assembler, C4Views c4) {
+    List<Fact> facts = byLine(knowledge.attributes(element));
+    Map<String, List<Fact>> uses = new TreeMap<>();
+    SortedSet<EntityId> schemas = new TreeSet<>(Knowledge.BY_ID);
+    for (C4Views.Neighbour neighbour : c4.neighbours(element)) {
+      String use =
+          assembler.name(neighbour.other())
+              + " ("
+              + kind(neighbour.other())
+              + ") "
+              + use(neighbour);
+      uses.computeIfAbsent(use, u -> new ArrayList<>()).addAll(neighbour.facts());
+      for (Fact fact : neighbour.facts()) {
+        if (fact.predicate().equals(C4Views.USES_DATABASE)) {
+          C4Views.strings(fact, "schemas").forEach(id -> schemas.add(EntityId.parse(id)));
+        }
+      }
+    }
+    List<Fact> tables = new ArrayList<>();
+    for (EntityId schema : schemas) {
+      for (EntityId table : knowledge.parts(schema, TABLE)) {
+        tables.addAll(knowledge.containsFacts(schema, table));
+      }
+    }
+    tables = byLine(tables);
+    List<UseInput> shown = new ArrayList<>();
+    int count = 0;
+    for (Map.Entry<String, List<Fact>> entry : uses.entrySet()) {
+      List<Fact> links = byLine(new ArrayList<>(byId(entry.getValue()).values()));
+      links = links.subList(0, Math.min(links.size(), MAX_USES - count));
+      if (links.isEmpty()) {
+        break;
+      }
+      count += links.size();
+      shown.add(new UseInput(entry.getKey(), links));
+    }
+    return WordingPrompt.element(
+        element,
+        noun(element),
+        assembler.name(element),
+        c4.technology(element),
+        facts.subList(0, Math.min(MAX_ELEMENT_FACTS, facts.size())),
+        tables.subList(0, Math.min(MAX_TABLES, tables.size())),
+        shown);
+  }
+
+  /** The facts by ID, each once. */
+  private static Map<String, Fact> byId(List<Fact> facts) {
+    Map<String, Fact> result = new LinkedHashMap<>();
+    facts.forEach(f -> result.putIfAbsent(f.id(), f));
+    return result;
+  }
+
+  /** What the other end of a line does with the data store or destination at this end. */
+  private static String use(C4Views.Neighbour neighbour) {
+    if (!neighbour.incoming()) {
+      return switch (neighbour.relationship()) {
+        case C4Views.CONSUMES ->
+            neighbour.via() == null
+                ? "receives messages from it"
+                : "receives messages from it through " + neighbour.via();
+        case C4Views.ROUTES_TO -> "receives messages it routes";
+        default -> "is reached from it";
+      };
+    }
+    return switch (neighbour.relationship()) {
+      case C4Views.CALLS_HTTP -> "calls it";
+      case C4Views.PUBLISHES -> "sends messages to it";
+      case C4Views.USES_DATABASE -> "connects to it";
+      case C4Views.ACCESSES_DATA_OF -> "reads or writes tables of it";
+      case C4Views.ROUTES_TO -> "routes messages to it";
+      default -> "reaches it";
+    };
   }
 
   /**
@@ -318,6 +423,12 @@ public final class Describer {
     };
   }
 
+  /** What the element is, without an article, such as {@code external system}. */
+  private static String noun(EntityId element) {
+    String kind = kind(element);
+    return kind.substring(kind.indexOf(' ') + 1);
+  }
+
   private static String kind(EntityId other) {
     return switch (other.type()) {
       case BuiltInTypes.SERVICE -> "a deployable unit";
@@ -347,11 +458,12 @@ public final class Describer {
     if (cached != null) {
       return new Outcome(Kind.ANSWERED, cached, true);
     }
-    String purpose = "word unit " + question.unit();
+    boolean unit = question.about().equals(WordingAnswer.UNIT);
+    String purpose = (unit ? "word unit " : "word element ") + question.element();
     try {
       List<LlmMessage> messages = new ArrayList<>();
       messages.add(LlmMessage.user(question.user()));
-      LlmResponse first = ask(purpose, messages);
+      LlmResponse first = ask(question, purpose, messages);
       Map<String, WordingAnswer.Item> items;
       try {
         items = WordingPrompt.check(first, question);
@@ -367,7 +479,7 @@ public final class Describer {
           messages.add(LlmMessage.assistant(first.text()));
           messages.add(LlmMessage.user(WordingPrompt.RETRY.formatted(rejected.getMessage())));
         }
-        LlmResponse second = ask(purpose + " (retry)", messages);
+        LlmResponse second = ask(question, purpose + " (retry)", messages);
         try {
           items = WordingPrompt.check(second, question);
         } catch (WordingPrompt.Rejected again) {
@@ -377,19 +489,20 @@ public final class Describer {
       }
       WordingAnswer answer =
           new WordingAnswer(
-              key, question.unit(), items, WordingPrompt.VERSION, model.provider(), model.model());
+              key, question.element(), items, question.version(), model.provider(), model.model());
       store.save(answer);
       return new Outcome(Kind.ANSWERED, answer, false);
     } catch (LlmException e) {
-      LOG.warn("Left {} as it was, could not {}: {}", question.unit(), purpose, e.getMessage());
+      LOG.warn("Left {} as it was, could not {}: {}", question.element(), purpose, e.getMessage());
       return new Outcome(Kind.SKIPPED, null, false);
     }
   }
 
-  private LlmResponse ask(String purpose, List<LlmMessage> messages) {
+  private LlmResponse ask(Question question, String purpose, List<LlmMessage> messages) {
+    int maxTokens =
+        question.about().equals(WordingAnswer.UNIT) ? MAX_OUTPUT_TOKENS : MAX_ELEMENT_OUTPUT_TOKENS;
     return client.call(
-        new LlmRequest(
-            Role.INFER_INTENT, purpose, WordingPrompt.SYSTEM, messages, MAX_OUTPUT_TOKENS, false));
+        new LlmRequest(Role.INFER_INTENT, purpose, question.system(), messages, maxTokens, false));
   }
 
   private static void logRejected(
@@ -409,13 +522,13 @@ public final class Describer {
   static String key(Question question, ModelConfig model) {
     String text =
         "prompt "
-            + WordingPrompt.VERSION
+            + question.version()
             + "\nprovider "
             + model.provider()
             + "\nmodel "
             + model.model()
             + "\nsystem\n"
-            + WordingPrompt.SYSTEM
+            + question.system()
             + "\nuser\n"
             + question.user();
     try {
@@ -443,8 +556,9 @@ public final class Describer {
         .items()
         .forEach(
             (ref, item) -> {
-              if (ref.equals(WordingAnswer.UNIT)) {
-                sentence(question, item).ifPresent(s -> responsibilities.put(question.unit(), s));
+              if (ref.equals(question.about())) {
+                sentence(question, item)
+                    .ifPresent(s -> responsibilities.put(question.element(), s));
               } else if (question.components().containsKey(ref)) {
                 EntityId type = question.components().get(ref);
                 sentence(question, item).ifPresent(s -> responsibilities.putIfAbsent(type, s));

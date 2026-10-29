@@ -1,6 +1,7 @@
 # 0050: Responsibility sentences and intent phrases
 
-Status: accepted (#181), amends ADR 0044, ADR 0047 and ADR 0048, pending the user's review (#24)
+Status: accepted (#181), amends ADR 0044, ADR 0047 and ADR 0048, amended by ADR 0056 (#194),
+pending the user's review (#24)
 
 ## Context
 
@@ -83,6 +84,6 @@ unit is roughly 1,800 characters of system prompt plus some 150 characters per f
 
 ## Not in this issue
 
-Responsibility sentences for databases, queues and external systems; the glossary in the prompt
+Responsibility sentences for databases, queues and external systems (ADR 0056); the glossary in the prompt
 (annotations, Phase 3); unknowns stated as such where the model leaves a unit out (the element then
 keeps its summary or has no description, as before).
