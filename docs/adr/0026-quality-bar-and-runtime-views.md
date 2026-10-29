@@ -1,6 +1,7 @@
 # 0026: A quality bar, and diagrams of runtime units instead of build units
 
-Status: accepted (#86), views drawn by ADR 0044 (#95), pending the user's review (#24)
+Status: accepted (#86), views drawn by ADR 0044 (#95), amended by ADR 0070 (#250), which supersedes
+"The LLM words, it never invents", pending the user's review (#24)
 
 ## Context
 

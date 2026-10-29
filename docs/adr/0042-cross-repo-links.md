@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), pending the user's review (#24)
+Status: accepted (#94), amended by ADR 0070 (#250), pending the user's review (#24)
 
 ## Context
 
