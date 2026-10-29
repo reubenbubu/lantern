@@ -5,8 +5,9 @@
 //   node scripts/score.mjs <report .html or .json> <set folder> [--run <run.json>] [--out <prefix>]
 //     writes <prefix>.scorecard.json and <prefix>.scorecard.md; the prefix defaults to the report's
 //     path without .html or .json.
-//   node scripts/score.mjs compare <a.scorecard.json> <b.scorecard.json> [--out <file.md>]
-//     prints (or writes) the two scorecards side by side.
+//   node scripts/score.mjs compare <a.scorecard.json> <b.scorecard.json> [--labels <a>,<b>]
+//       [--out <file.md>]
+//     prints (or writes) the two scorecards side by side; the labels head their columns.
 //
 // The set folder is testsets/<set>: its reference/reference.c4.json is the reference and its
 // reference/aliases.json, if there is one, the set's alias table.
@@ -734,7 +735,8 @@ export function scoreFiles(reportPath, setDir, runPath = null) {
 
 /** Two scorecards side by side, as Markdown: the models of each role, the cost and every count. */
 export function compareMarkdown(a, b, labelA = 'A', labelB = 'B') {
-  const lines = [`# ${a.set} vs ${b.set}: ${labelA} and ${labelB}`, ''];
+  const sets = a.set === b.set ? a.set : `${a.set} and ${b.set}`;
+  const lines = [`# ${sets}: ${labelA} vs ${labelB}`, ''];
   lines.push(`| | ${labelA} | ${labelB} |`, '| --- | --- | --- |');
   const roles = new Set([...(a.run?.roles ?? []), ...(b.run?.roles ?? [])].map((r) => r.role));
   const model = (card, role) => {
@@ -770,14 +772,20 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   try {
     const out = option(args, '--out');
     if (args[0] === 'compare') {
+      const labels = option(args, '--labels');
       const [, aPath, bPath] = args;
-      if (!aPath || !bPath) throw new Error('usage: score.mjs compare <a.scorecard.json> <b.scorecard.json> [--out <file.md>]');
+      if (!aPath || !bPath) {
+        throw new Error(
+          'usage: score.mjs compare <a.scorecard.json> <b.scorecard.json> [--labels <a>,<b>] [--out <file.md>]',
+        );
+      }
       const label = (p) => basename(p).replace(/\.scorecard\.json$/, '');
+      const [labelA, labelB] = labels ? labels.split(',') : [label(aPath), label(bPath)];
       const text = compareMarkdown(
         JSON.parse(readFileSync(aPath, 'utf8')),
         JSON.parse(readFileSync(bPath, 'utf8')),
-        label(aPath),
-        label(bPath),
+        labelA,
+        labelB,
       );
       if (out) {
         writeFileSync(out, text);
