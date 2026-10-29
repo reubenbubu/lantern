@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -82,16 +83,26 @@ public final class UrlCredentials {
           "(?i)(?:password|passwd|secret|token|signature"
               + "|(?<![a-z0-9])(?:pwd|pass|sig|key|apikey|api_key))\\s*=");
 
+  /** An option's name, which may hold placeholders' markers ({@code ${PREFIX}_password}). */
+  private static final String NAME =
+      "(?:[A-Za-z_\\-]|\u0001\\d+\u0002)(?:[A-Za-z0-9_.\\-]|\u0001\\d+\u0002)*";
+
   /**
-   * An option {@code name=value} outside URLs: the value is double or single quoted, a backslash
-   * escaping the next character, or runs up to whitespace or one of {@code ; , & )} or a quote. The
-   * name starts the text or follows a character that cannot be in a name, so {@code a.password=x}
-   * is read as the option {@code a.password}.
+   * An option {@code name=value} outside URLs. The value is double or single quoted, a backslash
+   * escaping the next character, when the closing quote ends it; otherwise it runs up to whitespace
+   * or {@code ;}, or up to a {@code ,} or {@code &} followed by another option, so a quote or
+   * {@code )} inside it stays in it. The name starts the text or follows a character that cannot be
+   * in a name, so {@code a.password=x} is read as the option {@code a.password}.
    */
   private static final Pattern OPTION =
       Pattern.compile(
-          "(?<![A-Za-z0-9_.\\-\u0001\u0002])([A-Za-z_\\-][A-Za-z0-9_.\\-]*)\\s*=\\s*"
-              + "(\"(?:\\\\.|[^\"\\\\])+\"|'(?:\\\\.|[^'\\\\])+'|[^\\s;,&)\"']+)");
+          "(?<![A-Za-z0-9_.\\-\u0001\u0002])("
+              + NAME
+              + ")\\s*=\\s*(\"(?:\\\\.|[^\"\\\\])+\"(?=[\\s;,&)]|$)"
+              + "|'(?:\\\\.|[^'\\\\])+'(?=[\\s;,&)]|$)"
+              + "|(?:[^\\s;,&]|[,&](?!\\s*"
+              + NAME
+              + "\\s*=))+)");
 
   /** A placeholder's marker, the whole of an option's value if it is only placeholders. */
   private static final Pattern MARKERS = Pattern.compile("(?:\u0001(\\d+)\u0002)+");
@@ -112,27 +123,42 @@ public final class UrlCredentials {
    *     {@code ${DB_URL:jdbc:oracle:thin:scott/tiger@//db:1521/X}}
    */
   public static String withoutCredentials(String text) {
+    return withoutCredentials(text, placeholder -> true);
+  }
+
+  /**
+   * The text with the credentials of the URLs in it, and its secret options, removed.
+   *
+   * @param text a config value as written
+   * @param unresolved whether a placeholder, given as written between {@code ${} and {@code }}, is
+   *     one nothing resolves; a secret option whose value is only such placeholders is kept
+   */
+  static String withoutCredentials(String text, Predicate<String> unresolved) {
     List<String> placeholders = new ArrayList<>();
     String protectedText = protect(text, placeholders);
     Matcher start = URL_START.matcher(protectedText);
     StringBuilder cleaned = new StringBuilder();
     int from = 0;
     while (start.find(from)) {
-      cleaned.append(outsideUrls(protectedText.substring(from, start.start()), placeholders));
+      cleaned.append(
+          outsideUrls(protectedText.substring(from, start.start()), placeholders, unresolved));
       int end = end(protectedText, start.end());
       cleaned.append(cleanOne(protectedText.substring(start.start(), end)));
       from = end;
     }
-    cleaned.append(outsideUrls(protectedText.substring(from), placeholders));
-    return restore(cleaned.toString(), placeholders);
+    cleaned.append(outsideUrls(protectedText.substring(from), placeholders, unresolved));
+    return restore(cleaned.toString(), placeholders, unresolved);
   }
 
   /**
    * Text outside URLs without secret options and without the user info of {@code
    * user:password@host} tokens.
    */
-  private static String outsideUrls(String text, List<String> placeholders) {
-    return SCHEMELESS_USER_INFO.matcher(withoutSecretOptions(text, placeholders)).replaceAll("");
+  private static String outsideUrls(
+      String text, List<String> placeholders, Predicate<String> unresolved) {
+    return SCHEMELESS_USER_INFO
+        .matcher(withoutSecretOptions(text, placeholders, unresolved))
+        .replaceAll("");
   }
 
   /**
@@ -142,13 +168,14 @@ public final class UrlCredentials {
    * password="${KAFKA_PASSWORD}"}) is kept: it says where the secret comes from, as a secret key's
    * value does.
    */
-  private static String withoutSecretOptions(String text, List<String> placeholders) {
+  private static String withoutSecretOptions(
+      String text, List<String> placeholders, Predicate<String> unresolved) {
     Matcher option = OPTION.matcher(text);
     StringBuilder out = new StringBuilder();
     int from = 0;
     while (option.find()) {
       if (!ConfigExtractor.isSecret(option.group(1))
-          || onlyPlaceholdersWithoutDefaults(unquoted(option.group(2)), placeholders)) {
+          || onlyUnresolvedPlaceholders(unquoted(option.group(2)), placeholders, unresolved)) {
         continue;
       }
       int start = option.start();
@@ -189,14 +216,17 @@ public final class UrlCredentials {
         : value;
   }
 
-  private static boolean onlyPlaceholdersWithoutDefaults(String value, List<String> placeholders) {
+  private static boolean onlyUnresolvedPlaceholders(
+      String value, List<String> placeholders, Predicate<String> unresolved) {
     if (!MARKERS.matcher(value).matches()) {
       return false;
     }
     Matcher marker = MARKER.matcher(value);
     while (marker.find()) {
       String placeholder = placeholders.get(Integer.parseInt(marker.group(1)));
-      if (placeholder.contains(":") || placeholder.contains("${")) {
+      if (placeholder.contains(":")
+          || placeholder.contains("${")
+          || !unresolved.test(placeholder)) {
         return false;
       }
     }
@@ -282,7 +312,8 @@ public final class UrlCredentials {
   }
 
   /** Puts the placeholders left back, each with the URLs in its default cleaned. */
-  private static String restore(String text, List<String> placeholders) {
+  private static String restore(
+      String text, List<String> placeholders, Predicate<String> unresolved) {
     StringBuilder out = new StringBuilder();
     int i = 0;
     while (i < text.length()) {
@@ -290,7 +321,9 @@ public final class UrlCredentials {
       int close = c == OPEN ? text.indexOf(CLOSE, i) : -1;
       if (close > 0) {
         int index = Integer.parseInt(text.substring(i + 1, close));
-        out.append("${").append(withoutCredentials(placeholders.get(index))).append('}');
+        out.append("${")
+            .append(withoutCredentials(placeholders.get(index), unresolved))
+            .append('}');
         i = close + 1;
       } else {
         out.append(c);

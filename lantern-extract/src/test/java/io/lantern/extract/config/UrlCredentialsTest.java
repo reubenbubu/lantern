@@ -170,7 +170,6 @@ class UrlCredentialsTest {
         "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"app\";",
         "required username=\"app\" password=\"${KAFKA_PASSWORD}\";",
         "password=",
-        "password=\"\"",
         "routing.key=order.created",
         "${a.password}",
         ""
@@ -237,5 +236,32 @@ class UrlCredentialsTest {
     // Inside a placeholder's default too.
     assertThat(clean("${JAAS:m required username=\"u\" password=\"p\";}"))
         .isEqualTo("${JAAS:m required username=\"u\";}");
+  }
+
+  @Test
+  void anUnquotedSecretRunsToWhitespaceOrSemicolon() {
+    assertThat(clean("-Djavax.net.ssl.keyStorePassword=ab,cd -Dx=1")).isEqualTo("-Dx=1");
+    assertThat(clean("m required password=ab'cd user=u;")).isEqualTo("m required user=u;");
+    assertThat(clean("m required password=ab)cd;")).isEqualTo("m required;");
+    assertThat(clean("password=\"\"")).isEqualTo("");
+    // A quote that does not end the value is part of it.
+    assertThat(clean("m required password=\"a\"b\" user=u;")).isEqualTo("m required user=u;");
+    // A ',' or '&' followed by another option ends it.
+    assertThat(clean("password=a,b&c, user=u")).isEqualTo("user=u");
+    assertThat(clean("password=a&user=u")).isEqualTo("user=u");
+  }
+
+  @Test
+  void aNameMayHoldPlaceholders() {
+    assertThat(clean("${PREFIX}_password=x user=u")).isEqualTo("user=u");
+    assertThat(clean("m required ${P}.secret=\"x\";")).isEqualTo("m required;");
+  }
+
+  @Test
+  void aPlaceholderSomethingResolvesIsRemoved() {
+    assertThat(UrlCredentials.withoutCredentials("m required password=\"${P}\";", p -> false))
+        .isEqualTo("m required;");
+    assertThat(UrlCredentials.withoutCredentials("m required password=\"${P}\";", p -> true))
+        .isEqualTo("m required password=\"${P}\";");
   }
 }

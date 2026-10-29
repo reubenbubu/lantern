@@ -121,14 +121,19 @@ what the facts look like and how a secret written in a config file is handled.
   username="app" password="x";` is not a URL and its key is not a secret, so the password used to
   be recorded. Now `UrlCredentials` also removes, outside URLs, every `name=value` option whose name
   a config key would be secret by (`ConfigExtractor.isSecret`, the one rule): `password`,
-  `clientSecret`, `oauth.token`, `api-key`, `-Dtrust.store.password`, ... The value is double or
-  single quoted, a backslash escaping the next character, or runs up to whitespace, `; , & )` or a
-  quote; whitespace may surround the `=`. The option goes with one `,` or `&` separator next to it,
+  `clientSecret`, `oauth.token`, `api-key`, `-Dtrust.store.password`, `${PREFIX}_password`, ...
+  The value is double or single quoted, a backslash escaping the next character, when the closing
+  quote ends it; otherwise it runs up to whitespace or `;`, or to a `,` or `&` followed by another
+  option, so a quote or `)` inside it goes too (removing too much is the safe side); whitespace may
+  surround the `=`. The option goes with one `,` or `&` separator next to it,
   or else with the whitespace before it, so several login modules, their `;` and their other
   options (`username`, `debug`) and the login module class stay:
   `...PlainLoginModule required username="app";`.
-- An option whose value is only placeholders without defaults (`password="${KAFKA_PASSWORD}"`) is
-  kept, as a secret key's value is, since it says where the secret comes from. A value a
-  placeholder resolves into such an option (`password="${kafka.pw}"`, `kafka.pw=p1`) loses it in
-  the resolved value, while `written` keeps the placeholder. A fact that lost an option carries
-  `masked: true`; a value without one is recorded byte for byte. The extractor's version becomes 3.
+- An option whose value is only placeholders without defaults that nothing resolves
+  (`password="${KAFKA_PASSWORD}"`) is kept, as a secret key's value is, since it says where the
+  secret comes from. Secret options are removed from the written value before its placeholders
+  are resolved, so a secret substituted through a placeholder (`password=${kafka.pw}`,
+  `kafka.pw=my secret`) goes whole, whatever it holds, from both the value and `written`. A fact
+  that lost an option carries `masked: true`; a value without one is recorded byte for byte. The
+  config extractor's version becomes 3; the HTTP client and persistence extractors, which clean
+  their URLs with `UrlCredentials`, become version 2.
