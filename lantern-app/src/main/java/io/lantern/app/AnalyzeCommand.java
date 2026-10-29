@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -131,6 +132,12 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
             });
     out.println("Facts: " + result.facts() + " (" + result.newFacts() + " new)");
     out.println(
+        "Links left open: "
+            + result.linksAsked()
+            + " resolved by the LLM, "
+            + result.linksReused()
+            + " reused");
+    out.println(
         "Summaries: "
             + result.summariesGenerated()
             + " written by the LLM, "
@@ -152,6 +159,7 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     out.println(
         "LLM calls: "
             + result.llm().calls()
+            + byRole(result.llm())
             + ", tokens: "
             + result.llm().tokens()
             + ", cost: $"
@@ -159,6 +167,16 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     for (AnalysisRun.Rendered document : result.documents()) {
       out.println("Wrote " + document.file());
     }
+  }
+
+  /** The calls under each role, such as " (SUMMARIZE=5, COMPOSE=2)", or nothing without calls. */
+  private static String byRole(JdbcLlmCallLog.Spending spending) {
+    if (spending.callsByRole().isEmpty()) {
+      return "";
+    }
+    return spending.callsByRole().entrySet().stream()
+        .map(entry -> entry.getKey().name() + "=" + entry.getValue())
+        .collect(Collectors.joining(", ", " (", ")"));
   }
 
   @Override

@@ -401,6 +401,20 @@ class LinkResolverTest {
   }
 
   @Test
+  void theResolverTotalsTheLinksItAskedAboutAcrossItsResolves() {
+    taxCall();
+    FakeLlmProvider fake = answering(r -> PICK_TAX);
+    LinkResolver resolver = new LinkResolver(client(fake, BudgetGuard.unlimited("test")), store);
+
+    resolver.derive(linked(), 1);
+    resolver.derive(linked(), 1);
+
+    // A run counts its RESOLVE calls with its summaries and wordings from these (#245).
+    assertThat(resolver.asked()).isEqualTo(1).isEqualTo(fake.sent().size());
+    assertThat(resolver.reused()).isEqualTo(1);
+  }
+
+  @Test
   void theCacheOutlivesANewCommitThatChangesNothingThePromptShows() {
     taxCall();
     FakeLlmProvider fake = answering(r -> PICK_TAX);

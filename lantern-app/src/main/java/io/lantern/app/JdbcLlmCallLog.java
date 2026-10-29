@@ -2,9 +2,13 @@ package io.lantern.app;
 
 import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmCallLog;
+import io.lantern.llm.Role;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
@@ -43,10 +47,22 @@ public final class JdbcLlmCallLog implements LlmCallLog {
   }
 
   /**
-   * How many calls started at or after the given time, whatever their outcome, and what they used
-   * in tokens and US dollars.
+   * How many calls started at or after the given time, whatever their outcome, by role, and what
+   * they used in tokens and US dollars.
    */
   public Spending spentSince(Instant since) {
+    Map<Role, Long> byRole = new EnumMap<>(Role.class);
+    jdbc.sql(
+            """
+            SELECT role, count(*) AS calls
+            FROM llm_calls
+            WHERE started_at >= :since
+            GROUP BY role
+            """)
+        .param("since", since.atOffset(ZoneOffset.UTC))
+        .query((rs, row) -> Map.entry(Role.valueOf(rs.getString("role")), rs.getLong("calls")))
+        .list()
+        .forEach(entry -> byRole.put(entry.getKey(), entry.getValue()));
     return jdbc.sql(
             """
             SELECT count(*) AS calls,
@@ -59,7 +75,8 @@ public final class JdbcLlmCallLog implements LlmCallLog {
         .param("since", since.atOffset(ZoneOffset.UTC))
         .query(
             (rs, row) ->
-                new Spending(rs.getLong("calls"), rs.getLong("tokens"), rs.getBigDecimal("cost")))
+                new Spending(
+                    rs.getLong("calls"), rs.getLong("tokens"), rs.getBigDecimal("cost"), byRole))
         .single();
   }
 
@@ -69,6 +86,15 @@ public final class JdbcLlmCallLog implements LlmCallLog {
    * @param calls how many calls were logged, including failed and refused ones
    * @param tokens all tokens, input of every kind plus output
    * @param costUsd US dollars
+   * @param callsByRole how many of the calls were logged under each role, in the roles' order; a
+   *     role without calls is left out
    */
-  public record Spending(long calls, long tokens, BigDecimal costUsd) {}
+  public record Spending(long calls, long tokens, BigDecimal costUsd, Map<Role, Long> callsByRole) {
+
+    public Spending {
+      Map<Role, Long> copy = new EnumMap<>(Role.class);
+      copy.putAll(callsByRole);
+      callsByRole = Collections.unmodifiableMap(copy);
+    }
+  }
 }

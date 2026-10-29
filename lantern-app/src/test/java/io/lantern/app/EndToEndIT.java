@@ -546,6 +546,29 @@ class EndToEndIT {
     writeCallReport(name, sent);
   }
 
+  /**
+   * Checks that the run made the given number of calls, and that each logged call is counted under
+   * its role in the run's report and by what the run asked for: a summary, a link left open, or a
+   * wording (#245). Holds when no answer is rejected or retried, as with the fake model.
+   */
+  static void assertEveryCallCountedUnderItsRole(AnalysisRun.Result run, int calls) {
+    Map<Role, Long> byRole = run.llm().callsByRole();
+    assertThat(run.llm().calls()).as("LLM calls logged").isEqualTo(calls);
+    assertThat(byRole.values().stream().mapToLong(Long::longValue).sum())
+        .as("LLM calls logged under a role: " + byRole)
+        .isEqualTo(calls);
+    assertThat(byRole.getOrDefault(Role.SUMMARIZE, 0L))
+        .as("summaries")
+        .isEqualTo(run.summariesGenerated());
+    assertThat(byRole.getOrDefault(Role.RESOLVE, 0L))
+        .as("links left open")
+        .isEqualTo(run.linksAsked());
+    assertThat(byRole.getOrDefault(Role.COMPOSE, 0L) + byRole.getOrDefault(Role.INFER_INTENT, 0L))
+        .as("wordings")
+        .isEqualTo(run.wordingsAsked());
+    assertThat(calls).isEqualTo(run.summariesGenerated() + run.linksAsked() + run.wordingsAsked());
+  }
+
   /** What two runs over the same commits did. */
   private record Twice(AnalysisRun.Result first, AnalysisRun.Result second) {}
 
@@ -558,8 +581,7 @@ class EndToEndIT {
     assertThat(first.newFacts()).isEqualTo(first.facts());
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.summariesReused()).isZero();
-    assertThat(calls).isEqualTo(first.summariesGenerated() + first.wordingsAsked());
-    assertThat(first.llm().calls()).isEqualTo(calls);
+    assertEveryCallCountedUnderItsRole(first, calls);
     assertThat(first.documents()).hasSize(4);
     assertThat(first.documents())
         .extracting(d -> d.document().template().name())
@@ -597,6 +619,8 @@ class EndToEndIT {
     assertThat(second.summariesGenerated()).isZero();
     assertThat(second.summariesReused()).isEqualTo(first.summariesGenerated());
     assertThat(second.wordingsAsked()).isZero();
+    assertThat(second.linksAsked()).isZero();
+    assertThat(second.linksReused()).isEqualTo(first.linksAsked() + first.linksReused());
     // The first run may already reuse wordings of repositories carried forward from earlier runs,
     // such as the system's purpose when nothing it shows changed (ADR 0060).
     assertThat(second.wordingsReused()).isEqualTo(first.wordingsAsked() + first.wordingsReused());

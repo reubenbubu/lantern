@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.llm.Role;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.math.BigDecimal;
@@ -84,22 +85,53 @@ class AnalyzeCommandTest {
 
   @Test
   void listsTheUnitsLeftWithoutASummary() {
+    String printed =
+        printed(result(new JdbcLlmCallLog.Spending(7, 100, BigDecimal.ZERO, Map.of())));
+
+    assertThat(printed)
+        .contains(
+            "Units without a summary, the LLM's answer rejected twice (1); rerun to try them again:\n"
+                + "  type:com.example.Order\n");
+  }
+
+  @Test
+  void countsTheLinksResolvedAndEveryCallUnderItsRole() {
+    String printed =
+        printed(
+            result(
+                new JdbcLlmCallLog.Spending(
+                    9,
+                    100,
+                    new BigDecimal("0.25"),
+                    Map.of(Role.COMPOSE, 1L, Role.SUMMARIZE, 6L, Role.RESOLVE, 2L))));
+
+    assertThat(printed)
+        .contains("Links left open: 2 resolved by the LLM, 1 reused\n")
+        .contains("LLM calls: 9 (SUMMARIZE=6, RESOLVE=2, COMPOSE=1), tokens: 100, cost: $0.25\n");
+  }
+
+  private static AnalysisRun.Result result(JdbcLlmCallLog.Spending llm) {
+    return new AnalysisRun.Result(
+        new Snapshot(1, Map.of("shop", "abc"), 0, "test", Instant.EPOCH),
+        Map.of(),
+        List.of(),
+        10,
+        10,
+        2,
+        1,
+        5,
+        0,
+        List.of(EntityId.parse("type:com.example.Order")),
+        1,
+        0,
+        llm,
+        List.of());
+  }
+
+  /** What a successful run with the given result prints. */
+  private static String printed(AnalysisRun.Result result) {
     AnalysisRun run = mock(AnalysisRun.class);
-    when(run.run(any()))
-        .thenReturn(
-            new AnalysisRun.Result(
-                new Snapshot(1, Map.of("shop", "abc"), 0, "test", Instant.EPOCH),
-                Map.of(),
-                List.of(),
-                10,
-                10,
-                5,
-                0,
-                List.of(EntityId.parse("type:com.example.Order")),
-                1,
-                0,
-                new JdbcLlmCallLog.Spending(7, 100, BigDecimal.ZERO),
-                List.of()));
+    when(run.run(any())).thenReturn(result);
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     AnalyzeCommand command =
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
@@ -107,9 +139,6 @@ class AnalyzeCommandTest {
     command.run(new DefaultApplicationArguments("analyze", "/clones/shop"));
 
     assertThat(command.getExitCode()).isZero();
-    assertThat(bytes.toString(StandardCharsets.UTF_8))
-        .contains(
-            "Units without a summary, the LLM's answer rejected twice (1); rerun to try them again:\n"
-                + "  type:com.example.Order\n");
+    return bytes.toString(StandardCharsets.UTF_8);
   }
 }
