@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -64,6 +65,12 @@ public final class TestExtractor {
 
   private static final String RESOURCE = "/vocabulary/test-types.json";
   private static final long MAX_FILE_BYTES = 4L * 1024 * 1024;
+
+  /** How many test files are read from git at once, each by its own git process. */
+  private static final int PARALLEL_READS =
+      Math.max(2, Runtime.getRuntime().availableProcessors() * 2);
+
+  private static final Semaphore READS = new Semaphore(PARALLEL_READS);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
@@ -132,7 +139,7 @@ public final class TestExtractor {
       List<Future<Read>> reads = new ArrayList<>();
       for (String path : paths) {
         if (path.startsWith(root + "/") && path.endsWith(".java") && !isInfo(path)) {
-          reads.add(executor.submit(() -> read(repo, path)));
+          reads.add(executor.submit(() -> readLimited(repo, path)));
         }
       }
       for (Future<Read> future : reads) {
@@ -174,6 +181,16 @@ public final class TestExtractor {
 
   private static boolean isInfo(String path) {
     return path.endsWith("/package-info.java") || path.endsWith("/module-info.java");
+  }
+
+  /** Reads a file, with at most {@link #PARALLEL_READS} git processes at a time. */
+  private static Read readLimited(RepoBuild repo, String path) throws InterruptedException {
+    READS.acquire();
+    try {
+      return read(repo, path);
+    } finally {
+      READS.release();
+    }
   }
 
   private static Read read(RepoBuild repo, String path) {

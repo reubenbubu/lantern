@@ -96,7 +96,7 @@ public final class MavenExtractor {
   public static final String COVERAGE_TOOL = "coverage-tool";
 
   /** The Maven plugins of coverage tools, by {@code groupId:artifactId}. */
-  static final Set<String> COVERAGE_PLUGINS =
+  public static final Set<String> COVERAGE_PLUGINS =
       Set.of(
           "org.jacoco:jacoco-maven-plugin",
           "org.codehaus.mojo:cobertura-maven-plugin",

@@ -89,7 +89,8 @@ final class TestSources {
     String pkg = unit.getPackageDeclaration().map(p -> p.getNameAsString() + ".").orElse("");
     List<TestClass> found = new ArrayList<>();
     for (TypeDeclaration<?> type : unit.getTypes()) {
-      if (!(type instanceof ClassOrInterfaceDeclaration c) || c.isInterface()) {
+      // An abstract class's tests run in its subclasses, which count instead.
+      if (!(type instanceof ClassOrInterfaceDeclaration c) || c.isInterface() || c.isAbstract()) {
         continue;
       }
       int tests = tests(c, imports);

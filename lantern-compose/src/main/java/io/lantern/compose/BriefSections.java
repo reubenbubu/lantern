@@ -1072,7 +1072,13 @@ final class BriefSections {
         continue;
       }
       try {
-        BigDecimal ratio = new BigDecimal(minimum.strip());
+        // JaCoCo also takes a percentage, such as 80%.
+        String written = minimum.strip();
+        BigDecimal ratio =
+            written.endsWith("%")
+                ? new BigDecimal(written.substring(0, written.length() - 1).strip())
+                    .movePointLeft(2)
+                : new BigDecimal(written);
         if (ratio.signum() > 0 && ratio.compareTo(BigDecimal.ONE) <= 0) {
           found.add(
               ratio.movePointRight(2).stripTrailingZeros().toPlainString() + "% of " + counter);
@@ -1093,7 +1099,8 @@ final class BriefSections {
     StringBuilder text = new StringBuilder("Lantern found ");
     text.append(count(tests, "test", "tests"))
         .append(" in ")
-        .append(count(classes, "test class", "test classes"));
+        .append(count(classes, "test class", "test classes"))
+        .append(',');
     if (withTests.size() == builders.size()) {
       text.append(
           builders.size() == 1
@@ -1113,16 +1120,19 @@ final class BriefSections {
       text.append(
           classes == 1
               ? " It is not an architecture test."
-              : " None of them is an architecture test.");
+              : " None of the test classes is an architecture test.");
     } else if (architecture == classes) {
-      text.append(classes == 1 ? " It is an architecture test." : " All are architecture tests.");
+      text.append(
+          classes == 1
+              ? " It is an architecture test."
+              : " All the test classes are architecture tests.");
     } else {
       text.append(' ')
           .append(architecture)
           .append(
               architecture == 1
-                  ? " of them is an architecture test."
-                  : " of them are architecture tests.");
+                  ? " of the test classes is an architecture test."
+                  : " of the test classes are architecture tests.");
     }
     List<String> named = new ArrayList<>();
     builders.stream()

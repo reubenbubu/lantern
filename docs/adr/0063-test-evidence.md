@@ -23,7 +23,8 @@ entity, relationship and attribute types be added as vocabulary data.
   `@TestTemplate` or `@ParameterizedTest`, JUnit 4's or TestNG's `@Test`, or ArchUnit's `@ArchTest`;
   each variable of a field annotated `@ArchTest`; a public, non-static, non-abstract `void` method
   without annotations in a class TestNG's `@Test` annotates; and a public `void test...()` method
-  without parameters in a subclass of JUnit 3's `TestCase`. An annotation counts when its name as
+  without parameters in a subclass of JUnit 3's `TestCase`. An abstract class is not a test class:
+  its tests run in its subclasses, which count them only if they declare tests of their own. An annotation counts when its name as
   written is the qualified name, or the simple name with a single-type or on-demand import of
   it, so a project's own `@Test` does not count. A parameterized test counts once, not per
   invocation. Spock, Kotlin and other languages are not read.
@@ -48,14 +49,17 @@ entity, relationship and attribute types be added as vocabulary data.
   `element`, `counter`, `value` and `minimum` or `maximum`, with JaCoCo's defaults (`BUNDLE`,
   `INSTRUCTION`, `COVEREDRATIO`) filled in. A limit whose values do not resolve is left out.
   Evidence is the plugin in the module's own POM, else its POM without lines, as for an inherited
-  dependency. Thresholds of other tools are not read.
+  dependency. Thresholds of other tools are not read. Without an effective POM, a module's own
+  declaration of the plugin replaces its parent's whole (ADR 0006), so goals, limits or a skip set
+  only in the parent's declaration or plugin management are missed.
 - **The brief (amends ADR 0062).** The quality evidence section, for the modules that build code,
   counted by the services and libraries building them:
   - a sentence counting the tests and test classes, in how many of the services and libraries,
     how many of the classes are architecture tests, and which have no test classes, citing every
     `TESTS` fact;
   - a sentence naming the coverage tools and in how many builds they run, and which builds check a
-    minimum coverage, worded from JaCoCo's bundle-wide covered-ratio minimums ("80% of lines"),
+    minimum coverage, worded from JaCoCo's bundle-wide covered-ratio minimums, written as a ratio
+    or a percentage ("80% of lines"),
     citing the `coverage-tool` facts;
   - a table "Tests and coverage" with a row per service or library with test classes or a
     coverage tool: test classes, tests, architecture test classes and coverage tool with its

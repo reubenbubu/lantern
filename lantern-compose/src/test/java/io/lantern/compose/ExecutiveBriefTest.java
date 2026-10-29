@@ -770,9 +770,9 @@ class ExecutiveBriefTest {
     assertThat(tests.id()).isEqualTo("quality_evidence.tests");
     assertThat(text(tests.content()))
         .isEqualTo(
-            "Lantern found 7 tests in 3 test classes in 2 of the 3 services and libraries shop"
-                + " builds. 1 of them is an architecture test. There are no test classes in"
-                + " other.");
+            "Lantern found 7 tests in 3 test classes, in 2 of the 3 services and libraries shop"
+                + " builds. 1 of the test classes is an architecture test. There are no test"
+                + " classes in other.");
     assertThat(tests.facts()).hasSize(3);
     Paragraph coverage = (Paragraph) blocks.get(1);
     assertThat(coverage.id()).isEqualTo("quality_evidence.coverage");
@@ -836,12 +836,20 @@ class ExecutiveBriefTest {
                     + "{\"counter\":\"LINE\",\"element\":\"BUNDLE\",\"minimum\":\"x\","
                     + "\"value\":\"COVEREDRATIO\"},"
                     + "{\"counter\":\"INSTRUCTION\",\"element\":\"BUNDLE\",\"minimum\":\"1\","
+                    + "\"value\":\"COVEREDRATIO\"},"
+                    + "{\"counter\":\"METHOD\",\"element\":\"BUNDLE\",\"minimum\":\"60%\","
                     + "\"value\":\"COVEREDRATIO\"}]}")
             .list()
             .getFirst();
 
     assertThat(BriefSections.minimums(fact))
-        .containsExactly("75.5% of branches", "100% of instructions");
+        .containsExactly("75.5% of branches", "100% of instructions", "60% of methods");
+  }
+
+  @Test
+  void namesEveryCoverageToolTheMavenExtractorRecords() {
+    assertThat(BriefSections.COVERAGE_TOOLS.keySet())
+        .isEqualTo(io.lantern.extract.maven.MavenExtractor.COVERAGE_PLUGINS);
   }
 
   @Test

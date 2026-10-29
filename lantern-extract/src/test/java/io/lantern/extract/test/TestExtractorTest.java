@@ -101,6 +101,16 @@ class TestExtractorTest {
                   private void helper() {}
                 }
                 """,
+                "app/src/test/java/com/example/BaseTest.java",
+                """
+                package com.example;
+
+                import org.junit.jupiter.api.Test;
+
+                abstract class BaseTest {
+                  @Test void inherited() {}
+                }
+                """,
                 "app/src/test/java/com/example/Fixture.java",
                 """
                 package com.example;
