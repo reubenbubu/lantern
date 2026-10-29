@@ -196,7 +196,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 
 - A snapshot is a numbered set of `repo@commit` pairs, plus the vocabulary revision, annotation revision and tool version used. Snapshots are numbered 1, 2, 3 and so on in creation order across all systems, because fact validity is a range of snapshot numbers; a snapshot's facts are those that hold at its number and come from its repos (ADR 0071).
 - A snapshot belongs to one named system and always describes the whole of it: a repo of that system that a run does not analyze is carried forward at its commit in the latest snapshot of the system that analyzed it (stored its facts), and its facts keep holding. Repos of other systems are never carried in, and a repo removed from the system is not carried forward. A run only ends facts of the repos it re-extracted.
-- Every document is tied to exactly one snapshot and names its system by the system's title: the one people gave, else one derived from the repos' names (ADR 0071). The system's documents are titled by it, a repo's by the repo's name.
+- Every document is tied to exactly one snapshot and names its system by the system's title: the one people gave, else one derived from the repos' README headings or names (ADR 0071). The system's documents are titled by it, a repo's by the repo's name.
 - Only one analysis runs at a time. Starting one takes a PostgreSQL advisory lock, held on one database connection until the analysis ends; a second start fails at once with an "analysis already running" error, even from another Lantern process on the same database. If the process dies, the connection drops and the lock is released.
 
 **Cache keys**

@@ -269,11 +269,11 @@ class Project0EndToEndIT {
   /**
    * Analyzes project-4's repositories with a Maven build (the others fail the run until #254) into
    * the database that holds project-0, as another named system, and checks that its report shows
-   * nothing of project-0, is titled by the system's name, that a removed repository leaves the next
-   * snapshot, and that project-0 analyzed again finds the same facts without an LLM call (ADR
-   * 0071). Runs after the test above, which needs a database without project-0, and only when
-   * {@code lantern.test.project4} names the folder project-4 is set up in. Writes project-4's
-   * system document and report to {@code target/project-4}, to look at.
+   * nothing of project-0, is titled by the words its READMEs' headings share, that a removed
+   * repository leaves the next snapshot, and that project-0 analyzed again finds the same facts
+   * without an LLM call (ADR 0071). Runs after the test above, which needs a database without
+   * project-0, and only when {@code lantern.test.project4} names the folder project-4 is set up in.
+   * Writes project-4's system document and report to {@code target/project-4}, to look at.
    */
   @Test
   @Order(2)
@@ -294,7 +294,7 @@ class Project0EndToEndIT {
     assertThat(first.snapshot().commits()).containsOnlyKeys(crm.keySet());
     AnalysisRun.Rendered report = first.documents().getLast();
     assertThat(report.document().id()).isEqualTo(AnalysisRun.SYSTEM_C4);
-    assertThat(report.document().title()).isEqualTo("project-4");
+    assertThat(report.document().title()).isEqualTo("APA-CRM");
     assertThat(report.document().source().commits()).containsOnlyKeys(crm.keySet());
     assertThat(report.document().facts())
         .allSatisfy(fact -> assertThat(crm).containsKey(fact.evidence().repo()));

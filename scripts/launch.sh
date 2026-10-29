@@ -254,4 +254,4 @@ info "documents go to $LANTERN_WORKSPACE/documents/<system>"
 options=()
 [[ -n "$system" ]] && options+=("--system=$system")
 $title_given && options+=("--title=$title")
-exec java -jar "$jar" --spring.config.additional-location="$locations" analyze "${options[@]}" "${args[@]}"
+exec java -jar "$jar" --spring.config.additional-location="$locations" analyze ${options[@]+"${options[@]}"} "${args[@]}"

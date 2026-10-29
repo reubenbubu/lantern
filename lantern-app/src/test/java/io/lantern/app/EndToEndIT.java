@@ -423,6 +423,8 @@ class EndToEndIT {
     Path parts = fixtureRepo("multi-module", "alpha-parts");
     Path lib = fixtureRepo("lib-and-service/lib", "beta-lib");
     Path service = fixtureRepo("lib-and-service/service", "beta-service");
+    TestGitRepo.init(lib).commit("README.md", "# Beta Shop — Library\n\nIt greets.\n");
+    TestGitRepo.init(service).commit("README.md", "Intro\n\n# Beta shop: Service ##\n");
     AnalysisRun.Result alpha = run.run("alpha", null, Map.of("alpha-parts", parts));
     List<Fact> partsFacts = validIn(alpha, "alpha-parts");
     assertThat(partsFacts).isNotEmpty();
@@ -441,9 +443,9 @@ class EndToEndIT {
         .doesNotContain("com.example.shop")
         .doesNotContain("PriceService");
     assertThat(betaReport.facts()).allMatch(f -> f.evidence().repo().startsWith("beta-"));
-    // Without a title given, the words the repositories' names share.
-    assertThat(beta.title()).isEqualTo("beta");
-    assertThat(betaReport.title()).isEqualTo("beta");
+    // Without a title given, the words the repositories' README headings start with.
+    assertThat(beta.title()).isEqualTo("Beta Shop");
+    assertThat(betaReport.title()).isEqualTo("Beta Shop");
     assertThat(beta.documents().getLast().file())
         .isEqualTo(
             WORKSPACE
@@ -453,16 +455,24 @@ class EndToEndIT {
                 .resolve("_system.c4.html"));
 
     // A title given is stored and kept by later runs.
-    AnalysisRun.Result titled = run.run("beta", "Beta Shop", Map.of("beta-lib", lib));
-    assertThat(titled.documents().getLast().document().title()).isEqualTo("Beta Shop");
+    AnalysisRun.Result titled = run.run("beta", "Beta Store", Map.of("beta-lib", lib));
+    assertThat(titled.documents().getLast().document().title()).isEqualTo("Beta Store");
     AnalysisRun.Result kept = run.run("beta", null, Map.of("beta-lib", lib));
-    assertThat(kept.title()).isEqualTo("Beta Shop");
+    assertThat(kept.title()).isEqualTo("Beta Store");
     assertThat(kept.snapshot().commits()).containsOnlyKeys("beta-lib", "beta-service");
 
-    // A repository belongs to one system.
+    // A repository belongs to one system. A refused run changes nothing: the repository keeps
+    // its path, and no system is created.
     assertThatThrownBy(() -> run.run("beta", null, Map.of("alpha-parts", parts)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("belongs to the system alpha");
+    RepoRegistry registry = context.getBean(RepoRegistry.class);
+    Path partsPath = registry.find("alpha-parts").orElseThrow().path();
+    assertThatThrownBy(() -> run.run("gamma", null, Map.of("alpha-parts", lib)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("belongs to the system alpha");
+    assertThat(registry.find("alpha-parts").orElseThrow().path()).isEqualTo(partsPath);
+    assertThat(context.getBean(SystemRegistry.class).exists("gamma")).isFalse();
 
     // A removed repository is not carried forward, and may then join another system.
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -470,9 +480,16 @@ class EndToEndIT {
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
     command.run(new DefaultApplicationArguments("remove", "--system=beta", "beta-service"));
     assertThat(command.getExitCode()).as(bytes.toString(StandardCharsets.UTF_8)).isZero();
-    AnalysisRun.Result removed = run.run("beta", "", Map.of("beta-lib", lib));
-    assertThat(removed.snapshot().commits()).containsOnlyKeys("beta-lib");
-    assertThat(removed.title()).as("a blank title clears the stored one").isEqualTo("beta-lib");
+    bytes.reset();
+    command.run(
+        new DefaultApplicationArguments("analyze", "--system=beta", "--title=", lib.toString()));
+    String output = bytes.toString(StandardCharsets.UTF_8);
+    assertThat(command.getExitCode()).as(output).isZero();
+    // A blank --title clears the stored one; one repository is left, so its name is the title.
+    assertThat(output).contains("System beta (beta-lib)");
+    long removedSnapshot = context.getBean(SnapshotStore.class).latest().orElseThrow().number();
+    assertThat(context.getBean(SnapshotStore.class).find(removedSnapshot).orElseThrow().commits())
+        .containsOnlyKeys("beta-lib");
     run.remove("alpha", List.of("alpha-parts"));
     AnalysisRun.Result moved = run.run("beta", null, Map.of("alpha-parts", parts));
     assertThat(moved.snapshot().commits()).containsOnlyKeys("alpha-parts", "beta-lib");

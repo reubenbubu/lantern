@@ -44,7 +44,14 @@ on #253.
   Repository names stay global, because fact evidence uses them.
 - **A snapshot belongs to its system.** `SnapshotStore.createCarryingForward(system, revisions)`
   carries forward only repositories that belong to the system, each at its commit in the latest
-  snapshot that analyzed it (ADR 0018), and tags the snapshot with the system.
+  snapshot of that system that analyzed it (ADR 0018), and tags the snapshot with the system. A
+  repository analyzed only in another system's snapshots, or in snapshots of no system, is carried
+  forward only once a snapshot of this system has analyzed it.
+- **A refused run changes nothing.** The run checks that none of the repositories it names
+  belongs to another system before it registers them or creates the system. So a refused run keeps
+  the other system's repository path and settings, and creates no system. Once the check passes,
+  membership is stored before the snapshot. A run that fails later (a build, the LLM) keeps the
+  repositories it named in the system and the title it was given.
 - **The command line.**
   - `analyze [--system=<name>] [--title=<title>] [<name>=]<path>...` analyzes repositories as one
     system. The `--opt=value` form is required, because Spring reads `--system <name>` as an option
@@ -57,19 +64,29 @@ on #253.
 - **The title.** A system's documents carry its title:
   - the stored title, if one was given;
   - otherwise a title derived by `SystemTitle`, in this order:
-    1. with two or more repositories, the words that all their names start with (words split at
-       `-`, `_` and `.`, compared ignoring case, spelled as in the first name in sorted order):
-       `mediahub-api-gateway` and `mediahub-config-server` give `mediahub`;
-    2. with one repository, its name;
-    3. otherwise the system's name.
+    1. **README headings.** Take the first `# ` heading of each repository's root README
+       (`README`, `README.md` or `README.markdown`, any case), read from git at the snapshot's
+       commit. The title is the longest run of leading words that at least two of these headings
+       start with, and at least half of the repositories that have one. Words are split at
+       whitespace, `-`, `—` and `:` and compared ignoring case. The run is spelled as in the first
+       such repository in sorted order. Of runs equally long, the one more headings share wins.
+       project-4's `# APA-CRM Auth-Service`, `# APA-CRM — File-Service` and
+       `# APA-CRM — Main-Service` give `APA-CRM`.
+    2. **Repository names.** With two or more repositories, the words all their names start with
+       (words split at `-`, `_` and `.`, compared ignoring case, spelled as in the first name in
+       sorted order): `mediahub-api-gateway` and `mediahub-config-server` give `mediahub`.
+    3. With one repository, its name.
+    4. Otherwise the system's name.
 
-  The rule uses only repository names. A README's or a root `pom.xml`'s project name was
-  considered, but a multi-repository system has no root README or pom to read it from, and
-  choosing between the repositories' own would not be deterministic.
+  The rule is deterministic, and it uses only READMEs and names. A root `pom.xml`'s `<name>` was
+  left out, because it usually names a module rather than the system.
+
 - **Where documents go.** The system's report is the view `system:c4`, titled by the system's
   title, including a stored override of that view. The title also names the system element in
-  every document of the run, so a repository's documents name the system they belong to; their own
-  titles stay the repository's name. Documents are written to
+  every document of the run, so a repository's documents name the system they belong to. Their own
+  titles stay the repository's name, as the design says. A stored override of the `system:c4` view
+  is shared by all systems, since a view is layout, not knowledge; only its title is replaced by
+  the system's. Documents are written to
   `<workspace>/documents/<system>/<snapshot>/`, under the same file names as before: `<repo>.html`,
   `<repo>.brief.html`, `<repo>.c4.html` and `_system.c4.html`. Since the system report's name
   starts with an underscore, a repository named like its system cannot clash with it.
@@ -95,7 +112,9 @@ on #253.
 - **ADR 0044:** the system scope covers the snapshot's repositories, which are the named system's.
   The system is named by its title (above), no longer by its repositories, and its report is
   written to the system's folder. The entity ID stays `system:snapshot`: a snapshot now has exactly
-  one system, and keeping the ID leaves documents and golden files unchanged. When no title is
+  one system, and keeping the ID leaves documents and golden files unchanged. So anything stored
+  about a system across snapshots, such as system-level annotations (Phase 3), must key on the
+  system's name, not on this ID. When no title is
   passed to the composer (its own tests), it still names the system after its repositories.
 
 ## Consequences

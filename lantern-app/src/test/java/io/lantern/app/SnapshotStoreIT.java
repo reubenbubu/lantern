@@ -93,13 +93,15 @@ class SnapshotStoreIT {
     TestGitRepo orders = TestGitRepo.init(Files.createDirectory(temp.resolve(ordersName)));
     String first = orders.commit("a.txt", "one");
     repos.register(ordersName, orders.dir(), RepoSettings.DEFAULT);
-    analyzed(snapshots.create(Map.of(ordersName, RepoRegistry.HEAD)), ordersName);
     String billing = register("billing");
-    Snapshot billingOnly = snapshots.create(Map.of(billing, RepoRegistry.HEAD));
+    String system = system(ordersName, billing);
+    analyzed(
+        snapshots.createCarryingForward(system, Map.of(ordersName, RepoRegistry.HEAD)), ordersName);
+    Snapshot billingOnly =
+        snapshots.createCarryingForward(system, Map.of(billing, RepoRegistry.HEAD));
     analyzed(billingOnly, billing);
     String billingHead = billingOnly.commits().get(billing);
     String second = orders.commit("a.txt", "two");
-    String system = system(ordersName, billing);
 
     // orders moved on, but is not named: it stays at the commit it was last analyzed at.
     Snapshot withBilling =
@@ -188,9 +190,17 @@ class SnapshotStoreIT {
     assertThat(snapshots.system(ofSystem.number())).contains(system);
     assertThat(snapshots.system(snapshots.create(Map.of(a, RepoRegistry.HEAD)).number())).isEmpty();
 
+    // Nor is a commit analyzed only in another system's snapshot or in none: a repository that
+    // joins a system is carried forward once a snapshot of that system analyzed it (ADR 0071).
+    systems.remove(otherSystem, List.of(other));
+    systems.join(system, List.of(other));
+    systems.join(system, List.of(loose));
+    assertThat(snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD)).commits())
+        .containsOnlyKeys(a, b);
+
     // A removed repository is not carried forward either.
     systems.remove(system, List.of(b));
-    assertThat(systems.members(system)).containsExactly(a);
+    assertThat(systems.members(system)).containsExactly(a, loose, other);
     assertThat(snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD)).commits())
         .containsOnlyKeys(a);
   }

@@ -254,6 +254,9 @@ public final class AnalysisRun {
     Instant started = Instant.now();
     LlmClient client = llm.client();
     try (AnalysisLock.Held held = lock.acquire()) {
+      // Refused before anything is stored, so a repository of another system keeps its path and
+      // settings, and no system is created.
+      systems.checkCanJoin(system, repos.keySet());
       Map<String, Repo> registered = new TreeMap<>();
       Map<String, String> revisions = new TreeMap<>();
       for (Map.Entry<String, Path> entry : new TreeMap<>(repos).entrySet()) {
@@ -340,7 +343,12 @@ public final class AnalysisRun {
       String systemTitle =
           systems
               .title(system)
-              .orElseGet(() -> SystemTitle.derive(system, snapshot.commits().keySet()));
+              .orElseGet(
+                  () ->
+                      SystemTitle.derive(
+                          system,
+                          snapshot.commits().keySet(),
+                          readmeHeadings(snapshot, registered)));
       List<Rendered> documents = new ArrayList<>();
       Composer composer = new Composer(toolVersion);
       Path out = documentsDirectory.resolve(system).resolve(Long.toString(snapshot.number()));
@@ -396,6 +404,23 @@ public final class AnalysisRun {
           callLog.spentSince(started),
           documents);
     }
+  }
+
+  /**
+   * The first heading of each snapshot repository's root README at its commit, for those that have
+   * one, which the system's title may come from (ADR 0071).
+   */
+  private Map<String, String> readmeHeadings(Snapshot snapshot, Map<String, Repo> registered) {
+    Map<String, String> headings = new TreeMap<>();
+    snapshot
+        .commits()
+        .forEach(
+            (name, commit) ->
+                Optional.ofNullable(registered.get(name))
+                    .or(() -> registry.find(name))
+                    .flatMap(repo -> SystemTitle.readmeHeading(repo.path(), commit))
+                    .ifPresent(heading -> headings.put(name, heading)));
+    return headings;
   }
 
   /**

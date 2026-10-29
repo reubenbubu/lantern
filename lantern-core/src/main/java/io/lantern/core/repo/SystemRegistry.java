@@ -59,6 +59,15 @@ public class SystemRegistry {
     }
   }
 
+  /** Whether the system is defined. */
+  public boolean exists(String name) {
+    return jdbc.sql("SELECT count(*) FROM systems WHERE name = :name")
+            .param("name", name)
+            .query(Long.class)
+            .single()
+        > 0;
+  }
+
   /** The title people gave the system, if any. */
   public Optional<String> title(String name) {
     return jdbc.sql("SELECT title FROM systems WHERE name = :name AND title IS NOT NULL")
@@ -102,28 +111,44 @@ public class SystemRegistry {
             if (current.isEmpty()) {
               throw new IllegalArgumentException("Repository not registered: " + repo);
             }
-            String other = current.get();
-            if (!other.isEmpty() && !other.equals(system)) {
-              throw new IllegalArgumentException(
-                  "Repository "
-                      + repo
-                      + " belongs to the system "
-                      + other
-                      + ", and a repository belongs to one system only. Remove it from "
-                      + other
-                      + " first (remove --system="
-                      + other
-                      + " "
-                      + repo
-                      + "), or register it under another name ("
-                      + "<name>=<path>)");
-            }
+            checkCanJoin(system, repo, current.get());
             jdbc.sql("UPDATE repositories SET system = :system WHERE name = :repo")
                 .param("system", system)
                 .param("repo", repo)
                 .update();
           }
         });
+  }
+
+  /**
+   * Checks that repositories may join a system: none of them belongs to another system.
+   * Repositories not registered yet may join. Run it before registering or changing anything, so a
+   * refused run leaves no trace.
+   *
+   * @throws IllegalArgumentException if a repository belongs to another system
+   */
+  public void checkCanJoin(String system, Collection<String> repos) {
+    checkName(system);
+    for (String repo : new TreeSet<>(repos)) {
+      checkCanJoin(system, repo, systemOf(repo).orElse(""));
+    }
+  }
+
+  private static void checkCanJoin(String system, String repo, String other) {
+    if (!other.isEmpty() && !other.equals(system)) {
+      throw new IllegalArgumentException(
+          "Repository "
+              + repo
+              + " belongs to the system "
+              + other
+              + ", and a repository belongs to one system only. Remove it from "
+              + other
+              + " first (remove --system="
+              + other
+              + " "
+              + repo
+              + "), or register it under another name (<name>=<path>)");
+    }
   }
 
   /**

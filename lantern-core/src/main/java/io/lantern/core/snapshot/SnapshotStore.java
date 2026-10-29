@@ -61,10 +61,10 @@ public class SnapshotStore {
   /**
    * Creates a snapshot of a whole named system (ADR 0071): the named repositories at their
    * revisions, as {@link #create(Map)} resolves them, and every other repository that belongs to
-   * the system and that an earlier snapshot analyzed, at its commit in the latest snapshot that
-   * analyzed it (see {@link #markAnalyzed}), without resolving it again (ADR 0018). A repository
-   * that no snapshot analyzed, or that belongs to another system or none, is not carried forward.
-   * The snapshot is tagged with the system.
+   * the system and that an earlier snapshot of the system analyzed, at its commit in the latest
+   * snapshot of the system that analyzed it (see {@link #markAnalyzed}), without resolving it again
+   * (ADR 0018). A repository that no snapshot of the system analyzed, or that belongs to another
+   * system or none, is not carried forward. The snapshot is tagged with the system.
    *
    * @param system the name of a defined system the named repositories belong to
    * @param revisions for each repository to analyze, by name, the revision to analyze
@@ -98,7 +98,8 @@ public class SnapshotStore {
                         SELECT DISTINCT ON (s.repository) s.repository, s.commit
                         FROM snapshot_repositories s
                         JOIN repositories r ON r.name = s.repository
-                        WHERE s.analyzed AND r.system = :system
+                        JOIN snapshots n ON n.number = s.snapshot
+                        WHERE s.analyzed AND r.system = :system AND n.system = :system
                         ORDER BY s.repository, s.snapshot DESC
                         """)
                     .param("system", system)
