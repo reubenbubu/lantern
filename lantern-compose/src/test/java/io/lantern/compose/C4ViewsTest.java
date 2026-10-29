@@ -220,6 +220,44 @@ class C4ViewsTest {
   }
 
   @Test
+  void anAspectThatAdvisesAnEntryPointIsAComponentLinkedToIt() {
+    String web = "package:com.example:app:com.example.web";
+    String aspect = "type:com.example.web.PermissionAspect";
+    List<Fact> withAspect = new ArrayList<>(facts.list());
+    TestFacts more =
+        new TestFacts()
+            .relate("shop", web, "CONTAINS", aspect)
+            .attribute("shop", aspect, "stereotype", "component")
+            .attribute(
+                "shop",
+                aspect,
+                "aspect",
+                "aspect",
+                "{\"advice\":[\"before\"],\"pointcuts\":[\"@annotation(p)\"],"
+                    + "\"annotations\":[\"com.example.rbac.RequiresPermission\"]}")
+            .relate(
+                "shop",
+                aspect,
+                "ADVISES",
+                "method:com.example.web.Controller#list()",
+                "{\"advice\":\"method:com.example.web.PermissionAspect#check()\","
+                    + "\"kind\":\"before\",\"pointcut\":\"@annotation(p)\"}");
+    withAspect.addAll(more.list());
+
+    Diagram diagram =
+        block(section(repo(withAspect), "components").sections().getFirst(), Diagram.class);
+
+    assertThat(nodes(diagram))
+        .contains(
+            "type:com.example.web.PermissionAspect \"PermissionAspect\" [Spring AOP aspect]"
+                + " in service:com.example:app");
+    assertThat(edges(diagram))
+        .contains(
+            "type:com.example.web.PermissionAspect -> type:com.example.web.Controller: Advises"
+                + " @RequiresPermission");
+  }
+
+  @Test
   void aUnitWithOneComponentGetsNoComponentDiagram() {
     // Without the scheduled job, the repository's bean is reached only from the controller.
     List<Fact> fewer =
