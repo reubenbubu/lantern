@@ -110,10 +110,12 @@ class GatewayComponentsIT {
             e ->
                 e.startsWith(routes + " -> service:com.crm.notification:notification-service:")
                     && e.endsWith("[WebSocket]"));
+    // The gateway also calls auth-service and main-service from its own code, so those lines say
+    // both.
     assertThat(routeLines)
         .anyMatch(e -> e.contains("notification-service: Routes /ws-notifications/**"))
-        .anyMatch(e -> e.contains("auth-service: Routes"))
-        .anyMatch(e -> e.contains("main-service: Routes"))
+        .anyMatch(e -> e.contains("auth-service: Calls and routes"))
+        .anyMatch(e -> e.contains("main-service: Calls and routes"))
         .anyMatch(e -> e.contains(":file: Routes"));
   }
 

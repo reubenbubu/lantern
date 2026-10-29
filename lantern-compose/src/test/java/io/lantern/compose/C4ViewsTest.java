@@ -265,13 +265,19 @@ class C4ViewsTest {
                     "service:com.example:worker",
                     "{\"protocol\": \"HTTP\", \"route\": \"reports\", \"paths\":"
                         + " [\"/reports/**\"], \"source\": \"module:com.example:app\"}")
+                .relate(
+                    "shop",
+                    app,
+                    "CALLS_HTTP",
+                    "service:com.example:worker",
+                    "{\"protocol\": \"HTTP\", \"httpMethod\": \"GET\", \"path\": \"/jobs\"}")
                 .list());
 
     Diagram containers = block(section(repo(gateway), "containers"), Diagram.class);
     assertThat(edges(containers))
         .contains(
-            "service:com.example:app -> service:com.example:worker: Routes /reports/**, /ws/**"
-                + " [HTTP, WebSocket]");
+            "service:com.example:app -> service:com.example:worker: Calls and routes"
+                + " /reports/**, /ws/** and 1 more [HTTP, WebSocket]");
     Diagram components =
         block(section(repo(gateway), "components").sections().getFirst(), Diagram.class);
     assertThat(nodes(components))

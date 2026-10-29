@@ -679,6 +679,17 @@ final class C4Views {
       if (this.plain == null) {
         this.plain = plain;
         this.prefix = prefix;
+      } else if (prefix != null
+          && this.prefix != null
+          && !this.prefix.toLowerCase(Locale.ROOT).contains(prefix.toLowerCase(Locale.ROOT))) {
+        // A line that both routes requests and calls (a gateway that also calls a service it
+        // routes to) says both, in a stable order.
+        List<String> both = new ArrayList<>(List.of(this.prefix, prefix));
+        both.sort(null);
+        this.prefix = both.get(0) + " and " + both.get(1).toLowerCase(Locale.ROOT);
+        List<String> plains = new ArrayList<>(List.of(this.plain, plain));
+        plains.sort(null);
+        this.plain = plains.get(0) + " and " + lowerFirst(plains.get(1));
       }
       if (detail != null && prefix != null) {
         details.add(detail);
