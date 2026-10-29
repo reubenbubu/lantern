@@ -37,6 +37,33 @@ class GroundingTest {
   }
 
   @Test
+  void wordsJoinedByHyphensSlashesOrDashesAreCheckedOneByOne() {
+    assertThat(
+            Grounding.names(
+                "A PostgreSQL-backed, orderId-based store behind OrderService/OrderRepository"
+                    + " and Kafka/RabbitMQ\u2014OrderService\u2014serves /api/orders-v2."))
+        .containsExactly(
+            "PostgreSQL",
+            "Kafka",
+            "RabbitMQ",
+            "orderId",
+            "OrderService",
+            "OrderRepository",
+            "/api/orders-v2");
+    assertThat(
+            Grounding.unsupported(
+                "A PostgreSQL-backed store behind OrderService\u2014the entry point.",
+                List.of("type:p.OrderService", "uses postgres")))
+        .isEmpty();
+  }
+
+  @Test
+  void mixedCasePlainWordsAreNotNames() {
+    assertThat(Grounding.names("A SaaS platform on GitHub with an OpenAPI spec for DevOps teams."))
+        .isEmpty();
+  }
+
+  @Test
   void aNameAppearsIgnoringCaseAndPunctuation() {
     List<String> support =
         List.of(

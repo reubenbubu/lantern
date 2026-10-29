@@ -21,8 +21,13 @@ answers, with failing sentences dropped or the answer retried.
   (`/api/orders`); and the technologies of a fixed list of some 50 databases, brokers, frameworks
   and platforms (Kafka, Redis, Spring, AWS, ...), matched case-sensitively as the list writes
   them. Plain words, words in capitals such as `HTTP`, and hyphenated words such as `shop-core`
-  are not checked: they are too often plain English, and a false match would drop good text.
-  Citations are not part of the text.
+  are not checked: they are too often plain English, and a false match would drop good text; nor
+  are a few plain words and brand names in mixed case (`SaaS`, `DevOps`, `GitHub`, `OpenAPI`, ...).
+  Words joined by a hyphen, a slash or a dash (`PostgreSQL-backed`, `Kafka/RabbitMQ`,
+  `OrderService—the entry point`) are checked one by one; a path keeps its slashes. Citations are
+  not part of the text. File names such as `README.md` count as dotted names; a summary's fact
+  lines do not show the file a fact was observed in, as the Describer's do, so a summary sentence
+  naming a README it cites only through a claim is left out.
 - **What supports a name**: the text of each input the sentence cites, as its prompt writes it
   (a fact's line, a source file, a part's summary with its name), and what the text is about: the
   unit's name for a summary (`type Order in package com.example`), the unit's or element's
@@ -33,7 +38,9 @@ answers, with failing sentences dropped or the answer retried.
   appears in `type:com.example.OrderService`; a trailing `'s` is ignored and a plural `s` may be
   missing; a technology also appears under its other names (`postgres` for PostgreSQL, `rabbit`
   or `amqp` for RabbitMQ). It is a bound, not proof: a cited fact that mentions Redis does not
-  show that the sentence says something true about it.
+  show that the sentence says something true about it, the texts it rests on are searched as one,
+  so a name may match across two of them, and a short name such as `S3` matches almost anything.
+  These only let a bad sentence through; they never drop a good one.
 - **Dropped, as in ADR 0061.** A summary sentence naming what its citations do not support is
   left out like one that cites nothing, after the whole answer passes the checks of ADR 0010, and
   logged at info level with the names. A Describer text (a unit's, component's, data store's or
@@ -52,7 +59,8 @@ answers, with failing sentences dropped or the answer retried.
   11 and each of `WordingPrompt`'s four versions is 3 (ADR 0067 had raised them to 10 and 2), so
   every cached summary and wording, made without the check, is made again once.
 - **A summary sentence left out by this check lowers its confidence** like one that cites
-  nothing: it counts among the sentences left out (ADR 0066).
+  nothing: it counts among the sentences left out (ADR 0066). A Describer text is checked whole,
+  so it is kept or left out whole, and a kept item's confidence stays the base of ADR 0066.
 
 ## Not verified
 

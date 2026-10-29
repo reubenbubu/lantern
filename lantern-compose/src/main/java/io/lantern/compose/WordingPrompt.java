@@ -724,7 +724,7 @@ final class WordingPrompt {
             + " {}: {}",
         left.size(),
         question.element(),
-        texts);
+        left);
     return kept;
   }
 

@@ -21,7 +21,10 @@ import java.util.regex.Pattern;
  * ending in {@code ()} ({@code placeOrder()}) or starting with a slash ({@code /api/orders}). A
  * technology is one of a fixed list of databases, brokers, frameworks and platforms, such as Kafka
  * or Redis, written as the list writes it. Plain words, words in capitals such as {@code HTTP} and
- * hyphenated words such as {@code shop-core} are not checked: they are too often plain English.
+ * hyphenated words such as {@code shop-core} are not checked: they are too often plain English; nor
+ * are a few plain words and brand names in mixed case, such as {@code SaaS} or {@code GitHub}.
+ * Words joined by a hyphen, a slash or a dash ({@code PostgreSQL-backed}, {@code
+ * OrderService/OrderRepository}) are checked one by one; a path keeps its slashes.
  *
  * <p>A name appears in a text when the text holds it ignoring case and every character that is not
  * a letter or digit, so {@code OrderService} appears in {@code com.example.OrderService} and {@code
@@ -67,6 +70,32 @@ public final class Grounding {
 
   private static final Pattern POSSESSIVE = Pattern.compile("['’]s$");
 
+  /** What joins two words into one token: a hyphen, a slash or a dash. */
+  private static final Pattern JOINER = Pattern.compile("[-/\u2010-\u2015]+");
+
+  /** Plain words and brand names written in mixed case, which are not code. */
+  private static final Set<String> MIXED_CASE_WORDS =
+      Set.of(
+          "SaaS",
+          "PaaS",
+          "IaaS",
+          "DevOps",
+          "JavaScript",
+          "TypeScript",
+          "GitHub",
+          "GitLab",
+          "OpenAPI",
+          "OAuth",
+          "eCommerce",
+          "iOS",
+          "macOS",
+          "YouTube",
+          "LinkedIn",
+          "PayPal",
+          "WordPress",
+          "PowerShell",
+          "IntelliJ");
+
   /** Abbreviations whose dots do not make them code. */
   private static final Set<String> ABBREVIATIONS = Set.of("e.g", "i.e", "etc", "vs", "a.k.a");
 
@@ -94,25 +123,39 @@ public final class Grounding {
     while (technology.find()) {
       names.add(technology.group());
     }
-    for (String token : rest.split("\\s+")) {
-      boolean call = CALL.matcher(token).find();
-      String bare = token.replace("()", "");
-      bare = POSSESSIVE.matcher(EDGES.matcher(bare).replaceAll("")).replaceAll("");
-      bare = EDGES.matcher(bare).replaceAll("");
-      if (bare.isEmpty() || TECHNOLOGIES.containsKey(bare)) {
-        continue;
-      }
-      if (call
-          || CAMEL.matcher(bare).find()
-          || DOTTED.matcher(bare).matches()
-              && !ABBREVIATIONS.contains(bare.toLowerCase(Locale.ROOT))
-              && bare.replace(".", "").length() > 2
-          || bare.indexOf('_') > 0 && bare.chars().anyMatch(Character::isLetter)
-          || bare.startsWith("/") && bare.length() > 1 && Character.isLetter(bare.charAt(1))) {
-        names.add(bare);
+    for (String word : rest.split("\\s+")) {
+      String trimmed = EDGES.matcher(word).replaceAll("");
+      // A path keeps its slashes and hyphens; elsewhere they join words, each checked alone.
+      String[] tokens = trimmed.startsWith("/") ? new String[] {word} : JOINER.split(word);
+      for (String token : tokens) {
+        String name = name(token);
+        if (name != null) {
+          names.add(name);
+        }
       }
     }
     return new ArrayList<>(names);
+  }
+
+  /** The token as a code-like name, without the punctuation around it, or null if it is none. */
+  private static String name(String token) {
+    boolean call = CALL.matcher(token).find();
+    String bare = token.replace("()", "");
+    bare = POSSESSIVE.matcher(EDGES.matcher(bare).replaceAll("")).replaceAll("");
+    bare = EDGES.matcher(bare).replaceAll("");
+    if (bare.isEmpty() || TECHNOLOGIES.containsKey(bare) || MIXED_CASE_WORDS.contains(bare)) {
+      return null;
+    }
+    if (call
+        || CAMEL.matcher(bare).find()
+        || DOTTED.matcher(bare).matches()
+            && !ABBREVIATIONS.contains(bare.toLowerCase(Locale.ROOT))
+            && bare.replace(".", "").length() > 2
+        || bare.indexOf('_') > 0 && bare.chars().anyMatch(Character::isLetter)
+        || bare.startsWith("/") && bare.length() > 1 && Character.isLetter(bare.charAt(1))) {
+      return bare;
+    }
+    return null;
   }
 
   /**

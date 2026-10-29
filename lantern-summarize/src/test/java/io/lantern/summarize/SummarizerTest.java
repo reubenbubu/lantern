@@ -605,6 +605,8 @@ class SummarizerTest {
     // The unit's own name needs no citation; what neither it nor the fact mentions is left out.
     assertThat(summary.text()).isEqualTo("OrderLine holds a quantity. [fact:" + fact + "]");
     assertThat(fake.sent()).hasSize(1);
+    // One sentence of two is kept, so the inferred base of 0.35 is halved (ADR 0066).
+    assertThat(summary.confidence()).isEqualTo(0.18);
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
         .contains(
