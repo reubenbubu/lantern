@@ -34,12 +34,14 @@
     "name": "version",
     "kind": "attribute",
     "description": "The version the subject's build declares.",
-    "attributeSchema": { "additionalProperties": false }
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
   },
   {
     "name": "packaging",
     "kind": "attribute",
     "description": "The Maven packaging of the subject module, such as jar, war or pom.",
-    "attributeSchema": { "additionalProperties": false }
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
   }
 ]

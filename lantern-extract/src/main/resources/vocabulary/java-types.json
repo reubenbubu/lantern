@@ -17,6 +17,7 @@
     "name": "kind",
     "kind": "attribute",
     "description": "What sort of thing the subject is. For a Java type: class, interface, enum, record or annotation.",
-    "attributeSchema": { "additionalProperties": false }
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
   }
 ]

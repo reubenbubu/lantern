@@ -29,7 +29,11 @@
       "$ref": "#/$defs/token"
     },
     "description": { "type": "string", "pattern": "\\S" },
-    "attributeSchema": { "$ref": "#/$defs/attributeSchema" }
+    "attributeSchema": { "$ref": "#/$defs/attributeSchema" },
+    "objectKind": {
+      "description": "Attribute types only: the kind of value the objects of its facts must have. Inherited from the parent type when absent; any value is allowed if no type in the line sets it.",
+      "enum": ["string", "integer", "decimal", "boolean"]
+    }
   },
   "allOf": [
     {
@@ -46,6 +50,10 @@
           "parent": { "$ref": "#/$defs/predicateName" }
         }
       }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "attribute" } } },
+      "else": { "not": { "required": ["objectKind"] } }
     }
   ],
   "$defs": {
