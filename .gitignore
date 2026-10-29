@@ -6,3 +6,4 @@ target/
 /workspace/
 node_modules/
 /lantern-web/src/generated/
+.claude/worktrees/
