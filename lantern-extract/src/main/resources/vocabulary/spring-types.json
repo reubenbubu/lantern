@@ -2,7 +2,7 @@
   {
     "name": "stereotype",
     "kind": "attribute",
-    "description": "The Spring stereotype of the subject type, a bean class: controller, service, repository, configuration or component, the most specific its annotations carry, directly or through meta-annotations. A Jakarta REST resource (a class with @Path) is a controller.",
+    "description": "The Spring stereotype of the subject type, a bean class: controller, service, repository, configuration or component, the most specific its annotations carry, directly or through meta-annotations. A Jakarta REST resource (a class with @Path, on it or a supertype) is a controller.",
     "attributeSchema": {
       "type": "object",
       "properties": {
