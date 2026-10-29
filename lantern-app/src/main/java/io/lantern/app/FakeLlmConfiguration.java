@@ -49,11 +49,11 @@ class FakeLlmConfiguration {
               String subject = subject(prompt);
               List<String> sentences = new ArrayList<>();
               if (prompt.contains("[S1]")) {
-                sentences.add("{{placeholder: summary of " + subject + " from its parts}} [S1]");
+                sentences.add("{{placeholder: summary of " + subject + " from its parts}}. [S1]");
               }
               if (prompt.contains("[F1]")) {
                 sentences.add(
-                    "{{placeholder: description of " + subject + " from its facts}} [F1]");
+                    "{{placeholder: description of " + subject + " from its facts}}. [F1]");
               }
               return String.join(" ", sentences);
             });
