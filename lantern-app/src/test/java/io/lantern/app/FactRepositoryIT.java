@@ -12,7 +12,6 @@ import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.AttributeSchema;
-import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.TypeKind;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
@@ -46,20 +45,11 @@ class FactRepositoryIT {
       new Evidence("orders", COMMIT, "src/Foo.java", new Evidence.LineRange(3, 9), CONTENT_HASH);
 
   /**
-   * The types these tests use besides the built-in and the app's ones. LISTENS_ON declares one
-   * attribute and allows others; owner's objects must be strings.
+   * The types these tests use besides the built-in and the app's ones (topic is the linker's).
+   * LISTENS_ON declares one attribute and allows others; owner's objects must be strings.
    */
   static final List<VocabularyType> TEST_TYPES =
       List.of(
-          new VocabularyType(
-              "topic",
-              TypeKind.ENTITY,
-              BuiltInTypes.CONTAINER,
-              null,
-              null,
-              null,
-              null,
-              AttributeSchema.NONE),
           new VocabularyType(
               "LISTENS_ON",
               TypeKind.RELATIONSHIP,

@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionOperations;
@@ -19,6 +20,11 @@ import org.springframework.transaction.support.TransactionOperations;
  * vocabulary. A revision stores the new definition of each type it changed, so the vocabulary as of
  * any revision can be read back. Changes must keep earlier facts valid (see {@link
  * Vocabulary#changes}); a type may change its parent.
+ *
+ * <p>A type belongs to the source that first defined it, the source of the earliest revision that
+ * holds it. Only that source may change it; another source may apply the same definition again,
+ * which changes nothing, but a different one is refused, so one source cannot take over or clash
+ * with another's type.
  *
  * <p>As a {@link FactValidator} it checks facts against the latest revision.
  */
@@ -66,7 +72,8 @@ public class VocabularyRegistry implements FactValidator {
    * @param definitions the new definitions
    * @return the revision that holds the definitions: the new one, or the latest if nothing changed
    * @throws IllegalArgumentException if a change makes a type accept less than before, changes a
-   *     type's kind or would leave the vocabulary inconsistent; nothing is stored then
+   *     type's kind, changes a type that belongs to another source (see {@link #owner}) or would
+   *     leave the vocabulary inconsistent; nothing is stored then
    */
   public long apply(String source, Collection<VocabularyType> definitions) {
     Objects.requireNonNull(source, "source");
@@ -81,6 +88,7 @@ public class VocabularyRegistry implements FactValidator {
               // One writer at a time, so revisions are numbered without gaps or races.
               jdbc.sql("LOCK TABLE vocabulary_revisions IN EXCLUSIVE MODE").update();
               Vocabulary current = load(latestRevision());
+              checkOwners(source, current, copy);
               List<VocabularyType> changes = current.changes(copy);
               if (changes.isEmpty()) {
                 return current.revision();
@@ -108,6 +116,63 @@ public class VocabularyRegistry implements FactValidator {
               return next;
             });
     return Objects.requireNonNull(revision, "revision");
+  }
+
+  /**
+   * The source that owns a type: the source of the earliest revision that holds it.
+   *
+   * @return the source, or empty if no revision holds the type
+   */
+  public Optional<String> owner(String type) {
+    Objects.requireNonNull(type, "type");
+    return owners(List.of(type)).values().stream().findFirst();
+  }
+
+  /** Refuses definitions that differ from the current ones of types other sources own. */
+  private void checkOwners(String source, Vocabulary current, List<VocabularyType> definitions) {
+    Map<String, VocabularyType> differing = new TreeMap<>();
+    for (VocabularyType d : definitions) {
+      current.find(d.name()).filter(t -> !t.equals(d)).ifPresent(t -> differing.put(d.name(), d));
+    }
+    if (differing.isEmpty()) {
+      return;
+    }
+    List<String> problems = new ArrayList<>();
+    owners(List.copyOf(differing.keySet()))
+        .forEach(
+            (name, owner) -> {
+              if (!owner.equals(source)) {
+                problems.add(
+                    "'%s' belongs to '%s' and '%s' defines it differently (%s's: %s, %s's: %s)"
+                        .formatted(
+                            name,
+                            owner,
+                            source,
+                            owner,
+                            current.find(name).orElseThrow().toJson(),
+                            source,
+                            differing.get(name).toJson()));
+              }
+            });
+    if (!problems.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Vocabulary types clash between sources: " + String.join("; ", problems));
+    }
+  }
+
+  private Map<String, String> owners(List<String> names) {
+    Map<String, String> owners = new TreeMap<>();
+    jdbc.sql(
+            """
+            SELECT DISTINCT ON (t.name) t.name, r.source
+            FROM vocabulary_types t JOIN vocabulary_revisions r ON r.revision = t.revision
+            WHERE t.name IN (:names)
+            ORDER BY t.name, t.revision
+            """)
+        .param("names", names)
+        .query((rs, row) -> owners.put(rs.getString(1), rs.getString(2)))
+        .list();
+    return owners;
   }
 
   /** Checks the fact against the latest revision, see {@link Vocabulary#validate}. */
