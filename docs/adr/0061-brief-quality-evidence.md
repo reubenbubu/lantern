@@ -27,9 +27,10 @@ records quality goals: annotations come in Phase 3.
   tests (ArchUnit, jMolecules' ArchUnit rules, Taikai) and coverage (JaCoCo). Dependencies not on
   the list are left out. Names carry no version or coordinates: the brief has no implementation
   detail.
-- **What the section says.** A sentence counts the modules declaring a test library, names the
-  libraries by kind, says when none is an architecture test library, and names the modules
-  declaring none, citing every dependency it uses. A table lists each library with its kind and
+- **What the section says.** A sentence counts the services and libraries building those modules
+  that declare a test library in any of their modules, names the libraries by kind, says when none
+  is an architecture test library, and names the services and libraries declaring none, citing
+  every dependency it uses. A service of several modules counts once, as the table names it. A table lists each library with its kind and
   the services or libraries declaring it, each row citing its dependencies. A note then says that a
   declared library shows a module is set up for tests, not how many tests it has or whether they
   pass, and that coverage is not known. With no library found, a note says Lantern found no

@@ -635,7 +635,7 @@ class ExecutiveBriefTest {
     assertThat(summary.id()).isEqualTo("quality_evidence.summary");
     assertThat(text(summary.content()))
         .isEqualTo(
-            "The one module of shop that builds code declares test libraries: a test framework"
+            "The one service or library shop builds declares a test library: a test framework"
                 + " (JUnit). None is an architecture test library such as ArchUnit, so Lantern"
                 + " found no architecture tests.");
     assertThat(summary.facts()).hasSize(1);
@@ -676,7 +676,7 @@ class ExecutiveBriefTest {
 
     assertThat(text(((Paragraph) blocks.getFirst()).content()))
         .isEqualTo(
-            "1 of the 2 modules of shop that build code declares test libraries: test frameworks"
+            "1 of the 2 services and libraries shop builds declares test libraries: test frameworks"
                 + " (JUnit, Spring Boot Test), a mocking or assertion library (Mockito), an"
                 + " integration testing tool (Testcontainers) and an architecture test library"
                 + " (ArchUnit). No recognized test library is declared in tools.");
@@ -687,6 +687,37 @@ class ExecutiveBriefTest {
             "Mocking and assertions | Mockito | app",
             "Integration testing | Testcontainers | app",
             "Architecture tests | ArchUnit | app");
+  }
+
+  @Test
+  void qualityEvidenceCountsAServiceOfSeveralModulesOnce() {
+    String api = "module:com.example:api";
+    List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
+    facts.addAll(
+        new TestFacts()
+            .attribute("shop", api, "packaging", "jar")
+            .relate("shop", "service:com.example:app", "CONTAINS", api)
+            .list());
+    List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
+
+    assertThat(text(((Paragraph) blocks.getFirst()).content()))
+        .startsWith("The one service or library shop builds declares a test library:");
+    assertThat(rows((Table) blocks.get(1))).containsExactly("Test framework | JUnit | app");
+  }
+
+  @Test
+  void qualityEvidenceWithoutCodeSaysSo() {
+    String parent = "module:com.example:parent";
+    List<Fact> facts =
+        new TestFacts()
+            .attribute("shop", parent, "packaging", "pom")
+            .dependency("shop", parent, "artifact:junit:junit", "test", false)
+            .list();
+    List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
+
+    assertThat(notes(blocks)).containsExactly("quality_evidence.none", "quality_evidence.goals");
+    assertThat(text(((Callout) blocks.getFirst()).content()))
+        .isEqualTo("shop has no module that builds code, so it has no tests to look for.");
   }
 
   @Test

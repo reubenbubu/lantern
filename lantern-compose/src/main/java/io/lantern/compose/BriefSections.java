@@ -882,8 +882,8 @@ final class BriefSections {
 
   /**
    * The test libraries the repository's modules that build code declare in test scope, by kind;
-   * which modules declare none; then what is not known: the tests themselves, their coverage and
-   * the quality goals.
+   * which of the services and libraries building them declare none; then what is not known: the
+   * tests themselves, their coverage and the quality goals.
    */
   List<Block> qualityEvidence(String section) {
     List<Block> blocks = new ArrayList<>();
@@ -898,9 +898,11 @@ final class BriefSections {
               repo + " has no module that builds code, so it has no tests to look for."));
     } else {
       Map<String, UsedLibrary> used = new TreeMap<>();
-      List<EntityId> without = new ArrayList<>();
+      // Counted and named by what builds the modules, so a service of several modules is one.
+      SortedSet<EntityId> builders = new TreeSet<>(Knowledge.BY_ID);
+      SortedSet<EntityId> with = new TreeSet<>(Knowledge.BY_ID);
       for (EntityId module : code) {
-        boolean any = false;
+        builders.add(user(module));
         for (Fact fact : knowledge.relations(module, RepoSections.BUILD_DEPENDS_ON)) {
           EntityId target = Knowledge.object(fact);
           if (!Knowledge.isEntity(fact)
@@ -912,20 +914,20 @@ final class BriefSections {
           if (library.isEmpty()) {
             continue;
           }
-          any = true;
+          with.add(user(module));
           UsedLibrary u =
               used.computeIfAbsent(
-                  library.get().kind().ordinal() + " " + library.get().name(),
+                  library.get().kind().ordinal()
+                      + " "
+                      + library.get().name().toLowerCase(Locale.ROOT),
                   k ->
                       new UsedLibrary(
                           library.get(), new TreeSet<>(Knowledge.BY_ID), new ArrayList<>()));
           u.usedBy().add(user(module));
           u.facts().add(fact);
         }
-        if (!any) {
-          without.add(module);
-        }
       }
+      List<EntityId> without = builders.stream().filter(b -> !with.contains(b)).toList();
       if (used.isEmpty()) {
         blocks.add(
             note(
@@ -940,7 +942,7 @@ final class BriefSections {
         blocks.add(
             new Paragraph(
                 assembler.id(section, "summary"),
-                List.of(TextRun.of(evidenceSummary(code.size(), without, used.values()))),
+                List.of(TextRun.of(evidenceSummary(builders.size(), without, used.values()))),
                 assembler.facts(facts)));
         blocks.add(librariesTable(assembler.id(section, "libraries"), used.values()));
         blocks.add(
@@ -963,24 +965,24 @@ final class BriefSections {
   }
 
   private String evidenceSummary(
-      int modules, List<EntityId> without, Collection<UsedLibrary> used) {
-    int with = modules - without.size();
+      int builders, List<EntityId> without, Collection<UsedLibrary> used) {
+    int with = builders - without.size();
     StringBuilder text = new StringBuilder();
     if (without.isEmpty()) {
       text.append(
-          modules == 1
-              ? "The one module of " + repo + " that builds code declares"
-              : "All " + modules + " modules of " + repo + " that build code declare");
+          builders == 1
+              ? "The one service or library " + repo + " builds declares"
+              : "All " + builders + " services and libraries " + repo + " builds declare");
     } else {
       text.append(with)
           .append(" of the ")
-          .append(modules)
-          .append(" modules of ")
+          .append(builders)
+          .append(" services and libraries ")
           .append(repo)
-          .append(" that build code ")
+          .append(" builds ")
           .append(with == 1 ? "declares" : "declare");
     }
-    text.append(" test libraries: ");
+    text.append(used.size() == 1 ? " a test library: " : " test libraries: ");
     Map<TestKind, List<String>> byKind = new TreeMap<>();
     for (UsedLibrary u : used) {
       byKind.computeIfAbsent(u.library().kind(), k -> new ArrayList<>()).add(u.library().name());
@@ -1001,7 +1003,7 @@ final class BriefSections {
     }
     if (!without.isEmpty()) {
       List<String> named = new ArrayList<>();
-      without.forEach(m -> named.add(assembler.name(user(m))));
+      without.forEach(b -> named.add(assembler.name(b)));
       text.append(" No recognized test library is declared in ").append(names(named));
     }
     return text.toString();
