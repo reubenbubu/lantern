@@ -1,6 +1,6 @@
 # 0047: Sequence flows traced from entry points and stitched across containers
 
-Status: accepted (#96), pending the user's review (#24)
+Status: accepted (#96), amended by ADR 0049 (#176), pending the user's review (#24)
 
 ## Context
 
@@ -79,7 +79,6 @@ ends (ADR 0042). Nothing may be invented.
 
 ## Not covered
 
-Calls to Spring Data's inherited methods (`save`, `findById`) leave no `CALLS` fact (ADR 0007),
-so FLOW-1's shop-database steps are missing (#176). Replies, activations and loops are not drawn;
+Replies, activations and loops are not drawn;
 sequences in the Architecture Explorer and the Executive Brief, and splitting a flow above 15
 participants, are left for later.

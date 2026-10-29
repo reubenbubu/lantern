@@ -486,6 +486,21 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aCallToAMethodARepositoryInheritsReachesTheDatabase() {
+    // Status.get calls save on ParcelRepository, a Spring Data repository that inherits it from
+    // third-party code, so no type in the code declares the method (ADR 0007).
+    type("ship", "x.ship", "x.ship.ParcelRepository", "interface");
+    relate("ship", "type:x.ship.ParcelRepository", "REPOSITORY_FOR", "type:x.ship.Parcel", "{}", 0);
+    relate(
+        "ship", STATUS, "CALLS", "method:x.ship.ParcelRepository#save(java.lang.Object)", "{}", 4);
+
+    assertThat(steps(diagram(flow(system(facts), "GET /status on ship")).steps()))
+        .containsExactly(
+            "note []: Starts when ship receives GET /status (Status.get).",
+            "service:x:ship > database:db:5432/ship: Calls ParcelRepository.save [JDBC]");
+  }
+
+  @Test
   void recursiveCallsAreFollowedOnce() {
     relate("ship", NIGHTLY, "CALLS", NIGHTLY, "{}", 5);
     relate("ship", NIGHTLY, "CALLS", STATUS, "{}", 6);

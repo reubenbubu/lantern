@@ -64,11 +64,19 @@ final class PackageDependencies {
     return facts;
   }
 
-  /** The type itself, or the type that declares a method or field. */
+  /**
+   * The type itself, or the type that declares a method or field; for a method no type declares,
+   * such as one a type inherits from third-party code and is called on (ADR 0049), the type its ID
+   * names.
+   */
   static EntityId ownerType(Knowledge knowledge, EntityId entity) {
     if (entity.type().equals(METHOD) || entity.type().equals(FIELD)) {
       SortedSet<EntityId> owners = knowledge.wholes(entity, BuiltInTypes.TYPE);
-      return owners.isEmpty() ? entity : owners.first();
+      if (!owners.isEmpty()) {
+        return owners.first();
+      }
+      int hash = entity.key().indexOf('#');
+      return hash > 0 ? new EntityId(BuiltInTypes.TYPE, entity.key().substring(0, hash)) : entity;
     }
     return entity;
   }

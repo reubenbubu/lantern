@@ -1,6 +1,7 @@
 # 0044: Context, container and component views, and the system's C4 report
 
-Status: accepted (#95), amended by ADR 0046 (#163) and ADR 0048 (#97), pending the user's review (#24)
+Status: accepted (#95), amended by ADR 0046 (#163), ADR 0048 (#97) and ADR 0049 (#176), pending
+the user's review (#24)
 
 ## Context
 
@@ -66,7 +67,7 @@ currency and ranked risks were split off to #163 and #164.
   HTTP client interfaces) reachable only from it through the call graph, injections and
   implementations of interfaces; a bean reachable from several entry points is its own component,
   and so is one reachable from none that reaches outside the unit (data access, an HTTP call or a
-  send), such as a repository called only through Spring Data's own methods. Configuration and
+  send), such as a repository no code calls. Configuration and
   application classes, domain and util classes are left out. Lines between components are the
   calls between them, labelled with the methods called; lines to and from other containers are the
   container lines attached at the code their link names (`source`, `target`), and data access goes
