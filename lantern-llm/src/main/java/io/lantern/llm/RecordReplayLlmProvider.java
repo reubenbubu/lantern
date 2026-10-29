@@ -8,7 +8,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import tools.jackson.databind.JsonNode;
@@ -23,8 +25,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Each response is a JSON file in a directory, named by a hash of what is sent to the model: the
  * provider, model, system prompt, prompt-caching flag, messages, output limit (with any thinking
- * headroom) and, only when set, the request to turn thinking off. The role and purpose are not sent
- * and so are not part of the key.
+ * headroom) and, only when set, the request to turn thinking off, the tools offered and each turn's
+ * tool calls and results (ADR 0080). The role and purpose are not sent and so are not part of the
+ * key. A recorded answer that asks for tool calls holds them, so a tool loop replays turn by turn.
  *
  * <p>A {@linkplain #replaying replaying} provider only reads files and fails on a request it has no
  * recording for. A {@linkplain #recording recording} provider sends every request to the real
@@ -112,12 +115,37 @@ public final class RecordReplayLlmProvider implements LlmProvider {
     key.put("cacheSystem", request.cacheSystem());
     ArrayNode messages = key.putArray("messages");
     for (LlmMessage message : request.messages()) {
-      messages.addObject().put("author", message.author().name()).put("text", message.text());
+      ObjectNode turn =
+          messages.addObject().put("author", message.author().name()).put("text", message.text());
+      // Only when there are any, so that recordings made before tools existed keep their names.
+      if (!message.toolCalls().isEmpty()) {
+        turn.set("toolCalls", toolCalls(message.toolCalls()));
+      }
+      if (!message.toolResults().isEmpty()) {
+        ArrayNode results = turn.putArray("toolResults");
+        for (LlmToolResult result : message.toolResults()) {
+          results
+              .addObject()
+              .put("callId", result.callId())
+              .put("content", result.content())
+              .put("error", result.error());
+        }
+      }
     }
     key.put("maxOutputTokens", request.maxOutputTokens());
     if (thinkingDisabled) {
       // Only when set, so that recordings made before this setting existed keep their names.
       key.put("thinkingDisabled", true);
+    }
+    if (!request.tools().isEmpty()) {
+      ArrayNode tools = key.putArray("tools");
+      for (LlmTool tool : request.tools()) {
+        tools
+            .addObject()
+            .put("name", tool.name())
+            .put("description", tool.description())
+            .set("inputSchema", tool.inputSchema());
+      }
     }
     return key;
   }
@@ -131,6 +159,14 @@ public final class RecordReplayLlmProvider implements LlmProvider {
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  private static ArrayNode toolCalls(List<LlmToolCall> calls) {
+    ArrayNode array = COMPACT.createArrayNode();
+    for (LlmToolCall call : calls) {
+      array.addObject().put("id", call.id()).put("name", call.name()).set("input", call.input());
+    }
+    return array;
   }
 
   private static void write(Path file, ObjectNode key, LlmResponse response) {
@@ -149,6 +185,9 @@ public final class RecordReplayLlmProvider implements LlmProvider {
         .put("output", response.usage().output())
         .put("cacheWrite", response.usage().cacheWrite())
         .put("cacheRead", response.usage().cacheRead());
+    if (!response.toolCalls().isEmpty()) {
+      answer.set("toolCalls", toolCalls(response.toolCalls()));
+    }
     try {
       Files.createDirectories(file.getParent());
       // Written to a temporary file and moved, so that concurrent readers never see half a file.
@@ -173,6 +212,14 @@ public final class RecordReplayLlmProvider implements LlmProvider {
     }
     JsonNode usage = answer.required("usage");
     JsonNode stopReason = answer.path("stopReason");
+    List<LlmToolCall> calls = new ArrayList<>();
+    for (JsonNode call : answer.path("toolCalls")) {
+      calls.add(
+          new LlmToolCall(
+              call.required("id").asString(),
+              call.required("name").asString(),
+              call.required("input")));
+    }
     return new LlmResponse(
         answer.required("text").asString(),
         stopReason.isString() ? stopReason.asString() : null,
@@ -180,6 +227,7 @@ public final class RecordReplayLlmProvider implements LlmProvider {
             usage.required("input").asLong(),
             usage.required("output").asLong(),
             usage.required("cacheWrite").asLong(),
-            usage.required("cacheRead").asLong()));
+            usage.required("cacheRead").asLong()),
+        calls);
   }
 }

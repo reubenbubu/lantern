@@ -10,6 +10,9 @@ import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
+import io.lantern.llm.LlmTool;
+import io.lantern.llm.LlmToolCall;
+import io.lantern.llm.LlmToolResult;
 import io.lantern.llm.Role;
 import io.lantern.llm.TokenUsage;
 import io.lantern.llm.TransientLlmException;
@@ -119,6 +122,70 @@ class AnthropicProviderTest {
     assertThat(sent.at("/messages/0/content").asString()).isEqualTo("class Order {}");
     assertThat(sent.at("/messages/1/role").asString()).isEqualTo("assistant");
     assertThat(sent.at("/messages/2/content").asString()).isEqualTo("No.");
+  }
+
+  @Test
+  void sendsToolsToolCallsAndResultsAndReadsTheToolCallsOfTheAnswer() {
+    responseBody =
+        """
+        {"id": "msg_3", "type": "message", "role": "assistant", "model": "stub-model",
+         "content": [{"type": "text", "text": "Let me look."},
+                     {"type": "tool_use", "id": "toolu_2", "name": "read_file",
+                      "input": {"repo": "shop", "path": "a/B.java", "from": 3, "to": 9}}],
+         "stop_reason": "tool_use", "stop_sequence": null,
+         "usage": {"input_tokens": 40, "output_tokens": 12}}
+        """;
+    tools.jackson.databind.node.ObjectNode schema = JSON.createObjectNode().put("type", "object");
+    schema.putObject("properties").putObject("entity").put("type", "string");
+    schema.putArray("required").add("entity");
+    LlmTool tool = new LlmTool("facts_about", "Facts about an entity.", schema);
+    LlmToolCall earlier =
+        new LlmToolCall("toolu_1", "facts_about", JSON.createObjectNode().put("entity", "unit:a"));
+    LlmRequest request =
+        new LlmRequest(
+            Role.RESOLVE,
+            "resolve",
+            "You resolve.",
+            List.of(
+                LlmMessage.user("Which unit?"),
+                LlmMessage.assistant("", List.of(earlier)),
+                LlmMessage.toolResults(
+                    List.of(new LlmToolResult("toolu_1", "No facts.", true)), "Go on.")),
+            300,
+            false,
+            List.of(tool));
+
+    LlmResponse response;
+    try (AnthropicProvider provider = provider()) {
+      response = provider.complete("stub-model", request);
+    }
+
+    assertThat(response.text()).isEqualTo("Let me look.");
+    assertThat(response.stopReason()).isEqualTo(LlmResponse.TOOL_USE);
+    assertThat(response.wantsTools()).isTrue();
+    LlmToolCall call = response.toolCalls().getFirst();
+    assertThat(call.id()).isEqualTo("toolu_2");
+    assertThat(call.name()).isEqualTo("read_file");
+    assertThat(call.input().get("path").asString()).isEqualTo("a/B.java");
+    assertThat(call.input().get("to").asInt()).isEqualTo(9);
+    JsonNode sent = JSON.readTree(requestBody.get());
+    assertThat(sent.at("/tools/0/name").asString()).isEqualTo("facts_about");
+    assertThat(sent.at("/tools/0/description").asString()).isEqualTo("Facts about an entity.");
+    assertThat(sent.at("/tools/0/input_schema/type").asString()).isEqualTo("object");
+    assertThat(sent.at("/tools/0/input_schema/properties/entity/type").asString())
+        .isEqualTo("string");
+    assertThat(sent.at("/tools/0/input_schema/required/0").asString()).isEqualTo("entity");
+    assertThat(sent.at("/messages/1/role").asString()).isEqualTo("assistant");
+    assertThat(sent.at("/messages/1/content")).hasSize(1);
+    assertThat(sent.at("/messages/1/content/0/type").asString()).isEqualTo("tool_use");
+    assertThat(sent.at("/messages/1/content/0/id").asString()).isEqualTo("toolu_1");
+    assertThat(sent.at("/messages/1/content/0/input/entity").asString()).isEqualTo("unit:a");
+    assertThat(sent.at("/messages/2/content/0/type").asString()).isEqualTo("tool_result");
+    assertThat(sent.at("/messages/2/content/0/tool_use_id").asString()).isEqualTo("toolu_1");
+    assertThat(sent.at("/messages/2/content/0/content").asString()).isEqualTo("No facts.");
+    assertThat(sent.at("/messages/2/content/0/is_error").asBoolean()).isTrue();
+    assertThat(sent.at("/messages/2/content/1/type").asString()).isEqualTo("text");
+    assertThat(sent.at("/messages/2/content/1/text").asString()).isEqualTo("Go on.");
   }
 
   @Test

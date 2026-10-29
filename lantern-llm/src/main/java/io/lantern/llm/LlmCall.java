@@ -3,7 +3,10 @@ package io.lantern.llm;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /**
  * One entry of the call log: a call that was sent, or refused before sending.
@@ -18,6 +21,10 @@ import java.util.Objects;
  * @param usage the tokens it used ({@link TokenUsage#NONE} unless it succeeded or was truncated)
  * @param costUsd what it cost in US dollars (zero unless it succeeded or was truncated)
  * @param error why it failed, was refused or was truncated, or {@code null} if it succeeded
+ * @param conversation the {@linkplain LlmConversation#id() conversation} the call is a turn of, or
+ *     {@code null} for a call on its own
+ * @param turn the call's turn in its conversation, from 1; 0 for a call on its own
+ * @param toolCalls the tool calls the answer asked for, by tool name; empty if none
  */
 public record LlmCall(
     Instant startedAt,
@@ -29,7 +36,10 @@ public record LlmCall(
     Outcome outcome,
     TokenUsage usage,
     BigDecimal costUsd,
-    String error) {
+    String error,
+    String conversation,
+    int turn,
+    Map<String, Integer> toolCalls) {
 
   /** How a call ended. */
   public enum Outcome {
@@ -56,5 +66,27 @@ public record LlmCall(
     Objects.requireNonNull(outcome, "outcome");
     Objects.requireNonNull(usage, "usage");
     Objects.requireNonNull(costUsd, "costUsd");
+    if (turn < 0 || (conversation == null) != (turn == 0)) {
+      throw new IllegalArgumentException(
+          "A call has a turn exactly when it is part of a conversation: " + turn);
+    }
+    toolCalls = Collections.unmodifiableMap(new TreeMap<>(toolCalls));
+  }
+
+  /** A call on its own, not a turn of a conversation. */
+  public LlmCall(
+      Instant startedAt,
+      Duration duration,
+      Role role,
+      String purpose,
+      String provider,
+      String model,
+      Outcome outcome,
+      TokenUsage usage,
+      BigDecimal costUsd,
+      String error) {
+    this(
+        startedAt, duration, role, purpose, provider, model, outcome, usage, costUsd, error, null,
+        0, Map.of());
   }
 }
