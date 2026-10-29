@@ -143,9 +143,97 @@ public class FactRepository {
    */
   public SnapshotUpdate recordSnapshot(
       long snapshot, Origin.Kind kind, Set<String> repos, Collection<Fact> found) {
+    return recordSnapshot(snapshot, kind, repos, Set.of(), found);
+  }
+
+  /**
+   * Records facts as {@link #recordSnapshot(long, Origin.Kind, Set, Collection)} does, leaving
+   * alone the facts of the given origin names, which {@link #recordDerived} records.
+   *
+   * @param derived the origin names (extractor names) of the facts a derivation step records for
+   *     the whole snapshot; found facts must have none of them
+   * @throws IllegalArgumentException also if a found fact has one of the derived origin names
+   */
+  public SnapshotUpdate recordSnapshot(
+      long snapshot,
+      Origin.Kind kind,
+      Set<String> repos,
+      Set<String> derived,
+      Collection<Fact> found) {
     Objects.requireNonNull(kind, "kind");
-    Objects.requireNonNull(found, "found");
     repos = Set.copyOf(Objects.requireNonNull(repos, "repos"));
+    Set<String> excluded = Set.copyOf(Objects.requireNonNull(derived, "derived"));
+    for (Fact fact : Objects.requireNonNull(found, "found")) {
+      if (excluded.contains(fact.origin().name())) {
+        throw new IllegalArgumentException(
+            "Fact " + fact.id() + " comes from " + fact.origin().name() + ", a derivation step");
+      }
+    }
+    return record(snapshot, new Scope(kind, repos, null, excluded), found);
+  }
+
+  /**
+   * Records the facts a derivation step (such as the linker's) found from the facts of a whole
+   * snapshot, so that afterwards exactly these facts of that origin hold in it, whichever
+   * repositories their evidence names. Found facts are kept, changed or added as {@link
+   * #recordSnapshot(long, Origin.Kind, Set, Collection)} does; every fact of the same origin kind
+   * and name that holds but was not found stops holding at this snapshot, in any repository. The
+   * step must therefore derive from all facts that hold in the snapshot, not only those of the
+   * repositories just analyzed. Run this in a transaction, after the snapshot's other facts are
+   * recorded.
+   *
+   * @param snapshot the snapshot number
+   * @param origin the step's origin; its kind and name select the facts it owns (its version may
+   *     differ from that of stored facts, which a new version of the step replaces)
+   * @param found the facts found, each valid from the snapshot onwards and of that origin kind and
+   *     name
+   * @throws IllegalArgumentException if a fact has another validity, origin kind or name, the same
+   *     fact appears with different confidences, or the validator rejects a fact
+   * @throws IllegalStateException if facts of that origin were recorded for a later snapshot
+   */
+  public SnapshotUpdate recordDerived(long snapshot, Origin origin, Collection<Fact> found) {
+    Objects.requireNonNull(origin, "origin");
+    for (Fact fact : Objects.requireNonNull(found, "found")) {
+      if (!fact.origin().name().equals(origin.name())) {
+        throw new IllegalArgumentException(
+            "Fact " + fact.id() + " comes from " + fact.origin().name() + ", not " + origin.name());
+      }
+    }
+    return record(snapshot, new Scope(origin.kind(), null, origin.name(), Set.of()), found);
+  }
+
+  /**
+   * Which stored facts a recording owns: those of one origin kind, with evidence in the given
+   * repositories (any if null), of the given origin name (any if null) and of none of the excluded
+   * names.
+   */
+  private record Scope(Origin.Kind kind, Set<String> repos, String name, Set<String> excluded) {
+
+    /** The SQL conditions selecting the scope's facts, besides the kind and repositories. */
+    String originConditions() {
+      return (name == null ? "" : " AND origin->>'name' = :name")
+          + (excluded.isEmpty() ? "" : " AND origin->>'name' NOT IN (:excluded)");
+    }
+
+    JdbcClient.StatementSpec bind(JdbcClient.StatementSpec spec) {
+      spec = spec.param("kind", kind.jsonName());
+      if (repos != null) {
+        // No repository is named "", so an empty set matches no fact.
+        spec = spec.param("repos", repos.isEmpty() ? List.of("") : List.copyOf(repos));
+      }
+      if (name != null) {
+        spec = spec.param("name", name);
+      }
+      if (!excluded.isEmpty()) {
+        spec = spec.param("excluded", List.copyOf(excluded));
+      }
+      return spec;
+    }
+  }
+
+  private SnapshotUpdate record(long snapshot, Scope scope, Collection<Fact> found) {
+    Origin.Kind kind = scope.kind();
+    Set<String> repos = scope.repos();
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> byId = new LinkedHashMap<>();
     for (Fact fact : found) {
@@ -162,7 +250,7 @@ public class FactRepository {
         throw new IllegalArgumentException(
             "Fact " + fact.id() + " has origin kind " + fact.origin().kind() + ", not " + kind);
       }
-      if (!repos.contains(fact.evidence().repo())) {
+      if (repos != null && !repos.contains(fact.evidence().repo())) {
         throw new IllegalArgumentException(
             "Fact "
                 + fact.id()
@@ -179,14 +267,16 @@ public class FactRepository {
     }
     validator.validateAll(byId.values());
     long later =
-        jdbc.sql(
-                """
-                SELECT count(*) FROM facts
-                WHERE (lower(validity) > :snapshot OR upper(validity) > :snapshot)
-                  AND origin->>'kind' = :kind
-                """)
-            .param("snapshot", snapshot)
-            .param("kind", kind.jsonName())
+        scope
+            .bind(
+                jdbc.sql(
+                        """
+                        SELECT count(*) FROM facts
+                        WHERE (lower(validity) > :snapshot OR upper(validity) > :snapshot)
+                          AND origin->>'kind' = :kind
+                        """
+                            + scope.originConditions())
+                    .param("snapshot", snapshot))
             .query(Long.class)
             .single();
     if (later > 0) {
@@ -205,15 +295,15 @@ public class FactRepository {
     int closed = 0;
     Set<String> changedIds = new HashSet<>();
     List<OpenVersion> open =
-        jdbc.sql(
-                """
-                SELECT id, confidence, lower(validity) AS valid_from FROM facts
-                WHERE upper_inf(validity) AND origin->>'kind' = :kind
-                  AND evidence->>'repo' IN (:repos)
-                """)
-            .param("kind", kind.jsonName())
-            // No repository is named "", so an empty set matches no fact.
-            .param("repos", repos.isEmpty() ? List.of("") : List.copyOf(repos))
+        scope
+            .bind(
+                jdbc.sql(
+                    """
+                    SELECT id, confidence, lower(validity) AS valid_from FROM facts
+                    WHERE upper_inf(validity) AND origin->>'kind' = :kind
+                    """
+                        + (repos == null ? "" : " AND evidence->>'repo' IN (:repos)")
+                        + scope.originConditions()))
             .query(
                 (rs, rowNum) ->
                     new OpenVersion(

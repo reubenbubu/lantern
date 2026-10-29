@@ -333,6 +333,57 @@ class ConfigExtractorTest {
   }
 
   @Test
+  void secretOptionsInJaasConfigAreRemoved() throws IOException {
+    Repo repo =
+        repo(
+            Map.of(
+                RESOURCES + "application.properties",
+                """
+                spring.kafka.properties.sasl.jaas.config=a.PlainLoginModule required \\
+                  username="app" password="x";
+                kafka.jaas=a.PlainLoginModule required username="app" password="${kafka.pw}";
+                kafka.pw=p1
+                kafka.env=a.PlainLoginModule required password="${KAFKA_PASSWORD}";
+                kafka.plain=a.PlainLoginModule required username="app";
+                kafka.spaced=a.PlainLoginModule required password=${space.pw} user=u;
+                space.pw=my secret
+                kafka.quoted=a.PlainLoginModule required password="${quote.pw}" user=u;
+                quote.pw=a"b
+                """));
+
+    assertThat(extract(repo))
+        .containsExactlyInAnyOrder(
+            "module:g:app config-value a.PlainLoginModule required username=\"app\";"
+                + " {\"key\":\"spring.kafka.properties.sasl.jaas.config\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#1-1 1.0",
+            // An option a placeholder resolves goes from the written form too.
+            "module:g:app config-value a.PlainLoginModule required username=\"app\";"
+                + " {\"key\":\"kafka.jaas\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#3-3 1.0",
+            "module:g:app config-value p1 {\"key\":\"kafka.pw\"}"
+                + " @app:src/main/resources/application.properties#4-4 1.0",
+            // An environment variable says where the secret comes from and stays.
+            "module:g:app config-value a.PlainLoginModule required password=\"${KAFKA_PASSWORD}\";"
+                + " {\"key\":\"kafka.env\",\"unresolved\":[\"KAFKA_PASSWORD\"]}"
+                + " @app:src/main/resources/application.properties#5-5 1.0",
+            // A substituted secret goes whole, whatever it holds.
+            "module:g:app config-value a.PlainLoginModule required user=u;"
+                + " {\"key\":\"kafka.spaced\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#7-7 1.0",
+            "module:g:app config-value my secret {\"key\":\"space.pw\"}"
+                + " @app:src/main/resources/application.properties#8-8 1.0",
+            "module:g:app config-value a.PlainLoginModule required user=u;"
+                + " {\"key\":\"kafka.quoted\",\"masked\":true}"
+                + " @app:src/main/resources/application.properties#9-9 1.0",
+            "module:g:app config-value a\"b {\"key\":\"quote.pw\"}"
+                + " @app:src/main/resources/application.properties#10-10 1.0",
+            // A value without a secret is recorded byte for byte.
+            "module:g:app config-value a.PlainLoginModule required username=\"app\";"
+                + " {\"key\":\"kafka.plain\"}"
+                + " @app:src/main/resources/application.properties#6-6 1.0");
+  }
+
+  @Test
   void aFileSpringBootCannotReadIsLeftOut() throws IOException {
     Repo repo =
         repo(

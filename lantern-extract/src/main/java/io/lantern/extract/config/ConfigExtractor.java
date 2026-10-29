@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
@@ -40,7 +41,7 @@ public final class ConfigExtractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
@@ -165,8 +166,15 @@ public final class ConfigExtractor {
     if (profile != null) {
       attributes.put("profile", profile);
     }
-    String object = UrlCredentials.withoutCredentials(value.value());
-    String written = UrlCredentials.withoutCredentials(value.written());
+    // Secret options are removed before placeholders are resolved, so a substituted secret goes
+    // whole, whatever it holds; the resolved text then loses what is left, such as URLs' user info.
+    Predicate<String> nothingResolves = value.unresolved()::contains;
+    String written = UrlCredentials.withoutCredentials(value.written(), nothingResolves);
+    String object =
+        written.equals(value.written())
+            ? UrlCredentials.withoutCredentials(value.value(), nothingResolves)
+            : UrlCredentials.withoutCredentials(
+                config.resolve(profile, written).value(), nothingResolves);
     if (exposesSecret(value) || mayHoldCredential(object) || mayHoldCredential(written)) {
       object = MASK;
       attributes.put("masked", true);

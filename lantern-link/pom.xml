@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.lantern</groupId>
+    <artifactId>lantern-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>lantern-link</artifactId>
+  <name>Lantern Link</name>
+
+  <properties>
+    <!-- Set to the folder project-0 was set up in to run Project0DeployableUnitsIT. -->
+    <lantern.test.project0></lantern.test.project0>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.lantern</groupId>
+      <artifactId>lantern-core</artifactId>
+    </dependency>
+    <dependency>
+      <!-- The linker reads the extractors' facts, by the names their extractors define. -->
+      <groupId>io.lantern</groupId>
+      <artifactId>lantern-extract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <!-- Runs *IT integration tests during verify. Executions come from the Spring Boot parent. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- The folder project-0 was set up in (testsets/project-0/setup.sh); the Project0*IT
+                 tests run if set. -->
+            <lantern.test.project0>${lantern.test.project0}</lantern.test.project0>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
