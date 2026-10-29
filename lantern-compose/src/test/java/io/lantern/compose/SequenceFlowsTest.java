@@ -579,6 +579,54 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aJobRunrJobIsNamedByItsJobNotBySchedule() {
+    facts.removeIf(f -> f.predicate().equals("scheduled"));
+    attribute(
+        "ship",
+        NIGHTLY,
+        "background-job",
+        "Task's reminder job",
+        "{\"framework\": \"jobrunr\", \"kind\": \"job\"}",
+        0);
+
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .first()
+        .isEqualTo(
+            "note []: Starts when the JobRunr job Task's reminder job runs in ship (Nightly.run).");
+  }
+
+  @Test
+  void aQuartzJobWithACronAndAJobRunrIntervalAreNamedBySchedule() {
+    facts.removeIf(f -> f.predicate().equals("scheduled"));
+    attribute(
+        "ship",
+        NIGHTLY,
+        "scheduled",
+        "0 15 2 * * ?",
+        "{\"framework\": \"quartz\", \"trigger\": \"cron\"}",
+        0);
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .first()
+        .isEqualTo(
+            "note []: Starts when the Quartz job on the schedule cron 0 15 2 * * ? runs in ship"
+                + " (Nightly.run).");
+
+    facts.removeIf(f -> f.predicate().equals("scheduled"));
+    attribute(
+        "ship",
+        NIGHTLY,
+        "background-job",
+        "PT5M",
+        "{\"framework\": \"jobrunr\", \"kind\": \"interval\"}",
+        0);
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .first()
+        .isEqualTo(
+            "note []: Starts when the JobRunr job on the schedule interval PT5M runs in ship"
+                + " (Nightly.run).");
+  }
+
+  @Test
   void theTraceStopsAfterTheMostMessagesAFlowShows() {
     for (int i = 0; i < SequenceFlows.MAX_MESSAGES + 5; i++) {
       httpCall("ship", SHIP, NIGHTLY, "e" + i + ".example.com", 10 + i);
