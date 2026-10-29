@@ -106,8 +106,8 @@ class EndToEndIT {
     /**
      * A fake model that cites the first fact and the first part's summary it is given, picks the
      * first candidate of a link left open, citing it, and words a unit, its first component and its
-     * first relationship, and a data store or destination, citing the first fact (ADR 0050, ADR
-     * 0056).
+     * first relationship, a data store or destination, and a flow's walkthrough, citing the first
+     * fact (ADR 0050, ADR 0056, ADR 0058).
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -118,6 +118,10 @@ class EndToEndIT {
                 if (request.role() == Role.RESOLVE) {
                   return "{\"target\": \"C1\", \"confidence\": \"low\", \"cites\": [\"C1\"],"
                       + " \"rationale\": \"The first candidate.\"}";
+                }
+                if (request.role() == Role.COMPOSE) {
+                  return "{\"walkthrough\": {\"text\": \"It answers a greeting.\","
+                      + " \"cites\": [\"F1\"]}}";
                 }
                 if (request.role() == Role.INFER_INTENT) {
                   String cite = "{\"text\": \"%s\", \"cites\": [\"F1\"]}";
@@ -641,7 +645,9 @@ class EndToEndIT {
     report
         .append("LLM calls a run of ")
         .append(name)
-        .append(" makes (role SUMMARIZE, high-volume tier, and INFER_INTENT, reasoning tier):\n");
+        .append(
+            " makes (roles SUMMARIZE and COMPOSE, high-volume tier, and INFER_INTENT,"
+                + " reasoning tier):\n");
     report.append("calls: ").append(sent.size()).append('\n');
     report.append("input tokens (estimated): ").append(input).append('\n');
     report.append("output tokens (at most): ").append(outputLimit).append('\n');

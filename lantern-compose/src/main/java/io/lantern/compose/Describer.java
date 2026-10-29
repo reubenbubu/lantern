@@ -48,7 +48,9 @@ import org.slf4j.LoggerFactory;
  * model leaves out keeps its summary or static label. One call per data store, topic, queue,
  * exchange and external system the container diagrams draw asks for its responsibility sentence
  * from its facts, the tables built in it and how the units use it (ADR 0056); one the model leaves
- * out has no description, as before.
+ * out has no description, as before. One call per main flow the documents show asks for its
+ * walkthrough and pre- and post-conditions from what starts it and the facts behind its steps (ADR
+ * 0058); what the model leaves out keeps its static prose or "Not known from the code.".
  *
  * <p>Answers are cached by the hash of the prompt, which shows no fact IDs, so a run over unchanged
  * facts makes no call. It never fails the run: an answer rejected twice, and a call refused by a
@@ -88,6 +90,9 @@ public final class Describer {
   /** The most link facts of a data store or destination the prompt shows. */
   static final int MAX_USES = 40;
 
+  /** The most tokens an answer about a flow may take. */
+  static final int MAX_FLOW_OUTPUT_TOKENS = 1_500;
+
   /** The links a unit's relationships are drawn from, as the container diagram draws them. */
   private static final List<String> LINKS =
       List.of(
@@ -112,11 +117,14 @@ public final class Describer {
    * What a run did.
    *
    * @param wordings the responsibility sentences and intent phrases, for the composer
-   * @param asked how many units, data stores and destinations the model was asked about in this run
+   * @param asked how many units, data stores, destinations and flows the model was asked about in
+   *     this run
    * @param reused how many answers came from the cache
-   * @param rejected the units, data stores and destinations whose answer was rejected twice
-   * @param skipped the units, data stores and destinations the model could not be asked about,
-   *     because a budget or the model's capabilities refused the call or the provider failed
+   * @param rejected the units, data stores and destinations, and the entry points of the flows,
+   *     whose answer was rejected twice
+   * @param skipped the units, data stores and destinations, and the entry points of the flows, the
+   *     model could not be asked about, because a budget or the model's capabilities refused the
+   *     call or the provider failed
    */
   public record Result(
       Wordings wordings, int asked, int reused, List<EntityId> rejected, List<EntityId> skipped) {
@@ -141,13 +149,27 @@ public final class Describer {
   }
 
   /**
-   * Words the deployable units of the facts, and the data stores and destinations their diagrams
-   * draw.
+   * Words the deployable units of the facts, the data stores and destinations their diagrams draw,
+   * and the main flows of the system's and each repository's documents.
    *
    * @param facts the facts that hold in a snapshot, the linker's included
    */
   public Result describe(Collection<Fact> facts) {
+    return describe(facts, facts);
+  }
+
+  /**
+   * As {@link #describe(Collection)}, with the repositories' documents composed from other facts
+   * than the system's: their flows are traced from those facts, as the composer will trace them.
+   *
+   * @param facts the facts that hold in a snapshot, the linker's included, which the system's
+   *     documents are composed from
+   * @param repoFacts the facts the repositories' documents are composed from; their repositories
+   *     are the ones whose flows are narrated
+   */
+  public Result describe(Collection<Fact> facts, Collection<Fact> repoFacts) {
     Objects.requireNonNull(facts, "facts");
+    Objects.requireNonNull(repoFacts, "repoFacts");
     Knowledge knowledge = new Knowledge(facts);
     Assembler assembler = new Assembler(knowledge, Map.of(), Set.of(), null, "The system");
     C4Views c4 =
@@ -160,11 +182,12 @@ public final class Describer {
     for (EntityId element : c4.destinations()) {
       questions.add(question(element, knowledge, assembler, c4));
     }
-    ModelConfig model = client.model(Role.INFER_INTENT);
+    questions.addAll(flows(repoFacts, knowledge, assembler, c4));
     List<Outcome> outcomes = new ArrayList<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       List<Future<Outcome>> futures = new ArrayList<>();
       for (Question question : questions) {
+        ModelConfig model = client.model(role(question));
         futures.add(executor.submit(() -> answer(question, model)));
       }
       for (Future<Outcome> future : futures) {
@@ -181,6 +204,7 @@ public final class Describer {
     }
     Map<EntityId, String> responsibilities = new HashMap<>();
     Map<String, Wordings.Phrase> phrases = new HashMap<>();
+    Map<String, Wordings.Flow> flows = new HashMap<>();
     int asked = 0;
     int reused = 0;
     List<EntityId> rejected = new ArrayList<>();
@@ -200,18 +224,23 @@ public final class Describer {
           } else {
             asked++;
           }
-          resolve(question, outcome.answer(), responsibilities, phrases);
+          if (flow(question)) {
+            flows.put(Wordings.flowKey(question.user()), flow(question, outcome.answer()));
+          } else {
+            resolve(question, outcome.answer(), responsibilities, phrases);
+          }
         }
       }
     }
     LOG.info(
-        "Wordings: {} units, data stores and destinations asked, {} cached, {} rejected, {}"
-            + " skipped",
+        "Wordings: {} units, data stores, destinations and flows asked, {} cached, {} rejected,"
+            + " {} skipped",
         asked,
         reused,
         rejected.size(),
         skipped.size());
-    return new Result(new Wordings(responsibilities, phrases), asked, reused, rejected, skipped);
+    return new Result(
+        new Wordings(responsibilities, phrases, flows), asked, reused, rejected, skipped);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -318,6 +347,36 @@ public final class Describer {
         facts.subList(0, Math.min(MAX_ELEMENT_FACTS, facts.size())),
         tables.subList(0, Math.min(MAX_TABLES, tables.size())),
         shown);
+  }
+
+  /**
+   * The prompts about the main flows that the system's documents and each repository's show (ADR
+   * 0058), each once: the same trace gives the same prompt whichever scope shows it. A repository's
+   * flows are traced from the facts its documents are composed from.
+   */
+  private static List<Question> flows(
+      Collection<Fact> repoFacts, Knowledge knowledge, Assembler assembler, C4Views c4) {
+    SortedSet<EntityId> all = C4Views.units(knowledge);
+    Map<String, Question> questions = new LinkedHashMap<>();
+    new SequenceFlows(knowledge, assembler, c4, all)
+        .questions()
+        .forEach(q -> questions.putIfAbsent(q.user(), q));
+    Knowledge repoKnowledge = new Knowledge(repoFacts);
+    Assembler repoAssembler = new Assembler(repoKnowledge, Map.of(), Set.of(), null, "The system");
+    SortedSet<String> repos = new TreeSet<>();
+    repoFacts.forEach(f -> repos.add(f.evidence().repo()));
+    for (String repo : repos) {
+      SortedSet<EntityId> units = C4Views.units(repoKnowledge, repoKnowledge.modules(repo));
+      if (units.isEmpty()) {
+        continue;
+      }
+      C4Views repoViews =
+          new C4Views(repoKnowledge, repoAssembler, RepoSections.SYSTEM, units, Set.of(repo));
+      new SequenceFlows(repoKnowledge, repoAssembler, repoViews, units)
+          .questions()
+          .forEach(q -> questions.putIfAbsent(q.user(), q));
+    }
+    return new ArrayList<>(questions.values());
   }
 
   /** The facts by ID, each once. */
@@ -430,15 +489,7 @@ public final class Describer {
   }
 
   private static String kind(EntityId other) {
-    return switch (other.type()) {
-      case BuiltInTypes.SERVICE -> "a deployable unit";
-      case C4Views.DATABASE -> "a database";
-      case C4Views.TOPIC -> "a topic";
-      case C4Views.QUEUE -> "a queue";
-      case C4Views.EXCHANGE -> "an exchange";
-      case C4Views.EXTERNAL_SYSTEM -> "an external system";
-      default -> "a " + other.type();
-    };
+    return WordingPrompt.kind(other);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -458,8 +509,12 @@ public final class Describer {
     if (cached != null) {
       return new Outcome(Kind.ANSWERED, cached, true);
     }
-    boolean unit = question.about().equals(WordingAnswer.UNIT);
-    String purpose = (unit ? "word unit " : "word element ") + question.element();
+    String purpose =
+        switch (question.about()) {
+          case WordingAnswer.UNIT -> "word unit " + question.element();
+          case WordingPrompt.WALKTHROUGH -> "narrate flow " + question.name();
+          default -> "word element " + question.element();
+        };
     try {
       List<LlmMessage> messages = new ArrayList<>();
       messages.add(LlmMessage.user(question.user()));
@@ -500,9 +555,26 @@ public final class Describer {
 
   private LlmResponse ask(Question question, String purpose, List<LlmMessage> messages) {
     int maxTokens =
-        question.about().equals(WordingAnswer.UNIT) ? MAX_OUTPUT_TOKENS : MAX_ELEMENT_OUTPUT_TOKENS;
+        switch (question.about()) {
+          case WordingAnswer.UNIT -> MAX_OUTPUT_TOKENS;
+          case WordingPrompt.WALKTHROUGH -> MAX_FLOW_OUTPUT_TOKENS;
+          default -> MAX_ELEMENT_OUTPUT_TOKENS;
+        };
     return client.call(
-        new LlmRequest(Role.INFER_INTENT, purpose, question.system(), messages, maxTokens, false));
+        new LlmRequest(role(question), purpose, question.system(), messages, maxTokens, false));
+  }
+
+  /** Whether the question is about a sequence flow. */
+  private static boolean flow(Question question) {
+    return question.about().equals(WordingPrompt.WALKTHROUGH);
+  }
+
+  /**
+   * The role of the call: narrating a flow is composing narrative for a reader (docs/design.md, LLM
+   * integration, Roles); responsibilities and intent are inferring intent.
+   */
+  private static Role role(Question question) {
+    return flow(question) ? Role.COMPOSE : Role.INFER_INTENT;
   }
 
   private static void logRejected(
@@ -575,6 +647,19 @@ public final class Describer {
                     new Wordings.Phrase(item.text(), cited));
               }
             });
+  }
+
+  /** A flow's walkthrough and conditions, each with citation markers, or null if left out. */
+  private static Wordings.Flow flow(Question question, WordingAnswer answer) {
+    Map<String, String> texts = new HashMap<>();
+    answer
+        .items()
+        .forEach(
+            (field, item) -> sentence(question, item).ifPresent(text -> texts.put(field, text)));
+    return new Wordings.Flow(
+        texts.get(WordingPrompt.WALKTHROUGH),
+        texts.get(WordingPrompt.PRECONDITIONS),
+        texts.get(WordingPrompt.POSTCONDITIONS));
   }
 
   private static Optional<String> sentence(Question question, WordingAnswer.Item item) {

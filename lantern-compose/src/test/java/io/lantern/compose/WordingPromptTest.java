@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** The wording prompt's version and the check of its answers (ADR 0050). */
+/** The wording prompts' versions and the check of their answers (ADR 0050, ADR 0056, ADR 0058). */
 class WordingPromptTest {
 
   private final TestFacts facts = TestFacts.runtime();
@@ -79,6 +79,124 @@ class WordingPromptTest {
     assertThat(WordingPrompt.ELEMENT_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.ELEMENT_VERSION and update this fingerprint")
         .isEqualTo("1 8c8d775e08082d7fbfb8e1fd6b11d064d45fa96ae65d784e5bbaa979683b2016");
+  }
+
+  /**
+   * The fingerprint of the texts and limits of the prompt about a flow for {@link
+   * WordingPrompt#FLOW_VERSION} (ADR 0058), as above. The way steps are written into it is checked
+   * below and by {@code DescriberTest}.
+   */
+  @Test
+  void theFlowVersionIsRaisedWhenItsPromptChanges() throws Exception {
+    String texts =
+        String.join(
+            "\n--\n",
+            WordingPrompt.FLOW_SYSTEM,
+            WordingPrompt.RETRY,
+            Integer.toString(WordingPrompt.WALKTHROUGH_WORDS),
+            Integer.toString(WordingPrompt.CONDITION_WORDS),
+            Integer.toString(Describer.MAX_FLOW_OUTPUT_TOKENS),
+            Integer.toString(SequenceFlows.MAX_MESSAGES));
+    String fingerprint =
+        HexFormat.of()
+            .formatHex(
+                MessageDigest.getInstance("SHA-256")
+                    .digest(texts.getBytes(StandardCharsets.UTF_8)));
+
+    assertThat(WordingPrompt.FLOW_VERSION + " " + fingerprint)
+        .as("The prompt changed: raise WordingPrompt.FLOW_VERSION and update this fingerprint")
+        .isEqualTo("1 ac2d234d87f5b4c912e95c1a2414daa57a19853b88767f61b7e8adbdf7ca7bd3");
+  }
+
+  private Question flow() {
+    return WordingPrompt.flow(
+        EntityId.parse("method:com.example.web.Controller#list()"),
+        "GET /orders on shop-app",
+        "shop-app receives GET /orders (Controller.list)",
+        facts.find("method:com.example.web.Controller#list()", "endpoint"),
+        List.of(
+            new WordingPrompt.FlowStep(
+                0,
+                "shop-app to orders (a topic), async: Sends a message [Kafka]",
+                List.of(facts.find("service:com.example:app", "PUBLISHES"))),
+            new WordingPrompt.FlowStep(
+                1, "As Other:", List.of(facts.find("service:com.example:app", "PUBLISHES")))));
+  }
+
+  @Test
+  void theQuestionAboutAFlowShowsItsTriggerAndStepsWithTheirFacts() {
+    Question flow = flow();
+
+    assertThat(flow.system()).isEqualTo(WordingPrompt.FLOW_SYSTEM);
+    assertThat(flow.version()).isEqualTo(WordingPrompt.FLOW_VERSION);
+    assertThat(flow.user())
+        .isEqualTo(
+            """
+            The flow "GET /orders on shop-app".
+            It starts when shop-app receives GET /orders (Controller.list).
+            [F1] method:com.example.web.Controller#list() endpoint "GET /orders" (shop:pom.xml)
+
+            Its steps, in order:
+            - shop-app to orders (a topic), async: Sends a message [Kafka]
+              [F2] service:com.example:app PUBLISHES topic:kafka:orders\
+             {"protocol":"Kafka","source":"method:com.example.domain.JpaOrders#all()"} (shop:pom.xml)
+              - As Other:
+                [F2] service:com.example:app PUBLISHES topic:kafka:orders\
+             {"protocol":"Kafka","source":"method:com.example.domain.JpaOrders#all()"} (shop:pom.xml)
+            """);
+    assertThat(flow.facts()).containsOnlyKeys("F1", "F2");
+  }
+
+  @Test
+  void theAnswerAboutAFlowHoldsAWalkthroughAndConditions() {
+    assertThat(WordingPrompt.check(response("{}"), flow())).isEmpty();
+    assertThat(
+            WordingPrompt.check(
+                response(
+                    """
+                    {"walkthrough": {"text": "Lists orders. It announces them.", "cites": ["F1", "F2"]},
+                     "preconditions": {"text": "A request for the order list.", "cites": ["F1"]},
+                     "postconditions": {"text": "Orders announced.", "cites": ["F2"]}}"""),
+                flow()))
+        .containsExactly(
+            Map.entry(
+                WordingPrompt.POSTCONDITIONS,
+                new WordingAnswer.Item("Orders announced.", List.of("F2"))),
+            Map.entry(
+                WordingPrompt.PRECONDITIONS,
+                new WordingAnswer.Item("A request for the order list.", List.of("F1"))),
+            Map.entry(
+                WordingPrompt.WALKTHROUGH,
+                new WordingAnswer.Item("Lists orders. It announces them.", List.of("F1", "F2"))));
+    String long31 = String.join(" ", java.util.Collections.nCopies(31, "word"));
+    assertThatThrownBy(
+            () ->
+                WordingPrompt.check(
+                    response(
+                        "{\"preconditions\": {\"text\": \"" + long31 + "\", \"cites\": [\"F1\"]}}"),
+                    flow()))
+        .hasMessage("the pre-conditions text has more than 30 words.");
+    String long101 = String.join(" ", java.util.Collections.nCopies(101, "word"));
+    assertThatThrownBy(
+            () ->
+                WordingPrompt.check(
+                    response(
+                        "{\"walkthrough\": {\"text\": \"" + long101 + "\", \"cites\": [\"F1\"]}}"),
+                    flow()))
+        .hasMessage("the walkthrough has more than 100 words.");
+    assertThatThrownBy(
+            () ->
+                WordingPrompt.check(
+                    response("{\"postconditions\": {\"text\": \"Orders announced.\"}}"), flow()))
+        .hasMessage("the post-conditions text cites nothing; cite the facts it rests on.");
+    assertThatThrownBy(
+            () ->
+                WordingPrompt.check(
+                    response(
+                        "{\"relationships\": {\"R1\": {\"text\": \"Announces orders\","
+                            + " \"cites\": [\"F2\"]}}}"),
+                    flow()))
+        .hasMessage("relationships names R1, which is not in the input.");
   }
 
   private Question element() {

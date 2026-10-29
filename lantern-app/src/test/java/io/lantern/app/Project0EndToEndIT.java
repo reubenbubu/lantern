@@ -99,8 +99,8 @@ class Project0EndToEndIT {
   static class Fake {
     /**
      * A fake model that cites the first fact and the first part's summary it is given, and words
-     * nothing when asked for responsibilities and intent phrases (ADR 0050), so the report keeps
-     * the static labels this test checks.
+     * nothing when asked for responsibilities and intent phrases (ADR 0050) or to narrate a flow
+     * (ADR 0058), so the report keeps the static labels and prose this test checks.
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -108,7 +108,7 @@ class Project0EndToEndIT {
           .answering(
               request -> {
                 String prompt = request.messages().getFirst().text();
-                if (request.role() == Role.INFER_INTENT) {
+                if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
                   return "{}";
                 }
                 List<String> sentences = new ArrayList<>();
