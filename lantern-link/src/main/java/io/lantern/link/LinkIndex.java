@@ -69,6 +69,9 @@ final class LinkIndex {
   /** The REST controllers ({@code stereotype controller} with {@code rest}), by type. */
   final Set<EntityId> restControllers = new HashSet<>();
 
+  /** The callers of each method, from {@code CALLS} facts; built on first use. */
+  private Map<EntityId, Set<EntityId>> callers;
+
   /** Every fact by predicate, in ID order. */
   private final Map<String, List<Fact>> byPredicate = new HashMap<>();
 
@@ -224,6 +227,51 @@ final class LinkIndex {
       result.addAll(unitsOfModule.getOrDefault(module, List.of()));
     }
     return List.copyOf(result);
+  }
+
+  /**
+   * The units that run an entity's code and call it: of the units running it ({@link #unitsOf}),
+   * those whose own module declares it, or that run other code calling it, directly or through
+   * other methods ({@code CALLS}). Library code bundled by several units thus belongs to the units
+   * that use it. When no unit calls it (it runs on its own, from a listener or a schedule, say), or
+   * only one unit runs it, every unit running it does.
+   */
+  List<Unit> unitsCalling(EntityId entity) {
+    List<Unit> running = unitsOf(entity);
+    if (running.size() < 2) {
+      return running;
+    }
+    if (callers == null) {
+      callers = new HashMap<>();
+      for (Fact call : of(BuiltInTypes.CALLS)) {
+        if (call.object().kind() == FactObject.Kind.ENTITY) {
+          callers
+              .computeIfAbsent(call.object().entityId(), o -> new LinkedHashSet<>())
+              .add(call.subject());
+        }
+      }
+    }
+    Set<EntityId> declaring = new HashSet<>(modulesOf(entity));
+    Set<EntityId> callerModules = new HashSet<>();
+    Set<EntityId> seen = new HashSet<>(Set.of(entity));
+    Deque<EntityId> queue = new ArrayDeque<>(List.of(entity));
+    while (!queue.isEmpty()) {
+      for (EntityId caller : callers.getOrDefault(queue.poll(), Set.of())) {
+        if (seen.add(caller)) {
+          queue.add(caller);
+          callerModules.addAll(modulesOf(caller));
+        }
+      }
+    }
+    callerModules.removeAll(declaring);
+    List<Unit> calling =
+        running.stream()
+            .filter(
+                u ->
+                    (!u.modules().isEmpty() && declaring.contains(u.modules().getFirst()))
+                        || u.modules().stream().anyMatch(callerModules::contains))
+            .toList();
+    return calling.isEmpty() ? running : calling;
   }
 
   /** The type that declares a member ({@code method:a.B#m()} is in {@code type:a.B}). */

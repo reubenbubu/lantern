@@ -48,9 +48,9 @@ final class MessageLinker {
     Map<String, List<Fact>> listeners = LinkIndex.codeSites(index.of(MessagingExtractor.LISTENER));
     Map<String, List<Fact>> bindings = LinkIndex.codeSites(index.of(MessagingExtractor.BINDING));
     for (String view : index.views()) {
-      List<Use> sent = uses(sends, view, true);
-      List<Use> received = uses(listeners, view, true);
-      List<Use> bound = uses(bindings, view, false);
+      List<Use> sent = uses(sends, view, true, true);
+      List<Use> received = uses(listeners, view, true, false);
+      List<Use> bound = uses(bindings, view, false, false);
       for (Use binding : bound) {
         routes(binding, view);
       }
@@ -66,16 +66,20 @@ final class MessageLinker {
   /**
    * The uses of each site in a view, one per unit running its code (or one without a unit for a
    * binding, which belongs to the broker once any unit declares it). A destination written with
-   * placeholders in a library's code is resolved again with the config of each unit bundling it.
+   * placeholders in a library's code is resolved again with the config of each unit bundling it. A
+   * send in a library bundled by several units is used by those that call it ({@link
+   * LinkIndex#unitsCalling}).
    */
-  private List<Use> uses(Map<String, List<Fact>> sites, String view, boolean perUnit) {
+  private List<Use> uses(
+      Map<String, List<Fact>> sites, String view, boolean perUnit, boolean called) {
     List<Use> uses = new ArrayList<>();
     for (List<Fact> site : sites.values()) {
       Fact fact = LinkIndex.inView(Map.of("", site), view).get("");
       if (fact == null || !index.active(fact.subject(), view)) {
         continue;
       }
-      List<Unit> units = index.unitsOf(fact.subject());
+      List<Unit> units =
+          called ? index.unitsCalling(fact.subject()) : index.unitsOf(fact.subject());
       if (units.isEmpty()) {
         continue;
       }

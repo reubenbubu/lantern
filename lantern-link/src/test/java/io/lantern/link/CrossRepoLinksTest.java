@@ -839,6 +839,54 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aSendInALibraryBundledBySeveralUnitsIsTheirsWhoCallIt() {
+    type("lib", "messaging-lib", "l.Messages");
+    messaging(
+        "lib",
+        "l.Messages#send()",
+        MessagingExtractor.SEND,
+        "notify.send",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        30);
+    // Nothing calls the heartbeat, so it runs in every unit bundling the library.
+    messaging(
+        "lib",
+        "l.Messages#heartbeat()",
+        MessagingExtractor.SEND,
+        "heartbeat",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        40);
+    calls("lib", "l.Messages#toUser()", "l.Messages#send()");
+    unit("a", "shop", "shop");
+    bundled("a", "shop", "messaging-lib");
+    type("a", "shop", "s.Orders");
+    calls("a", "s.Orders#place()", "l.Messages#toUser()");
+    unit("b", "admin", "admin");
+    bundled("b", "admin", "messaging-lib");
+
+    assertThat(derive(CrossRepoLinks.PUBLISHES))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:admin PUBLISHES queue:rabbitmq:heartbeat",
+            "service:g:shop PUBLISHES queue:rabbitmq:heartbeat",
+            "service:g:shop PUBLISHES queue:rabbitmq:notify.send");
+  }
+
+  private void calls(String repo, String from, String to) {
+    add(
+        JavaExtractor.NAME,
+        "method:" + from,
+        BuiltInTypes.CALLS,
+        FactObject.entity(EntityId.parse("method:" + to)),
+        null,
+        repo
+            + ":src/main/java/"
+            + from.substring(0, from.indexOf('#')).replace('.', '/')
+            + ".java#9",
+        1.0);
+  }
+
+  @Test
   void kafkaTopicsMatchByNameOrByAListenersPatternAndJmsByDestination() {
     unit("p", "payments", "payments");
     type("p", "payments", "p.Publisher");
