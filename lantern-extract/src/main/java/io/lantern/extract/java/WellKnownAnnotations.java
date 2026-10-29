@@ -36,7 +36,9 @@ final class WellKnownAnnotations {
           "org.springframework.web.bind.annotation.RequestMethod",
           "java.util.concurrent.TimeUnit",
           "jakarta.persistence.InheritanceType",
-          "javax.persistence.InheritanceType");
+          "javax.persistence.InheritanceType",
+          // @ImportHttpServices(clientType = ...)
+          "org.springframework.web.service.registry.HttpServiceGroup$ClientType");
 
   private WellKnownAnnotations() {}
 

@@ -1,6 +1,10 @@
 spring:
   application:
     name: shop
+  http:
+    serviceclient:
+      orders:
+        base-url: http://orders:8080
 clients:
   payments:
     url: http://payments:8080
@@ -12,6 +16,10 @@ clients:
     url: http://shipping:8080
   ledger:
     url: http://ledger:8080
+  inventory:
+    url: http://inventory-api:8080
+  reviews:
+    url: http://bot:pa55word@reviews:8080
 catalog:
   base-url: http://catalog-service:8080
 inventory:

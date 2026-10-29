@@ -1,6 +1,6 @@
 # 0002: Vocabulary registry details
 
-Status: accepted (#4), amended by ADR 0026 (#86) and by #90, pending the user's review (#24)
+Status: accepted (#4), amended by ADR 0026 (#86), by #90 and by #156, pending the user's review (#24)
 
 ## Context
 
@@ -58,8 +58,9 @@ choices.
   the design (a library is not a container, a module or package is not a component); they set
   their own shape. A database that holds the earlier built-ins gets the change as one new revision
   at startup. Relationship types are `CONTAINS`, `DEPENDS_ON`, `CALLS` (extends `DEPENDS_ON`),
-  `EXTENDS` and `IMPLEMENTS`. Built-ins declare no attributes and refuse undeclared ones;
-  extractors add the attributes they need as additive changes.
+  `EXTENDS` and `IMPLEMENTS`. Built-ins declare no attributes and refuse undeclared ones. Since
+  #156 only the built-in source may change them, so extractors define types of their own (see the
+  amendment below).
 - **Java types** are hand-written records in `io.lantern.core.vocabulary`, with name constants for
   the built-in types in `BuiltInTypes`, kept in line with the schema and the built-in file by
   tests, as for the fact envelope (0001).
@@ -84,3 +85,23 @@ choices.
 - **One lookup per batch.** `FactValidator.validateAll` checks a batch against one vocabulary
   revision, so `FactRepository.recordSnapshot` reads the latest revision number once per batch
   instead of once per fact. A single `save` still reads it once.
+
+## Amendment (#156): a type belongs to the source that first defined it
+
+- **Context.** Type names are global, so one source could change a type another source defined: a
+  test's `topic` silently replaced the linker's description, and an additive change by any source
+  passed the version rules unnoticed.
+- **Owner.** A type belongs to the source of the earliest revision that holds it
+  (`VocabularyRegistry.owner`). It is read from the existing `vocabulary_revisions` and
+  `vocabulary_types` tables, so nothing is stored or migrated and type names are unchanged.
+- **Only the owner changes a type.** Applying a definition that differs from the current one of a
+  type another source owns is refused, even if the change is additive, with an error naming the
+  type, its owner, the other source and both definitions; nothing in that change is stored.
+  Another source may apply the identical definition, which changes nothing and creates no
+  revision, but sources must not repeat another source's types even unchanged: once the owner
+  changes the type, the copy differs and the other source is refused. The owner's changes
+  still follow the rules above. Built-in types belong to `built-in`.
+- **Clashes fail at startup.** The app applies the built-in types and then each extractor's and
+  the linker's types when it starts, so two sources defining the same name differently stop the
+  app with that error instead of one silently winning. Namespacing names per source was not chosen:
+  it would rename stored types.

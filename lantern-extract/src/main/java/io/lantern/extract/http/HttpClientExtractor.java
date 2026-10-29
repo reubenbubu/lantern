@@ -53,11 +53,12 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Turns the HTTP clients in the code into facts: the requests each method sends, with the HTTP
  * method, the target's URL or service name and the path, through Spring Cloud OpenFeign and
- * MicroProfile REST client interfaces, Spring's HTTP interfaces ({@code @HttpExchange}), {@code
- * RestTemplate}, {@code RestClient}, {@code WebClient}, the Jakarta REST client API, {@code
- * java.net.http}, OkHttp and Apache HttpClient; and which code enables or injects a client
- * interface, since that code, not the library that declares the interface, makes the calls. See
- * {@code docs/adr/0038-http-client-extractor.md}.
+ * MicroProfile REST client interfaces, Spring's HTTP interfaces ({@code @HttpExchange}) and their
+ * groups ({@code @ImportHttpServices}), {@code RestTemplate}, {@code RestClient}, {@code
+ * WebClient}, the Jakarta REST client API, {@code java.net.http}, OkHttp and Apache HttpClient,
+ * with its fluent API; and which code enables or injects a client interface, since that code, not
+ * the library that declares the interface, makes the calls. See {@code
+ * docs/adr/0038-http-client-extractor.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}). URLs are
  * followed one hop from a {@code @Value} field or constructor argument, and their placeholders
@@ -69,7 +70,7 @@ public final class HttpClientExtractor {
   public static final String NAME = "http-client";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
@@ -118,6 +119,7 @@ public final class HttpClientExtractor {
   private static final List<String> REST_HTTP_METHODS =
       List.of("jakarta.ws.rs.HttpMethod", "javax.ws.rs.HttpMethod");
   private static final String VALUE = SPRING + "beans.factory.annotation.Value";
+  private static final String BEAN = SPRING + "context.annotation.Bean";
   private static final String HTTP_EXCHANGE = SPRING + "web.service.annotation.HttpExchange";
 
   /** The types an HTTP interface's proxy is made with, and the adapters they take. */
@@ -131,6 +133,27 @@ public final class HttpClientExtractor {
           SPRING + "web.client.support.RestClientAdapter",
           SPRING + "web.client.support.RestTemplateAdapter",
           SPRING + "web.reactive.function.client.support.WebClientAdapter");
+
+  /** The interface the adapters implement, as a bean may be injected. */
+  private static final String EXCHANGE_ADAPTER = SPRING + "web.service.invoker.HttpExchangeAdapter";
+
+  /** The calls on a proxy factory or its builder that give it its adapter. */
+  private static final Set<String> ADAPTER_METHODS =
+      Set.of("builderFor", "builder", "exchangeAdapter", "clientAdapter");
+
+  /** Spring Framework 7's HTTP service groups: the annotation that imports them. */
+  private static final String IMPORT_HTTP_SERVICES =
+      SPRING + "web.service.registry.ImportHttpServices";
+
+  /** The group configurers' view of the groups ({@code groups.filterByName("a")}). */
+  private static final String GROUPS =
+      SPRING + "web.service.registry.HttpServiceGroupConfigurer$Groups";
+
+  /** The group an {@code @ImportHttpServices} without one names. */
+  private static final String DEFAULT_GROUP = "default";
+
+  /** Spring Boot's property for a group's base URL, around the group's name. */
+  private static final String GROUP_BASE_URL = "spring.http.serviceclient.%s.base-url";
 
   /** Apache HttpClient's request classes, made with a URL, and the HTTP method each sends. */
   private static final Map<String, String> APACHE_REQUESTS = apacheRequests();
@@ -148,6 +171,17 @@ public final class HttpClientExtractor {
     return Map.copyOf(r);
   }
 
+  /**
+   * Apache HttpClient's fluent requests, 4 and 5 ({@code Request.get(uri)}, 4's {@code
+   * Request.Get(uri)}, {@code Request.create(method, uri)}), and the executors that send them.
+   */
+  private static final Set<String> FLUENT_REQUESTS =
+      Set.of("org.apache.http.client.fluent.Request", "org.apache.hc.client5.http.fluent.Request");
+
+  private static final Set<String> FLUENT_EXECUTORS =
+      Set.of(
+          "org.apache.http.client.fluent.Executor", "org.apache.hc.client5.http.fluent.Executor");
+
   /** Apache HttpClient's async request, made with {@code create(method, uri)}. */
   private static final String APACHE_SIMPLE_REQUEST =
       "org.apache.hc.client5.http.async.methods.SimpleHttpRequest";
@@ -163,6 +197,10 @@ public final class HttpClientExtractor {
 
   private static final String WEB = SPRING + "web.client.";
   private static final String REACTIVE = SPRING + "web.reactive.function.client.";
+
+  /** The client builders a group configurer sets a base URL on. */
+  private static final Set<String> CLIENT_BUILDERS =
+      Set.of(WEB + "RestClient$Builder", REACTIVE + "WebClient$Builder");
 
   /** The client kind of the types a chain of calls may start from. */
   private static final Map<String, String> KINDS = kinds();
@@ -201,6 +239,12 @@ public final class HttpClientExtractor {
       k.put(t, APACHE_CLIENT);
     }
     for (String t : APACHE_FACTORIES) {
+      k.put(t, APACHE_CLIENT);
+    }
+    for (String t : FLUENT_REQUESTS) {
+      k.put(t, APACHE_CLIENT);
+    }
+    for (String t : FLUENT_EXECUTORS) {
       k.put(t, APACHE_CLIENT);
     }
     return Map.copyOf(k);
@@ -306,6 +350,9 @@ public final class HttpClientExtractor {
     /** Where the proxies of each HTTP interface are made, by the interface's binary name. */
     private final Map<String, List<Proxy>> proxies = new HashMap<>();
 
+    /** The base URLs the HTTP service group configurers of every module set. */
+    private final List<GroupBase> groupBases = new ArrayList<>();
+
     private JavaAnalysis.Module module;
     private CodeConfig.View config;
 
@@ -330,9 +377,13 @@ public final class HttpClientExtractor {
         }
       }
       for (JavaAnalysis.Module m : code.modules()) {
+        configurers(m);
+      }
+      for (JavaAnalysis.Module m : code.modules()) {
         for (Invocation invocation : m.structure().invocations()) {
           proxy(invocation, m);
         }
+        imports(m);
       }
     }
 
@@ -379,7 +430,11 @@ public final class HttpClientExtractor {
         for (Proxy p : made) {
           if (p.module() == m) {
             ObjectNode attributes = FactJson.newObject();
-            attributes.put("member", p.in().toString());
+            if (p.annotation() != null) {
+              attributes.put("annotation", p.annotation());
+            } else {
+              attributes.put("member", p.in().toString());
+            }
             relation(typeId(ownerType(p.in())), ENABLES, typeId(p.client()), attributes, p.where());
           }
         }
@@ -390,64 +445,331 @@ public final class HttpClientExtractor {
     // Declarative clients: Feign, MicroProfile REST client and HTTP interfaces
 
     /**
-     * Where a proxy of an HTTP interface is made ({@code factory.createClient(Foo.class)}).
+     * Where a proxy of an HTTP interface is made ({@code factory.createClient(Foo.class)}), or
+     * imported into an HTTP service group ({@code @ImportHttpServices}).
      *
      * @param client the interface
-     * @param base the base URL of the client the factory's adapter wraps, or null if not known
+     * @param base the base URL of the client the factory's adapter wraps, or of the group, or null
+     *     if not known
      * @param module the module of the code that makes it
-     * @param in the method, constructor or type whose code makes it
+     * @param in the method, constructor or type whose code makes it, or the importing type
      * @param where the evidence
+     * @param annotation the annotation that imports it, or null for a proxy made in code
      */
     private record Proxy(
-        String client, Text base, JavaAnalysis.Module module, EntityId in, Location where) {}
+        String client,
+        Text base,
+        JavaAnalysis.Module module,
+        EntityId in,
+        Location where,
+        String annotation) {}
 
     /** Records the HTTP interface proxies a chain of calls on a proxy factory makes. */
     private void proxy(Invocation invocation, JavaAnalysis.Module m) {
-      Chain chain = chain(invocation.expression(), new Scope(m, invocation.caller()), 0);
+      Scope scope = new Scope(m, invocation.caller());
+      Chain chain = chain(invocation.expression(), scope, 0);
       if (chain.rootType() == null || !PROXY_FACTORIES.contains(chain.rootType())) {
         return;
       }
-      Text base = null;
-      for (Link link : chain.links()) {
-        String method = link.call().method();
-        List<Expression> args = link.call().arguments();
-        if (args.size() != 1) {
+      List<Link> links = chain.links();
+      for (int i = 0; i < links.size(); i++) {
+        Expression.Invoke call = links.get(i).call();
+        if (!call.method().equals("createClient")
+            || call.arguments().size() != 1
+            || !(call.arguments().getFirst() instanceof Expression.TypeRef t)
+            || clients.get(t.binaryName()) == null
+            || !clients.get(t.binaryName()).kind().equals(HTTP_INTERFACE)) {
           continue;
         }
-        if (Set.of("builderFor", "builder", "exchangeAdapter", "clientAdapter").contains(method)) {
-          base = adapterBase(args.getFirst(), link.scope());
-        } else if (method.equals("createClient")
-            && args.getFirst() instanceof Expression.TypeRef t
-            && clients.get(t.binaryName()) != null
-            && clients.get(t.binaryName()).kind().equals(HTTP_INTERFACE)) {
-          Proxy proxy = new Proxy(t.binaryName(), base, m, invocation.caller(), invocation.where());
-          List<Proxy> made = proxies.computeIfAbsent(t.binaryName(), k -> new ArrayList<>());
-          if (!made.contains(proxy)) {
-            made.add(proxy);
+        Chain factory = new Chain(chain.rootType(), links.subList(0, i));
+        Text base = factoryBase(factory, invocation.expression(), scope, 0);
+        Proxy proxy =
+            new Proxy(t.binaryName(), base, m, invocation.caller(), invocation.where(), null);
+        List<Proxy> made = proxies.computeIfAbsent(t.binaryName(), k -> new ArrayList<>());
+        if (!made.contains(proxy)) {
+          made.add(proxy);
+        }
+      }
+    }
+
+    /**
+     * The base URL of the client behind a chain on a proxy factory: that of the adapter it is given
+     * ({@code builderFor(adapter)}), or, for a factory injected, that of the bean made in another
+     * method; null if not known.
+     */
+    private Text factoryBase(Chain chain, Expression e, Scope scope, int depth) {
+      Text base = null;
+      boolean adapted = false;
+      for (Link link : chain.links()) {
+        List<Expression> args = link.call().arguments();
+        if (ADAPTER_METHODS.contains(link.call().method()) && args.size() == 1) {
+          base = adapterBase(args.getFirst(), link.scope(), depth);
+          adapted = true;
+        }
+      }
+      return adapted || made(chain) ? base : injected(e, scope, Set.of(chain.rootType()), depth);
+    }
+
+    /**
+     * The base URL of the client a proxy factory's adapter wraps ({@code
+     * RestClientAdapter.create(restClient)}): its {@code baseUrl}, or a {@code RestTemplate}'s
+     * {@code rootUri}, or, for an adapter injected, that of the bean made in another method; null
+     * if not known.
+     */
+    private Text adapterBase(Expression adapter, Scope scope, int depth) {
+      Chain made = chain(adapter, scope, 0);
+      if (made.rootType() == null
+          || !PROXY_ADAPTERS.contains(made.rootType())
+              && !made.rootType().equals(EXCHANGE_ADAPTER)) {
+        return null;
+      }
+      Text base = null;
+      boolean created = false;
+      for (Link link : made.links()) {
+        String method = link.call().method();
+        List<Expression> args = link.call().arguments();
+        if ((method.equals("create") || method.equals("forClient")) && args.size() == 1) {
+          base = clientBase(args.getFirst(), link.scope());
+          created = true;
+        }
+      }
+      if (created || made(made)) {
+        return base;
+      }
+      Set<String> types = new HashSet<>(Set.of(made.rootType()));
+      if (made.rootType().equals(EXCHANGE_ADAPTER)) {
+        types.addAll(PROXY_ADAPTERS);
+      }
+      return injected(adapter, scope, types, depth);
+    }
+
+    /** Whether a chain starts from a static call or constructor, so it is not a bean injected. */
+    private static boolean made(Chain chain) {
+      return chain.links().stream()
+          .anyMatch(l -> l.call().receiver() instanceof Expression.TypeRef);
+    }
+
+    /**
+     * The base URL behind a proxy factory or adapter injected as a parameter or field: that of the
+     * bean of its type made by a {@code @Bean} method in the same repository's code, the only one
+     * or the one named as the parameter or field, as Spring picks it; null if none or several
+     * match.
+     */
+    private Text injected(Expression e, Scope scope, Set<String> types, int depth) {
+      Expression root = e instanceof Expression.Invoke i ? i.root() : e;
+      String name =
+          switch (root) {
+            case Expression.Param p -> {
+              ModuleStructure.Parameter parameter = parameter(scope.in(), p.index());
+              yield parameter == null ? null : parameter.name();
+            }
+            case Expression.FieldRef f -> f.name();
+            case null, default -> null;
+          };
+      if (name == null || depth > 2) {
+        return null;
+      }
+      Map<String, Text> beans = new LinkedHashMap<>();
+      for (JavaAnalysis.Module m : code.modules()) {
+        if (!m.repo().equals(scope.module().repo())) {
+          continue;
+        }
+        for (TypeDecl type : m.structure().types()) {
+          for (Member member : type.members()) {
+            if (member.returns() != null
+                && types.contains(member.returns())
+                && code.annotationPath(member.annotations(), BEAN) != null) {
+              beans.put(member.id().toString(), beanBase(member, m, depth + 1));
+            }
+          }
+        }
+      }
+      if (beans.size() == 1) {
+        return beans.values().iterator().next();
+      }
+      for (Map.Entry<String, Text> bean : beans.entrySet()) {
+        String key = bean.getKey();
+        if (key.substring(key.indexOf('#') + 1, key.indexOf('(')).equals(name)) {
+          return bean.getValue();
+        }
+      }
+      return null;
+    }
+
+    /** The base URL behind the proxy factory or adapter a bean method makes, or null. */
+    private Text beanBase(Member bean, JavaAnalysis.Module m, int depth) {
+      Scope scope = new Scope(m, bean.id());
+      Text base = null;
+      for (Invocation invocation : m.structure().invocations()) {
+        if (!invocation.caller().equals(bean.id())) {
+          continue;
+        }
+        Chain chain = chain(invocation.expression(), scope, 0);
+        Text found = null;
+        if (chain.rootType() != null && PROXY_FACTORIES.contains(chain.rootType())) {
+          found = factoryBase(chain, invocation.expression(), scope, depth);
+        } else if (chain.rootType() != null && PROXY_ADAPTERS.contains(chain.rootType())) {
+          found = adapterBase(invocation.expression(), scope, depth);
+        }
+        base = found != null ? found : base;
+      }
+      return base;
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // HTTP service groups: @ImportHttpServices and the group configurers
+
+    /**
+     * A base URL an HTTP service group configurer sets.
+     *
+     * @param groups the groups it names ({@code filterByName}), empty for all
+     * @param builder the client builder it configures: a RestClient configurer's applies to
+     *     RestClient groups, a WebClient configurer's to WebClient groups
+     * @param base the base URL
+     * @param module the module of the configurer
+     */
+    private record GroupBase(
+        Set<String> groups, String builder, Text base, JavaAnalysis.Module module) {}
+
+    /**
+     * Reads the group configurers of a module: a chain on the groups ({@code
+     * groups.filterByName("a").forEachClient((group, builder) -> builder.baseUrl(url))}) and the
+     * {@code baseUrl} set on the client builder inside it.
+     */
+    private void configurers(JavaAnalysis.Module m) {
+      List<Invocation> invocations = m.structure().invocations();
+      for (Invocation outer : invocations) {
+        if (!GROUPS.equals(outer.rootType())) {
+          continue;
+        }
+        List<Expression.Invoke> calls = outer.expression().chain();
+        if (!Set.of("forEachClient", "forEachGroup").contains(calls.getLast().method())) {
+          continue;
+        }
+        Set<String> groups = new LinkedHashSet<>();
+        boolean named = true;
+        for (Expression.Invoke call : calls.subList(0, calls.size() - 1)) {
+          named &= call.method().equals("filterByName");
+          for (Expression a : call.arguments()) {
+            if (a instanceof Expression.Literal l) {
+              groups.add(l.value());
+            } else {
+              named = false;
+            }
+          }
+        }
+        if (!named) {
+          // A filter that is not a list of names: which groups it applies to is not known.
+          continue;
+        }
+        Text base = null;
+        String builder = null;
+        for (Invocation inner : invocations) {
+          if (inner == outer
+              || !CLIENT_BUILDERS.contains(inner.rootType())
+              || !inner.caller().equals(outer.caller())
+              || !within(inner.where(), outer.where())) {
+            continue;
+          }
+          for (Expression.Invoke call : inner.expression().chain()) {
+            if (call.method().equals("baseUrl") && call.arguments().size() == 1) {
+              base = text(call.arguments().getFirst(), new Scope(m, inner.caller()));
+              builder = inner.rootType();
+            }
+          }
+        }
+        if (base != null) {
+          groupBases.add(new GroupBase(Set.copyOf(groups), builder, base, m));
+        }
+      }
+    }
+
+    private static boolean within(Location inner, Location outer) {
+      return inner.file().path().equals(outer.file().path())
+          && inner.start() >= outer.start()
+          && inner.end() <= outer.end();
+    }
+
+    /**
+     * Records the HTTP interfaces a module's {@code @ImportHttpServices} put in a group, as proxies
+     * made by the importing type, with the group's base URL.
+     */
+    private void imports(JavaAnalysis.Module m) {
+      for (TypeDecl type : m.structure().types()) {
+        for (Annotation written : type.annotations()) {
+          List<Annotation> path = code.annotationPath(written, IMPORT_HTTP_SERVICES);
+          if (path == null) {
+            continue;
+          }
+          Annotation a = path.getLast();
+          String group = Objects.requireNonNullElse(firstOf(a, "group"), DEFAULT_GROUP);
+          Set<String> listed = new LinkedHashSet<>(a.values("value"));
+          listed.addAll(a.values("types"));
+          Set<String> packages = new LinkedHashSet<>(a.values("basePackages"));
+          for (String c : a.values("basePackageClasses")) {
+            TypeDecl t = code.type(c);
+            packages.add(t != null ? t.packageName() : packageOf(c));
+          }
+          // A group's clients are WebClients if it says so, else RestClients.
+          String builder =
+              "WEB_CLIENT".equals(firstOf(a, "clientType"))
+                  ? REACTIVE + "WebClient$Builder"
+                  : WEB + "RestClient$Builder";
+          List<Text> bases = groupBaseUrls(group, builder, m);
+          for (Map.Entry<String, Client> c : clients.entrySet()) {
+            if (!c.getValue().kind().equals(HTTP_INTERFACE)) {
+              continue;
+            }
+            String pkg = code.type(c.getKey()).packageName();
+            boolean covered =
+                listed.contains(c.getKey())
+                    || packages.stream().anyMatch(p -> pkg.equals(p) || pkg.startsWith(p + "."));
+            if (!covered) {
+              continue;
+            }
+            List<Proxy> made = proxies.computeIfAbsent(c.getKey(), k -> new ArrayList<>());
+            for (Text base : bases) {
+              Proxy proxy =
+                  new Proxy(
+                      c.getKey(),
+                      base,
+                      m,
+                      typeId(type.binaryName()),
+                      written.where() != null ? written.where() : type.where(),
+                      written.type());
+              if (!made.contains(proxy)) {
+                made.add(proxy);
+              }
+            }
           }
         }
       }
     }
 
     /**
-     * The base URL of the client a proxy factory's adapter wraps ({@code
-     * RestClientAdapter.create(restClient)}): its {@code baseUrl}, or a {@code RestTemplate}'s
-     * {@code rootUri}, or null.
+     * The base URLs of a group's clients: those its configurers of the group's client type in the
+     * same repository set, those naming it before those for all groups, else Spring Boot's property
+     * for it.
      */
-    private Text adapterBase(Expression adapter, Scope scope) {
-      Chain made = chain(adapter, scope, 0);
-      if (made.rootType() == null || !PROXY_ADAPTERS.contains(made.rootType())) {
-        return null;
-      }
-      Text base = null;
-      for (Link link : made.links()) {
-        String method = link.call().method();
-        List<Expression> args = link.call().arguments();
-        if ((method.equals("create") || method.equals("forClient")) && args.size() == 1) {
-          base = clientBase(args.getFirst(), link.scope());
+    private List<Text> groupBaseUrls(String group, String builder, JavaAnalysis.Module m) {
+      List<Text> named = new ArrayList<>();
+      List<Text> all = new ArrayList<>();
+      for (GroupBase g : groupBases) {
+        if (!g.module().repo().equals(m.repo()) || !g.builder().equals(builder)) {
+          continue;
+        }
+        List<Text> into = g.groups().isEmpty() ? all : g.groups().contains(group) ? named : null;
+        if (into != null && !into.contains(g.base())) {
+          into.add(g.base());
         }
       }
-      return base;
+      if (!named.isEmpty()) {
+        return named;
+      }
+      if (!all.isEmpty()) {
+        return all;
+      }
+      return List.of(new Text("${" + GROUP_BASE_URL.formatted(group) + "}", List.of()));
     }
 
     private Text clientBase(Expression client, Scope scope) {
@@ -998,6 +1320,26 @@ public final class HttpClientExtractor {
       if (links.isEmpty()) {
         return null;
       }
+      if (FLUENT_REQUESTS.contains(rootType)) {
+        // Request.get(uri).execute(): a fluent request is read where it is executed, so one kept
+        // in a variable counts once.
+        boolean executed = links.stream().anyMatch(l -> l.call().method().equals("execute"));
+        return executed ? fluentRequest(links.getFirst()) : null;
+      }
+      if (FLUENT_EXECUTORS.contains(rootType)) {
+        // executor.execute(Request.post(uri))
+        for (Link link : links) {
+          List<Expression> args = link.call().arguments();
+          if (link.call().method().equals("execute")
+              && args.size() == 1
+              && args.getFirst() instanceof Expression.Invoke request
+              && request.root() instanceof Expression.TypeRef t
+              && FLUENT_REQUESTS.contains(t.binaryName())) {
+            return fluentRequest(new Link(request.chain().getFirst(), link.scope()));
+          }
+        }
+        return null;
+      }
       Expression.Invoke last = links.getLast().call();
       Scope scope = links.getLast().scope();
       String apache = APACHE_REQUESTS.get(rootType);
@@ -1045,6 +1387,24 @@ public final class HttpClientExtractor {
         return null;
       }
       return new Request(http == null && !kind.equals(APACHE_CLIENT) ? "GET" : http, url);
+    }
+
+    /**
+     * The request an Apache fluent {@code Request}'s factory makes: {@code get(uri)} and the like
+     * (4's {@code Get(uri)}), or {@code create(method, uri)}; null for anything else.
+     */
+    private Request fluentRequest(Link first) {
+      Expression.Invoke call = first.call();
+      List<Expression> args = call.arguments();
+      if (!(call.receiver() instanceof Expression.TypeRef)) {
+        return null;
+      }
+      if (call.method().equals("create") && args.size() == 2) {
+        return new Request(httpMethod(args.getFirst()), url(args.get(1), first.scope()));
+      }
+      return args.size() == 1 && HTTP_METHODS.contains(upper(call.method()))
+          ? new Request(upper(call.method()), url(args.getFirst(), first.scope()))
+          : null;
     }
 
     /**

@@ -12,6 +12,8 @@ import io.lantern.core.vocabulary.TypeKind;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.link.CrossRepoLinks;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -182,5 +184,90 @@ class VocabularyRegistryIT {
         .hasMessageContaining("cycle");
     assertThat(registry.current().revision()).isEqualTo(added);
     assertThat(registry.current().find(a).orElseThrow().parent()).isNull();
+  }
+
+  @Test
+  void aTypeBelongsToTheSourceThatFirstDefinedIt() {
+    String name = unique("vault");
+    long added = registry.apply("test-a", List.of(entity(name, null, null, AttributeSchema.NONE)));
+    long changed =
+        registry.apply("test-a", List.of(entity(name, null, "lock", AttributeSchema.NONE)));
+
+    assertThat(changed).isGreaterThan(added);
+    assertThat(registry.owner(name)).contains("test-a");
+    assertThat(registry.owner(unique("unknown"))).isEmpty();
+  }
+
+  @Test
+  void anotherSourceMayNotChangeATypeEvenAdditively() {
+    String name = unique("vault");
+    VocabularyType original = entity(name, null, null, AttributeSchema.NONE);
+    long added = registry.apply("test-a", List.of(original));
+    VocabularyType additive = entity(name, null, "lock", AttributeSchema.NONE);
+    String other = unique("other");
+
+    assertThatThrownBy(
+            () ->
+                registry.apply(
+                    "test-b", List.of(entity(other, null, null, AttributeSchema.NONE), additive)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'" + name + "' belongs to 'test-a'")
+        .hasMessageContaining("'test-b' defines it differently")
+        .hasMessageContaining("\"icon\":\"lock\"");
+    assertThat(registry.current().revision()).isEqualTo(added);
+    assertThat(registry.current().find(name)).contains(original);
+    assertThat(registry.current().find(other)).isEmpty();
+    assertThat(registry.owner(name)).contains("test-a");
+  }
+
+  @Test
+  void anotherSourceMayRepeatADefinitionUnchanged() {
+    String name = unique("vault");
+    VocabularyType type = entity(name, null, null, AttributeSchema.NONE);
+    long added = registry.apply("test-a", List.of(type));
+
+    assertThat(registry.apply("test-b", List.of(type))).isEqualTo(added);
+    assertThat(registry.current().revision()).isEqualTo(added);
+    assertThat(registry.owner(name)).contains("test-a");
+  }
+
+  @Test
+  void anotherSourceMayNotRedefineABuiltInType() {
+    VocabularyType service = registry.current().find(BuiltInTypes.SERVICE).orElseThrow();
+    VocabularyType described =
+        new VocabularyType(
+            service.name(),
+            service.kind(),
+            service.parent(),
+            service.c4Level(),
+            service.shape(),
+            service.icon(),
+            "A service, redefined",
+            service.attributeSchema());
+    long before = registry.current().revision();
+
+    assertThatThrownBy(() -> registry.apply("test", List.of(described)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'service' belongs to 'built-in'");
+    assertThat(registry.current().revision()).isEqualTo(before);
+  }
+
+  @Test
+  void theAppsSourcesOwnTheirTypesAndLoadingThemAgainChangesNothing() {
+    long before = registry.current().revision();
+
+    FactStoreConfiguration.loadVocabulary(registry);
+
+    assertThat(registry.current().revision()).isEqualTo(before);
+    BuiltInTypes.definitions()
+        .forEach(t -> assertThat(registry.owner(t.name())).contains(BuiltInTypes.SOURCE));
+    CrossRepoLinks.vocabulary()
+        .forEach(
+            t -> assertThat(registry.owner(t.name())).contains(CrossRepoLinks.VOCABULARY_SOURCE));
+    MessagingExtractor.vocabulary()
+        .forEach(
+            t ->
+                assertThat(registry.owner(t.name()))
+                    .contains(MessagingExtractor.VOCABULARY_SOURCE));
   }
 }
