@@ -147,4 +147,4 @@ senders where only main-service calls the service.
   Java extractor's `CALLS`). When none of them calls it (it runs from a listener or a schedule of
   the library, say), or only one unit runs it, every unit running it sends, as before. Listeners
   and bindings are unchanged.
-- The step's version becomes 3.
+- The step's version becomes 4.
