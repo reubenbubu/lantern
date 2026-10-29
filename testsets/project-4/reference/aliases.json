@@ -1,0 +1,6 @@
+{
+  "elements": {},
+  "triggers": {
+    "POST /api/composite/organizations/{org}/tasks": "POST /api/organizations/{org}/tasks"
+  }
+}

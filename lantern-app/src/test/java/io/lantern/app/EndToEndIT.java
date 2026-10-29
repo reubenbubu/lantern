@@ -66,6 +66,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Runs the whole pipeline (register, snapshot, build, extract, summarize, compose, render) twice
@@ -246,6 +248,16 @@ class EndToEndIT {
                             .resolve("shop")
                             .resolve(Long.toString(twice.first().snapshot().number()))));
     assertThat(twice.first().documents().get(3).document().title()).isEqualTo("shop");
+    // The run record next to the documents names every role's model and counts the run's calls.
+    JsonNode record =
+        JsonMapper.builder().build().readTree(Files.readString(twice.first().runRecord()));
+    assertThat(twice.first().runRecord().getParent())
+        .isEqualTo(twice.first().documents().getFirst().file().getParent());
+    assertThat(record.get("calls").asLong()).isEqualTo(twice.first().llm().calls());
+    assertThat(record.get("roles")).hasSize(Role.values().length);
+    record
+        .get("roles")
+        .forEach(role -> assertThat(role.get("model").asString()).isEqualTo("fake-model"));
 
     // The same pipeline through the command line: everything is reused again.
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -260,7 +272,8 @@ class EndToEndIT {
         .contains("LLM calls: 0, tokens: 0, cost: $0")
         .contains("shop.brief.html")
         .contains("shop.c4.html")
-        .contains("_system.c4.html");
+        .contains("_system.c4.html")
+        .contains("run.json");
   }
 
   @Test
