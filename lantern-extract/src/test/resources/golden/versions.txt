@@ -1,5 +1,6 @@
 # <golden folder> <extractor> <VERSION> <sha256 of the folder's files>
-# Checked by GoldenVersionGuardTest: change golden files only together with the extractor's VERSION.
+# Checked by GoldenVersionGuardTest. A changed hash must come with a changed VERSION; the test cannot
+# enforce that, so review checks it.
 docs docs 1 0ca285b85389857e4f1dd6a74c4b77bcea9f54cb1aabde822827324a1b3d0d7a
 http http-client 3 b6955111a0f262a5f786561ebfd022b06feb3596996f1d0792c9b8b43bde7a58
 java java 2 4055545611cb288bfadbb846ffa7c4c80d78422280c7c22fc0f11355cf1822f8
