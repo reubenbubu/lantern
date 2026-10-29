@@ -180,6 +180,11 @@ final class Assembler {
       }
       case BuiltInTypes.SYSTEM -> systemName;
       case C4Views.DATABASE -> {
+        Optional<String> display = knowledge.attribute(id, "display-name");
+        if (display.isPresent()) {
+          // A unit's own database is named by the linker (#291).
+          yield display.get();
+        }
         // server/database, the server host:port or the unit an embedded database belongs to.
         int slash = key.lastIndexOf('/');
         if (slash < 0) {
