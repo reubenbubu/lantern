@@ -1,6 +1,7 @@
 package io.lantern.compose;
 
 import io.lantern.core.document.Block;
+import io.lantern.core.document.Callout;
 import io.lantern.core.document.CrossReference;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
@@ -45,6 +46,12 @@ final class RepoSections {
 
   /** The software system all repositories of a snapshot form, the system scope's subject. */
   static final EntityId SYSTEM = new EntityId(BuiltInTypes.SYSTEM, "snapshot");
+
+  /**
+   * What the system's overview says when no purpose is known: plainly, without a reason, since the
+   * model may have been left out, refused or not asked.
+   */
+  static final String UNKNOWN_PURPOSE = "The system's purpose is not known.";
 
   /** How many repositories the system's name lists before it counts them instead. */
   private static final int NAMED_REPOS = 4;
@@ -235,8 +242,12 @@ final class RepoSections {
     }
   }
 
-  /** The system's repositories, each with the deployable units whose own code it holds. */
+  /**
+   * The system's purpose (ADR 0060), then its repositories, each with the deployable units whose
+   * own code it holds.
+   */
   private void systemOverview(String section, List<Block> blocks) {
+    blocks.add(purpose(section));
     List<ListBlock.Item> items = new ArrayList<>();
     for (String name : repos) {
       EntityId id = Assembler.repo(name);
@@ -269,6 +280,21 @@ final class RepoSections {
     if (!items.isEmpty()) {
       blocks.add(new ListBlock(assembler.id(section, "repositories"), false, items, List.of()));
     }
+  }
+
+  /**
+   * The system's purpose as the LLM worded it, marked as inferred when it cites no README claim
+   * (ADR 0059), or stated plainly as unknown in a note, which cites nothing (docs/design.md, LLM
+   * integration, Grounding).
+   */
+  private Block purpose(String section) {
+    String id = assembler.id(section, "purpose");
+    Assembler.Text purpose = assembler.purpose();
+    if (purpose == null) {
+      return new Callout(
+          id, Callout.Variant.NOTE, null, null, List.of(TextRun.of(UNKNOWN_PURPOSE)), List.of());
+    }
+    return new Paragraph(id, purpose.content(), purpose.facts());
   }
 
   private Optional<Paragraph> paragraph(String section, EntityId entity) {
