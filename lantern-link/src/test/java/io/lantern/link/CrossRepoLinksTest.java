@@ -873,6 +873,33 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void twoPlaceholderDatasourcesOfOneUnitAreSeparateDatabases() {
+    unit("a", "app", "app");
+    config("a", "app", "application.properties", "spring.application.name", "app", null);
+    datasource(
+        "a",
+        "app",
+        "application.properties",
+        "jdbc:postgresql://${db.host}/${db.name}",
+        "\"unresolved\":[\"db.host\",\"db.name\"]");
+    add(
+        PersistenceExtractor.NAME,
+        "module:g:app",
+        PersistenceExtractor.DATASOURCE,
+        FactObject.string("jdbc:postgresql://${rep.host}/${rep.name}"),
+        "{\"key\":\"app.reporting.url\",\"technology\":\"PostgreSQL\","
+            + "\"unresolved\":[\"rep.host\",\"rep.name\"]}",
+        "a:src/main/resources/application.properties#9",
+        1.0);
+
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactlyInAnyOrder(
+            "service:g:app USES_DATABASE database:g:app/postgresql:g:app",
+            "service:g:app USES_DATABASE database:g:app/postgresql:g:app@app.reporting.url");
+  }
+
+  @Test
   void aTableIsAnothersDataOnlyWhereItsMigrationsRun() {
     unit("s", "shop", "shop");
     // shop's tables live in shop-db, where its migrations run; it also reaches a reporting copy.

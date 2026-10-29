@@ -78,7 +78,9 @@ its path is known, and what is matched when.
   unit's datasources come from its config as Spring Boot finds it, one per key; units on the same
   server and database share the entity, which gets a `technology` fact (the attribute type now
   describes containers, not only units). An embedded database without a server is the unit's own
-  (keyed by the unit), and so is one whose server or database is a placeholder no config resolves (#255): it is named by its database when that is written out, else by the unit, and is never shared. The link lists the schemas the unit's migrations build. A unit whose code
+  (keyed by the unit), and so is one whose server or database is a placeholder no config resolves
+  (#255): it is named by its database when that is written out, else by the unit, and is never
+  shared. The link lists the schemas the unit's migrations build. A unit whose code
   reads or writes (`READS_TABLE`, `WRITES_TABLE`, ADR 0036) a table, by name, that another unit's
   schema declares and that it does not declare itself, `ACCESSES_DATA_OF` that unit, with the
   tables in `reads` and `writes` (DB-5), when in the view the database of the first unit's main
