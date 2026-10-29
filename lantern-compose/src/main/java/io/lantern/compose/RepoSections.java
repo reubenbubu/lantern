@@ -3,6 +3,7 @@ package io.lantern.compose;
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
 import io.lantern.core.document.CrossReference;
+import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.ListBlock;
@@ -136,6 +137,12 @@ final class RepoSections {
     return assembler.documentFacts();
   }
 
+  /** The glossary of the acronyms the document, composed without it, uses (ADR 0063). */
+  Section glossary(Document document) {
+    return Glossary.BUNDLED.section(
+        assembler.id(SectionKind.GLOSSARY.jsonName()), QualityBar.acronymsUsed(document));
+  }
+
   Section section(SectionKind kind) {
     String id = assembler.id(kind.jsonName());
     List<Block> blocks = new ArrayList<>();
@@ -168,6 +175,8 @@ final class RepoSections {
       case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
       case TECHNOLOGY_CURRENCY -> blocks.addAll(brief().technologyCurrency(id));
       case QUALITY_EVIDENCE -> blocks.addAll(brief().qualityEvidence(id));
+      case GLOSSARY ->
+          throw new IllegalArgumentException("The glossary is built from the whole document");
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
   }

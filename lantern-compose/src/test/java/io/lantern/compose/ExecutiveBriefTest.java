@@ -125,6 +125,7 @@ class ExecutiveBriefTest {
             "quality_evidence",
             "context",
             "containers",
+            "glossary",
             "quality");
     assertThat(section(document, "headlines").title()).isEqualTo("At a glance");
   }

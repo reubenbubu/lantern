@@ -2,7 +2,7 @@
 // numbers, risks and a few large diagrams. It shares the plain page's components and theme tokens
 // and adds a slim header with the sections and the theme switch. See docs/adr/0015.
 import { useEffect, useMemo, useRef } from 'react';
-import { buildLookup, LookupContext, SectionView } from '../DocumentView.tsx';
+import { buildLookup, LookupContext, Pinned, SectionView } from '../DocumentView.tsx';
 import { Breakable } from '../explorer/Breakable.tsx';
 import type { Document as LanternDocument } from '../generated/document.ts';
 import { ThemeButton, useTheme } from '../theme.tsx';
@@ -89,6 +89,7 @@ export function Brief({ document: doc }: { document: LanternDocument }) {
             <h1>
               <Breakable text={doc.title} />
             </h1>
+            <Pinned document={doc} className="brief-source" />
             <p className="brief-source">
               Snapshot {doc.source.snapshot} · Lantern {doc.source.toolVersion}
             </p>

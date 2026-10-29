@@ -2,6 +2,7 @@
   "schemaVersion" : 1,
   "id" : "shop.brief",
   "title" : "shop",
+  "audience" : "leadership",
   "template" : {
     "name" : "executive-brief",
     "version" : "1"
@@ -9,7 +10,11 @@
   "source" : {
     "snapshot" : 1,
     "vocabularyRevision" : 3,
-    "toolVersion" : "0.1.0-test"
+    "toolVersion" : "0.1.0-test",
+    "commits" : {
+      "shop" : "785739c2c39ae7462a6e2599d65b114bbd436ffd"
+    },
+    "date" : "1970-01-01"
   },
   "entities" : [ {
     "id" : "library:com.example.shop:shop-api",
@@ -1171,38 +1176,28 @@
     } ],
     "sections" : [ ]
   }, {
+    "id" : "glossary",
+    "title" : "Glossary",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "glossary.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The document uses no acronyms."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "quality",
     "title" : "Quality report",
     "facts" : [ ],
     "blocks" : [ {
       "kind" : "quality-report",
       "id" : "quality.report",
-      "failures" : [ {
-        "check" : "A legend for every shape, color, line style and arrowhead used",
-        "target" : {
-          "kind" : "block",
-          "id" : "context.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The template draws no legend."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "It states its reader",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document names no audience; the view definition it was composed from has none."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "It pins its snapshot (commits) and date",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
-        } ],
-        "facts" : [ ]
-      } ],
+      "failures" : [ ],
       "facts" : [ ]
     } ],
     "sections" : [ ]

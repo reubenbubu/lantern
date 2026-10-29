@@ -2,8 +2,9 @@
   "document" : {
     "id" : "system:c4",
     "title" : "System",
-    "subtitle" : "The system's purpose is not known.\n\n- base: runs [worker](#/containers/el-service-com-example-worker)\n- shop: runs [shop-app](#/containers/el-service-com-example-app)\n\n**Start here**\n- GET /orders on [shop-app](#/containers/el-service-com-example-app): Controller.list in `pom.xml`.\n- Scheduled job (0 0 * * * *) on [shop-app](#/containers/el-service-com-example-app): Jobs.run in `pom.xml`.\n- Read `README.md` in shop.\n- The decision records of shop are in `docs/adr/` (1 record).",
-    "version" : "1"
+    "subtitle" : "The system's purpose is not known.\n\n- base: runs [worker](#/containers/el-service-com-example-worker)\n- shop: runs [shop-app](#/containers/el-service-com-example-app)\n\n**Start here**\n- GET /orders on [shop-app](#/containers/el-service-com-example-app): Controller.list in `pom.xml`.\n- Scheduled job (0 0 * * * *) on [shop-app](#/containers/el-service-com-example-app): Jobs.run in `pom.xml`.\n- Read `README.md` in shop.\n- The decision records of shop are in `docs/adr/` (1 record).\n\nFor architects and new engineers. Pinned to commits base `aaaaaaaaaaaa`, shop `aaaaaaaaaaaa`, as of 1970-01-01.",
+    "version" : "1",
+    "updated" : "1970-01-01"
   },
   "elements" : {
     "database-db-5432-shop" : {
@@ -27,7 +28,8 @@
       "kind" : "container",
       "name" : "worker",
       "parent" : "system-snapshot",
-      "tag" : "Service"
+      "tag" : "Service",
+      "technology" : "Spring Boot 3.5.0 / Java 21"
     },
     "system-snapshot" : {
       "kind" : "system",
@@ -116,7 +118,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Acronyms are explained in the glossary**: The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST.", "**It states its reader**: The document names no audience; the view definition it was composed from has none.", "**It pins its snapshot (commits) and date**: The document names its snapshot's number but not its commits or a date; the document model holds neither." ]
+      "items" : [ "**Acronyms are explained in the glossary**: The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST." ]
     } ]
   }, {
     "id" : "containers",
@@ -204,7 +206,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Containers of base and shop](#/containers/containers-diagram)): The template's legend has no entry for the dashed boundary.", "**Containers and components have a technology** ([Containers of base and shop](#/containers/containers-diagram)): No technology for worker.", "**Every line is labelled with an intent phrase** ([Containers of base and shop](#/containers/containers-diagram)): Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\").", "**README claims agree with the code** ([Claim the code contradicts](#/containers/containers-contradicted-claim)): `README.md`, line 3, in shop: “The app keeps its orders in MySQL.” is contradicted by 1 fact of the code." ]
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Containers of base and shop](#/containers/containers-diagram)): The template's legend has no entry for the dashed boundary.", "**Every line is labelled with an intent phrase** ([Containers of base and shop](#/containers/containers-diagram)): Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\").", "**README claims agree with the code** ([Claim the code contradicts](#/containers/containers-contradicted-claim)): `README.md`, line 3, in shop: “The app keeps its orders in MySQL.” is contradicted by 1 fact of the code." ]
     } ]
   }, {
     "id" : "components-service-com-example-app",
@@ -283,7 +285,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): The template's legend has no entry for the dashed boundary.", "**Containers and components have a technology** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): No technology for worker.", "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ]
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): The template's legend has no entry for the dashed boundary.", "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ]
     } ]
   }, {
     "id" : "sequences-shop-app-controller-list",

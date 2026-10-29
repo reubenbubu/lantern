@@ -2,7 +2,7 @@
 // their evidence, origin and confidence; or the facts a citation names; or, with nothing selected,
 // what the document was made from.
 import type { MouseEvent } from 'react';
-import { Content, EntityLink, isPlainClick, useLookup } from '../DocumentView.tsx';
+import { Content, EntityLink, isPlainClick, shortCommit, useLookup } from '../DocumentView.tsx';
 import type { Document as LanternDocument, FactEnvelope } from '../generated/document.ts';
 import { Breakable } from './Breakable.tsx';
 import { type EntityTree, entityType, type Placement, typeLabel } from './model.ts';
@@ -52,8 +52,24 @@ function DocumentDetails({ document }: { document: LanternDocument }) {
         <dd>
           {template.name} {template.version}
         </dd>
+        {document.audience && (
+          <>
+            <dt>Reader</dt>
+            <dd>{document.audience}</dd>
+          </>
+        )}
         <dt>Snapshot</dt>
-        <dd>{source.snapshot}</dd>
+        <dd>
+          {source.snapshot}, taken {source.date}
+        </dd>
+        <dt>Commits</dt>
+        <dd>
+          {Object.entries(source.commits).map(([repo, commit]) => (
+            <div key={repo}>
+              {repo} <code title={commit}>{shortCommit(commit)}</code>
+            </div>
+          ))}
+        </dd>
         <dt>Vocabulary revision</dt>
         <dd>{source.vocabularyRevision}</dd>
         <dt>Made by</dt>

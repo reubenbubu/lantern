@@ -12,8 +12,10 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -318,7 +320,8 @@ final class SampleDocument {
         "orders",
         "architect",
         new TemplateRef("architecture-explorer", "1"),
-        new DocumentSource(3, 2, "0.1.0-SNAPSHOT"),
+        new DocumentSource(
+            3, 2, "0.1.0-SNAPSHOT", Map.of("orders", "a".repeat(40)), LocalDate.of(2026, 1, 15)),
         List.of(
             new DocumentEntity(
                 ORDERS,

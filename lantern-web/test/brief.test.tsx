@@ -15,12 +15,14 @@ describe('the Executive Brief', () => {
 
   test('is composer output for the brief', () => {
     expect(document.template.name).toBe('executive-brief');
-    expect(document.sections.map((s) => s.id)).toEqual(['overview', 'headlines', 'risks', 'blast_radius', 'technology_currency', 'quality_evidence', 'context', 'containers', 'quality']);
+    expect(document.sections.map((s) => s.id)).toEqual(['overview', 'headlines', 'risks', 'blast_radius', 'technology_currency', 'quality_evidence', 'context', 'containers', 'glossary', 'quality']);
   });
 
   test('opens with the title and links every section from its header', () => {
     expect(html).toContain('Executive brief');
     expect(html).toContain(`Snapshot ${document.source.snapshot}`);
+    expect(html).toContain(`For ${document.audience}. Pinned to commit`);
+    expect(html).toContain(`, as of ${document.source.date}.`);
     for (const section of document.sections) {
       expect(html).toContain(`<a href="#${section.id}">${section.title}</a>`);
       expect(html).toContain(`id="${section.id}"`);

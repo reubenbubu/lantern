@@ -10,7 +10,11 @@
   "source" : {
     "snapshot" : 3,
     "vocabularyRevision" : 2,
-    "toolVersion" : "0.1.0-SNAPSHOT"
+    "toolVersion" : "0.1.0-SNAPSHOT",
+    "commits" : {
+      "orders" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "date" : "2026-01-15"
   },
   "entities" : [ {
     "id" : "database:orders-db",
