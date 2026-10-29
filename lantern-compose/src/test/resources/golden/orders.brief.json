@@ -774,6 +774,32 @@
     } ],
     "sections" : [ ]
   }, {
+    "id" : "quality_evidence",
+    "title" : "Quality evidence",
+    "levels" : [ "L0", "L1" ],
+    "entity" : "repo:orders",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "quality_evidence.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No module of orders declares a test library Lantern recognizes, such as JUnit or TestNG, so Lantern found no evidence of tests, architecture tests or coverage."
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "quality_evidence.goals",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "Quality goals are unrecorded: nothing in the snapshot states the availability, performance, security or other targets orders must meet."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "context",
     "title" : "System context",
     "levels" : [ "L0", "L1" ],
@@ -872,14 +898,7 @@
     "blocks" : [ {
       "kind" : "quality-report",
       "id" : "quality.report",
-      "failures" : [ {
-        "check" : "Quality evidence",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The brief has no section on tests, architecture tests or coverage."
-        } ],
-        "facts" : [ ]
-      } ],
+      "failures" : [ ],
       "facts" : [ ]
     } ],
     "sections" : [ ]

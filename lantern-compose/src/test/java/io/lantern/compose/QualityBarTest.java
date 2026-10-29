@@ -540,10 +540,11 @@ class QualityBarTest {
             "a",
             section("risks", "Risks", high, low),
             section("blast_radius", "Blast radius"),
-            section("technology_currency", "Technology currency"));
+            section("technology_currency", "Technology currency"),
+            section("quality_evidence", "Quality evidence"));
 
     assertThat(checks(document))
-        .doesNotContain(QualityBar.RISKS, QualityBar.BLAST, QualityBar.CURRENCY)
-        .contains(QualityBar.EVIDENCE);
+        .doesNotContain(
+            QualityBar.RISKS, QualityBar.BLAST, QualityBar.CURRENCY, QualityBar.EVIDENCE);
   }
 }

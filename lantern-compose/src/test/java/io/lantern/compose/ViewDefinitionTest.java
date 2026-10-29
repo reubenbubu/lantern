@@ -55,6 +55,7 @@ class ViewDefinitionTest {
             SectionKind.RISKS,
             SectionKind.BLAST_RADIUS,
             SectionKind.TECHNOLOGY_CURRENCY,
+            SectionKind.QUALITY_EVIDENCE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
             SectionKind.GLOSSARY);

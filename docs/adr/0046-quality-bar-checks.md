@@ -1,6 +1,6 @@
 # 0046: The Quality bar checks the composer makes
 
-Status: accepted (#163), amended by ADR 0048 (#97), ADR 0051 (#159), ADR 0052 (#164) and ADR 0063 (#178), pending the user's review (#24)
+Status: accepted (#163), amended by ADR 0048 (#97), ADR 0051 (#159), ADR 0052 (#164), ADR 0062 (#186) and ADR 0063 (#178), pending the user's review (#24)
 
 ## Context
 
@@ -56,9 +56,9 @@ sequence flows, the Brief's blast radius); those fail, so the report shows what 
   at least one sequence diagram; a top-level section titled Catalog; a table or callout titled
   Decisions.
 - **The Brief** (template `executive-brief`): top-level sections `blast_radius`,
-  `technology_currency` (composed since ADR 0052) and `quality_evidence` (#186); the risks
-  section's risk callouts each have a severity, a consequence and a confidence (ADR 0052) and come
-  in order of severity.
+  `technology_currency` (composed since ADR 0052) and `quality_evidence` (composed since ADR
+  0062); the risks section's risk callouts each have a severity, a consequence and a confidence
+  (ADR 0052) and come in order of severity.
 - **The C4 report** (ADR 0031): a quality report on no page is split by page: each failure goes to
   the end of the page showing what failed, or of the first page, as a list titled "Quality gaps";
   with no failures, a success callout on the first page.
@@ -70,4 +70,4 @@ sequence flows, the Brief's blast radius); those fail, so the report shows what 
 What would make checks pass: legends in Lantern's templates, a glossary, the reader, commits and
 date in the model, the Explorer's start-here list and catalog, sequence flows (#96), intent phrases
 and descriptions (#97), and the Brief's sections (blast radius and technology currency done in
-ADR 0052, quality evidence #186).
+ADR 0052, quality evidence in ADR 0062).

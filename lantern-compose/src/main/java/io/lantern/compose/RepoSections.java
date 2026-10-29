@@ -174,6 +174,7 @@ final class RepoSections {
                   .callouts(id, brief().currencyRisks(id)));
       case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
       case TECHNOLOGY_CURRENCY -> blocks.addAll(brief().technologyCurrency(id));
+      case QUALITY_EVIDENCE -> blocks.addAll(brief().qualityEvidence(id));
       case GLOSSARY ->
           throw new IllegalArgumentException("The glossary is built from the whole document");
     }

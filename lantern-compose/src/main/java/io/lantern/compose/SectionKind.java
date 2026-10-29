@@ -57,6 +57,11 @@ public enum SectionKind {
   /** Runtime and framework versions against the end of their free support. */
   TECHNOLOGY_CURRENCY("Technology currency", EnumSet.of(Level.L0, Level.L1)),
   /**
+   * The test, architecture test and coverage libraries the repository's modules declare, and what
+   * is not known: the tests themselves, coverage and quality goals.
+   */
+  QUALITY_EVIDENCE("Quality evidence", EnumSet.of(Level.L0, Level.L1)),
+  /**
    * What the acronyms the rest of the document uses stand for, from the table bundled with Lantern.
    * Shown at every level; the composer builds it last, from the other sections (ADR 0063).
    */

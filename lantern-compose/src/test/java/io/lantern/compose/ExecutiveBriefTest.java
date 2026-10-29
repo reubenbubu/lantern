@@ -33,7 +33,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The Executive Brief's own sections: headline numbers and risks (ADR 0015), blast radius and
- * technology currency (ADR 0052).
+ * technology currency (ADR 0052), and quality evidence (ADR 0062).
  */
 class ExecutiveBriefTest {
 
@@ -122,6 +122,7 @@ class ExecutiveBriefTest {
             "risks",
             "blast_radius",
             "technology_currency",
+            "quality_evidence",
             "context",
             "containers",
             "glossary",
@@ -618,5 +619,135 @@ class ExecutiveBriefTest {
 
     assertThat(blocks).hasSize(1);
     assertThat(((Callout) blocks.getFirst()).variant()).isEqualTo(Callout.Variant.NOTE);
+  }
+
+  private static List<String> notes(List<Block> blocks) {
+    return blocks.stream()
+        .filter(b -> b instanceof Callout c && c.variant() == Callout.Variant.NOTE)
+        .map(Block::id)
+        .toList();
+  }
+
+  @Test
+  void qualityEvidenceNamesTheTestLibrariesTheModulesDeclare() {
+    List<Block> blocks = section(compose(TestFacts.shop().list()), "quality_evidence").blocks();
+
+    Paragraph summary = (Paragraph) blocks.getFirst();
+    assertThat(summary.id()).isEqualTo("quality_evidence.summary");
+    assertThat(text(summary.content()))
+        .isEqualTo(
+            "The one service or library shop builds declares a test library: a test framework"
+                + " (JUnit). None is an architecture test library such as ArchUnit, so Lantern"
+                + " found no architecture tests.");
+    assertThat(summary.facts()).hasSize(1);
+    Table table = (Table) blocks.get(1);
+    assertThat(table.id()).isEqualTo("quality_evidence.libraries");
+    assertThat(rows(table)).containsExactly("Test framework | JUnit | app");
+    assertThat(table.rows().getFirst().facts()).hasSize(1);
+    assertThat(notes(blocks)).containsExactly("quality_evidence.limits", "quality_evidence.goals");
+    assertThat(text(((Callout) blocks.getLast()).content()))
+        .isEqualTo(
+            "Quality goals are unrecorded: nothing in the snapshot states the availability,"
+                + " performance, security or other targets shop must meet.");
+  }
+
+  @Test
+  void qualityEvidenceSortsLibrariesByKindAndNamesModulesWithout() {
+    List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
+    String parent = "module:com.example:parent";
+    facts.addAll(
+        new TestFacts()
+            .attribute("shop", TOOLS, "packaging", "jar")
+            .relate("shop", "library:com.example:tools", "CONTAINS", TOOLS)
+            .attribute("shop", parent, "packaging", "pom")
+            .relate("shop", parent, "CONTAINS", APP)
+            .dependency("shop", APP, "artifact:com.tngtech.archunit:archunit-junit5", "test", false)
+            .dependency("shop", APP, "artifact:org.mockito:mockito-core", "test", false)
+            .dependency(
+                "shop",
+                APP,
+                "artifact:org.springframework.boot:spring-boot-starter-test",
+                "test",
+                false)
+            .dependency("shop", APP, "artifact:org.testcontainers:postgresql", "test", false)
+            .dependency("shop", APP, "artifact:org.example:fixtures", "test", false)
+            .dependency("shop", TOOLS, "artifact:org.mockito:mockito-core", "compile", false)
+            .list());
+    List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
+
+    assertThat(text(((Paragraph) blocks.getFirst()).content()))
+        .isEqualTo(
+            "1 of the 2 services and libraries shop builds declares test libraries: test frameworks"
+                + " (JUnit, Spring Boot Test), a mocking or assertion library (Mockito), an"
+                + " integration testing tool (Testcontainers) and an architecture test library"
+                + " (ArchUnit). No recognized test library is declared in tools.");
+    assertThat(rows((Table) blocks.get(1)))
+        .containsExactly(
+            "Test framework | JUnit | app",
+            "Test framework | Spring Boot Test | app",
+            "Mocking and assertions | Mockito | app",
+            "Integration testing | Testcontainers | app",
+            "Architecture tests | ArchUnit | app");
+  }
+
+  @Test
+  void qualityEvidenceCountsAServiceOfSeveralModulesOnce() {
+    String api = "module:com.example:api";
+    List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
+    facts.addAll(
+        new TestFacts()
+            .attribute("shop", api, "packaging", "jar")
+            .relate("shop", "service:com.example:app", "CONTAINS", api)
+            .list());
+    List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
+
+    assertThat(text(((Paragraph) blocks.getFirst()).content()))
+        .startsWith("The one service or library shop builds declares a test library:");
+    assertThat(rows((Table) blocks.get(1))).containsExactly("Test framework | JUnit | app");
+  }
+
+  @Test
+  void qualityEvidenceWithoutCodeSaysSo() {
+    String parent = "module:com.example:parent";
+    List<Fact> facts =
+        new TestFacts()
+            .attribute("shop", parent, "packaging", "pom")
+            .dependency("shop", parent, "artifact:junit:junit", "test", false)
+            .list();
+    List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
+
+    assertThat(notes(blocks)).containsExactly("quality_evidence.none", "quality_evidence.goals");
+    assertThat(text(((Callout) blocks.getFirst()).content()))
+        .isEqualTo("shop has no module that builds code, so it has no tests to look for.");
+  }
+
+  @Test
+  void qualityEvidenceWithoutTestLibrariesSaysSo() {
+    List<Fact> facts =
+        TestFacts.shop().list().stream().filter(f -> !RepoSections.isTestScope(f)).toList();
+    List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
+
+    assertThat(notes(blocks)).containsExactly("quality_evidence.none", "quality_evidence.goals");
+    assertThat(text(((Callout) blocks.getFirst()).content()))
+        .isEqualTo(
+            "No module of shop declares a test library Lantern recognizes, such as JUnit or"
+                + " TestNG, so Lantern found no evidence of tests, architecture tests or"
+                + " coverage.");
+  }
+
+  @Test
+  void recognizesTestLibrariesByTheirCoordinates() {
+    assertThat(BriefSections.testLibrary("junit:junit")).map(l -> l.name()).contains("JUnit");
+    assertThat(BriefSections.testLibrary("org.junit.jupiter:junit-jupiter"))
+        .map(l -> l.name())
+        .contains("JUnit");
+    assertThat(BriefSections.testLibrary("org.junitpioneer:junit-pioneer")).isEmpty();
+    assertThat(BriefSections.testLibrary("org.jmolecules.integrations:jmolecules-archunit"))
+        .map(l -> l.kind())
+        .contains(BriefSections.TestKind.ARCHITECTURE);
+    assertThat(BriefSections.testLibrary("org.jacoco:org.jacoco.agent"))
+        .map(l -> l.kind())
+        .contains(BriefSections.TestKind.COVERAGE);
+    assertThat(BriefSections.testLibrary("org.springframework:spring-core")).isEmpty();
   }
 }

@@ -62,5 +62,5 @@ known) already meets "Observed decisions, with rationale or marked unknown".
 
 ## Not in this issue
 
-The Brief's quality evidence (#186). Start-here lists, flows and catalogs of repositories without
-units, which have nothing to list and fail honestly.
+Start-here lists, flows and catalogs of repositories without units, which have nothing to list and
+fail honestly.
