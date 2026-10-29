@@ -16,6 +16,9 @@
   <properties>
     <!-- A Maven repository to run EndToEndIT on as well, as an absolute path; none if empty. -->
     <lantern.test.repo></lantern.test.repo>
+    <!-- The folder project-0 was set up in (testsets/project-0/setup.sh), which Project0EndToEndIT
+         then requires; if empty, it runs on the default folder if project-0 is set up there. -->
+    <lantern.test.project0></lantern.test.project0>
   </properties>
 
   <dependencies>
@@ -147,6 +150,7 @@
             <!-- The fixture projects live with the extractors that were their first user. -->
             <lantern.test.fixtures>${maven.multiModuleProjectDirectory}/lantern-extract/src/test/resources/fixtures</lantern.test.fixtures>
             <lantern.test.repo>${lantern.test.repo}</lantern.test.repo>
+            <lantern.test.project0>${lantern.test.project0}</lantern.test.project0>
           </systemPropertyVariables>
         </configuration>
       </plugin>

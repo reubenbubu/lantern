@@ -47,3 +47,11 @@ author and dates, and that Lantern pins that repository's commit.
   `lantern.test.project0` names the set-up folder (see Commands in `CLAUDE.md`). Checks of the
   facts, links, views and flows Lantern should find belong to the extractor, linker and composer
   issues (#92, #94, #113, #114), which read the case list.
+- **End to end in every build** (#167). `Project0EndToEndIT` (lantern-app) runs the analyze
+  pipeline with the fake model over all project-0 repositories as one snapshot, twice, and checks
+  every repository builds and gets its documents, the second run reuses every build, fact and
+  summary and makes no LLM call, and the system's C4 report (ADR 0044). Unlike the other project-0
+  tests it needs no property: plain `./mvnw verify` runs it when project-0 is set up at its pinned
+  commits in the default folder, and skips it, with the reason, when it is not, so the build passes
+  on a machine without the private set. When `lantern.test.project0` is set, it runs on that folder
+  and fails if a repository is not at its pin. It adds about 35 seconds.
