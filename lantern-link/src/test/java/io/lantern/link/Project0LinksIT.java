@@ -3,6 +3,7 @@ package io.lantern.link;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.RepoBuild;
@@ -82,6 +83,11 @@ class Project0LinksIT {
 
   private static final List<String> unbuiltPrompts = new ArrayList<>();
 
+  /** The resolver's conversations and the results of its tool calls, both runs together. */
+  private static final List<io.lantern.llm.LlmConversation> conversations = new ArrayList<>();
+
+  private static final List<String> toolResults = new ArrayList<>();
+
   /** The links the LLM resolver picked with builds and without. */
   private static List<String> builtResolved;
 
@@ -130,7 +136,12 @@ class Project0LinksIT {
     links.addAll(claims);
     // The LLM resolver with a fake model that gives the known answer, to see what a real run
     // would ask and that the answer is recorded as the link.
-    FakeLlmProvider fake = new FakeLlmProvider().answering(Project0LinksIT::knownAnswer);
+    // It first looks up the facts of the unit it will pick with a tool (ADR 0081), then answers.
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .callingTools(Project0LinksIT::lookUpTheAnswer)
+            .answering(Project0LinksIT::knownAnswer);
+    InMemoryLlmCallLog log = new InMemoryLlmCallLog();
     List<Fact> all = new ArrayList<>(facts);
     all.addAll(claims);
     LinkResolver.Result result =
@@ -139,7 +150,7 @@ class Project0LinksIT {
                     ModelSettings.single(fake.model("fake")),
                     List.of(fake),
                     BudgetGuard.unlimited("project-0"),
-                    new InMemoryLlmCallLog(),
+                    log,
                     Clock.systemUTC()),
                 new InMemoryResolutionStore())
             .resolve(all, 1);
@@ -147,7 +158,14 @@ class Project0LinksIT {
     assertThat(result.skipped()).as("calls skipped").isEmpty();
     assertThat(result.unknown()).as("answered unknown").isZero();
     resolved.addAll(result.facts());
-    fake.sent().forEach(sent -> prompts.add(sent.request().messages().getFirst().text()));
+    fake.sent().stream()
+        .filter(sent -> sent.request().messages().size() == 1)
+        .forEach(sent -> prompts.add(sent.request().messages().getFirst().text()));
+    conversations.addAll(log.conversations());
+    fake.sent().stream()
+        .flatMap(sent -> sent.request().messages().stream())
+        .flatMap(message -> message.toolResults().stream())
+        .forEach(toolResult -> toolResults.add(toolResult.content()));
     Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
     links.forEach(vocabulary::validate);
     resolved.forEach(vocabulary::validate);
@@ -158,6 +176,21 @@ class Project0LinksIT {
    * The answer a model that knows project-0 gives: the reference of the candidate {@link #ANSWERS}
    * names for the code the prompt asks about, citing it; unknown for any other prompt.
    */
+  private static List<io.lantern.llm.LlmToolCall> lookUpTheAnswer(LlmRequest request) {
+    if (request.messages().size() > 1) {
+      return List.of();
+    }
+    String prompt = request.messages().getFirst().text();
+    for (Map.Entry<String, String> answer : ANSWERS.entrySet()) {
+      if (prompt.contains(", in " + answer.getKey() + ".")) {
+        return List.of(
+            new io.lantern.llm.LlmToolCall(
+                "toolu_1", "facts_about", FactJson.newObject().put("entity", answer.getValue())));
+      }
+    }
+    return List.of();
+  }
+
   private static String knownAnswer(LlmRequest request) {
     String prompt = request.messages().getFirst().text();
     for (Map.Entry<String, String> answer : ANSWERS.entrySet()) {
@@ -341,6 +374,23 @@ class Project0LinksIT {
     }
     assertThat(builtResolved).hasSize(ANSWERS.size());
     assertThat(unbuiltResolved).hasSize(ANSWERS.size());
+  }
+
+  @Test
+  void theResolverLooksUpEachAnswersEndpointsWithAToolFirst() {
+    assertThat(conversations).hasSize(2 * ANSWERS.size());
+    assertThat(conversations)
+        .allSatisfy(
+            c -> {
+              assertThat(c.turns()).isEqualTo(2);
+              assertThat(c.toolCalls()).isEqualTo(Map.of("facts_about", 1));
+              assertThat(c.ending()).isEqualTo(io.lantern.llm.LlmConversation.Ending.ANSWERED);
+            });
+    // HTTP-7 and MSG-5 pick payments, HTTP-6 the storefront app.
+    assertThat(toolResults)
+        .hasSize(2 * ANSWERS.size())
+        .anyMatch(r -> r.startsWith("Facts about service:com.acme.shop:payments:\n[T1] "))
+        .anyMatch(r -> r.startsWith("Facts about service:com.acme.shop:storefront-app:\n[T1] "));
   }
 
   @Test
