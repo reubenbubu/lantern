@@ -96,6 +96,19 @@ class SqlScriptTest {
   }
 
   @Test
+  void namedTableLevelCheckConstraintsAreSkipped() {
+    assertThat(
+            schema(
+                """
+                CREATE TABLE a (id int, n int, CONSTRAINT ck_n CHECK (n > 0), CONSTRAINT a_pk PRIMARY KEY (id));
+                CREATE TABLE b (id int, n int);
+                ALTER TABLE b ADD CONSTRAINT ck_b CHECK (n > 0);
+                ALTER TABLE b ADD CONSTRAINT b_pk PRIMARY KEY (id);
+                """))
+        .containsExactly("a(id int not null, n int) pk[id]", "b(id int not null, n int) pk[id]");
+  }
+
+  @Test
   void keysAreAddedAndDroppedByName() {
     assertThat(
             schema(
