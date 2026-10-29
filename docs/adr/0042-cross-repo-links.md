@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250), pending the user's review (#24)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), pending the user's review (#24)
 
 ## Context
 
@@ -125,7 +125,7 @@ its path is known, and what is matched when.
 - **Not covered:** profile combinations (`@Profile("a & b")` never matches one active profile, so
   such code links nowhere), env vars and deploy-time overrides, JPA entities as table access
   (only SQL in code), a Feign client's placeholder name, a request's port compared with the
-  target's `server.port`, gateways and routes, Kubernetes or compose service names that differ
+  target's `server.port` (ADR 0077 compares it for gateway routes, which it links), Kubernetes or compose service names that differ
   from `spring.application.name` and the artifact ID, and Spring Cloud Stream specifics beyond
   the shared fact shapes (#139).
 - **project-0.** `Project0LinksIT` checks HTTP-1 to HTTP-7, EXT-1, MSG-1 to MSG-5, SPR-4, DB-5

@@ -270,6 +270,82 @@ class C4ViewsTest {
   }
 
   @Test
+  void gatewayRoutesAndFiltersAreComponentsAndRoutesAreLines() {
+    String app = "service:com.example:app";
+    String routes = "method:com.example.web.Routes#routes()";
+    String web = "package:com.example:app:com.example.web";
+    List<Fact> gateway =
+        new ArrayList<>(
+            facts
+                .relate("shop", web, "CONTAINS", "type:com.example.web.Routes")
+                .relate("shop", "type:com.example.web.Routes", "CONTAINS", routes)
+                .attribute(
+                    "shop",
+                    routes,
+                    "gateway-route",
+                    "users",
+                    "{\"definedIn\": \"java\", \"uri\": \"lb:ws://worker\", \"paths\":"
+                        + " [\"/ws/**\"], \"filterTypes\": [\"com.example.web.AuthFilter\"]}")
+                .relate("shop", web, "CONTAINS", "type:com.example.web.AuthFilter")
+                .attribute(
+                    "shop",
+                    "type:com.example.web.AuthFilter",
+                    "gateway-filter",
+                    "gateway",
+                    "{\"implements\": \"org.springframework.cloud.gateway.filter.GatewayFilter\"}")
+                .attribute(
+                    "shop",
+                    "module:com.example:app",
+                    "gateway-route",
+                    "reports",
+                    "{\"definedIn\": \"config\", \"uri\": \"http://localhost:8081\"}")
+                .relate(
+                    "shop",
+                    app,
+                    "CALLS_HTTP",
+                    "service:com.example:worker",
+                    "{\"protocol\": \"WebSocket\", \"route\": \"users\", \"paths\":"
+                        + " [\"/ws/**\"], \"source\": \""
+                        + routes
+                        + "\"}")
+                .relate(
+                    "shop",
+                    app,
+                    "CALLS_HTTP",
+                    "service:com.example:worker",
+                    "{\"protocol\": \"HTTP\", \"route\": \"reports\", \"paths\":"
+                        + " [\"/reports/**\"], \"source\": \"module:com.example:app\"}")
+                .relate(
+                    "shop",
+                    app,
+                    "CALLS_HTTP",
+                    "service:com.example:worker",
+                    "{\"protocol\": \"HTTP\", \"httpMethod\": \"GET\", \"path\": \"/jobs\"}")
+                .list());
+
+    Diagram containers = block(section(repo(gateway), "containers"), Diagram.class);
+    assertThat(edges(containers))
+        .contains(
+            "service:com.example:app -> service:com.example:worker: Calls and routes"
+                + " /reports/**, /ws/** and 1 more [HTTP, WebSocket]");
+    Diagram components =
+        block(section(repo(gateway), "components").sections().getFirst(), Diagram.class);
+    assertThat(nodes(components))
+        .contains(
+            "type:com.example.web.Routes \"Routes\" [Gateway routes] in service:com.example:app",
+            "type:com.example.web.AuthFilter \"AuthFilter\" [Gateway filter]"
+                + " in service:com.example:app",
+            "module:com.example:app \"Gateway routes\" [Gateway routes]"
+                + " in service:com.example:app");
+    assertThat(edges(components))
+        .contains(
+            "type:com.example.web.Routes -> type:com.example.web.AuthFilter:"
+                + " Applies on routes users",
+            "type:com.example.web.Routes -> service:com.example:worker: Routes /ws/** [WebSocket]",
+            "module:com.example:app -> service:com.example:worker: Routes /reports/** [HTTP]");
+  }
+
+  @Test
   void aUnitWithOneComponentGetsNoComponentDiagram() {
     // Without the scheduled job, the repository's bean is reached only from the controller.
     List<Fact> fewer =

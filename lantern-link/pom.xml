@@ -16,6 +16,9 @@
   <properties>
     <!-- Set to the folder project-0 was set up in to run the Project0*IT tests. -->
     <lantern.test.project0></lantern.test.project0>
+    <!-- Set to the folder the development test sets project-1 to project-4 were set up in
+         (testsets/project-N/setup.sh) to run GatewayRoutesIT. -->
+    <lantern.test.projects></lantern.test.projects>
   </properties>
 
   <dependencies>
@@ -51,6 +54,7 @@
             <!-- The folder project-0 was set up in (testsets/project-0/setup.sh); the Project0*IT
                  tests run if set. -->
             <lantern.test.project0>${lantern.test.project0}</lantern.test.project0>
+            <lantern.test.projects>${lantern.test.projects}</lantern.test.projects>
           </systemPropertyVariables>
         </configuration>
       </plugin>

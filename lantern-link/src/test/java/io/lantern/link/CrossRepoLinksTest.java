@@ -12,6 +12,7 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
@@ -575,6 +576,129 @@ class CrossRepoLinksTest {
 
   // ---------------------------------------------------------------------------------------------
   // Messaging
+
+  // ---------------------------------------------------------------------------------------------
+  // Gateway routes
+
+  private void route(String repo, String subject, String id, String attributes) {
+    add(
+        GatewayExtractor.NAME,
+        subject,
+        GatewayExtractor.ROUTE,
+        FactObject.string(id),
+        attributes,
+        repo + ":src/main/java/gw/Routes.java#30",
+        1.0);
+  }
+
+  @Test
+  void codeRoutesLinkByTheirLoadBalancedNameWithTheirProtocol() {
+    unit("gw", "edge", "edge");
+    type("gw", "edge", "gw.Routes");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "users",
+        "{\"definedIn\":\"java\",\"uri\":\"lb://users\",\"paths\":[\"/api/users/**\"],"
+            + "\"methods\":[\"GET\"]}");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "notify",
+        "{\"definedIn\":\"java\",\"uri\":\"lb:ws://notifications\",\"paths\":[\"/ws/**\"]}");
+    // A route the gateway answers itself is no line.
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "fallback",
+        "{\"definedIn\":\"java\",\"uri\":\"forward:/fallback\"}");
+    unit("u", "users-service", "users");
+    unit("n", "notifications-service", "notifications");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactly(
+            "service:g:edge CALLS_HTTP service:g:notifications-service"
+                + " {\"matchedBy\":\"service-name\",\"paths\":[\"/ws/**\"],"
+                + "\"protocol\":\"WebSocket\",\"route\":\"notify\","
+                + "\"source\":\"method:gw.Routes#routes()\",\"url\":\"lb:ws://notifications\"} 1.0",
+            "service:g:edge CALLS_HTTP service:g:users-service"
+                + " {\"matchedBy\":\"service-name\",\"methods\":[\"GET\"],"
+                + "\"paths\":[\"/api/users/**\"],\"protocol\":\"HTTP\",\"route\":\"users\","
+                + "\"source\":\"method:gw.Routes#routes()\",\"url\":\"lb://users\"} 1.0");
+  }
+
+  @Test
+  void configRoutesToThisMachineLinkByPortAndUnroutedEndpointsAreRecorded() {
+    unit("gw", "edge", "edge");
+    config("gw", "edge", "application.yml", "server.port", "8080", null);
+    route(
+        "gw",
+        "module:g:edge",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"http://localhost:8082\","
+            + "\"paths\":[\"/orders/**\"],\"filters\":[\"StripPrefix=1\",\"PrefixPath=/api\"]}");
+    route(
+        "gw",
+        "module:g:edge",
+        "partner",
+        "{\"definedIn\":\"config\",\"uri\":\"https://partner.example.com\"}");
+    route(
+        "gw",
+        "module:g:edge",
+        "compose",
+        "{\"definedIn\":\"config\",\"uri\":\"http://billing:8080\"}");
+    unit("o", "orders-service", "orders");
+    config("o", "orders-service", "application.yml", "server.port", "8082", null);
+    type("o", "orders-service", "o.OrderController");
+    endpoint("o", "o.OrderController", "list()", "GET", "/api/orders");
+    endpoint("o", "o.OrderController", "one(long)", "GET", "/api/orders/{id}");
+    endpoint("o", "o.OrderController", "internal(long)", "GET", "/internal/orders/{id}");
+    unit("r", "reports", "reports");
+    type("r", "reports", "r.ReportJob");
+    call(
+        "r",
+        "r.ReportJob#run()",
+        "GET http://orders/internal/orders/1",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/internal/orders/1\","
+            + "\"url\":\"http://orders/internal/orders/1\"}",
+        12);
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .contains(
+            "service:g:edge CALLS_HTTP service:g:orders-service {\"matchedBy\":\"port\","
+                + "\"paths\":[\"/orders/**\"],\"protocol\":\"HTTP\",\"route\":\"orders\","
+                + "\"source\":\"module:g:edge\",\"url\":\"http://localhost:8082\"} 0.8",
+            "service:g:edge CALLS_HTTP external-system:partner.example.com"
+                + " {\"matchedBy\":\"external\",\"protocol\":\"HTTPS\",\"route\":\"partner\","
+                + "\"source\":\"module:g:edge\",\"url\":\"https://partner.example.com\"} 1.0");
+    assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK))
+        .containsExactly(
+            "service:g:edge unresolved-link http://billing:8080 {\"kind\":\"route\","
+                + "\"reason\":\"unknown-host\",\"source\":\"module:g:edge\"} 1.0");
+    // /orders/** reaches /api/** behind StripPrefix and PrefixPath; the internal endpoint is
+    // reached only by another unit's call.
+    assertThat(derive(CrossRepoLinks.UNROUTED_ENDPOINT))
+        .containsExactly(
+            "service:g:edge unrouted-endpoint GET /internal/orders/{id}"
+                + " {\"calledBy\":[\"service:g:reports\"],"
+                + "\"endpoint\":\"method:o.OrderController#internal(long)\","
+                + "\"target\":\"service:g:orders-service\"} 1.0");
+  }
+
+  @Test
+  void routePatternsTakeOnlyTheEndpointsTheyMatch() {
+    assertThat(RouteLinker.matches("/api/organizations/{id}", "/api/organizations/*")).isTrue();
+    assertThat(RouteLinker.matches("/api/organizations/{id}/preview", "/api/organizations/*"))
+        .isFalse();
+    // A literal of the pattern does not take a variable of the endpoint.
+    assertThat(
+            RouteLinker.matches(
+                "/api/organizations/{id}/preview", "/api/organizations/invitations/**"))
+        .isFalse();
+    assertThat(RouteLinker.matches("/api/files", "/api/files/**")).isTrue();
+    assertThat(RouteLinker.matches("/v2/a/b", "/v*/**")).isTrue();
+    assertThat(RouteLinker.matches("/api/files/{id}/x", "/api/{*rest}")).isTrue();
+  }
 
   @Test
   void aRabbitSendReachesTheListenersOfQueuesBoundWithMatchingWildcards() {
