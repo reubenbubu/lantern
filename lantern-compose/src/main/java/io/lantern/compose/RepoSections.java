@@ -167,6 +167,7 @@ final class RepoSections {
                   .callouts(id, brief().currencyRisks(id)));
       case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
       case TECHNOLOGY_CURRENCY -> blocks.addAll(brief().technologyCurrency(id));
+      case QUALITY_EVIDENCE -> blocks.addAll(brief().qualityEvidence(id));
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
   }
