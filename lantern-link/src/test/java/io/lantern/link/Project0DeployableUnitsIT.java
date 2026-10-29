@@ -3,9 +3,7 @@ package io.lantern.link;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
-import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
-import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
@@ -14,7 +12,6 @@ import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.sandbox.BuildSandbox;
-import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
@@ -23,7 +20,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -40,15 +36,6 @@ import org.junit.jupiter.api.io.TempDir;
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0DeployableUnitsIT {
 
-  /** The commits setup.sh makes from the pinned source, as Project0BuildIT checks them. */
-  private static final Map<String, String> COMMITS =
-      new TreeMap<>(
-          Map.of(
-              "catalog", "8637326f638af796f242548b68216c8729e1a5f7",
-              "fulfilment", "d7a159078e44f5de32d3b3f4aa5fa0ef9cb24921",
-              "payments", "871bf725e98d45d11ea093749943bb555b65bae8",
-              "storefront", "fa592e452e659d26597defe3519ba0ec3bfc5014"));
-
   private static final String SHOP = "service:com.acme.shop:";
 
   @TempDir static Path temp;
@@ -58,25 +45,10 @@ class Project0DeployableUnitsIT {
 
   @BeforeAll
   static void derive() throws IOException {
-    String setUp = System.getProperty("lantern.test.project0");
-    assertThat(Path.of(setUp).isAbsolute())
-        .as("lantern.test.project0 must be an absolute path: " + setUp)
-        .isTrue();
     BuildSandbox sandbox = new BuildSandbox(sandboxSettings(temp.resolve("builds")));
-    List<RepoBuild> withBuilds = new ArrayList<>();
-    List<RepoBuild> withoutBuilds = new ArrayList<>();
-    for (Map.Entry<String, String> e : COMMITS.entrySet()) {
-      Path path = Path.of(setUp).resolve(e.getKey()).toRealPath();
-      Git.Result head = Git.run(path, "rev-parse", "HEAD");
-      assertThat(head.out())
-          .as("%s is not at the pinned commit; run testsets/project-0/setup.sh again", e.getKey())
-          .isEqualTo(e.getValue());
-      Repo repo = new Repo(e.getKey(), path, RepoSettings.DEFAULT);
-      withoutBuilds.add(new RepoBuild(repo, e.getValue(), null));
-      RepoBuild build = new RepoBuild(repo, e.getValue(), sandbox.build(repo, e.getValue()));
-      assertThat(build.build().status()).as(e.getKey()).isEqualTo(BuildStatus.SUCCEEDED);
-      withBuilds.add(build);
-    }
+    Map<String, Repo> project = Project0.repos();
+    List<RepoBuild> withoutBuilds = Project0.unbuilt(project);
+    List<RepoBuild> withBuilds = Project0.built(project, sandbox);
     built = render(extractAndDerive(withBuilds));
     unbuilt = render(extractAndDerive(withoutBuilds));
   }
@@ -162,7 +134,7 @@ class Project0DeployableUnitsIT {
     assertBoth(
         SHOP
             + "catalog-service BUNDLES library:com.acme.shop:catalog-lib {\"main\":true}"
-            + " @catalog:catalog-service/pom.xml#17");
+            + " @catalog:pom.xml#20");
     assertThat(built).noneMatch(f -> f.startsWith("service:com.acme.shop:catalog-lib "));
   }
 
@@ -187,7 +159,7 @@ class Project0DeployableUnitsIT {
         unit.formatted(
             SHOP + "catalog-service ",
             "catalog.CatalogApplication",
-            "catalog:catalog-service/src/main/java/com/acme/shop/catalog/CatalogApplication.java#6"),
+            "catalog:src/main/java/com/acme/shop/catalog/CatalogApplication.java#6"),
         unit.formatted(
             SHOP + "fulfilment ",
             "fulfilment.FulfilmentApplication",
@@ -209,7 +181,7 @@ class Project0DeployableUnitsIT {
         SHOP
             + "catalog-service application-name catalog-service"
             + " {\"module\":\"module:com.acme.shop:catalog-service\"}"
-            + " @catalog:catalog-service/src/main/resources/bootstrap.yml#3",
+            + " @catalog:src/main/resources/bootstrap.yml#3",
         SHOP
             + "fulfilment application-name fulfilment"
             + " {\"module\":\"module:com.acme.shop:fulfilment\"}"
@@ -232,16 +204,18 @@ class Project0DeployableUnitsIT {
             + "\"frameworkVersion\":\"3.5.14\",\"java\":\"%2$s\"} @%s";
     assertThat(built)
         .contains(
-            technology.formatted(SHOP + "catalog-service ", "21", "catalog:catalog-lib/pom.xml#21"),
+            // catalog's Spring Boot and Java come through its parent, built by catalog-lib
+            // (BUILD-1).
+            technology.formatted(SHOP + "catalog-service ", "21", "catalog:pom.xml"),
             technology.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#32"),
             technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#28"),
             technology.formatted(
                 SHOP + "storefront-app ", "21", "storefront:storefront-model/pom.xml#17"));
     // Without builds, the version comes from Spring Boot's parent POM, which each repository's
-    // top POM names.
+    // top POM names, catalog's through its parent from catalog-lib (BUILD-1).
     assertThat(unbuilt)
         .contains(
-            technology.formatted(SHOP + "catalog-service ", "21", "catalog:pom.xml#7"),
+            technology.formatted(SHOP + "catalog-service ", "21", "catalog:pom.xml"),
             technology.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#7"),
             technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#7"),
             technology.formatted(SHOP + "storefront-app ", "21", "storefront:pom.xml#7"));
