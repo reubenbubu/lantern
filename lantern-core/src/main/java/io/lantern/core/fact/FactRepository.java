@@ -17,8 +17,8 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Stores facts in the {@code facts} table. Every fact is checked by the {@link FactValidator}
- * before it is written; in the app that is the vocabulary registry, which validates the fact's
- * attributes against its predicate's type.
+ * before it is written; in the app that is the vocabulary registry, which checks the fact's entity
+ * types, predicate, object and attributes against the vocabulary.
  *
  * <p>A fact's ID leaves out its validity and confidence, so one fact can be stored as several
  * versions, each a contiguous range of snapshots with one confidence; the versions of a fact never
@@ -176,8 +176,8 @@ public class FactRepository {
         throw new IllegalArgumentException(
             "Fact " + fact.id() + " was found with different confidences");
       }
-      validator.validate(fact);
     }
+    validator.validateAll(byId.values());
     long later =
         jdbc.sql(
                 """

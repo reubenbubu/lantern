@@ -31,9 +31,8 @@ choices.
   not be declared differently from an ancestor.
 - **Validation on write.** `FactRepository.save` checks every fact against the latest vocabulary
   revision: the predicate must be a relationship or attribute type, and the attributes must match
-  its effective schema. Unknown predicates are refused. Not checked yet: the subject's and object's
-  entity types, and the object value of attribute-type facts (for example that `owner` is a
-  string).
+  its effective schema. Unknown predicates are refused. Entity types and object values are also
+  checked since #26; see the amendment below.
 - **Revisions.** Revision 0 is the empty vocabulary; each change that alters anything creates the
   next revision (1, 2, 3, ...) with its source (`built-in`, a plugin, a user) and time. A revision
   stores the new definition of each type it changed, so the vocabulary as of any revision can be
@@ -64,3 +63,24 @@ choices.
 - **Java types** are hand-written records in `io.lantern.core.vocabulary`, with name constants for
   the built-in types in `BuiltInTypes`, kept in line with the schema and the built-in file by
   tests, as for the fact envelope (0001).
+
+## Amendment (#26): entity types and object values are checked
+
+- **Entity types.** Saving a fact also checks that its subject's type, and an entity object's
+  type, is an entity type of the latest revision. A fact about an entity of an unknown type is
+  refused, like one with an unknown predicate.
+- **Object by predicate kind.** A relationship fact's object must be an entity, and an attribute
+  fact's object a value (string, integer, decimal or boolean), as the kinds' definitions say.
+- **Object kind.** An attribute type may set `objectKind` (`string`, `integer`, `decimal` or
+  `boolean`, the value kinds of the fact envelope) to fix the kind of its facts' objects; it is
+  inherited like the C4 level, and a type may not set one that differs from the one it inherits.
+  Without one, any value is allowed. Kinds must match exactly: an `integer` object is not accepted
+  where `decimal` is set, since the envelope keeps them apart. Entity and relationship types have
+  no object kind. The extractors' attribute types (`version`, `packaging`, `kind`) set `string`.
+- **Object kind changes.** Setting an object kind on a type that has none (of its own or
+  inherited) is additive in the same sense as declaring a new attribute on an open type: it
+  constrains new facts only. Once a type sets one, or inherits one, it may not change or drop it,
+  including through a new parent.
+- **One lookup per batch.** `FactValidator.validateAll` checks a batch against one vocabulary
+  revision, so `FactRepository.recordSnapshot` reads the latest revision number once per batch
+  instead of once per fact. A single `save` still reads it once.

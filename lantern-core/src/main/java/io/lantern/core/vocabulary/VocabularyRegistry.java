@@ -116,6 +116,16 @@ public class VocabularyRegistry implements FactValidator {
     current().validate(fact);
   }
 
+  /**
+   * Checks the facts against the latest revision, looked up once for all of them, see {@link
+   * Vocabulary#validate}.
+   */
+  @Override
+  public void validateAll(Collection<Fact> facts) {
+    Vocabulary vocabulary = current();
+    facts.forEach(vocabulary::validate);
+  }
+
   private long latestRevision() {
     return jdbc.sql("SELECT coalesce(max(revision), 0) FROM vocabulary_revisions")
         .query(Long.class)

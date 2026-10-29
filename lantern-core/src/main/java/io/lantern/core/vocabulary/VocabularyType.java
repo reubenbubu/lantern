@@ -3,6 +3,7 @@ package io.lantern.core.vocabulary;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -17,8 +18,8 @@ import tools.jackson.databind.node.ObjectNode;
  * relationship and attribute type names have the form of a fact predicate ({@code CALLS}, {@code
  * owner}). All names share one namespace.
  *
- * <p>The C4 level, shape and icon are inherited from the parent type when absent, see {@link
- * Vocabulary}.
+ * <p>The C4 level, shape, icon and object kind are inherited from the parent type when absent, see
+ * {@link Vocabulary}.
  *
  * @param name the type name
  * @param kind entity, relationship or attribute
@@ -29,6 +30,9 @@ import tools.jackson.databind.node.ObjectNode;
  * @param description what the type means, or {@code null}
  * @param attributeSchema the attributes facts with this type as predicate may have, on top of the
  *     parent type's
+ * @param objectKind for an attribute type, the kind of value its facts' objects must have ({@code
+ *     string}, {@code integer}, {@code decimal} or {@code boolean}), or {@code null} to inherit it
+ *     (or allow any value); always {@code null} for entity and relationship types
  */
 public record VocabularyType(
     String name,
@@ -38,14 +42,23 @@ public record VocabularyType(
     String shape,
     String icon,
     String description,
-    AttributeSchema attributeSchema) {
+    AttributeSchema attributeSchema,
+    FactObject.Kind objectKind) {
 
   /** Shape and icon names. */
   private static final Pattern TOKEN = Pattern.compile("[a-z][a-z0-9-]*");
 
   private static final Set<String> FIELDS =
       Set.of(
-          "name", "kind", "parent", "c4Level", "shape", "icon", "description", "attributeSchema");
+          "name",
+          "kind",
+          "parent",
+          "c4Level",
+          "shape",
+          "icon",
+          "description",
+          "attributeSchema",
+          "objectKind");
 
   public VocabularyType {
     Objects.requireNonNull(kind, "kind");
@@ -66,6 +79,27 @@ public record VocabularyType(
     if (description != null && description.isBlank()) {
       throw new IllegalArgumentException("Description of '" + name + "' must not be blank");
     }
+    if (objectKind != null && kind != TypeKind.ATTRIBUTE) {
+      throw new IllegalArgumentException(
+          "Only attribute types have an object kind, not " + kind.jsonName() + " '" + name + "'");
+    }
+    if (objectKind == FactObject.Kind.ENTITY) {
+      throw new IllegalArgumentException(
+          "Object kind of attribute type '" + name + "' must be a value kind, not entity");
+    }
+  }
+
+  /** A type without an object kind of its own. */
+  public VocabularyType(
+      String name,
+      TypeKind kind,
+      String parent,
+      C4Level c4Level,
+      String shape,
+      String icon,
+      String description,
+      AttributeSchema attributeSchema) {
+    this(name, kind, parent, c4Level, shape, icon, description, attributeSchema, null);
   }
 
   /** The JSON form; absent optional fields are left out. */
@@ -89,6 +123,9 @@ public record VocabularyType(
       node.put("description", description);
     }
     node.set("attributeSchema", attributeSchema.toJson());
+    if (objectKind != null) {
+      node.put("objectKind", objectKind.jsonName());
+    }
     return node;
   }
 
@@ -103,6 +140,7 @@ public record VocabularyType(
       }
     }
     String c4Level = optionalString(node, "c4Level");
+    String objectKind = optionalString(node, "objectKind");
     JsonNode schema = node.get("attributeSchema");
     if (schema == null) {
       throw new IllegalArgumentException("Missing required field 'attributeSchema'");
@@ -115,7 +153,8 @@ public record VocabularyType(
         optionalString(node, "shape"),
         optionalString(node, "icon"),
         optionalString(node, "description"),
-        AttributeSchema.fromJson(schema));
+        AttributeSchema.fromJson(schema),
+        objectKind == null ? null : FactObject.Kind.fromJsonName(objectKind));
   }
 
   private static void checkName(String name, TypeKind kind) {

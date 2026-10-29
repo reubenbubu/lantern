@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,6 +30,49 @@ class VocabularyTypeTest {
     assertThat(VocabularyType.fromJson(full.toJson())).isEqualTo(full);
     assertThat(VocabularyType.fromJson(minimal.toJson())).isEqualTo(minimal);
     assertThat(minimal.toJson().propertyNames()).containsExactly("name", "kind", "attributeSchema");
+    VocabularyType owner =
+        new VocabularyType(
+            "owner",
+            TypeKind.ATTRIBUTE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            AttributeSchema.NONE,
+            FactObject.Kind.STRING);
+    assertThat(owner.toJson().get("objectKind").stringValue()).isEqualTo("string");
+    assertThat(VocabularyType.fromJson(owner.toJson())).isEqualTo(owner);
+  }
+
+  @Test
+  void onlyAttributeTypesHaveAValueObjectKind() {
+    assertThatThrownBy(
+            () ->
+                new VocabularyType(
+                    "CALLS",
+                    TypeKind.RELATIONSHIP,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    AttributeSchema.NONE,
+                    FactObject.Kind.STRING))
+        .hasMessageContaining("Only attribute types have an object kind");
+    assertThatThrownBy(
+            () ->
+                new VocabularyType(
+                    "owner",
+                    TypeKind.ATTRIBUTE,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    AttributeSchema.NONE,
+                    FactObject.Kind.ENTITY))
+        .hasMessageContaining("must be a value kind");
   }
 
   @Test
