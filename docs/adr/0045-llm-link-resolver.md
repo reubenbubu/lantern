@@ -81,8 +81,14 @@ where the resolver runs.
   the same prompt. With no such answer the link stays open. Calls run in parallel on virtual threads, within the client's per-model limits (ADR 0021),
   and every call is logged with the purpose `resolve <kind> link <call> of <unit>`. Run budgets
   from configuration are still #42; the resolver uses the client and budgets it is given.
-- **project-0.** Every link project-0 leaves open lacks candidates, with builds and without, so a
-  real run makes no Resolve call there (`Project0LinksIT`). Elsewhere a call costs about 1,400
+- **project-0** (#198). Three links project-0 leaves open have candidates, with builds and
+  without, each with an answer its case list gives: fulfilment's call to a host that names no unit
+  (HTTP-6) and its call to an unresolvable URL (HTTP-7), both on a path payments and storefront
+  serve, and its RabbitMQ send with a routing key known only at run time to an exchange both bind
+  to (MSG-5). So a real run makes three Resolve calls there. `Project0LinksIT` checks, with a fake
+  model that gives those answers, that each is asked about once, with both candidates in unit-ID
+  order and the evidence that decides it, and that each answer is recorded as the link; HTTP-5,
+  without candidates, is not asked about. Elsewhere a call costs about 1,400
   characters of system prompt plus about 1,500 for a call with two candidates of one endpoint
   each (`LinkResolverTest`): some 750 input tokens and under 100 output tokens, twice that when
   an answer is rejected once.
