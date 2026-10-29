@@ -638,7 +638,7 @@
         "check" : "It pins its snapshot (commits) and date",
         "detail" : [ {
           "kind" : "text",
-          "text" : "The document names snapshot 1 but not the commits it is of or a date; the document model holds neither."
+          "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
         } ],
         "facts" : [ ]
       }, {

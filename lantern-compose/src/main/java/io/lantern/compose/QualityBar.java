@@ -193,9 +193,8 @@ final class QualityBar {
     fail(
         PINNED,
         null,
-        "The document names snapshot "
-            + document.source().snapshot()
-            + " but not the commits it is of or a date; the document model holds neither.");
+        "The document names its snapshot's number but not its commits or a date; the"
+            + " document model holds neither.");
     switch (document.template().name()) {
       case EXPLORER -> explorer(all);
       case BRIEF -> brief(all);

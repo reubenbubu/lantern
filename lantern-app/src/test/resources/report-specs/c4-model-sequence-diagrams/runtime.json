@@ -116,7 +116,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Acronyms are explained in the glossary**: The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST.", "**It states its reader**: The document names no audience; the view definition it was composed from has none.", "**It pins its snapshot (commits) and date**: The document names snapshot 1 but not the commits it is of or a date; the document model holds neither." ]
+      "items" : [ "**Acronyms are explained in the glossary**: The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST.", "**It states its reader**: The document names no audience; the view definition it was composed from has none.", "**It pins its snapshot (commits) and date**: The document names its snapshot's number but not its commits or a date; the document model holds neither." ]
     } ]
   }, {
     "id" : "containers",
