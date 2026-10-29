@@ -35,6 +35,10 @@ class SourceSecretsTest {
             + "|props.put(\"spring.datasource.password\", \"******\");",
         "Map.of(\"user\", \"app\", \"api-key\", \"k\");|Map.of(\"user\", \"app\", \"api-key\", \"******\");",
         "headers.set(\"Authorization\", \"Bearer abc\");|headers.set(\"Authorization\", \"******\");",
+        // A constant key naming a secret.
+        "headers.set(HttpHeaders.AUTHORIZATION, \"Bearer abc\");"
+            + "|headers.set(HttpHeaders.AUTHORIZATION, \"******\");",
+        "props.put(PASSWORD_KEY, \"x\");|props.put(PASSWORD_KEY, \"******\");",
         // Comparisons.
         "if (password.equals(\"letmein\"))|if (password.equals(\"******\"))",
         "if (\"letmein\".equals(password))|if (\"******\".equals(password))",
@@ -51,6 +55,8 @@ class SourceSecretsTest {
         // Comments.
         "// connect with amqp://guest:guest@rabbit|// connect with amqp://rabbit",
         "/* password=hunter2 */ int a;|/* */ int a;",
+        "/* password=hunter2*/ int a;|/* */ int a;",
+        "// default ${db.password:hunter2}|// default ${db.password:******}",
       })
   void masksSecrets(String code, String scrubbed) {
     assertThat(SourceSecrets.scrub(code)).isEqualTo(scrubbed);
@@ -73,6 +79,23 @@ class SourceSecretsTest {
       })
   void keepsWhatIsNotASecret(String code) {
     assertThat(SourceSecrets.scrub(code)).isEqualTo(code);
+  }
+
+  @ParameterizedTest
+  @CsvSource(
+      delimiter = '|',
+      quoteCharacter = '~',
+      value = {
+        "String password = \"unterminated",
+        "String s = \"\"\"\n  never closed",
+        "/* never closed password=x",
+        "String password = \"x\\",
+        "char c = '",
+        "foo(,\"x\")",
+        "= \"x\"",
+      })
+  void malformedSourceDoesNotFail(String code) {
+    assertThat(SourceSecrets.scrub(code)).isNotNull().doesNotContain("password=x");
   }
 
   @Test

@@ -15,15 +15,17 @@ import java.util.regex.Pattern;
  * {@code passphrase}) gives it its meaning: the variable, field, constant or annotation element it
  * is assigned to ({@code String apiKey = "..."}, {@code password = "..."}), the method or
  * constructor it is an argument of ({@code setPassword("...")}, {@code .token("...")}), the literal
- * key it follows ({@code put("db.password", "...")}), the array it initializes, or the variable it
- * is compared with ({@code password.equals("...")}). Literals joined with {@code +} count as one. A
- * literal that is empty or only placeholders without defaults ({@code "${DB_PASSWORD}"}) is kept,
- * since it says where the secret comes from.
+ * or constant key it follows ({@code put("db.password", "...")}, {@code
+ * set(HttpHeaders.AUTHORIZATION, "...")}), the array it initializes, or the variable it is compared
+ * with ({@code password.equals("...")}). Literals joined with {@code +} count as one. A literal
+ * that is empty or only placeholders without defaults ({@code "${DB_PASSWORD}"}) is kept, since it
+ * says where the secret comes from.
  *
- * <p>Any other literal, and every comment, goes through {@link UrlCredentials}: credentials in
- * URLs, {@code user:password@host} and secret options ({@code password=x}) are removed. The default
- * of a placeholder naming a secret ({@code ${db.password:changeme}}) is masked, and a literal
- * holding a PEM private key, or a URL that still looks like it holds a credential, is masked whole.
+ * <p>Any other literal, and the text of every comment, goes through {@link UrlCredentials}:
+ * credentials in URLs, {@code user:password@host} and secret options ({@code password=x}) are
+ * removed. The default of a placeholder naming a secret ({@code ${db.password:changeme}}) is
+ * masked, and a literal holding a PEM private key, or a URL that still looks like it holds a
+ * credential, is masked whole.
  *
  * <p>Masking a text block keeps its line breaks, so the file keeps its line numbers.
  */
@@ -88,7 +90,7 @@ public final class SourceSecrets {
     for (Token token : all) {
       String replacement = null;
       if (token.kind() == Kind.COMMENT) {
-        replacement = UrlCredentials.withoutCredentials(text(source, token));
+        replacement = cleaned(content(source, token));
       } else if (token.isLiteral()) {
         replacement = literal(source, code, index);
       }
@@ -96,10 +98,8 @@ public final class SourceSecrets {
         index++;
       }
       if (replacement != null) {
-        int start = token.kind() == Kind.COMMENT ? token.start() : token.contentStart();
-        int end = token.kind() == Kind.COMMENT ? token.end() : token.contentEnd();
-        out.append(source, from, start).append(replacement);
-        from = end;
+        out.append(source, from, token.contentStart()).append(replacement);
+        from = token.contentEnd();
       }
     }
     return out.append(source, from, source.length()).toString();
@@ -115,6 +115,14 @@ public final class SourceSecrets {
     if (secretNamed(source, code, index) || PRIVATE_KEY.matcher(content).find()) {
       return mask(content);
     }
+    return cleaned(content);
+  }
+
+  /**
+   * A literal's or comment's content with the defaults of placeholders naming a secret masked and
+   * credentials removed; masked whole if a URL in it still looks like it holds a credential.
+   */
+  private static String cleaned(String content) {
     String cleaned = UrlCredentials.withoutCredentials(placeholderDefaultsMasked(content));
     if (UrlCredentials.containsUrl(cleaned) && UrlCredentials.mayHoldCredential(cleaned)) {
       return mask(content);
@@ -128,8 +136,11 @@ public final class SourceSecrets {
     if (breaks == 0) {
       return ConfigExtractor.MASK;
     }
-    // A text block's content starts with a line break; the mask goes on the line after it.
-    return "\n" + ConfigExtractor.MASK + "\n".repeat((int) breaks - 1);
+    if (content.startsWith("\n")) {
+      // A text block's content starts with a line break; the mask goes on the line after it.
+      return "\n" + ConfigExtractor.MASK + "\n".repeat((int) breaks - 1);
+    }
+    return ConfigExtractor.MASK + "\n".repeat((int) breaks);
   }
 
   /** Whether a name a config key would be secret by gives the literal at {@code index} meaning. */
@@ -167,6 +178,20 @@ public final class SourceSecrets {
           && (is(source, code, before - 2, "(") || is(source, code, before - 2, ","))
           && isSecretName(content(source, code.get(before - 1)))) {
         return true;
+      }
+      // headers.set(HttpHeaders.AUTHORIZATION, "x"): a constant before it names a secret.
+      int key = before - 1;
+      if (key >= 0 && code.get(key).kind() == Kind.IDENTIFIER) {
+        int start = key;
+        while (start >= 2
+            && is(source, code, start - 1, ".")
+            && code.get(start - 2).kind() == Kind.IDENTIFIER) {
+          start -= 2;
+        }
+        if ((is(source, code, start - 1, "(") || is(source, code, start - 1, ","))
+            && isSecretName(text(source, code.get(key)))) {
+          return true;
+        }
       }
       return openerNamesSecret(source, code, opener(source, code, before));
     }
@@ -319,12 +344,12 @@ public final class SourceSecrets {
       } else if (source.startsWith("//", i)) {
         int end = source.indexOf('\n', i);
         end = end < 0 ? n : end;
-        tokens.add(new Token(Kind.COMMENT, i, end, i, end));
+        tokens.add(new Token(Kind.COMMENT, i, end, i + 2, end));
         i = end;
       } else if (source.startsWith("/*", i)) {
-        int end = source.indexOf("*/", i + 2);
-        end = end < 0 ? n : end + 2;
-        tokens.add(new Token(Kind.COMMENT, i, end, i, end));
+        int close = source.indexOf("*/", i + 2);
+        int end = close < 0 ? n : close + 2;
+        tokens.add(new Token(Kind.COMMENT, i, end, i + 2, close < 0 ? n : close));
         i = end;
       } else if (source.startsWith("\"\"\"", i)) {
         int contentStart = i + 3;
