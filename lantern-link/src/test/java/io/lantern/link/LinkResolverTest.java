@@ -43,6 +43,8 @@ class LinkResolverTest {
           + " \"rationale\": \"The client is named TaxClient and only tax serves GET /v2/quotes.\"}";
 
   private String commit = "a".repeat(40);
+  private String model = "m";
+  private int callLine = 18;
   private final List<Fact> facts = new ArrayList<>();
   private final InMemoryResolutionStore store = new InMemoryResolutionStore();
   private final InMemoryLlmCallLog log = new InMemoryLlmCallLog();
@@ -152,7 +154,7 @@ class LinkResolverTest {
         FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
         "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\","
             + "\"unresolved\":[\"TAX_SERVICE_URL\"],\"written\":\"${clients.tax.url}/v2/quotes\"}",
-        "a:src/main/java/o/TaxClient.java#18");
+        "a:src/main/java/o/TaxClient.java#" + callLine);
     unit("b", "billing");
     endpoint("b", "billing", "b.BillingController", "/v2/quotes");
     unit("t", "tax");
@@ -168,7 +170,7 @@ class LinkResolverTest {
 
   private LlmClient client(LlmProvider provider, BudgetGuard budget) {
     return new LlmClient(
-        ModelSettings.single(new FakeLlmProvider(provider.name()).model("m")),
+        ModelSettings.single(new FakeLlmProvider(provider.name()).model(model)),
         List.of(provider),
         budget,
         log,
@@ -220,27 +222,27 @@ class LinkResolverTest {
             Facts about the call:
             [F1] service:g:orders deployable-unit "spring-boot" (a:pom.xml)
             [F2] service:g:orders application-name "orders" {"module":"module:g:orders"} \
-            (a:src/main/resources/application.yml#2)
+            (a:src/main/resources/application.yml)
             [F3] method:o.TaxClient#quote() http-call "GET ${TAX_SERVICE_URL}/v2/quotes" \
             {"client":"rest-client","httpMethod":"GET","path":"/v2/quotes",\
             "unresolved":["TAX_SERVICE_URL"],"written":"${clients.tax.url}/v2/quotes"} \
-            (a:src/main/java/o/TaxClient.java#18)
+            (a:src/main/java/o/TaxClient.java)
 
             Candidates:
             [C1] service:g:billing
               [F4] service:g:billing deployable-unit "spring-boot" (b:pom.xml)
               [F5] service:g:billing application-name "billing" {"module":"module:g:billing"} \
-            (b:src/main/resources/application.yml#2)
+            (b:src/main/resources/application.yml)
               [F6] method:b.BillingController#quotes() endpoint "GET /v2/quotes" \
             {"controller":"b.BillingController","httpMethod":"GET","path":"/v2/quotes"} \
-            (b:src/main/java/b/BillingController.java#20)
+            (b:src/main/java/b/BillingController.java)
             [C2] service:g:tax
               [F7] service:g:tax deployable-unit "spring-boot" (t:pom.xml)
               [F8] service:g:tax application-name "tax" {"module":"module:g:tax"} \
-            (t:src/main/resources/application.yml#2)
+            (t:src/main/resources/application.yml)
               [F9] method:t.TaxController#quotes() endpoint "GET /v2/quotes" \
             {"controller":"t.TaxController","httpMethod":"GET","path":"/v2/quotes"} \
-            (t:src/main/java/t/TaxController.java#20)
+            (t:src/main/java/t/TaxController.java)
             """);
     assertThat(log.calls())
         .singleElement()
@@ -419,6 +421,57 @@ class LinkResolverTest {
               assertThat(f.attributes().get("link"))
                   .isEqualTo(first.facts().getFirst().attributes().get("link"));
             });
+  }
+
+  @Test
+  void anEditThatOnlyMovesTheCallMakesNoCall() {
+    taxCall();
+    FakeLlmProvider fake = answering(r -> PICK_TAX);
+    resolve(fake);
+
+    facts.clear();
+    callLine = 42;
+    taxCall();
+    LinkResolver.Result second = resolve(fake);
+
+    assertThat(fake.sent()).hasSize(1);
+    assertThat(second.facts())
+        .singleElement()
+        .satisfies(f -> assertThat(f.evidence().lines().start()).isEqualTo(42));
+  }
+
+  @Test
+  void aSkippedCallKeepsTheLinkTheModelPickedBefore() {
+    taxCall();
+    LinkResolver.Result first = resolve(answering(r -> PICK_TAX));
+
+    // Another model, so the cache has no answer for its key, and no budget to ask it.
+    model = "m2";
+    FakeLlmProvider fake = answering(r -> PICK_TAX);
+    LinkResolver.Result second = resolve(fake, new BudgetGuard("run", 100L, null));
+
+    assertThat(fake.sent()).isEmpty();
+    assertThat(second.skipped()).hasSize(1);
+    assertThat(second.facts()).isEqualTo(first.facts());
+  }
+
+  @Test
+  void aRejectedAnswerKeepsTheLinkTheModelPickedBeforeIfStillACandidate() {
+    taxCall();
+    LinkResolver.Result first = resolve(answering(r -> PICK_TAX));
+
+    model = "m2";
+    FakeLlmProvider fake = answering(r -> "It is probably tax.");
+    LinkResolver.Result second = resolve(fake);
+
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(second.rejected()).hasSize(1);
+    assertThat(second.facts()).isEqualTo(first.facts());
+
+    // Once tax is no longer a candidate, the earlier pick is not kept.
+    facts.removeIf(f -> f.evidence().repo().equals("t"));
+    model = "m3";
+    assertThat(resolve(answering(r -> "It is probably tax.")).facts()).isEmpty();
   }
 
   @Test

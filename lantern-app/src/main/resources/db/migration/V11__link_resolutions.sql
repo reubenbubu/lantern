@@ -15,3 +15,6 @@ CREATE TABLE link_resolutions (
     created_at     timestamptz NOT NULL DEFAULT now(),
     CHECK ((target IS NULL) = (confidence IS NULL))
 );
+
+-- The resolver falls back to the last answer for a link when it cannot ask again.
+CREATE INDEX link_resolutions_link ON link_resolutions (link, created_at);

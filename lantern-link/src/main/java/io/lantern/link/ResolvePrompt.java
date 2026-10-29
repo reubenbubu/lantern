@@ -172,8 +172,8 @@ final class ResolvePrompt {
   }
 
   /**
-   * A fact as the prompt shows it: subject, predicate, object, attributes and where it is written,
-   * without the IDs of other facts, which change with every commit.
+   * A fact as the prompt shows it: subject, predicate, object, attributes and the file it is in,
+   * without the IDs of other facts, which change with every commit, and without its line.
    */
   static String fact(Fact fact) {
     StringBuilder line = new StringBuilder();
@@ -194,10 +194,8 @@ final class ResolvePrompt {
     Evidence evidence = fact.evidence();
     line.append(" (").append(evidence.repo());
     if (evidence.path() != null) {
+      // No line number: an edit above the code would change the prompt, and so the cache key.
       line.append(':').append(evidence.path());
-      if (evidence.lines() != null) {
-        line.append('#').append(evidence.lines().start());
-      }
     }
     line.append(')');
     return oneLine(line.toString());

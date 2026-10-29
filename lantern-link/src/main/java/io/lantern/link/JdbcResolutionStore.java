@@ -48,6 +48,21 @@ public final class JdbcResolutionStore implements ResolutionStore {
   }
 
   @Override
+  public Optional<Resolution> latest(String link) {
+    Objects.requireNonNull(link, "link");
+    return jdbc.sql(
+            """
+            SELECT cache_key, link, target, confidence, cited::text AS cited, rationale,
+                   prompt_version, provider, model
+            FROM link_resolutions WHERE link = :link
+            ORDER BY created_at DESC, cache_key LIMIT 1
+            """)
+        .param("link", link)
+        .query(JdbcResolutionStore::mapRow)
+        .optional();
+  }
+
+  @Override
   public void save(Resolution resolution) {
     Objects.requireNonNull(resolution, "resolution");
     own.executeWithoutResult(

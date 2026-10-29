@@ -54,9 +54,10 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>It never fails the run. An answer that is rejected twice (a target that is not a candidate, a
  * reference not in the prompt, no citation of the candidate it picks), and a call refused by a
- * budget or the model's capabilities or failing in the provider, leave the link open with a
- * warning; nothing is cached for it, so a later run asks again. Calls run in parallel on virtual
- * threads, bounded by the client's limits.
+ * budget or the model's capabilities or failing in the provider, log a warning and cache nothing,
+ * so a later run asks again; the link keeps the last pick stored for it if that unit is still a
+ * candidate, else stays open. Calls run in parallel on virtual threads, bounded by the client's
+ * limits.
  *
  * <p>It runs as the last step of the linker, after {@link CrossRepoLinks}, so its facts are
  * recorded for the whole snapshot like the other steps' (ADR 0039).
@@ -192,10 +193,21 @@ public final class LinkResolver implements LinkStep {
       Outcome outcome = outcomes.get(i);
       String link = linkOf(question.unresolved());
       switch (outcome.kind()) {
-        case SKIPPED -> skipped.add(link);
-        case REJECTED -> {
-          asked++;
-          rejected.add(link);
+        case SKIPPED, REJECTED -> {
+          if (outcome.kind() == Kind.SKIPPED) {
+            skipped.add(link);
+          } else {
+            asked++;
+            rejected.add(link);
+          }
+          // Keep what the model picked for this link before, if it is still a candidate, so a
+          // failed or refused call does not drop a link that held.
+          Resolution earlier = store.latest(link).orElse(null);
+          if (earlier != null
+              && !earlier.unknown()
+              && question.candidate(earlier.target().toString()) != null) {
+            derived.add(fact(question, earlier, index, byId, snapshot));
+          }
         }
         case ANSWERED -> {
           if (outcome.cached()) {
@@ -405,13 +417,22 @@ public final class LinkResolver implements LinkStep {
 
   /** The cache key: the SHA-256 of the prompt version, provider, model and prompt. */
   static String key(Question question, ModelConfig model) {
+    return key(question, ResolvePrompt.VERSION, model.provider(), model.model());
+  }
+
+  /** The key the prompt would have had for the answer's prompt version and model. */
+  private static String key(Question question, Resolution resolution) {
+    return key(question, resolution.promptVersion(), resolution.provider(), resolution.model());
+  }
+
+  private static String key(Question question, String version, String provider, String model) {
     String text =
         "prompt "
-            + ResolvePrompt.VERSION
+            + version
             + "\nprovider "
-            + model.provider()
+            + provider
             + "\nmodel "
-            + model.model()
+            + model
             + "\nsystem\n"
             + ResolvePrompt.SYSTEM
             + "\nuser\n"
@@ -449,7 +470,10 @@ public final class LinkResolver implements LinkStep {
     String predicate = isHttp ? CrossRepoLinks.CALLS_HTTP : CrossRepoLinks.SENDS_MESSAGES_TO;
     Candidate candidate = question.candidate(resolution.target().toString());
     List<Fact> cited = new ArrayList<>();
-    for (String ref : resolution.cited()) {
+    // The references stand for this prompt's facts only when the answer was given for it.
+    List<String> refs =
+        resolution.key().equals(key(question, resolution)) ? resolution.cited() : List.of();
+    for (String ref : refs) {
       Fact fact = question.facts().get(ref);
       if (fact != null) {
         cited.add(fact);

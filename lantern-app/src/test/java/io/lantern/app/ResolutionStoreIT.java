@@ -85,6 +85,29 @@ class ResolutionStoreIT {
   }
 
   @Test
+  void theLatestAnswerForALinkIsFoundWhateverItsKey() {
+    String link = key().substring(0, 16);
+    Resolution older =
+        new Resolution(key(), link, null, null, List.of(), "Older.", "1", "fake", "m");
+    Resolution newer =
+        new Resolution(
+            key(),
+            link,
+            EntityId.parse("service:g:tax"),
+            "medium",
+            List.of("C1"),
+            "Newer.",
+            "1",
+            "fake",
+            "m2");
+    store.save(older);
+    store.save(newer);
+
+    assertThat(store.latest(link)).contains(newer);
+    assertThat(store.latest(key().substring(0, 16))).isEmpty();
+  }
+
+  @Test
   void savingTheSameKeyTwiceKeepsTheFirst() {
     String key = key();
     Resolution first = new Resolution(key, "l", null, null, List.of(), "First.", "1", "fake", "m");

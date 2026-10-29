@@ -33,8 +33,9 @@ where the resolver runs.
   request with the call's method and path matches, best first, as the linker ranks them; for
   messages the bindings of the exchange sent to that reach a queue the unit listens on, then those
   listeners, else every listener on the same broker. Facts are written as subject, predicate,
-  object, attributes (without `facts`, `link` and `candidates`) and `repo:path#line`, never with
-  fact IDs, which change with every commit. Tools to look further are #169.
+  object, attributes (without `facts`, `link` and `candidates`) and `repo:path`, never with fact
+  IDs, which change with every commit, nor line numbers, so an edit above a call costs no new
+  call; the recorded link keeps the evidence's line. Tools to look further are #169.
 - **A JSON answer that must pick a candidate.** The model answers one JSON object: `target` (a
   candidate's reference, or `unknown`), `confidence` (`high`, `medium` or `low`), `cites` (the
   references it rests on) and `rationale` (at most two sentences). It is plain text, not the
@@ -44,8 +45,8 @@ where the resolver runs.
   unit ID is accepted as its reference), cites a reference not in the prompt, picks a candidate
   without citing it or one of its facts, has no valid confidence for a pick, has no rationale, or
   was cut off. As with summaries (ADR 0010), a rejected answer is sent back once with the reason
-  (purpose suffix "(retry)"); a second rejection leaves the link open with a warning and caches
-  nothing, so a later run asks again.
+  (purpose suffix "(retry)"); a second rejection logs a warning and caches nothing, so a later run
+  asks again; the link stays open unless an earlier pick is kept (below).
 - **The link it records** is `CALLS_HTTP` (or `SENDS_MESSAGES_TO`) from the calling unit to the
   candidate, with the evidence of the link left open, `source`, the call's `client`, `httpMethod`
   and `path`, `protocol` (`HTTP` or `HTTPS` by the URL's scheme, `JSON/` before it when the cited
@@ -69,8 +70,13 @@ where the resolver runs.
   The references stand for the same facts whenever the key is the same. `ResolvePrompt.VERSION`
   is raised whenever the prompt changes, which `ResolvePromptTest` enforces.
 - **It never fails the run.** A call refused by a budget or a capability check, or failing in the
-  provider after retries, leaves its link open with a warning and nothing cached; the others go
-  on. Calls run in parallel on virtual threads, within the client's per-model limits (ADR 0021),
+  provider after retries, leaves nothing cached and a warning; the others go on.
+- **A failed attempt keeps the earlier pick.** The resolver's facts are recorded for the whole
+  snapshot, so a link it does not derive again stops holding. When a call is refused, fails or is
+  rejected twice, the last answer stored for the same stable link ID (`ResolutionStore.latest`),
+  whatever its key, is used if it picked a unit that is still a candidate: the link keeps holding
+  with that answer's rationale, model and confidence, citing its facts only if it was given for
+  the same prompt. With no such answer the link stays open. Calls run in parallel on virtual threads, within the client's per-model limits (ADR 0021),
   and every call is logged with the purpose `resolve <kind> link <call> of <unit>`. Run budgets
   from configuration are still #42; the resolver uses the client and budgets it is given.
 - **project-0.** Every link project-0 leaves open lacks candidates, with builds and without, so a
