@@ -191,8 +191,8 @@ final class JdkDetector {
     return e.getLocalName() != null ? e.getLocalName() : e.getTagName();
   }
 
-  private static Document parse(byte[] xml)
-      throws ParserConfigurationException, IOException, SAXException {
+  /** Parses an untrusted XML document with DTDs and external entities off. */
+  static Document parse(byte[] xml) throws ParserConfigurationException, IOException, SAXException {
     DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
     factory.setNamespaceAware(true);
     factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);

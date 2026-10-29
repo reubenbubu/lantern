@@ -36,8 +36,10 @@ class BuildOutputsTest {
         """);
     write(
         "work/core/target/lantern/classpath.txt",
-        "/work/api/target/classes:/var/lantern/m2/org/slf4j/slf4j-api.jar");
+        "/work/api/target/classes:/var/lantern/m2/org/slf4j/slf4j-api.jar"
+            + ":/lantern/upstream/com/other/lib.jar");
     write("lib/org/slf4j/slf4j-api.jar", "jar");
+    write("lib/com/other/lib.jar", "jar");
     Files.createDirectories(outputs.resolve("work/core/target/generated-sources/annotations"));
 
     List<BuildModule> modules = BuildOutputs.modules(outputs);
@@ -51,7 +53,8 @@ class BuildOutputsTest {
     // Only direct dependencies count; the parent appears only transitively.
     assertThat(core.dependsOn()).containsExactly("api");
     assertThat(core.classpath())
-        .containsExactly("work/api/target/classes", "lib/org/slf4j/slf4j-api.jar");
+        .containsExactly(
+            "work/api/target/classes", "lib/org/slf4j/slf4j-api.jar", "lib/com/other/lib.jar");
     assertThat(core.classes()).isNull();
     assertThat(core.generatedSources()).isEqualTo("work/core/target/generated-sources");
     assertThat(core.dependencyTree()).isEqualTo("work/core/target/lantern/dependency-tree.txt");

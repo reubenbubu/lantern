@@ -35,6 +35,9 @@ final class BuildOutputs {
 
   static final String CONTAINER_REPOSITORY = "/var/lantern/m2/";
 
+  /** Where other repositories' artifacts are in the container, a tail of the local repository. */
+  static final String CONTAINER_UPSTREAM = "/lantern/upstream/";
+
   private static final String METADATA = "target/lantern/";
   private static final String TREE = "dependency-tree.txt";
   private static final String CLASSPATH = "classpath.txt";
@@ -145,6 +148,9 @@ final class BuildOutputs {
       if (entry.startsWith(CONTAINER_REPOSITORY)) {
         base = LIB;
         rest = entry.substring(CONTAINER_REPOSITORY.length());
+      } else if (entry.startsWith(CONTAINER_UPSTREAM)) {
+        base = LIB;
+        rest = entry.substring(CONTAINER_UPSTREAM.length());
       } else if (entry.startsWith(CONTAINER_WORK)) {
         base = WORK;
         rest = entry.substring(CONTAINER_WORK.length());
