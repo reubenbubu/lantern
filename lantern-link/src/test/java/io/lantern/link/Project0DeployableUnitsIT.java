@@ -207,7 +207,7 @@ class Project0DeployableUnitsIT {
             // catalog's Spring Boot and Java come through its parent, built by catalog-lib
             // (BUILD-1).
             technology.formatted(SHOP + "catalog-service ", "21", "catalog:pom.xml"),
-            technology.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#32"),
+            technology.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#36"),
             technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#28"),
             technology.formatted(
                 SHOP + "storefront-app ", "21", "storefront:storefront-model/pom.xml#17"));

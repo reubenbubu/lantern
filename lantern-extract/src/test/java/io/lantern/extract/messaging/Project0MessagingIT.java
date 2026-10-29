@@ -138,7 +138,8 @@ class Project0MessagingIT {
             + RABBIT_LISTENER
             + PAYMENTS
             + "OrderEventsListener.java#20-20");
-    // Nothing sends with a refund key.
+    // Nothing sends to shop.orders with a refund key (MSG-5's refund key, to shop.returns, is not
+    // known statically).
     assertThat(compiled)
         .noneMatch(l -> l.contains(" message-send ") && l.contains("\"routingKey\":\"refund."));
   }
@@ -191,6 +192,8 @@ class Project0MessagingIT {
                   + "java.lang.String)",
               "method:com.acme.shop.payments.OrderEventsListener#orderEvent(java.lang.String)",
               "method:com.acme.shop.payments.OrderEventsListener#refund(java.lang.String)",
+              "method:com.acme.shop.payments.RefundListener#refundRequested(java.lang.String)",
+              "method:com.acme.shop.storefront.order.ReturnListener#returned(java.lang.String)",
               "method:com.acme.shop.storefront.order.ShipmentListener#dispatched("
                   + "java.lang.String)");
     }
