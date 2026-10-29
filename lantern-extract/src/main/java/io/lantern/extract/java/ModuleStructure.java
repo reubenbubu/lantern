@@ -83,12 +83,24 @@ public final class ModuleStructure {
    * @param typeArguments the erasures of the type arguments written for it, as in a member ID (a
    *     type variable as its bound), such as {@code com.example.Order} and {@code java.lang.Long}
    *     for {@code JpaRepository<Order, Long>}; empty if none are written
+   * @param typeVariables for each type argument, the index of the declaring type's own type
+   *     parameter it is ({@code T} in {@code Base<T> extends JpaRepository<T, Long>} is 0), {@link
+   *     Integer#MAX_VALUE} for a type variable declared elsewhere (an enclosing type's), or -1 if
+   *     it is not a type variable
    */
   public record Supertype(
-      String predicate, String binaryName, Location where, List<String> typeArguments) {
+      String predicate,
+      String binaryName,
+      Location where,
+      List<String> typeArguments,
+      List<Integer> typeVariables) {
 
     public Supertype {
       typeArguments = List.copyOf(typeArguments);
+      typeVariables = List.copyOf(typeVariables);
+      if (typeVariables.size() != typeArguments.size()) {
+        throw new IllegalArgumentException("One type variable index per type argument");
+      }
     }
   }
 

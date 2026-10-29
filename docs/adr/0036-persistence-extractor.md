@@ -35,7 +35,7 @@ SQL counts, and how a datasource URL is recorded without its credentials.
   `framework: jpa`. The table is `@Table(name)`, else the entity name, else the simple class name,
   with `@Table(schema)` as a qualifier, named as Spring Boot's default physical naming strategy
   (Hibernate's `CamelCaseToUnderscoresNamingStrategy`) does: `CustomerOrder` is `customer_order`,
-  and explicit names too; a quoted name keeps its case. A subclass without its own `@Table` under
+  and explicit names too; a quoted name is changed the same way and stays quoted (`"OrderItems"` is `order_items`). A subclass without its own `@Table` under
   single-table inheritance (the default) maps to its root entity's table, with `inheritedFrom`.
   A Spring Data relational `@Table` class (Spring Data JDBC, R2DBC) maps too, with `framework:
   spring-data-relational`: its given name as written (Spring Data quotes it), else the class name
@@ -44,8 +44,11 @@ SQL counts, and how a datasource URL is recorded without its credentials.
   interface (`Repository`, `CrudRepository`, `JpaRepository`, `ListCrudRepository`, the reactive,
   R2DBC, MongoDB, Elasticsearch, Cassandra and Neo4j ones), directly or through interfaces of the
   analyzed code, or with `@RepositoryDefinition`; `base` names the Spring Data interface. The
-  object is the domain type: the first type argument closest to that interface that is not a type
-  variable. `@NoRepositoryBean` interfaces are left out. Which tables a repository touches follows
+  object is the domain type: the base interface's first type argument, with the type variables of
+  the interfaces in between replaced, by position, by the arguments each subinterface gives them
+  (`OrderRepository extends BaseRepository<Long, Order>` with `BaseRepository<ID, T extends
+  BaseEntity> extends JpaRepository<T, ID>` gives `Order`). To do this the analyzers also record,
+  for each supertype argument, which of the declaring type's own type parameters it is. `@NoRepositoryBean` interfaces are left out. Which tables a repository touches follows
   from its entity's `MAPS_TO`; it is not repeated.
 - **SQL in code.** `READS_TABLE` and `WRITES_TABLE` from the calling method (or type, for code
   outside methods) to each table the SQL names, with `statement` (`select`, `insert`, `update`,
@@ -74,10 +77,14 @@ SQL counts, and how a datasource URL is recorded without its credentials.
   URL and is left out.
 - **Credentials never reach a fact.** Usernames and passwords are not recorded. A URL, and its
   `written` form, loses any user info before the host (`//user:password@`, up to the last `@`
-  before the properties, so a password holding `/` goes too), Oracle's `thin:user/password@`, and
+  before the query, so a password holding `/` or `;` goes too), Oracle's `thin:user/password@`
+  (a quoted password may hold `@`), and
   every property naming a user (`user`, `username`, ...) or a secret (as
   `ConfigExtractor.isSecret` judges the name: `password`, `sslpassword`, ...), including in URLs
-  inside placeholder defaults (`${DB_URL:jdbc:...}`). A URL that a secret was substituted into is
+  inside placeholder defaults (`${DB_URL:jdbc:...}`). Placeholders are read whole, nested braces
+  included, so their contents (`${DB_PASSWORD:changeme}` in the password, `${DB_HOST}` before
+  `;user=sa`) do not end the URL early, and one in a removed part goes with it. This lives in
+  `UrlCredentials` in the config package, for the config extractor to reuse (#137). A URL that a secret was substituted into is
   recorded as written, placeholders kept, credentials removed, with `masked: true`. One that still
   looks like it holds a credential (`password=` in a form not understood) is recorded as `******`,
   masked. Config-value facts of the config extractor are unchanged; a literal credential in a URL

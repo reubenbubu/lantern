@@ -149,8 +149,8 @@ class PersistenceExtractorTest {
     assertThat(PersistenceExtractor.jpaName("ORDERS")).isEqualTo("orders");
     assertThat(PersistenceExtractor.jpaName("Order2Line")).isEqualTo("order2_line");
     assertThat(PersistenceExtractor.jpaName("HTTPLog")).isEqualTo("httplog");
-    assertThat(PersistenceExtractor.jpaName("\"Mixed\"")).isEqualTo("\"Mixed\"");
-    assertThat(PersistenceExtractor.jpaName("`Mixed`")).isEqualTo("\"Mixed\"");
+    assertThat(PersistenceExtractor.jpaName("\"OrderItems\"")).isEqualTo("\"order_items\"");
+    assertThat(PersistenceExtractor.jpaName("`Mixed`")).isEqualTo("\"mixed\"");
     assertThat(PersistenceExtractor.snakeCase("StockLevel")).isEqualTo("stock_level");
   }
 }

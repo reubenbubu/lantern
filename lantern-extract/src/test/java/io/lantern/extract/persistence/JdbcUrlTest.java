@@ -46,31 +46,9 @@ class JdbcUrlTest {
   }
 
   @Test
-  void removesCredentials() {
-    assertThat(JdbcUrl.withoutCredentials("jdbc:postgresql://shop:s3cr/et@shop-db:5432/shop"))
-        .isEqualTo("jdbc:postgresql://shop-db:5432/shop");
-    assertThat(
-            JdbcUrl.withoutCredentials(
-                "jdbc:postgresql://db/shop?user=shop&sslmode=require&password=s3cret"))
-        .isEqualTo("jdbc:postgresql://db/shop?sslmode=require");
-    assertThat(JdbcUrl.withoutCredentials("jdbc:mysql://db/shop?password=x&user=y"))
-        .isEqualTo("jdbc:mysql://db/shop");
-    assertThat(
-            JdbcUrl.withoutCredentials(
-                "jdbc:sqlserver://db:1433;user=sa;password=x;databaseName=old;trustStorePassword=y"))
-        .isEqualTo("jdbc:sqlserver://db:1433;databaseName=old");
-    assertThat(JdbcUrl.withoutCredentials("jdbc:oracle:thin:scott/tiger@//wh-db:1521/WH"))
-        .isEqualTo("jdbc:oracle:thin:@//wh-db:1521/WH");
-    assertThat(JdbcUrl.withoutCredentials("jdbc:h2:mem:test;USER=sa;PASSWORD=x"))
-        .isEqualTo("jdbc:h2:mem:test");
-    assertThat(JdbcUrl.withoutCredentials("jdbc:postgresql://db/shop?sslkey=/k&sslpassword=x"))
-        .isEqualTo("jdbc:postgresql://db/shop?sslkey=/k");
-    assertThat(
-            JdbcUrl.withoutCredentials(
-                "${DB_URL:jdbc:oracle:thin:scott/tiger@//wh:1521/WH} or"
-                    + " ${OTHER:jdbc:postgresql://u:p@db/shop?password=x}"))
-        .isEqualTo(
-            "${DB_URL:jdbc:oracle:thin:@//wh:1521/WH} or ${OTHER:jdbc:postgresql://db/shop}");
+  void recordsNoCredentials() {
+    assertThat(JdbcUrl.of("jdbc:postgresql://shop:${DB_PASSWORD:changeme}@db:5432/shop", null))
+        .isEqualTo(new JdbcUrl("jdbc:postgresql://db:5432/shop", "PostgreSQL", "db:5432", "shop"));
   }
 
   @Test

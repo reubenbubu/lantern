@@ -384,7 +384,7 @@ public final class PersistenceExtractor {
         }
         return;
       }
-      Base base = base(type, new HashSet<>());
+      Base base = base(type, List.of(), new HashSet<>());
       if (base != null && base.domain() != null) {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("base", base.base());
@@ -394,25 +394,36 @@ public final class PersistenceExtractor {
 
     /**
      * The Spring Data interface a repository extends, directly or through interfaces of the
-     * analyzed code, and the domain type: the first type argument closest to that interface that is
-     * not a type variable.
+     * analyzed code, and the domain type: the base interface's first type argument, with the type
+     * variables of the interfaces in between replaced by the arguments given for them, by position,
+     * or null if that is not a concrete type.
+     *
+     * @param bindings the types given for the type's own type parameters, by index; null where a
+     *     type is not known
      */
-    private Base base(TypeDecl type, Set<String> seen) {
+    private Base base(TypeDecl type, List<String> bindings, Set<String> seen) {
       if (!seen.add(type.binaryName())) {
         return null;
       }
       for (Supertype s : type.supertypes()) {
-        String argument = s.typeArguments().isEmpty() ? null : s.typeArguments().getFirst();
-        String domain = argument == null || argument.equals("java.lang.Object") ? null : argument;
+        List<String> arguments = new ArrayList<>();
+        for (int i = 0; i < s.typeArguments().size(); i++) {
+          int variable = s.typeVariables().get(i);
+          String argument =
+              variable < 0
+                  ? s.typeArguments().get(i)
+                  : variable < bindings.size() ? bindings.get(variable) : null;
+          arguments.add(argument == null || argument.equals("java.lang.Object") ? null : argument);
+        }
         if (REPOSITORY_BASES.contains(s.binaryName())) {
-          return new Base(s.binaryName(), domain, s.where());
+          return new Base(
+              s.binaryName(), arguments.isEmpty() ? null : arguments.getFirst(), s.where());
         }
         TypeDecl declared = code.type(s.binaryName());
         if (declared != null && declared.kind().equals(ModuleStructure.INTERFACE)) {
-          Base inner = base(declared, seen);
+          Base inner = base(declared, arguments, seen);
           if (inner != null) {
-            return new Base(
-                inner.base(), inner.domain() != null ? inner.domain() : domain, s.where());
+            return new Base(inner.base(), inner.domain(), s.where());
           }
         }
       }
@@ -688,14 +699,17 @@ public final class PersistenceExtractor {
    * A JPA logical name as Spring Boot's default physical naming strategy (Hibernate's {@code
    * CamelCaseToUnderscoresNamingStrategy}) makes it: dots become underscores, an underscore goes
    * before each upper-case letter between a lower-case letter or digit and another, and the name is
-   * lower-cased; a quoted name ({@code "Name"} or {@code `Name`}) is kept as written.
+   * lower-cased. The strategy changes a quoted name ({@code "Name"} or {@code `Name`}) the same way
+   * and keeps it quoted, so {@code "OrderItems"} is {@code "order_items"}.
    */
   static String jpaName(String logical) {
     String name = logical.strip();
-    if (name.length() > 1
-        && (name.startsWith("\"") && name.endsWith("\"")
-            || name.startsWith("`") && name.endsWith("`"))) {
-      return "\"" + name.substring(1, name.length() - 1) + "\"";
+    boolean quoted =
+        name.length() > 1
+            && (name.startsWith("\"") && name.endsWith("\"")
+                || name.startsWith("`") && name.endsWith("`"));
+    if (quoted) {
+      name = name.substring(1, name.length() - 1);
     }
     StringBuilder b = new StringBuilder(name.replace('.', '_'));
     for (int i = 1; i < b.length() - 1; i++) {
@@ -708,7 +722,8 @@ public final class PersistenceExtractor {
         b.insert(i++, '_');
       }
     }
-    return b.toString().toLowerCase(Locale.ROOT);
+    String physical = b.toString().toLowerCase(Locale.ROOT);
+    return quoted ? "\"" + physical + "\"" : physical;
   }
 
   /** A class name in snake case, as Spring Data relational derives a table name. */

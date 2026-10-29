@@ -1,11 +1,10 @@
 package io.lantern.extract.persistence;
 
-import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.config.UrlCredentials;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -65,30 +64,12 @@ record JdbcUrl(String url, String technology, String server, String database) {
           Map.entry("com.ibm.db2.jcc.DB2Driver", "Db2"),
           Map.entry("org.sqlite.JDBC", "SQLite"));
 
-  /**
-   * Property names that hold a user name; secrets are found by {@link ConfigExtractor#isSecret}.
-   */
-  private static final Set<String> USER_PROPERTIES =
-      Set.of("user", "username", "userid", "uid", "user id", "user name", "login");
-
-  /** Where a URL starts in a text. */
-  private static final Pattern URL_START =
-      Pattern.compile("(?<![A-Za-z0-9])(jdbc|r2dbc):", Pattern.CASE_INSENSITIVE);
-
   /** {@code scheme:[sub:]...//}, where the authority starts. */
   private static final Pattern AUTHORITY = Pattern.compile("^([A-Za-z0-9:_+.\\-]*?)//");
-
-  /** Oracle's {@code thin:user/password@} or {@code oci:user/password@}. */
-  private static final Pattern ORACLE_CREDENTIALS =
-      Pattern.compile("^(jdbc:oracle:(?:thin|oci8?):)[^@]*@", Pattern.CASE_INSENSITIVE);
 
   /** Oracle's {@code @//host:port/service} or {@code @host:port:SID}. */
   private static final Pattern ORACLE_TARGET =
       Pattern.compile("@(?://)?([^/:()]+(?::\\d+)?)[/:]([^/?:()]+)$");
-
-  /** What is left that may still be a credential, after removing those found. */
-  private static final Pattern LEFTOVER_CREDENTIAL =
-      Pattern.compile("(?i)(password|passwd|pwd|secret)\\s*=");
 
   /**
    * Reads a URL.
@@ -98,12 +79,12 @@ record JdbcUrl(String url, String technology, String server, String database) {
    * @return the URL without credentials; its URL is null if a credential might be left in it
    */
   static JdbcUrl of(String value, String driver) {
-    String url = withoutCredentials(value.strip());
+    String url = UrlCredentials.withoutCredentials(value.strip());
     String technology = technology(url);
     if (technology == null && driver != null) {
       technology = DRIVERS.get(driver.strip());
     }
-    if (LEFTOVER_CREDENTIAL.matcher(url).find()) {
+    if (UrlCredentials.mayHoldCredential(url)) {
       return new JdbcUrl(null, technology, null, null);
     }
     String server = null;
@@ -145,88 +126,6 @@ record JdbcUrl(String url, String technology, String server, String database) {
       }
     }
     return new JdbcUrl(url, technology, blankToNull(server), blankToNull(database));
-  }
-
-  /**
-   * The URL without a user or password before the host ({@code //user:password@host}, Oracle's
-   * {@code thin:user/password@}), nor user or secret properties ({@code ?password=...}, {@code
-   * ;user=...}). The user info ends at the last {@code @} before the properties, so a password
-   * holding a {@code /} is removed too. A text holding URLs inside placeholders, such as {@code
-   * ${DB_URL:jdbc:postgresql://user:password@db/shop}}, has each URL cleaned up to the {@code }}
-   * that closes it.
-   */
-  static String withoutCredentials(String text) {
-    Matcher start = URL_START.matcher(text);
-    if (!start.find()) {
-      return withoutCredentialsInOne(text);
-    }
-    StringBuilder out = new StringBuilder(text.substring(0, start.start()));
-    int from = start.start();
-    while (from < text.length()) {
-      int end = text.indexOf('}', from);
-      if (end < 0) {
-        end = text.length();
-      }
-      Matcher next = URL_START.matcher(text);
-      if (next.find(from + 1) && next.start() < end) {
-        end = next.start();
-      }
-      out.append(withoutCredentialsInOne(text.substring(from, end)));
-      Matcher following = URL_START.matcher(text);
-      int resume = following.find(end) ? following.start() : text.length();
-      out.append(text, end, resume);
-      from = resume;
-    }
-    return out.toString();
-  }
-
-  private static String withoutCredentialsInOne(String url) {
-    Matcher oracle = ORACLE_CREDENTIALS.matcher(url);
-    String result = oracle.find() ? oracle.group(1) + "@" + url.substring(oracle.end()) : url;
-    Matcher authority = AUTHORITY.matcher(result);
-    if (authority.find()) {
-      String rest = result.substring(authority.end());
-      int end = firstOf(rest, "?;");
-      int at = end == 0 ? -1 : rest.lastIndexOf('@', end - 1);
-      if (at >= 0) {
-        result = result.substring(0, authority.end()) + rest.substring(at + 1);
-      }
-    }
-    return withoutProperties(result);
-  }
-
-  /** Removes user and secret properties from the {@code ?a=b&c=d} and {@code ;a=b} parts. */
-  private static String withoutProperties(String url) {
-    int start = firstOf(url, "?;");
-    StringBuilder out = new StringBuilder(url.substring(0, start));
-    boolean query = false;
-    int i = start;
-    while (i < url.length()) {
-      char separator = url.charAt(i);
-      int next = i + 1;
-      while (next < url.length() && "&;?".indexOf(url.charAt(next)) < 0) {
-        next++;
-      }
-      String property = url.substring(i + 1, next);
-      int eq = property.indexOf('=');
-      String name = (eq < 0 ? property : property.substring(0, eq)).strip();
-      if (!property.isEmpty() && !isCredential(name)) {
-        if (separator == ';') {
-          out.append(';');
-        } else {
-          out.append(query ? '&' : '?');
-          query = true;
-        }
-        out.append(property);
-      }
-      i = next;
-    }
-    return out.toString();
-  }
-
-  private static boolean isCredential(String name) {
-    String lower = name.toLowerCase(Locale.ROOT);
-    return USER_PROPERTIES.contains(lower) || ConfigExtractor.isSecret(lower);
   }
 
   /** The technology the URL's subprotocol names, or null. */

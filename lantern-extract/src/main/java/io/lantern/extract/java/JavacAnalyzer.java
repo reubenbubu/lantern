@@ -55,6 +55,7 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
@@ -229,7 +230,8 @@ final class JavacAnalyzer {
                   BuiltInTypes.EXTENDS,
                   name,
                   clauseLocation(type, clause, where, file),
-                  typeArguments(superclass)));
+                  typeArguments(superclass),
+                  typeVariables(type, superclass)));
         }
       }
       List<? extends Tree> clauses = tree == null ? List.of() : tree.getImplementsClause();
@@ -245,7 +247,8 @@ final class JavacAnalyzer {
                 isInterface ? BuiltInTypes.EXTENDS : BuiltInTypes.IMPLEMENTS,
                 name,
                 clauseLocation(type, clause, where, file),
-                typeArguments(interfaces.get(i))));
+                typeArguments(interfaces.get(i)),
+                typeVariables(type, interfaces.get(i))));
       }
       List<Member> members = new ArrayList<>();
       List<TypeElement> nested = new ArrayList<>();
@@ -481,6 +484,25 @@ final class JavacAnalyzer {
         arguments.add(describe(argument));
       }
       return arguments;
+    }
+
+    /**
+     * For each type argument of a supertype, the index of the type's own parameter it is, or -1.
+     */
+    private List<Integer> typeVariables(TypeElement type, TypeMirror supertype) {
+      List<Integer> indexes = new ArrayList<>();
+      for (TypeMirror argument : ((DeclaredType) supertype).getTypeArguments()) {
+        int index = -1;
+        if (argument.getKind() == TypeKind.TYPEVAR) {
+          index = type.getTypeParameters().indexOf(((TypeVariable) argument).asElement());
+          if (index < 0) {
+            // A type variable of an enclosing type or method: not one of the type's own.
+            index = Integer.MAX_VALUE;
+          }
+        }
+        indexes.add(index);
+      }
+      return indexes;
     }
 
     /** A type's erasure as it appears in a member ID: binary names, arrays with {@code []}. */

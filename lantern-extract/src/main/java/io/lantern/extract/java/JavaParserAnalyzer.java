@@ -427,10 +427,27 @@ final class JavaParserAnalyzer {
       for (ClassOrInterfaceType t : declared) {
         String name = describe(t, context);
         if (!name.equals("java.lang.Object")) {
+          List<String> parameters = new ArrayList<>();
+          if (context instanceof NodeWithTypeParameters<?> generic) {
+            generic.getTypeParameters().forEach(p -> parameters.add(p.getNameAsString()));
+          }
           List<String> arguments = new ArrayList<>();
-          t.getTypeArguments()
-              .ifPresent(list -> list.forEach(a -> arguments.add(describe(a, context))));
-          supertypes.add(new Supertype(predicate, name, location(t), arguments));
+          List<Integer> variables = new ArrayList<>();
+          for (Type a : t.getTypeArguments().orElse(new NodeList<>())) {
+            arguments.add(describe(a, context));
+            int variable = -1;
+            if (a instanceof ClassOrInterfaceType c
+                && c.getScope().isEmpty()
+                && c.getTypeArguments().isEmpty()) {
+              variable = parameters.indexOf(c.getNameAsString());
+              if (variable < 0 && typeVariables(context).containsKey(c.getNameAsString())) {
+                // A type variable of an enclosing type: not one of the type's own.
+                variable = Integer.MAX_VALUE;
+              }
+            }
+            variables.add(variable);
+          }
+          supertypes.add(new Supertype(predicate, name, location(t), arguments, variables));
         }
       }
     }
