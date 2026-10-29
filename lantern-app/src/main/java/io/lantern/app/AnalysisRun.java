@@ -301,7 +301,7 @@ public final class AnalysisRun {
       // from those.
       // Their prompts show the code of components, read from every registered repository, carried
       // forward ones included, so a run gives the same prompts whichever repositories it names
-      // (ADR 0066).
+      // (ADR 0069).
       GitSourceFiles allSources =
           new GitSourceFiles(
               name ->

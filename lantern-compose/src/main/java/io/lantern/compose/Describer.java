@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * components, and an intent phrase for each of its links to other containers. One call per unit
  * shows what extraction found: the facts that make it a unit, its README's claims, its components
  * (when it has more than one, as the component diagram draws them) with their facts and the start
- * of their main type's code (ADR 0066), or else its entry points, and its links; the answer cites
+ * of their main type's code (ADR 0069), or else its entry points, and its links; the answer cites
  * them. Nothing is added: a unit, component or link the model leaves out keeps its summary or
  * static label. One call per data store, topic, queue, exchange and external system the container
  * diagrams draw asks for its responsibility sentence from its facts, the tables built in it and how
@@ -307,7 +307,7 @@ public final class Describer {
   /**
    * The prompt about a unit, or none when it would show nothing to word beyond the facts that make
    * it a unit: no README claims, entry points, components or links. Each component shows the start
-   * of its main type's code while the unit's share of code lasts (ADR 0066).
+   * of its main type's code while the unit's share of code lasts (ADR 0069).
    *
    * @param files the text of the file of a fact's evidence as prompts show it, or empty
    * @param documented gets the IDs of the facts above code that holds Javadoc, which count as

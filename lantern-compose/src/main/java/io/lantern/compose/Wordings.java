@@ -23,7 +23,7 @@ import java.util.Set;
  * @param flows the walkthrough and conditions of each flow, by {@link #flowKey} of the prompt that
  *     asked about it, so a flow is worded only when it is traced as the model saw it
  * @param documented the IDs of the facts that a prompt showed code holding Javadoc under, which
- *     count as evidence, as README claims do, when a responsibility sentence cites them (ADR 0066)
+ *     count as evidence, as README claims do, when a responsibility sentence cites them (ADR 0069)
  */
 public record Wordings(
     Map<EntityId, String> responsibilities,

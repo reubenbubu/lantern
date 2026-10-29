@@ -1,6 +1,6 @@
 # 0056: Responsibility sentences for data stores and destinations
 
-Status: accepted (#194), amends ADR 0050, amended by ADR 0065 (#216), pending the user's review (#24)
+Status: accepted (#194), amends ADR 0050, amended by ADR 0065 (#216) and ADR 0067 (#200), pending the user's review (#24)
 
 ## Context
 
@@ -61,5 +61,5 @@ facts, at most 1,000 output tokens.
 
 ## Not in this issue
 
-Code in the Describer's unit prompt, for generically named components (ADR 0066); the glossary in
+Code in the Describer's unit prompt, for generically named components (ADR 0069); the glossary in
 the prompt (annotations, Phase 3).

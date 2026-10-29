@@ -1,6 +1,6 @@
-# 0066: Code in the Describer's unit prompt
+# 0069: Code in the Describer's unit prompt
 
-Status: accepted (#208), amends ADR 0050 and ADR 0065, pending the user's review (#24)
+Status: accepted (#208), amends ADRs 0050, 0065, 0066 and 0068, pending the user's review (#24)
 
 ## Context
 
@@ -40,13 +40,17 @@ component's code for that, with secrets masked (ADR 0054), cited and cached as i
   it for what the code shows.
 - **Cached by what the model sees** (ADR 0050, ADR 0055): the key hashes the user turn, which now
   holds the code as shown, without the commit or fact ID, so a new commit that leaves the shown code
-  unchanged makes no call, and a change to it asks again. `WordingPrompt.VERSION` is 2.
+  unchanged makes no call, and a change to it asks again. `WordingPrompt.VERSION` is 4 (ADRs 0067 and 0068 had raised it to 3).
 - **Javadoc counts as evidence** (amending ADR 0065), as ADR 0059 does for summaries: a
   responsibility sentence that cites the `kind` fact of code shown with `/**` in it is evidenced,
   like one citing a README claim. Which facts those are follows from the prompt, which a cached
   answer shares, so it is worked out in every run (`Wordings.documented`) and not stored. The
   system's purpose still counts README claims only: its prompt shows the facts behind the units'
-  sentences without their code (ADR 0060).
+  sentences without their code (ADR 0060). The item's stored confidence (ADR 0066) follows the
+  same rule: 0.5 when it cites a README claim or the fact above code with Javadoc.
+- **The code supports names** (amending ADR 0068): a text citing the fact above a component's
+  code may name what that code mentions, such as a method or a field, since the prompt showed it
+  under that fact.
 
 ## Cost
 
@@ -58,4 +62,5 @@ a real system.
 
 Whether real models word generically named components better from the start of their code needs
 real calls, which tests do not make. The check of the evidenced mark is a bound, not proof: it
-cannot tell that the cited Javadoc says what the sentence says (#191).
+cannot tell that the cited Javadoc says what the sentence says, as the name check of ADR 0068
+cannot tell that a name the code mentions is used truly.

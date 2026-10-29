@@ -46,7 +46,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The LLM's responsibility sentences, intent phrases and flow narration, and how documents use them
- * (ADR 0050, ADR 0056, ADR 0058, ADR 0066).
+ * (ADR 0050, ADR 0056, ADR 0058, ADR 0069).
  */
 class DescriberTest {
 

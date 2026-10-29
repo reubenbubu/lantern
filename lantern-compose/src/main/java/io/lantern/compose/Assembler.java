@@ -45,6 +45,15 @@ final class Assembler {
    */
   static final String INFERRED_SENTENCE = "Inferred:";
 
+  /**
+   * What opens a deployable unit's description taken from its module's summary because the unit has
+   * no responsibility sentence (ADR 0066), when the summary's purpose is evidenced.
+   */
+  static final String FROM_MODULE = "From its module's summary:";
+
+  /** As {@link #FROM_MODULE}, when the summary's purpose is inferred from the code. */
+  static final String FROM_MODULE_INFERRED = "Inferred, from its module's summary:";
+
   private static final Pattern NOT_ID_CHAR = Pattern.compile("[^A-Za-z0-9._:-]");
 
   private final Knowledge knowledge;
@@ -304,7 +313,7 @@ final class Assembler {
 
   /**
    * Whether the text cites what people wrote (ADR 0059, ADR 0060): a README claim or, when {@code
-   * code}, the fact above code with Javadoc that a unit's prompt showed (ADR 0066). The prompt
+   * code}, the fact above code with Javadoc that a unit's prompt showed (ADR 0069). The prompt
    * about the system's purpose shows the facts its units' sentences cite without their code.
    */
   private boolean evidenced(Text text, boolean code) {
@@ -509,13 +518,30 @@ final class Assembler {
               ? purpose().content()
               : responsibility != null
                   ? responsibility(entity.id(), responsibility).content()
-                  : summary(summaries.get(summarized(entity.id()))).content();
+                  : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
               entity.id(), entity.name(), entity.parent(), description, entity.facts()));
     }
     return List.copyOf(entities.values());
+  }
+
+  /**
+   * The description of an entity without a responsibility sentence: its summary, or for a
+   * deployable unit its module's summary, which is about the module and less grounded than a
+   * sentence about the unit, so it opens with {@value #FROM_MODULE} or, when its purpose is
+   * inferred, {@value #FROM_MODULE_INFERRED}, emphasized (ADR 0066).
+   */
+  private Text summarizedDescription(EntityId id) {
+    EntityId source = summarized(id);
+    Summary summary = summaries.get(source);
+    if (source.equals(id)) {
+      return summary(summary);
+    }
+    return opened(
+        summary.purpose() == Summary.Purpose.EVIDENCED ? FROM_MODULE : FROM_MODULE_INFERRED,
+        rich(summary.entity(), summary.text()));
   }
 
   /** The facts the document refers to, including those its entities' descriptions cite. */

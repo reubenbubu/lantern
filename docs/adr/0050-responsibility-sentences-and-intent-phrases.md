@@ -1,8 +1,8 @@
 # 0050: Responsibility sentences and intent phrases
 
 Status: accepted (#181), amends ADR 0044, ADR 0047 and ADR 0048, amended by ADR 0056 (#194),
-ADR 0058 (#195), ADR 0060 (#196), ADR 0065 (#216) and ADR 0066 (#208), pending the user's review
-(#24)
+ADR 0058 (#195), ADR 0060 (#196), ADR 0065 (#216), ADR 0066 (#192), ADR 0067
+(#200), ADR 0068 (#191) and ADR 0069 (#208), pending the user's review (#24)
 
 ## Context
 
@@ -47,7 +47,9 @@ or static label as it was.
   relationship the prompt does not show, cites nothing or a reference that is not a fact of the
   prompt, writes a reference in a text, has a sentence over 30 words or one that is only the
   element's name, or a phrase over 10 words or one that is only "uses", "calls", "depends on" or a
-  similar word. As with summaries and links (ADRs 0010, 0045), a rejected answer is sent back once
+  similar word. Since ADR 0068 a text naming what the facts it cites do not mention is left out,
+  and the answer is rejected only when all its texts are. As with summaries and links (ADRs 0010,
+  0045), a rejected answer is sent back once
   with the reason (`(retry)`); a second rejection logs a warning and caches nothing, so the unit
   keeps its summaries and static labels and a later run asks again. A call refused by a budget or
   a capability check, or failing in the provider, does the same. The run never fails for it.

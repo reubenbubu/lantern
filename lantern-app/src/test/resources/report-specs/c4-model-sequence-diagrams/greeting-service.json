@@ -13,7 +13,7 @@
       "parent" : "system-snapshot",
       "tag" : "Service",
       "technology" : "Java 21",
-      "description" : "Purpose inferred from the code: It builds on its parts. It is described by its facts."
+      "description" : "Inferred, from its module's summary: It builds on its parts. It is described by its facts."
     },
     "system-snapshot" : {
       "kind" : "system",

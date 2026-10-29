@@ -1,6 +1,6 @@
 # 0025: Summary prompt wording and length
 
-Status: accepted (#71), amended by ADR 0059 (#193) and ADR 0061 (#77), pending the user's review (#24)
+Status: accepted (#71), amended by ADR 0059 (#193), ADR 0061 (#77) and ADR 0067 (#200), pending the user's review (#24)
 
 ## Context
 

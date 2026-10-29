@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,7 +57,8 @@ import org.slf4j.LoggerFactory;
  * <p>Each summary says whether its purpose is evidenced or inferred ({@link Summary.Purpose}). The
  * model marks its answer; a mark of evidenced is kept only if the answer's first sentence is kept
  * and its first citation cites a README claim, a source file with Javadoc, or a contained summary
- * whose purpose is evidenced.
+ * whose purpose is evidenced. Each summary also has a confidence ({@link Confidence}), from that
+ * mark and the share of the answer's sentences kept.
  *
  * <p>Every summary is cached under a key that hashes what the model sees: the prompt version, the
  * model (provider and identifier), the unit's entity and level, its contained units' entities
@@ -293,6 +295,7 @@ public final class Summarizer {
         stored.level(),
         text,
         stored.purpose(),
+        stored.confidence(),
         stored.citedFacts().stream().map(id -> facts.getOrDefault(id, id)).toList(),
         stored.citedSummaries().stream().map(key -> summaries.getOrDefault(key, key)).toList(),
         factIds,
@@ -511,6 +514,7 @@ public final class Summarizer {
           node.level(),
           checked.text(),
           answer.purpose(),
+          answer.confidence(),
           checked.facts(),
           checked.summaries(),
           inputs.factIds,
@@ -629,7 +633,13 @@ public final class Summarizer {
       Prompt.Tagged tagged = Prompt.tagged(response.text());
       Citations.check(
           tagged.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
-      Citations.Sentences sentences = Citations.cited(tagged.text());
+      Citations.Sentences sentences = Citations.cited(tagged.text(), inputs::unsupported);
+      if (sentences.text().isEmpty() && !sentences.unsupported().isEmpty()) {
+        throw new Citations.Rejected(
+            "every sentence names something that the references it cites do not mention: "
+                + names(sentences.unsupported())
+                + "; name only what the input you cite shows.");
+      }
       if (sentences.text().isEmpty()) {
         // Only a citation split by a blank line inside its brackets gets here.
         throw new Citations.Rejected(
@@ -642,18 +652,47 @@ public final class Summarizer {
             purpose,
             logged(String.join(" | ", sentences.uncited())));
       }
+      if (!sentences.unsupported().isEmpty()) {
+        LOG.info(
+            "Left out {} sentences naming what their references do not mention from the answer"
+                + " to {}: {}",
+            sentences.unsupported().size(),
+            purpose,
+            logged(
+                String.join(
+                    " | ",
+                    sentences.unsupported().stream()
+                        .map(u -> u.sentence() + " (" + String.join(", ", u.names()) + ")")
+                        .toList())));
+      }
       Citations.Checked checked =
           Citations.check(
               sentences.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
       boolean evidenced =
           tagged.purpose() == Summary.Purpose.EVIDENCED
-              && !sentences.firstUncited()
+              && !sentences.firstLeftOut()
               && Citations.firstReferences(sentences.text()).stream()
                   .anyMatch(inputs.evidence::contains);
       return new Answer(
           sentences.text(),
           checked,
-          evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED);
+          evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED,
+          Confidence.of(
+              evidenced,
+              sentences.kept(),
+              (int) sentences.uncited().stream().filter(t -> !t.isBlank()).count()
+                  + sentences.unsupported().size()));
+    }
+
+    /** The names the sentences left out name without support, each once, at most some. */
+    private static String names(List<Citations.Unsupported> unsupported) {
+      Set<String> names = new LinkedHashSet<>();
+      unsupported.forEach(u -> names.addAll(u.names()));
+      List<String> listed = names.stream().limit(10).toList();
+      return String.join(", ", listed)
+          + (names.size() > listed.size()
+              ? " and " + (names.size() - listed.size()) + " more"
+              : "");
     }
 
     private LlmResponse ask(String purpose, SummaryNode node, List<LlmMessage> messages) {
@@ -676,8 +715,11 @@ public final class Summarizer {
    *     its sentences that cite nothing
    * @param checked the answer with references rewritten to stable IDs
    * @param purpose where its first sentence takes the unit's purpose from, as checked
+   * @param confidence how far it can be trusted, from its purpose and the share of its sentences
+   *     kept ({@link Confidence})
    */
-  private record Answer(String text, Citations.Checked checked, Summary.Purpose purpose) {
+  private record Answer(
+      String text, Citations.Checked checked, Summary.Purpose purpose, double confidence) {
 
     /** The answer's text with its checked purpose mark, as a merge prompt shows it. */
     Prompt.Tagged tagged() {
@@ -701,6 +743,12 @@ public final class Summarizer {
      */
     final Set<String> evidence = new HashSet<>();
 
+    /** What each reference stands for, as the prompt writes it. */
+    private final Map<String, String> texts = new HashMap<>();
+
+    /** The unit as the prompt names it. */
+    private final String subject;
+
     private final SummaryNode node;
 
     Inputs(SummaryNode node, List<Excerpts.Excerpt> excerpts, List<Summary> children) {
@@ -713,6 +761,11 @@ public final class Summarizer {
       this.sheet = Prompt.sheet(sheet, node.facts().size());
       this.excerpts = Prompt.excerpts(excerpts);
       this.children = Prompt.children(children);
+      this.subject = Prompt.describe(node.level(), node.entity());
+      for (List<Prompt.Item> items :
+          List.of(this.facts, this.sheet, this.excerpts, this.children)) {
+        items.forEach(item -> texts.put(item.ref(), item.text()));
+      }
       List<Fact> facts = promptFacts(node);
       for (int i = 0; i < facts.size(); i++) {
         if (facts.get(i).predicate().equals(DocsExtractor.CLAIM)) {
@@ -729,6 +782,22 @@ public final class Summarizer {
           evidence.add("S" + (i + 1));
         }
       }
+    }
+
+    /**
+     * What a sentence names that neither the inputs it cites nor the unit's name mention (ADR
+     * 0068).
+     */
+    List<String> unsupported(String sentence) {
+      List<String> support = new ArrayList<>();
+      support.add(subject);
+      for (String ref : Citations.references(sentence)) {
+        String text = texts.get(ref);
+        if (text != null) {
+          support.add(text);
+        }
+      }
+      return Grounding.unsupported(sentence, support);
     }
 
     /** All items split into parts that each fit the budget with a part prompt's own text. */
