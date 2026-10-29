@@ -1,10 +1,10 @@
 # Lantern — Design Document
 
-Oct 27, 2026
+Oct 29, 2026
 
 ## Overview
 
-Lantern is a hosted service that analyzes a set of local Java repositories, builds a versioned knowledge model of the system they form, and generates architecture documents for different audiences from that model.
+Lantern is a hosted service that analyzes the local repositories of a named software system, mostly Java, builds a versioned knowledge model of that system, and generates architecture documents for different audiences from that model.
 
 **Problem.** We work in a very complex ecosystem of microservices and libraries with little trustworthy documentation. The wiki exists but can't be relied on. Onboarding is slow, and architecture reviews depend on whoever happens to remember how things connect.
 
@@ -22,7 +22,7 @@ Lantern is a hosted service that analyzes a set of local Java repositories, buil
 
 - Fetching repos from remote providers. Repos are cloned onto the host.
 - Trusting the existing wiki. Code is the source of truth, READMEs are low-trust supporting evidence, and annotations add what code can't show.
-- Non-JVM application languages as a first-class target, beyond config, SQL and build files.
+- Non-JVM application languages as a first-class target, beyond config, SQL, build and deployment files, and frontends seen as containers.
 
 ## Design principles
 
@@ -39,19 +39,21 @@ The knowledge model is the product. Documents are views of it.
 
 ## Architecture overview
 
-Seven stages run in order for each snapshot, and every stage reads from or writes to one versioned knowledge store in PostgreSQL. People add annotations and presentation rules to the same store, so the composer sees code facts and human knowledge together.
+Eight stages run in order for each snapshot, and every stage reads from or writes to one versioned knowledge store in PostgreSQL. People add annotations and presentation rules to the same store, so the composer sees code facts and human knowledge together.
 
 ```mermaid
 flowchart TD
   repos[Local repositories<br/>repo@commit set = snapshot] --> build[Build sandbox<br/>container per JDK]
   build --> extract[Static extractors + learned rules]
   extract --> link[Linker and grouping]
-  link --> summarize[Summarizer - LLM]
+  link --> investigate[Investigator - LLM<br/>cited, verified proposals]
+  investigate --> summarize[Summarizer - LLM]
   summarize --> compose[Composer]
   compose --> render[Renderers<br/>HTML, Markdown, PDF, Confluence]
   people[People in the UI<br/>annotations, rules, approvals] -- annotations, rules --> store[(Knowledge store<br/>PostgreSQL, versioned)]
   extract -- facts --> store
   link -- links --> store
+  investigate -- verified facts --> store
   summarize -- summaries --> store
   store -- reads --> compose
 ```
@@ -60,11 +62,13 @@ Only the composer decides what a document says. Renderers just format its output
 
 ## Ingestion and build sandbox
 
-Repos are cloned onto the service host, and each analysis builds them for real in an isolated container, because accurate Java analysis needs the code as it actually compiles.
+Repos are cloned onto the service host, and each analysis builds its Maven repos for real in an isolated container, because accurate Java analysis needs the code as it actually compiles.
 
 **Repository registry**
 
 - Each repo is registered with a local path on the host (or a clone URL the host pulls from), a default branch, and optional per-repo settings (JDK version, Maven profiles, modules to skip).
+- Repos belong to a named **system**, the software system its documents describe. One analysis covers one system: it names the system, and only that system's repos take part. A repo can be removed from a system.
+- A repo needs no Maven build. One without a `pom.xml` (a frontend, a repository of deployment files) is registered and snapshotted, is not built, and is read by the extractors that apply to its files; that is not degraded mode.
 - An analysis run targets a specific commit per repo. The set of `repo@commit` pairs is a **snapshot** (see Versioning).
 - Git credentials for pulling live on the host, outside the knowledge store.
 
@@ -110,10 +114,12 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | SQL | Flyway and Liquibase migrations, `.sql` files (JSqlParser) | Schema as of the commit: tables, columns, keys |
 | Tests | Test sources, parsed without compiling or running them | Test classes per module, how many tests each declares, and which are architecture tests (ArchUnit and similar) |
 | README and ADR | Markdown READMEs and architecture decision records in the repo | Low-trust "documented claims", checked against code; observed decisions with title, status, date and rationale |
+| Deployment | Dockerfiles, compose files, Helm charts, kustomize and Kubernetes manifests | Images and the units they run, container instances per environment, published ports, environment variables that set config, infrastructure the system runs with (databases, brokers, gateways, identity providers) and their versions |
+| Frontend | A frontend repository's package manifest, framework config and environment files, and the HTTP calls in its code | A frontend container with its technology, and the API base URLs and paths it calls |
 
 **Following values.** Paths, queue, exchange and topic names and routing keys are rarely literals where they are used. Extractors resolve `${...}` placeholders against config per profile, fold constants, and follow a value one hop from a `@Value` field or constructor argument into the template or client call that uses it. A value that can't be resolved keeps its placeholder key, which still says what it is.
 
-Later: Dockerfiles, Helm and Kubernetes manifests, OpenAPI and AsyncAPI specs, Terraform.
+Later: OpenAPI and AsyncAPI specs, Terraform.
 
 How the Maven extractor names entities, tells internal from third-party dependencies and links a thin service to its library is in ADR 0006.
 
@@ -189,8 +195,8 @@ Lantern works like a build system: every derived artifact records its inputs, an
 **Snapshots**
 
 - A snapshot is a numbered set of `repo@commit` pairs, plus the vocabulary revision, annotation revision and tool version used. Snapshots are numbered 1, 2, 3 and so on in creation order, because fact validity is a range of snapshot numbers.
-- A snapshot always describes the whole system: a repo that a run does not analyze is carried forward at its commit in the latest snapshot that analyzed it (stored its facts), and its facts keep holding. A run only ends facts of the repos it re-extracted.
-- Every document is tied to exactly one snapshot.
+- A snapshot belongs to one named system and always describes the whole of it: a repo of that system that a run does not analyze is carried forward at its commit in the latest snapshot of the system that analyzed it (stored its facts), and its facts keep holding. Repos of other systems are never carried in, and a repo removed from the system is not carried forward. A run only ends facts of the repos it re-extracted.
+- Every document is tied to exactly one snapshot, and is titled and filed by its system's name.
 - Only one analysis runs at a time. Starting one takes a PostgreSQL advisory lock, held on one database connection until the analysis ends; a second start fails at once with an "analysis already running" error, even from another Lantern process on the same database. If the process dies, the connection drops and the lock is released.
 
 **Cache keys**
@@ -235,7 +241,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | Shared database | Datasource URLs and table names |
 | Shared config | Common property keys and config servers |
 
-A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
+A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open. A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
 
 Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; tools to query the graph and read files come with #169, the questions queue with #170.
 
@@ -244,7 +250,7 @@ What the links look like (one relationship per call, send, datasource or setting
 **Scope modes**
 
 - **Per repo:** each repo is its own scope.
-- **System:** all repos in the snapshot form one scope.
+- **System:** all repos in the snapshot, the named system's, form one scope.
 - **Auto-grouped:** the tool proposes groups, and each group is a scope.
 - **Custom:** any saved selection of entities, using the same selectors as presentation rules.
 
@@ -260,7 +266,7 @@ On later snapshots, clustering is seeded with the previous groups so membership 
 
 ## LLM integration
 
-The LLM handles understanding that static analysis can't provide, always working from extracted facts and real code, never from memory alone. Providers are configurable against the OpenAI or Anthropic API formats.
+The LLM handles understanding that static analysis can't provide, and finds what static analysis misses, always working from extracted facts and real code, never from memory alone. Providers are configurable against the OpenAI or Anthropic API formats.
 
 **Roles** (most frequent first)
 
@@ -268,13 +274,14 @@ The LLM handles understanding that static analysis can't provide, always working
 | --- | --- | --- |
 | Summarize | A code unit's facts and child summaries; for a type, its whole source file with secrets masked; for a module or repository, a fact sheet of its parts | Hierarchical summaries at each level |
 | Resolve | A link left open, its facts and its candidates' facts; later also tools to query the graph and read files (#169) | New facts with `origin=llm` and a confidence |
+| Investigate | A deployable unit's or the system's facts and links, with tools to query the graph and read the repos' files (#169) | Proposed elements (containers, data stores, external systems, people, components), connections and risks, each citing file:line ranges; the verified ones become facts with `origin=llm` and a confidence |
 | Infer intent | A deployable unit's facts, README claims and the start of its components' code; a data store's or destination's facts and uses; a system's units' responsibilities with the facts they cite, and its README claims; the glossary once annotations exist | Responsibilities of units, components, data stores and destinations, intent of their links, domain role, a system's purpose |
 | Name groups | Cluster members' summaries | Group name and description |
 | Propose rules | Repeated unresolved patterns | Declarative extractor rules (see Learned rules) |
 | Compose | Document model plus facts in scope; a main flow's traced facts | Narrative sections for an audience; a flow's walkthrough and pre- and post-conditions |
 | Translate | A user's natural-language instruction | A structured annotation or presentation rule |
 
-**Models (Anthropic):** Claude Sonnet for the high-volume roles (Summarize, Name groups, Compose, Translate); Claude Opus for the reasoning-heavy ones (Resolve, Infer intent, Propose rules).
+**Models (Anthropic):** Claude Sonnet for the high-volume roles (Summarize, Name groups, Compose, Translate); Claude Opus for the reasoning-heavy ones (Resolve, Investigate, Infer intent, Propose rules). The models and budget of the real-model runs that accept Phase 2 are in ADR 0070.
 
 **Provider interface**
 
@@ -286,10 +293,11 @@ The LLM handles understanding that static analysis can't provide, always working
 
 - Every LLM output must cite the facts or summaries it used; a source file is cited through the fact observed in it. An output that fails its checks, for example one that cites nothing, is sent back once with the reason, and dropped if it fails again (see ADR 0010). A summary sentence that cites nothing is left out of the summary (ADR 0061), and a summary sentence or a responsibility sentence, intent phrase, narration or system's purpose that names a class, method, table, topic, path or technology none of its cited inputs mention is left out too (ADR 0068).
 - The glossary (from annotations) is included in prompts, once annotations exist (Phase 3).
-- The LLM words what extraction found: names, the responsibility sentence of each element, the intent phrase of each relationship, a system's purpose and "start here". It never invents elements or relationships. Every box and line in a document comes from a static or rule fact, an annotation, or a Resolve result that picks among candidates the code shows.
-- What code can't show (people, owners, rationale, quality goals, production topology) comes from annotations or README claims, or is stated once, plainly, as unknown. Business purpose comes from what people wrote (Lantern annotations, README claims, Javadoc) where there is any; otherwise it is inferred from the code and every document shows it as inferred, never as fact. Each summary's purpose sentence, and each responsibility sentence, is marked as evidenced or inferred.
+- The LLM words what extraction found: names, the responsibility sentence of each element, the intent phrase of each relationship, a system's purpose and "start here". Through Investigate it may also find what extraction missed, but only with evidence Lantern checks. Every box, line and risk in a document comes from a static or rule fact, an annotation, a Resolve result that picks among candidates the code shows, or a verified Investigate proposal. Nothing else is drawn or stated as found.
+- **Investigate's guard rails.** Every proposal cites one or more file:line ranges in the snapshot's repos. Lantern checks that each range exists at the snapshot's commit and holds the identifiers (class, method, property, path, topic, host) the proposal names, and rejects a proposal any citation of which fails. Accepted proposals are stored as facts with `origin=llm`, their citations as evidence and a confidence below a static fact's. Static extraction stays the main source and wins on conflict: a proposal that repeats or contradicts a static or human fact is dropped. Every document marks what Investigate found as found by the LLM, in every template. Investigate is cached by what the model sees and runs within the run's budget, like every role; tests use recorded responses.
+- What code and deployment files can't show (owners, rationale, quality goals, people the code does not name, production topology beyond deployment files) comes from annotations or README claims, or is stated once, plainly, as unknown. Business purpose comes from what people wrote (Lantern annotations, README claims, Javadoc) where there is any; otherwise it is inferred from the code and every document shows it as inferred, never as fact. Each summary's purpose sentence, and each responsibility sentence, is marked as evidenced or inferred.
 
-How summaries are built bottom-up, cached and cited is in ADR 0010, and how their cache keys on the prompt in ADR 0055; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how secrets are masked in those files before they are sent is in ADR 0054; how module and repository prompts show a fact sheet of their parts' entry points, links, data stores and technology is in ADR 0057; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025; how a summary marks its purpose as evidenced or inferred, and how documents show it, is in ADR 0059. How the LLM words the responsibility sentences of units and components and the intent phrases of their links, and how documents use them, is in ADR 0050; the responsibility sentences of databases, topics, queues, exchanges and external systems are in ADR 0056; how documents show a responsibility sentence that cites nothing people wrote as inferred is in ADR 0065; how the unit prompt shows the start of each component's code, and how Javadoc in it counts as evidence, is in ADR 0069. The confidence each summary and wording stores, and how a unit without a responsibility sentence is described by its module's summary, marked as such, is in ADR 0066. How the LLM narrates each main flow, its walkthrough and pre- and post-conditions, from the facts of its trace is in ADR 0058. What Resolve is shown about a link left open, and how its answer is checked and cached, is in ADR 0045. How it words the system's purpose from its units' responsibility sentences and its README claims, and how the system's report marks a purpose inferred from the units, or states it as unknown, is in ADR 0060. How every prompt tells the model that its inputs, which come from the repositories, are data and not instructions is in ADR 0067.
+How summaries are built bottom-up, cached and cited is in ADR 0010, and how their cache keys on the prompt in ADR 0055; how type prompts show their source files, and how a unit too large for one prompt is summarized in parts, is in ADR 0024; how secrets are masked in those files before they are sent is in ADR 0054; how module and repository prompts show a fact sheet of their parts' entry points, links, data stores and technology is in ADR 0057; how the prompt asks for plain, purpose-first wording at each level is in ADR 0025; how a summary marks its purpose as evidenced or inferred, and how documents show it, is in ADR 0059. How the LLM words the responsibility sentences of units and components and the intent phrases of their links, and how documents use them, is in ADR 0050; the responsibility sentences of databases, topics, queues, exchanges and external systems are in ADR 0056; how documents show a responsibility sentence that cites nothing people wrote as inferred is in ADR 0065; how the unit prompt shows the start of each component's code, and how Javadoc in it counts as evidence, is in ADR 0069. The confidence each summary and wording stores, and how a unit without a responsibility sentence is described by its module's summary, marked as such, is in ADR 0066. How the LLM narrates each main flow, its walkthrough and pre- and post-conditions, from the facts of its trace is in ADR 0058. What Resolve is shown about a link left open, and how its answer is checked and cached, is in ADR 0045. Why the LLM may now find, through Investigate, is in ADR 0070; what Investigate is shown and how its citations are checked comes with #269. How it words the system's purpose from its units' responsibility sentences and its README claims, and how the system's report marks a purpose inferred from the units, or states it as unknown, is in ADR 0060. How every prompt tells the model that its inputs, which come from the repositories, are data and not instructions is in ADR 0067.
 
 **Cost and reliability**
 
@@ -395,9 +403,15 @@ Presentation rules follow the same lifecycle as knowledge annotations: anchored 
 
 ## Quality bar
 
-Every diagram and document is judged against these checks, each yes or no. The composer checks every check not marked *(review)* on every document and puts the failures into the document as a quality report block (ADR 0028). Checks marked *(review)* are judged by reviewing the documents of the test sets in each phase. The evidence behind the checks is in `docs/research/architecture-documentation-quality-bar.md`.
+Every diagram and document is judged against these checks, each yes or no. The composer checks every check not marked *(review)* on every document and puts the failures into the document as a quality report block (ADR 0028). Checks marked *(review)* are judged by the LLM judge and by the user (Measured against references, below). The evidence behind the checks is in `docs/research/architecture-documentation-quality-bar.md`.
 
-**Every diagram:** a title naming its type and scope; a legend for every shape, color, line style and arrowhead used; one abstraction level; at most 15 elements, else split into several at the same level (for example one per container with its direct neighbours). Every element has a name, a type and a responsibility sentence that doesn't restate the name *(review)*, and containers and components a technology. Every line is one-way, labelled with an intent phrase (never just "uses" or "depends on"), links to the facts behind it, and is marked conditional, naming the profile, when it holds only under a Spring profile; lines between containers name a protocol (`[JSON/HTTPS]`, `[AMQP]`, `[JDBC]`). Acronyms are explained in the glossary. What each diagram type contains is under Diagrams in Composition.
+**Measured against references.** Passing the checks is not enough: a document must find what a careful reader of the code finds. The bar is a **reference**, a report of a test set written by hand from cited code facts (file:line), in the format of the C4 report spec (`report-specs/`), checked line by line by a second, independent reader, and kept in `testsets/<set>/reference/` with the commits it describes.
+
+- **Scoring** (#252) compares Lantern's system report with the reference, without an LLM: recall and precision for containers, data stores, queues and exchanges, external systems and people, for connections between containers by protocol, for flows (by trigger and participants), risks (by subject) and decisions, and which checks pass. Its scorecard lists the missing and extra items by name, and records the model of every role and the run's cost.
+- **Judging** (#277): an LLM judge compares each section of Lantern's report with the reference's against the research rubric, and grades the Architecture Explorer and the Executive Brief against their rows below, with reasons cited to both documents. The judge's model, like every role's, is chosen per run.
+- **The bar** is "as good as or better than the reference". Each milestone of a phase sets targets for the scores (its milestone in GitHub); targets are confirmed only once a baseline is measured. Real-model runs are recorded, so they can be replayed without cost.
+
+**Every diagram:** a title naming its type and scope; a legend for every shape, color, line style and arrowhead used; one abstraction level; at most 15 elements, else split into several at the same level (for example by concern: one view of requests and data, one of messaging). Every element has a name, a type and a responsibility sentence that doesn't restate the name *(review)*, and containers and components a technology. Every line is one-way, labelled with an intent phrase (never just "uses" or "depends on"), links to the facts behind it, and is marked conditional, naming the profile, when it holds only under a Spring profile; lines between containers name a protocol (`[JSON/HTTPS]`, `[AMQP]`, `[JDBC]`). Acronyms are explained in the glossary. What each diagram type contains is under Diagrams in Composition.
 
 | Document | Passes only if |
 | --- | --- |
@@ -424,11 +438,11 @@ How the first composer builds per-repository documents from view definitions is 
 | Diagram | Contains | Built from |
 | --- | --- | --- |
 | Landscape | Every system in scope and the people using them; no internals | Container relationships, aggregated per system |
-| System context | One system in focus, its users and the external systems it talks to directly; no technology. Unknown users are marked unknown, not invented | Relationships leaving the system; annotations for people and for external systems no code names |
-| Container | One box per deployable unit, folding in the in-set libraries it packages (a thin service and its library are one box); each service's own schema as a separate data store; queues, topics and exchanges as elements or "via" labels, never one broker box | Deployable evidence (a Spring Boot main class, a repackaged executable artifact, a Dockerfile once the Docker extractor exists), `spring.application.name`, linked HTTP client, messaging and persistence facts |
-| Component | Inside one container, one component per role: each controller, message listener or scheduled job with the services and repositories reachable only from it; a bean reachable from several entry points is its own component. Domain and util classes are left out. Drawn only when it adds value: more than one component, and not a repeat of the container diagram | Spring stereotypes (including meta-annotations) and the resolved call graph |
+| System context | One system in focus, its users and the external systems it talks to directly; no technology. Unknown users are marked unknown, not invented | Relationships leaving the system; people the code shows (sign-in, roles, a frontend); annotations for people and for external systems no code names |
+| Container | One view of the whole system, split by concern when above 15 elements. One box per deployable unit, folding in the in-set libraries it packages (a thin service and its library are one box), and one per frontend; each service's own schema as a separate data store; queues, topics and exchanges as elements or "via" labels, never one broker box | Deployable evidence (a Spring Boot main class, a repackaged executable artifact, a Dockerfile), `spring.application.name`, linked HTTP client, messaging and persistence facts, frontend and deployment facts |
+| Component | Inside one container, one component per role: each controller, message listener or scheduled job with the services and repositories reachable only from it; a bean reachable from several entry points is its own component. Domain, DTO, mapper, configuration and util classes are left out. Above 15 elements, split by groups of entry points. Drawn only when it adds value: more than one component, and not a repeat of the container diagram | Spring stereotypes (including meta-annotations) and the resolved call graph |
 | Sequence | See Sequence diagrams below | Entry points and the resolved call graph, linked across containers |
-| Deployment | Nodes and container instances in one environment | Dockerfiles, compose files and Kubernetes manifests (later extractors); omitted with a note when there are none |
+| Deployment | Nodes and container instances in one environment | The Deployment extractor's facts; omitted with a note when there are none |
 | Dependency | Modules and artifacts with their build-time dependencies; not a C4 view | Maven facts |
 | Code | Not drawn; the Explorer links types to their source | |
 
@@ -501,7 +515,7 @@ Renderers turn the document model into a format and make no content decisions. S
 
 What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0052, and its quality evidence in ADR 0062 and ADR 0064.
 
-Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository and for the whole system (ADR 0031, ADR 0044).
+Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. The specs are the user's. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository and for the named system (ADR 0031, ADR 0044). In the C4 report, C4 pages hold only C4 content; findings (risks, decisions, unknowns), the glossary, the catalog and the sources are documentation pages, their own navigation group after the sequence diagrams (#249).
 
 Templates are versioned. Upgrading a template doesn't change a published document's look until the owner opts in. Prototypes will be built against a realistic fictional dataset and refined from there, starting with Architecture Explorer and Executive Brief.
 
@@ -557,19 +571,27 @@ The backend is Java 21+ on Spring Boot because the hardest part, Java analysis, 
 
 Each phase delivers something usable on real repos. The knowledge model and stable IDs come first because everything later depends on them.
 
-**Test sets.** From Phase 2, each phase is checked on several open-source test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, and a monolith. No single test set shapes the design. Each one's repos are in its ADR and its pins in `testsets/<set>/` (ADR 0029). No open-source test set is chosen yet: OpenWMS, the first, was dropped in #100, and choosing them is #88. Alongside them, the made-up set project-0 (ADR 0029) covers the cases the open-source sets miss.
+**Test sets.** From Phase 2, Lantern is measured on several test sets, chosen together to cover different styles: messaging technology, package-by-feature and package-by-layer code, thin services that package a library, gateways, frontends and deployment repositories, and a monolith. No single test set shapes the design. Each set's pins and setup are in `testsets/<set>/` (ADR 0029), with its reference where it has one (Quality bar).
+
+- **Development sets:** the open-source systems project-1 to project-4, each with a reference. Development, the evidence of every change and every milestone's test drop use them.
+- **Held-out sets:** the open-source systems project-5 (booking-microservices), project-6 (spring-petclinic-microservices) and project-7 (piggymetrics). They are pinned, but nobody reads their code or analyzes them until Phase 2's real-model acceptance, where their references are written and they are analyzed, scored and judged once against the same bar, so the bar is not met by tuning to the sets Lantern was built on.
+- **Synthetic sets:** project-0 (ADR 0029) and its larger successor project-8 (FleetCare), written for Lantern, each listing its cases with the exact answer. They cover what the open-source sets miss, and no change may lower their scores.
 
 1. **Foundation** (built; remaining fixes tracked in its milestone): a single repo through to a real document.
    - Repo registry, build sandbox, Maven and Java structure extractors
    - Fact store with envelope, vocabulary registry and snapshots
    - Bottom-up LLM summaries
    - Architecture Explorer and Executive Brief templates, single-file HTML, per-repo scope
-2. **System view** (next, before the remaining Phase 1 fixes; see ADR 0026): many repos as one system.
+2. **System view** (next, before the remaining Phase 1 fixes; see ADR 0026): many repos as one named system, measured against references (ADR 0070).
    - Spring, HTTP client, messaging, persistence, config and SQL extractors, following values
-   - Cross-repo linker and LLM resolver
-   - Deployable units, container, component and sequence views, and Quality bar checks
+   - Deployment and frontend extractors; repos without a Maven build
+   - Cross-repo linker, LLM resolver and Investigate
+   - Deployable units, container, component and sequence views, findings, and Quality bar checks
    - Executive Brief blast radius, technology currency, ranked risks and quality evidence
    - System scope, audience profiles, granularity switch
+   - References, scoring and the LLM judge
+
+   It is delivered in five milestones, each with its goal and acceptance criteria in [GitHub](https://github.com/reubenbubu/lantern/milestones): **2A** measured on real systems (references, scoring, one named system per analysis; the baseline confirms the later targets), **2B** find the whole system, **2C** compose to the bar, **2D** real-model acceptance (including the held-out sets), **2E** foundations for Phase 3, without changing the output.
 3. **Living docs:** versions and human knowledge.
    - Incremental runs, architecture diff, Change Report template
    - Knowledge annotations, questions queue, audit log, sign-in and roles
@@ -581,7 +603,7 @@ Each phase delivers something usable on real repos. The knowledge model and stab
 5. **Self-improvement and reach:** learned rules and more formats.
    - Learned rules with risk assessment and approval
    - Markdown, PDF and Confluence renderers
-   - Further extractors: Docker, Kubernetes, OpenAPI and AsyncAPI
+   - Further extractors: OpenAPI and AsyncAPI
 
 ## Open questions
 

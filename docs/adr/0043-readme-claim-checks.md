@@ -1,6 +1,6 @@
 # 0043: README claims checked against the code
 
-Status: accepted (#133), amended by ADR 0051 (#159) and for #160 (below), pending the user's review (#24)
+Status: accepted (#133), amended by ADR 0051 (#159), for #160 (below) and by ADR 0070 (#250), which freezes the checks, pending the user's review (#24)
 
 ## Context
 

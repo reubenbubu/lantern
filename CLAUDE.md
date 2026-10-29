@@ -13,7 +13,14 @@ any code that changes the design. This file covers only how you work.
 
 ## How work is organized
 
-- Tasks are GitHub issues in `reubenbubu/lantern`. Phases are milestones.
+- Tasks are GitHub issues in `reubenbubu/lantern`. Phases, or their parts (2A to 2E), are
+  milestones.
+- An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
+  which test sets (`docs/design.md`, Test sets). The coordinator writes it. A PR runs Lantern on
+  those sets only; the milestone's test drop runs all of them.
+- Held-out test sets (`docs/design.md`, Test sets) are only pinned: no session reads their code,
+  analyzes them or looks at their output until 2D's acceptance, where they are scored and judged
+  once.
 - The main session coordinates and stays quiet. It picks the next issue, hands it to a
   subagent, and relays a short summary. It does not do task work itself.
 - Each task runs in its own subagent, so its context is discarded when it finishes:
@@ -23,10 +30,13 @@ any code that changes the design. This file covers only how you work.
      branch named `<prefix>/<number>-<short-slug>`, e.g. `feature/12-maven-extractor`. The
      prefix is `feature/`, `bugfix/` or `chore/`, chosen by the issue type.
   3. Build and test until everything passes. Commits carry no `Co-Authored-By` trailer.
-  4. Open a PR whose description says `Closes #<number>`.
-  5. A separate reviewer subagent reviews the PR diff. Give it the diff and the issue, not the
-     implementer's reasoning. Fix what it finds.
-  6. Squash-merge when CI and review pass. CI is local, not on GitHub: it means
+  4. Open a PR whose description says `Closes #<number>` and carries the evidence the "Accepted
+     when" asks for: the scores before and after on the named test sets, and an excerpt or
+     screenshot of the generated document. A PR without evidence is not mergeable.
+  5. A separate reviewer subagent reviews the PR diff and checks the evidence against the
+     "Accepted when". Give it the diff, the evidence and the issue, not the implementer's
+     reasoning. Fix what it finds.
+  6. Squash-merge when CI, review and evidence pass. CI is local, not on GitHub: it means
      `./mvnw verify` (see Commands), and it must pass on the branch before merging. Leave a
      short summary on the issue and make sure it is closed.
   7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
@@ -63,6 +73,13 @@ any code that changes the design. This file covers only how you work.
   `haiku` 4. The subagents running at any moment, reviewers included, must cost 100 or
   less in total. The budget only caps parallelism: tasks that could clash (same files,
   the local database, shared resources) still never run together, whatever is left.
+- Each milestone ends with one test drop, which the user tests. When its last issue is merged, a
+  subagent writes it to `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's
+  documents and the reference side by side, the scorecards (from 2D also the judge's verdicts),
+  and a README with what the milestone set out to do, a checklist of what to try, the known gaps,
+  and the commits and models used. Add its path to the milestone's description and tell the user.
+  The user's verdict, added to the milestone's description, closes the milestone; what the user
+  rejects reopens its issue or becomes a new one.
 - Keep issues current. If scope changes, a task is blocked, or you find new work, update or
   open an issue right away. An issue's state must always match reality.
 
@@ -109,7 +126,8 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 - No real LLM calls unless the issue explicitly asks for one. Tests use fakes or recorded
   responses.
 - Secrets never go in code, commits, issues or PRs.
-- Stay inside this repository and the workspace directories the design defines.
+- Stay inside this repository and the workspace directories the design defines. Test sets live
+  in `~/workspace/lantern-test-projects/`, test drops in `~/workspace/lantern-test-drops/`.
 
 ## Commands
 

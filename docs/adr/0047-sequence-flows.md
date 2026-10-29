@@ -1,7 +1,7 @@
 # 0047: Sequence flows traced from entry points and stitched across containers
 
-Status: accepted (#96), amended by ADR 0049 (#176), ADR 0050 (#181) and ADR 0058 (#195), pending
-the user's review (#24)
+Status: accepted (#96), amended by ADR 0049 (#176), ADR 0050 (#181), ADR 0058 (#195) and ADR 0070
+(#250), which supersedes its choosing of flows, pending the user's review (#24)
 
 ## Context
 
