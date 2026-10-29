@@ -410,7 +410,7 @@ Composition decides what a document says and shows; rendering only formats it. C
 
 What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011; sequence diagrams and the quality report block are in ADR 0028. How templates show a summary's citations of other summaries is in ADR 0027.
 
-How the first composer builds per-repository documents from view definitions is in ADR 0012.
+How the first composer builds per-repository documents from view definitions is in ADR 0012. How the composer draws the context, container and component views below, and composes the system scope's C4 report, is in ADR 0043.
 
 **View definitions.** A persisted spec per document: scope, audience profile, template, sections and diagrams. Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
@@ -496,7 +496,7 @@ Renderers turn the document model into a format and make no content decisions. S
 
 What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015.
 
-Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository (ADR 0031).
+Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository and for the whole system (ADR 0031, ADR 0043).
 
 Templates are versioned. Upgrading a template doesn't change a published document's look until the owner opts in. Prototypes will be built against a realistic fictional dataset and refined from there, starting with Architecture Explorer and Executive Brief.
 

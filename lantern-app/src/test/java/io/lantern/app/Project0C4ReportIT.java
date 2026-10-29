@@ -137,8 +137,10 @@ class Project0C4ReportIT {
                     "external", 2L,
                     "queue", 4L,
                     "system", 1L)));
-    assertThat(data.get("pages").findValuesAsString("id"))
-        .startsWith(
+    List<String> pages = new ArrayList<>();
+    data.get("pages").forEach(page -> pages.add(page.get("id").asString()));
+    assertThat(pages)
+        .containsExactly(
             "context",
             "containers",
             "components-service-com-acme-shop-catalog-service",
