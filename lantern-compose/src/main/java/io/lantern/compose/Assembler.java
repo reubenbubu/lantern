@@ -40,7 +40,7 @@ final class Assembler {
   static final String INFERRED = "Purpose inferred from the code:";
 
   /**
-   * What opens a responsibility sentence that cites no README claim (ADR 0064): short, since it is
+   * What opens a responsibility sentence that cites no README claim (ADR 0065): short, since it is
    * the element's description on diagrams.
    */
   static final String INFERRED_SENTENCE = "Inferred:";
@@ -295,7 +295,7 @@ final class Assembler {
 
   /**
    * A responsibility sentence as rich text (ADR 0050, ADR 0056). One that cites no README claim is
-   * inferred from the code and opens with {@value #INFERRED_SENTENCE}, emphasized (ADR 0064).
+   * inferred from the code and opens with {@value #INFERRED_SENTENCE}, emphasized (ADR 0065).
    */
   private Text responsibility(EntityId about, String sentence) {
     Text text = rich(about, sentence);
