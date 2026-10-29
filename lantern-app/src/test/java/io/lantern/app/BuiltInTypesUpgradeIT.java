@@ -23,6 +23,7 @@ import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.link.ClaimChecks;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
 import java.io.IOException;
@@ -91,6 +92,7 @@ class BuiltInTypesUpgradeIT {
       registry.apply(MessagingExtractor.VOCABULARY_SOURCE, MessagingExtractor.vocabulary());
       registry.apply(DeployableUnits.VOCABULARY_SOURCE, DeployableUnits.vocabulary());
       registry.apply(CrossRepoLinks.VOCABULARY_SOURCE, CrossRepoLinks.vocabulary());
+      registry.apply(ClaimChecks.VOCABULARY_SOURCE, ClaimChecks.vocabulary());
       long before = registry.current().revision();
       Fact stored = dependsOn();
       assertThat(facts.save(stored)).isTrue();
