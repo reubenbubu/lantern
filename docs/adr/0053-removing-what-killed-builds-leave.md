@@ -1,4 +1,4 @@
-# 0052: Removing what killed builds leave
+# 0053: Removing what killed builds leave
 
 Status: accepted (#174), amends ADR 0019, pending the user's review (#24)
 
@@ -34,5 +34,5 @@ leftovers from those of another Lantern process still building.
 - **Trade-offs.** Leftovers stay until the next build of any Lantern process of the same user on the
   same machine, and those of a process that ended in another PID namespace or before a reboot stay
   for good; they still carry the sandbox label, for removal by hand. Leftovers created before this
-  change have no owner label and are never removed. Each build lists containers and networks twice
+  change have no owner label and are never removed. Each build lists containers and networks once
   more. Tested with Docker only.

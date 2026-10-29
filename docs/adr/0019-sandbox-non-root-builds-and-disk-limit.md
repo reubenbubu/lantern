@@ -78,7 +78,7 @@ VM's rootless Docker.
   leftovers from those of another Lantern process still building. What a killed process still
   leaves, the stopped build or detector container, the build's network and a helper killed between
   its `docker create` and `docker start`, is removed by a later build once its owner process is
-  known to have ended (ADR 0052). Tested with Docker only; Podman's handling of the attached input
+  known to have ended (ADR 0053). Tested with Docker only; Podman's handling of the attached input
   is untested.
 - **Trade-offs.** Polling lets a build overshoot by what it can write between two checks. With
   several builds at once, the free-space guard stops them all. What a build wrote to the shared

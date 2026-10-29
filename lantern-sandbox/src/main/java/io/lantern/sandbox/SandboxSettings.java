@@ -143,7 +143,8 @@ public record SandboxSettings(
     }
     if (ownerLabel != null
         && (!OWNER_LABEL.matcher(ownerLabel).matches()
-            || ownerLabel.startsWith(BuildSandbox.LABEL + "="))) {
+            || ownerLabel.startsWith(BuildSandbox.LABEL + "=")
+            || ownerLabel.startsWith(BuildSandbox.OWNER_LABEL + "="))) {
       throw new IllegalArgumentException("Invalid owner label: " + ownerLabel);
     }
   }

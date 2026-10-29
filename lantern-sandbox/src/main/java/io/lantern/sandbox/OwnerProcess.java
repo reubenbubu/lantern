@@ -104,6 +104,6 @@ record OwnerProcess(String boot, long pidNamespace, long uid, long pid, long sta
       return true;
     }
     // A process that ends meanwhile, or cannot be read, counts as alive.
-    return of(pid).map(now -> now.startTicks != startTicks || now.uid != uid).orElse(false);
+    return of(pid).map(now -> now.startTicks != startTicks).orElse(false);
   }
 }
