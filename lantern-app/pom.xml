@@ -95,7 +95,7 @@
     <plugins>
       <plugin>
         <!-- The report specs' HTML templates, for the renderers that write documents into them
-             (docs/adr/0030-report-spec-renderer.md). -->
+             (docs/adr/0031-report-spec-renderer.md). -->
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-resources-plugin</artifactId>
         <executions>

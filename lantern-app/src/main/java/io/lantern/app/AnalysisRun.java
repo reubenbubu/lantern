@@ -56,7 +56,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * repositories, take a snapshot of their checked-out commits, build them in the sandbox, extract
  * and store their facts, summarize them with the LLM, compose an Architecture Explorer document, an
  * Executive Brief and a C4 report per repository, and render each as single-file HTML (ADR 0016,
- * ADR 0030).
+ * ADR 0031).
  *
  * <p>The snapshot describes the whole system: every repository an earlier snapshot analyzed that is
  * not named in this run is carried forward at its commit in the latest snapshot that analyzed it,
@@ -77,7 +77,7 @@ public final class AnalysisRun {
   /** The template of the per-repository Executive Brief. */
   static final TemplateRef BRIEF = new TemplateRef("executive-brief", "1");
 
-  /** The template of the per-repository C4 report, the report spec of the same name (ADR 0030). */
+  /** The template of the per-repository C4 report, the report spec of the same name (ADR 0031). */
   static final TemplateRef C4_REPORT = new TemplateRef(C4ReportRenderer.SPEC, "1");
 
   private static final Logger LOG = LoggerFactory.getLogger(AnalysisRun.class);

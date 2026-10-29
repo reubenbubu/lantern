@@ -38,7 +38,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Renders a document model into the report spec {@code report-specs/c4-model-sequence-diagrams}:
  * the document becomes the JSON its schema describes, written into the {@code arc-data} element of
- * its HTML template (ADR 0030). Like every renderer it makes no content decisions: what the
+ * its HTML template (ADR 0031). Like every renderer it makes no content decisions: what the
  * document holds is shown, what it lacks is left out, and nothing is added.
  *
  * <ul>

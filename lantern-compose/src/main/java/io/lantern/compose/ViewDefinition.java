@@ -78,7 +78,7 @@ public record ViewDefinition(
 
   /**
    * A view of one repository for a C4 report: overview, context, containers and components, the
-   * sections whose diagrams the C4 report spec draws (ADR 0030).
+   * sections whose diagrams the C4 report spec draws (ADR 0031).
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(

@@ -9,7 +9,7 @@ import java.util.Objects;
 /**
  * The HTML template of a report spec in {@code report-specs/<spec>/<spec>.html}, which embeds the
  * document's data as JSON in one {@code <script type="application/json" id="...">} element. The
- * template ships with sample data in that element; rendering replaces it (ADR 0030).
+ * template ships with sample data in that element; rendering replaces it (ADR 0031).
  *
  * <p>Thread-safe.
  */

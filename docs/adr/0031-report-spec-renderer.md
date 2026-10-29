@@ -1,4 +1,4 @@
-# 0030: Rendering into a report spec, starting with the C4 report
+# 0031: Rendering into a report spec, starting with the C4 report
 
 Status: accepted (#112), pending the user's review (#24)
 
