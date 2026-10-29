@@ -671,6 +671,7 @@ class CrossRepoLinksTest {
         .isFalse();
     assertThat(RouteLinker.matches("/api/files", "/api/files/**")).isTrue();
     assertThat(RouteLinker.matches("/v2/a/b", "/v*/**")).isTrue();
+    assertThat(RouteLinker.matches("/api/files/{id}/x", "/api/{*rest}")).isTrue();
   }
 
   @Test

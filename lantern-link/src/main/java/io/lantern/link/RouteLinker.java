@@ -363,7 +363,7 @@ final class RouteLinker {
       }
     }
     for (int i = 0; i < parts && !segments.isEmpty(); i++) {
-      if (segments.getFirst().equals("**")) {
+      if (segments.getFirst().equals("**") || segments.getFirst().startsWith("{*")) {
         return "/**";
       }
       segments.removeFirst();
@@ -459,9 +459,10 @@ final class RouteLinker {
 
   /**
    * Whether a route's path pattern takes the requests an endpoint's path template serves: {@code
-   * **} matches any rest, {@code *} and a template variable any one segment, a segment with {@code
-   * *} in it as a wildcard; a literal segment of the pattern matches only the same literal, not a
-   * variable of the endpoint, since the endpoint is then reached only for that one value.
+   * **} and {@code {*rest}} match any rest, {@code *} and a template variable any one segment, a
+   * segment with {@code *} in it as a wildcard; a literal segment of the pattern matches only the
+   * same literal, not a variable of the endpoint, since the endpoint is then reached only for that
+   * one value.
    */
   static boolean matches(String endpoint, String pattern) {
     return matches(segments(endpoint), 0, segments(pattern), 0);
@@ -472,7 +473,7 @@ final class RouteLinker {
       return i == e.size();
     }
     String ps = p.get(j);
-    if (ps.equals("**")) {
+    if (ps.equals("**") || ps.startsWith("{*")) {
       for (int k = i; k <= e.size(); k++) {
         if (matches(e, k, p, j + 1)) {
           return true;

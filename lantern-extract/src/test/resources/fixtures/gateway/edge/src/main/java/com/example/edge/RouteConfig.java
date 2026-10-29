@@ -16,6 +16,9 @@ public class RouteConfig {
   @Value("${app.inventory}")
   private String inventory;
 
+  @Value("${app.ws-path}")
+  private String wsPath;
+
   public RouteConfig(AuthFilter authFilter) {
     this.authFilter = authFilter;
   }
@@ -33,7 +36,7 @@ public class RouteConfig {
                     .method(HttpMethod.GET)
                     .filters(f -> f.filter(authFilter).stripPrefix(1).prefixPath("/api"))
                     .uri("lb://" + inventory))
-        .route("billing-ws", r -> r.path("/ws/**").uri("lb:ws://" + billing))
+        .route("billing-ws", r -> r.path(wsPath).uri("lb:ws://" + billing))
         .route(
             r -> {
               return r.host("*.example.com").uri(URI.create("https://partner.example.com"));

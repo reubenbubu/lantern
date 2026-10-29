@@ -35,7 +35,8 @@ line, and project-4's reference names an endpoint no route reaches.
 - **Routes in code** are the chains on `RouteLocatorBuilder` (`builder.routes().route(id, r ->
   ...).build()`): each `route` call's lambda is read as a chain of predicate calls (`path`,
   `method`, `host` and the like; `or` and `negate` kept), `filters(f -> ...)` and `uri(...)`. A
-  URI is followed one hop from a `@Value` field or parameter, as an HTTP call's URL is (ADR 0038).
+  URI is followed one hop from a `@Value` field or parameter, as an HTTP call's URL is (ADR 0038),
+  and its placeholders, and those of its paths, are resolved through config per view.
   To read lambdas, the Java analyzers now give a lambda as an expression of its own,
   `Expression.Lambda`, with its body when that is one expression or one `return`, its source as
   before, and its lines, which are the route's evidence; and a chain's receivers no longer count
@@ -44,10 +45,11 @@ line, and project-4's reference names an endpoint no route reaches.
 - **Routes in config** are read under every key Spring Cloud Gateway's versions and servers use:
   `spring.cloud.gateway.routes`, `spring.cloud.gateway.mvc.routes` and
   `spring.cloud.gateway.server.webflux.routes` or `server.webmvc.routes`, with predicates and
-  filters in shortcut form or as `name` and `args`. The evidence is the lines of the route's keys
+  filters in shortcut form or as `name` and `args` (a predicate's args are all its values, so
+  `Path` with two `patterns` has both). A route in config without an `id` is skipped. The evidence is the lines of the route's keys
   in the file that sets its id.
 - **Route links.** A new linker part, `RouteLinker`, runs after the HTTP one in `CrossRepoLinks`
-  (version 2). Each route of a unit's code or config, in each view, is a `CALLS_HTTP` link from the
+  (version 3). Each route of a unit's code or config, in each view, is a `CALLS_HTTP` link from the
   gateway with `route`, `paths`, `methods`, `url` (the URI) and `source` (the route's method or
   module), so every view, the Brief and the wording treat it as the gateway calling the service.
   `protocol` is `WebSocket` for `ws://`, `wss://` and `lb:ws://`, `HTTPS` for `https://`, else
@@ -70,7 +72,7 @@ line, and project-4's reference names an endpoint no route reaches.
   and `calledBy`, the units whose linked HTTP calls reach it, since an internal endpoint is often
   meant to be reached only so. A route's paths are taken as the target sees them, through
   `StripPrefix` and `PrefixPath`; a unit reached by a route with `RewritePath` or `SetPath` is not
-  checked. A pattern's `**` takes any rest, `*` and a variable one segment, a wildcard segment as
+  checked. A pattern's `**` or `{*rest}` takes any rest, `*` and a variable one segment, a wildcard segment as
   a wildcard; a literal segment of a pattern does not take a variable of the endpoint, so
   `/api/organizations/invitations/**` does not reach `/api/organizations/{id}/preview`.
 - **Components.** The class that builds routes in code is an entry point, "Gateway routes", and so
@@ -91,7 +93,11 @@ Routes in a library's code take the config of the library's own module, not of e
 bundles it; routes from a `RouteDefinitionLocator`, discovery locators
 (`spring.cloud.gateway.discovery.locator`) and Spring Cloud Gateway MVC's `RouterFunction` DSL;
 weights between routes; filters made by a `@Bean` method that returns a lambda; and path rewrites
-other than `StripPrefix` and `PrefixPath`, for which endpoints are not checked.
+other than `StripPrefix` and `PrefixPath`, for which endpoints are not checked. When endpoints
+no route reaches are found, route order and blocking routes (`no://op`, `SetStatus`) are not
+considered: an endpoint a broader route reaches counts as reached even if an earlier route blocks
+it. A unit that sets no `server.port` is taken to listen on 8080, and a route to `http://localhost`
+without a port matches no unit (`no-match`).
 
 ## Evidence
 

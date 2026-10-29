@@ -373,9 +373,26 @@ public final class GatewayExtractor {
       Map<String, Route> views = new LinkedHashMap<>();
       for (String view : config.views()) {
         CodeValue value = CodeValue.of(config.resolve(view, uri), uri);
+        // Paths, and the predicates they are in, resolve through config as the URI does.
+        List<String> resolvedPaths = new ArrayList<>();
+        for (String path : paths) {
+          resolvedPaths.add(CodeValue.of(config.resolve(view, path), path).value());
+        }
+        List<String> resolvedPredicates = new ArrayList<>();
+        for (String predicate : predicates) {
+          resolvedPredicates.add(CodeValue.of(config.resolve(view, predicate), predicate).value());
+        }
         views.put(
             view == null ? "" : view,
-            new Route(id, value, paths, methods, predicates, filters, filterTypes, order));
+            new Route(
+                id,
+                value,
+                resolvedPaths,
+                methods,
+                resolvedPredicates,
+                filters,
+                filterTypes,
+                order));
       }
       record(caller, views, JAVA, where, module.repo(), module.confidence());
     }
@@ -542,7 +559,8 @@ public final class GatewayExtractor {
           names.put(list + "|" + String.format(Locale.ROOT, "%06d", index), text);
         } else if (rest.startsWith(".args.")) {
           args.computeIfAbsent(
-                  list + "|" + String.format(Locale.ROOT, "%06d", index), k -> new TreeMap<>())
+                  list + "|" + String.format(Locale.ROOT, "%06d", index),
+                  k -> new TreeMap<>(Comparator.comparing(GatewayExtractor::numbered)))
               .put(rest.substring(6), text);
         }
       }
@@ -555,7 +573,9 @@ public final class GatewayExtractor {
             if (given.isEmpty()) {
               text = name;
             } else if (given.size() == 1
+                || list.equals("predicates")
                 || given.keySet().stream().allMatch(k -> k.startsWith("_genkey_"))) {
+              // A predicate's args are its values (Path's patterns, Method's methods), in order.
               text = name + "=" + String.join(",", given.values());
             } else {
               List<String> pairs = new ArrayList<>();
@@ -818,6 +838,17 @@ public final class GatewayExtractor {
     } catch (IllegalArgumentException e) {
       return null;
     }
+  }
+
+  /** A key with its numbers padded, so {@code patterns[10]} sorts after {@code patterns[2]}. */
+  private static String numbered(String key) {
+    Matcher m = Pattern.compile("\\d+").matcher(key);
+    StringBuilder b = new StringBuilder();
+    while (m.find()) {
+      m.appendReplacement(b, String.format(Locale.ROOT, "%010d", Long.parseLong(m.group())));
+    }
+    m.appendTail(b);
+    return b.toString();
   }
 
   private static String simpleName(String binaryName) {

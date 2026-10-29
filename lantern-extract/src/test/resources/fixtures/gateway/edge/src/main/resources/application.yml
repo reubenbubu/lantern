@@ -22,9 +22,19 @@ spring:
             - name: Path
               args:
                 pattern: /legacy/**
+        - id: multi
+          uri: lb://multi
+          predicates:
+            - name: Path
+              args:
+                patterns:
+                  - /m1/**
+                  - /m2/**
 app:
   inventory: inventory
+  ws-path: /ws/**
   secret-token: s3cret
 ---
 spring.config.activate.on-profile: local
 spring.cloud.gateway.routes[0].uri: http://localhost:9091
+app.ws-path: /socket/**
