@@ -70,9 +70,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * to {@code target/end-to-end/given-<directory>-llm-calls.txt}, so the cost of a real run can be
  * judged before making one.
  *
- * <p>Builds run in the real sandbox with a Maven cache volume made for these tests and removed
- * after them, and with an owner label of their own, so the check that nothing is left behind sees
- * only their containers; the workspace is a temporary directory.
+ * <p>Builds run in the real sandbox with the application's default Maven cache directory, which
+ * keeps downloads between runs, and with an owner label of their own, so the check that nothing is
+ * left behind sees only their containers; the workspace is a temporary directory.
  */
 @SpringBootTest(
     properties = {
@@ -88,8 +88,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Import({TestcontainersConfiguration.class, EndToEndIT.Fake.class})
 class EndToEndIT {
 
-  private static final String VOLUME =
-      "lantern-test-m2-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
   private static final Path WORKSPACE = tempDirectory();
   private static final String RUN_LABEL = "lantern.test.run";
   private static final String RUN =
@@ -142,7 +140,6 @@ class EndToEndIT {
   @DynamicPropertySource
   static void workspace(DynamicPropertyRegistry registry) {
     registry.add("lantern.workspace", WORKSPACE::toString);
-    registry.add("lantern.sandbox.maven-cache-volume", () -> VOLUME);
   }
 
   @Autowired AnalysisRun run;
@@ -155,7 +152,6 @@ class EndToEndIT {
 
   @AfterAll
   static void cleanUp() throws IOException {
-    docker("volume", "rm", "--force", VOLUME);
     try (Stream<Path> paths = Files.walk(WORKSPACE)) {
       for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
         Files.delete(path);

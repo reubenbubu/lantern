@@ -22,8 +22,8 @@ import java.util.regex.Pattern;
  * @param timeout how long each container of a build (the JDK detection, if needed, and the build)
  *     may run before it is stopped and the build recorded as failed
  * @param maxConcurrentBuilds the most builds that run at once on this host
- * @param mavenCacheVolume the Docker volume holding the local Maven repository that all builds
- *     share
+ * @param mavenCacheDirectory the host directory holding the local Maven repository that all builds
+ *     share, bind-mounted into their containers; absolute, created if missing (ADR 0005)
  * @param mavenRepositories the Maven repositories builds download from, in this order: the only
  *     hosts they reach, through the egress proxy (ADR 0023); at least one, with distinct IDs
  * @param buildsDirectory the directory build outputs are stored in, one directory per {@code
@@ -34,9 +34,10 @@ import java.util.regex.Pattern;
  * @param diskBytes the most bytes each build container may write outside the shared Maven cache,
  *     counting the repository's files and the outputs it hands back, classpath jars included; a
  *     build that writes more is stopped and recorded as failed
- * @param minFreeDiskBytes the free space Docker's storage must keep while a build runs; below it a
- *     build does not start, or is stopped, with a {@link SandboxException} and nothing stored,
- *     since which build used the space is unknown
+ * @param minFreeDiskBytes the free space Docker's storage and the filesystem of the Maven cache
+ *     directory must each keep while a build runs; below it a build does not start, or is stopped,
+ *     with a {@link SandboxException} and nothing stored, since which build used the space is
+ *     unknown
  * @param ownerLabel an extra {@code key=value} label on every container and network the sandbox
  *     creates, besides {@link BuildSandbox#LABEL}, so whoever runs the sandbox can find its own
  *     resources among those of other sandboxes on the same Docker; none if {@code null}
@@ -50,7 +51,7 @@ public record SandboxSettings(
     int pidsLimit,
     Duration timeout,
     int maxConcurrentBuilds,
-    String mavenCacheVolume,
+    Path mavenCacheDirectory,
     List<MavenRepository> mavenRepositories,
     Path buildsDirectory,
     long maxOutputBytes,
@@ -69,7 +70,7 @@ public record SandboxSettings(
   /** The egress proxy is compiled for this JDK, so it needs an image with this JDK or newer. */
   static final int PROXY_MIN_JDK = 21;
 
-  private static final Pattern VOLUME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*");
+  private static final Pattern MOUNT_SOURCE = Pattern.compile("[^,\"'\\p{Cntrl}]+");
   private static final Pattern OWNER_LABEL =
       Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*=[A-Za-z0-9_.:/-]+");
 
@@ -105,9 +106,15 @@ public record SandboxSettings(
     if (maxConcurrentBuilds < 1) {
       throw new IllegalArgumentException("At least one build must be allowed at a time");
     }
-    if (mavenCacheVolume == null || !VOLUME.matcher(mavenCacheVolume).matches()) {
-      throw new IllegalArgumentException("Invalid Maven cache volume name: " + mavenCacheVolume);
+    Objects.requireNonNull(mavenCacheDirectory, "mavenCacheDirectory");
+    // Docker's --mount option separates its fields with commas and may quote them.
+    if (!mavenCacheDirectory.isAbsolute()
+        || !MOUNT_SOURCE.matcher(mavenCacheDirectory.toString()).matches()) {
+      throw new IllegalArgumentException(
+          "Maven cache directory must be absolute, without commas, quotes or control characters: "
+              + mavenCacheDirectory);
     }
+    mavenCacheDirectory = mavenCacheDirectory.normalize();
     if (mavenRepositories.isEmpty()) {
       throw new IllegalArgumentException("At least one Maven repository is needed");
     }
@@ -116,8 +123,12 @@ public record SandboxSettings(
       throw new IllegalArgumentException(
           "Maven repository IDs must be distinct: " + mavenRepositories);
     }
-    if (!buildsDirectory.isAbsolute()) {
-      throw new IllegalArgumentException("Builds directory must be absolute: " + buildsDirectory);
+    // A directory under it is bind-mounted read only into the container that hands the cache over.
+    if (!buildsDirectory.isAbsolute()
+        || !MOUNT_SOURCE.matcher(buildsDirectory.toString()).matches()) {
+      throw new IllegalArgumentException(
+          "Builds directory must be absolute, without commas, quotes or control characters: "
+              + buildsDirectory);
     }
     if (maxOutputBytes < 1 || maxLogBytes < 1) {
       throw new IllegalArgumentException("Output and log limits must be positive");
@@ -136,7 +147,8 @@ public record SandboxSettings(
   /**
    * The default settings: JDK 17, 21 and 25 images with 21 as the default, 2 CPUs, 4 GiB of memory,
    * 8 GiB of disk and 30 minutes per build, 4 builds at once, at least 2 GiB left free on Docker's
-   * storage, and Maven Central as the only Maven repository.
+   * storage and the Maven cache's filesystem, the Maven cache in {@link
+   * #defaultMavenCacheDirectory()}, and Maven Central as the only Maven repository.
    *
    * @param buildsDirectory where build outputs are stored
    */
@@ -150,7 +162,7 @@ public record SandboxSettings(
         4096,
         Duration.ofMinutes(30),
         4,
-        "lantern-maven-cache",
+        defaultMavenCacheDirectory(),
         List.of(MavenRepository.CENTRAL),
         buildsDirectory,
         4L * 1024 * 1024 * 1024,
@@ -171,7 +183,7 @@ public record SandboxSettings(
         pidsLimit,
         timeout,
         maxConcurrentBuilds,
-        mavenCacheVolume,
+        mavenCacheDirectory,
         mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
@@ -181,8 +193,16 @@ public record SandboxSettings(
         ownerLabel);
   }
 
-  /** These settings with another shared Maven cache volume. */
-  public SandboxSettings withMavenCacheVolume(String mavenCacheVolume) {
+  /**
+   * The shared Maven cache used unless configured otherwise: {@code
+   * ~/workspace/lantern-maven-cache}, in the home directory of the user running Lantern.
+   */
+  public static Path defaultMavenCacheDirectory() {
+    return Path.of(System.getProperty("user.home"), "workspace", "lantern-maven-cache");
+  }
+
+  /** These settings with another shared Maven cache directory. */
+  public SandboxSettings withMavenCacheDirectory(Path mavenCacheDirectory) {
     return new SandboxSettings(
         dockerCommand,
         images,
@@ -192,7 +212,7 @@ public record SandboxSettings(
         pidsLimit,
         timeout,
         maxConcurrentBuilds,
-        mavenCacheVolume,
+        mavenCacheDirectory,
         mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
@@ -213,7 +233,7 @@ public record SandboxSettings(
         pidsLimit,
         timeout,
         maxConcurrentBuilds,
-        mavenCacheVolume,
+        mavenCacheDirectory,
         mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
@@ -234,7 +254,7 @@ public record SandboxSettings(
         pidsLimit,
         timeout,
         maxConcurrentBuilds,
-        mavenCacheVolume,
+        mavenCacheDirectory,
         mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
@@ -255,7 +275,7 @@ public record SandboxSettings(
         pidsLimit,
         timeout,
         maxConcurrentBuilds,
-        mavenCacheVolume,
+        mavenCacheDirectory,
         mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
@@ -265,7 +285,7 @@ public record SandboxSettings(
         ownerLabel);
   }
 
-  /** These settings with another amount of free space to keep on Docker's storage. */
+  /** These settings with another amount of free space to keep on Docker's and the cache's disks. */
   public SandboxSettings withMinFreeDiskBytes(long minFreeDiskBytes) {
     return new SandboxSettings(
         dockerCommand,
@@ -276,7 +296,7 @@ public record SandboxSettings(
         pidsLimit,
         timeout,
         maxConcurrentBuilds,
-        mavenCacheVolume,
+        mavenCacheDirectory,
         mavenRepositories,
         buildsDirectory,
         maxOutputBytes,
@@ -304,7 +324,7 @@ public record SandboxSettings(
         pidsLimit,
         timeout,
         maxConcurrentBuilds,
-        mavenCacheVolume,
+        mavenCacheDirectory,
         mavenRepositories,
         buildsDirectory,
         maxOutputBytes,

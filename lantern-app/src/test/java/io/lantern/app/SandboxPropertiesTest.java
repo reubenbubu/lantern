@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.sandbox.MavenRepository;
+import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -50,8 +52,26 @@ class SandboxPropertiesTest {
 
     SandboxProperties sandbox = bind(values);
 
-    assertThat(sandbox.mavenCacheVolume()).isEqualTo("lantern-maven-cache");
+    assertThat(sandbox.mavenCacheDir()).isEqualTo("~/workspace/lantern-maven-cache");
+    assertThat(AnalysisConfiguration.mavenCacheDirectory(sandbox.mavenCacheDir()))
+        .isEqualTo(Path.of(System.getProperty("user.home"), "workspace", "lantern-maven-cache"))
+        .isEqualTo(SandboxSettings.defaultMavenCacheDirectory());
     assertThat(sandbox.mavenRepositories()).containsExactly(MavenRepository.CENTRAL);
+  }
+
+  @Test
+  void resolvesTheMavenCacheDirectoryFromHomeOrTheWorkingDirectory() {
+    Path home = Path.of(System.getProperty("user.home")).toAbsolutePath().normalize();
+
+    assertThat(AnalysisConfiguration.mavenCacheDirectory("~/m2/../cache"))
+        .isEqualTo(home.resolve("cache"));
+    assertThat(AnalysisConfiguration.mavenCacheDirectory("~")).isEqualTo(home);
+    assertThat(AnalysisConfiguration.mavenCacheDirectory("/var/cache/m2"))
+        .isEqualTo(Path.of("/var/cache/m2"));
+    assertThat(AnalysisConfiguration.mavenCacheDirectory("cache"))
+        .isEqualTo(Path.of("cache").toAbsolutePath());
+    assertThat(AnalysisConfiguration.mavenCacheDirectory(null))
+        .isEqualTo(SandboxSettings.defaultMavenCacheDirectory());
   }
 
   @Test

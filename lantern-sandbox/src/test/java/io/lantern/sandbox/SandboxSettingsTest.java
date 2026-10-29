@@ -29,7 +29,7 @@ class SandboxSettingsTest {
         d.pidsLimit(),
         d.timeout(),
         d.maxConcurrentBuilds(),
-        d.mavenCacheVolume(),
+        d.mavenCacheDirectory(),
         repositories,
         builds,
         d.maxOutputBytes(),
@@ -52,6 +52,10 @@ class SandboxSettingsTest {
     assertThat(settings.diskBytes()).isEqualTo(8L << 30);
     assertThat(settings.withDiskBytes(1L << 30).diskBytes()).isEqualTo(1L << 30);
     assertThat(settings.withMinFreeDiskBytes(0).minFreeDiskBytes()).isZero();
+    assertThat(settings.mavenCacheDirectory())
+        .isEqualTo(Path.of(System.getProperty("user.home"), "workspace", "lantern-maven-cache"));
+    assertThat(settings.withMavenCacheDirectory(Path.of("/m2/./x/..")).mavenCacheDirectory())
+        .isEqualTo(Path.of("/m2"));
     assertThat(settings.ownerLabel()).isNull();
     assertThat(settings.withOwnerLabel("lantern.test.run", "0a1b").ownerLabel())
         .isEqualTo("lantern.test.run=0a1b");
@@ -97,8 +101,15 @@ class SandboxSettingsTest {
         .hasMessageContaining("distinct");
     assertThatThrownBy(() -> with(SandboxSettings.DEFAULT_IMAGES, 21, central, Path.of("relative")))
         .hasMessageContaining("absolute");
-    assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withMavenCacheVolume("../x"))
-        .hasMessageContaining("volume");
+    assertThatThrownBy(
+            () -> SandboxSettings.defaults(BUILDS).withMavenCacheDirectory(Path.of("relative")))
+        .hasMessageContaining("Maven cache directory must be absolute");
+    assertThatThrownBy(
+            () -> SandboxSettings.defaults(BUILDS).withMavenCacheDirectory(Path.of("/a,readonly")))
+        .hasMessageContaining("without commas");
+    assertThatThrownBy(
+            () -> SandboxSettings.defaults(BUILDS).withMavenCacheDirectory(Path.of("/a\"b")))
+        .hasMessageContaining("without commas");
     assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withTimeout(Duration.ZERO))
         .hasMessageContaining("Timeout");
     assertThatThrownBy(() -> SandboxSettings.defaults(BUILDS).withDiskBytes(1024))

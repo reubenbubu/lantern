@@ -76,7 +76,7 @@ class MavenRepositoryTest {
         "lantern.sandbox.maven-repositories[0].url", "https://repo.maven.apache.org/maven2");
     properties.setProperty("lantern.sandbox.maven-repositories[1].id", " releases ");
     properties.setProperty("lantern.sandbox.maven-repositories[1].url", RELEASES);
-    properties.setProperty("lantern.sandbox.maven-cache-volume", "other setting");
+    properties.setProperty("lantern.sandbox.maven-cache-dir", "other setting");
 
     assertThat(MavenRepository.listFrom(properties))
         .containsExactly(
