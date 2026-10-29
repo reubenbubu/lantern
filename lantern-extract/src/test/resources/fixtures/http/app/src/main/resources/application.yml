@@ -8,6 +8,10 @@ clients:
     url: ${TAX_SERVICE_URL}
   legacy:
     url: http://legacy.example.com
+  shipping:
+    url: http://shipping:8080
+  ledger:
+    url: http://ledger:8080
 catalog:
   base-url: http://catalog-service:8080
 inventory:
