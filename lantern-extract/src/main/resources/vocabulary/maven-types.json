@@ -57,5 +57,19 @@
     "description": "The coordinates of the subject module's parent POM, groupId:artifactId:version, as its POM writes them.",
     "attributeSchema": { "additionalProperties": false },
     "objectKind": "string"
+  },
+  {
+    "name": "coverage-tool",
+    "kind": "attribute",
+    "description": "A coverage tool the subject module's build runs, by its Maven plugin's groupId:artifactId, such as org.jacoco:jacoco-maven-plugin.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "goals": { "type": "array", "items": { "type": "string" }, "description": "The goals the plugin's executions bind, sorted. Absent when none is bound in the POM read." },
+        "limits": { "type": "array", "items": { "type": "object" }, "description": "For JaCoCo, the limits of the rules its check goal enforces, each with element, counter, value and minimum or maximum as strings, JaCoCo's defaults filled in. Absent when there are none." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

@@ -1,5 +1,5 @@
 // Draws a diagram block as SVG once elkjs has laid it out.
-import { type CSSProperties, type KeyboardEvent, useContext, useEffect, useState } from 'react';
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useContext, useEffect, useState } from 'react';
 import { SelectedEntityContext, useInteraction } from '../DocumentView.tsx';
 import type { Diagram } from '../generated/document.ts';
 import { type DiagramLayout, layoutDiagram } from './layout.ts';
@@ -50,7 +50,86 @@ export function DiagramView({ diagram }: { diagram: Diagram }) {
       {state.kind === 'failed' && (
         <p className="diagram-status">The diagram could not be laid out: {state.message}</p>
       )}
+      <DiagramLegend diagram={diagram} />
     </figure>
+  );
+}
+
+/** Entity types whose name is not the word a reader knows; a component is drawn as its main type. */
+const TYPE_NAMES: Record<string, string> = { type: 'component', repo: 'repository', artifact: 'third-party artifact' };
+
+/** The words for an entity type in a legend: its name with spaces for hyphens. */
+function typeName(id: string): string {
+  const type = id.slice(0, id.indexOf(':'));
+  return TYPE_NAMES[type] ?? type.replace(/-/g, ' ');
+}
+
+/**
+ * The legend of a diagram: every shape, line style, arrowhead and color it uses, and what each
+ * means (docs/adr/0063). The document model does not say what a color means, so colors are only
+ * named as set by a presentation rule.
+ */
+export function DiagramLegend({ diagram }: { diagram: Diagram }) {
+  const ids = new Set(diagram.nodes.map((n) => n.id));
+  // As the layout does: a node is drawn inside another only when that is another node of the diagram.
+  const boundaries = new Set(
+    diagram.nodes.flatMap((n) => (n.parent && n.parent !== n.id && ids.has(n.parent) ? [n.parent] : [])),
+  );
+  const boxes = diagram.nodes.filter((n) => !boundaries.has(n.id));
+  const types = [...new Set(boxes.map((n) => typeName(n.id)))].sort();
+  const colors = [
+    // A boundary is drawn unfilled, so only the boxes show a color.
+    ...new Set(boxes.flatMap((n) => (n.style?.color && COLOR.test(n.style.color) ? [n.style.color] : []))),
+  ].sort();
+  const entries: { swatch: ReactNode; text: string }[] = [];
+  if (boxes.length > 0) {
+    entries.push({
+      swatch: <rect x="1" y="2" width="26" height="14" rx="3" className="legend-box" />,
+      text:
+        `Box: an element (${types.join(', ')})` +
+        (boxes.some((n) => n.technology) ? '; [in brackets] its technology' : ''),
+    });
+  }
+  if (boundaries.size > 0) {
+    entries.push({
+      swatch: <rect x="1" y="2" width="26" height="14" rx="3" className="legend-boundary" />,
+      text: 'Dashed outline: a boundary, holding the elements drawn inside it',
+    });
+  }
+  if (diagram.edges.length > 0) {
+    entries.push({
+      swatch: (
+        <>
+          <line x1="1" y1="9" x2="22" y2="9" className="legend-line" />
+          <path d="M 20 5 L 27 9 L 20 13 z" className="diagram-arrow" />
+        </>
+      ),
+      text:
+        'Arrow: a one-way relationship, read from tail to head with its label' +
+        (diagram.edges.some((e) => e.technology) ? '; [in brackets] its protocol or technology' : '') +
+        (diagram.edges.some((e) => e.profiles) ? '; (only with …) the Spring profiles it alone holds under' : ''),
+    });
+  }
+  for (const color of colors) {
+    entries.push({
+      swatch: <rect x="1" y="2" width="26" height="14" rx="3" style={{ fill: color }} />,
+      text: `Colored ${color}: set by a presentation rule`,
+    });
+  }
+  if (entries.length === 0) {
+    return null;
+  }
+  return (
+    <ul className="diagram-legend" aria-label="Legend">
+      {entries.map((entry) => (
+        <li key={entry.text}>
+          <svg className="legend-swatch" viewBox="0 0 28 18" width="28" height="18" aria-hidden="true">
+            {entry.swatch}
+          </svg>
+          {entry.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 

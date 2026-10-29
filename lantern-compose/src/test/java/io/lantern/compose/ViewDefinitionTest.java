@@ -43,7 +43,9 @@ class ViewDefinitionTest {
             SectionKind.CATALOG,
             SectionKind.CHANGE_GUIDANCE,
             SectionKind.DEPENDENCIES,
-            SectionKind.STRUCTURE);
+            SectionKind.STRUCTURE,
+            SectionKind.GLOSSARY);
+    assertThat(perRepo.audience()).isEqualTo("architects and senior engineers");
     ViewDefinition brief = ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE);
     assertThat(ViewDefinitionJson.read(ViewDefinitionJson.write(brief))).isEqualTo(brief);
     assertThat(brief.sections())
@@ -55,11 +57,16 @@ class ViewDefinitionTest {
             SectionKind.TECHNOLOGY_CURRENCY,
             SectionKind.QUALITY_EVIDENCE,
             SectionKind.CONTEXT,
-            SectionKind.CONTAINERS);
+            SectionKind.CONTAINERS,
+            SectionKind.GLOSSARY);
+    assertThat(brief.audience()).isEqualTo("leadership");
     ViewDefinition system = ViewDefinition.c4System("system:c4", "System", TEMPLATE);
     assertThat(ViewDefinitionJson.write(system)).contains("\"scope\":{\"kind\":\"system\"}");
     assertThat(ViewDefinitionJson.read(ViewDefinitionJson.write(system))).isEqualTo(system);
     assertThat(system.scope().repo()).isNull();
+    assertThat(system.audience()).isEqualTo("architects and new engineers");
+    assertThat(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE).audience())
+        .isEqualTo("architects and new engineers");
   }
 
   @Test
@@ -71,7 +78,7 @@ class ViewDefinitionTest {
     for (String invalid :
         List.of(
             valid.replace("\"title\":\"T\",", "\"title\":\"T\",\"extra\":1,"),
-            valid.replace("\"overview\"", "\"glossary\""),
+            valid.replace("\"overview\"", "\"lexicon\""),
             valid.replace("\"repo\",\"repo\"", "\"system\",\"repo\""),
             valid.replace(",\"repo\":\"shop\"", ""),
             valid.replace("\"title\":\"T\",", ""),
