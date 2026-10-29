@@ -101,7 +101,8 @@ Everything else, decide yourself. Note non-obvious choices in the PR description
 
 Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start PostgreSQL with Testcontainers, create temporary git repositories and run real build containers, which pull the Maven images and download from Maven Central). The build also downloads Node into `lantern-web/target` and npm packages from the npm registry, so no local Node install is needed. Run from the repo root.
 
-- Build and test everything (this is CI): `./mvnw verify`
+- Build and test everything (this is CI): `./mvnw verify`. On a machine with a local Maven proxy, set it up first as below, so nothing downloads from Maven Central.
+- Use a local Maven proxy (a repository manager such as Reposilite that proxies Maven Central; see `docs/adr/0030-maven-mirror.md`, amendment for #212) for every download of the build and tests: mirror `*` to it in `~/.m2/settings.xml` (host Maven and the tests' own dependencies), `export MVNW_REPOURL=<proxy URL>` (the wrapper's Maven download), and `export LANTERN_TEST_PROPERTIES=<absolute path of local.properties>`, a file outside the repository that sets `lantern.sandbox.maven-mirror.id` and `.url` to the proxy at an address the sandbox containers reach: the host's private-network IPv4 address, not `localhost`. Without these, everything uses Maven Central. On the development VM the proxy is `http://localhost:8084/proxy` and the file is `~/workspace/lantern-local.properties`.
 - Fix formatting: `./mvnw spotless:apply`
 - Check formatting only: `./mvnw spotless:check`
 - Test one module: `./mvnw verify -pl <module> -am`

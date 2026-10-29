@@ -1,6 +1,6 @@
 # 0030: One Maven mirror for every sandbox download
 
-Status: accepted (#117), pending the user's review (#24)
+Status: accepted (#117), amended (#212), pending the user's review (#24)
 
 ## Context
 
@@ -71,3 +71,25 @@ for `https` but not for `http`.
 - The mirror's URL rules are checked by `MavenMirrorTest`, the generated mirror by
   `MavenSettingsTest`, the allowed host by `SandboxSettingsTest`, the binding by
   `SandboxPropertiesTest`, and the forwarding by `EgressProxyTest`.
+
+## Amendment (#212): nothing from Maven Central where a proxy is set up
+
+Parallel tasks on the development machine were still rate-limited by Maven Central (HTTP 429),
+because a full `./mvnw verify` reached it in three places: the Maven wrapper's download of Maven,
+the two `BuildSandboxIT` tests of configured repositories (ADR 0023), which clear the mirror and
+build against Maven Central and `repo1.maven.org` on purpose, and every sandbox build when no test
+properties file was named. Host Maven already goes through the machine's own `~/.m2/settings.xml`.
+
+- **One local proxy, set up per machine and never in the repository.** A machine with a Maven
+  repository manager that proxies Maven Central mirrors `*` to it in `~/.m2/settings.xml`, exports
+  `MVNW_REPOURL` with its URL (the wrapper then downloads Maven from it instead of the
+  `distributionUrl` host), and exports `LANTERN_TEST_PROPERTIES` naming a properties file that sets
+  the mirror above. The sandbox's mirror cannot be `localhost`, which build containers do not
+  reach and which stays refused, so it is the host's private-network IPv4 address and the proxy
+  must listen on it. CLAUDE.md's Commands section says how. A machine without a proxy sets none
+  of this, and everything uses Maven Central as before.
+- **The tests of configured repositories are skipped when a test mirror is set.** They exist to
+  show that builds reach Maven Central and `repo1.maven.org`, which a mirrored machine must not
+  contact, and a configured repository cannot be the mirror (it must be `https` with a host
+  name). They still run on machines without a mirror; the generated settings and the allowed hosts
+  stay covered there and by `MavenSettingsTest` and `SandboxSettingsTest` everywhere.
