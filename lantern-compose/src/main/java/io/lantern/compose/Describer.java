@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  * from its facts, the tables built in it and how the units use it (ADR 0056); one the model leaves
  * out has no description, as before. One call per main flow the documents show asks for its
  * walkthrough and pre- and post-conditions from what starts it and the facts behind its steps (ADR
- * 0057); what the model leaves out keeps its static prose or "Not known from the code.".
+ * 0058); what the model leaves out keeps its static prose or "Not known from the code.".
  *
  * <p>Answers are cached by the hash of the prompt, which shows no fact IDs, so a run over unchanged
  * facts makes no call. It never fails the run: an answer rejected twice, and a call refused by a
@@ -337,7 +337,7 @@ public final class Describer {
 
   /**
    * The prompts about the main flows that the system's documents and each repository's show (ADR
-   * 0057), each once: the same trace gives the same prompt whichever scope shows it.
+   * 0058), each once: the same trace gives the same prompt whichever scope shows it.
    */
   private static List<Question> flows(
       Collection<Fact> facts, Knowledge knowledge, Assembler assembler, C4Views c4) {

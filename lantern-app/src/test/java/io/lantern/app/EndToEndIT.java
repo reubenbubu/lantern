@@ -645,7 +645,8 @@ class EndToEndIT {
     report
         .append("LLM calls a run of ")
         .append(name)
-        .append(" makes (roles SUMMARIZE and COMPOSE, high-volume tier, and INFER_INTENT,"
+        .append(
+            " makes (roles SUMMARIZE and COMPOSE, high-volume tier, and INFER_INTENT,"
                 + " reasoning tier):\n");
     report.append("calls: ").append(sent.size()).append('\n');
     report.append("input tokens (estimated): ").append(input).append('\n');
