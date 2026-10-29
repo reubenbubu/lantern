@@ -95,6 +95,37 @@ class MarkdownTest {
   }
 
   @Test
+  void inlineCodeWithThreeBackticksIsNotAFence() {
+    Markdown doc = Markdown.parse("```foo``` is code.\n\nNext.\n");
+
+    assertThat(doc.blocks)
+        .containsExactly(
+            new Block(Kind.PARAGRAPH, 0, "```foo``` is code.", 1, 1),
+            new Block(Kind.PARAGRAPH, 0, "Next.", 3, 3));
+  }
+
+  @Test
+  void aLeadingThematicBreakIsNotFrontMatter() {
+    Markdown doc = Markdown.parse("---\nIntro text.\n\n---\n\nMore.\n");
+
+    assertThat(doc.frontMatter).isEmpty();
+    assertThat(doc.skipped(2)).isFalse();
+    assertThat(doc.blocks)
+        .containsExactly(
+            new Block(Kind.PARAGRAPH, 0, "Intro text.", 2, 2),
+            new Block(Kind.PARAGRAPH, 0, "More.", 6, 6));
+  }
+
+  @Test
+  void frontMatterWithNestedValues() {
+    Markdown doc =
+        Markdown.parse("---\nstatus: accepted\n# a comment\ndeciders:\n  - Ann\n---\n# T\n");
+
+    assertThat(doc.frontMatter).containsOnlyKeys("status");
+    assertThat(doc.blocks).containsExactly(new Block(Kind.HEADING, 1, "T", 7, 7));
+  }
+
+  @Test
   void windowsLineEndings() {
     Markdown doc = Markdown.parse("# A\r\n\r\nB\r\n");
 

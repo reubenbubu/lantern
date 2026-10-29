@@ -64,6 +64,18 @@ class DocsExtractorTest {
   }
 
   @Test
+  void masksSecretsInClaims() {
+    assertThat(DocsExtractor.maskSecrets("Run with `DB_PASSWORD=s3cr3t` and password: \"a b\"."))
+        .isEqualTo("Run with `DB_PASSWORD=******` and password: ******.");
+    assertThat(DocsExtractor.maskSecrets("Set api-key: abc123, spring.datasource.password=x"))
+        .isEqualTo("Set api-key: ******, spring.datasource.password=******");
+    assertThat(DocsExtractor.maskSecrets("password: ${DB_PASSWORD}; routing key: order.created"))
+        .isEqualTo("password: ${DB_PASSWORD}; routing key: order.created");
+    assertThat(DocsExtractor.maskSecrets("Status: accepted. Port=8080"))
+        .isEqualTo("Status: accepted. Port=8080");
+  }
+
+  @Test
   void choosesFiles() {
     assertThat(DocsExtractor.isDecision("docs/adr/0001-use-kafka.md")).isTrue();
     assertThat(DocsExtractor.isDecision("doc/architecture/decisions/0001-x.md")).isTrue();

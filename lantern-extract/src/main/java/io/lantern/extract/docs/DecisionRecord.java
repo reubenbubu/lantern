@@ -50,7 +50,7 @@ final class DecisionRecord {
           Pattern.CASE_INSENSITIVE);
   private static final Pattern TITLE_NUMBER =
       Pattern.compile(
-          "^(?:adr[-_ ]?)?#?(\\d{1,9})(?:[ \\t]*[.:)\\-\\u2013\\u2014][ \\t]*|[ \\t]+)(.+)$",
+          "^(adr[-_ ]?)?#?(\\d{1,9})([ \\t]*[.:)][ \\t]*|[ \\t]*[-\\u2013\\u2014][ \\t]+|[ \\t]+)(.+)$",
           Pattern.CASE_INSENSITIVE);
   private static final Pattern FILE_NUMBER =
       Pattern.compile("^(?:adr[-_ ]?)?(\\d{1,9})(?![0-9])(?:[-_ .].*)?$", Pattern.CASE_INSENSITIVE);
@@ -103,11 +103,16 @@ final class DecisionRecord {
     }
     if (title != null) {
       Matcher m = TITLE_NUMBER.matcher(title.value());
-      if (m.matches()) {
+      // A number followed only by a space, as in "12 Factor config", is cut only after "ADR" or
+      // when the file name gives the same number.
+      if (m.matches()
+          && (!m.group(3).isBlank()
+              || m.group(1) != null
+              || number != null && number.value() == Long.parseLong(m.group(2)))) {
         if (number == null) {
-          number = new Value<>(Long.parseLong(m.group(1)), title.start(), title.end());
+          number = new Value<>(Long.parseLong(m.group(2)), title.start(), title.end());
         }
-        title = new Value<>(m.group(2).strip(), title.start(), title.end());
+        title = new Value<>(m.group(4).strip(), title.start(), title.end());
       }
     } else {
       title = new Value<>(fromFileName(stem), 0, 0);

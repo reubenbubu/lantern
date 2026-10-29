@@ -47,7 +47,7 @@ final class Markdown {
    */
   record Field(String value, int line) {}
 
-  private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}|~{3,}).*$");
+  private static final Pattern FENCE = Pattern.compile("^ {0,3}(`{3,}(?=[^`]*$)|~{3,}).*$");
   private static final Pattern ATX = Pattern.compile("^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?[ \\t]*$");
   private static final Pattern ATX_CLOSE = Pattern.compile("(?:^|[ \\t]+)#+[ \\t]*$");
   private static final Pattern SETEXT = Pattern.compile("^ {0,3}(=+|-+)[ \\t]*$");
@@ -224,13 +224,25 @@ final class Markdown {
           lines, Collections.unmodifiableMap(frontMatter), List.copyOf(blocks), skipped);
     }
 
-    /** Reads the YAML front matter, if any, and returns the index of the first line after it. */
+    /**
+     * Reads the YAML front matter, if any, and returns the index of the first line after it. Lines
+     * between the {@code ---} lines must be {@code key: value} lines, indented lines (nested
+     * values), comments or blank, or else the first {@code ---} is a thematic break.
+     */
     private int frontMatter() {
       if (lines.isEmpty() || !lines.getFirst().strip().equals("---")) {
         return 0;
       }
       for (int j = 1; j < lines.size(); j++) {
         String line = lines.get(j).strip();
+        if (!line.isEmpty()
+            && !line.startsWith("#")
+            && !Character.isWhitespace(lines.get(j).charAt(0))
+            && !line.equals("---")
+            && !line.equals("...")
+            && !FRONT_MATTER_FIELD.matcher(lines.get(j)).matches()) {
+          return 0; // not YAML key: value lines, so a thematic break and not front matter
+        }
         if (line.equals("---") || line.equals("...")) {
           for (int k = 1; k < j; k++) {
             Matcher m = FRONT_MATTER_FIELD.matcher(lines.get(k));

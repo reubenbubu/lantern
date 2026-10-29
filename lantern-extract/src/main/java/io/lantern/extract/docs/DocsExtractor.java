@@ -10,6 +10,7 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
+import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DecisionRecord.SectionText;
 import io.lantern.extract.docs.DecisionRecord.Value;
 import io.lantern.extract.docs.Markdown.Block;
@@ -31,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -120,6 +122,13 @@ public final class DocsExtractor {
   private static final Pattern LINKS = Pattern.compile("\\[[^\\]]*\\]\\([^)]*\\)");
 
   private static final Pattern WORD = Pattern.compile("\\p{L}{2,}");
+
+  /** A key, a colon or equals sign, and a value: quoted, or up to whitespace or punctuation. */
+  private static final Pattern SECRET_PAIR =
+      Pattern.compile(
+          "([A-Za-z_][A-Za-z0-9_.\\-]*)([ \\t]*[:=][ \\t]*)(\"[^\"]*\"|'[^']*'|[^\\s,;|`'\"]+)");
+
+  private static final Pattern PLACEHOLDER = Pattern.compile("[\"']?\\$\\{[^}]*}[\"']?");
 
   /** The vocabulary types this extractor's facts use besides the built-in ones. */
   public static List<VocabularyType> vocabulary() {
@@ -304,11 +313,33 @@ public final class DocsExtractor {
       facts.put(
           id,
           CLAIM,
-          FactObject.string(b.text()),
+          FactObject.string(maskSecrets(b.text())),
           attributes,
           source.evidence(b.start(), b.end()),
           README_CONFIDENCE);
     }
+  }
+
+  /**
+   * The text with the value of each {@code key: value} or {@code KEY=value} pair whose key names a
+   * secret, as the Config extractor judges keys ({@link ConfigExtractor#isSecret}), replaced by
+   * {@link ConfigExtractor#MASK}. A value that is only a placeholder such as {@code ${DB_PASSWORD}}
+   * says where the secret comes from, and is kept.
+   */
+  static String maskSecrets(String text) {
+    Matcher m = SECRET_PAIR.matcher(text);
+    StringBuilder out = new StringBuilder();
+    while (m.find()) {
+      String value = m.group(3);
+      boolean secret =
+          ConfigExtractor.isSecret(m.group(1)) && !PLACEHOLDER.matcher(value).matches();
+      m.appendReplacement(
+          out,
+          Matcher.quoteReplacement(
+              m.group(1) + m.group(2) + (secret ? ConfigExtractor.MASK : value)));
+    }
+    m.appendTail(out);
+    return out.toString();
   }
 
   /** The text of a file: UTF-8, with malformed bytes replaced and a byte order mark left out. */

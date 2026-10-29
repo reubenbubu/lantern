@@ -32,6 +32,18 @@ class DecisionRecordTest {
   }
 
   @Test
+  void aNumberFollowedOnlyByASpaceIsCutOnlyWhenTheFileNameAgrees() {
+    assertThat(read("0004-config.md", "# 12 Factor config\n\nStatus: accepted\n").title.value())
+        .isEqualTo("12 Factor config");
+    assertThat(read("0012-config.md", "# 12 Factor config\n\nStatus: accepted\n").title.value())
+        .isEqualTo("Factor config");
+    assertThat(read("0004-config.md", "# 12-factor config\n\nStatus: accepted\n").title.value())
+        .isEqualTo("12-factor config");
+    assertThat(read("0004-x.md", "# 4 - Use Kafka\n\nStatus: accepted\n").title.value())
+        .isEqualTo("Use Kafka");
+  }
+
+  @Test
   void aNumberThatStartsAWordIsPartOfTheTitle() {
     DecisionRecord r = read("x.md", "# 2FA for admins\n\n## Decision\n\nYes.\n");
 

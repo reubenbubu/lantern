@@ -44,3 +44,4 @@ readme:orders:README.md claim `orders-api`: the REST API {"section":"Modules"} @
 readme:orders:README.md claim `orders-service`: the deployable application, packaging `orders-api` {"section":"Modules"} @orders:README.md#14-15 0.5
 readme:orders:docs/user%20guide/README.md claim Customers see their orders under /my-orders. @orders:docs/user guide/README.md#1-1 0.5
 readme:orders:orders-service/README.md claim Runs on port 8080. {"section":"orders-service"} @orders:orders-service/README.md#3-3 0.5
+readme:orders:orders-service/README.md claim Secrets: `GITHUB_TOKEN=******` is never committed. {"section":"orders-service"} @orders:orders-service/README.md#5-5 0.5
