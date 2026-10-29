@@ -1,6 +1,6 @@
 # 0060: The system's purpose
 
-Status: accepted (#196), amends ADR 0044 and ADR 0050, pending the user's review (#24)
+Status: accepted (#196), amends ADR 0044, ADR 0050 and ADR 0058, pending the user's review (#24)
 
 ## Context
 
