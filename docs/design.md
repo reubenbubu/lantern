@@ -244,7 +244,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | Shared database | Datasource URLs and table names; Redis servers (`spring.data.redis.*`), one data store per server |
 | Shared config | Common property keys and config servers |
 
-A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open. A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
+A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open. The exception is Redis: units whose host and port are the same unresolved placeholders (`${redis.host}`) are taken to share one server, since a deployment fills them from one environment (ADR 0073). A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
 
 Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; tools to query the graph and read files come with #169, the questions queue with #170.
 

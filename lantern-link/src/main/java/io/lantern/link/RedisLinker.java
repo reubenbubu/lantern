@@ -69,14 +69,28 @@ final class RedisLinker {
       List<Fact> facts,
       boolean ssl,
       boolean defaulted,
-      boolean unresolved) {}
+      boolean unresolved,
+      String inferredFrom) {}
 
   void link(Origin origin, Validity validity) {
     Map<EntityId, Fact> technologies = new TreeMap<>(LinkIndex.BY_TEXT);
     Map<EntityId, String> servers = new TreeMap<>(LinkIndex.BY_TEXT);
+    Map<String, Set<EntityId>> perView = new TreeMap<>();
     for (String view : index.views()) {
+      Map<Unit, Connection> configured = new LinkedHashMap<>();
       for (Unit unit : index.units.values()) {
-        link(unit, view, technologies, servers);
+        Connection connection = connection(unit, view);
+        if (connection != null) {
+          configured.put(unit, connection);
+        }
+      }
+      Set<EntityId> inView =
+          perView.computeIfAbsent(view == null ? "" : view, v -> new TreeSet<>(LinkIndex.BY_TEXT));
+      for (Unit unit : index.units.values()) {
+        EntityId database = link(unit, view, configured, technologies, servers);
+        if (database != null) {
+          inView.add(database);
+        }
       }
     }
     technologies.forEach(
@@ -91,16 +105,19 @@ final class RedisLinker {
                     source.evidence(),
                     source.confidence(),
                     validity)));
-    // One store is just Redis; with several, each is told apart by its server.
+    // A store alone in every view it is in is just Redis; with others in a view, each is told
+    // apart by its server.
     servers.forEach(
         (database, server) -> {
           Fact source = technologies.get(database);
-          String product = technology(source).split(" ")[0];
+          String product = technology(source).replaceFirst(" \\d[\\d.]*$", "");
+          boolean several =
+              perView.values().stream().anyMatch(v -> v.contains(database) && v.size() > 1);
           out.add(
               Fact.create(
                   database,
                   DataLinker.DISPLAY_NAME,
-                  FactObject.string(servers.size() == 1 ? product : product + " (" + server + ")"),
+                  FactObject.string(several ? product + " (" + server + ")" : product),
                   FactJson.newObject(),
                   origin,
                   source.evidence(),
@@ -113,22 +130,60 @@ final class RedisLinker {
     return source.object().value();
   }
 
-  private void link(
-      Unit unit, String view, Map<EntityId, Fact> technologies, Map<EntityId, String> servers) {
+  /**
+   * Links a unit in a view and returns the store, or null if it uses none or cannot be placed.
+   *
+   * @param configured the units whose config names a server in the view, with it
+   */
+  private EntityId link(
+      Unit unit,
+      String view,
+      Map<Unit, Connection> configured,
+      Map<EntityId, Fact> technologies,
+      Map<EntityId, String> servers) {
     List<Fact> used = new ArrayList<>();
     for (Fact f : uses.getOrDefault(unit, List.of())) {
       if (index.active(f.subject(), view)) {
         used.add(f);
       }
     }
-    Connection connection = connection(unit, view);
+    Connection connection = configured.get(unit);
     if (connection == null && used.isEmpty()) {
-      return;
+      return null;
     }
     if (connection == null) {
-      // Redis code or a client with no connection written: Spring Boot's default server.
-      connection =
-          new Connection(DEFAULT_SERVER, "default", used.getFirst(), List.of(), false, true, false);
+      // Redis code or a client with no connection written: the snapshot's only configured
+      // server, else (none is configured) Spring Boot's default one; with several it is left open.
+      Map<String, Connection> known = new TreeMap<>();
+      configured.values().forEach(c -> known.putIfAbsent(c.server(), c));
+      if (known.size() > 1) {
+        return null;
+      }
+      if (known.isEmpty()) {
+        connection =
+            new Connection(
+                DEFAULT_SERVER,
+                "default",
+                used.getFirst(),
+                List.of(),
+                false,
+                true,
+                false,
+                "No config names the Redis server; Spring Boot's default, localhost:6379, is taken.");
+      } else {
+        Connection only = known.values().iterator().next();
+        connection =
+            new Connection(
+                only.server(),
+                "inferred",
+                used.getFirst(),
+                only.facts(),
+                only.ssl(),
+                false,
+                only.unresolved(),
+                "No config of this unit names the Redis server; the only one the snapshot's"
+                    + " config names is taken.");
+      }
     }
     EntityId database =
         new EntityId(CrossRepoLinks.DATABASE, connection.server().replace(' ', '_') + "/redis");
@@ -147,7 +202,9 @@ final class RedisLinker {
     if (connection.defaulted()) {
       attributes.put("defaulted", true);
     }
-    if (connection.unresolved()) {
+    if (connection.inferredFrom() != null) {
+      attributes.put("inferred", connection.inferredFrom());
+    } else if (connection.unresolved()) {
       attributes.put(
           "inferred",
           "The host or port is a placeholder no config resolves; units that write the same"
@@ -169,7 +226,7 @@ final class RedisLinker {
     imagesUsed.forEach(f -> ids.add(f.id()));
 
     double confidence = connection.evidence().confidence() * unit.fact().confidence();
-    if (connection.defaulted()) {
+    if (connection.inferredFrom() != null) {
       confidence *= 0.6;
     } else if (connection.unresolved()) {
       confidence *= 0.8;
@@ -190,6 +247,7 @@ final class RedisLinker {
         database,
         technologyFact(source, technology),
         (a, b) -> LinkIndex.BY_ID.compare(a, b) <= 0 ? a : b);
+    return database;
   }
 
   /** The source of a data store's technology: the fact whose evidence it cites. */
@@ -317,7 +375,7 @@ final class RedisLinker {
     if (url != null) {
       String text = url.object().value();
       secure |= text.toLowerCase(Locale.ROOT).startsWith("rediss://");
-      server = withPort(DataLinker.address(text));
+      server = withPort(address(text));
       key = LinkIndex.text(url, "key");
       evidence = url;
       facts.add(url);
@@ -327,7 +385,7 @@ final class RedisLinker {
       Set<String> addresses = new TreeSet<>();
       for (Fact f : list) {
         for (String part : f.object().value().split(",")) {
-          String address = DataLinker.address(part);
+          String address = address(part);
           if (!address.isEmpty()) {
             addresses.add(withPort(address));
           }
@@ -347,7 +405,7 @@ final class RedisLinker {
         facts.add(master);
       }
     } else if (host != null || port != null) {
-      String name = host == null ? "localhost" : DataLinker.address(host.object().value());
+      String name = host == null ? "localhost" : address(host.object().value());
       String number = port == null ? DEFAULT_PORT : port.object().value().strip();
       server =
           (name.contains(":") ? name.substring(0, name.lastIndexOf(':')) : name) + ":" + number;
@@ -371,7 +429,19 @@ final class RedisLinker {
       unresolved |= !LinkIndex.texts(f, "unresolved").isEmpty();
     }
     return new Connection(
-        server.toLowerCase(Locale.ROOT), key, evidence, facts, secure, false, unresolved);
+        unresolved ? server : server.toLowerCase(Locale.ROOT),
+        key,
+        evidence,
+        facts,
+        secure,
+        false,
+        unresolved,
+        null);
+  }
+
+  /** The host[:port] of an address; a placeholder is kept as written, case included. */
+  private static String address(String text) {
+    return text.contains("${") ? text.strip() : DataLinker.address(text);
   }
 
   private static String withPort(String address) {

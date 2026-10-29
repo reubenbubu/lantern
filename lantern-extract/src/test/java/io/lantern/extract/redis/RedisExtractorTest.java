@@ -35,7 +35,9 @@ class RedisExtractorTest {
     assertThat(new RedisExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
     Fixtures.assertGolden("redis/redis-parsed.txt", facts);
     // Neither a password nor a managed or test-only dependency reaches a fact.
-    assertThat(Fixtures.render(facts)).doesNotContain("secret", "redisson", "jedis");
+    assertThat(Fixtures.render(facts))
+        .doesNotContain("secret", "redisson", "jedis", "lettuce", "\"spring-data-redis\"")
+        .doesNotContain("ScanOptions", "Lookups", "some-plugin");
   }
 
   @Test

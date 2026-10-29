@@ -93,6 +93,7 @@ public final class RedisExtractor {
   private static final String RATE_LIMITER_TYPE =
       "org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter";
   private static final String CACHE_MANAGER = "org.springframework.data.redis.cache.";
+  private static final String LISTENER_PACKAGE = "org.springframework.data.redis.listener.";
   private static final String LISTENER_CONTAINER =
       "org.springframework.data.redis.listener.RedisMessageListenerContainer";
 
@@ -204,6 +205,11 @@ public final class RedisExtractor {
   private static final Pattern DEPENDENCY = Pattern.compile("(?s)<dependency>(.*?)</dependency>");
   private static final Pattern ARTIFACT =
       Pattern.compile("<artifactId>\\s*([^<\\s]+)\\s*</artifactId>");
+  private static final Pattern COMMENT = Pattern.compile("(?s)<!--.*?-->");
+  private static final Pattern PLUGINS = Pattern.compile("(?s)<plugins>.*?</plugins>");
+  private static final Pattern EXCLUSIONS = Pattern.compile("(?s)<exclusions>.*?</exclusions>");
+  private static final Pattern SCOPE = Pattern.compile("<scope>\\s*([a-z]+)\\s*</scope>");
+  private static final Pattern OPTIONAL = Pattern.compile("<optional>\\s*true\\s*</optional>");
   private static final Pattern MANAGEMENT =
       Pattern.compile("(?s)<dependencyManagement>.*?</dependencyManagement>");
 
@@ -354,7 +360,12 @@ public final class RedisExtractor {
     private void invocation(JavaAnalysis.Module m, Invocation i) {
       String root = i.rootType();
       if (root.startsWith(CORE)) {
-        template(m, i);
+        String name = simpleName(root);
+        if (name.endsWith("RedisTemplate")
+            || name.endsWith("RedisOperations")
+            || name.endsWith("Operations")) {
+          template(m, i);
+        }
         return;
       }
       List<Expression.Invoke> chain = i.expression().chain();
@@ -378,16 +389,27 @@ public final class RedisExtractor {
       } else if (root.equals(RATE_LIMITER_TYPE) && first.method().equals("<init>")) {
         attributes.put("operation", "other");
         code(m, i.caller(), RATE_LIMITER, attributes, i.where());
-      } else if (simpleName(root).equals("RedisCacheManager")
+      } else if ((simpleName(root).equals("RedisCacheManager")
+              || simpleName(root).equals("RedisCacheConfiguration"))
           && root.startsWith(CACHE_MANAGER)
           && !first.method().startsWith("get")) {
         attributes.put("operation", "other");
         code(m, i.caller(), CACHE, attributes, i.where());
-      } else if (root.equals(LISTENER_CONTAINER)
-          && chain.stream().anyMatch(c -> c.method().equals("addMessageListener"))) {
+      } else if (listens(root, chain)) {
         attributes.put("operation", "read");
         code(m, i.caller(), PUBSUB, attributes, i.where());
       }
+    }
+
+    /** Whether a call chain on a type of the listener package subscribes to channels. */
+    private static boolean listens(String root, List<Expression.Invoke> chain) {
+      if (root.equals(LISTENER_CONTAINER)) {
+        return chain.stream().anyMatch(c -> c.method().equals("addMessageListener"));
+      }
+      if (root.equals(LISTENER_PACKAGE + "ReactiveRedisMessageListenerContainer")) {
+        return chain.stream().anyMatch(c -> Set.of("receive", "receiveLater").contains(c.method()));
+      }
+      return root.equals(LISTENER_PACKAGE + "adapter.MessageListenerAdapter");
     }
 
     /** A template operation: the data structure it is made on, its operation and its key. */
@@ -455,20 +477,21 @@ public final class RedisExtractor {
         return;
       }
       String pom = new String(bytes, StandardCharsets.UTF_8);
-      Set<int[]> managed = new LinkedHashSet<>();
-      Matcher management = MANAGEMENT.matcher(pom);
-      while (management.find()) {
-        managed.add(new int[] {management.start(), management.end()});
+      // Comments, plugins (their own dependencies), dependency management and exclusions do not
+      // add a dependency of the module; they are blanked out, keeping the lines.
+      String live = pom;
+      for (Pattern ignored : List.of(COMMENT, PLUGINS, MANAGEMENT, EXCLUSIONS)) {
+        live = blank(live, ignored);
       }
-      Matcher dependency = DEPENDENCY.matcher(pom);
+      Matcher dependency = DEPENDENCY.matcher(live);
       while (dependency.find()) {
-        int at = dependency.start();
-        if (managed.stream().anyMatch(r -> at >= r[0] && at < r[1])) {
-          continue;
-        }
         String body = dependency.group(1);
         Matcher artifact = ARTIFACT.matcher(body);
-        if (!artifact.find() || body.contains("<scope>test</scope>")) {
+        Matcher scope = SCOPE.matcher(body);
+        String scoped = scope.find() ? scope.group(1) : "compile";
+        if (!artifact.find()
+            || Set.of("test", "provided").contains(scoped)
+            || OPTIONAL.matcher(body).find()) {
           continue;
         }
         String id = artifact.group(1);
@@ -506,14 +529,17 @@ public final class RedisExtractor {
         String key = v.key();
         String relaxed = key.toLowerCase(Locale.ROOT).replace("-", "").replace("_", "");
         String kind = null;
-        if (relaxed.contains("redisratelimiter") && !limiter) {
+        boolean requestLimiter =
+            v.value().strip().toLowerCase(Locale.ROOT).startsWith("requestratelimiter");
+        if ((relaxed.contains("redisratelimiter") || requestLimiter) && !limiter) {
           kind = RATE_LIMITER;
           limiter = true;
         } else if (relaxed.equals("spring.cache.type") && v.value().equalsIgnoreCase("redis")) {
           kind = CACHE;
         } else if (!session
             && ((relaxed.equals("spring.session.storetype") && v.value().equalsIgnoreCase("redis"))
-                || relaxed.startsWith("spring.session.redis."))) {
+                || relaxed.startsWith("spring.session.redis.")
+                || relaxed.startsWith("spring.session.data.redis."))) {
           kind = SESSION;
           session = true;
         }
@@ -543,9 +569,9 @@ public final class RedisExtractor {
 
     /** The Redis images the repository's compose files run, as facts of the repository. */
     void compose(RepoBuild repo) {
-      EntityId module = new EntityId("repository", repo.repo().name());
+      EntityId module = new EntityId("repo", repo.repo().name());
       for (String path : GitFiles.list(repo, "")) {
-        if (!COMPOSE_FILE.matcher(path).matches()) {
+        if (!COMPOSE_FILE.matcher(path).matches() || path.contains("src/test/")) {
           continue;
         }
         byte[] bytes = GitFiles.read(repo, path, MAX_BYTES);
@@ -736,6 +762,17 @@ public final class RedisExtractor {
   private static String simpleName(String binaryName) {
     String name = binaryName.substring(binaryName.lastIndexOf('.') + 1);
     return name.substring(name.lastIndexOf('$') + 1);
+  }
+
+  /** The text with what a pattern matches replaced by spaces, newlines kept. */
+  private static String blank(String text, Pattern pattern) {
+    Matcher m = pattern.matcher(text);
+    StringBuilder b = new StringBuilder();
+    while (m.find()) {
+      m.appendReplacement(b, Matcher.quoteReplacement(m.group().replaceAll("[^\\n]", " ")));
+    }
+    m.appendTail(b);
+    return b.toString();
   }
 
   /** The 1-based line of a character offset. */

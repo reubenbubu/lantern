@@ -37,14 +37,23 @@ class Project1And4RedisIT {
     return Path.of(System.getProperty("lantern.test.projects"));
   }
 
-  /** The Redis lines a set of repositories gives: the links, and the data stores' facts. */
-  private static List<String> redis(List<String> names, String project) throws IOException {
-    List<RepoBuild> repos = new ArrayList<>();
-    for (String name : names) {
-      Path path = projects().resolve(project).resolve(name);
-      if (!Files.isDirectory(path)) {
-        path = projects().resolve(project);
+  /** The repositories a set pins, by name (testsets/project-N/pins.txt). */
+  private static List<String> pinned(String project) throws IOException {
+    Path pins = Path.of("..", "testsets", project, "pins.txt");
+    List<String> names = new ArrayList<>();
+    for (String line : Files.readAllLines(pins)) {
+      if (!line.isBlank() && !line.startsWith("#")) {
+        names.add(line.trim().split("\\s+")[0]);
       }
+    }
+    return names;
+  }
+
+  /** The Redis lines a set of repositories gives: the links, and the data stores' facts. */
+  private static List<String> redis(String project) throws IOException {
+    List<RepoBuild> repos = new ArrayList<>();
+    for (String name : pinned(project)) {
+      Path path = projects().resolve(project).resolve(name);
       Repo repo = new Repo(name, path.toRealPath(), RepoSettings.DEFAULT);
       Git.Result head = Git.run(repo.path(), "rev-parse", "HEAD");
       repos.add(new RepoBuild(repo, head.out().strip(), null));
@@ -91,9 +100,11 @@ class Project1And4RedisIT {
 
   @Test
   void project1Redis() throws IOException {
-    List<String> lines = redis(List.of("Enterprise-Spring-Microservices-Template"), "project-1");
+    List<String> lines = redis("project-1");
     lines.forEach(System.out::println);
 
+    assertThat(database(link(lines, ":bff USES_DATABASE ")))
+        .isEqualTo(database(link(lines, ":gateway USES_DATABASE ")));
     assertThat(lines)
         .anySatisfy(
             l ->
@@ -112,22 +123,29 @@ class Project1And4RedisIT {
 
   @Test
   void project4Redis() throws IOException {
-    List<String> lines =
-        redis(
-            List.of(
-                "Auth-Service",
-                "Deployment",
-                "Discovery-and-Gateway",
-                "File-Service",
-                "Main-Service",
-                "Notification-Service",
-                "crm-shared-lib"),
-            "project-4");
+    List<String> lines = redis("project-4");
     lines.forEach(System.out::println);
 
-    assertThat(lines)
-        .anySatisfy(l -> assertThat(l).contains(":auth-service USES_DATABASE database:"))
-        .anySatisfy(l -> assertThat(l).contains(":api-gateway USES_DATABASE database:"));
+    // Both units reach the same store, whose host and port the config leaves to the environment.
+    String auth = link(lines, ":auth-service USES_DATABASE ");
+    String gateway = link(lines, ":api-gateway USES_DATABASE ");
+    assertThat(database(auth)).isEqualTo(database(gateway));
+    assertThat(auth).contains("\"protocol\":\"RESP\"").contains("\"technology\":\"Redis");
+    assertThat(gateway).contains("\"protocol\":\"RESP\"").contains("\"technology\":\"Redis");
+    assertThat(lines).anySatisfy(l -> assertThat(l).contains("/redis technology Redis"));
     assertThat(lines).allSatisfy(l -> assertThat(l).doesNotContain("password"));
+  }
+
+  private static String link(List<String> lines, String marker) {
+    return lines.stream()
+        .filter(l -> l.contains(marker))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("No link " + marker + " in " + lines));
+  }
+
+  /** The data store a link line ends at. */
+  private static String database(String line) {
+    int from = line.indexOf(" USES_DATABASE ") + " USES_DATABASE ".length();
+    return line.substring(from, line.indexOf(' ', from));
   }
 }

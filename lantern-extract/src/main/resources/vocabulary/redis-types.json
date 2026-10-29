@@ -1,8 +1,8 @@
 [
   {
-    "name": "repository",
+    "name": "repo",
     "kind": "entity",
-    "description": "A repository of the snapshot, the subject of facts about files that belong to no module, such as a compose file in a deployment repository. Its key is the repository's name. It has no C4 level.",
+    "description": "A repository of the snapshot, the subject of facts about files that belong to no module, such as a compose file in a deployment repository. Its key is the repository's name, as in the summaries. It has no C4 level.",
     "attributeSchema": {
       "additionalProperties": false
     }
