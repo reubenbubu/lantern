@@ -82,15 +82,43 @@ final class FoundLinks {
     plain.putIfAbsent(fact.id(), fact);
   }
 
-  /** The facts: each link once if found in the default view, else once per profile. */
-  List<Fact> facts(Origin origin, Validity validity) {
+  /**
+   * The facts: each link once if found in the default view, naming in {@code exceptProfiles} the
+   * profiles under which it is not found; else once per profile it is found under.
+   *
+   * @param profiles every profile the links were looked for under
+   */
+  List<Fact> facts(List<String> profiles, Origin origin, Validity validity) {
     List<Fact> facts = new ArrayList<>(plain.values());
     for (Map<String, Found> views : found.values()) {
       Found standard = views.get("");
       if (standard != null) {
         Set<String> ids = new TreeSet<>();
         views.values().forEach(f -> ids.addAll(f.facts()));
-        facts.add(fact(standard, null, ids, origin, validity));
+        List<String> except =
+            profiles.stream().filter(p -> !views.containsKey(p)).sorted().toList();
+        Fact fact = fact(standard, null, ids, origin, validity);
+        if (!except.isEmpty()) {
+          ObjectNode attributes = standard.attributes().deepCopy();
+          ArrayNode array = attributes.putArray("exceptProfiles");
+          except.forEach(array::add);
+          fact =
+              fact(
+                  new Found(
+                      standard.identity(),
+                      standard.subject(),
+                      standard.predicate(),
+                      standard.object(),
+                      attributes,
+                      standard.evidence(),
+                      standard.confidence(),
+                      standard.facts()),
+                  null,
+                  ids,
+                  origin,
+                  validity);
+        }
+        facts.add(fact);
       } else {
         views.forEach(
             (profile, f) ->

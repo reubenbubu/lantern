@@ -61,6 +61,24 @@ final class DataLinker {
   private static final String RABBIT_PORT = "spring.rabbitmq.port";
   private static final String CONFIG_SERVER = "configserver:";
 
+  /** The datasource keys of the connection a unit's code uses, first that is set wins. */
+  private static final List<String> CODE_KEYS =
+      List.of(
+          "spring.datasource.url",
+          "spring.datasource.jdbc-url",
+          "spring.datasource.hikari.jdbc-url",
+          "spring.r2dbc.url");
+
+  /** The datasource keys of the connection a unit's migrations run on, first that is set wins. */
+  private static final List<String> MIGRATION_KEYS =
+      List.of(
+          "spring.flyway.url",
+          "spring.liquibase.url",
+          "spring.datasource.url",
+          "spring.datasource.jdbc-url",
+          "spring.datasource.hikari.jdbc-url",
+          "spring.r2dbc.url");
+
   /** A table a unit's schema declares. */
   private record Owned(EntityId table, Unit unit, Fact fact) {}
 
@@ -98,13 +116,12 @@ final class DataLinker {
   void link(Origin origin, Validity validity) {
     Map<EntityId, Fact> technologies = new TreeMap<>(LinkIndex.BY_TEXT);
     for (String view : index.views()) {
-      Map<Unit, Map<EntityId, Fact>> databases = new LinkedHashMap<>();
       for (Unit unit : index.units.values()) {
-        databases.put(unit, databases(unit, view, technologies));
+        databases(unit, view, technologies);
         brokers(unit, view);
         infrastructure(unit, view);
       }
-      access(view, databases);
+      access(view);
     }
     technologies.forEach(
         (database, datasource) ->
@@ -123,9 +140,8 @@ final class DataLinker {
   // ---------------------------------------------------------------------------------------------
   // Databases
 
-  /** The databases a unit's datasources point to in a view, with the first datasource fact each. */
-  private Map<EntityId, Fact> databases(Unit unit, String view, Map<EntityId, Fact> technologies) {
-    Map<EntityId, Fact> result = new TreeMap<>(LinkIndex.BY_TEXT);
+  /** Links a unit to the databases its datasources point to in a view. */
+  private void databases(Unit unit, String view, Map<EntityId, Fact> technologies) {
     for (String key : index.configKeys(unit, PersistenceExtractor.DATASOURCE)) {
       Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
       if (f == null || LinkIndex.flag(f, "masked")) {
@@ -138,7 +154,6 @@ final class DataLinker {
         }
         continue;
       }
-      result.putIfAbsent(database, f);
       String technology = LinkIndex.text(f, "technology");
       if (technology != null) {
         technologies.merge(database, f, (a, b) -> LinkIndex.BY_ID.compare(a, b) <= 0 ? a : b);
@@ -170,7 +185,6 @@ final class DataLinker {
               CrossRepoLinks.round(f.confidence() * unit.fact().confidence()),
               List.of(f.id())));
     }
-    return result;
   }
 
   /**
@@ -200,10 +214,11 @@ final class DataLinker {
   }
 
   /**
-   * Units whose code reads or writes a table that another unit's schema declares, on a database
-   * both use in the view: the first accesses the second's data.
+   * Units whose code reads or writes a table, by name, that another unit's schema declares, when
+   * the first unit's main datasource and the datasource the second's migrations run on are the same
+   * database in the view: the first accesses the second's data.
    */
-  private void access(String view, Map<Unit, Map<EntityId, Fact>> databases) {
+  private void access(String view) {
     record Key(Unit from, Unit to, EntityId database) {}
     Map<Key, Set<String>> reads = new LinkedHashMap<>();
     Map<Key, Set<String>> writes = new LinkedHashMap<>();
@@ -223,13 +238,16 @@ final class DataLinker {
             continue;
           }
           for (Owned owner : owners) {
-            Set<EntityId> shared = new TreeSet<>(LinkIndex.BY_TEXT);
-            shared.addAll(databases.getOrDefault(from, Map.of()).keySet());
-            shared.retainAll(databases.getOrDefault(owner.unit(), Map.of()).keySet());
-            if (shared.isEmpty()) {
+            // The data the code reaches is in the database its unit's main datasource points to;
+            // the owner's tables are in the one its migrations run against.
+            Fact used = primary(from, view, CODE_KEYS);
+            Fact migrated = primary(owner.unit(), view, MIGRATION_KEYS);
+            EntityId database = used == null ? null : database(from, used);
+            if (database == null
+                || migrated == null
+                || !database.equals(database(owner.unit(), migrated))) {
               continue;
             }
-            EntityId database = shared.iterator().next();
             Key key = new Key(from, owner.unit(), database);
             (predicate.equals(PersistenceExtractor.READS_TABLE) ? reads : writes)
                 .computeIfAbsent(key, k -> new TreeSet<>())
@@ -237,8 +255,8 @@ final class DataLinker {
             Set<String> ids = facts.computeIfAbsent(key, k -> new TreeSet<>());
             ids.add(f.id());
             ids.add(owner.fact().id());
-            ids.add(databases.get(from).get(database).id());
-            ids.add(databases.get(owner.unit()).get(database).id());
+            ids.add(used.id());
+            ids.add(migrated.id());
             first.merge(key, f, (a, b) -> LinkIndex.BY_ID.compare(a, b) <= 0 ? a : b);
             confidence.merge(key, f.confidence(), Math::min);
           }
@@ -276,6 +294,17 @@ final class DataLinker {
               CrossRepoLinks.round(confidence.get(key)),
               facts.get(key)));
     }
+  }
+
+  /** A unit's datasource for the first of the keys it sets in a view, unless masked; or null. */
+  private Fact primary(Unit unit, String view, List<String> keys) {
+    for (String key : keys) {
+      Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
+      if (f != null) {
+        return LinkIndex.flag(f, "masked") ? null : f;
+      }
+    }
+    return null;
   }
 
   /** A table's name: its key after the module's group and artifact ID. */

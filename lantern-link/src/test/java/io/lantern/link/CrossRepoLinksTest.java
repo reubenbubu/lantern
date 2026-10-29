@@ -366,7 +366,7 @@ class CrossRepoLinksTest {
   }
 
   @Test
-  void aHostNoUnitHasIsAnExternalSystemThatEveryProfilesUrlOfTheCallShares() {
+  void aHostNoUnitHasIsAnExternalSystemAndOtherProfilesHostsAreItsAlternates() {
     unit("p", "payments", "payments");
     type("p", "payments", "p.Gateway");
     call(
@@ -386,14 +386,70 @@ class CrossRepoLinksTest {
             + "\"written\":\"${paygate.url}/v1/charges\"}",
         22);
 
-    List<Fact> links = linked();
-    assertThat(links).hasSize(1);
-    Fact link = links.getFirst();
-    assertThat(link.object().value()).isEqualTo("external-system:sandbox.paygate.example.com");
-    assertThat(link.attributes().has("profile")).isFalse();
-    assertThat(link.attributes().get("protocol").asString()).isEqualTo("HTTPS");
-    // Both views' calls are its evidence.
-    assertThat(link.attributes().get("facts")).hasSize(2);
+    assertThat(derive())
+        .containsExactly(
+            "service:g:payments CALLS_HTTP external-system:api.paygate.example.com"
+                + " {\"alternates\":[\"external-system:sandbox.paygate.example.com\"],"
+                + "\"client\":\"rest-client\",\"httpMethod\":\"POST\",\"matchedBy\":\"external\","
+                + "\"path\":\"/v1/charges\",\"profile\":\"prod\",\"protocol\":\"HTTPS\","
+                + "\"source\":\"method:p.Gateway#charge()\","
+                + "\"url\":\"https://api.paygate.example.com/v1/charges\"} 1.0",
+            "service:g:payments CALLS_HTTP external-system:sandbox.paygate.example.com"
+                + " {\"alternates\":[\"external-system:api.paygate.example.com\"],"
+                + "\"client\":\"rest-client\",\"exceptProfiles\":[\"prod\"],\"httpMethod\":\"POST\","
+                + "\"matchedBy\":\"external\",\"path\":\"/v1/charges\",\"protocol\":\"HTTPS\","
+                + "\"source\":\"method:p.Gateway#charge()\","
+                + "\"url\":\"https://sandbox.paygate.example.com/v1/charges\"} 1.0");
+  }
+
+  @Test
+  void aHostWithoutADomainThatNamesNoUnitIsLeftOpenNotAnExternalSystem() {
+    unit("a", "orders", "orders");
+    type("a", "orders", "o.Client");
+    call(
+        "a",
+        "o.Client#items()",
+        "GET http://inventory-svc/items",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/items\","
+            + "\"url\":\"http://inventory-svc/items\"}",
+        5);
+    unit("i", "inventory", "inventory");
+    type("i", "inventory", "i.ItemController");
+    endpoint("i", "i.ItemController", "items()", "GET", "/items");
+
+    assertThat(derive())
+        .containsExactly(
+            "service:g:orders unresolved-link GET http://inventory-svc/items"
+                + " {\"candidates\":[\"service:g:inventory\"],\"kind\":\"http\","
+                + "\"reason\":\"unknown-host\",\"source\":\"method:o.Client#items()\"} 1.0");
+  }
+
+  @Test
+  void aLinkSwitchedOffUnderAProfileNamesThatProfile() {
+    unit("s", "shop", "shop");
+    type("s", "shop", "s.Publisher");
+    gate("s", "s.Publisher", "!local");
+    messaging(
+        "s",
+        "s.Publisher#send()",
+        MessagingExtractor.SEND,
+        "orders",
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        4);
+    unit("f", "fulfilment", "fulfilment");
+    type("f", "fulfilment", "f.Listener");
+    messaging(
+        "f",
+        "f.Listener#on()",
+        MessagingExtractor.LISTENER,
+        "orders",
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        3);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
+        .singleElement()
+        .asString()
+        .contains("\"exceptProfiles\":[\"local\"]");
   }
 
   @Test
@@ -774,15 +830,76 @@ class CrossRepoLinksTest {
             "database:localhost:5432/shop technology PostgreSQL 1.0",
             "database:shop-db:5432/shop technology PostgreSQL 1.0",
             "service:g:payments ACCESSES_DATA_OF service:g:shop {\"database\":\"database:shop-db:5432/shop\","
-                + "\"protocol\":\"JDBC\",\"reads\":[\"table:g:shop:orders\"]} 1.0",
+                + "\"exceptProfiles\":[\"local\"],\"protocol\":\"JDBC\",\"reads\":[\"table:g:shop:orders\"]} 1.0",
             "service:g:payments USES_DATABASE database:shop-db:5432/shop {\"key\":\"spring.datasource.url\","
                 + "\"protocol\":\"JDBC\",\"technology\":\"PostgreSQL\",\"url\":\"jdbc:postgresql://shop-db:5432/shop\"} 1.0",
             "service:g:shop USES_DATABASE database:localhost:5432/shop {\"key\":\"spring.datasource.url\","
                 + "\"profile\":\"local\",\"protocol\":\"JDBC\",\"schemas\":[\"schema:g:shop\"],"
                 + "\"technology\":\"PostgreSQL\",\"url\":\"jdbc:postgresql://localhost:5432/shop\"} 1.0",
-            "service:g:shop USES_DATABASE database:shop-db:5432/shop {\"key\":\"spring.datasource.url\","
-                + "\"protocol\":\"JDBC\",\"schemas\":[\"schema:g:shop\"],\"technology\":\"PostgreSQL\","
+            "service:g:shop USES_DATABASE database:shop-db:5432/shop {\"exceptProfiles\":[\"local\"],"
+                + "\"key\":\"spring.datasource.url\",\"protocol\":\"JDBC\",\"schemas\":[\"schema:g:shop\"],\"technology\":\"PostgreSQL\","
                 + "\"url\":\"jdbc:postgresql://shop-db:5432/shop\"} 1.0");
+  }
+
+  @Test
+  void aTableIsAnothersDataOnlyWhereItsMigrationsRun() {
+    unit("s", "shop", "shop");
+    // shop's tables live in shop-db, where its migrations run; it also reaches a reporting copy.
+    datasource(
+        "s",
+        "shop",
+        "application.yml",
+        "jdbc:postgresql://shop-db:5432/shop",
+        "\"server\":\"shop-db:5432\",\"database\":\"shop\"");
+    add(
+        PersistenceExtractor.NAME,
+        "module:g:shop",
+        PersistenceExtractor.DATASOURCE,
+        FactObject.string("jdbc:postgresql://report-db:5432/report"),
+        "{\"key\":\"app.reporting.url\",\"server\":\"report-db:5432\",\"database\":\"report\"}",
+        "s:src/main/resources/application.yml#9",
+        1.0);
+    config("s", "shop", "application.yml", "spring.application.name", "shop", null);
+    add(
+        SqlExtractor.NAME,
+        "module:g:shop",
+        BuiltInTypes.CONTAINS,
+        FactObject.entity(EntityId.parse("schema:g:shop")),
+        null,
+        "s:src/main/resources/db/V1.sql",
+        1.0);
+    add(
+        SqlExtractor.NAME,
+        "schema:g:shop",
+        BuiltInTypes.CONTAINS,
+        FactObject.entity(EntityId.parse("table:g:shop:orders")),
+        null,
+        "s:src/main/resources/db/V1.sql#1",
+        1.0);
+    unit("r", "reports", "reports");
+    config("r", "reports", "application.yml", "spring.application.name", "reports", null);
+    datasource(
+        "r",
+        "reports",
+        "application.yml",
+        "jdbc:postgresql://report-db:5432/report",
+        "\"server\":\"report-db:5432\",\"database\":\"report\"");
+    type("r", "reports", "r.Job");
+    add(
+        PersistenceExtractor.NAME,
+        "method:r.Job#run()",
+        PersistenceExtractor.READS_TABLE,
+        FactObject.entity(EntityId.parse("table:g:reports:orders")),
+        "{\"statement\":\"select\"}",
+        "r:src/main/java/r/Job.java#5",
+        1.0);
+
+    // Both use report-db, but shop's orders table is in shop-db.
+    assertThat(derive(CrossRepoLinks.ACCESSES_DATA_OF)).isEmpty();
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .anyMatch(l -> l.startsWith("service:g:shop USES_DATABASE database:report-db:5432/report "))
+        .anyMatch(
+            l -> l.startsWith("service:g:reports USES_DATABASE database:report-db:5432/report "));
   }
 
   @Test

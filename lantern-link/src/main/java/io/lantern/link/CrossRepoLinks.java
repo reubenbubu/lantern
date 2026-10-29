@@ -135,7 +135,7 @@ public final class CrossRepoLinks implements LinkStep {
     new MessageLinker(index, found).link();
     new DataLinker(index, found).link(ORIGIN, validity);
     Map<String, Fact> derived = new LinkedHashMap<>();
-    found.facts(ORIGIN, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
+    found.facts(index.profiles, ORIGIN, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
     return derived.values().stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())

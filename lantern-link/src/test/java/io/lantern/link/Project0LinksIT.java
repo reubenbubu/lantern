@@ -209,17 +209,27 @@ class Project0LinksIT {
   }
 
   @Test
-  void http4AndExt1PayGateIsOneExternalSystemInEveryProfile() {
+  void http4AndExt1PayGateIsAnExternalSystemWhoseProdHostIsItsAlternate() {
     assertBoth(
         "service:~:payments CALLS_HTTP external-system:sandbox.paygate.example.com"
-            + " {\"client\":\"rest-client\",\"httpMethod\":\"POST\",\"matchedBy\":\"external\","
-            + "\"path\":\"/v1/charges\",\"protocol\":\"HTTPS\","
+            + " {\"alternates\":[\"external-system:api.paygate.example.com\"],"
+            + "\"client\":\"rest-client\",\"exceptProfiles\":[\"prod\"],\"httpMethod\":\"POST\","
+            + "\"matchedBy\":\"external\",\"path\":\"/v1/charges\",\"protocol\":\"HTTPS\","
             + "\"source\":\"method:~.payments.PaymentGatewayClient#charge(long)\","
             + "\"url\":\"https://sandbox.paygate.example.com/v1/charges\"}"
             + " @payments:"
             + J
+            + "payments/PaymentGatewayClient.java#22",
+        "service:~:payments CALLS_HTTP external-system:api.paygate.example.com"
+            + " {\"alternates\":[\"external-system:sandbox.paygate.example.com\"],"
+            + "\"client\":\"rest-client\",\"httpMethod\":\"POST\",\"matchedBy\":\"external\","
+            + "\"path\":\"/v1/charges\",\"profile\":\"prod\",\"protocol\":\"HTTPS\","
+            + "\"source\":\"method:~.payments.PaymentGatewayClient#charge(long)\","
+            + "\"url\":\"https://api.paygate.example.com/v1/charges\"}"
+            + " @payments:"
+            + J
             + "payments/PaymentGatewayClient.java#22");
-    assertThat(of(built, "CALLS_HTTP")).filteredOn(l -> l.contains("external-system")).hasSize(1);
+    assertThat(of(built, "CALLS_HTTP")).filteredOn(l -> l.contains("external-system")).hasSize(2);
   }
 
   @Test
@@ -316,7 +326,7 @@ class Project0LinksIT {
             + "\"url\":\"jdbc:postgresql://shop-db:5432/shop\"}"
             + " @payments:src/main/resources/application.properties#5",
         "service:~:storefront-app USES_DATABASE database:shop-db:5432/shop"
-            + " {\"key\":\"spring.datasource.url\",\"protocol\":\"JDBC\","
+            + " {\"exceptProfiles\":[\"local\"],\"key\":\"spring.datasource.url\",\"protocol\":\"JDBC\","
             + "\"schemas\":[\"schema:~:storefront-app\"],\"technology\":\"PostgreSQL\","
             + "\"url\":\"jdbc:postgresql://shop-db:5432/shop\"}"
             + " @storefront:storefront-app/src/main/resources/application.yml#5",
@@ -333,7 +343,8 @@ class Project0LinksIT {
         .asString()
         .startsWith(
             "service:~:payments ACCESSES_DATA_OF service:~:storefront-app"
-                + " {\"database\":\"database:shop-db:5432/shop\",\"protocol\":\"JDBC\","
+                + " {\"database\":\"database:shop-db:5432/shop\",\"exceptProfiles\":[\"local\"],"
+                + "\"protocol\":\"JDBC\","
                 + "\"reads\":[\"table:~:storefront-app:orders\"]}");
   }
 
@@ -360,6 +371,7 @@ class Project0LinksIT {
               "service:~:fulfilment CALLS_HTTP service:~:catalog-service",
               "service:~:fulfilment SENDS_MESSAGES_TO service:~:storefront-app",
               "service:~:payments CALLS_HTTP external-system:sandbox.paygate.example.com",
+              "service:~:payments CALLS_HTTP external-system:api.paygate.example.com",
               "service:~:payments SENDS_MESSAGES_TO service:~:fulfilment",
               "service:~:storefront-app CALLS_HTTP service:~:catalog-service",
               "service:~:storefront-app CALLS_HTTP service:~:payments",

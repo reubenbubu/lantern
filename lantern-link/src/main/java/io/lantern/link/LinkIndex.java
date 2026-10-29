@@ -107,7 +107,15 @@ final class LinkIndex {
           gates.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
           JsonNode named = f.attributes().get("profiles");
           if (named != null && named.isArray()) {
-            named.forEach(p -> profileNames.add(p.asString()));
+            // As written, so "!local" or "a & b": the profiles are the names in the expression.
+            named.forEach(
+                p -> {
+                  for (String name : p.asString().split("[!&|()\\s]+")) {
+                    if (!name.isEmpty()) {
+                      profileNames.add(name);
+                    }
+                  }
+                });
           }
         }
         case SpringExtractor.STEREOTYPE -> {

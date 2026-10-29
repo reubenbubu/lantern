@@ -29,8 +29,11 @@ its path is known, and what is matched when.
   profile active at a time across all units, as ADR 0032 models config. In a view, a place in the
   code or config takes its profile fact if it has one, else its default fact; code whose
   `@Profile` gate (on its method or type) does not match the active profile does not run. A link
-  found in the default view is recorded once, with the facts of every view that found it; one
-  found only under profiles is recorded once per profile, with `profile`. So the audit link of
+  found in the default view is recorded once, with the facts of every view that found it, and the
+  profiles under which it is not found in `exceptProfiles` (code gated `@Profile("!local")`, or a
+  URL a profile points elsewhere), so a view can mark it conditional too; one found only under
+  profiles is recorded once per profile, with `profile`. The profiles of a gate are the names in
+  its expression (`!local` names `local`). So the audit link of
   project-0 (SPR-4) holds only under `audit`, and a URL that only the `local` profile changes to
   `localhost`, still reaching the same endpoint, is the default link, not a second one.
 - **Config of a library's code.** Code in a library runs with the config of each unit that
@@ -50,9 +53,15 @@ its path is known, and what is matched when.
   segment, and the endpoint with most literal segments wins, then the first by ID. A target
   without a matching endpoint is still linked, at 0.8 times the confidence. A call to
   `localhost` is linked by its path alone when exactly one other unit serves it (`path`, 0.6).
-  A host that names no unit is an external system, `external-system:<host>`, a child of `system`;
-  every view of the same call goes to the system its first view names, so PayGate's sandbox and
-  `prod` URLs (HTTP-4) are one system. A unit calling itself is not linked.
+  A host with a domain (or an IP address) that names no unit is an external system,
+  `external-system:<host>`, a child of `system`, keyed by its host alone. When the same call
+  reaches different units or systems under different profiles, each of its links lists the
+  others in `alternates`: PayGate's sandbox host is the default target, `exceptProfiles: [prod]`,
+  and its `prod` host a conditional one, each the other's alternate (HTTP-4), so a view can draw
+  them as one system without the linker guessing that two hosts are one. A host without a domain
+  that names no unit (`http://inventory-svc`, a compose, Kubernetes or discovery name) is not
+  taken for an external system: it is left open as `unknown-host`, with the units serving its
+  path as candidates. A unit calling itself is not linked.
 - **Messaging.** Topics, queues and exchanges become entities, children of `container`, keyed by
   broker and name: `topic:kafka:<name>`, `queue:jms:<name>`, `queue:rabbitmq:<name>`,
   `exchange:rabbitmq:<name>` (a JMS destination is taken as a queue). A unit `PUBLISHES` to what it
@@ -71,8 +80,11 @@ its path is known, and what is matched when.
   describes containers, not only units). An embedded database without a server is the unit's own
   (keyed by the unit). The link lists the schemas the unit's migrations build. A unit whose code
   reads or writes (`READS_TABLE`, `WRITES_TABLE`, ADR 0036) a table, by name, that another unit's
-  schema declares and that it does not declare itself, on a database both use in the view,
-  `ACCESSES_DATA_OF` that unit, with the tables in `reads` and `writes` (DB-5).
+  schema declares and that it does not declare itself, `ACCESSES_DATA_OF` that unit, with the
+  tables in `reads` and `writes` (DB-5), when in the view the database of the first unit's main
+  datasource (`spring.datasource.url`, `jdbc-url`, Hikari's, else `spring.r2dbc.url`) is the one
+  the second's migrations run on (`spring.flyway.url` or `spring.liquibase.url`, else its main
+  datasource). Two units that merely both reach some database do not share each other's tables.
 - **Shared config** is matched where it names a shared server: message brokers from
   `spring.kafka*.bootstrap-servers`, `spring.cloud.stream.kafka.binder.brokers`,
   `spring.rabbitmq.addresses` or `host` (and `port`), and `spring.artemis` or `spring.activemq`
@@ -94,8 +106,8 @@ its path is known, and what is matched when.
   first 16 hex digits of the SHA-256 of what makes the link the same in every view and snapshot:
   its predicate, both ends, the code on both, and its profile; never a commit.
 - **What stays open** is `unresolved-link` on the unit, with `kind` (`http`, `message`,
-  `database`), `reason` (`unresolved-placeholder`, `unknown-url`, `ambiguous`, `no-match`,
-  `unknown-routing-key`), the unresolved keys and the `candidates`: units whose endpoints serve the
+  `database`), `reason` (`unresolved-placeholder`, `unknown-url`, `unknown-host`, `ambiguous`,
+  `no-match`, `unknown-routing-key`), the unresolved keys and the `candidates`: units whose endpoints serve the
   path, or that listen where the exchange routes. HTTP-5's tax service is one. The LLM resolver
   that picks among candidates, and the questions queue, are #152.
 - **New vocabulary**, applied by the app on startup after the deployable units', with source

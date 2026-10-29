@@ -11,6 +11,7 @@ import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.LinkText.Url;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -95,19 +96,43 @@ final class HttpLinker {
             calls.put(view == null ? "" : view, call);
           }
         }
-        String external = null;
         for (Map.Entry<String, Call> e : calls.entrySet()) {
           String view = e.getKey().isEmpty() ? null : e.getKey();
           Call call = e.getValue();
-          List<Target> targets = targets(call, view);
-          if (targets == null && external == null) {
-            // Every view's external target is the system the first view's URL names.
-            external = call.url().host();
-          }
-          link(caller, call, view, targets, external);
+          link(caller, call, view, targets(call, view));
         }
+        flush();
       }
     }
+  }
+
+  /** The links of one call by one unit, in every view, before they are added. */
+  private final List<Map.Entry<String, Found>> pending = new ArrayList<>();
+
+  private void emit(String view, Found found) {
+    pending.add(new AbstractMap.SimpleEntry<>(view, found));
+  }
+
+  /**
+   * Adds the pending links of one call, each naming in {@code alternates} the other units and
+   * external systems the same call reaches under other profiles.
+   */
+  private void flush() {
+    Set<String> targets = new TreeSet<>();
+    for (Map.Entry<String, Found> e : pending) {
+      if (e.getValue().predicate().equals(CrossRepoLinks.CALLS_HTTP)) {
+        targets.add(e.getValue().object().value());
+      }
+    }
+    for (Map.Entry<String, Found> e : pending) {
+      Found found = e.getValue();
+      if (found.predicate().equals(CrossRepoLinks.CALLS_HTTP) && targets.size() > 1) {
+        ArrayNode alternates = found.attributes().putArray("alternates");
+        targets.stream().filter(t -> !t.equals(found.object().value())).forEach(alternates::add);
+      }
+      out.add(e.getKey(), found);
+    }
+    pending.clear();
   }
 
   /**
@@ -178,7 +203,7 @@ final class HttpLinker {
   /**
    * The units a call goes to: by the Feign client's name when its URL is the load-balanced one,
    * else by the URL's host. An empty list when the host is not known or is this machine, so only
-   * the path can tell; null when the host names no unit, so it is an external system.
+   * the path can tell; null when a host with a domain names no unit, so it is an external system.
    */
   private List<Target> targets(Call call, String view) {
     String host = call.url().host();
@@ -204,6 +229,11 @@ final class HttpLinker {
         }
       }
     }
+    if (byHost.isEmpty() && !host.contains(".") && !host.contains(":") && !host.startsWith("[")) {
+      // A name without a domain is a compose, Kubernetes or discovery name, not a system on the
+      // internet: only the path can tell which unit it is.
+      return List.of();
+    }
     return byHost.isEmpty() ? null : byHost;
   }
 
@@ -219,10 +249,10 @@ final class HttpLinker {
   }
 
   /** Records what a call in a view links to. */
-  private void link(Unit caller, Call call, String view, List<Target> targets, String external) {
+  private void link(Unit caller, Call call, String view, List<Target> targets) {
     String path = call.url().path();
     if (targets == null) {
-      linkExternal(caller, call, view, external);
+      linkExternal(caller, call, view, call.url().host());
       return;
     }
     if (targets.isEmpty()) {
@@ -243,6 +273,8 @@ final class HttpLinker {
         linkUnit(caller, call, view, target, best.get(target.unit()));
       } else if (call.url().local()) {
         unresolved(caller, call, view, byPath, byPath.isEmpty() ? "no-match" : "ambiguous");
+      } else if (call.url().host() != null) {
+        unresolved(caller, call, view, byPath, "unknown-host");
       } else {
         unresolved(
             caller,
@@ -301,7 +333,7 @@ final class HttpLinker {
             + fact.subject()
             + "|"
             + (endpoint == null ? "" : endpoint.fact().subject());
-    out.add(
+    emit(
         view,
         new Found(
             identity,
@@ -323,7 +355,7 @@ final class HttpLinker {
     facts.add(fact.id());
     call.used().forEach(u -> facts.add(u.id()));
     EntityId system = new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, host);
-    out.add(
+    emit(
         view,
         new Found(
             CrossRepoLinks.CALLS_HTTP + "|" + caller.id() + "|" + system + "|" + fact.subject(),
@@ -355,7 +387,7 @@ final class HttpLinker {
     Set<String> facts = new TreeSet<>();
     facts.add(fact.id());
     call.used().forEach(u -> facts.add(u.id()));
-    out.add(
+    emit(
         view,
         new Found(
             CrossRepoLinks.UNRESOLVED_LINK + "|" + caller.id() + "|" + fact.subject() + "|http",

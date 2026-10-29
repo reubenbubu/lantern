@@ -47,7 +47,7 @@
     "name": "external-system",
     "kind": "entity",
     "parent": "system",
-    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host names no unit. Its key is the host, such as sandbox.paygate.example.com; the URLs of other profiles of the same call are the same system.",
+    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host has a domain and names no unit. Its key is the host, such as sandbox.paygate.example.com; the hosts the same call reaches under other profiles are separate systems, named by the call's alternates.",
     "attributeSchema": {
       "additionalProperties": false
     }
@@ -117,7 +117,21 @@
         },
         "matchedBy": {
           "type": "string",
-          "description": "How the target was found: service-name (a Feign client's name against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone) or external (no unit)."
+          "description": "How the target was found: service-name (a Feign client's name against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone) or external (a host with a domain that names no unit)."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+        },
+        "alternates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The entity IDs of the other units or external systems the same call reaches under other profiles, such as a production host for a sandbox one."
         }
       },
       "additionalProperties": false
@@ -157,6 +171,13 @@
         "routingKey": {
           "type": "string",
           "description": "The routing key a RabbitMQ send gives."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
@@ -200,6 +221,13 @@
         "pattern": {
           "type": "string",
           "description": "The topic pattern the listener names, when the object topic matches it."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
@@ -242,6 +270,13 @@
         "exchangeType": {
           "type": "string",
           "description": "The exchange's type, if known: topic, direct, fanout or headers."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
@@ -300,6 +335,13 @@
         "pattern": {
           "type": "string",
           "description": "The topic pattern the listener names, when the topic matched it."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
@@ -350,6 +392,13 @@
             "type": "string"
           },
           "description": "The entity IDs of the schemas the unit's migrations build."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
@@ -399,6 +448,13 @@
             "type": "string"
           },
           "description": "The entity IDs of the object's tables the subject writes."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
@@ -438,6 +494,13 @@
         "key": {
           "type": "string",
           "description": "The config key that sets the address."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
@@ -485,6 +548,13 @@
         "value": {
           "type": "string",
           "description": "The config value naming it."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
@@ -503,7 +573,7 @@
         },
         "reason": {
           "type": "string",
-          "description": "unresolved-placeholder, unknown-url, ambiguous, no-match (a call to this machine no unit serves) or unknown-routing-key."
+          "description": "unresolved-placeholder, unknown-url, unknown-host (a host without a domain that names no unit, such as a compose or discovery name), ambiguous, no-match (a call to this machine no unit serves) or unknown-routing-key."
         },
         "source": {
           "type": "string",
@@ -537,6 +607,13 @@
         "profile": {
           "type": "string",
           "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
         }
       },
       "additionalProperties": false
