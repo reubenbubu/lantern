@@ -1,6 +1,7 @@
 # 0058: Narrated sequence flows
 
-Status: accepted (#195), amends ADR 0047 and ADR 0050, pending the user's review (#24)
+Status: accepted (#195), amends ADR 0047 and ADR 0050, amended by ADR 0059 (#196), pending the
+user's review (#24)
 
 ## Context
 

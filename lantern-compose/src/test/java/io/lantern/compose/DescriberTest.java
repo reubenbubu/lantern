@@ -518,7 +518,7 @@ class DescriberTest {
     assertThat(purpose.messages().getFirst().text())
         .isEqualTo(
             """
-            The software system, whose deployable units with a description are 2.
+            The software system.
 
             Its deployable units, each with what it does as worded from its facts:
             - shop-app: Takes and lists the shop's orders.
@@ -540,6 +540,95 @@ class DescriberTest {
                     .orElseThrow()
                     .id()
                 + "]");
+  }
+
+  @Test
+  void withoutUnitSentencesThePurposeIsAskedFromTheReadmeClaimsAlone() {
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  String prompt = request.messages().getFirst().text();
+                  if (prompt.startsWith("The software system")) {
+                    return answer(request);
+                  }
+                  // Units, data stores and destinations left out; flows as usual.
+                  return prompt.startsWith("The flow") ? answer(request) : "{}";
+                });
+
+    Describer.Result result = new Describer(client(fake), store).describe(withClaim);
+
+    assertThat(
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .filter(r -> r.purpose().equals("word the system's purpose"))
+                .findFirst()
+                .orElseThrow()
+                .messages()
+                .getFirst()
+                .text())
+        .isEqualTo(
+            """
+            The software system.
+
+            What the READMEs of its repositories claim:
+            shop (README.md):
+              [F1] readme:shop:README.md claim "The app keeps its orders in MySQL." (shop:README.md)
+            """);
+    assertThat(result.wordings().responsibilities()).containsKey(RepoSections.SYSTEM);
+  }
+
+  @Test
+  void aPurposeRejectedTwiceIsCountedCachesNothingAndLeavesItUnknown() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.messages().getFirst().text().startsWith("The software system")
+                        ? "{\"purpose\": {\"text\": \"Sells things.\", \"cites\": [\"F99\"]}}"
+                        : answer(request));
+
+    Describer.Result result = describe(fake);
+
+    assertThat(result.rejected()).containsExactly(RepoSections.SYSTEM);
+    assertThat(fake.sent())
+        .extracting(s -> s.request().purpose())
+        .contains("word the system's purpose (retry)");
+    assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
+    assertThat(store.size()).isEqualTo(7);
+    Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
+    assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
+  }
+
+  @Test
+  void aPurposeCitingAReadmeClaimAndUnitFactsIsShownWithoutTheInferredNote() {
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    Fact claim =
+        withClaim.stream().filter(f -> f.predicate().equals("claim")).findFirst().orElseThrow();
+    Wordings wordings =
+        new Wordings(
+            Map.of(
+                RepoSections.SYSTEM,
+                "Runs an online shop's orders. [fact:"
+                    + facts.find(APP.toString(), "application-name").id()
+                    + "] [fact:"
+                    + claim.id()
+                    + "]"),
+            Map.of());
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                withClaim,
+                Map.of(),
+                wordings);
+
+    Paragraph first = (Paragraph) document.sections().getFirst().blocks().getFirst();
+    assertThat(text(first.content())).isEqualTo("Runs an online shop's orders.");
+    assertThat(first.facts()).contains(claim.id());
   }
 
   @Test

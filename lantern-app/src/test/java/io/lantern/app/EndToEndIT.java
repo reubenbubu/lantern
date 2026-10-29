@@ -597,7 +597,9 @@ class EndToEndIT {
     assertThat(second.summariesGenerated()).isZero();
     assertThat(second.summariesReused()).isEqualTo(first.summariesGenerated());
     assertThat(second.wordingsAsked()).isZero();
-    assertThat(second.wordingsReused()).isEqualTo(first.wordingsAsked());
+    // The first run may already reuse wordings of repositories carried forward from earlier runs,
+    // such as the system's purpose when nothing it shows changed (ADR 0059).
+    assertThat(second.wordingsReused()).isEqualTo(first.wordingsAsked() + first.wordingsReused());
     // The documents differ only in the snapshot they are of.
     for (int i = 0; i < 4; i++) {
       Document before = first.documents().get(i).document();

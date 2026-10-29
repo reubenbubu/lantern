@@ -235,7 +235,8 @@ final class WordingPrompt {
    *     of the flow
    * @param name the element's name
    * @param about the field of the answer that holds the element's sentence: {@link
-   *     WordingAnswer#UNIT} or {@link #ELEMENT}
+   *     WordingAnswer#UNIT}, {@link #ELEMENT}, {@link #WALKTHROUGH} for a flow or {@link #PURPOSE}
+   *     for the system
    * @param version the prompt's version
    * @param system the system prompt
    * @param user the user turn
@@ -475,11 +476,9 @@ final class WordingPrompt {
       EntityId system, List<UnitSentence> units, Map<String, List<Fact>> claims) {
     Map<String, Fact> facts = new LinkedHashMap<>();
     StringBuilder user = new StringBuilder();
-    user.append("The software system");
+    user.append("The software system.\n");
     if (!units.isEmpty()) {
-      user.append(", whose deployable units with a description are ")
-          .append(units.size())
-          .append(".\n\nIts deployable units, each with what it does as worded from its facts:\n");
+      user.append("\nIts deployable units, each with what it does as worded from its facts:\n");
       for (UnitSentence unit : units) {
         user.append("- ")
             .append(oneLine(unit.name()))
@@ -488,8 +487,6 @@ final class WordingPrompt {
             .append('\n');
         unit.facts().forEach(f -> user.append(fact(f, facts, "  ")).append('\n'));
       }
-    } else {
-      user.append(".\n");
     }
     if (!claims.isEmpty()) {
       user.append("\nWhat the READMEs of its repositories claim:\n");

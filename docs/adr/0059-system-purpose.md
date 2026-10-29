@@ -22,7 +22,8 @@ as unknown.
 - **What the prompt shows** (`WordingPrompt.purpose`): each deployable unit the model gave a
   responsibility sentence in this run, by name (at most 30), with that sentence and, under it, the
   facts it cites (at most 8 each), and the claims of the README with the fewest folders in each
-  repository (at most 8 each, as for units), under the repository and the README's path. Facts are
+  repository (at most 8 each, as for units), under the repository and the README's path, after
+  the line "The software system.". Facts are
   written as in ADR 0050, without fact IDs or line numbers. Units are listed by name and READMEs
   by repository, so a new commit that changes nothing shown gives the same prompt. The units'
   sentences are the model's own earlier output, which ADR 0050 keeps out of unit prompts; here they
@@ -54,9 +55,9 @@ as unknown.
   what its deployable units do.", in line with Grounding and with what #193 asks for summaries'
   purpose sentences the same way. Without a purpose (none asked, left out, rejected, skipped, or
   citing no fact of the snapshot) the overview opens with a note: "The system's purpose is not
-  known: no readme states it, and it could not be inferred from its deployable units." A note
-  cites nothing, as the context's note on people does; "readme" is lowercase, as elsewhere in
-  documents, so it is not taken for an acronym. Per-repository documents are unchanged.
+  known." It gives no reason, since the model may have been left out, refused or not asked. A
+  note cites nothing, as the context's note on people does; "readme" in the inferred note is
+  lowercase, as elsewhere in documents, so it is not taken for an acronym. Per-repository documents are unchanged.
 - **Counts.** `Describer.Result`, `AnalysisRun.Result.wordingsAsked` and `wordingsReused` count the
   system with the units, data stores, destinations and flows, so `EndToEndIT`'s checks that every
   call is counted and that the second run reuses every wording cover it; the analyze run prints

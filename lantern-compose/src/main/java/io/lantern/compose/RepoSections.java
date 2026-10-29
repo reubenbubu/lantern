@@ -51,14 +51,15 @@ final class RepoSections {
   private static final String CLAIM = "claim";
 
   /**
-   * What the system's overview says when no purpose is known; "readme" is lowercase, as elsewhere
-   * in documents, so it is not taken for an acronym the glossary must explain.
+   * What the system's overview says when no purpose is known: plainly, without a reason, since the
+   * model may have been left out, refused or not asked.
    */
-  static final String UNKNOWN_PURPOSE =
-      "The system's purpose is not known: no readme states it, and it could not be inferred from"
-          + " its deployable units.";
+  static final String UNKNOWN_PURPOSE = "The system's purpose is not known.";
 
-  /** What follows a purpose that cites no README claim. */
+  /**
+   * What follows a purpose that cites no README claim; "readme" is lowercase, as elsewhere in
+   * documents, so it is not taken for an acronym the glossary must explain.
+   */
   static final String INFERRED_PURPOSE =
       "No readme states the system's purpose; this is inferred from what its deployable units do.";
 
