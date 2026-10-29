@@ -56,6 +56,7 @@ final class RepoSections {
   private final SortedSet<EntityId> containers = new TreeSet<>(Knowledge.BY_ID);
   private final Assembler assembler;
   private final C4Views c4;
+  private final SortedSet<EntityId> units;
 
   /**
    * @param repo the repository the document is about, or {@code null} for the whole system
@@ -86,8 +87,7 @@ final class RepoSections {
     if (repo == null) {
       repos.forEach(r -> inScope.add(Assembler.repo(r)));
     }
-    SortedSet<EntityId> units =
-        repo == null ? C4Views.units(knowledge) : C4Views.units(knowledge, modules);
+    this.units = repo == null ? C4Views.units(knowledge) : C4Views.units(knowledge, modules);
     inScope.addAll(containers);
     inScope.addAll(units);
     this.assembler = new Assembler(knowledge, summaries, inScope, repo, systemName(snapshotRepos));
@@ -125,6 +125,8 @@ final class RepoSections {
       case CONTEXT -> blocks.addAll(c4.context(id));
       case CONTAINERS -> c4.containers(id, blocks, subsections);
       case COMPONENTS -> subsections.addAll(c4.components(id));
+      case SEQUENCES ->
+          subsections.addAll(new SequenceFlows(knowledge, assembler, c4, units).flows(id, blocks));
       case DEPENDENCIES -> dependencies(id, blocks);
       case STRUCTURE -> structure(id, blocks);
       case HEADLINES -> blocks.add(headlines(id));

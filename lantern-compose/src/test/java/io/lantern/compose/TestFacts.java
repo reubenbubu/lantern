@@ -174,9 +174,10 @@ final class TestFacts {
    * database is {@code shop} on {@code db}; {@code web.Controller} serves {@code GET /orders} and,
    * only under the profile {@code prod}, calls {@code pay.example.com}; {@code web.Jobs} runs on a
    * schedule; both call {@code domain.Orders#all()}, which {@code domain.JpaOrders} implements,
-   * reading the {@code orders} table and sending to the Kafka topic {@code orders}. The unit {@code
-   * worker} of repository {@code base} consumes that topic and calls {@code GET /orders}. A call to
-   * a tax service could not be linked. The repository {@code shop} has one decision record.
+   * reading the {@code orders} table and sending to the Kafka topic {@code orders}, which reaches
+   * the listener of {@code worker}. The unit {@code worker} of repository {@code base} consumes
+   * that topic and calls {@code GET /orders}. A call to a tax service could not be linked. The
+   * repository {@code shop} has one decision record.
    */
   static TestFacts runtime() {
     String app = "service:com.example:app";
@@ -233,6 +234,14 @@ final class TestFacts {
             "unresolved-link",
             "GET ${TAX_URL}/quotes",
             "{\"reason\": \"unresolved-placeholder\", \"unresolved\": [\"TAX_URL\"]}")
+        .relate(
+            "shop",
+            app,
+            "SENDS_MESSAGES_TO",
+            worker,
+            "{\"protocol\": \"Kafka\", \"destination\": \"topic:kafka:orders\", \"source\": \""
+                + all
+                + "\", \"target\": \"method:com.example.worker.L#on()\"}")
         .relate("base", worker, "CONTAINS", "module:com.example:worker")
         .attribute("base", "module:com.example:worker", "packaging", "jar")
         .attribute("base", worker, "deployable-unit", "spring-boot", "{}")

@@ -367,6 +367,29 @@
       "from" : 1
     }
   }, {
+    "id" : "67231df9bd6219f0eca8c18ac55bb5ddf6e2593d055702ddf806900414ef593d",
+    "subject" : "method:com.example.domain.JpaOrders#all()",
+    "predicate" : "READS_TABLE",
+    "object" : {
+      "kind" : "entity",
+      "value" : "table:com.example:app:orders"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
     "id" : "679166264b3a042a38f479ee7460b4f8586b94b25ba0eeaea0365c212a9d0222",
     "subject" : "service:com.example:worker",
     "predicate" : "CONTAINS",
@@ -611,6 +634,34 @@
       "value" : "package:com.example:app:com.example.web"
     },
     "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "test",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "pom.xml"
+    },
+    "confidence" : 1.0,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "aeb875027f22ddf23418b69eaa767b941cf970afd96cf35a1dd74614f0343638",
+    "subject" : "service:com.example:app",
+    "predicate" : "SENDS_MESSAGES_TO",
+    "object" : {
+      "kind" : "entity",
+      "value" : "service:com.example:worker"
+    },
+    "attributes" : {
+      "destination" : "topic:kafka:orders",
+      "protocol" : "Kafka",
+      "source" : "method:com.example.domain.JpaOrders#all()",
+      "target" : "method:com.example.worker.L#on()"
+    },
     "origin" : {
       "kind" : "static",
       "name" : "test",
@@ -1262,6 +1313,247 @@
           "facts" : [ "4df4b4fe0676cce45ca08ceb9320bfe9c856092e331c17b692228a5229e42637" ]
         } ],
         "facts" : [ ]
+      } ],
+      "sections" : [ ]
+    } ]
+  }, {
+    "id" : "sequences",
+    "title" : "Main flows",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "system:snapshot",
+    "facts" : [ ],
+    "blocks" : [ ],
+    "sections" : [ {
+      "id" : "sequences.shop-app.Controller.list",
+      "title" : "GET /orders on shop-app",
+      "levels" : [ "L1", "L2" ],
+      "facts" : [ ],
+      "blocks" : [ {
+        "kind" : "paragraph",
+        "id" : "sequences.shop-app.Controller.list.prose",
+        "content" : [ {
+          "kind" : "text",
+          "text" : "Starts when shop-app receives GET /orders, handled by Controller.list. It reaches orders, shop on db, pay.example.com and worker. It hands work on asynchronously through orders."
+        } ],
+        "facts" : [ ]
+      }, {
+        "kind" : "table",
+        "id" : "sequences.shop-app.Controller.list.trigger",
+        "title" : "Overview",
+        "columns" : [ {
+          "label" : "Trigger"
+        }, {
+          "label" : "Pre-conditions"
+        }, {
+          "label" : "Post-conditions"
+        } ],
+        "rows" : [ {
+          "cells" : [ [ {
+            "kind" : "text",
+            "text" : "GET /orders (Controller.list)"
+          } ], [ {
+            "kind" : "text",
+            "text" : "Not known from the code."
+          } ], [ {
+            "kind" : "text",
+            "text" : "Not known from the code."
+          } ] ],
+          "facts" : [ "f88a69586e4c4de0dbd0b3a14aace2d47d1c11856869443ea493f7c78fe41680" ]
+        } ],
+        "facts" : [ ]
+      }, {
+        "kind" : "diagram",
+        "id" : "sequences.shop-app.Controller.list.diagram",
+        "diagramKind" : "sequence",
+        "title" : "GET /orders on shop-app",
+        "participants" : [ {
+          "id" : "service:com.example:app",
+          "technology" : "Spring Boot 3.5.0 / Java 21",
+          "facts" : [ "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668", "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5", "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd" ]
+        }, {
+          "id" : "topic:kafka:orders",
+          "technology" : "Kafka topic",
+          "facts" : [ ]
+        }, {
+          "id" : "database:db:5432/shop",
+          "technology" : "PostgreSQL",
+          "facts" : [ "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
+        }, {
+          "id" : "external-system:pay.example.com",
+          "facts" : [ ]
+        }, {
+          "id" : "service:com.example:worker",
+          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a" ]
+        } ],
+        "steps" : [ {
+          "kind" : "note",
+          "content" : [ {
+            "kind" : "text",
+            "text" : "Starts when shop-app receives GET /orders (Controller.list)."
+          } ],
+          "facts" : [ "f88a69586e4c4de0dbd0b3a14aace2d47d1c11856869443ea493f7c78fe41680" ]
+        }, {
+          "kind" : "message",
+          "from" : "service:com.example:app",
+          "to" : "topic:kafka:orders",
+          "label" : "Sends a message",
+          "code" : "Kafka",
+          "messageKind" : "async",
+          "activate" : false,
+          "facts" : [ "b8a8543a15540ec8446e6f285236413a3651f536044ea2066406d6db9ef1f54a" ]
+        }, {
+          "kind" : "note",
+          "over" : [ "service:com.example:app", "topic:kafka:orders" ],
+          "content" : [ {
+            "kind" : "text",
+            "text" : "shop-app does not wait: worker takes the message later."
+          } ],
+          "facts" : [ "aeb875027f22ddf23418b69eaa767b941cf970afd96cf35a1dd74614f0343638" ]
+        }, {
+          "kind" : "message",
+          "from" : "service:com.example:app",
+          "to" : "database:db:5432/shop",
+          "label" : "Reads orders",
+          "code" : "JDBC",
+          "activate" : false,
+          "facts" : [ "67231df9bd6219f0eca8c18ac55bb5ddf6e2593d055702ddf806900414ef593d", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
+        }, {
+          "kind" : "frame",
+          "operator" : "opt",
+          "operands" : [ {
+            "guard" : "Spring profile prod",
+            "steps" : [ {
+              "kind" : "message",
+              "from" : "service:com.example:app",
+              "to" : "external-system:pay.example.com",
+              "label" : "Calls pay.example.com",
+              "code" : "POST /charges",
+              "activate" : false,
+              "profiles" : [ "prod" ],
+              "info" : [ {
+                "kind" : "text",
+                "text" : "Over HTTPS."
+              } ],
+              "facts" : [ "502fd631503895f4a279b2b468ed915a4abd748c47e15f79b9191efb221bc4e8" ]
+            } ],
+            "facts" : [ ]
+          } ],
+          "facts" : [ "502fd631503895f4a279b2b468ed915a4abd748c47e15f79b9191efb221bc4e8" ]
+        }, {
+          "kind" : "message",
+          "from" : "topic:kafka:orders",
+          "to" : "service:com.example:worker",
+          "label" : "Delivers to L.on",
+          "code" : "Kafka",
+          "messageKind" : "async",
+          "activate" : false,
+          "facts" : [ "aeb875027f22ddf23418b69eaa767b941cf970afd96cf35a1dd74614f0343638" ]
+        } ],
+        "facts" : [ "f88a69586e4c4de0dbd0b3a14aace2d47d1c11856869443ea493f7c78fe41680" ]
+      } ],
+      "sections" : [ ]
+    }, {
+      "id" : "sequences.shop-app.Jobs.run",
+      "title" : "Jobs.run on its schedule in shop-app",
+      "levels" : [ "L1", "L2" ],
+      "facts" : [ ],
+      "blocks" : [ {
+        "kind" : "paragraph",
+        "id" : "sequences.shop-app.Jobs.run.prose",
+        "content" : [ {
+          "kind" : "text",
+          "text" : "Starts when the schedule 0 0 * * * * fires in shop-app, handled by Jobs.run. It reaches orders, shop on db and worker. It hands work on asynchronously through orders."
+        } ],
+        "facts" : [ ]
+      }, {
+        "kind" : "table",
+        "id" : "sequences.shop-app.Jobs.run.trigger",
+        "title" : "Overview",
+        "columns" : [ {
+          "label" : "Trigger"
+        }, {
+          "label" : "Pre-conditions"
+        }, {
+          "label" : "Post-conditions"
+        } ],
+        "rows" : [ {
+          "cells" : [ [ {
+            "kind" : "text",
+            "text" : "The schedule 0 0 * * * * (Jobs.run)"
+          } ], [ {
+            "kind" : "text",
+            "text" : "Not known from the code."
+          } ], [ {
+            "kind" : "text",
+            "text" : "Not known from the code."
+          } ] ],
+          "facts" : [ "bf76f471ea37f0dc18e515efdc218889fc58ac57b7da38504a8a8c3ec15ef0fb" ]
+        } ],
+        "facts" : [ ]
+      }, {
+        "kind" : "diagram",
+        "id" : "sequences.shop-app.Jobs.run.diagram",
+        "diagramKind" : "sequence",
+        "title" : "Jobs.run on its schedule in shop-app",
+        "participants" : [ {
+          "id" : "service:com.example:app",
+          "technology" : "Spring Boot 3.5.0 / Java 21",
+          "facts" : [ "69f3787e5bef1c2aad6f5393b2e19135fdf6da7935c9d832623d6a8f891d3668", "7dd4367771dbfc092837e08c4c12bf861816beb572c88b87c7bc1df6582dbae5", "d8a96ceca0b7d4800367892d024487005e1155c2deefede84c1135ec2d8bb4bd" ]
+        }, {
+          "id" : "topic:kafka:orders",
+          "technology" : "Kafka topic",
+          "facts" : [ ]
+        }, {
+          "id" : "database:db:5432/shop",
+          "technology" : "PostgreSQL",
+          "facts" : [ "a1f33b71674eb21b7ee097b67f7c46df51a15ded951f0849e0c61f17c45e6a54" ]
+        }, {
+          "id" : "service:com.example:worker",
+          "facts" : [ "4e7dbec256f9b078879d898219ab40947c9865abd2e059e245ff6d089d61388a" ]
+        } ],
+        "steps" : [ {
+          "kind" : "note",
+          "content" : [ {
+            "kind" : "text",
+            "text" : "Starts when the schedule 0 0 * * * * fires in shop-app (Jobs.run)."
+          } ],
+          "facts" : [ "bf76f471ea37f0dc18e515efdc218889fc58ac57b7da38504a8a8c3ec15ef0fb" ]
+        }, {
+          "kind" : "message",
+          "from" : "service:com.example:app",
+          "to" : "topic:kafka:orders",
+          "label" : "Sends a message",
+          "code" : "Kafka",
+          "messageKind" : "async",
+          "activate" : false,
+          "facts" : [ "b8a8543a15540ec8446e6f285236413a3651f536044ea2066406d6db9ef1f54a" ]
+        }, {
+          "kind" : "note",
+          "over" : [ "service:com.example:app", "topic:kafka:orders" ],
+          "content" : [ {
+            "kind" : "text",
+            "text" : "shop-app does not wait: worker takes the message later."
+          } ],
+          "facts" : [ "aeb875027f22ddf23418b69eaa767b941cf970afd96cf35a1dd74614f0343638" ]
+        }, {
+          "kind" : "message",
+          "from" : "service:com.example:app",
+          "to" : "database:db:5432/shop",
+          "label" : "Reads orders",
+          "code" : "JDBC",
+          "activate" : false,
+          "facts" : [ "67231df9bd6219f0eca8c18ac55bb5ddf6e2593d055702ddf806900414ef593d", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
+        }, {
+          "kind" : "message",
+          "from" : "topic:kafka:orders",
+          "to" : "service:com.example:worker",
+          "label" : "Delivers to L.on",
+          "code" : "Kafka",
+          "messageKind" : "async",
+          "activate" : false,
+          "facts" : [ "aeb875027f22ddf23418b69eaa767b941cf970afd96cf35a1dd74614f0343638" ]
+        } ],
+        "facts" : [ "bf76f471ea37f0dc18e515efdc218889fc58ac57b7da38504a8a8c3ec15ef0fb" ]
       } ],
       "sections" : [ ]
     } ]
