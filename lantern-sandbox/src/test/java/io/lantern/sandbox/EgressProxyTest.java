@@ -108,9 +108,60 @@ class EgressProxyTest {
   }
 
   @Test
-  void refusesPlainRequests() throws IOException {
+  void forwardsAPlainRequestToAnAllowedTargetWithItsPath() throws IOException {
     try (Socket socket = connect()) {
-      send(socket, "GET http://localhost:" + echo.getLocalPort() + "/ HTTP/1.1\r\n\r\n");
+      send(
+          socket,
+          "GET http://LocalHost:"
+              + echo.getLocalPort()
+              + "/maven2/a%20b.pom?x=1 HTTP/1.1\r\n"
+              + "Host: localhost:"
+              + echo.getLocalPort()
+              + "\r\nProxy-Connection: Keep-Alive\r\nConnection: keep-alive\r\n"
+              + "Proxy-Authorization: Basic eDp5\r\nAccept: */*\r\n\r\n");
+      InputStream in = socket.getInputStream();
+      // The echo server sends back what the proxy sent it.
+      assertThat(statusLine(in)).isEqualTo("GET /maven2/a%20b.pom?x=1 HTTP/1.1");
+      assertThat(statusLine(in)).isEqualTo("Host: localhost:" + echo.getLocalPort());
+      assertThat(statusLine(in)).isEqualTo("Accept: */*");
+      assertThat(statusLine(in)).isEqualTo("Connection: close");
+      assertThat(statusLine(in)).isEmpty();
+    }
+    try (Socket socket = connect()) {
+      send(socket, "HEAD http://localhost:" + echo.getLocalPort() + " HTTP/1.0\r\n\r\n");
+      InputStream in = socket.getInputStream();
+      assertThat(statusLine(in)).isEqualTo("HEAD / HTTP/1.0");
+      assertThat(statusLine(in)).isEqualTo("Connection: close");
+    }
+  }
+
+  @Test
+  void deniesPlainRequestsToOtherTargets() throws IOException {
+    for (String url :
+        new String[] {
+          "http://localhost:" + other + "/",
+          "http://127.0.0.1:" + echo.getLocalPort() + "/",
+          "http://localhost/",
+          "https://localhost:" + echo.getLocalPort() + "/",
+          "http://user@localhost:" + echo.getLocalPort() + "/",
+          "/maven2/a.pom",
+          "http://localhost:" + echo.getLocalPort() + "/a|b"
+        }) {
+      try (Socket socket = connect()) {
+        send(socket, "GET " + url + " HTTP/1.1\r\n\r\n");
+        assertThat(statusLine(socket.getInputStream())).as(url).isEqualTo("HTTP/1.1 403 Forbidden");
+      }
+    }
+  }
+
+  @Test
+  void refusesOtherMethods() throws IOException {
+    try (Socket socket = connect()) {
+      send(socket, "POST http://localhost:" + echo.getLocalPort() + "/ HTTP/1.1\r\n\r\n");
+      assertThat(statusLine(socket.getInputStream())).isEqualTo("HTTP/1.1 405 Method Not Allowed");
+    }
+    try (Socket socket = connect()) {
+      send(socket, "GET http://localhost:" + echo.getLocalPort() + "/ SMTP\r\n\r\n");
       assertThat(statusLine(socket.getInputStream())).isEqualTo("HTTP/1.1 405 Method Not Allowed");
     }
   }

@@ -35,7 +35,8 @@ class AnalysisConfiguration {
   static SandboxSettings sandboxSettings(Path workspace, SandboxProperties sandbox) {
     return SandboxSettings.defaults(absolute(workspace).resolve("builds"))
         .withMavenCacheDirectory(mavenCacheDirectory(sandbox.mavenCacheDir()))
-        .withMavenRepositories(sandbox.mavenRepositories());
+        .withMavenRepositories(sandbox.mavenRepositories())
+        .withMavenMirror(sandbox.mavenMirror());
   }
 
   @Bean

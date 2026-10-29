@@ -14,12 +14,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,9 +30,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Builds the fixture projects in real build containers. Needs Docker and network access to Maven
- * Central. Builds use the default shared Maven cache directory, which keeps downloads between runs;
- * the tests of the cache itself use caches of their own in their temporary directory, and delete
- * them as the user running the tests can.
+ * Central, or to the Maven mirror of {@link TestMirror}, which the builds then download through,
+ * except those of the tests of configured repositories, which use Maven Central. Builds use the
+ * default shared Maven cache directory, which keeps downloads between runs; the tests of the cache
+ * itself use caches of their own in their temporary directory, and delete them as the user running
+ * the tests can.
  */
 class BuildSandboxIT {
 
@@ -53,6 +57,9 @@ class BuildSandboxIT {
    */
   private static final String RUN =
       HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
+
+  /** The Maven mirror the builds download through, or null for Maven Central. */
+  private static final MavenMirror MIRROR = TestMirror.configured();
 
   private static Path fixtures;
 
@@ -88,13 +95,14 @@ class BuildSandboxIT {
   }
 
   /**
-   * The default settings, with this test class's owner label and no free space required on Docker's
-   * storage.
+   * The default settings, with this test class's owner label, no free space required on Docker's
+   * storage, and the test mirror if there is one.
    */
   private SandboxSettings settings() {
     return SandboxSettings.defaults(temp.resolve("builds"))
         .withOwnerLabel(RUN_LABEL, RUN)
-        .withMinFreeDiskBytes(0);
+        .withMinFreeDiskBytes(0)
+        .withMavenMirror(MIRROR);
   }
 
   private Repo repo(Path source, String name, RepoSettings settings) throws IOException {
@@ -174,7 +182,8 @@ class BuildSandboxIT {
           new BuildSandbox(
               SandboxSettings.defaults(builds)
                   .withOwnerLabel(RUN_LABEL, RUN)
-                  .withMinFreeDiskBytes(0));
+                  .withMinFreeDiskBytes(0)
+                  .withMavenMirror(MIRROR));
 
       BuildResult result = sandbox.build(repo, TestRepos.head(repo));
 
@@ -508,11 +517,11 @@ class BuildSandboxIT {
     assertThat(probe.getProperty("dns")).isEqualTo("failed");
     assertThat(probe.getProperty("metadata")).isEqualTo("blocked");
     assertThat(probe.getProperty("gateway")).isIn("none", "blocked");
-    assertThat(probe.getProperty("proxy.allowed")).isEqualTo("200");
+    // By default only Maven Central; with a mirror, not even Maven Central.
+    assertThat(probe.getProperty("proxy.allowed")).isEqualTo(MIRROR == null ? "200" : "403");
     assertThat(probe.getProperty("proxy.denied")).isEqualTo("403");
-    // By default only Maven Central.
     assertThat(probe.getProperty("proxy.extra")).isEqualTo("403");
-    assertThat(probe.getProperty("proxy.plain")).isEqualTo("405");
+    assertThat(probe.getProperty("proxy.plain")).isEqualTo("403");
     // Limits as the build sees them.
     assertThat(probe.getProperty("memory.max")).isEqualTo(Long.toString(settings.memoryBytes()));
     assertThat(probe.getProperty("memory.swap.max")).isEqualTo("0");
@@ -530,7 +539,9 @@ class BuildSandboxIT {
   void reachesAConfiguredRepositoryAndStillNoOtherHost() throws IOException, URISyntaxException {
     Repo repo = repo(sandboxFixture("probe"), "probe", RepoSettings.DEFAULT);
     SandboxSettings settings =
-        settings().withMavenRepositories(List.of(MavenRepository.CENTRAL, EXTRA));
+        settings()
+            .withMavenMirror(null)
+            .withMavenRepositories(List.of(MavenRepository.CENTRAL, EXTRA));
 
     BuildResult result = new BuildSandbox(settings).build(repo, TestRepos.head(repo));
 
@@ -545,7 +556,7 @@ class BuildSandboxIT {
     assertThat(probe.getProperty("proxy.extra")).isEqualTo("200");
     // A host no repository names is still blocked, and so is everything around the proxy.
     assertThat(probe.getProperty("proxy.denied")).isEqualTo("403");
-    assertThat(probe.getProperty("proxy.plain")).isEqualTo("405");
+    assertThat(probe.getProperty("proxy.plain")).isEqualTo("403");
     assertThat(probe.getProperty("direct.name")).isEqualTo("blocked");
     assertThat(probe.getProperty("dns")).isEqualTo("failed");
     assertThat(Files.readString(result.log())).contains("denied CONNECT example.com:443");
@@ -559,6 +570,7 @@ class BuildSandboxIT {
       Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
       SandboxSettings settings =
           settings()
+              .withMavenMirror(null)
               .withMavenCacheDirectory(cache)
               .withMavenRepositories(List.of(EXTRA, MavenRepository.CENTRAL));
 
@@ -567,48 +579,109 @@ class BuildSandboxIT {
       assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
       // Maven records in the cache which repository each downloaded file came from. Builds log
       // no transfers (--no-transfer-progress), so this is where the download shows.
-      StringBuilder origins = new StringBuilder();
-      try (Stream<Path> versions = Files.list(cache.resolve("org/projectlombok/lombok"))) {
-        for (Path version : versions.toList()) {
-          Path file = version.resolve("_remote.repositories");
-          if (Files.isRegularFile(file)) {
-            origins.append(Files.readString(file));
-          }
+      assertThat(origins(cache, "org/projectlombok/lombok"))
+          .containsPattern("lombok-[^>]+\\.jar>" + EXTRA.id() + "=");
+    } finally {
+      deleteIfExists(cache);
+    }
+  }
+
+  @Test
+  void downloadsDependenciesAndPluginsThroughTheMirror() throws IOException {
+    assumeTrue(MIRROR != null, "no test mirror configured");
+    // A cache of its own, so everything the build needs must be downloaded.
+    Path cache = temp.resolve("mirror-cache");
+    try {
+      Repo repo = repo(fixtures.resolve("lombok"), "lombok", RepoSettings.DEFAULT);
+
+      BuildResult result =
+          new BuildSandbox(settings().withMavenCacheDirectory(cache))
+              .build(repo, TestRepos.head(repo));
+
+      assertThat(result.status()).as(log(result)).isEqualTo(BuildStatus.SUCCEEDED);
+      assertThat(origins(cache, "org/projectlombok/lombok"))
+          .containsPattern("lombok-[^>]+\\.jar>" + Pattern.quote(MIRROR.id()) + "=");
+      assertThat(origins(cache, "org/apache/maven/plugins/maven-compiler-plugin"))
+          .containsPattern("maven-compiler-plugin-[^>]+\\.jar>" + Pattern.quote(MIRROR.id()) + "=");
+      assertThat(origins(cache, "org/apache/maven/plugins/maven-dependency-plugin"))
+          .containsPattern(
+              "maven-dependency-plugin-[^>]+\\.jar>" + Pattern.quote(MIRROR.id()) + "=");
+      // Everything downloaded came through the mirror: no file names another repository.
+      try (Stream<Path> files = Files.walk(cache)) {
+        for (Path file :
+            files.filter(f -> f.getFileName().toString().equals("_remote.repositories")).toList()) {
+          assertThat(Files.readString(file))
+              .as(file.toString())
+              .doesNotContainPattern(">(?!" + Pattern.quote(MIRROR.id()) + "=)[^=\\s]+=");
         }
       }
-      assertThat(origins).containsPattern("lombok-[^>]+\\.jar>" + EXTRA.id() + "=");
     } finally {
       deleteIfExists(cache);
     }
   }
 
   /**
-   * Installs a fixture project into a Maven cache, as if it came from the repository. Runs as the
-   * image's root user; the next build hands what it wrote to the build user.
+   * The {@code _remote.repositories} files of every version of an artifact in a Maven cache, which
+   * name the repository each downloaded file came from.
    */
-  private void installIntoCache(Path cache, Path project) {
+  private static String origins(Path cache, String artifact) throws IOException {
+    StringBuilder origins = new StringBuilder();
+    try (Stream<Path> versions = Files.list(cache.resolve(artifact))) {
+      for (Path version : versions.toList()) {
+        Path file = version.resolve("_remote.repositories");
+        if (Files.isRegularFile(file)) {
+          origins.append(Files.readString(file));
+        }
+      }
+    }
+    return origins.toString();
+  }
+
+  /**
+   * Installs a fixture project into a Maven cache, as if it came from the repository. Runs as the
+   * image's root user, outside the sandbox, downloading through the test mirror if there is one;
+   * the next build hands what it wrote to the build user.
+   */
+  private void installIntoCache(Path cache, Path project) throws IOException {
     String name =
         "lantern-test-install-" + HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextInt());
+    List<String> args =
+        new ArrayList<>(
+            List.of(
+                "create",
+                "--name",
+                name,
+                "--mount",
+                "type=bind,source=" + cache + ",target=/var/lantern/m2",
+                "--workdir",
+                "/project",
+                "--entrypoint",
+                "mvn",
+                SandboxSettings.DEFAULT_IMAGES.get(21),
+                "--batch-mode",
+                "--no-transfer-progress",
+                "-Dmaven.repo.local=/var/lantern/m2",
+                "-DskipTests"));
+    Path settings = null;
+    if (MIRROR != null) {
+      settings = temp.resolve("install-settings.xml");
+      Files.writeString(
+          settings,
+          "<settings><mirrors><mirror><id>"
+              + MIRROR.id()
+              + "</id><mirrorOf>external:*</mirrorOf><url>"
+              + MIRROR.url()
+              + "</url></mirror></mirrors></settings>\n");
+      args.addAll(List.of("--settings", "/tmp/install-settings.xml"));
+    }
+    args.add("install");
     try {
-      DOCKER.check(
-          TIMEOUT,
-          List.of(
-              "create",
-              "--name",
-              name,
-              "--mount",
-              "type=bind,source=" + cache + ",target=/var/lantern/m2",
-              "--workdir",
-              "/project",
-              "--entrypoint",
-              "mvn",
-              SandboxSettings.DEFAULT_IMAGES.get(21),
-              "--batch-mode",
-              "--no-transfer-progress",
-              "-Dmaven.repo.local=/var/lantern/m2",
-              "-DskipTests",
-              "install"));
+      DOCKER.check(TIMEOUT, args);
       DOCKER.check(TIMEOUT, List.of("cp", project + "/.", name + ":/project"));
+      if (settings != null) {
+        DOCKER.check(
+            TIMEOUT, List.of("cp", settings.toString(), name + ":/tmp/install-settings.xml"));
+      }
       Docker.Result run = DOCKER.run(Duration.ofMinutes(10), List.of("start", "--attach", name));
       assertThat(run.exitCode()).as(run.out()).isZero();
     } finally {

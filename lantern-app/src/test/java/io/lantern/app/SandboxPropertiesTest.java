@@ -3,6 +3,7 @@ package io.lantern.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.MavenRepository;
 import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
@@ -57,6 +58,39 @@ class SandboxPropertiesTest {
         .isEqualTo(Path.of(System.getProperty("user.home"), "workspace", "lantern-maven-cache"))
         .isEqualTo(SandboxSettings.defaultMavenCacheDirectory());
     assertThat(sandbox.mavenRepositories()).containsExactly(MavenRepository.CENTRAL);
+    assertThat(sandbox.mavenMirror()).isNull();
+  }
+
+  @Test
+  void bindsAMirrorAsTheSandboxReadsIt() throws IOException {
+    Map<String, String> defaults;
+    try (InputStream in = getClass().getResourceAsStream("/application.properties")) {
+      defaults = load(in);
+    }
+    Map<String, String> values =
+        Map.of(
+            "lantern.sandbox.maven-mirror.id", "lantern-mirror",
+            "lantern.sandbox.maven-mirror.url", "http://10.0.0.1:8081/repository/all");
+    Properties properties = new Properties();
+    properties.putAll(values);
+
+    SandboxProperties sandbox = bind(values, defaults);
+
+    assertThat(sandbox.mavenRepositories()).containsExactly(MavenRepository.CENTRAL);
+    assertThat(sandbox.mavenMirror())
+        .isEqualTo(
+            new MavenMirror("lantern-mirror", URI.create("http://10.0.0.1:8081/repository/all")))
+        .isEqualTo(MavenMirror.from(properties));
+    assertThat(
+            AnalysisConfiguration.sandboxSettings(Path.of("/var/lantern"), sandbox).allowedHosts())
+        .containsExactly("10.0.0.1:8081");
+    assertThatThrownBy(
+            () ->
+                bind(
+                    Map.of(
+                        "lantern.sandbox.maven-mirror.id", "metadata",
+                        "lantern.sandbox.maven-mirror.url", "http://169.254.169.254/latest")))
+        .isInstanceOf(BindException.class);
   }
 
   @Test

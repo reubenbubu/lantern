@@ -1,5 +1,6 @@
 package io.lantern.app;
 
+import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.MavenRepository;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -14,9 +15,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param mavenRepositories the Maven repositories builds may download from, each with an {@code id}
  *     and an {@code url}, in the order Maven tries them; the egress proxy lets builds reach their
  *     hosts and no others (ADR 0023). Maven Central only by default.
+ * @param mavenMirror the one Maven mirror, with an {@code id} and an {@code url}, that every
+ *     download of a build goes through, and then the only host builds reach (ADR 0030); none by
+ *     default
  */
 @ConfigurationProperties("lantern.sandbox")
-public record SandboxProperties(String mavenCacheDir, List<MavenRepository> mavenRepositories) {
+public record SandboxProperties(
+    String mavenCacheDir, List<MavenRepository> mavenRepositories, MavenMirror mavenMirror) {
 
   public SandboxProperties {
     // The default, Maven Central only, is in application.properties; the sandbox refuses an empty
