@@ -325,41 +325,19 @@ class C4ViewsTest {
   }
 
   @Test
-  void aUnitsOwnDatabaseIsNamedByItsDatabaseElseByTheUnitNeverByItsKey() {
+  void aDatabaseWithADisplayNameShowsItAndOneWithoutKeepsItsServerAndDatabase() {
     TestFacts more = TestFacts.runtime();
-    more.relate(
-            "shop",
-            "service:com.example:app",
-            "USES_DATABASE",
-            "database:com.example:app/postgresql:com.example:app",
-            "{\"protocol\": \"JDBC\"}")
-        .attribute(
-            "shop",
-            "database:com.example:app/postgresql:com.example:app",
-            "technology",
-            "PostgreSQL",
-            "{}")
-        .relate(
-            "shop",
-            "service:com.example:app",
-            "USES_DATABASE",
-            "database:com.example:app/postgresql:main_db",
-            "{\"protocol\": \"JDBC\"}")
-        .attribute(
-            "shop",
-            "database:com.example:app/postgresql:main_db",
-            "technology",
-            "PostgreSQL",
-            "{}");
+    String own = "database:com.example:app/sql-server:com.example:app";
+    more.relate("shop", "service:com.example:app", "USES_DATABASE", own, "{\"protocol\": \"JDBC\"}")
+        .attribute("shop", own, "technology", "SQL Server", "{}")
+        .attribute("shop", own, "display-name", "shop-app database", "{}");
 
     Diagram diagram = block(section(repo(more.list()), "containers"), Diagram.class);
 
     assertThat(nodes(diagram))
         .contains(
-            "database:com.example:app/postgresql:com.example:app \"shop-app database\""
-                + " [PostgreSQL] in system:snapshot",
-            "database:com.example:app/postgresql:main_db \"main_db\" [PostgreSQL]"
-                + " in system:snapshot");
+            own + " \"shop-app database\" [SQL Server] in system:snapshot",
+            "database:db:5432/shop \"shop on db\" [PostgreSQL] in system:snapshot");
   }
 
   @Test

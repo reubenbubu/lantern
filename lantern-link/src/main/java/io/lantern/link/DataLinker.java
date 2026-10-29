@@ -32,6 +32,11 @@ import tools.jackson.databind.node.ObjectNode;
  */
 final class DataLinker {
 
+  /** Attribute of a database entity: the name its views show; the entity key when absent. */
+  static final String DISPLAY_NAME = "display-name";
+
+  private final Map<EntityId, String> displayNames = new HashMap<>();
+
   /** A setting naming an infrastructure service: its key, role and technology. */
   private record Setting(String key, String role, String technology) {}
 
@@ -115,9 +120,10 @@ final class DataLinker {
 
   void link(Origin origin, Validity validity) {
     Map<EntityId, Fact> technologies = new TreeMap<>(LinkIndex.BY_TEXT);
+    Map<EntityId, Fact> ownNames = new TreeMap<>(LinkIndex.BY_TEXT);
     for (String view : index.views()) {
       for (Unit unit : index.units.values()) {
-        databases(unit, view, technologies);
+        databases(unit, view, technologies, ownNames);
         brokers(unit, view);
         infrastructure(unit, view);
       }
@@ -135,13 +141,26 @@ final class DataLinker {
                     datasource.evidence(),
                     datasource.confidence(),
                     validity)));
+    ownNames.forEach(
+        (database, datasource) ->
+            out.add(
+                Fact.create(
+                    database,
+                    DISPLAY_NAME,
+                    FactObject.string(displayNames.get(database)),
+                    FactJson.newObject(),
+                    origin,
+                    datasource.evidence(),
+                    datasource.confidence(),
+                    validity)));
   }
 
   // ---------------------------------------------------------------------------------------------
   // Databases
 
   /** Links a unit to the databases its datasources point to in a view. */
-  private void databases(Unit unit, String view, Map<EntityId, Fact> technologies) {
+  private void databases(
+      Unit unit, String view, Map<EntityId, Fact> technologies, Map<EntityId, Fact> ownNames) {
     for (String key : index.configKeys(unit, PersistenceExtractor.DATASOURCE)) {
       Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
       if (f == null || LinkIndex.flag(f, "masked")) {
@@ -150,6 +169,11 @@ final class DataLinker {
       EntityId database = database(unit, f);
       if (database == null) {
         continue;
+      }
+      String displayName = ownName(unit, f);
+      if (displayName != null) {
+        displayNames.putIfAbsent(database, displayName);
+        ownNames.merge(database, f, (a, b) -> LinkIndex.BY_ID.compare(a, b) <= 0 ? a : b);
       }
       String technology = LinkIndex.text(f, "technology");
       if (technology != null) {
@@ -185,6 +209,28 @@ final class DataLinker {
   }
 
   /**
+   * The display name of a unit's own database (an embedded one, or one whose server or database is
+   * a placeholder no config resolves): its database when that is written out, else "&lt;unit
+   * name&gt; database", with the datasource key in parentheses when that is not the main one. Null
+   * for a database on a server, which is named by its key.
+   */
+  private String ownName(Unit unit, Fact datasource) {
+    String name = LinkIndex.text(datasource, "database");
+    boolean unresolved = !LinkIndex.texts(datasource, "unresolved").isEmpty();
+    if (!unresolved && (LinkIndex.text(datasource, "server") != null || name == null)) {
+      return null;
+    }
+    if (name == null || name.contains("${")) {
+      Fact application = index.name(unit.id(), null);
+      name = (application == null ? unit.artifactId() : application.object().value()) + " database";
+    }
+    String key = LinkIndex.text(datasource, "key");
+    return unresolved && key != null && !key.equals("spring.datasource.url")
+        ? name + " (" + key + ")"
+        : name;
+  }
+
+  /**
    * The database a datasource points to: {@code database:<server>/<database>}, so units on the same
    * server and database share it; an embedded one ({@code jdbc:h2:mem:x}, no server) is the unit's
    * own. One whose server or database is a placeholder no config resolves is the unit's own too,
@@ -205,7 +251,9 @@ final class DataLinker {
           CrossRepoLinks.DATABASE,
           unit.id().key()
               + "/"
-              + (technology == null ? "" : technology.toLowerCase(Locale.ROOT) + ":")
+              + (technology == null
+                  ? ""
+                  : technology.toLowerCase(Locale.ROOT).replace(' ', '-') + ":")
               + own);
     }
     if (server != null && name != null) {
@@ -217,7 +265,9 @@ final class DataLinker {
           CrossRepoLinks.DATABASE,
           unit.id().key()
               + "/"
-              + (technology == null ? "" : technology.toLowerCase(Locale.ROOT) + ":")
+              + (technology == null
+                  ? ""
+                  : technology.toLowerCase(Locale.ROOT).replace(' ', '-') + ":")
               + name);
     }
     return null;
