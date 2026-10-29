@@ -27,6 +27,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 /**
  * Builds the fixture projects in real build containers. Needs Docker and network access to Maven
@@ -35,7 +37,12 @@ import org.junit.jupiter.api.io.TempDir;
  * default shared Maven cache directory, which keeps downloads between runs; the tests of the cache
  * itself use caches of their own in their temporary directory, and delete them as the user running
  * the tests can.
+ *
+ * <p>The tests run at the same time, as many as the failsafe configuration of this module allows,
+ * which is the number of builds a sandbox runs at once by default. Each has its own temporary
+ * directory, sandbox and owner label.
  */
+@Execution(ExecutionMode.CONCURRENT)
 class BuildSandboxIT {
 
   private static final Docker DOCKER = new Docker("docker");
@@ -52,11 +59,11 @@ class BuildSandboxIT {
   private static final String RUN_LABEL = "lantern.test.run";
 
   /**
-   * The owner label value of this test class, so leftover checks see only its own resources and not
-   * those of other sandboxes on the same Docker.
+   * The owner label value of this test, so its leftover checks see only its own resources and not
+   * those of the tests running at the same time or of other sandboxes on the same Docker. JUnit
+   * creates an instance per test, so each test has its own.
    */
-  private static final String RUN =
-      HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
+  private final String run = HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
 
   /** The Maven mirror the builds download through, or null for Maven Central. */
   private static final MavenMirror MIRROR = TestMirror.configured();
@@ -89,18 +96,18 @@ class BuildSandboxIT {
         .isEmpty();
   }
 
-  /** The Docker filter for the containers and networks of this test class's sandboxes. */
-  private static String ownFilter() {
-    return "label=" + RUN_LABEL + "=" + RUN;
+  /** The Docker filter for the containers and networks of this test's sandboxes. */
+  private String ownFilter() {
+    return "label=" + RUN_LABEL + "=" + run;
   }
 
   /**
-   * The default settings, with this test class's owner label, no free space required on Docker's
-   * storage, and the test mirror if there is one.
+   * The default settings, with this test's owner label, no free space required on Docker's storage,
+   * and the test mirror if there is one.
    */
   private SandboxSettings settings() {
     return SandboxSettings.defaults(temp.resolve("builds"))
-        .withOwnerLabel(RUN_LABEL, RUN)
+        .withOwnerLabel(RUN_LABEL, run)
         .withMinFreeDiskBytes(0)
         .withMavenMirror(MIRROR);
   }
@@ -181,7 +188,7 @@ class BuildSandboxIT {
       BuildSandbox sandbox =
           new BuildSandbox(
               SandboxSettings.defaults(builds)
-                  .withOwnerLabel(RUN_LABEL, RUN)
+                  .withOwnerLabel(RUN_LABEL, run)
                   .withMinFreeDiskBytes(0)
                   .withMavenMirror(MIRROR));
 
