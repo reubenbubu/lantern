@@ -13,6 +13,11 @@ out=/out
 umask 0002
 mkdir -p "$out/lib" "$out/work"
 
+# Maven does not retry a download that failed once for a day; forget such failures (#314).
+find "$repository" -name '*.lastUpdated' -type f -delete 2>/dev/null
+grep -rl --include=resolver-status.properties '[.]error=' "$repository" 2>/dev/null |
+  while IFS= read -r status; do sed -i '/[.]error=/d' "$status"; done
+
 mvn --version
 cd /work || exit 1
 # Only an effective POM Maven writes in this run may leave as one, not a file the repository holds.
