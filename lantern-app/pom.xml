@@ -33,6 +33,10 @@
     </dependency>
     <dependency>
       <groupId>io.lantern</groupId>
+      <artifactId>lantern-link</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.lantern</groupId>
       <artifactId>lantern-llm</artifactId>
     </dependency>
     <dependency>
