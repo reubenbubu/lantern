@@ -188,9 +188,14 @@ final class Citations {
    * @param uncited the sentences that cite nothing, as written, without the space after them
    * @param unsupported the sentences that cite something but name what it does not support
    * @param firstLeftOut whether the answer's first sentence is one of those left out
+   * @param kept how many sentences are kept
    */
   record Sentences(
-      String text, List<String> uncited, List<Unsupported> unsupported, boolean firstLeftOut) {}
+      String text,
+      List<String> uncited,
+      List<Unsupported> unsupported,
+      boolean firstLeftOut,
+      int kept) {}
 
   /**
    * A sentence that names what its citations do not support.
@@ -213,7 +218,7 @@ final class Citations {
 
   /**
    * As {@link #cited(String)}, and leaves out too the sentences that name what the inputs they cite
-   * do not mention (ADR 0066).
+   * do not mention (ADR 0068).
    *
    * @param unsupported what a sentence that cites something names that its citations do not support
    */
@@ -223,6 +228,7 @@ final class Citations {
     List<String> uncited = new ArrayList<>();
     List<Unsupported> unsupportedSentences = new ArrayList<>();
     boolean firstLeftOut = false;
+    int keptSentences = 0;
     int start = 0;
     Matcher end = SENTENCE_END.matcher(text);
     while (start < text.length()) {
@@ -241,6 +247,7 @@ final class Citations {
         List<String> names = unsupported.apply(sentence);
         if (names.isEmpty()) {
           kept.append(sentence);
+          keptSentences++;
         } else {
           unsupportedSentences.add(new Unsupported(sentence.strip(), List.copyOf(names)));
           firstLeftOut |= start == 0;
@@ -248,7 +255,8 @@ final class Citations {
       }
       start = to;
     }
-    return new Sentences(kept.toString().strip(), uncited, unsupportedSentences, firstLeftOut);
+    return new Sentences(
+        kept.toString().strip(), uncited, unsupportedSentences, firstLeftOut, keptSentences);
   }
 
   /**

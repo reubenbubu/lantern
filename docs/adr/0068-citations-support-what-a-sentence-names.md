@@ -1,6 +1,6 @@
-# 0066: Citations support what a sentence names
+# 0068: Citations support what a sentence names
 
-Status: accepted (#191), amends ADRs 0010, 0050, 0061 and 0065, pending the user's review (#24)
+Status: accepted (#191), amends ADRs 0010, 0050, 0061, 0065 and 0066, pending the user's review (#24)
 
 ## Context
 
@@ -49,8 +49,10 @@ answers, with failing sentences dropped or the answer retried.
   0061, ADR 0059).
 - **The prompts say so.** Each system prompt adds that a text naming a class, method, table, topic,
   path or technology that none of the references it cites mention is left out. `Prompt.VERSION` is
-  10 and each of `WordingPrompt`'s four versions is 2, so every cached summary and wording, made
-  without the check, is made again once.
+  11 and each of `WordingPrompt`'s four versions is 3 (ADR 0067 had raised them to 10 and 2), so
+  every cached summary and wording, made without the check, is made again once.
+- **A summary sentence left out by this check lowers its confidence** like one that cites
+  nothing: it counts among the sentences left out (ADR 0066).
 
 ## Not verified
 

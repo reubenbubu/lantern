@@ -125,7 +125,7 @@
     "parent" : "repo:greeting-service",
     "description" : [ {
       "kind" : "text",
-      "text" : "Purpose inferred from the code:",
+      "text" : "Inferred, from its module's summary:",
       "style" : "emphasis"
     }, {
       "kind" : "text",

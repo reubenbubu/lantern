@@ -252,8 +252,43 @@ class C4ViewsTest {
             .findFirst()
             .orElseThrow();
     assertThat(app.name()).isEqualTo("shop-app");
-    assertThat(text(app.description())).isEqualTo("Serves orders.");
-    assertThat(app.description()).hasSize(2);
+    // The unit has no responsibility sentence, so its module's summary stands in, marked as such.
+    assertThat(app.description())
+        .startsWith(
+            new TextRun(Assembler.FROM_MODULE, TextRun.Style.EMPHASIS),
+            TextRun.of(" "),
+            TextRun.of("Serves orders."));
+    assertThat(app.description()).hasSize(4);
+  }
+
+  @Test
+  void aUnitsInferredFallbackSaysBoth() {
+    EntityId module = EntityId.parse("module:com.example:app");
+    String packaging = facts.find("module:com.example:app", "packaging").id();
+    Map<EntityId, io.lantern.summarize.Summary> summaries =
+        Map.of(
+            module,
+            ComposerTest.summary(
+                module,
+                "Serves orders. [fact:" + packaging + "]",
+                List.of(packaging),
+                io.lantern.summarize.Summary.Purpose.INFERRED));
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                facts.list(),
+                summaries);
+
+    DocumentEntity app =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("service:com.example:app"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(app.description().getFirst())
+        .isEqualTo(new TextRun(Assembler.FROM_MODULE_INFERRED, TextRun.Style.EMPHASIS));
   }
 
   @Test

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** The check that a text names only what the inputs it rests on mention (ADR 0066). */
+/** The check that a text names only what the inputs it rests on mention (ADR 0068). */
 class GroundingTest {
 
   @Test

@@ -57,7 +57,8 @@ import org.slf4j.LoggerFactory;
  * <p>Each summary says whether its purpose is evidenced or inferred ({@link Summary.Purpose}). The
  * model marks its answer; a mark of evidenced is kept only if the answer's first sentence is kept
  * and its first citation cites a README claim, a source file with Javadoc, or a contained summary
- * whose purpose is evidenced.
+ * whose purpose is evidenced. Each summary also has a confidence ({@link Confidence}), from that
+ * mark and the share of the answer's sentences kept.
  *
  * <p>Every summary is cached under a key that hashes what the model sees: the prompt version, the
  * model (provider and identifier), the unit's entity and level, its contained units' entities
@@ -294,6 +295,7 @@ public final class Summarizer {
         stored.level(),
         text,
         stored.purpose(),
+        stored.confidence(),
         stored.citedFacts().stream().map(id -> facts.getOrDefault(id, id)).toList(),
         stored.citedSummaries().stream().map(key -> summaries.getOrDefault(key, key)).toList(),
         factIds,
@@ -516,6 +518,7 @@ public final class Summarizer {
           node.level(),
           checked.text(),
           answer.purpose(),
+          answer.confidence(),
           checked.facts(),
           checked.summaries(),
           inputs.factIds,
@@ -677,7 +680,12 @@ public final class Summarizer {
       return new Answer(
           sentences.text(),
           checked,
-          evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED);
+          evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED,
+          Confidence.of(
+              evidenced,
+              sentences.kept(),
+              (int) sentences.uncited().stream().filter(t -> !t.isBlank()).count()
+                  + sentences.unsupported().size()));
     }
 
     /** The names the sentences left out name without support, each once, at most some. */
@@ -711,8 +719,11 @@ public final class Summarizer {
    *     its sentences that cite nothing
    * @param checked the answer with references rewritten to stable IDs
    * @param purpose where its first sentence takes the unit's purpose from, as checked
+   * @param confidence how far it can be trusted, from its purpose and the share of its sentences
+   *     kept ({@link Confidence})
    */
-  private record Answer(String text, Citations.Checked checked, Summary.Purpose purpose) {
+  private record Answer(
+      String text, Citations.Checked checked, Summary.Purpose purpose, double confidence) {
 
     /** The answer's text with its checked purpose mark, as a merge prompt shows it. */
     Prompt.Tagged tagged() {
@@ -779,7 +790,7 @@ public final class Summarizer {
 
     /**
      * What a sentence names that neither the inputs it cites nor the unit's name mention (ADR
-     * 0066).
+     * 0068).
      */
     List<String> unsupported(String sentence) {
       List<String> support = new ArrayList<>();

@@ -270,7 +270,7 @@ class LinkResolverTest {
     assertThat(link.subject()).isEqualTo(EntityId.parse("service:g:orders"));
     assertThat(link.predicate()).isEqualTo(CrossRepoLinks.CALLS_HTTP);
     assertThat(link.object().value()).isEqualTo("service:g:tax");
-    assertThat(link.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "link-resolver", "2"));
+    assertThat(link.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "link-resolver", "3"));
     assertThat(link.confidence()).isEqualTo(0.5);
     assertThat(link.evidence()).isEqualTo(unresolved.evidence());
     ObjectNode attributes = link.attributes().deepCopy();

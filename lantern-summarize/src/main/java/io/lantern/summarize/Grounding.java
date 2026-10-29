@@ -11,7 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Checks that what the LLM wrote names only what the inputs it cites mention (ADR 0066): every
+ * Checks that what the LLM wrote names only what the inputs it cites mention (ADR 0068): every
  * code-like name and technology in a text must appear in the text of what it cites, or of what it
  * is about. The check is deterministic and makes no call.
  *

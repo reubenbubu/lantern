@@ -103,7 +103,8 @@ class SummaryStoreIT {
     assertThat(store.find(typeSummary.key())).contains(typeSummary);
     Map<String, Object> row =
         jdbc.sql(
-                "SELECT level, purpose, jsonb_array_length(cited_facts) AS cited FROM summaries"
+                "SELECT level, purpose, confidence, jsonb_array_length(cited_facts) AS cited"
+                    + " FROM summaries"
                     + " WHERE cache_key = :key")
             .param("key", typeSummary.key())
             .query()
@@ -111,7 +112,8 @@ class SummaryStoreIT {
     assertThat(row)
         .containsEntry("level", "TYPE")
         .containsEntry("cited", 2)
-        .containsEntry("purpose", "INFERRED");
+        .containsEntry("purpose", "INFERRED")
+        .containsEntry("confidence", 0.35);
   }
 
   @Test
@@ -124,6 +126,7 @@ class SummaryStoreIT {
             SummaryLevel.REPO,
             "First. [summary:module:g:a]",
             Summary.Purpose.EVIDENCED,
+            0.25,
             List.of(),
             List.of("e".repeat(64)),
             List.of(),
@@ -138,6 +141,7 @@ class SummaryStoreIT {
             summary.level(),
             "Second. [summary:module:g:a]",
             Summary.Purpose.INFERRED,
+            0.35,
             summary.citedFacts(),
             summary.citedSummaries(),
             summary.inputFacts(),
