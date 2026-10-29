@@ -191,9 +191,12 @@ public record Diagram(
    * @param id the edge ID, unique within the diagram
    * @param from the node the edge starts at
    * @param to the node the edge ends at
-   * @param label the text shown on the edge, or {@code null}
+   * @param label what happens along the edge, intent first, or {@code null}
+   * @param technology how it happens, such as {@code JSON/HTTPS} or {@code JDBC}, or {@code null}
    * @param relationship the relationship type the edge shows, such as {@code CALLS}, or {@code
    *     null}
+   * @param profiles the Spring profiles under which alone the edge holds, any one being enough;
+   *     empty when it always holds
    * @param facts the IDs of the facts the edge came from
    */
   public record Edge(
@@ -201,7 +204,9 @@ public record Diagram(
       EntityId from,
       EntityId to,
       String label,
+      String technology,
       String relationship,
+      List<String> profiles,
       List<String> facts) {
 
     public Edge {
@@ -209,10 +214,23 @@ public record Diagram(
       Objects.requireNonNull(from, "from");
       Objects.requireNonNull(to, "to");
       Checks.optionalText(label, "edge label");
+      Checks.optionalText(technology, "edge technology");
       if (relationship != null && !Fact.isValidPredicate(relationship)) {
         throw new IllegalArgumentException("Invalid relationship: '" + relationship + "'");
       }
+      profiles = Checks.profiles(profiles);
       facts = Checks.factIds(facts, "edge facts");
+    }
+
+    /** An edge that always holds and names no technology. */
+    public Edge(
+        String id,
+        EntityId from,
+        EntityId to,
+        String label,
+        String relationship,
+        List<String> facts) {
+      this(id, from, to, label, null, relationship, List.of(), facts);
     }
   }
 }

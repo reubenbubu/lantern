@@ -125,14 +125,7 @@ public record SequenceDiagram(
     public Message {
       Checks.optionalText(label, "message label");
       Checks.optionalText(code, "message code");
-      profiles = Checks.list(profiles, "profiles");
-      Set<String> seen = new HashSet<>();
-      for (String profile : profiles) {
-        Checks.text(profile, "profile");
-        if (!seen.add(profile)) {
-          throw new IllegalArgumentException("Duplicate profile " + profile);
-        }
-      }
+      profiles = Checks.profiles(profiles);
       info = Checks.list(info, "message info");
       facts = Checks.factIds(facts, "message facts");
     }

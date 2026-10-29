@@ -91,4 +91,17 @@ final class Checks {
     sorted.sort(null);
     return List.copyOf(sorted);
   }
+
+  /** Spring profile names: an immutable copy, each not blank and none twice. */
+  static List<String> profiles(List<String> profiles) {
+    List<String> copy = list(profiles, "profiles");
+    Set<String> seen = new HashSet<>();
+    for (String profile : copy) {
+      text(profile, "profile");
+      if (!seen.add(profile)) {
+        throw new IllegalArgumentException("Duplicate profile " + profile);
+      }
+    }
+    return copy;
+  }
 }
