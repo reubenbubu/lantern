@@ -281,7 +281,11 @@ class DescriberTest {
 
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(text(app.description())).isEqualTo("Takes and lists the shop's orders.");
+    // Citing no README claim, the sentences are marked as inferred (ADR 0065).
+    assertThat(app.description().getFirst())
+        .isEqualTo(new TextRun(Assembler.INFERRED_SENTENCE, TextRun.Style.EMPHASIS));
+    assertThat(text(app.description()))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Takes and lists the shop's orders.");
     assertThat(app.description().getLast())
         .isEqualTo(
             new Citation(
@@ -296,15 +300,18 @@ class DescriberTest {
             .filter(e -> e.id().toString().equals("type:com.example.web.Controller"))
             .findFirst()
             .orElseThrow();
-    assertThat(text(controller.description())).isEqualTo("Lists orders for the web shop.");
+    assertThat(text(controller.description()))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Lists orders for the web shop.");
     DocumentEntity database =
         document.entities().stream().filter(e -> e.id().equals(DATABASE)).findFirst().orElseThrow();
-    assertThat(text(database.description())).isEqualTo("Keeps the shop's orders.");
+    assertThat(text(database.description()))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders.");
     assertThat(database.description().getLast())
         .isEqualTo(new Citation(List.of(facts.find(APP.toString(), "USES_DATABASE").id())));
     DocumentEntity topic =
         document.entities().stream().filter(e -> e.id().equals(TOPIC)).findFirst().orElseThrow();
-    assertThat(text(topic.description())).isEqualTo("Carries new orders to background processing.");
+    assertThat(text(topic.description()))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Carries new orders to background processing.");
     // Left out by the model: no description, as before.
     assertThat(
             document.entities().stream()
@@ -599,6 +606,59 @@ class DescriberTest {
     assertThat(store.size()).isEqualTo(7);
     Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
+  }
+
+  @Test
+  void aSentenceCitingAReadmeClaimIsShownAsWrittenAndOneCitingNoneAsInferred() {
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    Fact claim =
+        withClaim.stream().filter(f -> f.predicate().equals("claim")).findFirst().orElseThrow();
+    Wordings wordings =
+        new Wordings(
+            Map.of(
+                APP,
+                "Takes the shop's orders. [fact:"
+                    + facts.find(APP.toString(), "application-name").id()
+                    + "] [fact:"
+                    + claim.id()
+                    + "]",
+                EntityId.parse("type:com.example.web.Controller"),
+                "Lists the shop's orders. [fact:" + claim.id() + "]",
+                // The claim it cited is not in the snapshot, so only code is left.
+                WORKER,
+                "Processes new orders. [fact:"
+                    + facts.find(WORKER.toString(), "deployable-unit").id()
+                    + "] [fact:gone-claim]",
+                DATABASE,
+                "Keeps the shop's orders. [fact:"
+                    + facts.find(APP.toString(), "USES_DATABASE").id()
+                    + "]"),
+            Map.of());
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                withClaim,
+                Map.of(),
+                wordings);
+
+    Function<EntityId, List<Inline>> description =
+        id ->
+            document.entities().stream()
+                .filter(e -> e.id().equals(id))
+                .findFirst()
+                .orElseThrow()
+                .description();
+    assertThat(text(description.apply(APP))).isEqualTo("Takes the shop's orders.");
+    assertThat(text(description.apply(EntityId.parse("type:com.example.web.Controller"))))
+        .isEqualTo("Lists the shop's orders.");
+    // Leaving out a citation leaves the space before it.
+    assertThat(text(description.apply(WORKER)).strip())
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Processes new orders.");
+    assertThat(text(description.apply(DATABASE)))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders.");
   }
 
   @Test

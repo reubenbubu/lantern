@@ -39,6 +39,12 @@ final class Assembler {
   /** What opens a summary whose purpose is inferred from the code (ADR 0059). */
   static final String INFERRED = "Purpose inferred from the code:";
 
+  /**
+   * What opens a responsibility sentence that cites no README claim (ADR 0065): short, since it is
+   * the element's description on diagrams.
+   */
+  static final String INFERRED_SENTENCE = "Inferred:";
+
   private static final Pattern NOT_ID_CHAR = Pattern.compile("[^A-Za-z0-9._:-]");
 
   private final Knowledge knowledge;
@@ -284,17 +290,34 @@ final class Assembler {
   }
 
   private Text purpose(Text text) {
-    boolean evidenced =
-        text.facts().stream()
-            .map(knowledge::fact)
-            .anyMatch(f -> f != null && f.predicate().equals(CLAIM));
-    return evidenced ? text : inferred(text);
+    return evidenced(text) ? text : inferred(text);
+  }
+
+  /**
+   * A responsibility sentence as rich text (ADR 0050, ADR 0056). One that cites no README claim is
+   * inferred from the code and opens with {@value #INFERRED_SENTENCE}, emphasized (ADR 0065).
+   */
+  private Text responsibility(EntityId about, String sentence) {
+    Text text = rich(about, sentence);
+    return evidenced(text) ? text : opened(INFERRED_SENTENCE, text);
+  }
+
+  /** Whether the text cites a README claim, which people wrote (ADR 0059, ADR 0060). */
+  private boolean evidenced(Text text) {
+    return text.facts().stream()
+        .map(knowledge::fact)
+        .anyMatch(f -> f != null && f.predicate().equals(CLAIM));
   }
 
   /** The text opened with {@value #INFERRED}, emphasized. */
   private static Text inferred(Text text) {
+    return opened(INFERRED, text);
+  }
+
+  /** The text opened with the label, emphasized. */
+  private static Text opened(String label, Text text) {
     List<Inline> content = new ArrayList<>();
-    content.add(new TextRun(INFERRED, TextRun.Style.EMPHASIS));
+    content.add(new TextRun(label, TextRun.Style.EMPHASIS));
     content.add(TextRun.of(" "));
     content.addAll(text.content());
     return new Text(List.copyOf(content), text.facts());
@@ -477,7 +500,7 @@ final class Assembler {
           entity.id().equals(RepoSections.SYSTEM) && responsibility != null
               ? purpose().content()
               : responsibility != null
-                  ? rich(entity.id(), responsibility).content()
+                  ? responsibility(entity.id(), responsibility).content()
                   : summary(summaries.get(summarized(entity.id()))).content();
       entities.put(
           entity.id(),
