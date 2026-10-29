@@ -17,6 +17,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -35,6 +36,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.ToLongFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,13 +51,16 @@ import org.slf4j.LoggerFactory;
  * not fit the model's context window is summarized in parts that are then merged (see {@link
  * Prompt}).
  *
- * <p>Every summary is cached under a key that hashes its entity and level, the IDs of its input
- * facts, the source excerpts its prompt shows, the text of its contained units' summaries, the
- * prompt version and the model (provider and identifier). A contained unit's summary counts with
- * both its key and its text. A unit whose key is already in the store is not sent to the model
- * again. When a unit's facts change its key changes, so it is summarized again; its new text then
- * changes its parent's key, and so on up to the repository. Units whose inputs did not change are
- * reused.
+ * <p>Every summary is cached under a key that hashes what the model sees: the prompt version, the
+ * model (provider and identifier), the unit's entity and level, its contained units' entities
+ * (which its citations of their summaries name), the system prompt and the unit's whole user turn,
+ * with its facts, source files and contained units' summaries. Fact IDs and commits are not in the
+ * prompt, so a new commit that changes nothing a unit's prompt shows makes no call for it, and a
+ * contained unit whose summary reads the same leaves its parent's key as it was. A unit whose key
+ * is already in the store is not sent to the model again; the stored summary is rebound to the
+ * current inputs, so it cites the facts and contained summaries of this run (the same prompt lists
+ * the same inputs in the same order). When a unit's prompt changes it is summarized again; its new
+ * text then changes its parent's prompt, and so on up to the repository.
  *
  * <p>Every summary must cite the facts or contained summaries it used. An answer that cites
  * nothing, or cites a reference that was not in the prompt, is sent back once with the reason; if
@@ -88,6 +94,9 @@ public final class Summarizer {
 
   /** Files read for excerpts that are kept for the next units, which are often in the same file. */
   private static final int CACHED_FILES = 64;
+
+  /** A fact citation in a stored summary's text. */
+  private static final Pattern FACT_MARKER = Pattern.compile("\\[fact:([0-9a-f]{64})\\]");
 
   private final LlmClient client;
   private final SummaryStore store;
@@ -229,28 +238,58 @@ public final class Summarizer {
     text.append("model ").append(oneLine(model.model())).append('\n');
     text.append("level ").append(node.level()).append('\n');
     text.append("entity ").append(node.entity()).append('\n');
-    for (Fact fact : node.facts()) {
-      text.append("fact ").append(fact.id()).append('\n');
-    }
-    for (Excerpts.Excerpt excerpt : excerpts) {
-      text.append("excerpt ")
-          .append(excerpt.fact())
-          .append(' ')
-          .append(oneLine(excerpt.path()))
-          .append(' ')
-          .append(sha256(excerpt.code()))
-          .append('\n');
-    }
+    // The prompt names a contained unit without its full entity ID, which its citation stores.
     for (Summary child : children) {
-      text.append("child ")
-          .append(child.entity())
-          .append(' ')
-          .append(child.key())
-          .append(' ')
-          .append(sha256(child.text()))
-          .append('\n');
+      text.append("child ").append(child.entity()).append('\n');
     }
+    text.append("system ").append(sha256(Prompt.SYSTEM)).append('\n');
+    text.append("user ").append(sha256(Prompt.user(node, excerpts, children))).append('\n');
     return sha256(text.toString());
+  }
+
+  /**
+   * A stored summary made from the same prompt, citing the facts and contained summaries of this
+   * run instead of those it was made from. The same prompt lists the same inputs in the same order,
+   * so each fact and contained summary takes the place of the one at its position.
+   */
+  static Summary rebind(Summary stored, SummaryNode node, List<Summary> children) {
+    List<String> factIds = node.facts().stream().map(Fact::id).toList();
+    List<String> childKeys = children.stream().map(Summary::key).toList();
+    if (stored.inputFacts().size() != factIds.size()
+        || stored.inputSummaries().size() != childKeys.size()) {
+      throw new IllegalStateException(
+          "The stored summary "
+              + stored.key()
+              + " was not made from the inputs of "
+              + node.entity());
+    }
+    Map<String, String> facts = new HashMap<>();
+    for (int i = 0; i < factIds.size(); i++) {
+      facts.putIfAbsent(stored.inputFacts().get(i), factIds.get(i));
+    }
+    Map<String, String> summaries = new HashMap<>();
+    for (int i = 0; i < childKeys.size(); i++) {
+      summaries.putIfAbsent(stored.inputSummaries().get(i), childKeys.get(i));
+    }
+    String text =
+        FACT_MARKER
+            .matcher(stored.text())
+            .replaceAll(
+                m ->
+                    Matcher.quoteReplacement(
+                        "[fact:" + facts.getOrDefault(m.group(1), m.group(1)) + "]"));
+    return new Summary(
+        stored.key(),
+        stored.entity(),
+        stored.level(),
+        text,
+        stored.citedFacts().stream().map(id -> facts.getOrDefault(id, id)).toList(),
+        stored.citedSummaries().stream().map(key -> summaries.getOrDefault(key, key)).toList(),
+        factIds,
+        childKeys,
+        stored.promptVersion(),
+        stored.provider(),
+        stored.model());
   }
 
   private static String oneLine(String value) {
@@ -385,7 +424,7 @@ public final class Summarizer {
       Optional<Summary> cached = store.find(key);
       if (cached.isPresent()) {
         reused.incrementAndGet();
-        return cached.get();
+        return rebind(cached.get(), node, children);
       }
       Summary summary = generate(key, node, excerpts, children);
       store.save(summary);

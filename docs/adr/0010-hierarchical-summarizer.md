@@ -1,6 +1,6 @@
 # 0010: Hierarchical summarizer
 
-Status: accepted (#11), amended by ADR 0021 (#44) and below (#78, #76), pending the user's review (#24)
+Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76) and by ADR 0055 (#190), pending the user's review (#24)
 
 ## Context
 
@@ -44,9 +44,9 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   it was made from. Invalidation follows from the key: when a fact changes, its unit gets a new key
   and is summarized again; the new text gives the parent a new key, and so on up to the
   repository, while units whose inputs did not change are reused. Old rows are left in place;
-  pruning them can come with retention. Fact IDs include the commit (0001), so until extractor
-  results are reused across commits (incremental runs, Phase 3), a new commit summarizes the
-  whole repository again.
+  pruning them can come with retention. Since ADR 0055 the key hashes the prompt instead of fact
+  IDs and child keys, so a new commit that changes nothing a unit's prompt shows reuses its
+  summary.
 - **Citations.** The prompt lists facts as `[F1]`, `[F2]`, ... and the parts' summaries as `[S1]`,
   ... (shown without their own citations), and asks for references at the end of every sentence.
   The answer's references are rewritten to `[fact:<fact ID>]` and `[summary:<entity ID>]` in the

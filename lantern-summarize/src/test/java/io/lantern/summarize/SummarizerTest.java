@@ -36,10 +36,12 @@ import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -168,9 +170,8 @@ class SummarizerTest {
                     f.subject().toString().equals("type:com.example.shop.Order")
                         || f.subject().toString().equals("method:com.example.shop.Order#total()"))
             .map(Fact::id)
-            .sorted()
             .toList();
-    assertThat(order.inputFacts()).isEqualTo(orderFacts);
+    assertThat(order.inputFacts()).containsExactlyInAnyOrderElementsOf(orderFacts);
     assertThat(order.citedFacts()).containsExactlyInAnyOrderElementsOf(orderFacts);
     for (String id : orderFacts) {
       assertThat(order.text()).contains("[fact:" + id + "]");
@@ -229,6 +230,131 @@ class SummarizerTest {
     assertThat(second.summaries().get(order)).isEqualTo(first.summaries().get(order));
     EntityId repo = new EntityId("repo", "shop");
     assertThat(second.summaries().get(repo).key()).isNotEqualTo(first.summaries().get(repo).key());
+  }
+
+  /** The facts as observed again at another commit, with nothing else changed. */
+  private static List<Fact> atCommit(List<Fact> facts, String commit) {
+    return facts.stream()
+        .map(
+            f ->
+                Fact.create(
+                    f.subject(),
+                    f.predicate(),
+                    f.object(),
+                    f.attributes(),
+                    f.origin(),
+                    new Evidence(
+                        f.evidence().repo(),
+                        commit,
+                        f.evidence().path(),
+                        f.evidence().lines(),
+                        f.evidence().contentHash()),
+                    f.confidence(),
+                    f.validity()))
+        .toList();
+  }
+
+  /** A fact as the prompt shows it, the same at every commit. */
+  private static String content(String id, List<Fact> facts) {
+    return Prompt.fact(facts.stream().filter(f -> f.id().equals(id)).findFirst().orElseThrow());
+  }
+
+  @Test
+  void aCommitThatChangesNothingMakesNoCallsAndCitesTheNewFacts() {
+    List<Fact> earlier = TestFacts.shop().list();
+    Summarizer.Result first = summarizer().summarize(SummaryTree.fromFacts(earlier));
+    int calls = fake.sent().size();
+    List<Fact> later = atCommit(TestFacts.shop().list(), "b".repeat(40));
+
+    Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(later));
+
+    assertThat(fake.sent()).hasSize(calls);
+    assertThat(second.generated()).isZero();
+    assertThat(second.reused()).isEqualTo(7);
+    // The reused summaries cite the facts of the new commit, not those of the first.
+    Set<String> ids = later.stream().map(Fact::id).collect(Collectors.toSet());
+    for (Summary summary : second.summaries().values()) {
+      assertThat(ids).containsAll(summary.inputFacts()).containsAll(summary.citedFacts());
+      for (String id : summary.citedFacts()) {
+        assertThat(summary.text()).contains("[fact:" + id + "]");
+      }
+    }
+    // Each citation now names the same fact, observed at the new commit.
+    for (var entry : second.summaries().entrySet()) {
+      Summary before = first.summaries().get(entry.getKey());
+      Summary after = entry.getValue();
+      assertThat(after.key()).isEqualTo(before.key());
+      assertThat(after.citedFacts().stream().map(id -> content(id, later)))
+          .containsExactlyElementsOf(
+              before.citedFacts().stream().map(id -> content(id, earlier)).toList());
+      assertThat(after.inputFacts().stream().map(id -> content(id, later)))
+          .containsExactlyElementsOf(
+              before.inputFacts().stream().map(id -> content(id, earlier)).toList());
+      String text = before.text();
+      for (int i = 0; i < before.inputFacts().size(); i++) {
+        text = text.replace(before.inputFacts().get(i), after.inputFacts().get(i));
+      }
+      assertThat(after.text()).isEqualTo(text);
+    }
+    Summary order = second.summaries().get(EntityId.parse("type:com.example.shop.Order"));
+    assertThat(order.citedFacts()).isNotEmpty();
+    // A parent cites its children's summaries as they are now.
+    Summary repo = second.summaries().get(new EntityId("repo", "shop"));
+    assertThat(repo.citedSummaries())
+        .containsExactly(second.summaries().get(EntityId.parse("module:com.example:shop")).key());
+  }
+
+  @Test
+  void aCommitThatChangesNothingReusesATypeSummaryCitingItsSourceFile() throws Exception {
+    SourceFiles anyCommit =
+        (repo, commit, path) ->
+            repo.equals("r") && path.equals(ExcerptsTest.PATH)
+                ? Optional.of(ExcerptsTest.ORDER.getBytes(StandardCharsets.UTF_8))
+                : Optional.empty();
+    SummaryNode order = orderWithSource(sha256(ExcerptsTest.ORDER));
+    new Summarizer(client("model-a", fake), store, anyCommit).summarize(List.of(order));
+    SummaryNode later =
+        new SummaryNode(
+            order.entity(), order.level(), atCommit(order.facts(), "b".repeat(40)), List.of());
+
+    Summarizer.Result second =
+        new Summarizer(client("model-a", fake), store, anyCommit).summarize(List.of(later));
+
+    assertThat(fake.sent()).hasSize(1);
+    assertThat(second.reused()).isEqualTo(1);
+    Fact kind = later.facts().stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
+    Summary summary = second.summaries().get(order.entity());
+    assertThat(summary.text()).contains("[fact:" + kind.id() + "]");
+    assertThat(summary.citedFacts())
+        .containsExactlyInAnyOrderElementsOf(later.facts().stream().map(Fact::id).toList());
+  }
+
+  @Test
+  void aChangedChildWhoseSummaryIsUnchangedLeavesItsParentAlone() {
+    // The model writes the same text for PriceService whatever its facts.
+    fake.answering(
+        request ->
+            unit(request).equals("type:com.example.shop.PriceService")
+                ? "Prices orders. [F1]"
+                : citingAll(request));
+    summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+    int calls = fake.sent().size();
+    List<Fact> changed =
+        TestFacts.shop()
+            .relate(
+                "shop",
+                "type:com.example.shop.PriceService",
+                "CONTAINS",
+                "method:com.example.shop.PriceService#discount()")
+            .list();
+
+    Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(changed));
+
+    assertThat(fake.sent().subList(calls, fake.sent().size()))
+        .extracting(s -> unit(s.request()))
+        .containsExactly("type:com.example.shop.PriceService");
+    assertThat(second.generated()).isEqualTo(1);
+    assertThat(second.reused()).isEqualTo(6);
   }
 
   @Test
@@ -300,8 +426,53 @@ class SummarizerTest {
             child.promptVersion(),
             child.provider(),
             child.model());
+    // A child is cited by its entity ID, which the prompt does not show in full: two packages of
+    // the same name in different modules read the same.
+    Function<String, Summary> pkg =
+        id ->
+            new Summary(
+                child.key(),
+                EntityId.parse(id),
+                SummaryLevel.PACKAGE,
+                child.text(),
+                child.citedFacts(),
+                child.citedSummaries(),
+                child.inputFacts(),
+                child.inputSummaries(),
+                child.promptVersion(),
+                child.provider(),
+                child.model());
+    Summary inCore = pkg.apply("package:com.example:shop-core:com.example.shop");
+    Summary inApi = pkg.apply("package:com.example:shop-api:com.example.shop");
+    assertThat(Prompt.children(List.of(inApi))).isEqualTo(Prompt.children(List.of(inCore)));
+    assertThat(Summarizer.key(order, List.of(), List.of(inApi), fake.model("m")))
+        .isNotEqualTo(Summarizer.key(order, List.of(), List.of(inCore), fake.model("m")));
+    // The key holds what the model sees: a child's key and citations are not shown.
     assertThat(Summarizer.key(order, List.of(), List.of(rekeyedChild), fake.model("m")))
-        .isNotEqualTo(key);
+        .isEqualTo(key);
+    Summary recitedChild =
+        new Summary(
+            child.key(),
+            child.entity(),
+            child.level(),
+            child.text().replace(child.citedFacts().getFirst(), "e".repeat(64)),
+            List.of("e".repeat(64)),
+            List.of(),
+            List.of("e".repeat(64)),
+            List.of(),
+            child.promptVersion(),
+            child.provider(),
+            child.model());
+    assertThat(Summarizer.key(order, List.of(), List.of(recitedChild), fake.model("m")))
+        .isEqualTo(key);
+    SummaryNode laterCommit =
+        new SummaryNode(
+            order.entity(),
+            order.level(),
+            atCommit(order.facts(), "b".repeat(40)),
+            order.children());
+    assertThat(Summarizer.key(laterCommit, List.of(), List.of(child), fake.model("m")))
+        .isEqualTo(key);
     SummaryNode fewerFacts =
         new SummaryNode(
             order.entity(),
