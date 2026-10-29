@@ -25,6 +25,7 @@ import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.link.DeployableUnits;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
@@ -235,6 +236,8 @@ public final class AnalysisRun {
       found.addAll(new SpringExtractor().extract(code, snapshot.number()));
       found.addAll(new PersistenceExtractor().extract(code, snapshot.number()));
       found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
+      // The linker's first step: deployable units, derived from the facts of the whole snapshot.
+      found.addAll(new DeployableUnits().derive(found, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       Stored stored = store(snapshot.number(), registered.keySet(), found);
       List<Fact> extracted = stored.facts();

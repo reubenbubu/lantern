@@ -1,11 +1,14 @@
 library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api @shop:api/pom.xml 1.0
 library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core @shop:core/pom.xml 1.0
+module:com.example.shop:shop-api java-release 21 @shop:api/pom.xml 1.0
 module:com.example.shop:shop-api packaging jar @shop:api/pom.xml 1.0
 module:com.example.shop:shop-api version 1.0.0 @shop:api/pom.xml#10-10 1.0
 module:com.example.shop:shop-core BUILD_DEPENDS_ON module:com.example.shop:shop-api {"scope":"compile","version":"1.0.0"} @shop:core/pom.xml#16-19 1.0
+module:com.example.shop:shop-core java-release 21 @shop:core/pom.xml 1.0
 module:com.example.shop:shop-core packaging jar @shop:core/pom.xml 1.0
 module:com.example.shop:shop-core version 1.0.0 @shop:core/pom.xml#10-10 1.0
 module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-api @shop:pom.xml#14-14 1.0
 module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-core @shop:pom.xml#15-15 1.0
+module:com.example.shop:shop-parent java-release 21 @shop:pom.xml#19-19 1.0
 module:com.example.shop:shop-parent packaging pom @shop:pom.xml#11-11 1.0
 module:com.example.shop:shop-parent version 1.0.0 @shop:pom.xml#10-10 1.0
