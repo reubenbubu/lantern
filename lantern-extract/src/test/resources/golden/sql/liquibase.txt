@@ -1,0 +1,92 @@
+column:com.example:audit:audit_event#Kind data-type varchar(20) @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+column:com.example:audit:audit_event#Kind nullable false @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+column:com.example:audit:audit_event#Kind position 2 @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+column:com.example:audit:audit_event#id data-type bigint @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+column:com.example:audit:audit_event#id nullable false @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+column:com.example:audit:audit_event#id position 1 @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+column:com.example:inventory-parent:reporting.daily_total#day data-type date @inventory:docker/init.sql#2-2 0.8
+column:com.example:inventory-parent:reporting.daily_total#day nullable false @inventory:docker/init.sql#2-2 0.8
+column:com.example:inventory-parent:reporting.daily_total#day position 1 @inventory:docker/init.sql#2-2 0.8
+column:com.example:inventory-parent:reporting.daily_total#total data-type numeric(12, 2) @inventory:docker/init.sql#2-2 0.8
+column:com.example:inventory-parent:reporting.daily_total#total nullable true @inventory:docker/init.sql#2-2 0.8
+column:com.example:inventory-parent:reporting.daily_total#total position 2 @inventory:docker/init.sql#2-2 0.8
+column:com.example:stock:movement#id data-type uuid @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#12-12 1.0
+column:com.example:stock:movement#id nullable false @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#12-12 1.0
+column:com.example:stock:movement#id position 1 @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#12-12 1.0
+column:com.example:stock:movement#stock_item_id data-type bigint @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#13-13 1.0
+column:com.example:stock:movement#stock_item_id nullable true @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#13-13 1.0
+column:com.example:stock:movement#stock_item_id position 2 @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#13-13 1.0
+column:com.example:stock:note#body data-type text @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+column:com.example:stock:note#body nullable false @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+column:com.example:stock:note#body position 2 @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+column:com.example:stock:note#id data-type bigint @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+column:com.example:stock:note#id nullable false @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+column:com.example:stock:note#id position 1 @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+column:com.example:stock:stock_item#id data-type bigint @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#11-13 1.0
+column:com.example:stock:stock_item#id nullable false @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#11-13 1.0
+column:com.example:stock:stock_item#id position 1 @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#11-13 1.0
+column:com.example:stock:stock_item#quantity data-type int @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#20-20 1.0
+column:com.example:stock:stock_item#quantity nullable false @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#29-29 1.0
+column:com.example:stock:stock_item#quantity position 4 @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#28-28 1.0
+column:com.example:stock:stock_item#reserved data-type int @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#31-31 1.0
+column:com.example:stock:stock_item#reserved nullable false @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#31-31 1.0
+column:com.example:stock:stock_item#reserved position 5 @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#31-31 1.0
+column:com.example:stock:stock_item#sku data-type varchar(64) @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#30-30 1.0
+column:com.example:stock:stock_item#sku nullable false @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#17-19 1.0
+column:com.example:stock:stock_item#sku position 3 @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#17-19 1.0
+column:com.example:stock:stock_item#warehouse_id data-type bigint @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#14-16 1.0
+column:com.example:stock:stock_item#warehouse_id nullable false @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#14-16 1.0
+column:com.example:stock:stock_item#warehouse_id position 2 @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#14-16 1.0
+column:com.example:stock:supplier#id data-type bigint @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+column:com.example:stock:supplier#id nullable false @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+column:com.example:stock:supplier#id position 1 @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+column:com.example:stock:supplier#name data-type varchar(100) @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+column:com.example:stock:supplier#name nullable true @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+column:com.example:stock:supplier#name position 2 @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+column:com.example:stock:warehouse#code data-type varchar(10) @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#14-18 1.0
+column:com.example:stock:warehouse#code nullable false @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#14-18 1.0
+column:com.example:stock:warehouse#code position 2 @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#14-18 1.0
+column:com.example:stock:warehouse#id data-type bigint @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#9-13 1.0
+column:com.example:stock:warehouse#id nullable false @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#9-13 1.0
+column:com.example:stock:warehouse#id position 1 @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#9-13 1.0
+module:com.example:audit CONTAINS schema:com.example:audit @inventory:audit/src/main/resources/schema.sql 0.8
+module:com.example:inventory-parent CONTAINS schema:com.example:inventory-parent @inventory:docker/init.sql 0.8
+module:com.example:stock CONTAINS schema:com.example:stock @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml 1.0
+schema:com.example:audit CONTAINS table:com.example:audit:audit_event @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+schema:com.example:audit kind sql @inventory:audit/src/main/resources/schema.sql 0.8
+schema:com.example:inventory-parent CONTAINS table:com.example:inventory-parent:reporting.daily_total @inventory:docker/init.sql#2-2 0.8
+schema:com.example:inventory-parent kind sql @inventory:docker/init.sql 0.8
+schema:com.example:stock CONTAINS table:com.example:stock:movement @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#9-13 1.0
+schema:com.example:stock CONTAINS table:com.example:stock:note @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+schema:com.example:stock CONTAINS table:com.example:stock:stock_item @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#10-21 1.0
+schema:com.example:stock CONTAINS table:com.example:stock:supplier @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+schema:com.example:stock CONTAINS table:com.example:stock:warehouse @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#6-21 1.0
+schema:com.example:stock kind liquibase @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml 1.0
+table:com.example:audit:audit_event CONTAINS column:com.example:audit:audit_event#Kind @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+table:com.example:audit:audit_event CONTAINS column:com.example:audit:audit_event#id @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+table:com.example:audit:audit_event PRIMARY_KEY column:com.example:audit:audit_event#id {"columns":["id"]} @inventory:audit/src/main/resources/schema.sql#1-4 0.8
+table:com.example:inventory-parent:reporting.daily_total CONTAINS column:com.example:inventory-parent:reporting.daily_total#day @inventory:docker/init.sql#2-2 0.8
+table:com.example:inventory-parent:reporting.daily_total CONTAINS column:com.example:inventory-parent:reporting.daily_total#total @inventory:docker/init.sql#2-2 0.8
+table:com.example:inventory-parent:reporting.daily_total PRIMARY_KEY column:com.example:inventory-parent:reporting.daily_total#day {"columns":["day"]} @inventory:docker/init.sql#2-2 0.8
+table:com.example:stock:movement CONTAINS column:com.example:stock:movement#id @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#12-12 1.0
+table:com.example:stock:movement CONTAINS column:com.example:stock:movement#stock_item_id @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#13-13 1.0
+table:com.example:stock:movement PRIMARY_KEY column:com.example:stock:movement#id {"columns":["id"]} @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#12-12 1.0
+table:com.example:stock:movement REFERENCES table:com.example:stock:stock_item {"columns":["stock_item_id"],"name":"movement_item_fk","referencedColumns":["id"]} @inventory:stock/src/main/resources/db/changelog/more/004-movements.json#18-23 1.0
+table:com.example:stock:note CONTAINS column:com.example:stock:note#body @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+table:com.example:stock:note CONTAINS column:com.example:stock:note#id @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+table:com.example:stock:note PRIMARY_KEY column:com.example:stock:note#id {"columns":["id"]} @inventory:stock/src/main/resources/db/changelog/sql/007-notes.sql#1-4 1.0
+table:com.example:stock:stock_item CONTAINS column:com.example:stock:stock_item#id @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#11-13 1.0
+table:com.example:stock:stock_item CONTAINS column:com.example:stock:stock_item#quantity @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#28-28 1.0
+table:com.example:stock:stock_item CONTAINS column:com.example:stock:stock_item#reserved @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#31-31 1.0
+table:com.example:stock:stock_item CONTAINS column:com.example:stock:stock_item#sku @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#17-19 1.0
+table:com.example:stock:stock_item CONTAINS column:com.example:stock:stock_item#warehouse_id @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#14-16 1.0
+table:com.example:stock:stock_item PRIMARY_KEY column:com.example:stock:stock_item#id {"columns":["id"],"name":"stock_item_pk"} @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#11-13 1.0
+table:com.example:stock:stock_item REFERENCES table:com.example:stock:warehouse {"columns":["warehouse_id"],"name":"stock_item_warehouse_fk","referencedColumns":["id"]} @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#14-16 1.0
+table:com.example:stock:stock_item UNIQUE_KEY column:com.example:stock:stock_item#sku {"columns":["sku"],"name":"stock_item_sku_uk"} @inventory:stock/src/main/resources/db/changelog/db.changelog-master.xml#17-19 1.0
+table:com.example:stock:supplier CONTAINS column:com.example:stock:supplier#id @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+table:com.example:stock:supplier CONTAINS column:com.example:stock:supplier#name @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+table:com.example:stock:supplier PRIMARY_KEY column:com.example:stock:supplier#id {"columns":["id"]} @inventory:stock/src/main/resources/db/changelog/more/005-suppliers.sql#4-4 1.0
+table:com.example:stock:warehouse CONTAINS column:com.example:stock:warehouse#code @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#14-18 1.0
+table:com.example:stock:warehouse CONTAINS column:com.example:stock:warehouse#id @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#9-13 1.0
+table:com.example:stock:warehouse PRIMARY_KEY column:com.example:stock:warehouse#id {"columns":["id"]} @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#9-13 1.0
+table:com.example:stock:warehouse UNIQUE_KEY column:com.example:stock:warehouse#code {"columns":["code"],"name":"warehouse_code_uk"} @inventory:stock/src/main/resources/db/changelog/changes/001-warehouse.yaml#22-25 1.0

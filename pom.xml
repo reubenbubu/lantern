@@ -35,6 +35,7 @@
     <anthropic-java.version>3.3.0</anthropic-java.version>
     <archunit.version>1.5.1</archunit.version>
     <javaparser.version>3.28.2</javaparser.version>
+    <jsqlparser.version>5.3</jsqlparser.version>
     <spotless.version>3.10.4</spotless.version>
     <frontend-maven-plugin.version>2.0.2</frontend-maven-plugin.version>
     <node.version>v24.21.0</node.version>
@@ -93,6 +94,11 @@
         <groupId>com.github.javaparser</groupId>
         <artifactId>javaparser-symbol-solver-core</artifactId>
         <version>${javaparser.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.jsqlparser</groupId>
+        <artifactId>jsqlparser</artifactId>
+        <version>${jsqlparser.version}</version>
       </dependency>
       <dependency>
         <groupId>com.tngtech.archunit</groupId>

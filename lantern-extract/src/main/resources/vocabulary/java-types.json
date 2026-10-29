@@ -16,7 +16,7 @@
   {
     "name": "kind",
     "kind": "attribute",
-    "description": "What sort of thing the subject is. For a Java type: class, interface, enum, record or annotation.",
+    "description": "What sort of thing the subject is. For a Java type: class, interface, enum, record or annotation. For a schema: how it is migrated, flyway, liquibase or sql (other SQL files), one fact for each.",
     "attributeSchema": { "additionalProperties": false },
     "objectKind": "string"
   }

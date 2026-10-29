@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS audit_event (
+    id      BIGINT PRIMARY KEY,
+    "Kind"  VARCHAR(20) NOT NULL
+);

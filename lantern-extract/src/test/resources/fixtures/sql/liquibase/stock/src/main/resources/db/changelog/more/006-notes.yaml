@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: 7
+      author: test
+      changes:
+        - sqlFile:
+            path: ../sql/007-notes.sql
+            relativeToChangelogFile: true
