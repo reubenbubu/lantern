@@ -509,6 +509,76 @@ class EndToEndIT {
   }
 
   @Test
+  void analyzesARepositoryWithoutAMavenBuildWithoutBuildingIt() throws IOException {
+    // A frontend without a pom.xml, next to a Maven library (#254).
+    Path lib = fixtureRepo("lib-and-service/lib", "web-lib");
+    Path frontend = Files.createDirectories(temp.resolve("web-frontend"));
+    TestGitRepo git = TestGitRepo.init(frontend);
+    git.commit("package.json", "{\"name\": \"web-frontend\"}\n");
+    String commit =
+        git.commit("README.md", "# Web Frontend\n\nThe frontend shows the greetings.\n");
+    // A run before #254 stored a failed build of it, which is not used.
+    Repo registered =
+        context
+            .getBean(RepoRegistry.class)
+            .register("web-frontend", frontend, RepoSettings.DEFAULT);
+    BuildResult failed = sandbox.build(registered, commit);
+    assertThat(failed.failure()).isEqualTo("No pom.xml at the top of the repository");
+    // Java code built with Gradle, which Lantern cannot analyze without a top pom.xml.
+    Path gradle = Files.createDirectories(temp.resolve("web-gradle"));
+    TestGitRepo gradleGit = TestGitRepo.init(gradle);
+    gradleGit.commit("settings.gradle", "rootProject.name = 'web-gradle'\n");
+    String gradleCommit = gradleGit.commit("src/main/java/web/App.java", "class App {}\n");
+
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+    command.run(
+        new DefaultApplicationArguments(
+            "analyze", "--system=web", lib.toString(), frontend.toString(), gradle.toString()));
+    String output = bytes.toString(StandardCharsets.UTF_8);
+    assertThat(command.getExitCode()).as(output).isZero();
+    assertThat(output)
+        .contains("  web-frontend@" + commit + ": analyzed without a build (no pom.xml)\n")
+        .contains(
+            "  web-gradle@"
+                + gradleCommit
+                + ": warning: has Java sources, Gradle build files but no top-level pom.xml: its"
+                + " code is not analyzed\n")
+        .contains("web-lib@")
+        .doesNotContain("degraded mode");
+    // Its README was read, and its stored failed build is not used.
+    assertThat(sandbox.find("web-frontend", commit)).contains(failed);
+    assertThat(AnalysisRun.storedBuild(sandbox, registered, commit)).isNull();
+    long snapshot = context.getBean(SnapshotStore.class).latest().orElseThrow().number();
+    assertThat(validIn(snapshot, "web-frontend"))
+        .filteredOn(f -> f.predicate().equals(DocsExtractor.CLAIM))
+        .extracting(f -> f.subject() + " " + f.object().value())
+        .containsExactly("readme:web-frontend:README.md The frontend shows the greetings.");
+
+    // Again, for the run's result: the library's build is reused and nothing is new.
+    AnalysisRun.Result again =
+        run.run(
+            "web", null, Map.of("web-lib", lib, "web-frontend", frontend, "web-gradle", gradle));
+    assertThat(again.withoutBuild()).containsExactlyInAnyOrder("web-frontend", "web-gradle");
+    assertThat(again.codeNotAnalyzed())
+        .isEqualTo(Map.of("web-gradle", List.of("Java sources", "Gradle build files")));
+    assertThat(again.builds()).containsOnlyKeys("web-lib");
+    assertThat(again.reusedBuilds()).containsExactly("web-lib");
+    assertThat(again.newFacts()).isZero();
+    assertThat(again.documents())
+        .extracting(d -> d.file().getFileName().toString())
+        .contains("web-frontend.html", "web-frontend.brief.html", "web-frontend.c4.html");
+
+    // Carried forward, it is still not built, and its facts keep holding.
+    AnalysisRun.Result carried = run.run("web", null, Map.of("web-lib", lib));
+    assertThat(carried.snapshot().commits()).containsEntry("web-frontend", commit);
+    assertThat(carried.withoutBuild()).isEmpty();
+    assertThat(carried.builds()).containsOnlyKeys("web-lib");
+    assertThat(validIn(carried, "web-frontend")).isEqualTo(validIn(again, "web-frontend"));
+  }
+
+  @Test
   void rebuildsAStoredFailedBuildAndReusesASuccessfulOne() throws IOException {
     Path lib = fixtureRepo("lib-and-service/lib", "flaky-lib");
     Repo repo =
