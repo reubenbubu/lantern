@@ -98,9 +98,11 @@ class Project0EndToEndIT {
   @TestConfiguration(proxyBeanMethods = false)
   static class Fake {
     /**
-     * A fake model that cites the first fact and the first part's summary it is given, and words
+     * A fake model that cites the first fact and the first part's summary it is given, words
      * nothing when asked for responsibilities and intent phrases (ADR 0050) or to narrate a flow
-     * (ADR 0058), so the report keeps the static labels and prose this test checks.
+     * (ADR 0058), so the report keeps the static labels and prose this test checks, and answers
+     * unknown when asked to resolve a link left open (ADR 0045), so those links stay open; {@code
+     * Project0LinksIT} checks the resolver's picks.
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -110,6 +112,9 @@ class Project0EndToEndIT {
                 String prompt = request.messages().getFirst().text();
                 if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
                   return "{}";
+                }
+                if (request.role() == Role.RESOLVE) {
+                  return "{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}";
                 }
                 List<String> sentences = new ArrayList<>();
                 if (prompt.contains("[S1]")) {
@@ -202,7 +207,10 @@ class Project0EndToEndIT {
     assertThat(first.newFacts()).isEqualTo(first.facts());
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.wordingsAsked()).isPositive();
-    assertThat(calls).isEqualTo(first.summariesGenerated() + first.wordingsAsked());
+    // The links project-0 leaves open with candidates: HTTP-6, HTTP-7 and MSG-5.
+    long resolves = fake.sent().stream().filter(s -> s.request().role() == Role.RESOLVE).count();
+    assertThat(resolves).isEqualTo(3);
+    assertThat(calls).isEqualTo(first.summariesGenerated() + first.wordingsAsked() + resolves);
     assertThat(first.llm().calls()).isEqualTo(calls);
     List<String> files = new ArrayList<>();
     for (String name : commits.keySet()) {
@@ -280,19 +288,19 @@ class Project0EndToEndIT {
     Map<String, Long> kinds = new TreeMap<>();
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
     // Four units; the catalog and shop databases (the local profile's localhost one is a note);
-    // the shop.orders exchange (its queues folded into its lines), two JMS queues and a Kafka
-    // topic; PayGate, by its default sandbox host (HTTP-4); and the components by role. catalog's
-    // ProductRepository is reached only from ProductController (through Spring Data's findById),
-    // so catalog has one component and no component page.
+    // the shop.orders and shop.returns exchanges (their queues folded into their lines), two JMS
+    // queues and a Kafka topic; PayGate, by its default sandbox host (HTTP-4); and the components
+    // by role. catalog's ProductRepository is reached only from ProductController (through Spring
+    // Data's findById), so catalog has one component and no component page.
     assertThat(kinds)
         .containsExactlyEntriesOf(
             new TreeMap<>(
                 Map.of(
-                    "component", 8L,
+                    "component", 14L,
                     "container", 4L,
                     "database", 2L,
                     "external", 1L,
-                    "queue", 4L,
+                    "queue", 5L,
                     "system", 1L)));
     List<String> pages = new ArrayList<>();
     data.get("pages").forEach(page -> pages.add(page.get("id").asString()));

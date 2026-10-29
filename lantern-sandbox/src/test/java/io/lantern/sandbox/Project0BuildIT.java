@@ -40,9 +40,9 @@ class Project0BuildIT {
       Map.of(
           "catalog", "fc39b6e72803baa33b9e0e3d7ac8cf32fabce394",
           "catalog-lib", "5bc5ec4ba4ffec38da7c0aaf3596be3365ec192f",
-          "fulfilment", "d7a159078e44f5de32d3b3f4aa5fa0ef9cb24921",
-          "payments", "871bf725e98d45d11ea093749943bb555b65bae8",
-          "storefront", "fa592e452e659d26597defe3519ba0ec3bfc5014");
+          "fulfilment", "9c655dbfb97d32e25a5d569b4a1a4e84925078a7",
+          "payments", "e57f8293d681f7e0938b22a60ac30278eadfd715",
+          "storefront", "20297fb839cfe79c38b08a5a2dc0f8e2be266327");
 
   private static final Docker DOCKER = new Docker("docker");
   private static final Duration TIMEOUT = Duration.ofMinutes(2);
