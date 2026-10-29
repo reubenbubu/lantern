@@ -24,15 +24,19 @@ missing, and a Stream producer cannot be matched with a plain `@KafkaListener` c
   `apply`, `accept` or `get` method is the subject). For this the Java structure now records a
   method's erased return type (`Member.returns`), read by javac and by the parser; nothing else
   changes there. Which functions are bound comes from `spring.cloud.function.definition` (or the
-  older `spring.cloud.stream.function.definition`), split on `;` or `,`, a composition `a|b` being
-  one function named `ab` with `a`'s inputs and `b`'s outputs. Without a definition the module's
+  older `spring.cloud.stream.function.definition`), read as Spring Cloud Stream reads it
+  (`FunctionConfiguration`, `BindableFunctionProxyFactory`): `;` separates the functions bound,
+  and `,` is the same as `|`, so a composition `a|b` or `a,b` is one function named `ab` with
+  `a`'s inputs and `b`'s outputs. Without a definition the module's
   only function bean is bound, as Spring Cloud Stream does; with several, none. A module binds
   functions only when its config has a `spring.cloud.stream.*` or `spring.cloud.function.*` key
   or its build classpath has a `spring-cloud-stream-*` jar, so a `Supplier<Clock>` bean in a plain
-  application is not taken for a producer. The bindings are `<name>-in-<n>` and `<name>-out-<n>`:
+  application is not taken for a producer. Without a build, the module's declared POM
+  dependencies stand in for the classpath (below). The bindings are `<name>-in-<n>` and `<name>-out-<n>`:
   the ones the function's type gives, plus any further index the config sets properties for
   (functions over tuples of reactive streams), each renamed by
-  `spring.cloud.stream.function.bindings.<binding>` if set.
+  `spring.cloud.stream.function.bindings.<binding>` if set. That key names a binding, which may
+  look like a secret's (`passwordReset-in-0`), so only the alias's value is checked for secrets.
 - **Destinations and groups** come from `spring.cloud.stream.bindings.<binding>.destination` and
   `.group` (the group also from `spring.cloud.stream.default.group`); a binding without a
   destination uses its own name, as the binder does. A consumer's comma-separated destinations
@@ -46,11 +50,15 @@ missing, and a Stream producer cannot be matched with a plain `@KafkaListener` c
   `spring.cloud.stream.default-binder`, a binder name mapped through
   `spring.cloud.stream.binders.<name>.type`; else the one binder type configured; else the one
   binder jar on the module's build classpath (`spring-cloud-stream-binder-kafka*`,
-  `-rabbit*`); else the one broker the config's keys point to (`spring.cloud.stream.kafka.*` or
-  `spring.kafka.*`, `spring.cloud.stream.rabbit.*` or `spring.rabbitmq.*`). Types `kafka`,
-  `kstream`, `ktable` and `globalktable` are Kafka, `rabbit` RabbitMQ. When none of these tells
-  one broker, the binding gives no facts rather than a guess, so parsed without config hints a
-  module may give fewer facts than built.
+  `-rabbit*`), or, when the repository was not built, the one binder or binder starter
+  (`spring-cloud-starter-stream-kafka`, `-rabbit`) its POM and its parents in the same
+  repository declare as dependencies (dependency management, such as a BOM, only manages
+  versions and adds none; a parent outside the repository is not read); else the one broker the
+  config's keys point to (`spring.cloud.stream.kafka.*` or `spring.kafka.*`,
+  `spring.cloud.stream.rabbit.*` or `spring.rabbitmq.*`). Types `kafka`, `kstream`, `ktable`
+  and `globalktable` are Kafka, `rabbit` RabbitMQ. `broker` stays required: when none of these
+  tells one broker, the binding gives no facts rather than a guess, and a warning names the
+  binding, so such a gap shows in the run's log.
 - **Kafka**: a consumer listens on the topic (`topic-pattern` when the Kafka binder's
   `destination-is-pattern` is true) with its `group`; a producer sends to the topic.
 - **RabbitMQ**: as the binder declares them, the destination is a topic exchange (unless the
