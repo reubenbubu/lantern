@@ -121,5 +121,6 @@ a new `entry-point` child `background-job` and optional attributes on `scheduled
 
 `org.jobrunr.scheduling.` and `org.quartz.` join the tracked APIs. Flows start at both predicates
 like at `@Scheduled` ones, so the call graph from the handler reaches what it publishes; the flow
-from the method that schedules the job into the job is not drawn (#313). Documents call them
+from the method that schedules a `background-job` goes on into the job (ADR 0047, amendment for
+#313). Documents call them
 "JobRunr job" and "Quartz job".
