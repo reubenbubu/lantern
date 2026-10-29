@@ -1,0 +1,8 @@
+stream:
+  payments-topic: cloud.payments.done
+spring:
+  cloud:
+    stream:
+      bindings:
+        process-in-0:
+          destination: cloud.orders

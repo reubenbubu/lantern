@@ -3,24 +3,26 @@
     "name": "message-listener",
     "kind": "attribute",
     "parent": "entry-point",
-    "description": "The subject method handles messages from a broker (@KafkaListener, @JmsListener, @RabbitListener, directly, through a meta-annotation, or on its class with @KafkaHandler or @RabbitHandler): the topic, topic pattern, queue or destination it listens on, one fact for each, with placeholders resolved against the config of the method's module.",
+    "description": "The subject method handles messages from a broker (@KafkaListener, @JmsListener, @RabbitListener, directly, through a meta-annotation, or on its class with @KafkaHandler or @RabbitHandler; or a Spring Cloud Stream input binding of a function bean or a @StreamListener): the topic, topic pattern, queue or destination it listens on, one fact for each, with placeholders resolved against the config of the method's module.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "broker": { "type": "string", "enum": ["kafka", "jms", "rabbitmq"], "description": "Which messaging API the listener uses." },
         "destinationKind": { "type": "string", "enum": ["topic", "topic-pattern", "queue", "destination"], "description": "What the value names: a Kafka topic or topic pattern, a RabbitMQ queue, or a JMS destination (a queue or a topic, as the listener container decides)." },
-        "group": { "type": "string", "description": "The Kafka consumer group: groupId, or else the listener's id. Absent when neither is written." },
-        "annotation": { "type": "string", "description": "The binary name of the annotation written that makes the method a listener." },
+        "group": { "type": "string", "description": "The Kafka consumer group: groupId, or else the listener's id; for a Spring Cloud Stream binding, its group. Absent when none is written." },
+        "annotation": { "type": "string", "description": "The binary name of the annotation written that makes the method a listener. Absent for a Spring Cloud Stream function, which none does." },
+        "binding": { "type": "string", "description": "The Spring Cloud Stream binding the method consumes, such as process-in-0, whose config gives the destination (its own name when none is configured) and group. Absent outside Spring Cloud Stream." },
+        "anonymous": { "type": "boolean", "description": "Present and true for a Spring Cloud Stream RabbitMQ binding without a group: the binder declares an anonymous queue, named here as the destination with .anonymous, whose real name ends in a random suffix." },
         "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value gave a value, when a value was followed from one." }
       },
-      "required": ["broker", "destinationKind", "annotation"],
+      "required": ["broker", "destinationKind"],
       "additionalProperties": false
     }
   },
   {
     "name": "message-send",
     "kind": "attribute",
-    "description": "The subject method sends messages to a broker, through a Kafka, JMS or RabbitMQ template or producer, or as a listener's reply (@SendTo): the topic, destination, exchange or queue it sends to, with constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. A send through the RabbitMQ default exchange is recorded as a send to the queue its routing key names. Values resolved from config are those of the default view unless profile is set.",
+    "description": "The subject method sends messages to a broker, through a Kafka, JMS or RabbitMQ template or producer, or as a listener's reply (@SendTo), or through a Spring Cloud Stream output binding (a function bean's, StreamBridge.send or a legacy @Output channel): the topic, destination, exchange or queue it sends to, with constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. A send through the RabbitMQ default exchange is recorded as a send to the queue its routing key names. Values resolved from config are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -28,16 +30,17 @@
         "destinationKind": { "type": "string", "enum": ["topic", "queue", "exchange", "destination"], "description": "What the value names: a Kafka topic, a RabbitMQ exchange, a RabbitMQ queue (through the default exchange), or a JMS destination." },
         "routingKey": { "type": "string", "description": "The routing key of a send to a RabbitMQ exchange. Absent when it is not known." },
         "routingKeyWritten": { "type": "string", "description": "The routing key as written in the code, when it differs from the resolved one." },
-        "template": { "type": "string", "description": "The binary name of the type whose method sends, such as org.springframework.kafka.core.KafkaTemplate, or the @SendTo annotation for a reply." },
+        "template": { "type": "string", "description": "The binary name of the type whose method sends, such as org.springframework.kafka.core.KafkaTemplate or org.springframework.cloud.stream.function.StreamBridge, the legacy binding interface whose @Output channel is used, or the @SendTo annotation for a reply. Absent for a Spring Cloud Stream function's output." },
         "method": { "type": "string", "description": "The name of the method called, such as convertAndSend. Absent for @SendTo." },
+        "binding": { "type": "string", "description": "The Spring Cloud Stream binding sent through, such as supply-out-0, or the name given to StreamBridge.send; its config gives the destination, else the name is the destination. Absent outside Spring Cloud Stream." },
         "profile": { "type": "string", "description": "The profile active instead of the default one when the value was resolved. Absent for the default view; present only where the value differs from it." },
-        "written": { "type": "string", "description": "The value as written in the code or the @Value it was followed from, when it differs from the resolved value (it had placeholders)." },
+        "written": { "type": "string", "description": "The value as written in the code or the @Value it was followed from, or for a Spring Cloud Stream binding in the config property that sets its destination, when it differs from the resolved value (it had placeholders)." },
         "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders no config value resolved." },
         "masked": { "type": "boolean", "description": "Present and true when a placeholder named a secret, so the values are recorded as written, not resolved." },
         "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave a value, when a value was followed from one." },
         "unknown": { "type": "array", "items": { "type": "string" }, "description": "The values the send has that could not be told, such as routingKey, when the code passes one that cannot be followed." }
       },
-      "required": ["broker", "destinationKind", "template"],
+      "required": ["broker", "destinationKind"],
       "additionalProperties": false
     },
     "objectKind": "string"
@@ -45,7 +48,7 @@
   {
     "name": "message-binding",
     "kind": "attribute",
-    "description": "The subject method binds a RabbitMQ queue to an exchange (BindingBuilder, new Binding, or @QueueBinding on a listener): the queue's name, with the exchange and the routing key or pattern, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Values resolved from config are those of the default view unless profile is set.",
+    "description": "The subject method binds a RabbitMQ queue to an exchange (BindingBuilder, new Binding, or @QueueBinding on a listener; or, for a Spring Cloud Stream input binding, the queue the binder declares for the binding's group, bound to the destination's exchange): the queue's name, with the exchange and the routing key or pattern, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Values resolved from config are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -55,6 +58,8 @@
         "exchangeType": { "type": "string", "description": "The exchange's type, such as topic, direct, fanout or headers, when known. A topic exchange matches routing keys against the binding's pattern with * and # wildcards." },
         "routingKey": { "type": "string", "description": "The binding's routing key or pattern, such as order.*. Absent for a fanout or headers exchange, or when not known." },
         "routingKeyWritten": { "type": "string", "description": "The routing key as written, when it differs from the resolved one." },
+        "binding": { "type": "string", "description": "The Spring Cloud Stream binding the queue is declared for. Absent outside Spring Cloud Stream." },
+        "anonymous": { "type": "boolean", "description": "Present and true when the queue is a Spring Cloud Stream binding's anonymous one, named as the destination with .anonymous; its real name ends in a random suffix." },
         "profile": { "type": "string", "description": "The profile active instead of the default one when the value was resolved. Absent for the default view; present only where the value differs from it." },
         "written": { "type": "string", "description": "The queue's name as written, when it differs from the resolved one (it had placeholders)." },
         "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders no config value resolved." },
