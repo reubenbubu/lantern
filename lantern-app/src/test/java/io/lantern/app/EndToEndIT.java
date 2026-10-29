@@ -37,7 +37,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -102,7 +101,9 @@ import tools.jackson.databind.json.JsonMapper;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class EndToEndIT {
 
-  private static final Path WORKSPACE = tempDirectory();
+  /** The workspace; JUnit removes it after the class, whether its tests passed or not. */
+  @TempDir static Path WORKSPACE;
+
   private static final String RUN_LABEL = "lantern.test.run";
   private static final String RUN =
       HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
@@ -214,12 +215,7 @@ class EndToEndIT {
   @TempDir Path temp;
 
   @AfterAll
-  static void cleanUp() throws IOException {
-    try (Stream<Path> paths = Files.walk(WORKSPACE)) {
-      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-        Files.delete(path);
-      }
-    }
+  static void cleanUp() {
     assertThat(docker("ps", "--all", "--quiet", "--filter", "label=" + RUN_LABEL + "=" + RUN))
         .as("sandbox containers left behind")
         .isEmpty();
@@ -899,14 +895,6 @@ class EndToEndIT {
       for (Path from : paths.sorted().toList()) {
         Files.copy(from, target.resolve(source.relativize(from).toString()));
       }
-    }
-  }
-
-  private static Path tempDirectory() {
-    try {
-      return Files.createTempDirectory("lantern-e2e-workspace-");
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
   }
 
