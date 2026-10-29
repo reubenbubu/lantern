@@ -6,6 +6,7 @@
 # Usage: testsets/project-0/setup.sh [destination]
 # The destination defaults to ~/workspace/lantern-test-projects/project-0. The repository is
 # private, so git needs credentials for github.com (for example from `gh auth setup-git`).
+# Records the pin in <destination>/.lantern-pin, so tests can tell the set is at the current pin.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,3 +31,6 @@ git -C "$checkout" fetch --quiet --depth 1 origin "$commit"
 git -C "$checkout" -c advice.detachedHead=false checkout --quiet --detach "$commit"
 echo "$name @ ${commit:0:12}"
 bash "$checkout/setup.sh" "$@"
+# Records the pin the destination was set up from, which Lantern's tests check (Project0EndToEndIT).
+dest="${1:-$HOME/workspace/lantern-test-projects/project-0}"
+echo "$commit" > "$dest/.lantern-pin"

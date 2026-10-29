@@ -15,6 +15,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -47,15 +48,17 @@ import tools.jackson.databind.JsonNode;
  * shows the units and lines the set's cases call for.
  *
  * <p>project-0 is private, so this runs only where it is set up: in the folder {@code
- * lantern.test.project0} names, where every repository must be at the commit {@code
- * testsets/project-0/setup.sh} makes, or else in the folder that script sets it up in by default,
- * {@code ~/workspace/lantern-test-projects/project-0}. When that property is not set and the
- * default folder is missing or not at those commits, the test is skipped, so {@code ./mvnw verify}
- * passes on a machine without it.
+ * lantern.test.project0} names, or else in the folder {@code testsets/project-0/setup.sh} sets it
+ * up in by default, {@code ~/workspace/lantern-test-projects/project-0}. When that property is not
+ * set and the default folder does not exist, the test is skipped, so {@code ./mvnw verify} passes
+ * on a machine without project-0. A folder that exists must have been set up from the pin in {@code
+ * testsets/project-0/pins.txt}, which setup.sh records in it as {@value #PIN_FILE}; otherwise the
+ * test fails and says to run setup.sh. The pin is the one place for the commits; the repositories'
+ * own commits are read from them.
  *
- * <p>Writes the system's document and its report spec data to {@code target/project-0}, to look at.
- * Builds run in the real sandbox with the application's default Maven cache directory and an owner
- * label of their own; the workspace is a temporary directory.
+ * <p>Writes the system's document, its report spec data and its HTML file to {@code
+ * target/project-0}, to look at. Builds run in the real sandbox with the application's default
+ * Maven cache directory and an owner label of their own; the workspace is a temporary directory.
  */
 @SpringBootTest(
     properties = {
@@ -70,22 +73,21 @@ import tools.jackson.databind.JsonNode;
     })
 @Import({TestcontainersConfiguration.class, Project0EndToEndIT.Fake.class})
 @EnabledIf(
-    value = "project0IsSetUp",
+    value = "project0IsPresent",
     disabledReason =
-        "project-0 is not set up at its pinned commits in ~/workspace/lantern-test-projects/project-0"
-            + " and lantern.test.project0 is not set; run testsets/project-0/setup.sh"
-            + " (docs/adr/0029)")
+        "project-0 is not set up: ~/workspace/lantern-test-projects/project-0 does not exist and"
+            + " lantern.test.project0 is not set; see testsets/project-0/setup.sh (docs/adr/0029)")
 class Project0EndToEndIT {
 
-  /** The commits setup.sh makes from the pinned source, as Project0BuildIT checks them. */
-  private static final Map<String, String> COMMITS =
-      new TreeMap<>(
-          Map.of(
-              "catalog", "fc39b6e72803baa33b9e0e3d7ac8cf32fabce394",
-              "catalog-lib", "5bc5ec4ba4ffec38da7c0aaf3596be3365ec192f",
-              "fulfilment", "d7a159078e44f5de32d3b3f4aa5fa0ef9cb24921",
-              "payments", "871bf725e98d45d11ea093749943bb555b65bae8",
-              "storefront", "fa592e452e659d26597defe3519ba0ec3bfc5014"));
+  /** The file setup.sh writes into the set-up folder, holding the pin it set the folder up from. */
+  static final String PIN_FILE = ".lantern-pin";
+
+  /** The pins of the test set, the one place its commits are named (ADR 0029). */
+  private static final Path PINS = Path.of("..", "testsets", "project-0", "pins.txt");
+
+  /** The made-up repositories, as the source's README lists them. */
+  private static final List<String> NAMES =
+      List.of("catalog", "catalog-lib", "fulfilment", "payments", "storefront");
 
   private static final Path OUT = Path.of("target", "project-0");
   private static final String RUN_LABEL = "lantern.test.run";
@@ -169,11 +171,13 @@ class Project0EndToEndIT {
   void analyzesProject0TwiceAndTheSecondRunMakesNoLlmCall()
       throws IOException, InterruptedException {
     Map<String, Path> repos = project0();
+    Map<String, String> commits = new TreeMap<>();
+    repos.forEach((name, path) -> commits.put(name, Git.run(path, "rev-parse", "HEAD").out()));
 
     AnalysisRun.Result first = run.run(repos);
     int calls = fake.sent().size();
 
-    assertThat(first.snapshot().commits()).isEqualTo(COMMITS);
+    assertThat(first.snapshot().commits()).isEqualTo(commits);
     assertThat(first.reusedBuilds()).isEmpty();
     first
         .builds()
@@ -182,17 +186,17 @@ class Project0EndToEndIT {
                 assertThat(build.status())
                     .as(name + ": " + build.failure())
                     .isEqualTo(BuildStatus.SUCCEEDED));
-    assertThat(first.builds()).containsOnlyKeys(COMMITS.keySet());
+    assertThat(first.builds()).containsOnlyKeys(commits.keySet());
     // BUILD-1: catalog builds only with catalog-lib's build (ADR 0041).
     assertThat(first.builds().get("catalog").upstream())
-        .containsExactly("catalog-lib@" + COMMITS.get("catalog-lib"));
+        .containsExactly("catalog-lib@" + commits.get("catalog-lib"));
     assertThat(first.facts()).isPositive();
     assertThat(first.newFacts()).isEqualTo(first.facts());
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(calls).isEqualTo(first.summariesGenerated());
     assertThat(first.llm().calls()).isEqualTo(calls);
     List<String> files = new ArrayList<>();
-    for (String name : COMMITS.keySet()) {
+    for (String name : commits.keySet()) {
       files.addAll(List.of(name + ".html", name + ".brief.html", name + ".c4.html"));
     }
     files.add("_system.c4.html");
@@ -204,9 +208,9 @@ class Project0EndToEndIT {
 
     assertThat(fake.sent()).as("LLM requests in the second run").hasSize(calls);
     assertThat(second.llm().calls()).as("LLM calls logged in the second run").isZero();
-    assertThat(second.snapshot().commits()).isEqualTo(COMMITS);
-    assertThat(second.reusedBuilds()).containsExactlyInAnyOrderElementsOf(COMMITS.keySet());
-    for (String name : COMMITS.keySet()) {
+    assertThat(second.snapshot().commits()).isEqualTo(commits);
+    assertThat(second.reusedBuilds()).containsExactlyInAnyOrderElementsOf(commits.keySet());
+    for (String name : commits.keySet()) {
       BuildResult reused = second.builds().get(name);
       assertThat(reused).as(name).isEqualTo(first.builds().get(name));
     }
@@ -234,7 +238,9 @@ class Project0EndToEndIT {
                       before.sections())));
     }
 
-    checkSystemReport(second.documents().getLast().document());
+    AnalysisRun.Rendered system = second.documents().getLast();
+    checkSystemReport(system.document());
+    Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
   }
 
   /**
@@ -313,17 +319,16 @@ class Project0EndToEndIT {
   }
 
   /**
-   * Whether to run: {@code lantern.test.project0} is set, or project-0 is set up at the pinned
-   * commits in the default folder. Checked before the application starts, so a skipped run starts
-   * no database.
+   * Whether to run: {@code lantern.test.project0} is set, or the default folder exists. Checked
+   * before the application starts, so a skipped run starts no database.
    */
-  static boolean project0IsSetUp() {
-    return given() != null || problem(defaultFolder()) == null;
+  static boolean project0IsPresent() {
+    return given() != null || Files.exists(defaultFolder());
   }
 
   /**
    * Each project-0 repository, by name: in the folder {@code lantern.test.project0} names, or else
-   * in the default folder; each must be at its pinned commit.
+   * in the default folder, which setup.sh must have set up from the current pin.
    */
   private static Map<String, Path> project0() throws IOException {
     String given = given();
@@ -333,15 +338,36 @@ class Project0EndToEndIT {
           .isTrue();
     }
     Path setUp = given == null ? defaultFolder() : Path.of(given);
-    String problem = problem(setUp);
-    assertThat(problem)
-        .as("project-0 is not set up: %s; run testsets/project-0/setup.sh again", problem)
-        .isNull();
+    String pin = pin();
+    Path pinFile = setUp.resolve(PIN_FILE);
+    String setUpFrom = Files.isRegularFile(pinFile) ? Files.readString(pinFile).strip() : null;
+    assertThat(setUpFrom)
+        .as(
+            "project-0 in %s was not set up from the pin %s in %s (it holds %s); run"
+                + " testsets/project-0/setup.sh, removing the old repositories first if it says"
+                + " so (docs/adr/0029)",
+            setUp, pin, PINS.normalize(), setUpFrom == null ? "no " + PIN_FILE : setUpFrom)
+        .isEqualTo(pin);
     Map<String, Path> repos = new TreeMap<>();
-    for (String name : COMMITS.keySet()) {
-      repos.put(name, setUp.resolve(name).toRealPath());
+    for (String name : NAMES) {
+      Path path = setUp.resolve(name);
+      assertThat(Files.isDirectory(path.resolve(".git")))
+          .as("%s is not a git repository; run testsets/project-0/setup.sh again", path)
+          .isTrue();
+      repos.put(name, path.toRealPath());
     }
     return repos;
+  }
+
+  /** The commit the one line of pins.txt pins the source to. */
+  private static String pin() throws IOException {
+    List<String> lines =
+        Files.readAllLines(PINS).stream()
+            .map(String::strip)
+            .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+            .toList();
+    assertThat(lines).as(PINS.toString()).hasSize(1);
+    return lines.getFirst().split("\\s+")[2];
   }
 
   /** The folder {@code lantern.test.project0} names, or null if it is not set. */
@@ -354,26 +380,6 @@ class Project0EndToEndIT {
   private static Path defaultFolder() {
     return Path.of(System.getProperty("user.home"), "workspace", "lantern-test-projects")
         .resolve("project-0");
-  }
-
-  /** Why the folder does not hold every repository at its pinned commit, or null if it does. */
-  private static String problem(Path setUp) {
-    for (Map.Entry<String, String> e : COMMITS.entrySet()) {
-      Path path = setUp.resolve(e.getKey());
-      if (!Files.isDirectory(path.resolve(".git"))) {
-        return path + " is not a git repository";
-      }
-      String head;
-      try {
-        head = Git.run(path, "rev-parse", "HEAD").out();
-      } catch (RuntimeException ex) {
-        return path + ": " + ex.getMessage();
-      }
-      if (!head.equals(e.getValue())) {
-        return path + " is at " + head + ", not at the pinned commit " + e.getValue();
-      }
-    }
-    return null;
   }
 
   /** The workspace, a temporary directory made only when the test runs. */
