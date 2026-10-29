@@ -170,6 +170,9 @@ final class Assembler {
     return modules.isEmpty() ? id : modules.first();
   }
 
+  private static final java.util.regex.Pattern OWN_DATABASE =
+      java.util.regex.Pattern.compile("[a-z0-9]+:(.+?)(?:@(.+))?");
+
   /** The entity's display name. */
   String name(EntityId id) {
     String key = id.key();
@@ -186,6 +189,22 @@ final class Assembler {
           yield key;
         }
         String server = key.substring(0, slash);
+        java.util.regex.Matcher own = OWN_DATABASE.matcher(key.substring(slash + 1));
+        if (own.matches()) {
+          // A unit's own database (#255, #291): <unit>/<technology>:<database>[@<datasource key>].
+          // Named by its database when written out, else "<unit name> database"; the technology
+          // is shown as technology, not in the name.
+          String database = own.group(1);
+          String datasource = own.group(2);
+          if (database.equals(server)) {
+            EntityId unit = new EntityId(BuiltInTypes.SERVICE, server);
+            database =
+                C4Views.applicationName(knowledge, unit)
+                        .orElse(server.substring(server.lastIndexOf(':') + 1))
+                    + " database";
+          }
+          yield datasource == null ? database : database + " (" + datasource + ")";
+        }
         int colon = server.lastIndexOf(':');
         String host =
             colon > 0 && server.substring(colon + 1).matches("[0-9]+")

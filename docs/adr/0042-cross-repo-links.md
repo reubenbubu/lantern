@@ -80,7 +80,8 @@ its path is known, and what is matched when.
   describes containers, not only units). An embedded database without a server is the unit's own
   (keyed by the unit), and so is one whose server or database is a placeholder no config resolves
   (#255): it is named by its database when that is written out, else by the unit, and is never
-  shared. The link lists the schemas the unit's migrations build. A unit whose code
+  shared. Its key is `<unit>/<technology>:<name>`; the views show it as its database name, else
+  "<unit name> database" (#291), with the technology as technology, never the key. The link lists the schemas the unit's migrations build. A unit whose code
   reads or writes (`READS_TABLE`, `WRITES_TABLE`, ADR 0036) a table, by name, that another unit's
   schema declares and that it does not declare itself, `ACCESSES_DATA_OF` that unit, with the
   tables in `reads` and `writes` (DB-5), when in the view the database of the first unit's main
