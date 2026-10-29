@@ -212,8 +212,13 @@ class EndToEndIT {
     // Two repositories, the service depending on the library.
     Path lib = fixtureRepo("lib-and-service/lib", "greeting-lib");
     Path service = fixtureRepo("lib-and-service/service", "greeting-service");
-    // A README, whose claims the docs extractor gives origin kind readme, not static (#165).
+    // A README and a decision record, whose facts the docs extractor gives origin kind readme, not
+    // static (#165).
     TestGitRepo.init(lib).commit("README.md", "# Greeting\n\nThe library greets people.\n");
+    TestGitRepo.init(lib)
+        .commit(
+            "docs/adr/0001-plain-java.md",
+            "# 1. Plain Java\n\n## Status\n\nAccepted\n\n## Decision\n\nNo framework.\n");
 
     AnalysisRun.Result first = run.run(Map.of("greeting-lib", lib));
     List<Fact> libFacts = validIn(first, "greeting-lib");
@@ -221,8 +226,13 @@ class EndToEndIT {
     List<Fact> readmeFacts =
         libFacts.stream().filter(f -> f.origin().kind() == Origin.Kind.README).toList();
     assertThat(readmeFacts)
+        .filteredOn(f -> f.predicate().equals(DocsExtractor.CLAIM))
+        .extracting(f -> f.object().value())
+        .containsExactly("The library greets people.");
+    assertThat(readmeFacts)
+        .filteredOn(f -> f.subject().type().equals(DocsExtractor.DECISION))
         .extracting(f -> f.predicate() + " " + f.object().value())
-        .containsExactly(DocsExtractor.CLAIM + " The library greets people.");
+        .contains(DocsExtractor.TITLE + " Plain Java");
 
     // The second run analyzes only the service; the library is carried forward, its facts keep
     // holding, and the service's dependency on it is found as internal. The service builds, with
@@ -324,11 +334,15 @@ class EndToEndIT {
     assertThat(rebuiltService.status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(rebuiltService.upstream()).containsExactly("greeting-lib@" + failedLib);
     assertThat(rebuiltService.startedAt()).isAfter(serviceBuild.startedAt());
-    // The README claim of the old commit stops holding, and the new commit's holds.
+    // The README and decision facts of the old commit stop holding, and the new commit's claim
+    // holds.
     List<Fact> movedLib = validIn(moved, "greeting-lib");
     assertThat(movedLib).doesNotContainAnyElementsOf(readmeFacts);
     assertThat(movedLib)
-        .filteredOn(f -> f.origin().kind() == Origin.Kind.README)
+        .filteredOn(
+            f ->
+                f.origin().kind() == Origin.Kind.README
+                    && f.predicate().equals(DocsExtractor.CLAIM))
         .extracting(f -> f.object().value())
         .containsExactly("The library says hello.");
     for (Fact fact : readmeFacts) {
