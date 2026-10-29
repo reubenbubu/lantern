@@ -111,6 +111,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Messaging | Kafka, JMS, RabbitMQ listeners and templates; Spring Cloud Stream bindings and `StreamBridge` | Topics, exchanges, queues, bindings and routing keys produced and consumed |
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
 | Redis | Redis templates and operations, `@RedisHash`, Spring Session, lock registries, the gateway's rate limiter and caches in code, config and POM dependencies; Redis images in compose files | How each module uses Redis, with the keys the code writes out, and the product and version Redis runs as |
+| People | Role checks (`@PreAuthorize`, `@Secured`, `@RolesAllowed`, `hasRole`), Keycloak realm roles, types about members and invitations, and the routes of Angular, React and Vue frontends | The evidence for who uses the system, each citing its line; the linker makes people of it |
 | Config | `.properties`, `.yml` (`application*` and `bootstrap*`), Spring profiles, env-var placeholders | Resolved and unresolved config values per profile, including `spring.application.name` |
 | SQL | Flyway and Liquibase migrations, `.sql` files (JSqlParser) | Schema as of the commit: tables, columns, keys |
 | Tests | Test sources, parsed without compiling or running them | Test classes per module, how many tests each declares, and which are architecture tests (ArchUnit and similar) |
@@ -137,6 +138,8 @@ Which migrations and SQL files the SQL extractor reads, in what order, and how i
 How the Spring / Jakarta extractor reads annotations and meta-annotations through the Java extractor's reading of the code, what facts it makes of stereotypes, main classes, endpoints, scheduled jobs (including JobRunr and Quartz) and profile gates, and which config resolves their placeholders is in ADR 0035. Aspects and the methods they advise are in ADR 0079.
 
 How the Persistence extractor finds entities, repositories and SQL in code, names the tables they touch, and records datasource URLs per profile without credentials is in ADR 0036.
+
+How people are inferred from roles, memberships, invitations, sign-in and frontend routes, and always marked inferred, is in ADR 0074.
 
 How Redis becomes a data store, found from the code, config, dependencies and compose files and linked per server with the protocol RESP, is in ADR 0073.
 
@@ -243,6 +246,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | Messaging | Topic, exchange or queue names and routing keys, produced vs. consumed, with AMQP topic wildcards (`order.*`) matched as the broker matches them |
 | Shared database | Datasource URLs and table names; Redis servers (`spring.data.redis.*`), one data store per server |
 | Shared config | Common property keys and config servers |
+| People | Roles the code checks, the members of things it has members of, invitations, sign-up and sign-in, and the frontend routes for them; each kind of person is a `person` entity, inferred (ADR 0074) |
 
 A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open. The exception is Redis: units whose host and port are the same unresolved placeholders (`${redis.host}`) are taken to share one server, since a deployment fills them from one environment (ADR 0073). A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
 

@@ -139,7 +139,9 @@ final class Assembler {
             && (summaries.containsKey(summarized(id)) || responsibility(id) != null)
         // A data store or destination has no summary; it is described wherever a diagram draws
         // it, by its responsibility sentence (ADR 0056).
-        || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)) {
+        || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)
+        // A person is described by what the code shows of them (ADR 0074).
+        || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)) {
       undescribed.add(id);
     }
     return id;
@@ -200,6 +202,7 @@ final class Assembler {
       }
       case C4Views.TOPIC, C4Views.QUEUE, C4Views.EXCHANGE -> key.substring(key.indexOf(':') + 1);
       case C4Views.DECISION -> knowledge.attribute(id, "title").orElse(key);
+      case C4Views.PERSON -> knowledge.attribute(id, "display-name").orElse(key);
       case BuiltInTypes.MODULE, BuiltInTypes.LIBRARY, BuiltInTypes.PACKAGE, "artifact" ->
           key.substring(key.lastIndexOf(':') + 1);
       case BuiltInTypes.TYPE -> key.substring(key.lastIndexOf('.') + 1).replace('$', '.');
@@ -519,17 +522,50 @@ final class Assembler {
       DocumentEntity entity = entities.get(undescribed.removeFirst());
       String responsibility = responsibility(entity.id());
       List<Inline> description =
-          entity.id().equals(RepoSections.SYSTEM) && responsibility != null
-              ? purpose().content()
-              : responsibility != null
-                  ? responsibility(entity.id(), responsibility).content()
-                  : summarizedDescription(entity.id()).content();
+          entity.id().type().equals(C4Views.PERSON) && personBasis(entity.id()) != null
+              ? person(entity.id()).content()
+              : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+                  ? purpose().content()
+                  : responsibility != null
+                      ? responsibility(entity.id(), responsibility).content()
+                      : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
               entity.id(), entity.name(), entity.parent(), description, entity.facts()));
     }
     return List.copyOf(entities.values());
+  }
+
+  /** The fact saying what a person rests on, or {@code null}. */
+  private Fact personBasis(EntityId id) {
+    return knowledge.attributes(id).stream()
+        .filter(f -> f.predicate().equals(C4Views.PERSON_BASIS))
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * The description of a person: the sentence the linker wrote from the code's own words, opened
+   * with {@value #INFERRED_SENTENCE} since a person is always inferred (ADR 0074), citing the facts
+   * it rests on.
+   */
+  private Text person(EntityId id) {
+    Fact basis = personBasis(id);
+    List<Fact> cited = new ArrayList<>(List.of(basis));
+    for (String factId : C4Views.strings(basis, "cites")) {
+      Fact fact = knowledge.fact(factId);
+      if (fact != null) {
+        cited.add(fact);
+      }
+    }
+    List<String> ids = facts(cited);
+    return opened(
+        INFERRED_SENTENCE,
+        new Text(
+            List.of(
+                TextRun.of(basis.attributes().path("description").asString()), new Citation(ids)),
+            ids));
   }
 
   /**

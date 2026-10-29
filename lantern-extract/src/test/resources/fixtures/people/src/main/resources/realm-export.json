@@ -1,0 +1,19 @@
+{
+  "realm": "my-realm",
+  "roles": {
+    "realm": [
+      {
+        "name": "offline_access"
+      },
+      {
+        "name": "default-roles-my-realm"
+      },
+      {
+        "name": "ADMIN"
+      },
+      {
+        "name": "editor"
+      }
+    ]
+  }
+}

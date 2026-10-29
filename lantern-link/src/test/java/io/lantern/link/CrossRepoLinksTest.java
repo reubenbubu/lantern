@@ -16,12 +16,16 @@ import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.extract.people.PeopleExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -1307,6 +1311,180 @@ class CrossRepoLinksTest {
         "t",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         4);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // People
+
+  private void evidence(String subject, String kind, String attributes, String where) {
+    add(
+        PeopleExtractor.NAME,
+        subject,
+        PeopleExtractor.PERSON_EVIDENCE,
+        FactObject.string(kind),
+        attributes,
+        where,
+        0.7);
+  }
+
+  private void signInEndpoint(String path) {
+    add(
+        SpringExtractor.NAME,
+        "method:a.AuthController#in()",
+        SpringExtractor.ENDPOINT,
+        FactObject.string("POST " + path),
+        "{\"httpMethod\":\"POST\",\"path\":\""
+            + path
+            + "\",\"controller\":\"a.AuthController\","
+            + "\"annotation\":\"org.springframework.web.bind.annotation.PostMapping\","
+            + "\"framework\":\"spring-mvc\"}",
+        "auth:src/main/java/a/AuthController.java#9",
+        1.0);
+  }
+
+  private Map<String, Fact> people() {
+    Map<String, Fact> result = new TreeMap<>();
+    linked().stream()
+        .filter(f -> f.subject().type().equals("person") && f.predicate().equals("person-basis"))
+        .forEach(f -> result.put(f.subject().key(), f));
+    return result;
+  }
+
+  private String nameOf(String person) {
+    return linked().stream()
+        .filter(f -> f.subject().toString().equals("person:" + person))
+        .filter(f -> f.predicate().equals("display-name"))
+        .map(f -> f.object().value())
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void membersAndTheInvitedAreInferredPeopleLinkedToTheScreensOfTheFrontendThatHasThem() {
+    evidence(
+        "type:m.RequiresOrganizationMembership",
+        "membership",
+        "{\"scope\":\"Organization\",\"type\":\"m.RequiresOrganizationMembership\"}",
+        "main:src/main/java/m/RequiresOrganizationMembership.java#7");
+    evidence(
+        "type:m.OrganizationInvitation",
+        "invitation",
+        "{\"type\":\"m.OrganizationInvitation\"}",
+        "main:src/main/java/m/OrganizationInvitation.java#6");
+    evidence(
+        "repo:web",
+        "route",
+        "{\"framework\":\"angular\",\"path\":\"/invitation/:invitationId\"}",
+        "web:src/app/app.routes.ts#5");
+    evidence(
+        "repo:web",
+        "route",
+        "{\"framework\":\"angular\",\"path\":\"/registration\"}",
+        "web:src/app/app.routes.ts#6");
+    evidence(
+        "repo:web",
+        "route",
+        "{\"framework\":\"angular\",\"path\":\"/tasks\"}",
+        "web:src/app/app.routes.ts#7");
+    signInEndpoint("/api/auth/sign-in");
+
+    Map<String, Fact> people = people();
+
+    assertThat(people.keySet()).containsExactly("invited-user", "organization-member");
+    assertThat(nameOf("organization-member")).isEqualTo("Organization member");
+    assertThat(nameOf("invited-user")).isEqualTo("Invited user");
+    Fact member = people.get("organization-member");
+    assertThat(member.object().value()).isEqualTo("member");
+    assertThat(member.attributes().get("frontends").toString()).isEqualTo("[\"web\"]");
+    assertThat(member.attributes().get("repos").toString())
+        .isEqualTo("[\"auth\",\"main\",\"web\"]");
+    assertThat(member.attributes().get("description").asString())
+        .startsWith("The code has members of an organization: it checks membership in")
+        .contains("RequiresOrganizationMembership")
+        .contains("It signs up and in at POST /api/auth/sign-in.")
+        .contains("web has the screens /registration.")
+        .doesNotContain("/tasks");
+    assertThat(people.get("invited-user").attributes().get("description").asString())
+        .contains("OrganizationInvitation")
+        .contains("web has the screens /invitation/:invitationId.")
+        .doesNotContain("sign");
+    assertThat(member.confidence()).isEqualTo(0.7);
+    // Every fact it cites is a fact of the snapshot.
+    Set<String> known = facts.stream().map(Fact::id).collect(java.util.stream.Collectors.toSet());
+    for (Fact person : people.values()) {
+      for (var id : person.attributes().get("cites")) {
+        assertThat(known).contains(id.asString());
+      }
+    }
+  }
+
+  @Test
+  void eachRoleTheCodeChecksIsAPersonNamedByTheRoleAcrossTheWaysItIsWritten() {
+    evidence(
+        "method:m.Orders#all()",
+        "role",
+        "{\"name\":\"EVENT_STAFF\",\"source\":\"PreAuthorize\"}",
+        "m:src/main/java/m/Orders.java#12");
+    evidence(
+        "method:m.Orders#scan()",
+        "role",
+        "{\"name\":\"EVENT_STAFF\",\"source\":\"Secured\"}",
+        "m:src/main/java/m/Orders.java#20");
+    evidence(
+        "repo:kc",
+        "role",
+        "{\"name\":\"Event_staff\",\"source\":\"keycloak-realm\"}",
+        "kc:realm.json#4");
+    evidence(
+        "repo:kc", "role", "{\"name\":\"admin\",\"source\":\"keycloak-realm\"}", "kc:realm.json#8");
+
+    assertThat(people().keySet()).containsExactly("admin", "event-staff");
+    assertThat(nameOf("event-staff")).isEqualTo("Event staff");
+    assertThat(nameOf("admin")).isEqualTo("Admin");
+    assertThat(people().get("event-staff").attributes().get("cites")).hasSize(3);
+    assertThat(people().get("admin").attributes().get("description").asString())
+        .isEqualTo("The code checks the role admin (a role of the Keycloak realm, realm.json).");
+  }
+
+  @Test
+  void signingUpAndInWithNoMemberOrRoleMakesTheUser() {
+    signInEndpoint("/api/auth/sign-in");
+    signInEndpoint("/register/{id}");
+    signInEndpoint("/orders");
+
+    assertThat(people().keySet()).containsExactly("user");
+    assertThat(people().get("user").object().value()).isEqualTo("account");
+    assertThat(people().get("user").attributes().get("description").asString())
+        .contains("POST /api/auth/sign-in")
+        .contains("POST /register/{id}")
+        .doesNotContain("/orders");
+  }
+
+  @Test
+  void aCodeWithNoSignOfUsersHasNoPeople() {
+    unit("shop", "shop-app", "shop");
+    signInEndpoint("/orders");
+    evidence("repo:web", "route", "{\"framework\":\"vue\",\"path\":\"/cart\"}", "web:router.js#3");
+
+    assertThat(people()).isEmpty();
+  }
+
+  @Test
+  void aCodeWithManyRolesMakesPeopleOfTheMostChecked() {
+    for (int n = 0; n < PeopleLinker.MAX_ROLES + 3; n++) {
+      evidence(
+          "method:m.A#m" + n + "()",
+          "role",
+          "{\"name\":\"R" + (char) ('A' + n) + "\",\"source\":\"Secured\"}",
+          "m:src/main/java/m/A.java#" + (n + 1));
+    }
+    evidence(
+        "method:m.A#again()",
+        "role",
+        "{\"name\":\"RC\",\"source\":\"Secured\"}",
+        "m:src/main/java/m/A.java#99");
+
+    assertThat(people()).hasSize(PeopleLinker.MAX_ROLES).containsKey("rc");
   }
 
   @Test

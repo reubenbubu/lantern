@@ -1,0 +1,36 @@
+[
+  {
+    "name": "person-evidence",
+    "kind": "attribute",
+    "description": "The subject (a type, a method or a repository) shows that people use the system in the way the value names: role (a role or authority that Spring Security, Jakarta or a Keycloak realm names), membership (a type about members of something, such as an organization), invitation (a type about invitations people receive) or route (a screen of a frontend, by its path). It records only what the code says; the linker decides which people it makes of it.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "For a role, the role as the code names it, without the ROLE_ prefix."
+        },
+        "source": {
+          "type": "string",
+          "description": "For a role, where it is named: the annotation (PreAuthorize, PostAuthorize, Secured, RolesAllowed), the security call (hasRole, hasAnyRole, hasAuthority, hasAnyAuthority) or keycloak-realm."
+        },
+        "scope": {
+          "type": "string",
+          "description": "For a membership, the word before Member in the type's name, such as Organization; absent when the name has none."
+        },
+        "type": {
+          "type": "string",
+          "description": "For a membership or an invitation, the binary name of the type."
+        },
+        "path": {
+          "type": "string",
+          "description": "For a route, the path as the frontend's router writes it."
+        },
+        "framework": {
+          "type": "string",
+          "description": "For a route, the router: angular, react or vue."
+        }
+      }
+    }
+  }
+]
