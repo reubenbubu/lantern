@@ -44,7 +44,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The Resolve role of the design for links static matching leaves open (ADR 0044): for each {@code
+ * The Resolve role of the design for links static matching leaves open (ADR 0045): for each {@code
  * unresolved-link} with candidates, it shows the model the call or send, the facts it comes from
  * and the candidate units with their facts, and asks it to pick one candidate or answer unknown. A
  * pick becomes a {@code CALLS_HTTP} or {@code SENDS_MESSAGES_TO} fact of origin {@code llm}, at a

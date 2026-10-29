@@ -2,7 +2,6 @@ package io.lantern.compose;
 
 import io.lantern.core.document.Block;
 import io.lantern.core.document.CrossReference;
-import io.lantern.core.document.Diagram;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.ListBlock;
@@ -37,28 +36,42 @@ import tools.jackson.databind.JsonNode;
  */
 final class RepoSections {
 
-  private static final String METHOD = "method";
-  private static final String FIELD = "field";
   static final String BUILD_DEPENDS_ON = "BUILD_DEPENDS_ON";
-  private static final String PACKAGES = "PACKAGES";
   private static final String PACKAGING = "packaging";
   private static final String ARTIFACT = "artifact";
   private static final Set<String> TRANSITIVE_SCOPES = Set.of("compile", "runtime");
+
+  /** The software system all repositories of a snapshot form, the system scope's subject. */
+  static final EntityId SYSTEM = new EntityId(BuiltInTypes.SYSTEM, "snapshot");
+
+  /** How many repositories the system's name lists before it counts them instead. */
+  private static final int NAMED_REPOS = 4;
 
   private final Knowledge knowledge;
   private final Map<EntityId, Summary> summaries;
   private final String repo;
   private final EntityId repoId;
-  private final SortedSet<EntityId> modules;
+  private final SortedSet<String> repos;
+  private final SortedSet<EntityId> modules = new TreeSet<>(Knowledge.BY_ID);
   private final SortedSet<EntityId> containers = new TreeSet<>(Knowledge.BY_ID);
   private final Assembler assembler;
+  private final C4Views c4;
 
-  RepoSections(Knowledge knowledge, Map<EntityId, Summary> summaries, String repo) {
+  /**
+   * @param repo the repository the document is about, or {@code null} for the whole system
+   * @param snapshotRepos the snapshot's repositories, which together form the system
+   */
+  RepoSections(
+      Knowledge knowledge,
+      Map<EntityId, Summary> summaries,
+      String repo,
+      SortedSet<String> snapshotRepos) {
     this.knowledge = knowledge;
     this.summaries = summaries;
     this.repo = repo;
-    this.repoId = Assembler.repo(repo);
-    this.modules = knowledge.modules(repo);
+    this.repoId = repo == null ? SYSTEM : Assembler.repo(repo);
+    this.repos = repo == null ? snapshotRepos : new TreeSet<>(Set.of(repo));
+    this.repos.forEach(r -> modules.addAll(knowledge.modules(r)));
     SortedSet<EntityId> inScope = new TreeSet<>(Knowledge.BY_ID);
     inScope.add(repoId);
     for (EntityId module : modules) {
@@ -70,9 +83,29 @@ final class RepoSections {
         inScope.addAll(knowledge.typesWithin(pkg));
       }
     }
+    if (repo == null) {
+      repos.forEach(r -> inScope.add(Assembler.repo(r)));
+    }
+    SortedSet<EntityId> units =
+        repo == null ? C4Views.units(knowledge) : C4Views.units(knowledge, modules);
     inScope.addAll(containers);
-    this.assembler = new Assembler(knowledge, summaries, inScope, repo);
+    inScope.addAll(units);
+    this.assembler = new Assembler(knowledge, summaries, inScope, repo, systemName(snapshotRepos));
     inScope.forEach(assembler::entity);
+    this.c4 = new C4Views(knowledge, assembler, SYSTEM, units, repos);
+  }
+
+  /** The system's name: its repositories, or how many there are. */
+  private static String systemName(SortedSet<String> repos) {
+    if (repos.isEmpty()) {
+      return "The system";
+    }
+    if (repos.size() > NAMED_REPOS) {
+      return "System of " + repos.size() + " repositories";
+    }
+    List<String> names = new ArrayList<>(repos);
+    String last = names.removeLast();
+    return names.isEmpty() ? last : String.join(", ", names) + " and " + last;
   }
 
   List<DocumentEntity> entities() {
@@ -89,15 +122,21 @@ final class RepoSections {
     List<Section> subsections = new ArrayList<>();
     switch (kind) {
       case OVERVIEW -> overview(id, blocks);
-      case CONTEXT -> blocks.add(context(id));
-      case CONTAINERS -> blocks.add(containers(id));
-      case COMPONENTS -> containers.forEach(c -> subsections.add(components(id, c)));
+      case CONTEXT -> blocks.addAll(c4.context(id));
+      case CONTAINERS -> c4.containers(id, blocks, subsections);
+      case COMPONENTS -> subsections.addAll(c4.components(id));
       case DEPENDENCIES -> dependencies(id, blocks);
       case STRUCTURE -> structure(id, blocks);
       case HEADLINES -> blocks.add(headlines(id));
       case RISKS ->
           blocks.addAll(
-              new RepoRisks(knowledge, assembler, repo, modules, containers, this::packageEdges)
+              new RepoRisks(
+                      knowledge,
+                      assembler,
+                      repo,
+                      modules,
+                      containers,
+                      c -> PackageDependencies.of(knowledge, c))
                   .callouts(id));
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
@@ -106,6 +145,10 @@ final class RepoSections {
   // Overview: the repository's summary and what it builds.
 
   private void overview(String section, List<Block> blocks) {
+    if (repo == null) {
+      systemOverview(section, blocks);
+      return;
+    }
     paragraph(section, repoId).ifPresent(blocks::add);
     List<ListBlock.Item> items = new ArrayList<>();
     for (EntityId container : containers) {
@@ -122,6 +165,42 @@ final class RepoSections {
     }
   }
 
+  /** The system's repositories, each with the deployable units whose own code it holds. */
+  private void systemOverview(String section, List<Block> blocks) {
+    List<ListBlock.Item> items = new ArrayList<>();
+    for (String name : repos) {
+      EntityId id = Assembler.repo(name);
+      List<Inline> content = new ArrayList<>();
+      content.add(new CrossReference(name, CrossReference.Target.entity(id)));
+      List<EntityId> units = new ArrayList<>();
+      List<Fact> facts = new ArrayList<>();
+      for (EntityId unit : C4Views.units(knowledge)) {
+        for (EntityId module : knowledge.parts(unit, BuiltInTypes.MODULE)) {
+          if (knowledge.repos(module).contains(name) && !units.contains(unit)) {
+            units.add(unit);
+            facts.addAll(knowledge.containsFacts(unit, module));
+          }
+        }
+      }
+      if (units.isEmpty()) {
+        content.add(TextRun.of(": no deployable unit"));
+      } else {
+        content.add(TextRun.of(": runs "));
+        for (int i = 0; i < units.size(); i++) {
+          if (i > 0) {
+            content.add(TextRun.of(i == units.size() - 1 ? " and " : ", "));
+          }
+          EntityId unit = units.get(i);
+          content.add(new CrossReference(assembler.name(unit), CrossReference.Target.entity(unit)));
+        }
+      }
+      items.add(new ListBlock.Item(content, assembler.facts(facts)));
+    }
+    if (!items.isEmpty()) {
+      blocks.add(new ListBlock(assembler.id(section, "repositories"), false, items, List.of()));
+    }
+  }
+
   private Optional<Paragraph> paragraph(String section, EntityId entity) {
     Summary summary = summaries.get(entity);
     if (summary == null) {
@@ -132,31 +211,7 @@ final class RepoSections {
         new Paragraph(assembler.id(section, "summary"), text.content(), text.facts()));
   }
 
-  // System context: the repository and the repositories it depends on or that depend on it.
-
-  private Diagram context(String section) {
-    Map<EntityId, Map<EntityId, List<Fact>>> edges = repoEdges();
-    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
-    nodes.put(repoId, node(repoId, null, null, List.of()));
-    List<Diagram.Edge> diagramEdges = new ArrayList<>();
-    Set<String> edgeIds = new HashSet<>();
-    edges.forEach(
-        (from, targets) ->
-            targets.forEach(
-                (to, facts) -> {
-                  for (EntityId end : List.of(from, to)) {
-                    nodes.computeIfAbsent(end, e -> node(e, null, null, List.of()));
-                  }
-                  diagramEdges.add(edge(edgeIds, from, BUILD_DEPENDS_ON, to, "depends on", facts));
-                }));
-    return new Diagram(
-        assembler.id(section, "diagram"),
-        Diagram.Kind.C4_CONTEXT,
-        "System context of " + repo,
-        List.copyOf(nodes.values()),
-        diagramEdges,
-        List.of());
-  }
+  // Build dependencies between repositories, for the headline numbers.
 
   /**
    * The build dependencies, outside test scope, between the repository and other repositories of
@@ -184,94 +239,6 @@ final class RepoSections {
     return edges;
   }
 
-  // Containers: the services and libraries the repository builds and what they depend on.
-
-  private Diagram containers(String section) {
-    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
-    nodes.put(repoId, node(repoId, null, null, List.of()));
-    for (EntityId container : containers) {
-      nodes.put(
-          container, node(container, technology(container), repoId, containerFacts(container)));
-    }
-    Map<EntityId, Map<String, Map<EntityId, List<Fact>>>> edges = new TreeMap<>(Knowledge.BY_ID);
-    for (EntityId container : containers) {
-      for (EntityId module : knowledge.parts(container, BuiltInTypes.MODULE)) {
-        for (Fact fact : knowledge.relations(module, BUILD_DEPENDS_ON)) {
-          if (isTestScope(fact)) {
-            continue;
-          }
-          for (EntityId target : knowledge.containers(Knowledge.object(fact))) {
-            if (!target.equals(container)) {
-              edgeFact(edges, container, BUILD_DEPENDS_ON, target, fact);
-            }
-          }
-        }
-      }
-      for (Fact fact : knowledge.relations(container, PACKAGES)) {
-        edgeFact(edges, container, PACKAGES, Knowledge.object(fact), fact);
-      }
-    }
-    List<Diagram.Edge> diagramEdges = new ArrayList<>();
-    Set<String> edgeIds = new HashSet<>();
-    edges.forEach(
-        (from, byRelationship) ->
-            byRelationship.forEach(
-                (relationship, targets) ->
-                    targets.forEach(
-                        (to, facts) -> {
-                          externalContainer(nodes, to);
-                          diagramEdges.add(
-                              edge(
-                                  edgeIds,
-                                  from,
-                                  relationship,
-                                  to,
-                                  relationship.equals(PACKAGES) ? "packages" : "depends on",
-                                  facts));
-                        })));
-    return new Diagram(
-        assembler.id(section, "diagram"),
-        Diagram.Kind.C4_CONTAINER,
-        "Containers of " + repo,
-        List.copyOf(nodes.values()),
-        diagramEdges,
-        List.of());
-  }
-
-  /** Adds a container of another repository, inside that repository's boundary. */
-  private void externalContainer(Map<EntityId, Diagram.Node> nodes, EntityId container) {
-    if (nodes.containsKey(container)) {
-      return;
-    }
-    EntityId boundary = assembler.parentOf(container);
-    if (boundary != null) {
-      EntityId outer = boundary;
-      nodes.computeIfAbsent(outer, b -> node(outer, null, null, List.of()));
-    }
-    nodes.put(
-        container, node(container, technology(container), boundary, containerFacts(container)));
-  }
-
-  /** What a container is and how it is packaged, such as {@code Service, jar}. */
-  private String technology(EntityId container) {
-    String kind =
-        switch (container.type()) {
-          case BuiltInTypes.SERVICE -> "Service";
-          case BuiltInTypes.LIBRARY -> "Library";
-          default -> null;
-        };
-    if (kind == null) {
-      return null;
-    }
-    for (EntityId module : knowledge.parts(container, BuiltInTypes.MODULE)) {
-      Optional<String> packaging = knowledge.attribute(module, PACKAGING);
-      if (packaging.isPresent()) {
-        return kind + ", " + packaging.get();
-      }
-    }
-    return kind;
-  }
-
   /** The facts that a container builds its modules, and how they are packaged. */
   private List<Fact> containerFacts(EntityId container) {
     List<Fact> facts = new ArrayList<>();
@@ -282,105 +249,6 @@ final class RepoSections {
           .forEach(facts::add);
     }
     return facts;
-  }
-
-  // Components: for each container, its summary and the packages it is made of.
-
-  private Section components(String section, EntityId container) {
-    String id = assembler.id(section, container.toString());
-    List<Block> blocks = new ArrayList<>();
-    SortedSet<EntityId> containerModules = knowledge.parts(container, BuiltInTypes.MODULE);
-    for (EntityId module : containerModules) {
-      paragraph(id, module).ifPresent(blocks::add);
-    }
-    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
-    for (EntityId module : containerModules) {
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
-        nodes.put(pkg, node(pkg, null, container, knowledge.containsFacts(module, pkg)));
-      }
-    }
-    if (!nodes.isEmpty()) {
-      nodes.put(container, node(container, technology(container), null, containerFacts(container)));
-      Map<EntityId, Map<EntityId, List<Fact>>> edges = packageEdges(container);
-      List<Diagram.Edge> diagramEdges = new ArrayList<>();
-      Set<String> edgeIds = new HashSet<>();
-      edges.forEach(
-          (from, targets) ->
-              targets.forEach(
-                  (to, facts) ->
-                      diagramEdges.add(
-                          edge(edgeIds, from, BuiltInTypes.DEPENDS_ON, to, "uses", facts))));
-      blocks.add(
-          new Diagram(
-              assembler.id(id, "diagram"),
-              Diagram.Kind.C4_COMPONENT,
-              "Components of " + assembler.name(container),
-              List.copyOf(nodes.values()),
-              diagramEdges,
-              List.of()));
-    }
-    return new Section(
-        id,
-        assembler.name(container),
-        SectionKind.COMPONENTS.levels(),
-        container,
-        List.of(),
-        blocks,
-        List.of());
-  }
-
-  /**
-   * The dependencies between the container's packages: package to package to the facts, where a
-   * type in the first calls, extends or implements a type in the second.
-   */
-  Map<EntityId, Map<EntityId, List<Fact>>> packageEdges(EntityId container) {
-    Map<EntityId, SortedSet<EntityId>> packagesOfType = new TreeMap<>(Knowledge.BY_ID);
-    for (EntityId module : knowledge.parts(container, BuiltInTypes.MODULE)) {
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
-        for (EntityId type : knowledge.typesWithin(pkg)) {
-          packagesOfType.computeIfAbsent(type, t -> new TreeSet<>(Knowledge.BY_ID)).add(pkg);
-        }
-      }
-    }
-    Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(Knowledge.BY_ID);
-    packagesOfType.forEach(
-        (type, from) -> {
-          for (Fact fact : dependencies(type)) {
-            EntityId target = ownerType(Knowledge.object(fact));
-            for (EntityId to : packagesOfType.getOrDefault(target, new TreeSet<>())) {
-              for (EntityId pkg : from) {
-                if (!pkg.equals(to)) {
-                  edges
-                      .computeIfAbsent(pkg, p -> new TreeMap<>(Knowledge.BY_ID))
-                      .computeIfAbsent(to, t -> new ArrayList<>())
-                      .add(fact);
-                }
-              }
-            }
-          }
-        });
-    return edges;
-  }
-
-  /** What a type depends on: its supertypes and the calls it and its members make. */
-  private List<Fact> dependencies(EntityId type) {
-    List<Fact> facts = new ArrayList<>();
-    facts.addAll(knowledge.relations(type, BuiltInTypes.EXTENDS));
-    facts.addAll(knowledge.relations(type, BuiltInTypes.IMPLEMENTS));
-    facts.addAll(knowledge.relations(type, BuiltInTypes.CALLS));
-    for (EntityId method : knowledge.parts(type, METHOD)) {
-      facts.addAll(knowledge.relations(method, BuiltInTypes.CALLS));
-    }
-    return facts;
-  }
-
-  /** The type itself, or the type that declares a method or field. */
-  private EntityId ownerType(EntityId entity) {
-    if (entity.type().equals(METHOD) || entity.type().equals(FIELD)) {
-      SortedSet<EntityId> owners = knowledge.wholes(entity, BuiltInTypes.TYPE);
-      return owners.isEmpty() ? entity : owners.first();
-    }
-    return entity;
   }
 
   // Headlines: what the repository builds, how big it is and how connected.
@@ -562,42 +430,5 @@ final class RepoSections {
     visiting.remove(module);
     return new Tree.Node(
         assembler.name(module), assembler.entity(module), assembler.facts(facts), children);
-  }
-
-  // Diagram elements.
-
-  private Diagram.Node node(EntityId entity, String technology, EntityId parent, List<Fact> facts) {
-    assembler.entity(entity);
-    return new Diagram.Node(
-        entity, assembler.name(entity), technology, parent, null, null, assembler.facts(facts));
-  }
-
-  private Diagram.Edge edge(
-      Set<String> edgeIds,
-      EntityId from,
-      String relationship,
-      EntityId to,
-      String label,
-      List<Fact> facts) {
-    return new Diagram.Edge(
-        Assembler.edgeId(edgeIds, from, relationship, to),
-        from,
-        to,
-        label,
-        relationship,
-        assembler.facts(facts));
-  }
-
-  private static void edgeFact(
-      Map<EntityId, Map<String, Map<EntityId, List<Fact>>>> edges,
-      EntityId from,
-      String relationship,
-      EntityId to,
-      Fact fact) {
-    edges
-        .computeIfAbsent(from, f -> new TreeMap<>())
-        .computeIfAbsent(relationship, r -> new TreeMap<>(Knowledge.BY_ID))
-        .computeIfAbsent(to, t -> new ArrayList<>())
-        .add(fact);
   }
 }

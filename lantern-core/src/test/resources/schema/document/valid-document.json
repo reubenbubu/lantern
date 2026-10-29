@@ -226,7 +226,9 @@
           "from" : "library:orders-lib",
           "to" : "database:orders-db",
           "label" : "reads",
+          "technology" : "JDBC",
           "relationship" : "READS_TABLE",
+          "profiles" : [ "prod" ],
           "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
         }, {
           "id" : "orders-to-db",

@@ -34,7 +34,9 @@ analyzes repository A, the next one B, and a third A again at the same commit.
   closing is limited to the repositories the snapshot's analysis covered, and `recordSnapshot`
   also takes their names.) Facts of other kinds (human, LLM, README, rule) belong
   to other stages and are never closed by a static analysis; annotations have their own staleness
-  rules in the design. The analysis run records its extractors' facts as `static`.
+  rules in the design. The analysis run records its extractors' facts as `static`, and
+  (amendment for #165) the docs extractor's as `readme` (ADR 0033), each kind with its own
+  `recordSnapshot` call, so README claims and decision records no longer found stop holding too.
 - **Order.** Snapshots must be recorded in order; recording one older than a snapshot the stored
   facts of that kind already show is refused. Recording the latest snapshot again replaces what
   was recorded for it, so a repeated run of the same snapshot is safe. The caller runs the

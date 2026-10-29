@@ -12,7 +12,7 @@ import {
   search,
 } from '../src/explorer/model.ts';
 import type { Document, DocumentEntity, Section } from '../src/generated/document.ts';
-import { composerOutput, schemaFixture } from './fixtures.ts';
+import { composerOutput, schemaFixture, systemOutput } from './fixtures.ts';
 
 function allSections(sections: Section[]): Section[] {
   return sections.flatMap((s) => [s, ...allSections(s.sections)]);
@@ -80,11 +80,11 @@ describe('the entity tree', () => {
 
 describe('entity placements', () => {
   test('name the sections about an entity and the diagrams that draw it', () => {
-    const placements = entityPlacements(composerOutput());
-    expect(placements.get('library:com.example.shop:shop-api')!.map((p) => p.id)).toEqual([
+    const placements = entityPlacements(systemOutput());
+    expect(placements.get('service:com.example:app')!.map((p) => p.id)).toEqual([
       'containers.diagram',
-      'components.library:com.example.shop:shop-api',
-      'components.library:com.example.shop:shop-api.diagram',
+      'components.service:com.example:app',
+      'components.service:com.example:app.diagram',
     ]);
   });
 
@@ -182,7 +182,9 @@ describe('Explorer', () => {
 
   test('makes entity references select the entity, citations show their facts and trees fold', () => {
     expect(html).toMatch(/<a href="#entity=[^"]+" class="entity-ref"/);
-    expect(html).toMatch(/<button type="button" class="citation-button" title="[^"]+">\[\d+(, \d+)*\]<\/button>/);
+    expect(renderToStaticMarkup(<Explorer document={schemaFixture()} />)).toMatch(
+      /<button type="button" class="citation-button" title="[^"]+">\[\d+(, \d+)*\]<\/button>/,
+    );
     expect(html).toContain('<details open=""><summary>');
     expect(html).toMatch(
       /<sup class="citation"><a href="#entity=[^"]+" class="entity-ref" title="Summary of [^"]+" aria-label="Summary of [^"]+">\[\u2197\]<\/a><\/sup>/,

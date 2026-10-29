@@ -1,5 +1,5 @@
 -- Cached answers of the LLM resolver for links static matching leaves open (see docs/design.md,
--- Cross-repo linking and LLM integration, and docs/adr/0044-llm-link-resolver.md). An answer is
+-- Cross-repo linking and LLM integration, and docs/adr/0045-llm-link-resolver.md). An answer is
 -- keyed by a hash of the prompt version, model and prompt, so a changed input gives a new key and the
 -- old row is simply no longer used. An answer of unknown has no target and no confidence.
 CREATE TABLE link_resolutions (

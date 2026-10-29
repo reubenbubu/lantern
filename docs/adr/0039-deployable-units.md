@@ -91,7 +91,7 @@ are decided.
   plugins, Gradle, Jakarta EE applications without Spring Boot beyond their packaging, and
   frameworks other than Spring Boot in the technology.
 - **project-0.** `Project0DeployableUnitsIT` checks REPO-1 (four units), MVN-1 (`catalog-service`
-  bundles `catalog-lib` as its main library), MVN-2 (`storefront-app` bundles both libraries, one
+  bundles `catalog-lib`, built by another repository, as its main library), MVN-2 (`storefront-app` bundles both libraries, one
   box), SPR-3 (each unit's application class), CFG-1 and CFG-2 (names `catalog-service` from
   `bootstrap.yml`, `storefront`, `payments`, `fulfilment`) and MVN-3 (Spring Boot 3.5.14 with Java
   21, or 17 for payments), with the repositories built in the sandbox and read without builds. It

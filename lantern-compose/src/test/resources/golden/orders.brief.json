@@ -79,6 +79,10 @@
     } ],
     "facts" : [ ]
   }, {
+    "id" : "system:snapshot",
+    "name" : "greeting-lib, greeting-service, orders and shop",
+    "facts" : [ ]
+  }, {
     "id" : "type:com.example.orders.Order",
     "name" : "Order",
     "parent" : "package:com.example.orders:orders:com.example.orders",
@@ -606,16 +610,46 @@
     "entity" : "repo:orders",
     "facts" : [ ],
     "blocks" : [ {
+      "kind" : "metrics",
+      "id" : "context.counts",
+      "items" : [ {
+        "label" : "Deployable units",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Databases",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Topics, queues and exchanges",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "External systems",
+        "value" : 0,
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    }, {
       "kind" : "diagram",
       "id" : "context.diagram",
       "diagramKind" : "c4-context",
-      "title" : "System context of orders",
+      "title" : "System context of greeting-lib, greeting-service, orders and shop",
       "nodes" : [ {
-        "id" : "repo:orders",
-        "label" : "orders",
+        "id" : "system:snapshot",
+        "label" : "greeting-lib, greeting-service, orders and shop",
         "facts" : [ ]
       } ],
       "edges" : [ ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "context.people",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The code names no people or user roles, so who uses greeting-lib, greeting-service, orders and shop is not known."
+      } ],
       "facts" : [ ]
     } ],
     "sections" : [ ]
@@ -626,22 +660,12 @@
     "entity" : "repo:orders",
     "facts" : [ ],
     "blocks" : [ {
-      "kind" : "diagram",
-      "id" : "containers.diagram",
-      "diagramKind" : "c4-container",
-      "title" : "Containers of orders",
-      "nodes" : [ {
-        "id" : "library:com.example.orders:orders",
-        "label" : "orders",
-        "technology" : "Library, jar",
-        "parent" : "repo:orders",
-        "facts" : [ "582ae49a133aeced80db6cf83bc7afe19d90ad0982cada5aee435107f1a21cd4", "680e530ef746afe7b93faef5e95a4e2d4f7cabb2f669a9506c988dae0e43c982" ]
-      }, {
-        "id" : "repo:orders",
-        "label" : "orders",
-        "facts" : [ ]
+      "kind" : "paragraph",
+      "id" : "containers.none",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No deployable unit was found in the code."
       } ],
-      "edges" : [ ],
       "facts" : [ ]
     } ],
     "sections" : [ ]

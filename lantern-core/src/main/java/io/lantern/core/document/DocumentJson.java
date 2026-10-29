@@ -459,13 +459,7 @@ public final class DocumentJson {
                 "info",
                 "facts");
         String messageKind = in.optionalString("messageKind");
-        List<String> profiles = List.of();
-        if (in.has("profiles")) {
-          profiles = in.array("profiles", p -> Reader.string(p, "profiles"));
-          if (profiles.isEmpty()) {
-            throw new IllegalArgumentException("Message profiles must not be empty when present");
-          }
-        }
+        List<String> profiles = profiles(in);
         yield new SequenceDiagram.Message(
             in.optionalEntityId("from"),
             in.optionalEntityId("to"),
@@ -591,19 +585,49 @@ public final class DocumentJson {
     node.put("from", edge.from().toString());
     node.put("to", edge.to().toString());
     putOptional(node, "label", edge.label());
+    putOptional(node, "technology", edge.technology());
     putOptional(node, "relationship", edge.relationship());
+    if (!edge.profiles().isEmpty()) {
+      ArrayNode profiles = node.putArray("profiles");
+      edge.profiles().forEach(profiles::add);
+    }
     putFacts(node, edge.facts());
     return node;
   }
 
+  /** The profiles of a message or edge: absent for none, else a list that is not empty. */
+  private static List<String> profiles(Reader in) {
+    if (!in.has("profiles")) {
+      return List.of();
+    }
+    List<String> profiles = in.array("profiles", p -> Reader.string(p, "profiles"));
+    if (profiles.isEmpty()) {
+      throw new IllegalArgumentException("Profiles must not be empty when present");
+    }
+    return profiles;
+  }
+
   private static Diagram.Edge edgeFromJson(JsonNode node) {
-    Reader in = Reader.of(node, "edge", "id", "from", "to", "label", "relationship", "facts");
+    Reader in =
+        Reader.of(
+            node,
+            "edge",
+            "id",
+            "from",
+            "to",
+            "label",
+            "technology",
+            "relationship",
+            "profiles",
+            "facts");
     return new Diagram.Edge(
         in.string("id"),
         in.entityId("from"),
         in.entityId("to"),
         in.optionalString("label"),
+        in.optionalString("technology"),
         in.optionalString("relationship"),
+        profiles(in),
         in.facts());
   }
 

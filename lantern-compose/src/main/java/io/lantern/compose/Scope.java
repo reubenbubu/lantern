@@ -5,11 +5,11 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * What part of the knowledge a document covers. Only the per-repository scope exists so far; the
- * system, auto-grouped and custom scopes of the design come with later phases.
+ * What part of the knowledge a document covers: one repository, or the system all repositories of
+ * the snapshot form. The auto-grouped and custom scopes of the design come with later phases.
  *
  * @param kind the kind of scope
- * @param repo the repository, for a per-repository scope
+ * @param repo the repository, for a per-repository scope; {@code null} for the system scope
  */
 public record Scope(Kind kind, String repo) {
 
@@ -18,10 +18,22 @@ public record Scope(Kind kind, String repo) {
 
   public Scope {
     Objects.requireNonNull(kind, "kind");
-    Objects.requireNonNull(repo, "repo");
-    if (!REPO.matcher(repo).matches()) {
-      throw new IllegalArgumentException("Invalid repository name: '" + repo + "'");
+    if (kind == Kind.SYSTEM && repo != null) {
+      throw new IllegalArgumentException("A system scope names no repository");
     }
+    if (kind == Kind.REPO) {
+      if (repo == null) {
+        throw new IllegalArgumentException("A repository scope names its repository");
+      }
+      if (!REPO.matcher(repo).matches()) {
+        throw new IllegalArgumentException("Invalid repository name: '" + repo + "'");
+      }
+    }
+  }
+
+  /** Every repository of the snapshot, as one system. */
+  public static Scope system() {
+    return new Scope(Kind.SYSTEM, null);
   }
 
   /** One repository. */
@@ -32,7 +44,9 @@ public record Scope(Kind kind, String repo) {
   /** The kind of scope. */
   public enum Kind {
     /** One repository. */
-    REPO;
+    REPO,
+    /** Every repository of the snapshot, as one software system. */
+    SYSTEM;
 
     public String jsonName() {
       return name().toLowerCase(Locale.ROOT);

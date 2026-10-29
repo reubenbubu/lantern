@@ -83,6 +83,33 @@
     "name" : "greeting-service",
     "facts" : [ ]
   }, {
+    "id" : "service:com.example.greeting:greeting-service",
+    "name" : "greeting-service",
+    "parent" : "repo:greeting-service",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "It builds on its parts."
+    }, {
+      "kind" : "ref",
+      "text" : "com.example.greeting.lib",
+      "target" : {
+        "kind" : "entity",
+        "id" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib"
+      },
+      "citation" : true
+    }, {
+      "kind" : "text",
+      "text" : " It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "06e38a339a48a2d60334540ec6fab48b9675ac1403eb8fec39bc4a772514455a" ]
+    } ],
+    "facts" : [ "4ba717064d2be139c89090f8f4ca3bdc46f158bf388dffb83d76c15462d431b8", "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e", "5bed7a741309d6a1609fa12182361b528fa4d76fdaeb44a38f32c921b4833329", "c0eea785dbd78abf447563615338617989664f9e43e5c53509b5c8e57896a356" ]
+  }, {
+    "id" : "system:snapshot",
+    "name" : "greeting-lib, greeting-service, orders and shop",
+    "facts" : [ ]
+  }, {
     "id" : "type:com.example.greeting.lib.Greeter",
     "name" : "Greeter",
     "parent" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib",
@@ -120,33 +147,28 @@
       "from" : 1
     }
   }, {
-    "id" : "17eec32d7ba2c8c2213e9771e9edaa8b983a914eba04cdae0bb7dded8beb25a2",
-    "subject" : "module:com.example.greeting:greeting-service",
-    "predicate" : "BUILD_DEPENDS_ON",
+    "id" : "4ba717064d2be139c89090f8f4ca3bdc46f158bf388dffb83d76c15462d431b8",
+    "subject" : "service:com.example.greeting:greeting-service",
+    "predicate" : "application-name",
     "object" : {
-      "kind" : "entity",
-      "value" : "module:com.example.greeting:greeting-lib"
+      "kind" : "string",
+      "value" : "greeting-service"
     },
     "attributes" : {
-      "scope" : "compile",
-      "version" : "1.0.0"
+      "defaulted" : true
     },
     "origin" : {
       "kind" : "static",
-      "name" : "maven",
-      "version" : "2"
+      "name" : "deployable-units",
+      "version" : "1"
     },
     "evidence" : {
       "repo" : "greeting-service",
       "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
       "path" : "pom.xml",
-      "lines" : {
-        "start" : 21,
-        "end" : 25
-      },
       "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
     },
-    "confidence" : 0.7,
+    "confidence" : 0.35,
     "validity" : {
       "from" : 1
     }
@@ -173,6 +195,62 @@
         "end" : 9
       },
       "contentHash" : "199401380654b52e36482f65db19afaeb798627c5ff663bbb77a3c4dbc3113d6"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e",
+    "subject" : "service:com.example.greeting:greeting-service",
+    "predicate" : "technology",
+    "object" : {
+      "kind" : "string",
+      "value" : "Java 21"
+    },
+    "attributes" : {
+      "java" : "21"
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "deployable-units",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "greeting-service",
+      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 16,
+        "end" : 16
+      },
+      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "5bed7a741309d6a1609fa12182361b528fa4d76fdaeb44a38f32c921b4833329",
+    "subject" : "service:com.example.greeting:greeting-service",
+    "predicate" : "deployable-unit",
+    "object" : {
+      "kind" : "string",
+      "value" : "executable-jar"
+    },
+    "attributes" : {
+      "packaging" : "jar"
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "deployable-units",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "greeting-service",
+      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
+      "path" : "pom.xml",
+      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -315,6 +393,30 @@
       "from" : 1
     }
   }, {
+    "id" : "c0eea785dbd78abf447563615338617989664f9e43e5c53509b5c8e57896a356",
+    "subject" : "service:com.example.greeting:greeting-service",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "module:com.example.greeting:greeting-service"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "2"
+    },
+    "evidence" : {
+      "repo" : "greeting-service",
+      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
+      "path" : "pom.xml",
+      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
     "id" : "d0316452e89165844cc8208ae04790450653b01319103fabd7329e797d5e0d55",
     "subject" : "module:com.example.greeting:greeting-lib",
     "predicate" : "CONTAINS",
@@ -387,26 +489,45 @@
     "entity" : "repo:greeting-lib",
     "facts" : [ ],
     "blocks" : [ {
+      "kind" : "metrics",
+      "id" : "context.counts",
+      "items" : [ {
+        "label" : "Deployable units",
+        "value" : 1,
+        "facts" : [ "4ba717064d2be139c89090f8f4ca3bdc46f158bf388dffb83d76c15462d431b8", "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e", "5bed7a741309d6a1609fa12182361b528fa4d76fdaeb44a38f32c921b4833329" ]
+      }, {
+        "label" : "Databases",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Topics, queues and exchanges",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "External systems",
+        "value" : 0,
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    }, {
       "kind" : "diagram",
       "id" : "context.diagram",
       "diagramKind" : "c4-context",
-      "title" : "System context of greeting-lib",
+      "title" : "System context of greeting-lib, greeting-service, orders and shop",
       "nodes" : [ {
-        "id" : "repo:greeting-lib",
-        "label" : "greeting-lib",
-        "facts" : [ ]
-      }, {
-        "id" : "repo:greeting-service",
-        "label" : "greeting-service",
+        "id" : "system:snapshot",
+        "label" : "greeting-lib, greeting-service, orders and shop",
         "facts" : [ ]
       } ],
-      "edges" : [ {
-        "id" : "repo:greeting-service--BUILD_DEPENDS_ON--repo:greeting-lib",
-        "from" : "repo:greeting-service",
-        "to" : "repo:greeting-lib",
-        "label" : "depends on",
-        "relationship" : "BUILD_DEPENDS_ON",
-        "facts" : [ "17eec32d7ba2c8c2213e9771e9edaa8b983a914eba04cdae0bb7dded8beb25a2" ]
+      "edges" : [ ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "context.people",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The code names no people or user roles, so who uses greeting-lib, greeting-service, orders and shop is not known."
       } ],
       "facts" : [ ]
     } ],
@@ -421,16 +542,16 @@
       "kind" : "diagram",
       "id" : "containers.diagram",
       "diagramKind" : "c4-container",
-      "title" : "Containers of greeting-lib",
+      "title" : "Containers of greeting-lib, greeting-service, orders and shop",
       "nodes" : [ {
-        "id" : "library:com.example.greeting:greeting-lib",
-        "label" : "greeting-lib",
-        "technology" : "Library, jar",
-        "parent" : "repo:greeting-lib",
-        "facts" : [ "06e38a339a48a2d60334540ec6fab48b9675ac1403eb8fec39bc4a772514455a", "7a40bb8e83a35d4d2e04f6da261b7018c229e6b0d7450002e9fd17d03088edde" ]
+        "id" : "service:com.example.greeting:greeting-service",
+        "label" : "greeting-service",
+        "technology" : "Java 21",
+        "parent" : "system:snapshot",
+        "facts" : [ "4ba717064d2be139c89090f8f4ca3bdc46f158bf388dffb83d76c15462d431b8", "4e0cb7943f5440ce4608e6810548b2882d14c0cb12e73eaa8836fad1ad763a5e", "5bed7a741309d6a1609fa12182361b528fa4d76fdaeb44a38f32c921b4833329" ]
       }, {
-        "id" : "repo:greeting-lib",
-        "label" : "greeting-lib",
+        "id" : "system:snapshot",
+        "label" : "greeting-lib, greeting-service, orders and shop",
         "facts" : [ ]
       } ],
       "edges" : [ ],
@@ -444,55 +565,7 @@
     "entity" : "repo:greeting-lib",
     "facts" : [ ],
     "blocks" : [ ],
-    "sections" : [ {
-      "id" : "components.library:com.example.greeting:greeting-lib",
-      "title" : "greeting-lib",
-      "levels" : [ "L2", "L3" ],
-      "entity" : "library:com.example.greeting:greeting-lib",
-      "facts" : [ ],
-      "blocks" : [ {
-        "kind" : "paragraph",
-        "id" : "components.library:com.example.greeting:greeting-lib.summary",
-        "content" : [ {
-          "kind" : "text",
-          "text" : "It builds on its parts."
-        }, {
-          "kind" : "ref",
-          "text" : "com.example.greeting.lib",
-          "target" : {
-            "kind" : "entity",
-            "id" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib"
-          },
-          "citation" : true
-        }, {
-          "kind" : "text",
-          "text" : " It is described by its facts."
-        }, {
-          "kind" : "citation",
-          "facts" : [ "06e38a339a48a2d60334540ec6fab48b9675ac1403eb8fec39bc4a772514455a" ]
-        } ],
-        "facts" : [ "06e38a339a48a2d60334540ec6fab48b9675ac1403eb8fec39bc4a772514455a" ]
-      }, {
-        "kind" : "diagram",
-        "id" : "components.library:com.example.greeting:greeting-lib.diagram",
-        "diagramKind" : "c4-component",
-        "title" : "Components of greeting-lib",
-        "nodes" : [ {
-          "id" : "library:com.example.greeting:greeting-lib",
-          "label" : "greeting-lib",
-          "technology" : "Library, jar",
-          "facts" : [ "06e38a339a48a2d60334540ec6fab48b9675ac1403eb8fec39bc4a772514455a", "7a40bb8e83a35d4d2e04f6da261b7018c229e6b0d7450002e9fd17d03088edde" ]
-        }, {
-          "id" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib",
-          "label" : "com.example.greeting.lib",
-          "parent" : "library:com.example.greeting:greeting-lib",
-          "facts" : [ "d0316452e89165844cc8208ae04790450653b01319103fabd7329e797d5e0d55" ]
-        } ],
-        "edges" : [ ],
-        "facts" : [ ]
-      } ],
-      "sections" : [ ]
-    } ]
+    "sections" : [ ]
   }, {
     "id" : "dependencies",
     "title" : "Dependencies",

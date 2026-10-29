@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Citation;
 import io.lantern.core.document.CrossReference;
-import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Paragraph;
@@ -98,62 +97,6 @@ class ComposerTest {
   }
 
   @Test
-  void contextShowsOtherRepositoriesLinkedByNonTestDependencies() {
-    Diagram diagram = block(section(compose(facts.list(), Map.of()), "context"), Diagram.class);
-
-    assertThat(diagram.diagramKind()).isEqualTo(Diagram.Kind.C4_CONTEXT);
-    assertThat(diagram.nodes())
-        .extracting(n -> n.id().toString())
-        .containsExactly("repo:base", "repo:shop");
-    assertThat(diagram.edges()).hasSize(1);
-    Diagram.Edge edge = diagram.edges().getFirst();
-    assertThat(edge.from()).isEqualTo(EntityId.parse("repo:shop"));
-    assertThat(edge.to()).isEqualTo(EntityId.parse("repo:base"));
-    assertThat(edge.facts())
-        .containsExactly(facts.find("module:com.example:app", "BUILD_DEPENDS_ON").id());
-  }
-
-  @Test
-  void containersShowTheRepositoriesContainersAndWhatTheyDependOn() {
-    Diagram diagram = block(section(compose(facts.list(), Map.of()), "containers"), Diagram.class);
-
-    assertThat(diagram.nodes())
-        .extracting(n -> n.id() + " in " + n.parent() + " [" + n.technology() + "]")
-        .containsExactly(
-            "library:com.example:common in repo:base [Library, jar]",
-            "repo:base in null [null]",
-            "repo:shop in null [null]",
-            "service:com.example:app in repo:shop [Service, jar]");
-    assertThat(diagram.edges())
-        .extracting(Diagram.Edge::id)
-        .containsExactly("service:com.example:app--BUILD_DEPENDS_ON--library:com.example:common");
-  }
-
-  @Test
-  void componentsArePackagesLinkedByCallsAndSupertypes() {
-    Section components = section(compose(facts.list(), Map.of()), "components");
-
-    assertThat(components.sections()).hasSize(1);
-    Section app = components.sections().getFirst();
-    assertThat(app.entity()).isEqualTo(APP);
-    Diagram diagram = block(app, Diagram.class);
-    assertThat(diagram.diagramKind()).isEqualTo(Diagram.Kind.C4_COMPONENT);
-    assertThat(diagram.nodes())
-        .extracting(n -> n.id() + " in " + n.parent())
-        .containsExactly(
-            "package:com.example:app:com.example.domain in service:com.example:app",
-            "package:com.example:app:com.example.web in service:com.example:app",
-            "service:com.example:app in null");
-    assertThat(diagram.edges()).hasSize(1);
-    Diagram.Edge edge = diagram.edges().getFirst();
-    assertThat(edge.from().toString()).isEqualTo("package:com.example:app:com.example.web");
-    assertThat(edge.to().toString()).isEqualTo("package:com.example:app:com.example.domain");
-    assertThat(edge.relationship()).isEqualTo("DEPENDS_ON");
-    assertThat(edge.facts())
-        .containsExactly(facts.find("method:com.example.web.Controller#list()", "CALLS").id());
-  }
-
-  @Test
   void dependencyTreeExpandsInternalModulesWithWhatMavenPassesOn() {
     Tree tree = block(section(compose(facts.list(), Map.of()), "dependencies"), Tree.class);
 
@@ -195,7 +138,7 @@ class ComposerTest {
   void summariesBecomeNarrativeWithCitationsAndCrossReferences() {
     Fact packaging = facts.find("module:com.example:app", "packaging");
     Fact contains = facts.find("service:com.example:app", "CONTAINS");
-    EntityId module = EntityId.parse("module:com.example:app");
+    EntityId module = EntityId.parse("repo:shop");
     EntityId web = EntityId.parse("package:com.example:app:com.example.web");
     Summary summary =
         summary(
@@ -211,8 +154,7 @@ class ComposerTest {
 
     Document document = compose(facts.list(), Map.of(module, summary));
 
-    Section app = section(document, "components").sections().getFirst();
-    Paragraph paragraph = block(app, Paragraph.class);
+    Paragraph paragraph = block(section(document, "overview"), Paragraph.class);
     assertThat(paragraph.content())
         .containsExactly(
             TextRun.of("The app module."),
@@ -228,7 +170,7 @@ class ComposerTest {
   @Test
   void summaryCitationsOpeningASummaryOrInARowAreMarkersWithoutSpaces() {
     Fact packaging = facts.find("module:com.example:app", "packaging");
-    EntityId module = EntityId.parse("module:com.example:app");
+    EntityId module = EntityId.parse("repo:shop");
     EntityId web = EntityId.parse("package:com.example:app:com.example.web");
     EntityId domain = EntityId.parse("package:com.example:app:com.example.domain");
     Summary summary =
@@ -238,11 +180,7 @@ class ComposerTest {
             List.of(packaging.id()));
 
     Paragraph paragraph =
-        block(
-            section(compose(facts.list(), Map.of(module, summary)), "components")
-                .sections()
-                .getFirst(),
-            Paragraph.class);
+        block(section(compose(facts.list(), Map.of(module, summary)), "overview"), Paragraph.class);
 
     assertThat(paragraph.content())
         .containsExactly(
@@ -255,7 +193,7 @@ class ComposerTest {
   void aSummaryCitationBetweenFactCitationsSplitsThem() {
     Fact packaging = facts.find("module:com.example:app", "packaging");
     Fact contains = facts.find("service:com.example:app", "CONTAINS");
-    EntityId module = EntityId.parse("module:com.example:app");
+    EntityId module = EntityId.parse("repo:shop");
     EntityId web = EntityId.parse("package:com.example:app:com.example.web");
     Summary summary =
         summary(
@@ -270,11 +208,7 @@ class ComposerTest {
             List.of(packaging.id(), contains.id()));
 
     Paragraph paragraph =
-        block(
-            section(compose(facts.list(), Map.of(module, summary)), "components")
-                .sections()
-                .getFirst(),
-            Paragraph.class);
+        block(section(compose(facts.list(), Map.of(module, summary)), "overview"), Paragraph.class);
 
     assertThat(paragraph.content())
         .containsExactly(
@@ -403,7 +337,7 @@ class ComposerTest {
 
     assertThat(document.entities())
         .extracting(e -> e.id().toString())
-        .containsExactly("repo:empty");
+        .containsExactly("repo:empty", "system:snapshot");
     assertThat(document.sections()).hasSize(6);
   }
 
@@ -428,7 +362,7 @@ class ComposerTest {
         .orElseThrow();
   }
 
-  private static Summary summary(EntityId entity, String text, List<String> cited) {
+  static Summary summary(EntityId entity, String text, List<String> cited) {
     return new Summary(
         "0".repeat(64),
         entity,

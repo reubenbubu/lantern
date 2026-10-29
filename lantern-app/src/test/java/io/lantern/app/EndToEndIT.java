@@ -10,10 +10,12 @@ import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.link.ResolutionStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
@@ -197,7 +199,7 @@ class EndToEndIT {
     assertThat(twice.first().builds().get("shop").status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(twice.first().documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly("shop.html", "shop.brief.html", "shop.c4.html");
+        .containsExactly("shop.html", "shop.brief.html", "shop.c4.html", "_system.c4.html");
 
     // The same pipeline through the command line: everything is reused again.
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -211,7 +213,8 @@ class EndToEndIT {
         .contains("Summaries: 0 written by the LLM")
         .contains("LLM calls: 0, tokens: 0, cost: $0")
         .contains("shop.brief.html")
-        .contains("shop.c4.html");
+        .contains("shop.c4.html")
+        .contains("_system.c4.html");
   }
 
   @Test
@@ -219,10 +222,27 @@ class EndToEndIT {
     // Two repositories, the service depending on the library.
     Path lib = fixtureRepo("lib-and-service/lib", "greeting-lib");
     Path service = fixtureRepo("lib-and-service/service", "greeting-service");
+    // A README and a decision record, whose facts the docs extractor gives origin kind readme, not
+    // static (#165).
+    TestGitRepo.init(lib).commit("README.md", "# Greeting\n\nThe library greets people.\n");
+    TestGitRepo.init(lib)
+        .commit(
+            "docs/adr/0001-plain-java.md",
+            "# 1. Plain Java\n\n## Status\n\nAccepted\n\n## Decision\n\nNo framework.\n");
 
     AnalysisRun.Result first = run.run(Map.of("greeting-lib", lib));
     List<Fact> libFacts = validIn(first, "greeting-lib");
     assertThat(libFacts).hasSize(first.facts());
+    List<Fact> readmeFacts =
+        libFacts.stream().filter(f -> f.origin().kind() == Origin.Kind.README).toList();
+    assertThat(readmeFacts)
+        .filteredOn(f -> f.predicate().equals(DocsExtractor.CLAIM))
+        .extracting(f -> f.object().value())
+        .containsExactly("The library greets people.");
+    assertThat(readmeFacts)
+        .filteredOn(f -> f.subject().type().equals(DocsExtractor.DECISION))
+        .extracting(f -> f.predicate() + " " + f.object().value())
+        .contains(DocsExtractor.TITLE + " Plain Java");
 
     // The second run analyzes only the service; the library is carried forward, its facts keep
     // holding, and the service's dependency on it is found as internal. The service builds, with
@@ -278,7 +298,11 @@ class EndToEndIT {
     assertThat(third.summariesGenerated()).isZero();
     assertThat(third.documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly("greeting-lib.html", "greeting-lib.brief.html", "greeting-lib.c4.html");
+        .containsExactly(
+            "greeting-lib.html",
+            "greeting-lib.brief.html",
+            "greeting-lib.c4.html",
+            "_system.c4.html");
     assertThat(validIn(third, "greeting-lib")).isEqualTo(libFacts);
     assertThat(validIn(third, "greeting-service")).isEqualTo(serviceFacts);
     for (Fact fact : libFacts) {
@@ -300,7 +324,8 @@ class EndToEndIT {
     // facts nor the mark that the library was analyzed, so the next run carries the library
     // forward at the commit its facts come from, not at the failed run's commit (#61).
     String analyzedLib = first.snapshot().commits().get("greeting-lib");
-    String failedLib = TestGitRepo.init(lib).commit("NOTES.txt", "A change never analyzed.");
+    String failedLib =
+        TestGitRepo.init(lib).commit("README.md", "# Greeting\n\nThe library says hello.\n");
     assertThatThrownBy(() -> failingToStoreFacts().run(Map.of("greeting-lib", lib)))
         .hasMessage(STORE_FAILED);
     AnalysisRun.Result afterFailure = run.run(Map.of("greeting-service", service));
@@ -323,6 +348,22 @@ class EndToEndIT {
     assertThat(rebuiltService.status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(rebuiltService.upstream()).containsExactly("greeting-lib@" + failedLib);
     assertThat(rebuiltService.startedAt()).isAfter(serviceBuild.startedAt());
+    // The README and decision facts of the old commit stop holding, and the new commit's claim
+    // holds.
+    List<Fact> movedLib = validIn(moved, "greeting-lib");
+    assertThat(movedLib).doesNotContainAnyElementsOf(readmeFacts);
+    assertThat(movedLib)
+        .filteredOn(
+            f ->
+                f.origin().kind() == Origin.Kind.README
+                    && f.predicate().equals(DocsExtractor.CLAIM))
+        .extracting(f -> f.object().value())
+        .containsExactly("The library says hello.");
+    for (Fact fact : readmeFacts) {
+      assertThat(facts.findById(fact.id()).orElseThrow().validity().to())
+          .as("end of %s", fact.id())
+          .isEqualTo(moved.snapshot().number());
+    }
   }
 
   @Test
@@ -471,7 +512,8 @@ class EndToEndIT {
         .isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(twice.first().documents())
         .extracting(d -> d.file().getFileName().toString())
-        .containsExactly(name + ".html", name + ".brief.html", name + ".c4.html");
+        .containsExactly(
+            name + ".html", name + ".brief.html", name + ".c4.html", "_system.c4.html");
     writeCallReport(name, sent);
   }
 
@@ -489,10 +531,15 @@ class EndToEndIT {
     assertThat(first.summariesReused()).isZero();
     assertThat(calls).isEqualTo(first.summariesGenerated());
     assertThat(first.llm().calls()).isEqualTo(calls);
-    assertThat(first.documents()).hasSize(3);
+    assertThat(first.documents()).hasSize(4);
     assertThat(first.documents())
         .extracting(d -> d.document().template().name())
-        .containsExactly("architecture-explorer", "executive-brief", C4ReportRenderer.SPEC);
+        .containsExactly(
+            "architecture-explorer",
+            "executive-brief",
+            C4ReportRenderer.SPEC,
+            C4ReportRenderer.SPEC);
+    assertThat(first.documents().get(3).document().id()).isEqualTo(AnalysisRun.SYSTEM_C4);
     for (AnalysisRun.Rendered rendered : first.documents().subList(0, 2)) {
       String html = Files.readString(rendered.file());
       assertThat(html)
@@ -521,7 +568,7 @@ class EndToEndIT {
     assertThat(second.summariesGenerated()).isZero();
     assertThat(second.summariesReused()).isEqualTo(first.summariesGenerated());
     // The documents differ only in the snapshot they are of.
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
       Document before = first.documents().get(i).document();
       Document after = second.documents().get(i).document();
       assertThat(after.source().snapshot()).isEqualTo(second.snapshot().number());

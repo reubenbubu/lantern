@@ -153,6 +153,10 @@
     } ],
     "facts" : [ ]
   }, {
+    "id" : "system:snapshot",
+    "name" : "greeting-lib, greeting-service, orders and shop",
+    "facts" : [ ]
+  }, {
     "id" : "type:com.example.shop.api.PriceService",
     "name" : "PriceService",
     "parent" : "package:com.example.shop:shop-api:com.example.shop.api",
@@ -394,37 +398,6 @@
       "lines" : {
         "start" : 10,
         "end" : 10
-      },
-      "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "5ce3d1d31615d76b53dcfcea7bd667023a076f85f6a986e0f204d1ede8420ba5",
-    "subject" : "module:com.example.shop:shop-core",
-    "predicate" : "BUILD_DEPENDS_ON",
-    "object" : {
-      "kind" : "entity",
-      "value" : "module:com.example.shop:shop-api"
-    },
-    "attributes" : {
-      "scope" : "compile",
-      "version" : "1.0.0"
-    },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "2"
-    },
-    "evidence" : {
-      "repo" : "shop",
-      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
-      "path" : "core/pom.xml",
-      "lines" : {
-        "start" : 16,
-        "end" : 19
       },
       "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
     },
@@ -912,16 +885,46 @@
     "entity" : "repo:shop",
     "facts" : [ ],
     "blocks" : [ {
+      "kind" : "metrics",
+      "id" : "context.counts",
+      "items" : [ {
+        "label" : "Deployable units",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Databases",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "Topics, queues and exchanges",
+        "value" : 0,
+        "facts" : [ ]
+      }, {
+        "label" : "External systems",
+        "value" : 0,
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    }, {
       "kind" : "diagram",
       "id" : "context.diagram",
       "diagramKind" : "c4-context",
-      "title" : "System context of shop",
+      "title" : "System context of greeting-lib, greeting-service, orders and shop",
       "nodes" : [ {
-        "id" : "repo:shop",
-        "label" : "shop",
+        "id" : "system:snapshot",
+        "label" : "greeting-lib, greeting-service, orders and shop",
         "facts" : [ ]
       } ],
       "edges" : [ ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "context.people",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "The code names no people or user roles, so who uses greeting-lib, greeting-service, orders and shop is not known."
+      } ],
       "facts" : [ ]
     } ],
     "sections" : [ ]
@@ -932,34 +935,11 @@
     "entity" : "repo:shop",
     "facts" : [ ],
     "blocks" : [ {
-      "kind" : "diagram",
-      "id" : "containers.diagram",
-      "diagramKind" : "c4-container",
-      "title" : "Containers of shop",
-      "nodes" : [ {
-        "id" : "library:com.example.shop:shop-api",
-        "label" : "shop-api",
-        "technology" : "Library, jar",
-        "parent" : "repo:shop",
-        "facts" : [ "fd9fdea1eb9a2b8fd9b82b30e536d04e7bdc8dc1b55851a38db5862bae156669", "ff80ab4b5389dc119afa8e3832459ab5ad82f9f296910193184a9586160ad2e0" ]
-      }, {
-        "id" : "library:com.example.shop:shop-core",
-        "label" : "shop-core",
-        "technology" : "Library, jar",
-        "parent" : "repo:shop",
-        "facts" : [ "7b168833e6e0cd18ff05b4eb491c2aa160bc12e217c38d76bb2c4d69efeaedad", "91eebcbe1a08eb9237eaf55f859c23b61ba0ec853f3433a189a495afaf2300dc" ]
-      }, {
-        "id" : "repo:shop",
-        "label" : "shop",
-        "facts" : [ ]
-      } ],
-      "edges" : [ {
-        "id" : "library:com.example.shop:shop-core--BUILD_DEPENDS_ON--library:com.example.shop:shop-api",
-        "from" : "library:com.example.shop:shop-core",
-        "to" : "library:com.example.shop:shop-api",
-        "label" : "depends on",
-        "relationship" : "BUILD_DEPENDS_ON",
-        "facts" : [ "5ce3d1d31615d76b53dcfcea7bd667023a076f85f6a986e0f204d1ede8420ba5" ]
+      "kind" : "paragraph",
+      "id" : "containers.none",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "No deployable unit was found in the code."
       } ],
       "facts" : [ ]
     } ],

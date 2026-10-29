@@ -1,0 +1,269 @@
+{
+  "document" : {
+    "id" : "system:c4",
+    "title" : "System",
+    "subtitle" : "- base: runs [worker](#/containers/el-service-com-example-worker)\n- shop: runs [shop-app](#/containers/el-service-com-example-app)",
+    "version" : "1"
+  },
+  "elements" : {
+    "database-db-5432-shop" : {
+      "kind" : "database",
+      "name" : "shop on db",
+      "parent" : "system-snapshot",
+      "technology" : "PostgreSQL"
+    },
+    "external-system-pay-example-com" : {
+      "kind" : "external",
+      "name" : "pay.example.com"
+    },
+    "service-com-example-app" : {
+      "kind" : "container",
+      "name" : "shop-app",
+      "parent" : "system-snapshot",
+      "tag" : "Service",
+      "technology" : "Spring Boot 3.5.0 / Java 21"
+    },
+    "service-com-example-worker" : {
+      "kind" : "container",
+      "name" : "worker",
+      "parent" : "system-snapshot",
+      "tag" : "Service"
+    },
+    "system-snapshot" : {
+      "kind" : "system",
+      "name" : "base and shop"
+    },
+    "topic-kafka-orders" : {
+      "kind" : "queue",
+      "name" : "orders",
+      "parent" : "system-snapshot",
+      "tag" : "Topic",
+      "technology" : "Kafka topic"
+    },
+    "type-com-example-domain-jpaorders" : {
+      "kind" : "component",
+      "name" : "JpaOrders",
+      "parent" : "service-com-example-app",
+      "technology" : "Spring repository"
+    },
+    "type-com-example-web-controller" : {
+      "kind" : "component",
+      "name" : "Controller",
+      "parent" : "service-com-example-app",
+      "technology" : "Spring MVC REST controller"
+    },
+    "type-com-example-web-jobs" : {
+      "kind" : "component",
+      "name" : "Jobs",
+      "parent" : "service-com-example-app",
+      "technology" : "Scheduled job"
+    }
+  },
+  "pages" : [ {
+    "id" : "context",
+    "level" : "context",
+    "title" : "System context",
+    "element" : "system-snapshot",
+    "sections" : [ {
+      "type" : "stats",
+      "id" : "context-counts",
+      "items" : [ {
+        "label" : "Deployable units",
+        "value" : "2"
+      }, {
+        "label" : "Databases",
+        "value" : "1"
+      }, {
+        "label" : "Topics, queues and exchanges",
+        "value" : "1"
+      }, {
+        "label" : "External systems",
+        "value" : "1"
+      } ]
+    }, {
+      "type" : "diagram",
+      "id" : "context-diagram",
+      "title" : "System context of base and shop",
+      "caption" : "System context of base and shop",
+      "focus" : "system-snapshot",
+      "relationships" : [ {
+        "from" : "system-snapshot",
+        "to" : "external-system-pay-example-com",
+        "label" : "Calls POST /charges (only with the Spring profile prod)"
+      } ]
+    }, {
+      "type" : "elements",
+      "id" : "context-diagram-systems",
+      "title" : "Systems",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "system-snapshot" ]
+      }
+    }, {
+      "type" : "elements",
+      "id" : "context-diagram-external",
+      "title" : "External Systems",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "external-system-pay-example-com" ]
+      }
+    }, {
+      "type" : "callout",
+      "id" : "context-people",
+      "body" : "The code names no people or user roles, so who uses base and shop is not known.",
+      "tone" : "info"
+    } ]
+  }, {
+    "id" : "containers",
+    "level" : "containers",
+    "title" : "Containers",
+    "element" : "system-snapshot",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "containers-diagram",
+      "title" : "Containers of base and shop",
+      "caption" : "Containers of base and shop",
+      "boundary" : "system-snapshot",
+      "relationships" : [ {
+        "from" : "service-com-example-app",
+        "to" : "external-system-pay-example-com",
+        "label" : "Calls POST /charges (only with the Spring profile prod)",
+        "technology" : "HTTPS"
+      }, {
+        "from" : "service-com-example-app",
+        "to" : "topic-kafka-orders",
+        "label" : "Sends messages",
+        "technology" : "Kafka"
+      }, {
+        "from" : "service-com-example-app",
+        "to" : "database-db-5432-shop",
+        "label" : "Stores its data in",
+        "technology" : "JDBC"
+      }, {
+        "from" : "service-com-example-worker",
+        "to" : "service-com-example-app",
+        "label" : "Calls GET /orders",
+        "technology" : "JSON/HTTP"
+      }, {
+        "from" : "topic-kafka-orders",
+        "to" : "service-com-example-worker",
+        "label" : "Delivers messages",
+        "technology" : "Kafka"
+      } ]
+    }, {
+      "type" : "elements",
+      "id" : "containers-diagram-containers",
+      "title" : "Containers",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "service-com-example-app", "service-com-example-worker" ]
+      },
+      "columns" : [ "name", "description", "technology", "zoom" ]
+    }, {
+      "type" : "elements",
+      "id" : "containers-diagram-stores",
+      "title" : "Data Stores and Queues",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "database-db-5432-shop", "topic-kafka-orders" ]
+      }
+    }, {
+      "type" : "elements",
+      "id" : "containers-diagram-external",
+      "title" : "External Systems",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "external-system-pay-example-com" ]
+      }
+    }, {
+      "type" : "callout",
+      "id" : "containers-unresolved",
+      "body" : "**Not linked**\nshop-app: GET ${TAX_URL}/quotes (unresolved placeholder TAX_URL).",
+      "tone" : "warning"
+    }, {
+      "type" : "decisions",
+      "id" : "containers-decisions",
+      "title" : "Decisions",
+      "items" : [ {
+        "id" : "ADR 1",
+        "title" : "Use Kafka",
+        "body" : "Orders go to Kafka.",
+        "status" : "Accepted"
+      } ]
+    } ]
+  }, {
+    "id" : "components-service-com-example-app",
+    "level" : "components",
+    "title" : "shop-app",
+    "element" : "service-com-example-app",
+    "sections" : [ {
+      "type" : "diagram",
+      "id" : "components-service-com-example-app-diagram",
+      "title" : "Components of shop-app",
+      "caption" : "Components of shop-app",
+      "boundary" : "service-com-example-app",
+      "relationships" : [ {
+        "from" : "service-com-example-worker",
+        "to" : "type-com-example-web-controller",
+        "label" : "Calls GET /orders",
+        "technology" : "JSON/HTTP"
+      }, {
+        "from" : "type-com-example-domain-jpaorders",
+        "to" : "topic-kafka-orders",
+        "label" : "Sends messages",
+        "technology" : "Kafka"
+      }, {
+        "from" : "type-com-example-domain-jpaorders",
+        "to" : "database-db-5432-shop",
+        "label" : "Reads",
+        "technology" : "JDBC"
+      }, {
+        "from" : "type-com-example-web-controller",
+        "to" : "type-com-example-domain-jpaorders",
+        "label" : "Calls all"
+      }, {
+        "from" : "type-com-example-web-controller",
+        "to" : "external-system-pay-example-com",
+        "label" : "Calls POST /charges (only with the Spring profile prod)",
+        "technology" : "HTTPS"
+      }, {
+        "from" : "type-com-example-web-jobs",
+        "to" : "type-com-example-domain-jpaorders",
+        "label" : "Calls all"
+      } ]
+    }, {
+      "type" : "elements",
+      "id" : "components-service-com-example-app-diagram-containers",
+      "title" : "Containers",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "service-com-example-worker" ]
+      },
+      "columns" : [ "name", "description", "technology", "zoom" ]
+    }, {
+      "type" : "elements",
+      "id" : "components-service-com-example-app-diagram-stores",
+      "title" : "Data Stores and Queues",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "database-db-5432-shop", "topic-kafka-orders" ]
+      }
+    }, {
+      "type" : "elements",
+      "id" : "components-service-com-example-app-diagram-components",
+      "title" : "Components",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "type-com-example-domain-jpaorders", "type-com-example-web-controller", "type-com-example-web-jobs" ]
+      }
+    }, {
+      "type" : "elements",
+      "id" : "components-service-com-example-app-diagram-external",
+      "title" : "External Systems",
+      "eyebrow" : "Catalogue",
+      "select" : {
+        "ids" : [ "external-system-pay-example-com" ]
+      }
+    } ]
+  } ]
+}

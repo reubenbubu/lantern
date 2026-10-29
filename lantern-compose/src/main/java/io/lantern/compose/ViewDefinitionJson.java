@@ -42,7 +42,9 @@ public final class ViewDefinitionJson {
     node.put("title", view.title());
     ObjectNode scope = node.putObject("scope");
     scope.put("kind", view.scope().kind().jsonName());
-    scope.put("repo", view.scope().repo());
+    if (view.scope().repo() != null) {
+      scope.put("repo", view.scope().repo());
+    }
     if (view.audience() != null) {
       node.put("audience", view.audience());
     }
@@ -77,7 +79,7 @@ public final class ViewDefinitionJson {
         text(node.get("title"), "title"),
         new Scope(
             Scope.Kind.fromJsonName(text(scope.get("kind"), "scope kind")),
-            text(scope.get("repo"), "scope repo")),
+            scope.has("repo") ? text(scope.get("repo"), "scope repo") : null),
         audience == null ? null : text(audience, "audience"),
         new TemplateRef(
             text(template.get("name"), "template name"),

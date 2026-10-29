@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
 /**
  * Decides what a document says: applies a view definition to the knowledge of one snapshot and
@@ -44,7 +45,8 @@ public final class Composer {
    * @param summaries the summaries of the snapshot's units, by entity, as {@link
    *     io.lantern.summarize.Summarizer} returns them; units without a summary get no narrative
    * @throws IllegalArgumentException if the view's repository is not in the snapshot, or a summary
-   *     cites a fact that does not hold in it
+   *     cites a fact that does not hold in it; a system view covers every repository of the
+   *     snapshot
    */
   public Document compose(
       ViewDefinition view,
@@ -56,13 +58,15 @@ public final class Composer {
     Objects.requireNonNull(facts, "facts");
     Objects.requireNonNull(summaries, "summaries");
     String repo = view.scope().repo();
-    if (!snapshot.commits().containsKey(repo)) {
+    if (repo != null && !snapshot.commits().containsKey(repo)) {
       throw new IllegalArgumentException(
           "Repository " + repo + " is not in snapshot " + snapshot.number());
     }
     List<Fact> valid =
         facts.stream().filter(f -> f.validity().contains(snapshot.number())).toList();
-    RepoSections composition = new RepoSections(new Knowledge(valid), summaries, repo);
+    RepoSections composition =
+        new RepoSections(
+            new Knowledge(valid), summaries, repo, new TreeSet<>(snapshot.commits().keySet()));
     List<Section> sections = new ArrayList<>();
     for (SectionKind kind : view.sections()) {
       sections.add(composition.section(kind));

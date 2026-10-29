@@ -1,4 +1,4 @@
-# 0044: LLM resolver for links left open
+# 0045: LLM resolver for links left open
 
 Status: accepted (#152), pending the user's review (#24)
 

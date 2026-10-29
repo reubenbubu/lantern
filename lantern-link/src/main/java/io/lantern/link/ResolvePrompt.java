@@ -17,7 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The prompt of the LLM resolver (ADR 0044) and the check of its answers. The facts are listed with
+ * The prompt of the LLM resolver (ADR 0045) and the check of its answers. The facts are listed with
  * short references ({@code F1}, {@code F2}) and the candidate units with theirs ({@code C1}), which
  * the answer cites. Fact IDs are not shown, since they change with every commit; so the same call
  * and candidates give the same prompt, and the same cache key, until what the prompt shows changes.

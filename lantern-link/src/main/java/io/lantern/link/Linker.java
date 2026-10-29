@@ -59,7 +59,7 @@ public final class Linker {
 
   /**
    * The linker of this version of Lantern with the LLM resolver as its last step, picking among the
-   * candidates of the links the steps before it leave open (ADR 0044).
+   * candidates of the links the steps before it leave open (ADR 0045).
    */
   public static Linker standard(FactRepository store, LinkResolver resolver) {
     return new Linker(

@@ -42,7 +42,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The linker records its facts for the whole snapshot: a derived fact stops holding when the facts
  * it came from change, even when only another repository was analyzed (ADR 0039). The LLM
- * resolver's links are recorded the same way, with its answers reused (ADR 0044).
+ * resolver's links are recorded the same way, with its answers reused (ADR 0045).
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
