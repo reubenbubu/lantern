@@ -1265,5 +1265,81 @@
       } ],
       "sections" : [ ]
     } ]
+  }, {
+    "id" : "quality",
+    "title" : "Quality report",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "quality-report",
+      "id" : "quality.report",
+      "failures" : [ {
+        "check" : "Containers and components have a technology",
+        "target" : {
+          "kind" : "block",
+          "id" : "containers.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "No technology for worker."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Every line is labelled with an intent phrase",
+        "target" : {
+          "kind" : "block",
+          "id" : "containers.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\")."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Containers and components have a technology",
+        "target" : {
+          "kind" : "block",
+          "id" : "components.service:com.example:app.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "No technology for worker."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Every line is labelled with an intent phrase",
+        "target" : {
+          "kind" : "block",
+          "id" : "components.service:com.example:app.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Acronyms are explained in the glossary",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "It states its reader",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document names no audience; the view definition it was composed from has none."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "It pins its snapshot (commits) and date",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The document names snapshot 1 but not the commits it is of or a date; the document model holds neither."
+        } ],
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
   } ]
 }

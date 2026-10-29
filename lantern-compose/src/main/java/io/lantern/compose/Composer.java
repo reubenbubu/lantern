@@ -2,6 +2,7 @@ package io.lantern.compose;
 
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentSource;
+import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
@@ -9,9 +10,11 @@ import io.lantern.core.snapshot.Snapshot;
 import io.lantern.summarize.Summary;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -23,6 +26,9 @@ import java.util.TreeSet;
  * document. The composer makes no LLM calls; narrative comes from the summaries it is given.
  */
 public final class Composer {
+
+  /** The ID of the last section, the quality report, unless a section already has it. */
+  static final String QUALITY = "quality";
 
   private final String toolVersion;
 
@@ -71,14 +77,49 @@ public final class Composer {
     for (SectionKind kind : view.sections()) {
       sections.add(composition.section(kind));
     }
+    Document composed =
+        new Document(
+            view.id(),
+            view.title(),
+            view.audience(),
+            view.template(),
+            new DocumentSource(snapshot.number(), snapshot.vocabularyRevision(), toolVersion),
+            composition.entities(),
+            composition.facts(),
+            sections);
+    sections.add(qualitySection(composed));
     return new Document(
-        view.id(),
-        view.title(),
-        view.audience(),
-        view.template(),
-        new DocumentSource(snapshot.number(), snapshot.vocabularyRevision(), toolVersion),
-        composition.entities(),
-        composition.facts(),
+        composed.id(),
+        composed.title(),
+        composed.audience(),
+        composed.template(),
+        composed.source(),
+        composed.entities(),
+        composed.facts(),
         sections);
+  }
+
+  /**
+   * The last section: the Quality bar checks the document fails (ADR 0028, ADR 0046), an empty
+   * report when it passes every check the composer makes.
+   */
+  private static Section qualitySection(Document document) {
+    Set<String> ids = new HashSet<>();
+    collectIds(document.sections(), ids);
+    String id = QUALITY;
+    for (int n = 2; ids.contains(id) || ids.contains(id + ".report"); n++) {
+      id = QUALITY + "-" + n;
+    }
+    QualityReport report =
+        new QualityReport(id + ".report", null, QualityBar.failures(document), List.of());
+    return new Section(id, "Quality report", Set.of(), null, List.of(), List.of(report), List.of());
+  }
+
+  private static void collectIds(List<Section> sections, Set<String> ids) {
+    for (Section section : sections) {
+      ids.add(section.id());
+      section.blocks().forEach(block -> ids.add(block.id()));
+      collectIds(section.sections(), ids);
+    }
   }
 }

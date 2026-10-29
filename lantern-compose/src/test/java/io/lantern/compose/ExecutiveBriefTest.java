@@ -110,7 +110,7 @@ class ExecutiveBriefTest {
     assertThat(document.template()).isEqualTo(TEMPLATE);
     assertThat(document.sections())
         .extracting(Section::id)
-        .containsExactly("overview", "headlines", "risks", "context", "containers");
+        .containsExactly("overview", "headlines", "risks", "context", "containers", "quality");
     assertThat(section(document, "headlines").title()).isEqualTo("At a glance");
   }
 

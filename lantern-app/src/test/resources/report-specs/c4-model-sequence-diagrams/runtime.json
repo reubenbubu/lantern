@@ -112,6 +112,11 @@
       "id" : "context-people",
       "body" : "The code names no people or user roles, so who uses base and shop is not known.",
       "tone" : "info"
+    }, {
+      "type" : "list",
+      "id" : "quality-report",
+      "title" : "Quality gaps",
+      "items" : [ "**Acronyms are explained in the glossary**: The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST.", "**It states its reader**: The document names no audience; the view definition it was composed from has none.", "**It pins its snapshot (commits) and date**: The document names snapshot 1 but not the commits it is of or a date; the document model holds neither." ]
     } ]
   }, {
     "id" : "containers",
@@ -190,6 +195,11 @@
         "body" : "Orders go to Kafka.",
         "status" : "Accepted"
       } ]
+    }, {
+      "type" : "list",
+      "id" : "quality-report",
+      "title" : "Quality gaps",
+      "items" : [ "**Containers and components have a technology** ([Containers of base and shop](#/containers/containers-diagram)): No technology for worker.", "**Every line is labelled with an intent phrase** ([Containers of base and shop](#/containers/containers-diagram)): Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\")." ]
     } ]
   }, {
     "id" : "components-service-com-example-app",
@@ -264,6 +274,11 @@
       "select" : {
         "ids" : [ "external-system-pay-example-com" ]
       }
+    }, {
+      "type" : "list",
+      "id" : "quality-report",
+      "title" : "Quality gaps",
+      "items" : [ "**Containers and components have a technology** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): No technology for worker.", "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ]
     } ]
   } ]
 }
