@@ -133,8 +133,8 @@ class C4ReportRendererTest {
             .get(0);
     assertThat(decision.toString())
         .isEqualTo(
-            "{\"id\":\"ADR 1\",\"title\":\"Use Kafka\",\"body\":\"Orders go to Kafka.\","
-                + "\"status\":\"Accepted\"}");
+            "{\"id\":\"ADR 1\",\"title\":\"Use Kafka\",\"body\":\"Orders go to Kafka.\\n\\n"
+                + "**Rationale:** Not recorded.\",\"status\":\"Accepted\"}");
   }
 
   @Test

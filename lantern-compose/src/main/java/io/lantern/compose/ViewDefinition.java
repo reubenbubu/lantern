@@ -57,8 +57,10 @@ public record ViewDefinition(
   }
 
   /**
-   * A view of one repository with the sections of the Architecture Explorer: overview, context,
-   * containers, components, dependencies and structure.
+   * A view of one repository with the sections of the Architecture Explorer, in the order the
+   * Quality bar asks: the overview as its orientation, where to start reading, the containers (the
+   * first diagram), context, components, main flows, the catalog, change guidance, then the
+   * dependencies and structure (ADR 0048).
    */
   public static ViewDefinition perRepo(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -69,16 +71,21 @@ public record ViewDefinition(
         template,
         List.of(
             SectionKind.OVERVIEW,
-            SectionKind.CONTEXT,
+            SectionKind.START_HERE,
             SectionKind.CONTAINERS,
+            SectionKind.CONTEXT,
             SectionKind.COMPONENTS,
+            SectionKind.SEQUENCES,
+            SectionKind.CATALOG,
+            SectionKind.CHANGE_GUIDANCE,
             SectionKind.DEPENDENCIES,
             SectionKind.STRUCTURE));
   }
 
   /**
-   * A view of one repository for a C4 report: overview, context, containers, components and main
-   * flows, the sections whose diagrams the C4 report spec draws (ADR 0031).
+   * A view of one repository for a C4 report: overview, where to start reading, context,
+   * containers, components and main flows, the sections whose diagrams the C4 report spec draws
+   * (ADR 0031), the first two in its introduction.
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -89,6 +96,7 @@ public record ViewDefinition(
         template,
         List.of(
             SectionKind.OVERVIEW,
+            SectionKind.START_HERE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
@@ -96,8 +104,8 @@ public record ViewDefinition(
   }
 
   /**
-   * A view of the whole system for a C4 report: overview, context, containers, components and main
-   * flows (ADR 0031).
+   * A view of the whole system for a C4 report: overview, where to start reading, context,
+   * containers, components and main flows (ADR 0031).
    */
   public static ViewDefinition c4System(String id, String title, TemplateRef template) {
     return new ViewDefinition(
@@ -108,6 +116,7 @@ public record ViewDefinition(
         template,
         List.of(
             SectionKind.OVERVIEW,
+            SectionKind.START_HERE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,

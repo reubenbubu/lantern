@@ -171,7 +171,7 @@ class C4ViewsTest {
     Table decisions = block(containers, Table.class);
     assertThat(decisions.columns())
         .extracting(Table.Column::label)
-        .containsExactly("ID", "Decision", "Status", "Outcome");
+        .containsExactly("ID", "Decision", "Status", "Outcome", "Rationale");
     assertThat(decisions.rows())
         .singleElement()
         .satisfies(
@@ -180,7 +180,8 @@ class C4ViewsTest {
                   .isEqualTo(EntityId.parse("decision:shop:docs/adr/0001-kafka.md"));
               assertThat(row.cells())
                   .extracting(C4ViewsTest::text)
-                  .containsExactly("ADR 1", "Use Kafka", "Accepted", "Orders go to Kafka.");
+                  .containsExactly(
+                      "ADR 1", "Use Kafka", "Accepted", "Orders go to Kafka.", "Not recorded.");
             });
   }
 

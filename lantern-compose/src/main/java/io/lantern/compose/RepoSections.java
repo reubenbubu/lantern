@@ -125,8 +125,10 @@ final class RepoSections {
       case CONTEXT -> blocks.addAll(c4.context(id));
       case CONTAINERS -> c4.containers(id, blocks, subsections);
       case COMPONENTS -> subsections.addAll(c4.components(id));
-      case SEQUENCES ->
-          subsections.addAll(new SequenceFlows(knowledge, assembler, c4, units).flows(id, blocks));
+      case START_HERE -> blocks.addAll(explorer().startHere(id));
+      case SEQUENCES -> subsections.addAll(flows().flows(id, blocks));
+      case CATALOG -> blocks.addAll(explorer().catalog(id));
+      case CHANGE_GUIDANCE -> blocks.addAll(explorer().changeGuidance(id));
       case DEPENDENCIES -> dependencies(id, blocks);
       case STRUCTURE -> structure(id, blocks);
       case HEADLINES -> blocks.add(headlines(id));
@@ -142,6 +144,14 @@ final class RepoSections {
                   .callouts(id));
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
+  }
+
+  private SequenceFlows flows() {
+    return new SequenceFlows(knowledge, assembler, c4, units);
+  }
+
+  private ExplorerSections explorer() {
+    return new ExplorerSections(knowledge, assembler, c4, flows(), units, repos);
   }
 
   // Overview: the repository's summary and what it builds.

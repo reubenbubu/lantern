@@ -59,6 +59,9 @@ final class C4Views {
   static final String EXTERNAL_SYSTEM = "external-system";
   static final String DECISION = "decision";
 
+  /** A decision record's rationale when it has no context section. */
+  static final String NOT_RECORDED = "Not recorded.";
+
   /** The most elements a diagram shows before it is split (docs/design.md, Quality bar). */
   static final int MAX_ELEMENTS = 15;
 
@@ -850,8 +853,12 @@ final class C4Views {
             assembler.facts(facts)));
   }
 
-  /** The decision records of the scope's repositories, oldest number first. */
-  private Optional<Table> decisions(String section) {
+  /**
+   * The decision records of the scope's repositories, oldest number first, each with its rationale
+   * quoted from its context section or marked as not recorded; a note when there are none, since
+   * then why the system is built as it is is not known (Quality bar, Architecture Explorer).
+   */
+  private Optional<Block> decisions(String section) {
     SortedSet<EntityId> decisions = new TreeSet<>(Knowledge.BY_ID);
     for (Fact fact : knowledge.withPredicate("title")) {
       EntityId subject = fact.subject();
@@ -863,7 +870,25 @@ final class C4Views {
       }
     }
     if (decisions.isEmpty()) {
-      return Optional.empty();
+      if (repos.isEmpty()) {
+        return Optional.empty();
+      }
+      List<String> names = new ArrayList<>(new TreeSet<>(repos));
+      String last = names.removeLast();
+      String where = names.isEmpty() ? last : String.join(", ", names) + " and " + last;
+      // A note: what the code does not show cites no fact (Quality bar, ADR 0046).
+      return Optional.of(
+          new Callout(
+              assembler.id(section, "decisions"),
+              Callout.Variant.NOTE,
+              null,
+              "Decisions",
+              List.of(
+                  TextRun.of(
+                      "No decision records were found in "
+                          + where
+                          + ", so the reasons for its design are not known.")),
+              List.of()));
     }
     List<Table.Row> rows = new ArrayList<>();
     for (EntityId decision : decisions) {
@@ -876,7 +901,8 @@ final class C4Views {
                   cell(number.map(n -> "ADR " + n).orElse(null)),
                   cell(assembler.name(decision)),
                   cell(knowledge.attribute(decision, "decision-status").orElse(null)),
-                  cell(knowledge.attribute(decision, "decision-outcome").orElse(null))),
+                  cell(knowledge.attribute(decision, "decision-outcome").orElse(null)),
+                  cell(rationale(decision))),
               assembler.facts(knowledge.attributes(decision))));
     }
     rows.sort(
@@ -895,9 +921,20 @@ final class C4Views {
                 new Table.Column("ID"),
                 new Table.Column("Decision"),
                 new Table.Column("Status"),
-                new Table.Column("Outcome")),
+                new Table.Column("Outcome"),
+                new Table.Column("Rationale")),
             rows,
             List.of()));
+  }
+
+  /** The first paragraph of a decision record's context section, or that it has none. */
+  private String rationale(EntityId decision) {
+    return knowledge
+        .attribute(decision, "decision-context")
+        .map(String::strip)
+        .filter(c -> !c.isEmpty())
+        .map(c -> c.split("\\n\\s*\\n", 2)[0].strip().replaceAll("\\s*\\n\\s*", " "))
+        .orElse(NOT_RECORDED);
   }
 
   private int number(EntityId decision) {
@@ -917,7 +954,7 @@ final class C4Views {
    * A component: a group of types behind one role, named after its main type, the entry point or
    * bean it is built around.
    */
-  private record Component(EntityId main, SortedSet<EntityId> types, String technology) {}
+  record Component(EntityId main, SortedSet<EntityId> types, String technology) {}
 
   /**
    * One subsection per unit in scope with more than one component, holding its component diagram:
@@ -949,7 +986,8 @@ final class C4Views {
     return result;
   }
 
-  private List<Component> components(EntityId unit) {
+  /** The unit's components by role, entry points first, each in ID order. */
+  List<Component> components(EntityId unit) {
     SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
     for (EntityId module : codeModules(knowledge, unit)) {
       code.addAll(knowledge.typesWithin(module));
@@ -1245,7 +1283,7 @@ final class C4Views {
   }
 
   /** The facts that make the component's main type what it is: its stereotype and entry points. */
-  private List<Fact> componentFacts(Component component) {
+  List<Fact> componentFacts(Component component) {
     List<Fact> facts = new ArrayList<>();
     for (EntityId member : withMethods(component.main)) {
       for (Fact fact : knowledge.attributes(member)) {
