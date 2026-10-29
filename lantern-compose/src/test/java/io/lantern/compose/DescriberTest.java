@@ -281,7 +281,7 @@ class DescriberTest {
 
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    // Citing no README claim, the sentences are marked as inferred (ADR 0062).
+    // Citing no README claim, the sentences are marked as inferred (ADR 0063).
     assertThat(app.description().getFirst())
         .isEqualTo(new TextRun(Assembler.INFERRED_SENTENCE, TextRun.Style.EMPHASIS));
     assertThat(text(app.description()))
