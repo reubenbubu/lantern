@@ -77,7 +77,7 @@ modelled, and what happens with SQL the parser cannot read.
   file that shaped the schema, without lines.
 - **Confidence** is 1.0 for Flyway and Liquibase, which the application runs, and 0.8 for other
   `.sql` files, which may be run by hand or not at all.
-- **New vocabulary**, applied by the app on startup after the Config extractor's, with source
+- **New vocabulary**, applied by the app on startup after the README and ADR extractor's, with source
   `sql-extractor`: the entity types `schema`, `table` and `column` (no C4 level), the relationship
   types `PRIMARY_KEY`, `UNIQUE_KEY` and `REFERENCES`, and the attribute types `data-type`
   (string), `nullable` (boolean) and `position` (integer). It reuses the Java extractor's `kind`,
