@@ -1,6 +1,6 @@
 # 0065: Evidenced and inferred responsibility sentences
 
-Status: accepted (#216), amends ADR 0050 and ADR 0056, amended by ADR 0066 (#192), pending the user's review (#24)
+Status: accepted (#216), amends ADR 0050 and ADR 0056, amended by ADR 0066 (#192) and ADR 0068 (#191), pending the user's review (#24)
 
 ## Context
 
@@ -21,7 +21,8 @@ as evidenced or inferred, and for documents to show inferred ones as such.
   prompts show README claims only (a unit's prompt shows them; an element's shows none, so its
   sentence is always inferred). Javadoc and Lantern's annotations will count once a prompt shows
   them (#208, Phase 3). As in ADR 0059 the check is a bound, not proof: it cannot tell that the
-  cited claim says what the sentence says (#191).
+  cited claim says what the sentence says; since ADR 0068 a sentence naming what its cited facts do
+  not mention is left out.
 - **Documents show inferred sentences.** The composer opens the description of a unit, component,
   data store or destination taken from a responsibility sentence that cites no README claim, among
   the citations still in the snapshot's facts, with `Inferred:` as emphasized text. An evidenced

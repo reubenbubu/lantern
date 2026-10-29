@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -180,15 +181,29 @@ final class Citations {
   }
 
   /**
-   * An answer's sentences split by whether they cite anything.
+   * An answer's sentences split by whether they are kept.
    *
-   * @param text the sentences that cite at least one reference, as written, with the space between
-   *     them, or empty if none does
+   * @param text the sentences that cite at least one reference and name only what it supports, as
+   *     written, with the space between them, or empty if none does
    * @param uncited the sentences that cite nothing, as written, without the space after them
-   * @param firstUncited whether the answer's first sentence is one of them
-   * @param kept how many sentences cite at least one reference
+   * @param unsupported the sentences that cite something but name what it does not support
+   * @param firstLeftOut whether the answer's first sentence is one of those left out
+   * @param kept how many sentences are kept
    */
-  record Sentences(String text, List<String> uncited, boolean firstUncited, int kept) {}
+  record Sentences(
+      String text,
+      List<String> uncited,
+      List<Unsupported> unsupported,
+      boolean firstLeftOut,
+      int kept) {}
+
+  /**
+   * A sentence that names what its citations do not support.
+   *
+   * @param sentence the sentence as written, without the space after it
+   * @param names what it names that the inputs it cites and its unit do not mention
+   */
+  record Unsupported(String sentence, List<String> names) {}
 
   /**
    * Splits an answer into sentences and keeps those that cite a reference, valid or not, so that
@@ -198,10 +213,21 @@ final class Citations {
    * not end one.
    */
   static Sentences cited(String answer) {
+    return cited(answer, sentence -> List.of());
+  }
+
+  /**
+   * As {@link #cited(String)}, and leaves out too the sentences that name what the inputs they cite
+   * do not mention (ADR 0068).
+   *
+   * @param unsupported what a sentence that cites something names that its citations do not support
+   */
+  static Sentences cited(String answer, Function<String, List<String>> unsupported) {
     String text = answer == null ? "" : answer.strip();
     StringBuilder kept = new StringBuilder();
     List<String> uncited = new ArrayList<>();
-    boolean firstUncited = false;
+    List<Unsupported> unsupportedSentences = new ArrayList<>();
+    boolean firstLeftOut = false;
     int keptSentences = 0;
     int start = 0;
     Matcher end = SENTENCE_END.matcher(text);
@@ -214,16 +240,23 @@ final class Citations {
         }
       }
       String sentence = text.substring(start, to);
-      if (GROUP.matcher(sentence).find()) {
-        kept.append(sentence);
-        keptSentences++;
-      } else {
+      if (!GROUP.matcher(sentence).find()) {
         uncited.add(sentence.strip());
-        firstUncited |= start == 0;
+        firstLeftOut |= start == 0;
+      } else {
+        List<String> names = unsupported.apply(sentence);
+        if (names.isEmpty()) {
+          kept.append(sentence);
+          keptSentences++;
+        } else {
+          unsupportedSentences.add(new Unsupported(sentence.strip(), List.copyOf(names)));
+          firstLeftOut |= start == 0;
+        }
       }
       start = to;
     }
-    return new Sentences(kept.toString().strip(), uncited, firstUncited, keptSentences);
+    return new Sentences(
+        kept.toString().strip(), uncited, unsupportedSentences, firstLeftOut, keptSentences);
   }
 
   /**

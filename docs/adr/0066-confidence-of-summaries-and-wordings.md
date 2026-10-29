@@ -1,6 +1,6 @@
 # 0066: Confidence of summaries and wordings, and a unit's fallback description
 
-Status: accepted (#192), amends ADR 0010, ADR 0050, ADR 0059 and ADR 0065, pending the user's review (#24)
+Status: accepted (#192), amends ADR 0010, ADR 0050, ADR 0059 and ADR 0065, amended by ADR 0068 (#191), pending the user's review (#24)
 
 ## Context
 
@@ -33,8 +33,8 @@ reconciled or one chosen consistently.
   is not in the cache key.
 - **A wording's confidence** is set on each item of an answer (`WordingAnswer.Item.confidence`):
   responsibility sentences, intent phrases, a flow's texts and the system's purpose. An item's
-  sentences cannot be left out (a sentence that breaks the rules rejects the answer), so it is the
-  base alone: 0.5 if the item cites a README claim of its prompt, else 0.35. It is stored with the
+  sentences cannot be left out (a sentence that breaks the rules rejects the answer; since ADR 0068
+  a whole item may be left out, which leaves no item to rate), so it is the base alone: 0.5 if the item cites a README claim of its prompt, else 0.35. It is stored with the
   item in the `unit_wordings` table's `items`, which needs no migration; items cached before have
   none (`null`). Documents do not read it: the composer marks inferred sentences from their
   citations among the snapshot's facts, as ADR 0065 does, and the document model has no place for

@@ -329,7 +329,7 @@ class CitationsTest {
     assertThat(sentences.text()).isEqualTo("Sells books [F1]. Ships them. [F2]");
     assertThat(sentences.uncited())
         .containsExactly("It is great!", "Does it pay?", "Returns int[] x.");
-    assertThat(sentences.firstUncited()).isFalse();
+    assertThat(sentences.firstLeftOut()).isFalse();
   }
 
   @Test
@@ -338,7 +338,7 @@ class CitationsTest {
 
     assertThat(sentences.text()).isEqualTo("Ships them [F1, S2].");
     assertThat(sentences.uncited()).containsExactly("Sells books.");
-    assertThat(sentences.firstUncited()).isTrue();
+    assertThat(sentences.firstLeftOut()).isTrue();
   }
 
   @Test

@@ -588,6 +588,64 @@ class SummarizerTest {
   }
 
   @Test
+  void sentencesNamingWhatTheirCitationsDoNotMentionAreLeftOutWithoutAskingAgain() {
+    fake.answering("OrderLine holds a quantity. [F1] It is saved with JPA by LineRepository. [F1]");
+    SummaryNode line =
+        new SummaryNode(
+            EntityId.parse("type:p.OrderLine"),
+            SummaryLevel.TYPE,
+            List.of(
+                TestFacts.fact(
+                    "r", "type:p.OrderLine", "kind", FactObject.string("record"), "Line.java")),
+            List.of());
+    String fact = line.facts().getFirst().id();
+
+    Summary summary = summarizer().summarize(List.of(line)).summaries().get(line.entity());
+
+    // The unit's own name needs no citation; what neither it nor the fact mentions is left out.
+    assertThat(summary.text()).isEqualTo("OrderLine holds a quantity. [fact:" + fact + "]");
+    assertThat(fake.sent()).hasSize(1);
+    // One sentence of two is kept, so the inferred base of 0.35 is halved (ADR 0066).
+    assertThat(summary.confidence()).isEqualTo(0.18);
+    assertThat(log.list)
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .contains(
+            "Left out 1 sentences naming what their references do not mention from the answer to"
+                + " summarize type type:p.OrderLine: It is saved with JPA by LineRepository. [F1]"
+                + " (JPA, LineRepository)");
+  }
+
+  @Test
+  void anAnswerWhoseEverySentenceNamesWhatItsCitationsDoNotMentionIsSentBack() {
+    firstLineAnswer("It is kept in Redis by LineCache. [F1]");
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(retried().messages().get(2).text())
+        .startsWith(
+            "Your summary was rejected: every sentence names something that the references it"
+                + " cites do not mention: Redis, LineCache; name only what the input you cite"
+                + " shows.");
+    assertThat(result.rejected()).isEmpty();
+  }
+
+  @Test
+  void anEvidencedPurposeWhoseFirstSentenceNamesWhatItsCitationDoesNotMentionIsInferred() {
+    repoAnswer(
+        "Purpose: evidenced\nShop sells books with Kafka. [F1] Shop sells books to readers. [F1]");
+
+    Summary repo =
+        summarizer()
+            .summarize(SummaryTree.fromFacts(shopWithReadme()))
+            .summaries()
+            .get(EntityId.parse("repo:shop"));
+
+    assertThat(repo.purpose()).isEqualTo(Summary.Purpose.INFERRED);
+    assertThat(repo.text()).startsWith("Shop sells books to readers. [fact:");
+  }
+
+  @Test
   void anUnknownReferenceNextToAnUncitedSentenceIsStillSentBack() {
     firstLineAnswer("It is a line. It is a record [F99].");
 

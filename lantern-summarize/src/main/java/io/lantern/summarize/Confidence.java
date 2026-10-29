@@ -25,7 +25,8 @@ public final class Confidence {
    *
    * @param evidenced whether its purpose rests on what people wrote
    * @param kept how many of its sentences cite something and are kept, at least one
-   * @param leftOut how many cite nothing and are left out
+   * @param leftOut how many are left out, for citing nothing or for naming what they cite does not
+   *     mention (ADR 0068)
    * @return the base confidence times the share of sentences kept, to two decimals and at least
    *     0.01
    */

@@ -53,7 +53,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.VERSION and update this fingerprint")
-        .isEqualTo("2 58ac2121e6854ac6ad04292dc4c768550e0b8687488e139045450064acd3232f");
+        .isEqualTo("3 9739629c7e6d81a6ac303800438810796d25b1d2dc1072619b2317ce4f359cad");
   }
 
   /**
@@ -80,7 +80,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.ELEMENT_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.ELEMENT_VERSION and update this fingerprint")
-        .isEqualTo("2 2e791e734b79a71d94e9f95486543608cdca3f66e3470438bdcf4b0929d8d374");
+        .isEqualTo("3 7f20d5df2f05d04fb08c456263cc82a7d484f88154702cb5ac5c33cc07732a58");
   }
 
   /**
@@ -107,7 +107,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.FLOW_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.FLOW_VERSION and update this fingerprint")
-        .isEqualTo("2 dd5fc1c8bb27d8792afa5f03f4b4432cbdd43c51deee617f989effa1ec4b5951");
+        .isEqualTo("3 cd96a3dc2a6926a68746fca554903ea4623c4ee2119a84d21510e8ceec9dd483");
   }
 
   /**
@@ -135,7 +135,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.PURPOSE_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.PURPOSE_VERSION and update this fingerprint")
-        .isEqualTo("2 3908130b65d156e834ebbb7059775006729415e21419d5e03a9db9b4ec86d588");
+        .isEqualTo("3 c658b7692c1fe5a028a36c0b97254d0b86c6866163bef4d5aab7d18ec95e9f1f");
   }
 
   private Question flow() {
@@ -428,6 +428,52 @@ class WordingPromptTest {
 
     assertThat(items.get(WordingAnswer.UNIT).confidence()).isEqualTo(Confidence.EVIDENCED);
     assertThat(items.get("R1").confidence()).isEqualTo(Confidence.INFERRED);
+  }
+
+  @Test
+  void textsNamingWhatTheirFactsDoNotMentionAreLeftOut() {
+    // F2 is the Controller's stereotype, F3 the link to the orders topic over Kafka.
+    assertThat(
+            check(
+                """
+                {"unit": {"text": "Takes orders and caches them in Redis.", "cites": ["F1"]},
+                 "components": {"C1": {"text": "Controller serves the order pages.", "cites": ["F2"]}},
+                 "relationships": {"R1": {"text": "Announces new orders over Kafka", "cites": ["F3"]}}}"""))
+        .containsExactly(
+            Map.entry(
+                "C1",
+                new WordingAnswer.Item("Controller serves the order pages.", List.of("F2"), 0.35)),
+            Map.entry(
+                "R1",
+                new WordingAnswer.Item("Announces new orders over Kafka", List.of("F3"), 0.35)));
+    // A name the cited fact mentions is kept; one only a fact it does not cite mentions is not.
+    assertThat(
+            check(
+                """
+                {"components": {"C1": {"text": "The OrderController serves pages.", "cites": ["F1"]}},
+                 "relationships": {"R1": {"text": "Announces orders via JpaOrders", "cites": ["F3"]}}}"""))
+        .containsOnlyKeys("R1");
+    assertThatThrownBy(
+            () ->
+                check(
+                    "{\"unit\": {\"text\": \"Takes orders through OrderController.\","
+                        + " \"cites\": [\"F1\"]}}"))
+        .hasMessage(
+            "every text names something that the facts it cites do not mention: OrderController;"
+                + " name only what the facts you cite show.");
+  }
+
+  @Test
+  void aFlowMayNameWhatItsTriggerAndStepsShow() {
+    // Controller.list is named by what starts the flow, not by the fact cited.
+    assertThat(
+            WordingPrompt.check(
+                response(
+                    """
+                    {"walkthrough": {"text": "Controller.list announces orders.", "cites": ["F2"]},
+                     "postconditions": {"text": "Orders sit in Redis.", "cites": ["F2"]}}"""),
+                flow()))
+        .containsOnlyKeys(WordingPrompt.WALKTHROUGH);
   }
 
   @Test
