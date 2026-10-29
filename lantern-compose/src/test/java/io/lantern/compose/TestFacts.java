@@ -101,6 +101,85 @@ final class TestFacts {
         .orElseThrow();
   }
 
+  /**
+   * {@link #runtime()} with a claim of {@code shop}'s README, that the app keeps its orders in
+   * MySQL, and the claim check's finding that the code contradicts it: the app uses {@code shop} on
+   * {@code db}, a PostgreSQL database (ADR 0043).
+   */
+  static List<Fact> runtimeWithContradictedClaim() {
+    TestFacts runtime = runtime();
+    List<Fact> facts = new ArrayList<>(runtime.list());
+    facts.addAll(
+        contradictedClaim(
+            "The app keeps its orders in\nMySQL.",
+            3,
+            "database-technology",
+            "MySQL",
+            List.of("PostgreSQL"),
+            List.of(runtime.find("service:com.example:app", "USES_DATABASE"))));
+    return facts;
+  }
+
+  /**
+   * A claim of {@code shop}'s README on the line, and the {@code claim-contradiction} fact of the
+   * check, as the claim checks record them (ADR 0043).
+   *
+   * @param stated what the claim names, or {@code null}
+   */
+  static List<Fact> contradictedClaim(
+      String text,
+      int line,
+      String check,
+      String stated,
+      List<String> found,
+      List<Fact> contradictedBy) {
+    Evidence readme =
+        new Evidence("shop", COMMIT, "README.md", new Evidence.LineRange(line, line), null);
+    Fact claim =
+        Fact.create(
+            EntityId.parse("readme:shop:README.md"),
+            "claim",
+            FactObject.string(text),
+            FactJson.newObject(),
+            new Origin(Origin.Kind.STATIC, "docs", "1"),
+            readme,
+            0.5,
+            Validity.from(1));
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("claim", claim.id());
+    if (stated != null) {
+      attributes.put("stated", stated);
+    }
+    if (!found.isEmpty()) {
+      var array = attributes.putArray("found");
+      found.forEach(array::add);
+    }
+    attributes.putArray("units").add("service:com.example:app");
+    var ids = attributes.putArray("facts").add(claim.id());
+    var by = attributes.putArray("contradictedBy");
+    for (Fact f : contradictedBy) {
+      ids.add(f.id());
+      ObjectNode entry = by.addObject();
+      entry.put("fact", f.id());
+      entry.put("subject", f.subject().toString());
+      entry.put("predicate", f.predicate());
+      entry.put("object", f.object().value());
+      entry.put("repo", f.evidence().repo());
+      entry.put("path", f.evidence().path());
+    }
+    Fact contradiction =
+        Fact.create(
+            claim.subject(),
+            "claim-contradiction",
+            FactObject.string(check),
+            attributes,
+            new Origin(Origin.Kind.STATIC, "claim-checks", "1"),
+            readme,
+            0.8,
+            Validity.from(1));
+    return List.of(claim, contradiction);
+  }
+
   static Fact fact(
       String repo,
       String subject,

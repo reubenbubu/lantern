@@ -184,6 +184,33 @@
       "from" : 1
     }
   }, {
+    "id" : "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44",
+    "subject" : "readme:shop:README.md",
+    "predicate" : "claim",
+    "object" : {
+      "kind" : "string",
+      "value" : "The app keeps its orders in\nMySQL."
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "docs",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "README.md",
+      "lines" : {
+        "start" : 3,
+        "end" : 3
+      }
+    },
+    "confidence" : 0.5,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
     "id" : "3ff98a31830bc9e18aee1ec0105d78269363519de7202aada0fcd209c9770ce5",
     "subject" : "library:com.example:common",
     "predicate" : "CONTAINS",
@@ -899,6 +926,47 @@
       "from" : 1
     }
   }, {
+    "id" : "eac7517edf6100dc209d840b862376ebcac870c9a20b0ca047ac964643610575",
+    "subject" : "readme:shop:README.md",
+    "predicate" : "claim-contradiction",
+    "object" : {
+      "kind" : "string",
+      "value" : "database-technology"
+    },
+    "attributes" : {
+      "claim" : "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44",
+      "contradictedBy" : [ {
+        "fact" : "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502",
+        "object" : "database:db:5432/shop",
+        "path" : "pom.xml",
+        "predicate" : "USES_DATABASE",
+        "repo" : "shop",
+        "subject" : "service:com.example:app"
+      } ],
+      "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ],
+      "found" : [ "PostgreSQL" ],
+      "stated" : "MySQL",
+      "units" : [ "service:com.example:app" ]
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "claim-checks",
+      "version" : "1"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path" : "README.md",
+      "lines" : {
+        "start" : 3,
+        "end" : 3
+      }
+    },
+    "confidence" : 0.8,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
     "id" : "f365f73583a3221726526f14d45b9238ffa080727ed15e9c8995ccdf6be5f512",
     "subject" : "service:com.example:app",
     "predicate" : "CONTAINS",
@@ -1148,6 +1216,19 @@
       }, {
         "content" : [ {
           "kind" : "text",
+          "text" : "Read "
+        }, {
+          "kind" : "text",
+          "text" : "README.md",
+          "style" : "code"
+        }, {
+          "kind" : "text",
+          "text" : " in shop."
+        } ],
+        "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44" ]
+      }, {
+        "content" : [ {
+          "kind" : "text",
           "text" : "The decision records of shop are in "
         }, {
           "kind" : "text",
@@ -1356,6 +1437,71 @@
         "facts" : [ "035e5e675ceea8774462d63432d88da8af22f048df901c2f5e64a7b8079cf115", "5b1d166614b8639204654085384e568e77f91b45c1746a3fa0bafaa85563eb48", "6634b6e29c4cc6822fbdaf4a2efc972ace034c96c2921b8867af563ffc91ca3a", "9a3df55e3959424aaeffc9b6fdaf3bebde63d200ab9caa5a0e57961f9fe1f348" ]
       } ],
       "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "containers.contradicted-claim",
+      "variant" : "warning",
+      "title" : "Claim the code contradicts",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "README.md",
+        "style" : "code"
+      }, {
+        "kind" : "text",
+        "text" : ", line 3, in shop"
+      }, {
+        "kind" : "text",
+        "text" : " says: “The app keeps its orders in MySQL.”"
+      }, {
+        "kind" : "citation",
+        "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44" ]
+      }, {
+        "kind" : "text",
+        "text" : "."
+      }, {
+        "kind" : "text",
+        "text" : " It states MySQL; the code shows PostgreSQL."
+      }, {
+        "kind" : "text",
+        "text" : " The code shows otherwise: "
+      }, {
+        "kind" : "ref",
+        "text" : "shop-app",
+        "target" : {
+          "kind" : "entity",
+          "id" : "service:com.example:app"
+        }
+      }, {
+        "kind" : "text",
+        "text" : " uses "
+      }, {
+        "kind" : "ref",
+        "text" : "shop on db",
+        "target" : {
+          "kind" : "entity",
+          "id" : "database:db:5432/shop"
+        }
+      }, {
+        "kind" : "text",
+        "text" : " ("
+      }, {
+        "kind" : "text",
+        "text" : "pom.xml",
+        "style" : "code"
+      }, {
+        "kind" : "text",
+        "text" : ", in shop"
+      }, {
+        "kind" : "text",
+        "text" : ")"
+      }, {
+        "kind" : "citation",
+        "facts" : [ "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
+      }, {
+        "kind" : "text",
+        "text" : "."
+      } ],
+      "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "eac7517edf6100dc209d840b862376ebcac870c9a20b0ca047ac964643610575" ]
     } ],
     "sections" : [ ]
   }, {
@@ -1827,6 +1973,24 @@
           "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
         } ],
         "facts" : [ ]
+      }, {
+        "check" : "README claims agree with the code",
+        "target" : {
+          "kind" : "block",
+          "id" : "containers.contradicted-claim"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "README.md",
+          "style" : "code"
+        }, {
+          "kind" : "text",
+          "text" : ", line 3, in shop"
+        }, {
+          "kind" : "text",
+          "text" : ": “The app keeps its orders in MySQL.” is contradicted by 1 fact of the code."
+        } ],
+        "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "eac7517edf6100dc209d840b862376ebcac870c9a20b0ca047ac964643610575" ]
       } ],
       "facts" : [ ]
     } ],

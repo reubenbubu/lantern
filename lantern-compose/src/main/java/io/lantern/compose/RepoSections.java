@@ -7,6 +7,7 @@ import io.lantern.core.document.Inline;
 import io.lantern.core.document.ListBlock;
 import io.lantern.core.document.Metrics;
 import io.lantern.core.document.Paragraph;
+import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.document.Tree;
@@ -59,6 +60,7 @@ final class RepoSections {
   private final SortedSet<EntityId> units;
   private SequenceFlows flows;
   private ExplorerSections explorer;
+  private ClaimContradictions claims;
 
   /**
    * @param repo the repository the document is about, or {@code null} for the whole system
@@ -138,7 +140,10 @@ final class RepoSections {
     switch (kind) {
       case OVERVIEW -> overview(id, blocks);
       case CONTEXT -> blocks.addAll(c4.context(id));
-      case CONTAINERS -> c4.containers(id, blocks, subsections);
+      case CONTAINERS -> {
+        c4.containers(id, blocks, subsections);
+        blocks.addAll(claims().callouts(id));
+      }
       case COMPONENTS -> subsections.addAll(c4.components(id));
       case START_HERE -> blocks.addAll(explorer().startHere(id));
       case SEQUENCES -> subsections.addAll(flows().flows(id, blocks));
@@ -167,6 +172,23 @@ final class RepoSections {
       flows = new SequenceFlows(knowledge, assembler, c4, units);
     }
     return flows;
+  }
+
+  /** The README claims of the scope's repositories that the code contradicts (ADR 0051). */
+  private ClaimContradictions claims() {
+    if (claims == null) {
+      claims = new ClaimContradictions(knowledge, assembler, repos);
+    }
+    return claims;
+  }
+
+  /**
+   * The quality report's failures for README claims the code contradicts, pointing at their
+   * callouts in the containers section when the document has one. Call after the sections and
+   * before {@link #facts()}.
+   */
+  List<QualityReport.Failure> claimFailures() {
+    return claims().failures();
   }
 
   private ExplorerSections explorer() {

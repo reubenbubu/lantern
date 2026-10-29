@@ -350,7 +350,7 @@ States: active, needs review, orphaned, retired. Precedence is human, then stati
 
 **Storage and audit.** Annotations are append-only events: create, edit, confirm, retire, each with user and time. The audit log is that event stream, and any past annotation state can be rebuilt for reproducing an old document.
 
-**READMEs and the wiki.** README content becomes low-trust "documented claims". Claims that contradict code are flagged, for example "README says MySQL, code connects to Postgres". The wiki is not ingested. Which claims are checked, how, and what a flag records is in ADR 0043.
+**READMEs and the wiki.** README content becomes low-trust "documented claims". Claims that contradict code are flagged, for example "README says MySQL, code connects to Postgres". The wiki is not ingested. Which claims are checked, how, and what a flag records is in ADR 0043; how documents show the flags is in ADR 0051.
 
 ## Annotations: presentation layer
 
@@ -398,7 +398,7 @@ Every diagram and document is judged against these checks, each yes or no. The c
 
 | Document | Passes only if |
 | --- | --- |
-| Every document | It states its reader and pins its snapshot (commits) and date. Its first paragraph gives the system's purpose and the most important fact about it *(review)*. Every specific claim links to a fact or source. Unknowns are stated once, plainly (see LLM integration, Grounding) *(review)*. No sentence that would be true of any Spring application *(review)*. One name per concept across text, diagrams and glossary *(review)*. No diagram repeated across sections |
+| Every document | It states its reader and pins its snapshot (commits) and date. Its first paragraph gives the system's purpose and the most important fact about it *(review)*. Every specific claim links to a fact or source. README claims agree with the code (ADR 0051). Unknowns are stated once, plainly (see LLM integration, Grounding) *(review)*. No sentence that would be true of any Spring application *(review)*. One name per concept across text, diagrams and glossary *(review)*. No diagram repeated across sections |
 | Architecture Explorer | An orientation section of at most 300 words followed by a "start here" list of the entry points and files to read first; the container diagram first; the main flows as sequence diagrams; a catalog of containers, components, endpoints, queues, tables and config, each linked to source; change guidance ("to add an endpoint, follow X in Y") *(review)*; observed decisions, with rationale quoted from ADRs or READMEs or marked unknown |
 | Executive Brief | Business purpose first, in one sentence *(review)*. Who depends on it and what it depends on (blast radius). Technology currency: runtime and framework versions against their end of life. Risks ranked by impact, each with its consequence and confidence. Quality evidence (tests, architecture tests and coverage where present), with quality goals marked unrecorded when absent. The decisions or options the reader faces *(review)*. No implementation detail *(review)* |
 

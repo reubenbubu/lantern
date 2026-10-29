@@ -100,6 +100,7 @@ public final class Composer {
     for (SectionKind kind : view.sections()) {
       sections.add(composition.section(kind));
     }
+    List<QualityReport.Failure> claimFailures = composition.claimFailures();
     Document composed =
         new Document(
             view.id(),
@@ -110,7 +111,7 @@ public final class Composer {
             composition.entities(),
             composition.facts(),
             sections);
-    sections.add(qualitySection(composed));
+    sections.add(qualitySection(composed, claimFailures));
     return new Document(
         composed.id(),
         composed.title(),
@@ -124,17 +125,19 @@ public final class Composer {
 
   /**
    * The last section: the Quality bar checks the document fails (ADR 0028, ADR 0046), an empty
-   * report when it passes every check the composer makes.
+   * report when it passes every check the composer makes; then the README claims the code
+   * contradicts (ADR 0051).
    */
-  private static Section qualitySection(Document document) {
+  private static Section qualitySection(Document document, List<QualityReport.Failure> claims) {
     Set<String> ids = new HashSet<>();
     collectIds(document.sections(), ids);
     String id = QUALITY;
     for (int n = 2; ids.contains(id) || ids.contains(id + ".report"); n++) {
       id = QUALITY + "-" + n;
     }
-    QualityReport report =
-        new QualityReport(id + ".report", null, QualityBar.failures(document), List.of());
+    List<QualityReport.Failure> failures = new ArrayList<>(QualityBar.failures(document));
+    failures.addAll(claims);
+    QualityReport report = new QualityReport(id + ".report", null, failures, List.of());
     return new Section(id, "Quality report", Set.of(), null, List.of(), List.of(report), List.of());
   }
 
