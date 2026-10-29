@@ -15,6 +15,7 @@ import io.lantern.core.vocabulary.C4Level;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import java.io.IOException;
@@ -75,6 +76,7 @@ class BuiltInTypesUpgradeIT {
       registry.apply(MavenExtractor.VOCABULARY_SOURCE, MavenExtractor.vocabulary());
       registry.apply(JavaExtractor.VOCABULARY_SOURCE, JavaExtractor.vocabulary());
       registry.apply(ConfigExtractor.VOCABULARY_SOURCE, ConfigExtractor.vocabulary());
+      registry.apply(DocsExtractor.VOCABULARY_SOURCE, DocsExtractor.vocabulary());
       long before = registry.current().revision();
       Fact stored = dependsOn();
       assertThat(facts.save(stored)).isTrue();

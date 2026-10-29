@@ -1,0 +1,47 @@
+decision:orders:doc/architecture/decisions/0001-record-architecture-decisions.md decision-consequences See Michael Nygard's article, linked above. @orders:doc/architecture/decisions/0001-record-architecture-decisions.md#19-19 0.8
+decision:orders:doc/architecture/decisions/0001-record-architecture-decisions.md decision-context We need to record the architectural decisions made on this project. @orders:doc/architecture/decisions/0001-record-architecture-decisions.md#11-11 0.8
+decision:orders:doc/architecture/decisions/0001-record-architecture-decisions.md decision-date 2024-01-10 @orders:doc/architecture/decisions/0001-record-architecture-decisions.md#3-3 0.8
+decision:orders:doc/architecture/decisions/0001-record-architecture-decisions.md decision-number 1 @orders:doc/architecture/decisions/0001-record-architecture-decisions.md 0.8
+decision:orders:doc/architecture/decisions/0001-record-architecture-decisions.md decision-outcome We will use Architecture Decision Records, as [described by Michael Nygard](http://thinkrelevance.com/blog/2011/11/15/documenting-architecture-decisions). @orders:doc/architecture/decisions/0001-record-architecture-decisions.md#15-15 0.8
+decision:orders:doc/architecture/decisions/0001-record-architecture-decisions.md decision-status Accepted @orders:doc/architecture/decisions/0001-record-architecture-decisions.md#7-7 0.8
+decision:orders:doc/architecture/decisions/0001-record-architecture-decisions.md title Record architecture decisions @orders:doc/architecture/decisions/0001-record-architecture-decisions.md#1-1 0.8
+decision:orders:doc/architecture/decisions/0002-use-rabbitmq.md decision-consequences Orders does not need to know who listens. @orders:doc/architecture/decisions/0002-use-rabbitmq.md#23-23 0.8
+decision:orders:doc/architecture/decisions/0002-use-rabbitmq.md decision-context Other services need to know when an order is placed.
+
+### Volumes
+
+A few hundred orders a day. @orders:doc/architecture/decisions/0002-use-rabbitmq.md#11-15 0.8
+decision:orders:doc/architecture/decisions/0002-use-rabbitmq.md decision-date 2024-02-01 @orders:doc/architecture/decisions/0002-use-rabbitmq.md#3-3 0.8
+decision:orders:doc/architecture/decisions/0002-use-rabbitmq.md decision-number 2 @orders:doc/architecture/decisions/0002-use-rabbitmq.md 0.8
+decision:orders:doc/architecture/decisions/0002-use-rabbitmq.md decision-outcome Orders publishes an event per order to the exchange `orders`. @orders:doc/architecture/decisions/0002-use-rabbitmq.md#19-19 0.8
+decision:orders:doc/architecture/decisions/0002-use-rabbitmq.md decision-status Superseded by [4. Use Kafka for order events](0004-use-kafka-for-order-events.md) @orders:doc/architecture/decisions/0002-use-rabbitmq.md#7-7 0.8
+decision:orders:doc/architecture/decisions/0002-use-rabbitmq.md title Use RabbitMQ for order events @orders:doc/architecture/decisions/0002-use-rabbitmq.md#1-1 0.8
+decision:orders:docs/adr/0005-api-versioning.md decision-consequences * Easy to route. @orders:docs/adr/0005-api-versioning.md#18-18 0.8
+decision:orders:docs/adr/0005-api-versioning.md decision-consequences * URLs change between versions. @orders:docs/adr/0005-api-versioning.md#22-22 0.8
+decision:orders:docs/adr/0005-api-versioning.md decision-context Clients break when the API changes. @orders:docs/adr/0005-api-versioning.md#10-10 0.8
+decision:orders:docs/adr/0005-api-versioning.md decision-date 2024-07-01 @orders:docs/adr/0005-api-versioning.md#4-4 0.8
+decision:orders:docs/adr/0005-api-versioning.md decision-number 5 @orders:docs/adr/0005-api-versioning.md 0.8
+decision:orders:docs/adr/0005-api-versioning.md decision-outcome Chosen option: "/v1 in the path", because it is visible in every log line. @orders:docs/adr/0005-api-versioning.md#14-14 0.8
+decision:orders:docs/adr/0005-api-versioning.md decision-status proposed @orders:docs/adr/0005-api-versioning.md#3-3 0.8
+decision:orders:docs/adr/0005-api-versioning.md title Version the API in the path @orders:docs/adr/0005-api-versioning.md#1-1 0.8
+decision:orders:docs/architecture/ADR-006-rest-between-services.md decision-number 6 @orders:docs/architecture/ADR-006-rest-between-services.md 0.8
+decision:orders:docs/architecture/ADR-006-rest-between-services.md decision-outcome Services call each other over REST with JSON. @orders:docs/architecture/ADR-006-rest-between-services.md#7-7 0.8
+decision:orders:docs/architecture/ADR-006-rest-between-services.md decision-status Accepted @orders:docs/architecture/ADR-006-rest-between-services.md#3-3 0.8
+decision:orders:docs/architecture/ADR-006-rest-between-services.md title REST between services @orders:docs/architecture/ADR-006-rest-between-services.md#1-1 0.8
+decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-consequences * Good, because consumers can replay.
+* Bad, because we run a Kafka cluster. @orders:docs/decisions/0004-use-kafka-for-order-events.md#29-30 0.8
+decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-context Order volumes grew and consumers need to replay events. Which broker should carry order events? @orders:docs/decisions/0004-use-kafka-for-order-events.md#10-10 0.8
+decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-date 2024-06-12 @orders:docs/decisions/0004-use-kafka-for-order-events.md#3-3 0.8
+decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-number 4 @orders:docs/decisions/0004-use-kafka-for-order-events.md 0.8
+decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-outcome Chosen option: "Kafka", because it keeps events for replay. @orders:docs/decisions/0004-use-kafka-for-order-events.md#25-25 0.8
+decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-status accepted @orders:docs/decisions/0004-use-kafka-for-order-events.md#2-2 0.8
+decision:orders:docs/decisions/0004-use-kafka-for-order-events.md title Use Kafka for order events @orders:docs/decisions/0004-use-kafka-for-order-events.md#6-6 0.8
+readme:orders:README.md claim Module: `orders-service`; Database: PostgreSQL {"section":"Modules"} @orders:README.md#19-19 0.5
+readme:orders:README.md claim Orders keeps the orders of the shop and publishes an event for each one. {"section":"Orders"} @orders:README.md#6-7 0.5
+readme:orders:README.md claim Orders never calls another service synchronously. {"section":"Building"} @orders:README.md#28-28 0.5
+readme:orders:README.md claim See [the decisions](docs/adr/). {"section":"Building"} @orders:README.md#32-32 0.5
+readme:orders:README.md claim `orders-api`: the REST API {"section":"Modules"} @orders:README.md#13-13 0.5
+readme:orders:README.md claim `orders-service`: the deployable application, packaging `orders-api` {"section":"Modules"} @orders:README.md#14-15 0.5
+readme:orders:docs/user%20guide/README.md claim Customers see their orders under /my-orders. @orders:docs/user guide/README.md#1-1 0.5
+readme:orders:orders-service/README.md claim Runs on port 8080. {"section":"orders-service"} @orders:orders-service/README.md#3-3 0.5
+readme:orders:orders-service/README.md claim Secrets: `GITHUB_TOKEN=******` is never committed. {"section":"orders-service"} @orders:orders-service/README.md#5-5 0.5
