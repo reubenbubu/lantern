@@ -1,6 +1,6 @@
 # 0038: HTTP client extractor
 
-Status: accepted (#128, part of #92; extended by #145 and #149), pending the user's review (#24)
+Status: accepted (#128, part of #92; extended by #145, #149 and #258), pending the user's review (#24)
 
 ## Context
 
@@ -49,7 +49,8 @@ without what must not be.
   (`builder.baseUrl(baseUrl).build()` in the constructor), so its base URL is followed the same
   way. Anything else stays as its source in braces (`{productId}`, `{url}`), listed in
   `expressions`, which also stands for a path variable. A field given different values, or a
-  client injected from elsewhere (a `RestTemplate` bean), gives no base URL.
+  client injected from elsewhere gives no base URL, unless it is a client bean (see Clients made
+  in a bean method).
 - **Which calls.** Declarative clients: interfaces with `@FeignClient` (Spring Cloud OpenFeign,
   and the older Netflix package) or MicroProfile `@RegisterRestClient`, directly or through
   meta-annotations; their methods mapped with Spring request mappings (as ADR 0035 reads them,
@@ -81,6 +82,20 @@ without what must not be.
   the parameter or field, as Spring picks it; none if several match otherwise. Its base URL is read
   from that method's code as above, so the chain may run through a factory bean to an adapter
   bean. A client (`RestClient`, `RestTemplate`) injected into an adapter still gives no base URL.
+- **Clients made in a bean method** (#258): a `RestClient`, `WebClient` or `RestTemplate` (or the
+  builder of one) that a call is made on and that is injected, as a parameter, as a field given a
+  parameter, or by field, is the bean of its type that a `@Bean` method of the same repository's
+  code returns. Beans of the caller's own module are considered first, those of the repository's
+  other modules (module dependencies are not read) only if it has none. The bean is picked as
+  Spring does, but only when the choice is certain: the `@Qualifier` on the parameter or field
+  (matching the method's name or the bean's own `@Qualifier`), else the only candidate, else the
+  one named as the parameter or field, else the only `@Primary` one; at each step several matches
+  (duplicate bean names, as profile or conditional variants give) mean no link, not a guess. Its
+  base URL (`baseUrl`, `create`, `rootUri`) is read from that method's code as above, its `@Value`
+  parameters being placeholders resolved in the config of the bean's module; when the method takes a
+  builder, the builder's bean is followed the same way (up to three hops). A base set on the chain
+  at the call site wins. Not read: a name given in `@Bean("x")` (such a bean is matched only as the
+  only candidate or `@Primary`), and a base URL held in `@ConfigurationProperties`.
 - **HTTP service groups** (#149, Spring Framework 7): `@ImportHttpServices` on a type (repeatable)
   puts into its `group` (`default` if none) the HTTP interfaces in `value` or `types`, and those
   in `basePackages` or the packages of `basePackageClasses` (and sub-packages), across all
@@ -153,7 +168,8 @@ without what must not be.
   lambda's parameter typed by a generic method's inference other than the configurers', or a
   nested type inherited from a supertype and written by its simple name (`Groups` in a class
   implementing a configurer) (both when parsed),
-  a bean picked by `@Qualifier` or `@Primary`, a builder changed by separate statements
+  a bean picked by `@Qualifier` or `@Primary` for a proxy factory or adapter (these pick only the
+  only bean, or the one named as the parameter or field), a builder changed by separate statements
   (`builder.uri(uri); builder.GET();`), a URL built across methods or from several fields' values, a
   `RestTemplate` bean's `rootUri` set in another class, and Kotlin.
 - **project-0.** `Project0HttpIT` checks the cases HTTP-1 to HTTP-5, VAL-1, VAL-2, VAL-5 and the
