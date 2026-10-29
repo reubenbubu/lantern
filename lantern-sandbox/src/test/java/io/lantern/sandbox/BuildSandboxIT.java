@@ -603,8 +603,14 @@ class BuildSandboxIT {
       // The next build of any sandbox of this user removes what the killed process left.
       new BuildSandbox(settings()).removeLeftovers();
 
-      assertThat(ownContainers("label=" + RUN_LABEL)).as("containers left behind").isEmpty();
-      assertThat(ownNetworks()).as("networks left behind").isEmpty();
+      // Docker may take a moment to finish removing them.
+      long removal = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+      while (!ownContainers("label=" + RUN_LABEL).isEmpty() || !ownNetworks().isEmpty()) {
+        assertThat(System.nanoTime())
+            .as("containers or networks left behind: " + ownContainers("label=" + RUN_LABEL))
+            .isLessThan(removal);
+        Thread.sleep(200);
+      }
     } finally {
       child.destroyForcibly().waitFor();
       removeOwn();

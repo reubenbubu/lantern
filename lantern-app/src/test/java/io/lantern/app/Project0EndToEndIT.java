@@ -25,7 +25,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +37,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanPostProcessor;
@@ -165,7 +165,7 @@ class Project0EndToEndIT {
   /** The workspace, and the Maven mirror of the test properties file, as EndToEndIT sets them. */
   @DynamicPropertySource
   static void workspace(DynamicPropertyRegistry registry) throws IOException {
-    registry.add("lantern.workspace", Workspace.PATH::toString);
+    registry.add("lantern.workspace", workspace::toString);
     String file = System.getProperty("lantern.test.properties");
     if (file == null || file.isBlank()) {
       file = System.getenv("LANTERN_TEST_PROPERTIES");
@@ -182,12 +182,7 @@ class Project0EndToEndIT {
   @Autowired FactRepository facts;
 
   @AfterAll
-  static void cleanUp() throws IOException {
-    try (Stream<Path> paths = Files.walk(Workspace.PATH)) {
-      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-        Files.delete(path);
-      }
-    }
+  static void cleanUp() {
     assertThat(docker("ps", "--all", "--quiet", "--filter", "label=" + RUN_LABEL + "=" + RUN))
         .as("sandbox containers left behind")
         .isEmpty();
@@ -646,18 +641,8 @@ class Project0EndToEndIT {
         .resolve("project-0");
   }
 
-  /** The workspace, a temporary directory made only when the test runs. */
-  private static final class Workspace {
-    static final Path PATH;
-
-    static {
-      try {
-        PATH = Files.createTempDirectory("lantern-project0-workspace-");
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-    }
-  }
+  /** The workspace; JUnit removes it after the class, whether its tests passed or not. */
+  @TempDir static Path workspace;
 
   private static String docker(String... args) {
     List<String> command = new ArrayList<>(List.of("docker"));
