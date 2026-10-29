@@ -23,7 +23,8 @@ import java.util.TreeMap;
  * summarized on their own (a type's methods and fields), and those about what contains it outside
  * the hierarchy (the service or library that builds a module). Facts about the unit as the object
  * of a relationship, such as who calls it, are left out, so a unit's summary changes only when the
- * unit itself does.
+ * unit itself does. A module's or repository's prompt also shows some facts of its parts, its
+ * {@link FactSheet}, which is worked out from the tree when it is summarized.
  */
 public final class SummaryTree {
 

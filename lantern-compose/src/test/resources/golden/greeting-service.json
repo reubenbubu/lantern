@@ -85,6 +85,12 @@
         "id" : "module:com.example.greeting:greeting-service"
       },
       "citation" : true
+    }, {
+      "kind" : "text",
+      "text" : " It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "f9ba666006184c1e05dffc58babfc84ebf352c416210e446d9502d9a5e308ed0" ]
     } ],
     "facts" : [ ]
   }, {
@@ -598,8 +604,14 @@
           "id" : "module:com.example.greeting:greeting-service"
         },
         "citation" : true
+      }, {
+        "kind" : "text",
+        "text" : " It is described by its facts."
+      }, {
+        "kind" : "citation",
+        "facts" : [ "f9ba666006184c1e05dffc58babfc84ebf352c416210e446d9502d9a5e308ed0" ]
       } ],
-      "facts" : [ ]
+      "facts" : [ "f9ba666006184c1e05dffc58babfc84ebf352c416210e446d9502d9a5e308ed0" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",

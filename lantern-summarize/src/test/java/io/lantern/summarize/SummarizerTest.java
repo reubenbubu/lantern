@@ -305,6 +305,42 @@ class SummarizerTest {
   }
 
   @Test
+  void aModuleCitesItsFactSheetAndARerunAtAnotherCommitCitesTheSheetsNewFacts() {
+    List<Fact> earlier = FactSheetTest.service(2).list();
+    EntityId module = EntityId.parse("module:com.example:orders");
+    String endpoint = "method:com.example.orders.OrderController#get0() endpoint \"GET /orders/0\"";
+
+    Summary first = summarizer().summarize(SummaryTree.fromFacts(earlier)).summaries().get(module);
+    int calls = fake.sent().size();
+    List<Fact> later = atCommit(FactSheetTest.service(2).list(), "b".repeat(40));
+    Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(later));
+
+    assertThat(first.citedFacts().stream().map(id -> content(id, earlier))).contains(endpoint);
+    assertThat(fake.sent()).hasSize(calls);
+    Summary rebound = second.summaries().get(module);
+    assertThat(rebound.key()).isEqualTo(first.key());
+    assertThat(rebound.citedFacts().stream().map(id -> content(id, later))).contains(endpoint);
+    Set<String> ids = later.stream().map(Fact::id).collect(Collectors.toSet());
+    assertThat(ids).containsAll(rebound.inputFacts()).containsAll(rebound.citedFacts());
+    Summary repo = second.summaries().get(new EntityId("repo", "orders"));
+    assertThat(repo.citedFacts().stream().map(id -> content(id, later)))
+        .contains("service:com.example:orders USES_DATABASE database:orders-db:5432/orders");
+  }
+
+  @Test
+  void aChangedEntryPointSummarizesItsModuleAgainThoughNoSummaryTextChanges() {
+    fake.answering(request -> "Same words. [F1]");
+    summarizer().summarize(SummaryTree.fromFacts(FactSheetTest.service(1).list()));
+    int before = fake.sent().size();
+
+    summarizer().summarize(SummaryTree.fromFacts(FactSheetTest.service(2).list()));
+
+    assertThat(summarizedUnits().subList(before, fake.sent().size()))
+        .contains("module:com.example:orders", "repo:orders")
+        .doesNotContain("package:com.example:orders:com.example.orders");
+  }
+
+  @Test
   void aCommitThatChangesNothingReusesATypeSummaryCitingItsSourceFile() throws Exception {
     SourceFiles anyCommit =
         (repo, commit, path) ->
@@ -931,6 +967,61 @@ class SummarizerTest {
         BudgetGuard.unlimited("test"),
         new InMemoryLlmCallLog(),
         Clock.systemUTC());
+  }
+
+  @Test
+  void aModuleWhoseFactSheetRunsOverPartsCitesTheSheetsFactsThroughThem() {
+    TestFacts facts = new TestFacts().attribute("r", "type:p.Api", "kind", "class");
+    for (int i = 0; i < 12; i++) {
+      String method = "method:p.Api#get%02d()".formatted(i);
+      facts
+          .relate("r", "type:p.Api", "CONTAINS", method)
+          .attribute("r", method, "endpoint", "GET /" + i);
+    }
+    SummaryNode api =
+        new SummaryNode(EntityId.parse("type:p.Api"), SummaryLevel.TYPE, facts.list(), List.of());
+    TestFacts own = new TestFacts();
+    for (int i = 0; i < 200; i++) {
+      own.attribute("r", "module:g:m", "property-%03d".formatted(i), "value " + i);
+    }
+    SummaryNode module =
+        new SummaryNode(
+            EntityId.parse("module:g:m"), SummaryLevel.MODULE, own.list(), List.of(api));
+    fake.answering(
+        request -> {
+          String prompt = request.messages().getFirst().text();
+          List<String> refs = new ArrayList<>();
+          if (prompt.contains("Summaries of the parts:")) {
+            refs.addAll(Citations.references(prompt));
+          } else {
+            Matcher ref = REF.matcher(prompt);
+            while (ref.find()) {
+              refs.add(ref.group(1));
+            }
+          }
+          return "Part of it. [" + String.join(", ", refs) + "]";
+        });
+
+    Summary summary =
+        new Summarizer(smallWindowClient(4_000), store)
+            .summarize(List.of(module))
+            .summaries()
+            .get(module.entity());
+
+    List<String> prompts =
+        fake.sent().stream()
+            .filter(s -> s.request().purpose().startsWith("summarize module"))
+            .map(s -> s.request().messages().getFirst().text())
+            .toList();
+    assertThat(prompts.stream().filter(p -> p.contains("This is part "))).hasSizeGreaterThan(1);
+    assertThat(prompts).anyMatch(p -> p.contains("\nEntry points (10 of 12):\n[F201] "));
+    for (String prompt : prompts) {
+      assertThat(Tokens.estimate(Prompt.SYSTEM + prompt)).isLessThanOrEqualTo(4_000);
+    }
+    List<String> sheet = FactSheet.facts(FactSheet.of(module)).stream().map(Fact::id).toList();
+    assertThat(sheet).hasSize(10);
+    assertThat(summary.citedFacts()).containsAll(sheet);
+    assertThat(summary.inputFacts()).endsWith(sheet.toArray(String[]::new));
   }
 
   @Test
