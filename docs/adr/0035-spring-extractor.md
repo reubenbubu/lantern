@@ -97,22 +97,29 @@ a new `entry-point` child `background-job` and optional attributes on `scheduled
 `framework` (`jobrunr` or `quartz`) is on both; it is absent on `@Scheduled`.
 
 - **JobRunr request handler**: the `run(Request)` method of a class that implements
-  `JobRequestHandler<Request>` (also through a supertype in the analyzed sources).
-  `background-job`, value the `@Job(name)` or, without one, the request type; `kind:
-  job-request`, `request`, and `scheduledBy`: the methods that pass `new Request(...)` to
-  `BackgroundJobRequest` or `JobRequestScheduler` (`enqueue`, `schedule`, `scheduleRecurrently`,
-  `create`), found in any module, with `cron` when `scheduleRecurrently` gets a literal one.
+  `JobRequestHandler<Request>` (also through a supertype in the analyzed sources). `scheduledBy`:
+  the methods that pass `new Request(...)` to `BackgroundJobRequest` or `JobRequestScheduler`
+  (`enqueue`, `schedule`, `scheduleRecurrently`, `create`), found in any module or repository.
+  When `scheduleRecurrently` gets a literal cron for it, the fact is `scheduled` (`trigger: cron`,
+  value the cron), as for every job with a cron; otherwise `background-job`, `kind: job`, value
+  the `@Job(name)` or, without one, the request type. `request` names the request type.
 - **JobRunr `@Job` methods** that are not handlers: `background-job`, `kind: job`, value the name
   or the method. `@Recurring(cron)`: `scheduled`, `trigger: cron`, resolved like `@Scheduled`'s;
-  `@Recurring(interval)`: `background-job`, `kind: interval`. Jobs queued by a lambda
-  (`BackgroundJob.enqueue(() -> ...)`) are not followed to their target.
+  `@Recurring(interval)`: `background-job`, `kind: interval`.
 - **Quartz**: `execute(JobExecutionContext)` of a `Job`, `executeInternal` of a `QuartzJobBean`.
   With the cron of the `CronScheduleBuilder.cronSchedule(...)` in the same expression as the
   `JobBuilder.newJob(X.class)` (a scheduler call joins them), or the only unpaired one of a module
-  that has exactly one such job: `scheduled`, `trigger: cron`, with `job` and `scheduledBy`; else
-  `background-job`, `kind: quartz`, value the class. Simple, calendar and Spring
-  `SimpleTriggerFactoryBean` triggers are not read.
+  that has exactly one such job: `scheduled`, `trigger: cron`; else `background-job`, `kind: job`,
+  value the class. `job` names the class; `scheduledBy` the methods that build the job.
+- **Rule:** a job with a cron found is `scheduled`; one without is a `background-job`.
+- **Not followed:** jobs queued by a lambda (`BackgroundJob.enqueue(() -> ...)`); Quartz simple,
+  calendar and daily-time-interval triggers; Spring's `JobDetailFactoryBean` and
+  `CronTriggerFactoryBean` beans; a job detail or trigger passed to the scheduler through a variable
+  that is assigned more than once or built in another method; a request object held in a variable
+  that is assigned more than once or in a field. Such a job still has its fact, without `scheduledBy`
+  or cron.
 
 `org.jobrunr.scheduling.` and `org.quartz.` join the tracked APIs. Flows start at both predicates
-like at `@Scheduled` ones, so the call graph from the handler reaches what it publishes; documents
-call them "JobRunr job" and "Quartz job".
+like at `@Scheduled` ones, so the call graph from the handler reaches what it publishes; the flow
+from the method that schedules the job into the job is not drawn (#313). Documents call them
+"JobRunr job" and "Quartz job".

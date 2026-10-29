@@ -111,9 +111,19 @@ class SpringExtractorTest {
                         "method:com.example.shop.app.jobs.ReminderHandler#run("
                             + "com.example.shop.app.jobs.ReminderRequest) background-job Task's reminder"
                             + " job ")
-                    && l.contains("\"kind\":\"job-request\"")
+                    && l.contains("\"kind\":\"job\"")
                     && l.contains("Reminders#remindAt(long,java.time.Instant)")
                     && l.contains("Reminders#remindNow(long)"))
+        .anyMatch(
+            // A request scheduled recurrently with a cron is on a schedule, like @Scheduled, and
+            // a call in another repository counts.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.AuditHandler#run("
+                            + "com.example.api.AuditRequest) scheduled 0 0 1 * * * ")
+                    && l.contains("\"trigger\":\"cron\"")
+                    && l.contains("method:com.example.api.AuditTrigger#auditNow()")
+                    && l.contains("method:com.example.api.AuditTrigger#auditNightly()"))
         .anyMatch(
             // A Quartz job takes the cron of the trigger it is scheduled with.
             l ->
@@ -133,6 +143,12 @@ class SpringExtractorTest {
                 l.startsWith(
                         "method:com.example.shop.app.jobs.NightlyJob#cleanUp() scheduled 0 0 3")
                     && l.contains("\"framework\":\"jobrunr\""))
+        .anyMatch(
+            // A @Recurring interval is a background job.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.app.jobs.NightlyJob#poll() background-job PT5M ")
+                    && l.contains("\"kind\":\"interval\""))
         .anyMatch(
             l ->
                 l.startsWith(

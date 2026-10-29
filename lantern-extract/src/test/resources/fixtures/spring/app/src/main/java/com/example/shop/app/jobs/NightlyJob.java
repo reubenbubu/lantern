@@ -11,6 +11,9 @@ public class NightlyJob {
   @Job(name = "Nightly clean-up")
   public void cleanUp() {}
 
+  @Recurring(id = "poll", interval = "PT5M")
+  public void poll() {}
+
   @Job(name = "Manual re-index")
   public void reindex() {}
 }

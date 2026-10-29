@@ -65,15 +65,16 @@
     "name": "scheduled",
     "kind": "attribute",
     "parent": "entry-point",
-    "description": "The subject method runs on a schedule (@Scheduled, JobRunr's @Recurring, or a Quartz job whose cron was found): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module.",
+    "description": "The subject method runs on a schedule (@Scheduled, JobRunr's @Recurring or a request scheduled recurrently, or a Quartz job whose cron was found): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "trigger": { "type": "string", "enum": ["cron", "fixed-delay", "fixed-rate"], "description": "What the value is." },
         "timeUnit": { "type": "string", "description": "The unit of a delay or rate when written, such as SECONDS. Milliseconds when absent." },
         "framework": { "type": "string", "enum": ["jobrunr", "quartz"], "description": "The job library, for a job of JobRunr or Quartz. Absent for @Scheduled." },
+        "request": { "type": "string", "description": "A JobRunr request handler's request type, the binary name." },
         "job": { "type": "string", "description": "A Quartz job's class, the binary name." },
-        "scheduledBy": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the methods that build the Quartz job and its trigger. Absent when none is found in the analyzed code." }
+        "scheduledBy": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the methods whose code sets the job up: passes its request to the scheduler, or builds its Quartz job and trigger. Absent when none is found in the analyzed code." }
       },
       "required": ["trigger"],
       "additionalProperties": false
@@ -83,16 +84,15 @@
     "name": "background-job",
     "kind": "attribute",
     "parent": "entry-point",
-    "description": "The subject method runs as a background job that a library starts, not on a cron, delay or rate: a JobRunr request handler's run method (the job runs when its request is enqueued or scheduled), an @Job method, a @Recurring interval, or a Quartz job whose cron was not found. The value is the job's name, interval or class.",
+    "description": "The subject method runs as a background job that a library starts, not on a cron, delay or rate: a JobRunr request handler's run method (the job runs when its request is enqueued or scheduled once), an @Job method, a @Recurring interval, or a Quartz job whose cron was not found. The value is the job's name, interval or class.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "framework": { "type": "string", "enum": ["jobrunr", "quartz"], "description": "The job library." },
-        "kind": { "type": "string", "enum": ["job-request", "job", "interval", "quartz"], "description": "What the value is: the name of a JobRunr job run for a request (job-request) or an @Job method (job), a @Recurring interval, or a Quartz job's class." },
+        "kind": { "type": "string", "enum": ["job", "interval"], "description": "What the value is: the job (its @Job name, its request type or its Quartz class), or a @Recurring interval." },
         "request": { "type": "string", "description": "A JobRunr request handler's request type, the binary name." },
         "job": { "type": "string", "description": "A Quartz job's class, the binary name." },
-        "cron": { "type": "string", "description": "A cron expression the request is recurrently scheduled with in code." },
-        "scheduledBy": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the methods that enqueue or schedule the job (BackgroundJobRequest, JobRequestScheduler) or build its Quartz trigger. Absent when none is found in the analyzed code." }
+        "scheduledBy": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the methods whose code sets the job up: passes its request to the scheduler, or builds its Quartz job and trigger. Absent when none is found in the analyzed code." }
       },
       "required": ["framework", "kind"],
       "additionalProperties": false

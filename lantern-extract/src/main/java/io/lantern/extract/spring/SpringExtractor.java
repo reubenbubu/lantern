@@ -742,9 +742,8 @@ public final class SpringExtractor {
         return;
       }
       List<String> constructed = new ArrayList<>();
-      List<String> literals = new ArrayList<>();
       List<String> classes = new ArrayList<>();
-      walk(i.expression(), constructed, classes, literals);
+      walk(i.expression(), constructed, classes);
       if (JOBRUNR_SCHEDULERS.contains(root)) {
         if (!JOBRUNR_SCHEDULING_METHODS.contains(i.expression().chain().getFirst().method())) {
           return;
@@ -761,8 +760,8 @@ public final class SpringExtractor {
         }
       } else if (root.startsWith("org.quartz.")) {
         // Quartz: a class literal given to JobBuilder, a cron expression given to
-        // CronScheduleBuilder
-        // or CronTrigger, and the scheduler call that joins them, in one expression.
+        // CronScheduleBuilder or CronTrigger, and the scheduler call that joins them, in one
+        // expression.
         List<String> crons = new ArrayList<>();
         for (Expression.Invoke call : allCalls(i.expression())) {
           if ((call.method().equals("cronSchedule") || call.method().equals("<init>"))
@@ -807,9 +806,8 @@ public final class SpringExtractor {
       }
     }
 
-    /** The types constructed, the class literals and the literals in an expression. */
-    private static void walk(
-        Expression e, List<String> constructed, List<String> classes, List<String> literals) {
+    /** The types constructed and the class literals given as arguments in an expression. */
+    private static void walk(Expression e, List<String> constructed, List<String> classes) {
       for (Expression.Invoke call : allCalls(e)) {
         if (call.method().equals(ModuleStructure.CONSTRUCTOR)
             && call.receiver() instanceof Expression.TypeRef t) {
@@ -818,8 +816,6 @@ public final class SpringExtractor {
         for (Expression a : call.arguments()) {
           if (a instanceof Expression.TypeRef t) {
             classes.add(t.binaryName());
-          } else if (a instanceof Expression.Literal l) {
-            literals.add(l.value());
           }
         }
       }
@@ -841,30 +837,27 @@ public final class SpringExtractor {
             }
           }
         }
-        if (cron == null && job.framework().equals("quartz")) {
+        if (cron == null && !jobrunr(job)) {
           cron = unpairedCron(job);
         }
         ObjectNode attributes = FactJson.newObject();
         attributes.put("framework", job.framework());
-        String value;
-        String predicate = BACKGROUND_JOB;
-        if (job.framework().equals("jobrunr")) {
-          attributes.put("kind", "job-request");
+        boolean jobrunr = jobrunr(job);
+        if (jobrunr) {
           attributes.put("request", job.request());
-          if (cron != null) {
-            attributes.put("cron", cron);
-          }
-          value = job.name() != null ? job.name() : job.request();
         } else {
           attributes.put("job", job.type().binaryName());
-          if (cron != null) {
-            predicate = SCHEDULED;
-            attributes.put("trigger", "cron");
-            value = cron;
-          } else {
-            attributes.put("kind", "quartz");
-            value = job.type().binaryName();
-          }
+        }
+        // With a cron found, a job is on a schedule like @Scheduled; else it is a background job.
+        String predicate = cron != null ? SCHEDULED : BACKGROUND_JOB;
+        String value;
+        if (cron != null) {
+          attributes.put("trigger", "cron");
+          value = cron;
+        } else {
+          attributes.put("kind", "job");
+          value =
+              jobrunr ? (job.name() != null ? job.name() : job.request()) : job.type().binaryName();
         }
         if (!by.isEmpty()) {
           ArrayNode scheduledBy = attributes.putArray("scheduledBy");
@@ -878,6 +871,10 @@ public final class SpringExtractor {
      * The cron of a Quartz trigger built apart from its job (Spring beans for each), when the
      * module has exactly one such trigger and exactly one job without a cron.
      */
+    private static boolean jobrunr(JobClass job) {
+      return job.framework().equals("jobrunr");
+    }
+
     private String unpairedCron(JobClass job) {
       List<Scheduling> crons =
           schedulings.stream()
