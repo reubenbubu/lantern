@@ -25,8 +25,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
+import java.util.jar.JarFile;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -233,12 +232,12 @@ class BuildSandboxIT {
   }
 
   @Test
-  void buildsLibAndServiceOnceTheLibIsInTheRepository() throws IOException {
+  void buildsTheServiceWithTheArtifactsOfTheLibrarysBuild() throws IOException {
     Path source = fixtures.resolve("lib-and-service");
     Repo lib = repo(source.resolve("lib"), "greeting-lib", RepoSettings.DEFAULT);
     Repo service = repo(source.resolve("service"), "greeting-service", RepoSettings.DEFAULT);
-    // A cache of its own, which the library is put into, so it is in no other cache. It starts
-    // seeded from the shared cache, without the library, so the builds download little.
+    // A cache of its own, to check the library never gets into it. It starts seeded from the shared
+    // cache, without the library, so the builds download little.
     Path cache = seededCache("lib-cache");
     try {
       assertThat(cache.resolve("com/example/greeting")).doesNotExist();
@@ -247,7 +246,8 @@ class BuildSandboxIT {
       BuildResult libResult = sandbox.build(lib, TestRepos.head(lib));
       assertThat(libResult.status()).as(log(libResult)).isEqualTo(BuildStatus.SUCCEEDED);
 
-      // The sandbox only compiles, so the library is not installed anywhere: the service fails...
+      // The sandbox only compiles, so the library is not installed anywhere: alone, the service
+      // fails...
       BuildResult missing = sandbox.build(service, TestRepos.head(service));
       assertThat(missing.status()).isEqualTo(BuildStatus.FAILED);
       assertThat(missing.degraded()).isTrue();
@@ -257,17 +257,25 @@ class BuildSandboxIT {
       assertThat(Files.readString(missing.resolve(missing.effectivePom())))
           .contains("<artifactId>greeting-service</artifactId>");
 
-      // ...until the library is in the artifact repository, here the Maven cache.
-      putIntoCache(
-          cache,
-          "com/example/greeting/greeting-lib/1.0.0/greeting-lib-1.0.0",
-          source.resolve("lib/pom.xml"),
-          libResult.resolve(libResult.modules().getFirst().classes()));
-      BuildResult built = sandbox.build(service, TestRepos.head(service));
+      // ...but given the library's build, it builds, the library's jar on its classpath...
+      BuildResult built =
+          sandbox.build(
+              service,
+              TestRepos.head(service),
+              List.of(new UpstreamBuild(lib, libResult), new UpstreamBuild(service, missing)));
       assertThat(built.status()).as(log(built)).isEqualTo(BuildStatus.SUCCEEDED);
-      assertThat(built.modules().getFirst().classpath())
-          .contains("lib/com/example/greeting/greeting-lib/1.0.0/greeting-lib-1.0.0.jar");
+      String jar = "lib/com/example/greeting/greeting-lib/1.0.0/greeting-lib-1.0.0.jar";
+      assertThat(built.modules().getFirst().classpath()).contains(jar);
+      assertThat(built.resolve(jar)).isRegularFile();
+      try (JarFile file = new JarFile(built.resolve(jar).toFile())) {
+        assertThat(file.getEntry("com/example/greeting/lib/Greeter.class")).isNotNull();
+      }
+      assertThat(Files.readString(built.log()))
+          .contains("artifacts of greeting-lib@" + libResult.commit())
+          .contains("not using the artifacts of greeting-service@" + missing.commit());
       assertThat(sandbox.find("greeting-service", built.commit())).contains(built);
+      // ...while the library never gets into the Maven cache, where other builds could use it.
+      assertThat(cache.resolve("com/example/greeting")).doesNotExist();
     } finally {
       deleteIfExists(cache);
     }
@@ -729,27 +737,6 @@ class BuildSandboxIT {
       }
     }
     return cache;
-  }
-
-  /**
-   * Puts a library into a Maven cache, as if it came from the repository: its POM, and a jar of its
-   * compiled classes, at the cache path of the artifact (without extension).
-   */
-  private static void putIntoCache(Path cache, String artifact, Path pom, Path classes)
-      throws IOException {
-    Path base = cache.resolve(artifact);
-    Files.createDirectories(base.getParent());
-    Files.copy(pom, base.resolveSibling(base.getFileName() + ".pom"));
-    try (JarOutputStream jar =
-            new JarOutputStream(
-                Files.newOutputStream(base.resolveSibling(base.getFileName() + ".jar")));
-        Stream<Path> files = Files.walk(classes)) {
-      for (Path file : files.filter(Files::isRegularFile).sorted().toList()) {
-        jar.putNextEntry(new JarEntry(classes.relativize(file).toString()));
-        Files.copy(file, jar);
-        jar.closeEntry();
-      }
-    }
   }
 
   private static String log(BuildResult result) {

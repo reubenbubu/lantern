@@ -74,6 +74,10 @@ public class BuildSandbox {
   static final String DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.10.0";
 
   private static final String PROXY_ALIAS = "lantern-proxy";
+
+  /** The directory under {@code /lantern} that holds other repositories' artifacts. */
+  private static final String UPSTREAM = "upstream";
+
   private static final int PROXY_PORT = 3128;
   private static final String PROXY_CLASS = EgressProxy.class.getName();
   private static final long PROXY_MEMORY_BYTES = 256L * 1024 * 1024;
@@ -140,7 +144,22 @@ public class BuildSandbox {
    * @throws SandboxException if the sandbox could not run the build; nothing is stored then
    */
   public BuildResult build(Repo repo, String commit) {
+    return build(repo, commit, List.of());
+  }
+
+  /**
+   * Builds the repository at the commit, as {@link #build(Repo, String)} does, giving the build the
+   * artifacts of other repositories' successful builds as a read-only tail of its local Maven
+   * repository, so it can use the libraries and parent POMs they build (ADR 0031). They are copied
+   * into the build's container, never into the shared Maven cache, so builds of other snapshots
+   * cannot pick them up.
+   *
+   * @param upstream the builds of the repositories this one depends on; when two build the same
+   *     coordinates, the first one's are used; failed builds are left out
+   */
+  public BuildResult build(Repo repo, String commit, List<UpstreamBuild> upstream) {
     Objects.requireNonNull(repo, "repo");
+    List<UpstreamBuild> given = List.copyOf(upstream);
     checkCommit(repo, commit);
     Path directory = directory(repo.name(), commit);
     // A lock, not a monitor: a virtual thread blocked in a monitor would pin its carrier.
@@ -160,7 +179,7 @@ public class BuildSandbox {
       throw new SandboxException("Interrupted while waiting for a build slot", e);
     }
     try {
-      return buildInto(repo, commit, directory);
+      return buildInto(repo, commit, given, directory);
     } finally {
       slots.release();
       lock.unlock();
@@ -200,7 +219,8 @@ public class BuildSandbox {
     }
   }
 
-  private BuildResult buildInto(Repo repo, String commit, Path directory) {
+  private BuildResult buildInto(
+      Repo repo, String commit, List<UpstreamBuild> upstream, Path directory) {
     Instant started = Instant.now();
     Path partial = null;
     Path staging = null;
@@ -210,7 +230,7 @@ public class BuildSandbox {
       // Next to the stored outputs, not in the system temporary directory: outputs are moved from
       // here, and a directory move fails across filesystems.
       staging = Files.createTempDirectory(directory.getParent(), "." + commit + ".staging-");
-      Run run = new Run(repo, commit, partial, staging);
+      Run run = new Run(repo, commit, upstream, partial, staging);
       run.execute();
       BuildResult result = run.result(started, directory);
       Files.writeString(partial.resolve(RESULT_FILE), BuildJson.write(result));
@@ -230,6 +250,7 @@ public class BuildSandbox {
 
     private final Repo repo;
     private final String commit;
+    private final List<UpstreamBuild> upstream;
     private final Path outputs;
     private final Path staging;
     private final String id = newId();
@@ -254,10 +275,12 @@ public class BuildSandbox {
     private boolean cacheHandedOver;
     private List<BuildModule> modules = List.of();
     private String effectivePom;
+    private boolean hasUpstream;
 
-    Run(Repo repo, String commit, Path outputs, Path staging) {
+    Run(Repo repo, String commit, List<UpstreamBuild> upstream, Path outputs, Path staging) {
       this.repo = repo;
       this.commit = commit;
+      this.upstream = upstream;
       this.outputs = outputs;
       this.staging = staging;
       this.log = new Log(outputs.resolve(LOG_FILE), settings.maxLogBytes());
@@ -700,6 +723,12 @@ public class BuildSandbox {
               settings.mavenRepositories(),
               settings.mavenMirror()));
       permit(Files.createDirectories(staging.resolve("empty-out")), true);
+      if (!upstream.isEmpty()) {
+        // Copied in with the other Lantern files, owned by root, so the build can only read it.
+        Path tail = Files.createDirectories(lantern.resolve(UPSTREAM));
+        UpstreamRepository.write(upstream, tail).forEach(log::note);
+        hasUpstream = true;
+      }
       return lantern;
     }
 
@@ -781,6 +810,12 @@ public class BuildSandbox {
                   "/lantern/settings.xml",
                   "-Daether.syncContext.named.factory=file-lock",
                   "-Daether.syncContext.named.nameMapper=file-gav"));
+      if (hasUpstream) {
+        // Maven reads artifacts it does not find in the shared cache from here, and writes nothing
+        // here or, for what it finds here, into the cache.
+        args.add("-Dmaven.repo.local.tail=" + BuildOutputs.CONTAINER_UPSTREAM);
+        args.add("-Dmaven.repo.local.tail.ignoreAvailability=true");
+      }
       if (!repo.settings().mavenProfiles().isEmpty()) {
         args.add("--activate-profiles=" + String.join(",", repo.settings().mavenProfiles()));
       }
