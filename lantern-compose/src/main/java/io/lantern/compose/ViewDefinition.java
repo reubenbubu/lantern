@@ -125,7 +125,8 @@ public record ViewDefinition(
 
   /**
    * A view of one repository with the sections of the Executive Brief: overview, headline numbers,
-   * risks, and the context and container diagrams.
+   * risks, blast radius, technology currency, and the context and container diagrams (ADR 0015, ADR
+   * 0050).
    */
   public static ViewDefinition executiveBrief(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -138,6 +139,8 @@ public record ViewDefinition(
             SectionKind.OVERVIEW,
             SectionKind.HEADLINES,
             SectionKind.RISKS,
+            SectionKind.BLAST_RADIUS,
+            SectionKind.TECHNOLOGY_CURRENCY,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS));
   }

@@ -15,6 +15,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.summarize.Summary;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -57,19 +58,24 @@ final class RepoSections {
   private final Assembler assembler;
   private final C4Views c4;
   private final SortedSet<EntityId> units;
+  private final LocalDate asOf;
   private SequenceFlows flows;
   private ExplorerSections explorer;
+  private BriefSections brief;
 
   /**
    * @param repo the repository the document is about, or {@code null} for the whole system
    * @param snapshotRepos the snapshot's repositories, which together form the system
+   * @param asOf the snapshot's date, against which technology currency is judged
    */
   RepoSections(
       Knowledge knowledge,
       Map<EntityId, Summary> summaries,
       String repo,
-      SortedSet<String> snapshotRepos) {
+      SortedSet<String> snapshotRepos,
+      LocalDate asOf) {
     this.knowledge = knowledge;
+    this.asOf = asOf;
     this.summaries = summaries;
     this.repo = repo;
     this.repoId = repo == null ? SYSTEM : Assembler.repo(repo);
@@ -143,7 +149,9 @@ final class RepoSections {
                       modules,
                       containers,
                       c -> PackageDependencies.of(knowledge, c))
-                  .callouts(id));
+                  .callouts(id, brief().currencyRisks(id)));
+      case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
+      case TECHNOLOGY_CURRENCY -> blocks.addAll(brief().technologyCurrency(id));
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
   }
@@ -154,6 +162,22 @@ final class RepoSections {
       flows = new SequenceFlows(knowledge, assembler, c4, units);
     }
     return flows;
+  }
+
+  private BriefSections brief() {
+    if (brief == null) {
+      brief =
+          new BriefSections(
+              knowledge,
+              assembler,
+              repo == null ? assembler.name(SYSTEM) : repo,
+              modules,
+              units,
+              c4.alternativeLinks().keySet(),
+              asOf,
+              EndOfLife.BUNDLED);
+    }
+    return brief;
   }
 
   private ExplorerSections explorer() {

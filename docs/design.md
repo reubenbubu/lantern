@@ -495,7 +495,7 @@ Renderers turn the document model into a format and make no content decisions. S
 | Service Datasheet | Anyone | One page per repo or service: APIs, dependencies, data, config, owners |
 | Change Report | Reviewers | Snapshot-to-snapshot diff with the change overlay |
 
-What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015.
+What the Executive Brief shows, which risks it checks for and how it lays out is in ADR 0015; its blast radius, technology currency and the consequence and confidence of its risks are in ADR 0050.
 
 Target documents that Lantern is to generate are in [`report-specs/`](../report-specs/), one folder per document with its template, schema and sample data. Each schema says what data its document needs. A renderer per report spec writes a document model into the spec's template, as that schema describes; the analyze run writes the C4 report for each repository and for the whole system (ADR 0031, ADR 0044).
 
@@ -585,6 +585,6 @@ Each phase delivers something usable on real repos. The knowledge model and stab
 - [x] Which in-house frameworks or annotations are most common, so extractors and early learned rules can target them? Decided: Spring Boot first; the Spring extractors take priority and early learned rules target Spring annotations.
 - [x] Which LLM provider and models for the first deployment, and what monthly budget? Decided: Anthropic, $100/month budget. Sonnet for high-volume roles, Opus for reasoning-heavy ones (see LLM integration).
 - [x] Rough scale for sizing the VM: number of repos and total lines of code in the first target set. Decided: the first test set (OpenWMS, since dropped, #100) fits the existing development VM with up to 4 build containers at 4 GB each; its measurements are in ADR 0004.
-- [ ] Where does end-of-life data for technology currency come from? Recommended: a table of JDK, Spring Boot and Spring Framework end-of-life dates bundled with Lantern and updated each release, so no network call or new dependency is needed.
+- [x] Where does end-of-life data for technology currency come from? Decided: a table of Java, Spring Boot and Spring Framework end-of-life dates bundled with Lantern and updated each release, so no network call or new dependency is needed (ADR 0050).
 - [x] Re-layout threshold: how many new nodes in one diagram before automatic re-layout? Decided: 10 by default, configurable.
 - [x] Who are the first users, and which document do they need first? Decided: User is the first user. First outputs: C4 diagrams (context, container, component), sequence diagrams, dependency trees, and runtime environment details where the sources hold them.

@@ -873,7 +873,103 @@
       "title" : "No risks found",
       "content" : [ {
         "kind" : "text",
-        "text" : "Lantern checks for dependencies on unreleased versions, inconsistent dependency versions and packages that depend on each other in a cycle, and found none."
+        "text" : "Lantern checks for runtime and framework versions past or near the end of their free support, dependencies on unreleased versions, inconsistent dependency versions and packages that depend on each other in a cycle, and found none."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "blast_radius",
+    "title" : "Blast radius",
+    "levels" : [ "L0", "L1" ],
+    "entity" : "repo:shop",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "blast_radius.none",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "shop has no deployable unit and no unit in the snapshot runs its code, so nothing depends on it at runtime as far as the snapshot shows."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "technology_currency",
+    "title" : "Technology currency",
+    "levels" : [ "L0", "L1" ],
+    "entity" : "repo:shop",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "paragraph",
+      "id" : "technology_currency.summary",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "As of the snapshot's date, 1 Jan 1970, the one version in use is not past the end of free support."
+      } ],
+      "facts" : [ "6fc07b46c6a8adb6993651cdea9c300cf46b6ab4d47e71521129df3857b01898", "8208dc663e969f039ee39d9f59c0721bb3aeaedb4cd6083002b4ba32180b7826", "a3b4af246afd8170260c350ac8f85beaa6527369fc3e8ba6ecf7c60eea217334" ]
+    }, {
+      "kind" : "table",
+      "id" : "technology_currency.versions",
+      "title" : "Runtime and framework versions",
+      "columns" : [ {
+        "label" : "Technology"
+      }, {
+        "label" : "Version"
+      }, {
+        "label" : "Used by"
+      }, {
+        "label" : "End of free support"
+      } ],
+      "rows" : [ {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "Java"
+        } ], [ {
+          "kind" : "text",
+          "text" : "21"
+        } ], [ {
+          "kind" : "ref",
+          "text" : "shop-api",
+          "target" : {
+            "kind" : "entity",
+            "id" : "library:com.example.shop:shop-api"
+          }
+        }, {
+          "kind" : "text",
+          "text" : ", "
+        }, {
+          "kind" : "ref",
+          "text" : "shop-core",
+          "target" : {
+            "kind" : "entity",
+            "id" : "library:com.example.shop:shop-core"
+          }
+        }, {
+          "kind" : "text",
+          "text" : ", "
+        }, {
+          "kind" : "ref",
+          "text" : "shop-parent",
+          "target" : {
+            "kind" : "entity",
+            "id" : "module:com.example.shop:shop-parent"
+          }
+        } ], [ {
+          "kind" : "text",
+          "text" : "31 Dec 2029"
+        } ] ],
+        "facts" : [ "6fc07b46c6a8adb6993651cdea9c300cf46b6ab4d47e71521129df3857b01898", "8208dc663e969f039ee39d9f59c0721bb3aeaedb4cd6083002b4ba32180b7826", "a3b4af246afd8170260c350ac8f85beaa6527369fc3e8ba6ecf7c60eea217334" ]
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "technology_currency.source",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "End-of-life dates come from the table bundled with this version of Lantern, checked on 29 Oct 2026: Eclipse Temurin's for Java, and the end of open-source support for Spring Boot and Spring Framework. The Java version is the release the code is compiled for; the Java runtime it runs on is not recorded and may be newer."
       } ],
       "facts" : [ ]
     } ],
@@ -985,20 +1081,6 @@
         "detail" : [ {
           "kind" : "text",
           "text" : "The document names its snapshot's number but not its commits or a date; the document model holds neither."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Who depends on it and what it depends on (blast radius)",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The brief has no section on who depends on it and what it depends on."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Technology currency",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The brief has no section on runtime and framework versions."
         } ],
         "facts" : [ ]
       }, {

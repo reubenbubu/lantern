@@ -183,6 +183,10 @@ public final class DocumentJson {
         }
         putOptional(node, "title", c.title());
         node.set("content", contentToJson(c.content()));
+        putOptional(node, "consequence", c.consequence());
+        if (c.confidence() != null) {
+          node.put("confidence", c.confidence());
+        }
       }
       case Table t -> {
         node.put("kind", "table");
@@ -284,15 +288,31 @@ public final class DocumentJson {
       case "callout" -> {
         Reader in =
             Reader.of(
-                node, "callout", "kind", "id", "variant", "severity", "title", "content", "facts");
+                node,
+                "callout",
+                "kind",
+                "id",
+                "variant",
+                "severity",
+                "title",
+                "content",
+                "facts",
+                "consequence",
+                "confidence");
         String severity = in.optionalString("severity");
+        JsonNode confidence = node.get("confidence");
+        if (confidence != null && !confidence.isNumber()) {
+          throw new IllegalArgumentException("Callout confidence must be a number");
+        }
         yield new Callout(
             in.string("id"),
             Callout.Variant.fromJsonName(in.string("variant")),
             severity == null ? null : Callout.Severity.fromJsonName(severity),
             in.optionalString("title"),
             in.content("content"),
-            in.facts());
+            in.facts(),
+            in.optionalString("consequence"),
+            confidence == null ? null : confidence.decimalValue());
       }
       case "table" -> {
         Reader in = Reader.of(node, "table", "kind", "id", "title", "columns", "rows", "facts");

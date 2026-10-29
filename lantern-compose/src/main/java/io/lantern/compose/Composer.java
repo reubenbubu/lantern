@@ -8,6 +8,8 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.summarize.Summary;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -22,8 +24,9 @@ import java.util.TreeSet;
  * builds the document model, every element linked to the facts it came from.
  *
  * <p>Composing is deterministic: facts and entities are visited in ID order and nothing random or
- * time-dependent is used, so the same view, snapshot, facts and summaries always give the same
- * document. The composer makes no LLM calls; narrative comes from the summaries it is given.
+ * time-dependent is used (technology currency is judged as of the snapshot's date), so the same
+ * view, snapshot, facts and summaries always give the same document. The composer makes no LLM
+ * calls; narrative comes from the summaries it is given.
  */
 public final class Composer {
 
@@ -72,7 +75,11 @@ public final class Composer {
         facts.stream().filter(f -> f.validity().contains(snapshot.number())).toList();
     RepoSections composition =
         new RepoSections(
-            new Knowledge(valid), summaries, repo, new TreeSet<>(snapshot.commits().keySet()));
+            new Knowledge(valid),
+            summaries,
+            repo,
+            new TreeSet<>(snapshot.commits().keySet()),
+            LocalDate.ofInstant(snapshot.createdAt(), ZoneOffset.UTC));
     List<Section> sections = new ArrayList<>();
     for (SectionKind kind : view.sections()) {
       sections.add(composition.section(kind));

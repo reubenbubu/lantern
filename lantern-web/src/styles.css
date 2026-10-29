@@ -133,6 +133,11 @@ code {
   border-left-color: var(--color-note);
 }
 
+.callout-confidence {
+  color: var(--color-muted);
+  font-size: 0.875em;
+}
+
 .severity {
   display: inline-block;
   margin-right: 0.5rem;

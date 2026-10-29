@@ -29,6 +29,14 @@ class DefaultViewsUpgradeIT {
           SectionKind.CONTAINERS,
           SectionKind.COMPONENTS);
 
+  private static final List<SectionKind> OLD_BRIEF =
+      List.of(
+          SectionKind.OVERVIEW,
+          SectionKind.HEADLINES,
+          SectionKind.RISKS,
+          SectionKind.CONTEXT,
+          SectionKind.CONTAINERS);
+
   private static final List<SectionKind> OLD_EXPLORER =
       List.of(
           SectionKind.OVERVIEW,
@@ -54,7 +62,9 @@ class DefaultViewsUpgradeIT {
       store.save(
           new ViewDefinition(
               "shop", "shop", Scope.repo("shop"), null, AnalysisRun.EXPLORER, OLD_EXPLORER));
-      store.save(ViewDefinition.executiveBrief("shop.brief", "shop", AnalysisRun.BRIEF));
+      store.save(
+          new ViewDefinition(
+              "shop.brief", "shop", Scope.repo("shop"), null, AnalysisRun.BRIEF, OLD_BRIEF));
       store.save(
           new ViewDefinition(
               "shop.c4", "shop", Scope.repo("shop"), null, AnalysisRun.C4_REPORT, OLD_C4));
