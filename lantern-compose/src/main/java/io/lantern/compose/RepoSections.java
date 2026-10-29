@@ -77,6 +77,7 @@ final class RepoSections {
    * @param wordings the LLM's responsibility sentences and intent phrases (ADR 0050)
    * @param repo the repository the document is about, or {@code null} for the whole system
    * @param snapshotRepos the snapshot's repositories, which together form the system
+   * @param systemName the system's title, or {@code null} to name it after its repositories
    * @param asOf the snapshot's date, against which technology currency is judged
    */
   RepoSections(
@@ -85,6 +86,7 @@ final class RepoSections {
       Wordings wordings,
       String repo,
       SortedSet<String> snapshotRepos,
+      String systemName,
       LocalDate asOf) {
     this.knowledge = knowledge;
     this.asOf = asOf;
@@ -111,7 +113,13 @@ final class RepoSections {
     inScope.addAll(containers);
     inScope.addAll(units);
     this.assembler =
-        new Assembler(knowledge, summaries, wordings, inScope, repo, systemName(snapshotRepos));
+        new Assembler(
+            knowledge,
+            summaries,
+            wordings,
+            inScope,
+            repo,
+            systemName == null ? systemName(snapshotRepos) : systemName);
     inScope.forEach(assembler::entity);
     this.c4 = new C4Views(knowledge, assembler, SYSTEM, units, repos);
   }

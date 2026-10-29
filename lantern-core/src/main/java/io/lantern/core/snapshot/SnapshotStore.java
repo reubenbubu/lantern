@@ -4,6 +4,7 @@ import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Map;
@@ -16,7 +17,8 @@ import org.springframework.transaction.support.TransactionOperations;
 
 /**
  * Creates and reads snapshots in the {@code snapshots} and {@code snapshot_repositories} tables.
- * Snapshots are numbered 1, 2, 3 and so on without gaps, in creation order.
+ * Snapshots are numbered 1, 2, 3 and so on without gaps, in creation order, across all systems:
+ * fact validity is a range of these numbers (ADR 0017, ADR 0071).
  */
 public class SnapshotStore {
 
@@ -53,24 +55,27 @@ public class SnapshotStore {
    *     or a revision does not name a commit; nothing is stored then
    */
   public Snapshot create(Map<String, String> revisions) {
-    return create(revisions, false);
+    return create(null, revisions);
   }
 
   /**
-   * Creates a snapshot of the whole system: the named repositories at their revisions, as {@link
-   * #create(Map)} resolves them, and every other repository that an earlier snapshot analyzed, at
-   * its commit in the latest snapshot that analyzed it (see {@link #markAnalyzed}), without
-   * resolving it again (ADR 0018). A repository that no snapshot analyzed is not carried forward.
+   * Creates a snapshot of a whole named system (ADR 0071): the named repositories at their
+   * revisions, as {@link #create(Map)} resolves them, and every other repository that belongs to
+   * the system and that an earlier snapshot of the system analyzed, at its commit in the latest
+   * snapshot of the system that analyzed it (see {@link #markAnalyzed}), without resolving it again
+   * (ADR 0018). A repository that no snapshot of the system analyzed, or that belongs to another
+   * system or none, is not carried forward. The snapshot is tagged with the system.
    *
+   * @param system the name of a defined system the named repositories belong to
    * @param revisions for each repository to analyze, by name, the revision to analyze
    * @return the new snapshot
    * @throws IllegalArgumentException as {@link #create(Map)} does; nothing is stored then
    */
-  public Snapshot createCarryingForward(Map<String, String> revisions) {
-    return create(revisions, true);
+  public Snapshot createCarryingForward(String system, Map<String, String> revisions) {
+    return create(Objects.requireNonNull(system, "system"), revisions);
   }
 
-  private Snapshot create(Map<String, String> revisions, boolean carryForward) {
+  private Snapshot create(String system, Map<String, String> revisions) {
     Objects.requireNonNull(revisions, "revisions");
     if (revisions.isEmpty()) {
       throw new IllegalArgumentException("A snapshot must contain at least one repository");
@@ -87,13 +92,17 @@ public class SnapshotStore {
                   jdbc.sql("SELECT coalesce(max(number), 0) + 1 FROM snapshots")
                       .query(Long.class)
                       .single();
-              if (carryForward) {
+              if (system != null) {
                 jdbc.sql(
                         """
-                        SELECT DISTINCT ON (repository) repository, commit
-                        FROM snapshot_repositories WHERE analyzed
-                        ORDER BY repository, snapshot DESC
+                        SELECT DISTINCT ON (s.repository) s.repository, s.commit
+                        FROM snapshot_repositories s
+                        JOIN repositories r ON r.name = s.repository
+                        JOIN snapshots n ON n.number = s.snapshot
+                        WHERE s.analyzed AND r.system = :system AND n.system = :system
+                        ORDER BY s.repository, s.snapshot DESC
                         """)
+                    .param("system", system)
                     .query()
                     .listOfRows()
                     .forEach(
@@ -103,10 +112,11 @@ public class SnapshotStore {
               }
               jdbc.sql(
                       """
-                      INSERT INTO snapshots (number, vocabulary_revision, tool_version)
-                      VALUES (:n, :vocabulary, :tool)
+                      INSERT INTO snapshots (number, vocabulary_revision, tool_version, system)
+                      VALUES (:n, :vocabulary, :tool, :system)
                       """)
                   .param("n", next)
+                  .param("system", system, Types.VARCHAR)
                   .param("vocabulary", vocabularyRevision)
                   .param("tool", toolVersion)
                   .update();
@@ -158,6 +168,14 @@ public class SnapshotStore {
             }
           }
         });
+  }
+
+  /** The system the snapshot was taken of, if it was taken of one (ADR 0071). */
+  public Optional<String> system(long number) {
+    return jdbc.sql("SELECT system FROM snapshots WHERE number = :n AND system IS NOT NULL")
+        .param("n", number)
+        .query(String.class)
+        .optional();
   }
 
   /** The snapshot with the number, if any. */

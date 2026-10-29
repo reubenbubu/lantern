@@ -79,6 +79,23 @@ public final class Composer {
       Collection<Fact> facts,
       Map<EntityId, Summary> summaries,
       Wordings wordings) {
+    return compose(view, snapshot, facts, summaries, wordings, null);
+  }
+
+  /**
+   * Composes the document of a view as {@link #compose(ViewDefinition, Snapshot, Collection, Map,
+   * Wordings)} does, naming the software system its containers belong to (ADR 0071).
+   *
+   * @param systemName the system's title, or {@code null} to name it after the snapshot's
+   *     repositories (ADR 0044)
+   */
+  public Document compose(
+      ViewDefinition view,
+      Snapshot snapshot,
+      Collection<Fact> facts,
+      Map<EntityId, Summary> summaries,
+      Wordings wordings,
+      String systemName) {
     Objects.requireNonNull(view, "view");
     Objects.requireNonNull(wordings, "wordings");
     Objects.requireNonNull(snapshot, "snapshot");
@@ -98,6 +115,7 @@ public final class Composer {
             wordings,
             repo,
             new TreeSet<>(snapshot.commits().keySet()),
+            systemName,
             LocalDate.ofInstant(snapshot.createdAt(), ZoneOffset.UTC));
     List<Section> sections = new ArrayList<>();
     int glossary = -1;

@@ -15,6 +15,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.link.ResolutionStore;
@@ -45,7 +46,10 @@ import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,6 +97,7 @@ import org.springframework.transaction.support.TransactionTemplate;
       "lantern.llm.anthropic.api-key="
     })
 @Import({TestcontainersConfiguration.class, EndToEndIT.Fake.class})
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class EndToEndIT {
 
   private static final Path WORKSPACE = tempDirectory();
@@ -218,22 +223,35 @@ class EndToEndIT {
         .isEmpty();
   }
 
+  /** First, so no other test has summarized the same code under another repository's name. */
   @Test
+  @Order(1)
   void runsTheFixtureTwiceAndTheSecondRunMakesNoLlmCall() throws IOException {
     Path repo = fixtureRepo("multi-module", "shop");
 
-    Twice twice = runTwice("shop", repo);
+    Twice twice = runTwice("shop", "shop", repo);
 
     assertThat(twice.first().builds().get("shop").status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(twice.first().documents())
         .extracting(d -> d.file().getFileName().toString())
         .containsExactly("shop.html", "shop.brief.html", "shop.c4.html", "_system.c4.html");
+    // Filed under the system, titled by the one repository's name (ADR 0071).
+    assertThat(twice.first().documents())
+        .allSatisfy(
+            d ->
+                assertThat(d.file().getParent())
+                    .isEqualTo(
+                        WORKSPACE
+                            .resolve("documents")
+                            .resolve("shop")
+                            .resolve(Long.toString(twice.first().snapshot().number()))));
+    assertThat(twice.first().documents().get(3).document().title()).isEqualTo("shop");
 
     // The same pipeline through the command line: everything is reused again.
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     AnalyzeCommand command =
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
-    command.run(new DefaultApplicationArguments("analyze", repo.toString()));
+    command.run(new DefaultApplicationArguments("analyze", "--system=shop", repo.toString()));
     String output = bytes.toString(StandardCharsets.UTF_8);
     assertThat(command.getExitCode()).as(output).isZero();
     assertThat(output)
@@ -258,7 +276,7 @@ class EndToEndIT {
             "docs/adr/0001-plain-java.md",
             "# 1. Plain Java\n\n## Status\n\nAccepted\n\n## Decision\n\nNo framework.\n");
 
-    AnalysisRun.Result first = run.run(Map.of("greeting-lib", lib));
+    AnalysisRun.Result first = run.run("greeting", null, Map.of("greeting-lib", lib));
     List<Fact> libFacts = validIn(first, "greeting-lib");
     assertThat(libFacts).hasSize(first.facts());
     List<Fact> readmeFacts =
@@ -278,7 +296,8 @@ class EndToEndIT {
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     AnalyzeCommand command =
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
-    command.run(new DefaultApplicationArguments("analyze", service.toString()));
+    command.run(
+        new DefaultApplicationArguments("analyze", "--system=greeting", service.toString()));
     String output = bytes.toString(StandardCharsets.UTF_8);
     assertThat(command.getExitCode()).as(output).isZero();
     assertThat(output)
@@ -313,7 +332,7 @@ class EndToEndIT {
     assertThat(serviceBuild.modules().getFirst().classpath())
         .contains("lib/com/example/greeting/greeting-lib/1.0.0/greeting-lib-1.0.0.jar");
     int sent = fake.sent().size();
-    AnalysisRun.Result third = run.run(Map.of("greeting-lib", lib));
+    AnalysisRun.Result third = run.run("greeting", null, Map.of("greeting-lib", lib));
     assertThat(sandbox.find("greeting-service", serviceCommit))
         .as("the carried-forward service's stored build")
         .contains(serviceBuild);
@@ -341,7 +360,8 @@ class EndToEndIT {
     }
 
     // Analyzed together, both find exactly the facts they found apart.
-    AnalysisRun.Result together = run.run(Map.of("greeting-lib", lib, "greeting-service", service));
+    AnalysisRun.Result together =
+        run.run("greeting", null, Map.of("greeting-lib", lib, "greeting-service", service));
     assertThat(fake.sent()).as("LLM requests when analyzed together").hasSize(sent);
     assertThat(together.newFacts()).isZero();
     assertThat(together.reusedBuilds()).containsExactly("greeting-lib", "greeting-service");
@@ -354,9 +374,11 @@ class EndToEndIT {
     String analyzedLib = first.snapshot().commits().get("greeting-lib");
     String failedLib =
         TestGitRepo.init(lib).commit("README.md", "# Greeting\n\nThe library says hello.\n");
-    assertThatThrownBy(() -> failingToStoreFacts().run(Map.of("greeting-lib", lib)))
+    assertThatThrownBy(
+            () -> failingToStoreFacts().run("greeting", null, Map.of("greeting-lib", lib)))
         .hasMessage(STORE_FAILED);
-    AnalysisRun.Result afterFailure = run.run(Map.of("greeting-service", service));
+    AnalysisRun.Result afterFailure =
+        run.run("greeting", null, Map.of("greeting-service", service));
     assertThat(afterFailure.snapshot().number()).isEqualTo(together.snapshot().number() + 2);
     assertThat(afterFailure.snapshot().commits())
         .containsEntry("greeting-lib", analyzedLib)
@@ -368,7 +390,8 @@ class EndToEndIT {
 
     // Once the library moves to a new commit, the service's stored build was made with classes
     // the snapshot no longer has, so it is built again with the library's new build (ADR 0041).
-    AnalysisRun.Result moved = run.run(Map.of("greeting-lib", lib, "greeting-service", service));
+    AnalysisRun.Result moved =
+        run.run("greeting", null, Map.of("greeting-lib", lib, "greeting-service", service));
     assertThat(moved.snapshot().commits()).containsEntry("greeting-lib", failedLib);
     // The failed run built the library at that commit already.
     assertThat(moved.reusedBuilds()).containsExactly("greeting-lib");
@@ -395,6 +418,84 @@ class EndToEndIT {
   }
 
   @Test
+  void oneAnalysisCoversOneNamedSystem() throws IOException {
+    // Two systems in one database: alpha with one repository, beta with a library and a service.
+    Path parts = fixtureRepo("multi-module", "alpha-parts");
+    Path lib = fixtureRepo("lib-and-service/lib", "beta-lib");
+    Path service = fixtureRepo("lib-and-service/service", "beta-service");
+    TestGitRepo.init(lib).commit("README.md", "# Beta Shop — Library\n\nIt greets.\n");
+    TestGitRepo.init(service).commit("README.md", "Intro\n\n# Beta shop: Service ##\n");
+    AnalysisRun.Result alpha = run.run("alpha", null, Map.of("alpha-parts", parts));
+    List<Fact> partsFacts = validIn(alpha, "alpha-parts");
+    assertThat(partsFacts).isNotEmpty();
+
+    // Analyzing beta carries nothing of alpha forward, its report shows nothing of alpha, and
+    // alpha's facts, the linker's included, keep holding (ADR 0071).
+    AnalysisRun.Result beta =
+        run.run("beta", null, Map.of("beta-lib", lib, "beta-service", service));
+    assertThat(beta.snapshot().commits()).containsOnlyKeys("beta-lib", "beta-service");
+    assertThat(validIn(beta, "alpha-parts")).isEqualTo(partsFacts);
+    Document betaReport = beta.documents().getLast().document();
+    assertThat(betaReport.id()).isEqualTo(AnalysisRun.SYSTEM_C4);
+    assertThat(betaReport.source().commits()).containsOnlyKeys("beta-lib", "beta-service");
+    assertThat(DocumentJson.write(betaReport))
+        .doesNotContain("alpha-parts")
+        .doesNotContain("com.example.shop")
+        .doesNotContain("PriceService");
+    assertThat(betaReport.facts()).allMatch(f -> f.evidence().repo().startsWith("beta-"));
+    // Without a title given, the words the repositories' README headings start with.
+    assertThat(beta.title()).isEqualTo("Beta Shop");
+    assertThat(betaReport.title()).isEqualTo("Beta Shop");
+    assertThat(beta.documents().getLast().file())
+        .isEqualTo(
+            WORKSPACE
+                .resolve("documents")
+                .resolve("beta")
+                .resolve(Long.toString(beta.snapshot().number()))
+                .resolve("_system.c4.html"));
+
+    // A title given is stored and kept by later runs.
+    AnalysisRun.Result titled = run.run("beta", "Beta Store", Map.of("beta-lib", lib));
+    assertThat(titled.documents().getLast().document().title()).isEqualTo("Beta Store");
+    AnalysisRun.Result kept = run.run("beta", null, Map.of("beta-lib", lib));
+    assertThat(kept.title()).isEqualTo("Beta Store");
+    assertThat(kept.snapshot().commits()).containsOnlyKeys("beta-lib", "beta-service");
+
+    // A repository belongs to one system. A refused run changes nothing: the repository keeps
+    // its path, and no system is created.
+    assertThatThrownBy(() -> run.run("beta", null, Map.of("alpha-parts", parts)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("belongs to the system alpha");
+    RepoRegistry registry = context.getBean(RepoRegistry.class);
+    Path partsPath = registry.find("alpha-parts").orElseThrow().path();
+    assertThatThrownBy(() -> run.run("gamma", null, Map.of("alpha-parts", lib)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("belongs to the system alpha");
+    assertThat(registry.find("alpha-parts").orElseThrow().path()).isEqualTo(partsPath);
+    assertThat(context.getBean(SystemRegistry.class).exists("gamma")).isFalse();
+
+    // A removed repository is not carried forward, and may then join another system.
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+    command.run(new DefaultApplicationArguments("remove", "--system=beta", "beta-service"));
+    assertThat(command.getExitCode()).as(bytes.toString(StandardCharsets.UTF_8)).isZero();
+    bytes.reset();
+    command.run(
+        new DefaultApplicationArguments("analyze", "--system=beta", "--title=", lib.toString()));
+    String output = bytes.toString(StandardCharsets.UTF_8);
+    assertThat(command.getExitCode()).as(output).isZero();
+    // A blank --title clears the stored one; one repository is left, so its name is the title.
+    assertThat(output).contains("System beta (beta-lib)");
+    long removedSnapshot = context.getBean(SnapshotStore.class).latest().orElseThrow().number();
+    assertThat(context.getBean(SnapshotStore.class).find(removedSnapshot).orElseThrow().commits())
+        .containsOnlyKeys("beta-lib");
+    run.remove("alpha", List.of("alpha-parts"));
+    AnalysisRun.Result moved = run.run("beta", null, Map.of("alpha-parts", parts));
+    assertThat(moved.snapshot().commits()).containsOnlyKeys("alpha-parts", "beta-lib");
+  }
+
+  @Test
   void rebuildsAStoredFailedBuildAndReusesASuccessfulOne() throws IOException {
     Path lib = fixtureRepo("lib-and-service/lib", "flaky-lib");
     Repo repo =
@@ -416,14 +517,15 @@ class EndToEndIT {
     // A sandbox that cannot build does not fail the run: the stored failed build is used, and
     // the facts are found in degraded mode.
     AnalysisRun.Result first =
-        analysisRun(transaction(), unavailableSandbox()).run(Map.of("flaky-lib", lib));
+        analysisRun(transaction(), unavailableSandbox())
+            .run("flaky", null, Map.of("flaky-lib", lib));
     assertThat(first.reusedBuilds()).containsExactly("flaky-lib");
     assertThat(first.builds().get("flaky-lib")).isEqualTo(failed);
     List<Fact> degraded = validIn(first, "flaky-lib");
 
     // The next run builds it again instead of reusing the failure. The build succeeds, so facts
     // found with more confidence start a new version.
-    AnalysisRun.Result second = run.run(Map.of("flaky-lib", lib));
+    AnalysisRun.Result second = run.run("flaky", null, Map.of("flaky-lib", lib));
     BuildResult rebuilt = second.builds().get("flaky-lib");
     assertThat(second.reusedBuilds()).isEmpty();
     assertThat(rebuilt.status()).isEqualTo(BuildStatus.SUCCEEDED);
@@ -448,7 +550,7 @@ class EndToEndIT {
     }
 
     // A successful build is reused.
-    AnalysisRun.Result third = run.run(Map.of("flaky-lib", lib));
+    AnalysisRun.Result third = run.run("flaky", null, Map.of("flaky-lib", lib));
     assertThat(third.reusedBuilds()).containsExactly("flaky-lib");
     assertThat(third.builds().get("flaky-lib")).isEqualTo(rebuilt);
   }
@@ -492,6 +594,7 @@ class EndToEndIT {
   private AnalysisRun analysisRun(TransactionTemplate transaction, BuildSandbox sandbox) {
     return new AnalysisRun(
         context.getBean(RepoRegistry.class),
+        context.getBean(SystemRegistry.class),
         context.getBean(SnapshotStore.class),
         context.getBean(AnalysisLock.class),
         sandbox,
@@ -533,7 +636,7 @@ class EndToEndIT {
     String name = "given-" + repo.getFileName();
 
     int before = fake.sent().size();
-    Twice twice = runTwice(name, repo);
+    Twice twice = runTwice(name, name, repo);
     List<FakeLlmProvider.Sent> sent = fake.sent().subList(before, fake.sent().size());
 
     assertThat(twice.first().builds().get(name).status())
@@ -572,9 +675,9 @@ class EndToEndIT {
   /** What two runs over the same commits did. */
   private record Twice(AnalysisRun.Result first, AnalysisRun.Result second) {}
 
-  private Twice runTwice(String name, Path repo) throws IOException {
+  private Twice runTwice(String system, String name, Path repo) throws IOException {
     int sentBefore = fake.sent().size();
-    AnalysisRun.Result first = run.run(Map.of(name, repo));
+    AnalysisRun.Result first = run.run(system, null, Map.of(name, repo));
     int calls = fake.sent().size() - sentBefore;
 
     assertThat(first.facts()).isPositive();
@@ -607,7 +710,7 @@ class EndToEndIT {
                 + "\n</script>");
 
     int sentAfterFirst = fake.sent().size();
-    AnalysisRun.Result second = run.run(Map.of(name, repo));
+    AnalysisRun.Result second = run.run(system, null, Map.of(name, repo));
 
     assertThat(fake.sent()).as("LLM requests in the second run").hasSize(sentAfterFirst);
     assertThat(second.llm().calls()).as("LLM calls logged in the second run").isZero();

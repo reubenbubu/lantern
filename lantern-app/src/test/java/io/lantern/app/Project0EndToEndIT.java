@@ -1,6 +1,7 @@
 package io.lantern.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
@@ -26,7 +27,10 @@ import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,6 +82,7 @@ import tools.jackson.databind.JsonNode;
     disabledReason =
         "project-0 is not set up: ~/workspace/lantern-test-projects/project-0 does not exist and"
             + " lantern.test.project0 is not set; see testsets/project-0/setup.sh (docs/adr/0029)")
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class Project0EndToEndIT {
 
   /** The file setup.sh writes into the set-up folder, holding the pin it set the folder up from. */
@@ -181,13 +186,14 @@ class Project0EndToEndIT {
   }
 
   @Test
+  @Order(1)
   void analyzesProject0TwiceAndTheSecondRunMakesNoLlmCall()
       throws IOException, InterruptedException {
     Map<String, Path> repos = project0();
     Map<String, String> commits = new TreeMap<>();
     repos.forEach((name, path) -> commits.put(name, Git.run(path, "rev-parse", "HEAD").out()));
 
-    AnalysisRun.Result first = run.run(repos);
+    AnalysisRun.Result first = run.run("project-0", null, repos);
     int calls = fake.sent().size();
 
     assertThat(first.snapshot().commits()).isEqualTo(commits);
@@ -221,7 +227,7 @@ class Project0EndToEndIT {
         .extracting(d -> d.file().getFileName().toString())
         .containsExactlyElementsOf(files);
 
-    AnalysisRun.Result second = run.run(repos);
+    AnalysisRun.Result second = run.run("project-0", null, repos);
 
     assertThat(fake.sent()).as("LLM requests in the second run").hasSize(calls);
     assertThat(second.llm().calls()).as("LLM calls logged in the second run").isZero();
@@ -258,6 +264,71 @@ class Project0EndToEndIT {
     AnalysisRun.Rendered system = second.documents().getLast();
     checkSystemReport(system.document());
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
+  }
+
+  /**
+   * Analyzes project-4's repositories with a Maven build (the others fail the run until #254) into
+   * the database that holds project-0, as another named system, and checks that its report shows
+   * nothing of project-0, is titled by the words its READMEs' headings share, that a removed
+   * repository leaves the next snapshot, and that project-0 analyzed again finds the same facts
+   * without an LLM call (ADR 0071). Runs after the test above, which needs a database without
+   * project-0, and only when {@code lantern.test.project4} names the folder project-4 is set up in.
+   * Writes project-4's system document and report to {@code target/project-4}, to look at.
+   */
+  @Test
+  @Order(2)
+  void analyzingProject4AfterProject0ShowsNothingOfProject0() throws IOException {
+    String folder = System.getProperty("lantern.test.project4");
+    assumeTrue(folder != null && !folder.isBlank(), "lantern.test.project4 is not set");
+    AnalysisRun.Result shop = run.run("project-0", null, project0());
+    Map<String, Path> crm = new TreeMap<>();
+    try (Stream<Path> repos = Files.list(Path.of(folder))) {
+      repos
+          .filter(repo -> Files.isRegularFile(repo.resolve("pom.xml")))
+          .forEach(repo -> crm.put(repo.getFileName().toString(), repo));
+    }
+    assertThat(crm).hasSizeGreaterThan(1);
+
+    AnalysisRun.Result first = run.run("project-4", null, crm);
+
+    assertThat(first.snapshot().commits()).containsOnlyKeys(crm.keySet());
+    AnalysisRun.Rendered report = first.documents().getLast();
+    assertThat(report.document().id()).isEqualTo(AnalysisRun.SYSTEM_C4);
+    assertThat(report.document().title()).isEqualTo("APA-CRM");
+    assertThat(report.document().source().commits()).containsOnlyKeys(crm.keySet());
+    assertThat(report.document().facts())
+        .allSatisfy(fact -> assertThat(crm).containsKey(fact.evidence().repo()));
+    String json = DocumentJson.write(report.document());
+    String html = Files.readString(report.file());
+    Path out = Path.of("target", "project-4");
+    Files.createDirectories(out);
+    Files.writeString(out.resolve("system.json"), json);
+    Files.copy(report.file(), out.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
+    // project-0's repositories, packages, hosts and exchanges.
+    for (String shopName :
+        List.of("catalog-lib", "storefront", "fulfilment", "com.acme", "PayGate", "shop.orders")) {
+      assertThat(json).as("project-4's system document").doesNotContain(shopName);
+      assertThat(html).as("project-4's system report").doesNotContain(shopName);
+    }
+
+    // A removed repository is not in the next snapshot.
+    String removed =
+        crm.keySet().stream()
+            .filter(name -> !name.equals("Main-Service"))
+            .findFirst()
+            .orElseThrow();
+    run.remove("project-4", List.of(removed));
+    AnalysisRun.Result after =
+        run.run("project-4", null, Map.of("Main-Service", crm.get("Main-Service")));
+    assertThat(after.snapshot().commits()).doesNotContainKey(removed).hasSize(crm.size() - 1);
+
+    // project-0 keeps its facts, so analyzing it again finds nothing new and asks the LLM nothing.
+    int calls = fake.sent().size();
+    AnalysisRun.Result again = run.run("project-0", null, project0());
+    assertThat(again.snapshot().commits()).isEqualTo(shop.snapshot().commits());
+    assertThat(again.newFacts()).isZero();
+    assertThat(again.facts()).isEqualTo(shop.facts());
+    assertThat(fake.sent()).as("LLM requests when analyzing project-0 again").hasSize(calls);
   }
 
   /**

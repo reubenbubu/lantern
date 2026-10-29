@@ -15,6 +15,8 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.repo.SystemRegistry;
+import io.lantern.core.repo.SystemTitle;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.extract.RepoBuild;
@@ -49,6 +51,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -76,10 +79,13 @@ import org.springframework.transaction.support.TransactionTemplate;
  * document, an Executive Brief and a C4 report per repository and a C4 report of the whole system,
  * and render each as single-file HTML (ADR 0016, ADR 0031, ADR 0044).
  *
- * <p>The snapshot describes the whole system: every repository an earlier snapshot analyzed that is
- * not named in this run is carried forward at its commit in the latest snapshot that analyzed it,
- * and its facts keep holding. Only the named repositories are built, summarized and composed, and
- * only their facts are recorded; the extractors see the whole snapshot (ADR 0018).
+ * <p>A run analyzes one named system (ADR 0071): the repositories it names join that system, and
+ * its snapshot describes the whole system: every repository of the system an earlier snapshot
+ * analyzed that is not named in this run is carried forward at its commit in the latest snapshot
+ * that analyzed it, and its facts keep holding. Repositories of other systems take no part. Only
+ * the named repositories are built, summarized and composed, and only their facts are recorded; the
+ * extractors see the whole snapshot (ADR 0018). Documents are written under the system's name and
+ * titled by its title.
  *
  * <p>Everything that can be reused is: a stored successful build of a {@code repo@commit}, stored
  * facts, and cached summaries. A run over commits that an earlier run already analyzed therefore
@@ -111,6 +117,7 @@ public final class AnalysisRun {
       List.of(Origin.Kind.STATIC, Origin.Kind.README);
 
   private final RepoRegistry registry;
+  private final SystemRegistry systems;
   private final SnapshotStore snapshots;
   private final AnalysisLock lock;
   private final BuildSandbox sandbox;
@@ -128,10 +135,12 @@ public final class AnalysisRun {
   private final Path documentsDirectory;
 
   /**
-   * @param documentsDirectory where rendered documents are written, one directory per snapshot
+   * @param documentsDirectory where rendered documents are written, one directory per system and in
+   *     it one per snapshot
    */
   public AnalysisRun(
       RepoRegistry registry,
+      SystemRegistry systems,
       SnapshotStore snapshots,
       AnalysisLock lock,
       BuildSandbox sandbox,
@@ -148,6 +157,7 @@ public final class AnalysisRun {
       String toolVersion,
       Path documentsDirectory) {
     this.registry = Objects.requireNonNull(registry, "registry");
+    this.systems = Objects.requireNonNull(systems, "systems");
     this.snapshots = Objects.requireNonNull(snapshots, "snapshots");
     this.lock = Objects.requireNonNull(lock, "lock");
     this.sandbox = Objects.requireNonNull(sandbox, "sandbox");
@@ -168,6 +178,8 @@ public final class AnalysisRun {
   /**
    * What a run did.
    *
+   * @param system the name of the system it analyzed
+   * @param title the system's title, which its documents carry (ADR 0071)
    * @param snapshot the snapshot it analyzed, which also has the repositories carried forward
    * @param builds the build of each repository it analyzed, by name
    * @param reusedBuilds the names of the repositories whose stored build was reused
@@ -188,6 +200,8 @@ public final class AnalysisRun {
    * @param documents the rendered documents, in the order written
    */
   public record Result(
+      String system,
+      String title,
       Snapshot snapshot,
       Map<String, BuildResult> builds,
       List<String> reusedBuilds,
@@ -220,21 +234,29 @@ public final class AnalysisRun {
   public record Rendered(Document document, Path file) {}
 
   /**
-   * Analyzes the repositories at their checked-out commits.
+   * Analyzes repositories of a named system at their checked-out commits.
    *
+   * @param system the system's name; it is created if it does not exist
+   * @param title the system's title to store: {@code null} keeps the stored one, blank clears it;
+   *     without a stored title the documents carry the one {@link SystemTitle} derives
    * @param repos the repositories, by name, each the top directory of a git working tree; a
    *     repository registered before keeps its settings
    * @throws LlmNotConfiguredException if the LLM is not configured; checked before anything else
    * @throws io.lantern.core.analysis.AnalysisAlreadyRunningException if another analysis is running
-   * @throws IllegalArgumentException if a name or path is not a valid repository
+   * @throws IllegalArgumentException if a name or path is not a valid repository, the system name
+   *     is not valid, or a repository belongs to another system
    */
-  public Result run(Map<String, Path> repos) {
+  public Result run(String system, String title, Map<String, Path> repos) {
+    SystemRegistry.checkName(system);
     if (repos.isEmpty()) {
       throw new IllegalArgumentException("Name at least one repository to analyze");
     }
     Instant started = Instant.now();
     LlmClient client = llm.client();
     try (AnalysisLock.Held held = lock.acquire()) {
+      // Refused before anything is stored, so a repository of another system keeps its path and
+      // settings, and no system is created.
+      systems.checkCanJoin(system, repos.keySet());
       Map<String, Repo> registered = new TreeMap<>();
       Map<String, String> revisions = new TreeMap<>();
       for (Map.Entry<String, Path> entry : new TreeMap<>(repos).entrySet()) {
@@ -244,8 +266,10 @@ public final class AnalysisRun {
         registered.put(name, registry.register(name, entry.getValue(), settings));
         revisions.put(name, RepoRegistry.HEAD);
       }
-      Snapshot snapshot = snapshots.createCarryingForward(revisions);
-      LOG.info("Snapshot {}: {}", snapshot.number(), snapshot.commits());
+      systems.define(system, title);
+      systems.join(system, registered.keySet());
+      Snapshot snapshot = snapshots.createCarryingForward(system, revisions);
+      LOG.info("Snapshot {} of {}: {}", snapshot.number(), system, snapshot.commits());
       snapshot.commits().keySet().stream()
           .filter(name -> !registered.containsKey(name))
           .forEach(name -> LOG.info("Carried forward without analyzing: {}", name));
@@ -277,7 +301,8 @@ public final class AnalysisRun {
       found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
       found.addAll(new MessagingExtractor().extract(code, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
-      Stored stored = store(snapshot.number(), registered.keySet(), found, client);
+      Stored stored =
+          store(snapshot.number(), registered.keySet(), snapshot.commits().keySet(), found, client);
       List<Fact> extracted = stored.facts();
       int newFacts = stored.added();
       LOG.info("Extracted {} facts, {} of them new", extracted.size(), newFacts);
@@ -299,8 +324,8 @@ public final class AnalysisRun {
 
       // The LLM words the responsibilities of the snapshot's units and components and the intent
       // of their links, and narrates the main flows, from every fact that holds in it, carried
-      // forward repositories included (ADR 0050, ADR 0058).
-      List<Fact> system = facts.findValidAt(snapshot.number());
+      // forward repositories included (ADR 0050, ADR 0058), and of no other system (ADR 0071).
+      List<Fact> systemFacts = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
       // Each repository's documents are composed from its extracted facts, so its flows are traced
       // from those.
       // Their prompts show the code of components, read from every registered repository, carried
@@ -313,27 +338,57 @@ public final class AnalysisRun {
                       .or(() -> registry.find(name))
                       .map(Repo::path));
       Describer.Result described =
-          new Describer(client, wordings, allSources).describe(system, extracted);
+          new Describer(client, wordings, allSources).describe(systemFacts, extracted);
 
+      String systemTitle =
+          systems
+              .title(system)
+              .orElseGet(
+                  () ->
+                      SystemTitle.derive(
+                          system,
+                          snapshot.commits().keySet(),
+                          readmeHeadings(snapshot, registered)));
       List<Rendered> documents = new ArrayList<>();
       Composer composer = new Composer(toolVersion);
-      Path out = documentsDirectory.resolve(Long.toString(snapshot.number()));
+      Path out = documentsDirectory.resolve(system).resolve(Long.toString(snapshot.number()));
       for (String name : registered.keySet()) {
         for (ViewDefinition view : views(name)) {
           Document document =
               composer.compose(
-                  view, snapshot, extracted, summarized.summaries(), described.wordings());
+                  view,
+                  snapshot,
+                  extracted,
+                  summarized.summaries(),
+                  described.wordings(),
+                  systemTitle);
           documents.add(new Rendered(document, write(out, view.id(), document)));
         }
       }
-      // The system's report shows every repository of the snapshot, carried forward ones too.
-      ViewDefinition systemView = view(ViewDefinition.c4System(SYSTEM_C4, "System", C4_REPORT));
+      // The system's report shows every repository of the snapshot, carried forward ones too, and
+      // is titled by the system's title, a stored view's title included.
+      ViewDefinition storedView = view(ViewDefinition.c4System(SYSTEM_C4, systemTitle, C4_REPORT));
+      ViewDefinition systemView =
+          new ViewDefinition(
+              storedView.id(),
+              systemTitle,
+              storedView.scope(),
+              storedView.audience(),
+              storedView.template(),
+              storedView.sections());
       Document document =
           composer.compose(
-              systemView, snapshot, system, summarized.summaries(), described.wordings());
+              systemView,
+              snapshot,
+              systemFacts,
+              summarized.summaries(),
+              described.wordings(),
+              systemTitle);
       documents.add(new Rendered(document, write(out, systemView.id(), document)));
       documents.forEach(d -> LOG.info("Wrote {}", d.file()));
       return new Result(
+          system,
+          systemTitle,
           snapshot,
           builds,
           reused,
@@ -348,6 +403,40 @@ public final class AnalysisRun {
           described.reused(),
           callLog.spentSince(started),
           documents);
+    }
+  }
+
+  /**
+   * The first heading of each snapshot repository's root README at its commit, for those that have
+   * one, which the system's title may come from (ADR 0071).
+   */
+  private Map<String, String> readmeHeadings(Snapshot snapshot, Map<String, Repo> registered) {
+    Map<String, String> headings = new TreeMap<>();
+    snapshot
+        .commits()
+        .forEach(
+            (name, commit) ->
+                Optional.ofNullable(registered.get(name))
+                    .or(() -> registry.find(name))
+                    .flatMap(repo -> SystemTitle.readmeHeading(repo.path(), commit))
+                    .ifPresent(heading -> headings.put(name, heading)));
+    return headings;
+  }
+
+  /**
+   * Removes repositories from a system, so its next snapshot does not carry them forward (ADR
+   * 0071). Their stored facts, builds and documents stay. Holds the analysis lock, so no run is
+   * taking a snapshot meanwhile.
+   *
+   * @throws IllegalArgumentException if a repository does not belong to the system
+   * @throws io.lantern.core.analysis.AnalysisAlreadyRunningException if an analysis is running
+   */
+  public void remove(String system, Collection<String> repos) {
+    if (repos.isEmpty()) {
+      throw new IllegalArgumentException("Name at least one repository to remove");
+    }
+    try (AnalysisLock.Held held = lock.acquire()) {
+      systems.remove(system, repos);
     }
   }
 
@@ -521,7 +610,12 @@ public final class AnalysisRun {
    * snapshot, so later snapshots carry them forward at their commits here, and a run that fails
    * before this point leaves its commits out of later snapshots (ADR 0018).
    */
-  private Stored store(long snapshot, Set<String> repos, List<Fact> found, LlmClient client) {
+  private Stored store(
+      long snapshot,
+      Set<String> repos,
+      Set<String> snapshotRepos,
+      List<Fact> found,
+      LlmClient client) {
     return transaction.execute(
         status -> {
           Map<String, Fact> unique = new LinkedHashMap<>();
@@ -561,8 +655,9 @@ public final class AnalysisRun {
           }
           LOG.info("Facts: {} changed confidence, {} no longer hold", changed, closed);
           // The linker derives from every fact that holds in the snapshot, those of repositories
-          // carried forward included, and records its facts for the whole snapshot (ADR 0039).
-          Linker.Result linked = linker.link(snapshot);
+          // carried forward included, and records its facts for the whole snapshot (ADR 0039); not
+          // from other systems' facts, nor ending theirs (ADR 0071).
+          Linker.Result linked = linker.link(snapshot, snapshotRepos);
           LOG.info(
               "Linked facts: {} new, {} changed confidence, {} no longer hold",
               linked.added(),

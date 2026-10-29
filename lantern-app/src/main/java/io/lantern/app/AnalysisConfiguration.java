@@ -5,6 +5,7 @@ import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.RepoRegistry;
+import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.link.ResolutionStore;
 import io.lantern.sandbox.BuildSandbox;
@@ -54,6 +55,7 @@ class AnalysisConfiguration {
   @Bean
   AnalysisRun analysisRun(
       RepoRegistry registry,
+      SystemRegistry systems,
       SnapshotStore snapshots,
       AnalysisLock lock,
       BuildSandbox sandbox,
@@ -71,6 +73,7 @@ class AnalysisConfiguration {
       @Value("${lantern.workspace}") Path workspace) {
     return new AnalysisRun(
         registry,
+        systems,
         snapshots,
         lock,
         sandbox,

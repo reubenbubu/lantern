@@ -11,8 +11,9 @@ import java.util.Set;
 /**
  * The linker stage: runs its steps, in order, on the facts that hold in a snapshot and records what
  * each derives for the whole snapshot (ADR 0039). A step's facts that it does not derive again stop
- * holding, whichever repository their evidence names, so a derived fact never outlives the facts it
- * came from, even when only another repository was analyzed.
+ * holding, whichever of the snapshot's repositories their evidence names, so a derived fact never
+ * outlives the facts it came from, even when only another repository was analyzed; another system's
+ * facts are neither read nor ended (ADR 0071).
  *
  * <p>Run {@link #link} in the transaction that recorded the snapshot's extracted facts, after
  * recording them with {@link FactRepository#recordSnapshot(long, io.lantern.core.fact.Origin.Kind,
@@ -74,14 +75,29 @@ public final class Linker {
   }
 
   /**
-   * Derives and records the steps' facts for a snapshot whose other facts are recorded.
+   * Derives and records the steps' facts for a snapshot whose other facts are recorded, from every
+   * fact that holds in it, whichever repository its evidence names.
    *
    * @param snapshot the snapshot number
    */
   public Result link(long snapshot) {
+    return link(snapshot, null);
+  }
+
+  /**
+   * Derives and records the steps' facts for the snapshot of one system, whose other facts are
+   * recorded: from the facts of the snapshot's repositories only, and ending only derived facts
+   * about them, so another system's facts that hold at the same number are neither linked to nor
+   * ended (ADR 0071).
+   *
+   * @param snapshot the snapshot number
+   * @param repos the snapshot's repositories, or {@code null} for every repository
+   */
+  public Result link(long snapshot, Set<String> repos) {
     Set<String> origins = origins();
     List<Fact> facts = new ArrayList<>();
-    for (Fact fact : store.findValidAt(snapshot)) {
+    for (Fact fact :
+        repos == null ? store.findValidAt(snapshot) : store.findValidAt(snapshot, repos)) {
       if (!origins.contains(fact.origin().name())) {
         facts.add(fact);
       }
@@ -92,7 +108,8 @@ public final class Linker {
     int closed = 0;
     for (LinkStep step : steps) {
       FactRepository.SnapshotUpdate update =
-          store.recordDerived(snapshot, step.origin(), step.derive(List.copyOf(facts), snapshot));
+          store.recordDerived(
+              snapshot, step.origin(), repos, step.derive(List.copyOf(facts), snapshot));
       facts.addAll(update.facts());
       derived.addAll(update.facts());
       added += update.added();

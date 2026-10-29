@@ -1,6 +1,6 @@
 # 0016: End-to-end analysis run
 
-Status: accepted (#17), amended (#100, #58, #245), amended by ADR 0031 (#112) and ADR 0044 (#95), pending the user's review (#24)
+Status: accepted (#17), amended (#100, #58, #245), amended by ADR 0031 (#112), ADR 0044 (#95) and ADR 0071 (#253), pending the user's review (#24)
 
 ## Context
 
