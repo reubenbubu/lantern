@@ -237,7 +237,10 @@ final class LinkIndex {
 
   /** A unit's {@code application-name} fact in a view: the view's own, else the default one. */
   Fact name(EntityId unit, String view) {
-    Map<String, Fact> byProfile = names.getOrDefault(unit, Map.of());
+    Map<String, Fact> byProfile = names.get(unit);
+    if (byProfile == null) {
+      return null;
+    }
     Fact fact = view == null ? null : byProfile.get(view);
     return fact != null ? fact : byProfile.get(null);
   }

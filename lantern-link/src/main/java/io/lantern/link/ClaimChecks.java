@@ -37,11 +37,12 @@ import tools.jackson.databind.node.ObjectNode;
  * each claim the code contradicts. See {@code docs/adr/0043-readme-claim-checks.md}.
  *
  * <p>It runs after {@link CrossRepoLinks}, since most checks read links. A claim is checked only
- * where its words say something checkable: that the units make no synchronous calls, never touch
- * another service's tables or have a database of their own, or that they use a named database,
- * message broker, Java release or Spring Boot version. Every other claim is left alone. A README
- * speaks for the deployable units of its repository, or, when it sits in a folder some of them are
- * in, for those.
+ * where its words say something checkable: that the units make no synchronous calls (or only
+ * asynchronous ones), never touch another service's tables or have a database of their own, that
+ * they use a named database, message broker, Java release or Spring Boot version, or a port,
+ * endpoint path, topic, queue or exchange, or call or never call a named unit (those in {@link
+ * NamedClaimChecks}). Every other claim is left alone. A README speaks for the deployable units of
+ * its repository, or, when it sits in a folder some of them are in, for those.
  */
 public final class ClaimChecks implements LinkStep {
 
@@ -49,7 +50,7 @@ public final class ClaimChecks implements LinkStep {
   public static final String NAME = "claim-checks";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "claim-checks";
@@ -66,6 +67,10 @@ public final class ClaimChecks implements LinkStep {
   public static final String BROKER_TECHNOLOGY = "broker-technology";
   public static final String JAVA_VERSION = "java-version";
   public static final String SPRING_BOOT_VERSION = "spring-boot-version";
+  public static final String PORT = "port";
+  public static final String ENDPOINT = "endpoint";
+  public static final String DESTINATION = "destination";
+  public static final String NAMED_SERVICES = "named-services";
 
   /** How much less certain a contradiction is than the code facts: it rests on reading words. */
   static final double WORDING_FACTOR = 0.8;
@@ -77,7 +82,7 @@ public final class ClaimChecks implements LinkStep {
   // ---------------------------------------------------------------------------------------------
   // Wording
 
-  private static final String NEGATION =
+  static final String NEGATION =
       "(?:never|not|no|none|nothing|without|doesn't|don't|isn't|aren't|won't|cannot|can't)";
 
   /** A negation at most three words before a word of the group. */
@@ -90,7 +95,7 @@ public final class ClaimChecks implements LinkStep {
    * only qualifiers between (group 1), then the rest of the clause (group 2). Not "nothing calls"
    * or "no service calls", which are about calls coming in, and not "does not retry HTTP calls".
    */
-  private static final Pattern NO_CALLS =
+  static final Pattern NO_CALLS =
       Pattern.compile(
           "\\b(?:never|not|doesn't|don't|won't|cannot|can't|makes? no|making no)"
               + "((?:\\s+(?:synchronous|synchronously|sync|blocking|http|https|rest-api|any|other"
@@ -105,6 +110,35 @@ public final class ClaimChecks implements LinkStep {
   private static final Pattern ANY_SERVICE =
       Pattern.compile(
           "^[\\s.!?]*$|\\b(another|other|any|anything|external|services|systems|apis|each other)\\b");
+
+  private static final String TALK =
+      "(?:communicates?|communicating|talks?|talking|interacts?|interacting|integrates?"
+          + "|integrating)";
+
+  private static final String ASYNC =
+      "(?:asynchronous|asynchronously|async|events?|messages?|messaging|a message broker"
+          + "|the message broker|a broker|the broker|kafka|rabbitmq|queues?|topics?)";
+
+  private static final String ONLY = "(?:only|solely|exclusively|purely|entirely)";
+
+  /** Positive phrasings that every call the units make is asynchronous. */
+  private static final List<Pattern> ONLY_ASYNCHRONOUS =
+      List.of(
+          Pattern.compile("\\b" + ONLY + "\\s+" + TALK + "\\b[^,;:]*?\\b" + ASYNC + "\\b"),
+          Pattern.compile(
+              "\\b"
+                  + TALK
+                  + "\\b(?:\\s+(?:with|to)\\s+(?:other|the other|all other)\\s+services)?\\s+"
+                  + ONLY
+                  + "\\s+(?:asynchronously|async|(?:through|via|over|by|using)\\b[^,;:]*?\\b"
+                  + ASYNC
+                  + "\\b)"),
+          Pattern.compile(
+              "\\b(?:all|its|their)\\s+(?:communication|integration|interaction)s?\\b"
+                  + "(?:\\s+with\\s+(?:other|the other|all other)\\s+services)?"
+                  + "\\s+(?:is|are)\\s+(?:"
+                  + ONLY
+                  + "\\s+)?(?:asynchronous|async|event-driven|event-based|message-based)\\b"));
 
   private static final String READ = "read|reads|reading|query|queries|querying|select|selects";
   private static final String WRITE = "write|writes|writing|update|updates|updating|insert|inserts";
@@ -126,17 +160,17 @@ public final class ClaimChecks implements LinkStep {
               + "|\\b(database|db|schema)\\s+of\\s+(its|their)\\s+own\\b"
               + "|\\bdedicated\\s+(database|db)\\b");
 
-  private static final Pattern NEGATION_WORD = Pattern.compile("\\b" + NEGATION + "\\b");
+  static final Pattern NEGATION_WORD = Pattern.compile("\\b" + NEGATION + "\\b");
 
   /** Sentences about tests or a developer's machine say nothing about what runs. */
-  private static final Pattern NOT_RUNTIME =
+  static final Pattern NOT_RUNTIME =
       Pattern.compile(
           "\\b(test|tests|testing|local|locally|development|dev|demo|example|migrated|migrate"
               + "|migrating|previously|formerly|instead of|replaced|replaces|plan|plans|planned"
               + "|will|future|used to|legacy|deprecated|roadmap)\\b");
 
   /** Database technologies by the words that name them, as the persistence extractor names them. */
-  private static final Map<String, Pattern> DATABASES = new LinkedHashMap<>();
+  static final Map<String, Pattern> DATABASES = new LinkedHashMap<>();
 
   static {
     DATABASES.put("PostgreSQL", Pattern.compile("\\b(postgres|postgresql|pgsql)\\b"));
@@ -154,9 +188,9 @@ public final class ClaimChecks implements LinkStep {
   }
 
   /** Broker families by the words that name them, with the protocols and technologies of each. */
-  private record Broker(Pattern words, Set<String> found) {}
+  record Broker(Pattern words, Set<String> found) {}
 
-  private static final Map<String, Broker> BROKERS = new LinkedHashMap<>();
+  static final Map<String, Broker> BROKERS = new LinkedHashMap<>();
 
   static {
     BROKERS.put(
@@ -245,8 +279,7 @@ public final class ClaimChecks implements LinkStep {
   // The checks
 
   /** A check the code fails: what the claim states, what was found, and the facts that show it. */
-  private record Contradiction(
-      String check, String stated, Set<String> found, List<Fact> contradictedBy) {
+  record Contradiction(String check, String stated, Set<String> found, List<Fact> contradictedBy) {
 
     Fact fact(Fact claim, Set<EntityId> units, Validity validity) {
       ObjectNode attributes = FactJson.newObject();
@@ -305,20 +338,30 @@ public final class ClaimChecks implements LinkStep {
   private static List<Contradiction> check(Fact claim, Set<EntityId> units, Index index) {
     List<String> sentences = sentences(claim.object().value());
     List<Contradiction> found = new ArrayList<>();
-    synchronousCalls(sentences, units, index, found);
+    NamedClaimChecks named = new NamedClaimChecks(sentences, units, index);
+    synchronousCalls(sentences, units, index, named, found);
     othersData(sentences, units, index, found);
     ownDatabase(sentences, units, index, found);
     databaseTechnology(sentences, units, index, found);
     brokerTechnology(sentences, units, index, found);
     javaVersion(sentences, units, index, found);
     springBootVersion(sentences, units, index, found);
+    named.port(found);
+    named.endpoints(found);
+    named.destinations(found);
+    named.services(found);
     return found;
   }
 
   /** "Never calls another service synchronously": any HTTP call the units make. */
   private static void synchronousCalls(
-      List<String> sentences, Set<EntityId> units, Index index, List<Contradiction> out) {
-    if (sentences.stream().noneMatch(ClaimChecks::saysNoSynchronousCalls)) {
+      List<String> sentences,
+      Set<EntityId> units,
+      Index index,
+      NamedClaimChecks named,
+      List<Contradiction> out) {
+    if (sentences.stream()
+        .noneMatch(s -> saysNoSynchronousCalls(s) || saysOnlyAsynchronous(s, named))) {
       return;
     }
     List<Fact> calls = new ArrayList<>(index.from(CrossRepoLinks.CALLS_HTTP, units));
@@ -543,7 +586,7 @@ public final class ClaimChecks implements LinkStep {
   }
 
   /** Whether a sentence says what the pattern matches, without a negation before it. */
-  private static boolean affirms(String sentence, Pattern pattern) {
+  static boolean affirms(String sentence, Pattern pattern) {
     Matcher m = pattern.matcher(sentence);
     return m.find() && !NEGATION_WORD.matcher(sentence.substring(0, m.start())).find();
   }
@@ -631,6 +674,26 @@ public final class ClaimChecks implements LinkStep {
     return links.stream().filter(f -> LinkIndex.text(f, "profile") == null).toList();
   }
 
+  /**
+   * "Only communicates asynchronously", "talks to other services only through events", "all
+   * communication is asynchronous": the units' communication is all asynchronous, said without a
+   * negation and without naming one unit it is about.
+   */
+  private static boolean saysOnlyAsynchronous(String sentence, NamedClaimChecks named) {
+    if (NOT_RUNTIME.matcher(sentence).find()) {
+      return false;
+    }
+    for (Pattern pattern : ONLY_ASYNCHRONOUS) {
+      Matcher m = pattern.matcher(sentence);
+      if (m.find()
+          && !NEGATION_WORD.matcher(sentence.substring(0, m.end())).find()
+          && named.namedUnits(sentence).isEmpty()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Whether a sentence says the units make no synchronous calls to other services. */
   private static boolean saysNoSynchronousCalls(String sentence) {
     Matcher m = NO_CALLS.matcher(sentence);
@@ -644,7 +707,7 @@ public final class ClaimChecks implements LinkStep {
     return false;
   }
 
-  private static List<Fact> sorted(List<Fact> facts) {
+  static List<Fact> sorted(List<Fact> facts) {
     List<Fact> sorted = new ArrayList<>(facts);
     sorted.sort(LinkIndex.BY_ID);
     return sorted;
@@ -653,10 +716,16 @@ public final class ClaimChecks implements LinkStep {
   // ---------------------------------------------------------------------------------------------
   // The facts it reads
 
-  private static final class Index {
+  static final class Index {
 
     /** The README claims, in ID order. */
     final List<Fact> claims = new ArrayList<>();
+
+    /** The same facts as the cross-repo linker reads them: units, config, code and endpoints. */
+    final LinkIndex links;
+
+    /** Each name a unit goes by, lowercase, mapped to the unit. */
+    final Map<String, EntityId> unitNames;
 
     /** Each repository's units, with the path of the fact that makes each a unit. */
     private final Map<String, Map<EntityId, String>> unitsByRepo = new HashMap<>();
@@ -664,6 +733,8 @@ public final class ClaimChecks implements LinkStep {
     private final Map<String, List<Fact>> byPredicate = new HashMap<>();
 
     Index(List<Fact> facts) {
+      links = new LinkIndex(facts);
+      unitNames = NamedClaimChecks.unitNames(links);
       List<Fact> sorted = new ArrayList<>(facts);
       sorted.sort(LinkIndex.BY_ID);
       for (Fact f : sorted) {
