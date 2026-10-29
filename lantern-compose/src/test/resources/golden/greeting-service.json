@@ -55,7 +55,7 @@
     "id" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib",
     "name" : "com.example.greeting.lib",
     "parent" : "module:com.example.greeting:greeting-lib",
-    "facts" : [ "d0316452e89165844cc8208ae04790450653b01319103fabd7329e797d5e0d55" ]
+    "facts" : [ "058a0d8873d166d80110ee4b7b5ab1b4362c90d7a86ca9f172c589aa9d4a711f" ]
   }, {
     "id" : "package:com.example.greeting:greeting-service:com.example.greeting.service",
     "name" : "com.example.greeting.service",
@@ -83,9 +83,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "345e26fa717bdec669ef7a002c731e393e1bcf9bb17b029393c551fae165faae" ]
+      "facts" : [ "7da2fcf72c30460bc1c6a4ea7ead0b3334d62a304b07e7d44b674547d875b111" ]
     } ],
-    "facts" : [ "41a6b72f0e2a3234d6428789287c8a7d13dbc0f70cd22b2d4247e709fad7aef9" ]
+    "facts" : [ "428782e77b99bdd98bf5abad0453539eaaf17de876809f7d5b73c244d5ff19b4" ]
   }, {
     "id" : "repo:greeting-lib",
     "name" : "greeting-lib",
@@ -169,11 +169,34 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "7e8d97199125161b6bf5953e2b62c274c91808ef143f8936feef42964c409249" ]
+      "facts" : [ "2f283d2af5ec313523b59ec25e32d0ee8c111bcb38f341e4416b757de20c5244" ]
     } ],
-    "facts" : [ "345e26fa717bdec669ef7a002c731e393e1bcf9bb17b029393c551fae165faae", "b25925402b49fa5d4d948e0842288060f704d0a1f7135552bcab125893f3ec91" ]
+    "facts" : [ "7da2fcf72c30460bc1c6a4ea7ead0b3334d62a304b07e7d44b674547d875b111", "b2f5000811c2d07a15e962136783784058a7c9b062353054c5e62d6956456392" ]
   } ],
   "facts" : [ {
+    "id" : "058a0d8873d166d80110ee4b7b5ab1b4362c90d7a86ca9f172c589aa9d4a711f",
+    "subject" : "module:com.example.greeting:greeting-lib",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "2"
+    },
+    "evidence" : {
+      "repo" : "greeting-lib",
+      "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
+      "path" : "src/main/java/com/example/greeting/lib"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
     "id" : "246a5b810f41bfab5535e82122aa6c805bdb27cc0033c64591065f664a1808ab",
     "subject" : "module:com.example.greeting:greeting-service",
     "predicate" : "version",
@@ -226,26 +249,26 @@
       "from" : 1
     }
   }, {
-    "id" : "345e26fa717bdec669ef7a002c731e393e1bcf9bb17b029393c551fae165faae",
-    "subject" : "package:com.example.greeting:greeting-service:com.example.greeting.service",
-    "predicate" : "CONTAINS",
+    "id" : "2f283d2af5ec313523b59ec25e32d0ee8c111bcb38f341e4416b757de20c5244",
+    "subject" : "method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[])",
+    "predicate" : "CALLS",
     "object" : {
       "kind" : "entity",
-      "value" : "type:com.example.greeting.service.GreetingServiceMain"
+      "value" : "method:com.example.greeting.lib.Greeter#<init>()"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "java",
-      "version" : "1"
+      "version" : "2"
     },
     "evidence" : {
       "repo" : "greeting-service",
       "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
       "path" : "src/main/java/com/example/greeting/service/GreetingServiceMain.java",
       "lines" : {
-        "start" : 6,
-        "end" : 13
+        "start" : 11,
+        "end" : 11
       },
       "contentHash" : "b2f017caceba228469d2718ca3b46cf664ee9e5cc9ad0452fb9710421a998cd3"
     },
@@ -278,7 +301,7 @@
       "from" : 1
     }
   }, {
-    "id" : "41a6b72f0e2a3234d6428789287c8a7d13dbc0f70cd22b2d4247e709fad7aef9",
+    "id" : "428782e77b99bdd98bf5abad0453539eaaf17de876809f7d5b73c244d5ff19b4",
     "subject" : "module:com.example.greeting:greeting-service",
     "predicate" : "CONTAINS",
     "object" : {
@@ -289,7 +312,7 @@
     "origin" : {
       "kind" : "static",
       "name" : "java",
-      "version" : "1"
+      "version" : "2"
     },
     "evidence" : {
       "repo" : "greeting-service",
@@ -383,26 +406,26 @@
       "from" : 1
     }
   }, {
-    "id" : "7e8d97199125161b6bf5953e2b62c274c91808ef143f8936feef42964c409249",
-    "subject" : "method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[])",
-    "predicate" : "CALLS",
+    "id" : "7da2fcf72c30460bc1c6a4ea7ead0b3334d62a304b07e7d44b674547d875b111",
+    "subject" : "package:com.example.greeting:greeting-service:com.example.greeting.service",
+    "predicate" : "CONTAINS",
     "object" : {
       "kind" : "entity",
-      "value" : "method:com.example.greeting.lib.Greeter#<init>()"
+      "value" : "type:com.example.greeting.service.GreetingServiceMain"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "java",
-      "version" : "1"
+      "version" : "2"
     },
     "evidence" : {
       "repo" : "greeting-service",
       "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
       "path" : "src/main/java/com/example/greeting/service/GreetingServiceMain.java",
       "lines" : {
-        "start" : 11,
-        "end" : 11
+        "start" : 6,
+        "end" : 13
       },
       "contentHash" : "b2f017caceba228469d2718ca3b46cf664ee9e5cc9ad0452fb9710421a998cd3"
     },
@@ -522,7 +545,7 @@
       "from" : 1
     }
   }, {
-    "id" : "b25925402b49fa5d4d948e0842288060f704d0a1f7135552bcab125893f3ec91",
+    "id" : "b2f5000811c2d07a15e962136783784058a7c9b062353054c5e62d6956456392",
     "subject" : "type:com.example.greeting.service.GreetingServiceMain",
     "predicate" : "kind",
     "object" : {
@@ -533,7 +556,7 @@
     "origin" : {
       "kind" : "static",
       "name" : "java",
-      "version" : "1"
+      "version" : "2"
     },
     "evidence" : {
       "repo" : "greeting-service",
@@ -544,29 +567,6 @@
         "end" : 13
       },
       "contentHash" : "b2f017caceba228469d2718ca3b46cf664ee9e5cc9ad0452fb9710421a998cd3"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "d0316452e89165844cc8208ae04790450653b01319103fabd7329e797d5e0d55",
-    "subject" : "module:com.example.greeting:greeting-lib",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "1"
-    },
-    "evidence" : {
-      "repo" : "greeting-lib",
-      "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
-      "path" : "src/main/java/com/example/greeting/lib"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -906,7 +906,7 @@
         "children" : [ {
           "label" : "com.example.greeting.service",
           "entity" : "package:com.example.greeting:greeting-service:com.example.greeting.service",
-          "facts" : [ "41a6b72f0e2a3234d6428789287c8a7d13dbc0f70cd22b2d4247e709fad7aef9" ],
+          "facts" : [ "428782e77b99bdd98bf5abad0453539eaaf17de876809f7d5b73c244d5ff19b4" ],
           "children" : [ ]
         } ]
       } ],
