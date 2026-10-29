@@ -2,8 +2,20 @@ package io.lantern.core.document;
 
 import java.util.List;
 
-/** A block of a section: a paragraph, list, callout, table, diagram, tree or headline numbers. */
-public sealed interface Block permits Paragraph, ListBlock, Callout, Table, Diagram, Tree, Metrics {
+/**
+ * A block of a section: a paragraph, list, callout, table, diagram, sequence diagram, tree,
+ * headline numbers or quality report.
+ */
+public sealed interface Block
+    permits Paragraph,
+        ListBlock,
+        Callout,
+        Table,
+        Diagram,
+        SequenceDiagram,
+        Tree,
+        Metrics,
+        QualityReport {
 
   /** The block ID, unique among the document's sections and blocks. */
   String id();

@@ -170,7 +170,7 @@ export function entityPlacements(document: Document): Map<string, Placement[]> {
       }
       for (const block of section.blocks) {
         if (block.kind === 'diagram') {
-          for (const node of block.nodes) {
+          for (const node of block.diagramKind === 'sequence' ? block.participants : block.nodes) {
             add(node.id, { id: block.id, title: block.title ?? section.title });
           }
         }

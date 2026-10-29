@@ -7,7 +7,10 @@ import type {
   FactEnvelope,
   FactObject,
   Inline,
+  QualityReport,
   Section,
+  SequenceDiagram,
+  SequenceStep,
 } from '../src/generated/document.ts';
 
 const factId = 'de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6';
@@ -66,6 +69,66 @@ const diagram: Diagram = {
   facts: [factId],
 };
 
+const flow: SequenceDiagram = {
+  kind: 'diagram',
+  id: 'order-flow',
+  diagramKind: 'sequence',
+  title: 'Place an order',
+  participants: [
+    { id: 'service:orders', label: 'Orders', technology: 'Spring Boot', facts: [factId] },
+    { id: 'library:orders-lib', facts: [] },
+  ],
+  steps: [
+    {
+      kind: 'message',
+      from: 'service:orders',
+      to: 'library:orders-lib',
+      label: 'Create order',
+      code: 'POST /orders',
+      messageKind: 'sync',
+      activate: true,
+      deactivate: false,
+      profiles: ['prod'],
+      info: [{ kind: 'text', text: 'Validates first.' }],
+      facts: [factId],
+    },
+    {
+      kind: 'frame',
+      operator: 'alt',
+      operands: [
+        {
+          guard: 'in stock',
+          steps: [{ kind: 'message', from: 'library:orders-lib', to: 'library:orders-lib', facts: [] }],
+          facts: [factId],
+        },
+        {
+          steps: [{ kind: 'note', over: ['library:orders-lib'], content: [{ kind: 'text', text: 'Rejected.' }], facts: [] }],
+          facts: [],
+        },
+      ],
+      facts: [],
+    },
+    { kind: 'message', facts: [] },
+    { kind: 'note', content: [{ kind: 'text', text: 'The rest happens later.' }], facts: [] },
+  ],
+  facts: [factId],
+};
+
+const quality: QualityReport = {
+  kind: 'quality-report',
+  id: 'quality',
+  failures: [
+    {
+      check: 'Every line is labelled',
+      target: { kind: 'block', id: 'containers' },
+      detail: [{ kind: 'text', text: 'One line has no label.' }],
+      facts: [factId],
+    },
+    { check: 'It states its reader', facts: [] },
+  ],
+  facts: [],
+};
+
 const blocks: Block[] = [
   { kind: 'paragraph', id: 'intro', content: [intro[0], ...intro.slice(1)], facts: [factId] },
   { kind: 'metrics', id: 'headline', items: [{ label: 'Services', value: 1, facts: [] }], facts: [] },
@@ -85,6 +148,8 @@ const blocks: Block[] = [
     facts: [],
   },
   diagram,
+  flow,
+  quality,
   {
     kind: 'table',
     id: 'deps',
@@ -152,6 +217,27 @@ export const refused: Block[] = [
     edges: [],
     facts: [],
   },
+  // @ts-expect-error a sequence diagram with nodes and edges
+  { kind: 'diagram', id: 'f', diagramKind: 'sequence', nodes: [], edges: [], facts: [] },
+  // @ts-expect-error a quality report without failures
+  { kind: 'quality-report', id: 'q', facts: [] },
+  {
+    kind: 'quality-report',
+    id: 'q',
+    // @ts-expect-error a failure without its check
+    failures: [{ facts: [] }],
+    facts: [],
+  },
+];
+export const refusedSteps: SequenceStep[] = [
+  // @ts-expect-error unknown message kind
+  { kind: 'message', messageKind: 'oneway', facts: [] },
+  // @ts-expect-error unknown frame operator
+  { kind: 'frame', operator: 'switch', operands: [], facts: [] },
+  // @ts-expect-error a note without content
+  { kind: 'note', facts: [] },
+  // @ts-expect-error a step of unknown kind
+  { kind: 'divider', facts: [] },
 ];
 // @ts-expect-error an inline of unknown kind
 export const refusedInline: Inline = { kind: 'image', text: 'x' };

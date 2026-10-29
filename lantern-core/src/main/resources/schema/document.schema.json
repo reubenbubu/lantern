@@ -140,8 +140,10 @@
         { "$ref": "#/$defs/callout" },
         { "$ref": "#/$defs/table" },
         { "$ref": "#/$defs/diagram" },
+        { "$ref": "#/$defs/sequenceDiagram" },
         { "$ref": "#/$defs/tree" },
-        { "$ref": "#/$defs/metrics" }
+        { "$ref": "#/$defs/metrics" },
+        { "$ref": "#/$defs/qualityReport" }
       ]
     },
     "content": {
@@ -260,7 +262,7 @@
     },
     "diagram": {
       "title": "Diagram",
-      "description": "A graph of entities. Renderers lay it out, keeping any stored positions.",
+      "description": "A graph of entities. Renderers lay it out, keeping any stored positions. Sequence diagrams have their own shape (sequenceDiagram).",
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "id", "diagramKind", "nodes", "edges", "facts"],
@@ -356,6 +358,160 @@
         "facts": { "$ref": "#/$defs/factIds" }
       }
     },
+    "sequenceDiagram": {
+      "title": "SequenceDiagram",
+      "description": "A runtime flow: messages between participants in time order, top to bottom. Templates draw it. Any detail may be missing; templates draw what is there.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "diagramKind", "participants", "steps", "facts"],
+      "properties": {
+        "kind": { "const": "diagram" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "diagramKind": { "const": "sequence" },
+        "title": { "$ref": "#/$defs/nonBlankText" },
+        "participants": {
+          "description": "The lifelines, left to right, each once.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/sequenceParticipant" }
+        },
+        "steps": {
+          "description": "Messages, frames and notes, in time order.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/sequenceStep" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "sequenceParticipant": {
+      "title": "SequenceParticipant",
+      "description": "A lifeline, which shows an entity: a container, a queue, a person or an external system.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "facts"],
+      "properties": {
+        "id": {
+          "description": "The entity the lifeline shows. Must be in the document's entities.",
+          "$ref": "#/$defs/entityId"
+        },
+        "label": {
+          "description": "Text shown on the lifeline. Absent: the entity's name.",
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "technology": { "$ref": "#/$defs/nonBlankText" },
+        "style": { "$ref": "#/$defs/nodeStyle" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "sequenceStep": {
+      "oneOf": [
+        { "$ref": "#/$defs/sequenceMessage" },
+        { "$ref": "#/$defs/sequenceFrame" },
+        { "$ref": "#/$defs/sequenceNote" }
+      ]
+    },
+    "sequenceMessage": {
+      "title": "SequenceMessage",
+      "description": "A message from one participant to another, or to itself when from and to are the same.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "facts"],
+      "properties": {
+        "kind": { "const": "message" },
+        "from": {
+          "description": "The sending participant. Absent: not known.",
+          "$ref": "#/$defs/entityId"
+        },
+        "to": {
+          "description": "The receiving participant. Absent: not known.",
+          "$ref": "#/$defs/entityId"
+        },
+        "label": {
+          "description": "What the message is for, intent first, e.g. Create order.",
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "code": {
+          "description": "The protocol detail, shown as code after the label, e.g. POST /v1/orders.",
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "messageKind": {
+          "description": "sync: the sender waits; async: it does not; return: a reply. Absent: sync.",
+          "enum": ["sync", "async", "return"]
+        },
+        "activate": {
+          "description": "Whether an activation bar starts on the receiver. Absent: true for a sync message, false otherwise.",
+          "type": "boolean"
+        },
+        "deactivate": {
+          "description": "Whether the sender's activation bar ends. Absent: true for a return, false otherwise.",
+          "type": "boolean"
+        },
+        "profiles": {
+          "description": "The Spring profiles under which alone the message is sent; any one of them is enough. Absent: always.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonBlankText" }
+        },
+        "info": {
+          "description": "Further explanation of the step, for a walkthrough beside the diagram.",
+          "$ref": "#/$defs/content"
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "sequenceFrame": {
+      "title": "SequenceFrame",
+      "description": "A fragment around steps: alt has a branch per operand, the other operators usually one operand. Frames may nest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "operator", "operands", "facts"],
+      "properties": {
+        "kind": { "const": "frame" },
+        "operator": { "enum": ["alt", "opt", "loop", "par", "break", "critical"] },
+        "operands": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/sequenceOperand" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "sequenceOperand": {
+      "title": "SequenceOperand",
+      "description": "One part of a frame: for alt, one branch.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "facts"],
+      "properties": {
+        "guard": {
+          "description": "The condition under which the steps happen, e.g. payment authorised.",
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sequenceStep" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "sequenceNote": {
+      "title": "SequenceNote",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "content", "facts"],
+      "properties": {
+        "kind": { "const": "note" },
+        "over": {
+          "description": "The participants the note spans. Absent: all of them.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/entityId" }
+        },
+        "content": { "$ref": "#/$defs/content" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
     "tree": {
       "title": "Tree",
       "description": "A hierarchy, such as a dependency tree or module and package structure.",
@@ -415,6 +571,45 @@
         "value": { "type": "number" },
         "unit": { "$ref": "#/$defs/nonBlankText" },
         "entity": { "$ref": "#/$defs/entityId" },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "qualityReport": {
+      "title": "QualityReport",
+      "description": "The Quality bar checks the document failed (docs/design.md, Quality bar). No failures: every check the composer makes passed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "failures", "facts"],
+      "properties": {
+        "kind": { "const": "quality-report" },
+        "id": { "$ref": "#/$defs/elementId" },
+        "title": { "$ref": "#/$defs/nonBlankText" },
+        "failures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/qualityFailure" }
+        },
+        "facts": { "$ref": "#/$defs/factIds" }
+      }
+    },
+    "qualityFailure": {
+      "title": "QualityFailure",
+      "description": "One failed check.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["check", "facts"],
+      "properties": {
+        "check": {
+          "description": "The check that failed, as the Quality bar words it, e.g. at most 15 elements.",
+          "$ref": "#/$defs/nonBlankText"
+        },
+        "target": {
+          "description": "The section, block or entity that failed it. Absent: the document as a whole.",
+          "oneOf": [{ "$ref": "#/$defs/elementTarget" }, { "$ref": "#/$defs/entityTarget" }]
+        },
+        "detail": {
+          "description": "How it failed.",
+          "$ref": "#/$defs/content"
+        },
         "facts": { "$ref": "#/$defs/factIds" }
       }
     },

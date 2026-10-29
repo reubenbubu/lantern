@@ -186,6 +186,24 @@ figcaption {
   font-weight: 600;
 }
 
+.sequence-steps {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.sequence-operand {
+  border-left: 2px solid var(--color-border);
+  padding-left: 0.5rem;
+}
+
+.sequence-profiles {
+  color: var(--color-muted);
+}
+
+.quality-report {
+  border-left-color: var(--color-warning);
+}
+
 .tree ul {
   margin: 0;
   padding-left: 1.25rem;

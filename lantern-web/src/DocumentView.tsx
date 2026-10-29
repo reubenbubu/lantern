@@ -9,7 +9,10 @@ import type {
   FactEnvelope,
   Inline,
   Metrics,
+  QualityReport,
   Section,
+  SequenceDiagram,
+  SequenceStep,
   Table,
   Tree,
   TreeNode,
@@ -138,12 +141,127 @@ export function BlockView({ block }: { block: Block }) {
     case 'table':
       return <TableView table={block} />;
     case 'diagram':
-      return <DiagramView diagram={block} />;
+      return block.diagramKind === 'sequence' ? <SequenceView diagram={block} /> : <DiagramView diagram={block} />;
     case 'tree':
       return <TreeView tree={block} />;
     case 'metrics':
       return <MetricsView metrics={block} />;
+    case 'quality-report':
+      return <QualityReportView report={block} />;
   }
+}
+
+/**
+ * A sequence diagram as a plain list of its steps. These templates do not draw sequence diagrams;
+ * report-spec templates do (docs/adr/0028).
+ */
+function SequenceView({ diagram }: { diagram: SequenceDiagram }) {
+  const { entities } = useLookup();
+  const labels = new Map(diagram.participants.map((p) => [p.id, p.label]));
+  const name = (id: string | undefined) =>
+    id === undefined ? 'unknown' : (labels.get(id) ?? entities.get(id)?.name ?? id);
+  return (
+    <figure id={diagram.id} className="sequence">
+      {diagram.title && <figcaption>{diagram.title}</figcaption>}
+      <SequenceSteps steps={diagram.steps} name={name} />
+    </figure>
+  );
+}
+
+const MESSAGE_KINDS = { sync: '', async: ' (async)', return: ' (reply)' } as const;
+
+function SequenceSteps({ steps, name }: { steps: SequenceStep[]; name: (id: string | undefined) => string }) {
+  if (steps.length === 0) {
+    return null;
+  }
+  return (
+    <ol className="sequence-steps">
+      {steps.map((step, i) => {
+        switch (step.kind) {
+          case 'message':
+            return (
+              <li key={i}>
+                {name(step.from)} → {name(step.to)}
+                {MESSAGE_KINDS[step.messageKind ?? 'sync']}
+                {(step.label || step.code) && ': '}
+                {step.label}
+                {step.label && step.code && ' '}
+                {step.code && <code>{step.code}</code>}
+                {step.profiles && <span className="sequence-profiles"> (only with profile {step.profiles.join(', ')})</span>}
+                {step.info && (
+                  <>
+                    {' — '}
+                    <Content content={step.info} />
+                  </>
+                )}
+              </li>
+            );
+          case 'note':
+            return (
+              <li key={i}>
+                Note{step.over && ` over ${step.over.map(name).join(', ')}`}: <Content content={step.content} />
+              </li>
+            );
+          case 'frame':
+            return (
+              <li key={i}>
+                {step.operands.map((operand, j) => (
+                  <div key={j} className="sequence-operand">
+                    {j === 0 ? step.operator : 'else'}
+                    {operand.guard && ` [${operand.guard}]`}
+                    <SequenceSteps steps={operand.steps} name={name} />
+                  </div>
+                ))}
+              </li>
+            );
+        }
+      })}
+    </ol>
+  );
+}
+
+function QualityReportView({ report }: { report: QualityReport }) {
+  const { entities } = useLookup();
+  return (
+    <aside id={report.id} className="callout quality-report">
+      <p className="callout-title">{report.title ?? 'Quality report'}</p>
+      {report.failures.length === 0 ? (
+        <p>No check failed.</p>
+      ) : (
+        <ul>
+          {report.failures.map((failure, i) => (
+            <li key={i}>
+              {failure.check}
+              {failure.target && (
+                <>
+                  {' ('}
+                  <Content
+                    content={[
+                      {
+                        kind: 'ref',
+                        text:
+                          failure.target.kind === 'entity'
+                            ? (entities.get(failure.target.id)?.name ?? failure.target.id)
+                            : failure.target.id,
+                        target: failure.target,
+                      },
+                    ]}
+                  />
+                  {')'}
+                </>
+              )}
+              {failure.detail && (
+                <>
+                  {': '}
+                  <Content content={failure.detail} />
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </aside>
+  );
 }
 
 const CALLOUT_TITLES: Record<Callout['variant'], string> = {

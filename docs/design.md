@@ -369,7 +369,7 @@ Presentation rules follow the same lifecycle as knowledge annotations: anchored 
 
 ## Quality bar
 
-Every diagram and document is judged against these checks, each yes or no. The composer checks every check not marked *(review)* on every document and puts the failures into the document as a quality report block (ADR 0011, #91). Checks marked *(review)* are judged by reviewing the documents of the test sets in each phase. The evidence behind the checks is in `docs/research/architecture-documentation-quality-bar.md`.
+Every diagram and document is judged against these checks, each yes or no. The composer checks every check not marked *(review)* on every document and puts the failures into the document as a quality report block (ADR 0028). Checks marked *(review)* are judged by reviewing the documents of the test sets in each phase. The evidence behind the checks is in `docs/research/architecture-documentation-quality-bar.md`.
 
 **Every diagram:** a title naming its type and scope; a legend for every shape, color, line style and arrowhead used; one abstraction level; at most 15 elements, else split into several at the same level (for example one per container with its direct neighbours). Every element has a name, a type and a responsibility sentence that doesn't restate the name *(review)*, and containers and components a technology. Every line is one-way, labelled with an intent phrase (never just "uses" or "depends on"), links to the facts behind it, and is marked conditional, naming the profile, when it holds only under a Spring profile; lines between containers name a protocol (`[JSON/HTTPS]`, `[AMQP]`, `[JDBC]`). Acronyms are explained in the glossary. What each diagram type contains is under Diagrams in Composition.
 
@@ -387,13 +387,13 @@ Composition decides what a document says and shows; rendering only formats it. C
 
 **Composer inputs:** knowledge in scope (at the snapshot), the view definition, presentation rules, and the previous rendition (layout state, prior prose, color assignments). **Output:** a format-neutral document model of sections, diagrams, tables, callouts and cross-references, each element linked to the fact IDs it came from.
 
-What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011. How templates show a summary's citations of other summaries is in ADR 0027.
+What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011; sequence diagrams and the quality report block are in ADR 0028. How templates show a summary's citations of other summaries is in ADR 0027.
 
 How the first composer builds per-repository documents from view definitions is in ADR 0012.
 
 **View definitions.** A persisted spec per document: scope, audience profile, template, sections and diagrams. Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
-**Diagrams.** Lantern uses the C4 levels with c4model.com's definitions. The software system is the scope: all repos in system scope, a group in grouped scope; a per-repo document shows its repo's containers inside that system. External systems are outbound targets the linker can't resolve to a container in scope, or come from annotations. A container is a runtime unit (an application, job, data store, or queue or topic), never a Maven module or jar; a component is a group of functionality behind an interface, never just a package. Each diagram must also pass the Quality bar. The document model gains a `sequence` diagram kind for these (a schema change per ADR 0011, #91).
+**Diagrams.** Lantern uses the C4 levels with c4model.com's definitions. The software system is the scope: all repos in system scope, a group in grouped scope; a per-repo document shows its repo's containers inside that system. External systems are outbound targets the linker can't resolve to a container in scope, or come from annotations. A container is a runtime unit (an application, job, data store, or queue or topic), never a Maven module or jar; a component is a group of functionality behind an interface, never just a package. Each diagram must also pass the Quality bar. The document model holds sequence diagrams as a `sequence` diagram kind (ADR 0028).
 
 | Diagram | Contains | Built from |
 | --- | --- | --- |

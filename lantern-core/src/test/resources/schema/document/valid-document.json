@@ -350,5 +350,149 @@
       } ],
       "sections" : [ ]
     } ]
+  }, {
+    "id" : "flows",
+    "title" : "Flows",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "diagram",
+      "id" : "order-flow",
+      "diagramKind" : "sequence",
+      "title" : "Place an order",
+      "participants" : [ {
+        "id" : "service:orders",
+        "label" : "Orders",
+        "technology" : "Spring Boot",
+        "style" : {
+          "shape" : "box",
+          "icon" : "server",
+          "color" : "#1f77b4"
+        },
+        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      }, {
+        "id" : "library:orders-lib",
+        "label" : "orders-lib",
+        "facts" : [ ]
+      }, {
+        "id" : "database:orders-db",
+        "facts" : [ ]
+      } ],
+      "steps" : [ {
+        "kind" : "message",
+        "from" : "service:orders",
+        "to" : "library:orders-lib",
+        "label" : "Create order",
+        "code" : "POST /orders",
+        "messageKind" : "sync",
+        "activate" : true,
+        "deactivate" : false,
+        "profiles" : [ "prod", "staging" ],
+        "info" : [ {
+          "kind" : "text",
+          "text" : "Validates the order first."
+        }, {
+          "kind" : "citation",
+          "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        } ],
+        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      }, {
+        "kind" : "frame",
+        "operator" : "alt",
+        "operands" : [ {
+          "guard" : "in stock",
+          "steps" : [ {
+            "kind" : "message",
+            "from" : "library:orders-lib",
+            "to" : "library:orders-lib",
+            "label" : "Check stock",
+            "facts" : [ ]
+          }, {
+            "kind" : "message",
+            "from" : "library:orders-lib",
+            "to" : "database:orders-db",
+            "label" : "Save order",
+            "code" : "INSERT orders",
+            "facts" : [ ]
+          } ],
+          "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+        }, {
+          "steps" : [ {
+            "kind" : "note",
+            "over" : [ "library:orders-lib", "database:orders-db" ],
+            "content" : [ {
+              "kind" : "text",
+              "text" : "Nothing is saved."
+            } ],
+            "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+          } ],
+          "facts" : [ ]
+        } ],
+        "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+      }, {
+        "kind" : "message",
+        "from" : "library:orders-lib",
+        "to" : "service:orders",
+        "label" : "Order ID",
+        "messageKind" : "return",
+        "facts" : [ ]
+      }, {
+        "kind" : "message",
+        "from" : "service:orders",
+        "label" : "Order placed",
+        "messageKind" : "async",
+        "facts" : [ ]
+      }, {
+        "kind" : "message",
+        "facts" : [ ]
+      }, {
+        "kind" : "note",
+        "content" : [ {
+          "kind" : "text",
+          "text" : "The rest happens later."
+        } ],
+        "facts" : [ ]
+      } ],
+      "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed", "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+    }, {
+      "kind" : "diagram",
+      "id" : "no-flow",
+      "diagramKind" : "sequence",
+      "participants" : [ ],
+      "steps" : [ ],
+      "facts" : [ ]
+    }, {
+      "kind" : "quality-report",
+      "id" : "quality",
+      "title" : "Quality report",
+      "failures" : [ {
+        "check" : "Every line is labelled with an intent phrase",
+        "target" : {
+          "kind" : "block",
+          "id" : "containers"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "The line from orders to orders-db has no label."
+        } ],
+        "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+      }, {
+        "check" : "Every element has a responsibility sentence",
+        "target" : {
+          "kind" : "entity",
+          "id" : "database:orders-db"
+        },
+        "facts" : [ ]
+      }, {
+        "check" : "It states its reader",
+        "facts" : [ ]
+      } ],
+      "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+    }, {
+      "kind" : "quality-report",
+      "id" : "quality-passed",
+      "failures" : [ ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
   } ]
 }

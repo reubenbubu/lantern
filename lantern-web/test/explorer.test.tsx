@@ -87,6 +87,11 @@ describe('entity placements', () => {
       'components.library:com.example.shop:shop-api.diagram',
     ]);
   });
+
+  test('include the sequence diagrams an entity takes part in', () => {
+    const placements = entityPlacements(schemaFixture());
+    expect(placements.get('database:orders-db')!.map((p) => p.id)).toEqual(['containers', 'db-only', 'order-flow']);
+  });
 });
 
 describe('search', () => {

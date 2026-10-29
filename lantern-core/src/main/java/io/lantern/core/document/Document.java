@@ -13,10 +13,10 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * A format-neutral document: sections of paragraphs, lists, callouts, tables, diagrams, trees and
- * headline numbers, with cross-references, each element linked to the fact IDs it came from. The
- * composer builds it and renderers format it. The JSON form is defined by {@code
- * schema/document.schema.json} and written and read by {@link DocumentJson}.
+ * A format-neutral document: sections of paragraphs, lists, callouts, tables, diagrams, sequence
+ * diagrams, trees, headline numbers and quality reports, with cross-references, each element linked
+ * to the fact IDs it came from. The composer builds it and renderers format it. The JSON form is
+ * defined by {@code schema/document.schema.json} and written and read by {@link DocumentJson}.
  *
  * <p>A document is self-contained: every fact ID it mentions is in {@link #facts}, every entity it
  * mentions is in {@link #entities}, and every cross-reference points to a section, block or entity
@@ -161,6 +161,13 @@ public record Document(
           }
           d.edges().forEach(edge -> facts(edge.facts()));
         }
+        case SequenceDiagram d -> {
+          for (SequenceDiagram.Participant participant : d.participants()) {
+            entity(participant.id());
+            facts(participant.facts());
+          }
+          d.steps().forEach(this::step);
+        }
         case Tree t -> t.roots().forEach(this::treeNode);
         case Metrics m ->
             m.items()
@@ -168,6 +175,31 @@ public record Document(
                     item -> {
                       entity(item.entity());
                       facts(item.facts());
+                    });
+        case QualityReport q ->
+            q.failures()
+                .forEach(
+                    failure -> {
+                      if (failure.target() != null) {
+                        targets.add(failure.target());
+                      }
+                      content(failure.detail());
+                      facts(failure.facts());
+                    });
+      }
+    }
+
+    private void step(SequenceDiagram.Step step) {
+      facts(step.facts());
+      switch (step) {
+        case SequenceDiagram.Message m -> content(m.info());
+        case SequenceDiagram.Note n -> content(n.content());
+        case SequenceDiagram.Frame f ->
+            f.operands()
+                .forEach(
+                    o -> {
+                      facts(o.facts());
+                      o.steps().forEach(this::step);
                     });
       }
     }
