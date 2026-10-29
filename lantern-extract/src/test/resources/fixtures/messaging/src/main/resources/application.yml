@@ -1,0 +1,11 @@
+events:
+  api-token: s3cret
+  kafka:
+    payments-topic: payments.completed
+    pattern: audit.*
+    secret-topic: tenant-${events.api-token}
+  jms:
+    shipments: shipments.dispatched
+  rabbit:
+    refunds-queue: payments.refunds
+    audit-key: audit.special

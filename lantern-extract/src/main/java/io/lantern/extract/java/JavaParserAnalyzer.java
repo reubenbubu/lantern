@@ -534,22 +534,58 @@ final class JavaParserAnalyzer {
     /** Adds an annotation, or the annotations a container of repeated annotations holds. */
     private void annotation(AnnotationExpr a, Location where, List<Annotation> annotations) {
       Map<String, List<String>> values = new LinkedHashMap<>();
-      List<AnnotationExpr> nested = new ArrayList<>();
-      if (a instanceof SingleMemberAnnotationExpr single) {
-        values.put(VALUE, values(single.getMemberValue(), nested));
-      } else if (a instanceof NormalAnnotationExpr normal) {
-        for (MemberValuePair pair : normal.getPairs()) {
-          String element = pair.getNameAsString();
-          values.put(element, values(pair.getValue(), element.equals(VALUE) ? nested : null));
-        }
-      }
+      Map<String, List<AnnotationExpr>> nestedByElement = new LinkedHashMap<>();
+      elements(a, values, nestedByElement);
+      List<AnnotationExpr> nested = nestedByElement.getOrDefault(VALUE, List.of());
       if (!nested.isEmpty() && values.size() == 1 && values.get(VALUE).isEmpty()) {
         for (AnnotationExpr n : nested) {
           annotation(n, where, annotations);
         }
         return;
       }
-      annotations.add(new Annotation(annotationType(a), values, where));
+      annotations.add(
+          new Annotation(annotationType(a), values, nested(nestedByElement, where), where));
+    }
+
+    /** An annotation's element values, with the annotations written as values apart. */
+    private void elements(
+        AnnotationExpr a,
+        Map<String, List<String>> values,
+        Map<String, List<AnnotationExpr>> nestedByElement) {
+      if (a instanceof SingleMemberAnnotationExpr single) {
+        List<AnnotationExpr> inner = new ArrayList<>();
+        values.put(VALUE, values(single.getMemberValue(), inner));
+        if (!inner.isEmpty()) {
+          nestedByElement.put(VALUE, inner);
+        }
+      } else if (a instanceof NormalAnnotationExpr normal) {
+        for (MemberValuePair pair : normal.getPairs()) {
+          String element = pair.getNameAsString();
+          List<AnnotationExpr> inner = new ArrayList<>();
+          values.put(element, values(pair.getValue(), inner));
+          if (!inner.isEmpty()) {
+            nestedByElement.put(element, inner);
+          }
+        }
+      }
+    }
+
+    /** Annotations written as element values, read as written annotations are, recursively. */
+    private Map<String, List<Annotation>> nested(
+        Map<String, List<AnnotationExpr>> byElement, Location where) {
+      Map<String, List<Annotation>> nested = new LinkedHashMap<>();
+      byElement.forEach(
+          (element, written) -> {
+            List<Annotation> list = new ArrayList<>();
+            for (AnnotationExpr n : written) {
+              Map<String, List<String>> values = new LinkedHashMap<>();
+              Map<String, List<AnnotationExpr>> inner = new LinkedHashMap<>();
+              elements(n, values, inner);
+              list.add(new Annotation(annotationType(n), values, nested(inner, where), where));
+            }
+            nested.put(element, list);
+          });
+      return nested;
     }
 
     /** An element's value as strings, constants folded; nested annotations go to {@code nested}. */
@@ -606,10 +642,14 @@ final class JavaParserAnalyzer {
         };
       } catch (RuntimeException | StackOverflowError ex) {
         // Not resolvable without the classpath the build would have given, except a constant of
-        // a well-known enum that annotations take (RequestMethod.GET), named by its imports.
-        if (e instanceof FieldAccessExpr f
-            && WellKnownAnnotations.isKnownEnum(guessType(f.getScope().toString()))) {
-          return f.getNameAsString();
+        // a well-known enum that annotations take (RequestMethod.GET), or a well-known string
+        // constant (ExchangeTypes.TOPIC), named by its imports.
+        if (e instanceof FieldAccessExpr f) {
+          String type = guessType(f.getScope().toString());
+          if (WellKnownAnnotations.isKnownEnum(type)) {
+            return f.getNameAsString();
+          }
+          return WellKnownAnnotations.knownConstant(type, f.getNameAsString());
         }
         return null;
       }
@@ -824,12 +864,17 @@ final class JavaParserAnalyzer {
 
     /** Records a call on a tracked API that is not what another call is made on. */
     private void chain(com.github.javaparser.ast.expr.Expression call) {
-      if (isReceiver(call) || !TrackedApis.isTracked(rootType(call))) {
+      if (isReceiver(call)) {
+        return;
+      }
+      String rootType = rootType(call);
+      if (!TrackedApis.isTracked(rootType)) {
         return;
       }
       EntityId caller = owner(call);
       if (caller != null && expression(call, caller, 0) instanceof Expression.Invoke invoke) {
-        structure.invocations.add(new ModuleStructure.Invocation(caller, invoke, location(call)));
+        structure.invocations.add(
+            new ModuleStructure.Invocation(caller, invoke, location(call), rootType));
       }
     }
 

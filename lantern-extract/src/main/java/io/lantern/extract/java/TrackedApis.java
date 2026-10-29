@@ -20,7 +20,13 @@ final class TrackedApis {
           "org.springframework.web.reactive.function.client.",
           // Jakarta (and javax) REST client API
           "jakarta.ws.rs.client.",
-          "javax.ws.rs.client.");
+          "javax.ws.rs.client.",
+          // Messaging (the messaging extractor): Spring Kafka and Kafka's producer, JMS templates,
+          // and RabbitMQ templates and declarations (queues, exchanges, bindings and builders).
+          "org.springframework.kafka.core.",
+          "org.apache.kafka.clients.producer.",
+          "org.springframework.jms.core.",
+          "org.springframework.amqp.");
 
   private TrackedApis() {}
 

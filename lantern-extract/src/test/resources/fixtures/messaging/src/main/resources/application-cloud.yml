@@ -1,0 +1,5 @@
+events:
+  kafka:
+    payments-topic: cloud.payments.completed
+  rabbit:
+    exchange: cloud.exchange
