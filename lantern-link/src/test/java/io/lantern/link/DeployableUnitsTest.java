@@ -17,6 +17,7 @@ import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
@@ -218,6 +219,7 @@ class DeployableUnitsTest {
             SpringExtractor.vocabulary(),
             PersistenceExtractor.vocabulary(),
             HttpClientExtractor.vocabulary(),
+            MessagingExtractor.vocabulary(),
             DeployableUnits.vocabulary())) {
       vocabulary.changes(step).forEach(t -> types.put(t.name(), t));
       vocabulary = new Vocabulary(vocabulary.revision() + 1, types.values());

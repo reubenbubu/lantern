@@ -60,13 +60,23 @@ public sealed interface Expression {
    * @param receiver what it is called on, or null for a call without one ({@code foo()})
    * @param method the method's name
    * @param arguments the arguments, in order
+   * @param parameterTypes the erased parameter types of the method or constructor called, as in a
+   *     member ID, when the compiler resolved it; empty when parsed, so a reader that needs to tell
+   *     overloads apart falls back to the number of arguments
    */
-  record Invoke(Expression receiver, String method, List<Expression> arguments)
+  record Invoke(
+      Expression receiver, String method, List<Expression> arguments, List<String> parameterTypes)
       implements Expression {
 
     public Invoke {
       Objects.requireNonNull(method, "method");
       arguments = List.copyOf(arguments);
+      parameterTypes = List.copyOf(parameterTypes);
+    }
+
+    /** A call whose callee's parameter types are not known. */
+    public Invoke(Expression receiver, String method, List<Expression> arguments) {
+      this(receiver, method, arguments, List.of());
     }
 
     /** This call and the calls it is made on, the innermost first. */

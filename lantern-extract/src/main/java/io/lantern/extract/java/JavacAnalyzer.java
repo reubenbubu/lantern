@@ -380,14 +380,9 @@ final class JavacAnalyzer {
         SourceFile file) {
       TypeElement type = (TypeElement) m.getAnnotationType().asElement();
       Map<String, List<String>> values = new LinkedHashMap<>();
-      List<AnnotationMirror> nested = new ArrayList<>();
-      for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e :
-          m.getElementValues().entrySet()) {
-        String name = e.getKey().getSimpleName().toString();
-        List<String> list = new ArrayList<>();
-        value(e.getValue().getValue(), list, name.equals(VALUE) ? nested : null);
-        values.put(name, List.copyOf(list));
-      }
+      Map<String, List<AnnotationMirror>> nestedByElement = new LinkedHashMap<>();
+      elements(m, values, nestedByElement);
+      List<AnnotationMirror> nested = nestedByElement.getOrDefault(VALUE, List.of());
       if (!nested.isEmpty() && values.size() == 1 && values.get(VALUE).isEmpty()) {
         // javac makes up the container of repeated annotations; each has its own place.
         List<Location> places = element == null ? List.of() : repeated(element, nested, file);
@@ -397,8 +392,46 @@ final class JavacAnalyzer {
         }
         return;
       }
-      annotations.add(new Annotation(binaryName(type), values, where));
+      annotations.add(
+          new Annotation(binaryName(type), values, nested(nestedByElement, where), where));
       metaAnnotations(type);
+    }
+
+    /** An annotation's element values, with the annotations written as values apart. */
+    private void elements(
+        AnnotationMirror m,
+        Map<String, List<String>> values,
+        Map<String, List<AnnotationMirror>> nestedByElement) {
+      for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e :
+          m.getElementValues().entrySet()) {
+        String name = e.getKey().getSimpleName().toString();
+        List<String> list = new ArrayList<>();
+        List<AnnotationMirror> inner = new ArrayList<>();
+        value(e.getValue().getValue(), list, inner);
+        values.put(name, List.copyOf(list));
+        if (!inner.isEmpty()) {
+          nestedByElement.put(name, inner);
+        }
+      }
+    }
+
+    /** Annotations written as element values, read as written annotations are, recursively. */
+    private Map<String, List<Annotation>> nested(
+        Map<String, List<AnnotationMirror>> byElement, Location where) {
+      Map<String, List<Annotation>> nested = new LinkedHashMap<>();
+      byElement.forEach(
+          (element, mirrors) -> {
+            List<Annotation> list = new ArrayList<>();
+            for (AnnotationMirror n : mirrors) {
+              Map<String, List<String>> values = new LinkedHashMap<>();
+              Map<String, List<AnnotationMirror>> inner = new LinkedHashMap<>();
+              elements(n, values, inner);
+              TypeElement type = (TypeElement) n.getAnnotationType().asElement();
+              list.add(new Annotation(binaryName(type), values, nested(inner, where), where));
+            }
+            nested.put(element, list);
+          });
+      return nested;
     }
 
     /**
@@ -722,7 +755,8 @@ final class JavacAnalyzer {
       /** Reads the invocations and field values found, now that every local is known. */
       void values() {
         for (TreePath path : chains) {
-          if (!TrackedApis.isTracked(rootType(path))) {
+          String rootType = rootType(path);
+          if (!TrackedApis.isTracked(rootType)) {
             continue;
           }
           EntityId caller = owner(path);
@@ -733,11 +767,8 @@ final class JavacAnalyzer {
                     caller,
                     invoke,
                     lines(
-                        unit,
-                        file,
-                        positions.getStartPosition(unit, leaf),
-                        end(unit, leaf),
-                        null)));
+                        unit, file, positions.getStartPosition(unit, leaf), end(unit, leaf), null),
+                    rootType));
           }
         }
         for (TreePath[] value : fieldValues) {
@@ -834,7 +865,10 @@ final class JavacAnalyzer {
               yield unknown(path);
             }
             yield new Expression.Invoke(
-                receiver, method, arguments(path, call.getArguments(), owner, depth));
+                receiver,
+                method,
+                arguments(path, call.getArguments(), owner, depth),
+                parameterTypes(path));
           }
           case NewClassTree created -> {
             String type = typeName(new TreePath(path, created.getIdentifier()));
@@ -843,10 +877,23 @@ final class JavacAnalyzer {
                 : new Expression.Invoke(
                     new Expression.TypeRef(type),
                     ModuleStructure.CONSTRUCTOR,
-                    arguments(path, created.getArguments(), owner, depth));
+                    arguments(path, created.getArguments(), owner, depth),
+                    parameterTypes(path));
           }
           default -> unknown(path);
         };
+      }
+
+      /** The erased parameter types of the method or constructor called, or none if unknown. */
+      private List<String> parameterTypes(TreePath path) {
+        if (!(trees.getElement(path) instanceof ExecutableElement callee)) {
+          return List.of();
+        }
+        List<String> types = new ArrayList<>();
+        for (VariableElement p : callee.getParameters()) {
+          types.add(describe(p.asType()));
+        }
+        return types;
       }
 
       private List<Expression> arguments(
