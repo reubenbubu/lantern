@@ -195,6 +195,7 @@ public final class SpringExtractor {
             Comparator.comparing((Fact f) -> f.subject().toString())
                 .thenComparing(Fact::predicate)
                 .thenComparing(f -> f.object().value())
+                .thenComparing(f -> f.attributes().toString())
                 .thenComparing(Fact::id))
         .toList();
   }
