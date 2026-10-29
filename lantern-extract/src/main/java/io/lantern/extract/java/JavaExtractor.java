@@ -111,8 +111,36 @@ public final class JavaExtractor {
    * @throws IllegalStateException if git fails or times out, or Lantern runs without a compiler
    */
   public List<Fact> extract(List<RepoBuild> repos, long snapshot) {
+    return extract(analyze(repos), snapshot);
+  }
+
+  /**
+   * Extracts the facts of a snapshot's code already read by {@link #analyze}.
+   *
+   * @param analysis the code of the snapshot's repositories
+   * @param snapshot the snapshot number the facts hold from
+   * @return the facts, without duplicates, ordered by subject, predicate, object and ID
+   */
+  public List<Fact> extract(JavaAnalysis analysis, long snapshot) {
+    Objects.requireNonNull(analysis, "analysis");
+    Facts facts = new Facts(Validity.from(snapshot));
+    for (JavaAnalysis.Module module : analysis.modules()) {
+      facts.add(module.repo(), module.id(), module.structure(), module.confidence());
+    }
+    return facts.result();
+  }
+
+  /**
+   * Reads the code of a snapshot's repositories: through javac for each module whose repository
+   * built, else by parsing. Other extractors use the result so the code is read once.
+   *
+   * @param repos the repositories of the snapshot, each at its commit with its build, if any
+   * @return the code, by module
+   * @throws UncheckedIOException if the sources cannot be read or copied
+   * @throws IllegalStateException if git fails or times out, or Lantern runs without a compiler
+   */
+  public static JavaAnalysis analyze(List<RepoBuild> repos) {
     Objects.requireNonNull(repos, "repos");
-    Validity validity = Validity.from(snapshot);
     List<RepoBuild> sorted =
         repos.stream()
             .sorted(
@@ -128,15 +156,14 @@ public final class JavaExtractor {
       for (int i = 0; i < sorted.size(); i++) {
         sources.add(RepoSources.read(sorted.get(i), work.resolve(Integer.toString(i))));
       }
-      Facts facts = new Facts(validity);
+      List<JavaAnalysis.Module> modules = new ArrayList<>();
       for (RepoSources repo : sources) {
         for (ModuleSources module : repo.modules) {
-          analyze(repo, module, sources, facts);
+          modules.add(analyze(repo, module, sources));
         }
       }
-      List<Fact> result = facts.result();
       delete(work);
-      return result;
+      return new JavaAnalysis(modules);
     } catch (IOException e) {
       UncheckedIOException failure = new UncheckedIOException("Cannot read the Java sources", e);
       deleteAfterFailure(work, failure);
@@ -147,12 +174,10 @@ public final class JavaExtractor {
     }
   }
 
-  private static void analyze(
-      RepoSources repo, ModuleSources module, List<RepoSources> all, Facts facts)
-      throws IOException {
+  private static JavaAnalysis.Module analyze(
+      RepoSources repo, ModuleSources module, List<RepoSources> all) throws IOException {
     BuildResult build = repo.repo.build();
     ModuleStructure structure = null;
-    double confidence = COMPILED_CONFIDENCE;
     if (build != null && !build.degraded() && module.build() != null) {
       List<Path> classpath = new ArrayList<>();
       for (String entry : module.build().classpath()) {
@@ -163,13 +188,19 @@ public final class JavaExtractor {
       }
       structure = JavacAnalyzer.analyze(module.files(), classpath, release(build.jdk()));
     }
-    if (structure == null) {
-      confidence = PARSED_CONFIDENCE;
+    boolean compiled = structure != null;
+    if (!compiled) {
       structure =
           new JavaParserAnalyzer(sourceRoots(repo, all), jars(repo, module))
               .analyze(module.files());
     }
-    facts.add(repo.repo, module, structure, confidence);
+    return new JavaAnalysis.Module(
+        repo.repo,
+        module.directory(),
+        module.id(),
+        compiled,
+        compiled ? COMPILED_CONFIDENCE : PARSED_CONFIDENCE,
+        structure);
   }
 
   /** The Java release to compile for: the build's JDK if this JDK can compile for it. */
@@ -266,8 +297,8 @@ public final class JavaExtractor {
       this.validity = validity;
     }
 
-    void add(RepoBuild repo, ModuleSources module, ModuleStructure structure, double confidence) {
-      String moduleKey = module.id().key();
+    void add(RepoBuild repo, EntityId moduleId, ModuleStructure structure, double confidence) {
+      String moduleKey = moduleId.key();
       for (TypeDecl t : structure.types) {
         EntityId type = ModuleStructure.typeId(t.binaryName());
         if (type == null) {
@@ -277,14 +308,14 @@ public final class JavaExtractor {
         if (t.outer() != null) {
           container = ModuleStructure.typeId(t.outer());
         } else if (t.packageName().isEmpty()) {
-          container = module.id();
+          container = moduleId;
         } else {
           container = new EntityId(BuiltInTypes.PACKAGE, moduleKey + ":" + t.packageName());
           String path = t.where().file().path();
           String directory = path.substring(0, Math.max(0, path.lastIndexOf('/')));
           packages.merge(
-              List.of(module.id(), container, repo),
-              new PackageFact(module.id(), container, repo, directory, confidence),
+              List.of(moduleId, container, repo),
+              new PackageFact(moduleId, container, repo, directory, confidence),
               (a, b) -> a.path().compareTo(b.path()) <= 0 ? a : b);
         }
         if (container != null) {

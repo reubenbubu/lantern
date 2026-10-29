@@ -23,9 +23,28 @@ import com.github.javaparser.ast.body.RecordDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.ArrayInitializerExpr;
+import com.github.javaparser.ast.expr.BinaryExpr;
+import com.github.javaparser.ast.expr.BooleanLiteralExpr;
+import com.github.javaparser.ast.expr.CastExpr;
+import com.github.javaparser.ast.expr.CharLiteralExpr;
+import com.github.javaparser.ast.expr.ClassExpr;
+import com.github.javaparser.ast.expr.DoubleLiteralExpr;
+import com.github.javaparser.ast.expr.EnclosedExpr;
+import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.FieldAccessExpr;
+import com.github.javaparser.ast.expr.IntegerLiteralExpr;
+import com.github.javaparser.ast.expr.LongLiteralExpr;
+import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.MethodReferenceExpr;
+import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
+import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
+import com.github.javaparser.ast.expr.StringLiteralExpr;
+import com.github.javaparser.ast.expr.TextBlockLiteralExpr;
+import com.github.javaparser.ast.expr.UnaryExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithTypeParameters;
 import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
 import com.github.javaparser.ast.type.ArrayType;
@@ -33,17 +52,23 @@ import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.PrimitiveType;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.type.TypeParameter;
+import com.github.javaparser.resolution.TypeSolver;
+import com.github.javaparser.resolution.declarations.AssociableToAST;
 import com.github.javaparser.resolution.declarations.ResolvedMethodLikeDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedParameterDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclaration;
+import com.github.javaparser.resolution.declarations.ResolvedValueDeclaration;
+import com.github.javaparser.resolution.model.SymbolReference;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.symbolsolver.JavaSymbolSolver;
+import com.github.javaparser.symbolsolver.javaparsermodel.JavaParserFacade;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.JarTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Call;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
@@ -57,6 +82,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -82,6 +108,16 @@ final class JavaParserAnalyzer {
 
   private static final String LOMBOK = "lombok.";
 
+  /** The element a single annotation value is written for. */
+  private static final String VALUE = "value";
+
+  /** How many constants a constant's value may lead through. */
+  private static final int MAX_CONSTANT_DEPTH = 16;
+
+  /** The annotations in {@code java.lang}, which need no import. */
+  private static final Set<String> JAVA_LANG_ANNOTATIONS =
+      Set.of("Deprecated", "FunctionalInterface", "Override", "SafeVarargs", "SuppressWarnings");
+
   /** Lombok annotations that add constructors, so a class with one has no default constructor. */
   private static final Set<String> LOMBOK_CONSTRUCTORS =
       Set.of(
@@ -93,6 +129,7 @@ final class JavaParserAnalyzer {
           "RequiredArgsConstructor");
 
   private final JavaParser parser;
+  private final TypeSolver solver;
 
   /**
    * A parser resolving types against the JDK, the given source roots and the given jars, searched
@@ -116,6 +153,7 @@ final class JavaParserAnalyzer {
         }
       }
     }
+    this.solver = solver;
     this.parser =
         new JavaParser(
             new ParserConfiguration()
@@ -134,7 +172,7 @@ final class JavaParserAnalyzer {
         if (!result.isSuccessful() || result.getResult().isEmpty()) {
           continue;
         }
-        new Reader(one, result.getResult().get(), file).read();
+        new Reader(one, result.getResult().get(), file, solver).read();
       } catch (RuntimeException | StackOverflowError e) {
         continue;
       }
@@ -153,11 +191,13 @@ final class JavaParserAnalyzer {
     private final String packageName;
     private final Map<Node, String> binaryNames = new IdentityHashMap<>();
     private final Map<Node, EntityId> callables = new IdentityHashMap<>();
+    private final TypeSolver solver;
 
-    Reader(ModuleStructure structure, CompilationUnit unit, SourceFile file) {
+    Reader(ModuleStructure structure, CompilationUnit unit, SourceFile file, TypeSolver solver) {
       this.structure = structure;
       this.unit = unit;
       this.file = file;
+      this.solver = solver;
       this.packageName = unit.getPackageDeclaration().map(p -> p.getNameAsString()).orElse("");
     }
 
@@ -222,10 +262,11 @@ final class JavaParserAnalyzer {
           kind = ModuleStructure.ENUM;
           supertypes(e.getImplementedTypes(), BuiltInTypes.IMPLEMENTS, type, supertypes);
           for (EnumConstantDeclaration constant : e.getEntries()) {
-            add(
-                members,
-                ModuleStructure.fieldId(binary, constant.getNameAsString()),
-                location(constant));
+            EntityId id = ModuleStructure.fieldId(binary, constant.getNameAsString());
+            if (id != null) {
+              members.add(
+                  new Member(id, location(constant), annotations(constant.getAnnotations())));
+            }
           }
           if (!hasConstructor) {
             add(
@@ -270,7 +311,10 @@ final class JavaParserAnalyzer {
                   members, m, ModuleStructure.methodId(binary, m.getNameAsString(), List.of()));
           case FieldDeclaration f -> {
             for (VariableDeclarator v : f.getVariables()) {
-              add(members, ModuleStructure.fieldId(binary, v.getNameAsString()), location(f));
+              EntityId id = ModuleStructure.fieldId(binary, v.getNameAsString());
+              if (id != null) {
+                members.add(new Member(id, location(f), annotations(f.getAnnotations())));
+              }
             }
           }
           case TypeDeclaration<?> t -> nested.add(t);
@@ -278,7 +322,15 @@ final class JavaParserAnalyzer {
         }
       }
       structure.types.add(
-          new TypeDecl(binary, packageName, outer, kind, where, supertypes, members));
+          new TypeDecl(
+              binary,
+              packageName,
+              outer,
+              kind,
+              where,
+              supertypes,
+              members,
+              annotations(type.getAnnotations())));
       for (TypeDeclaration<?> t : nested) {
         readType(t, binary + "$" + t.getNameAsString(), binary);
       }
@@ -352,10 +404,11 @@ final class JavaParserAnalyzer {
       return false;
     }
 
-    private void callable(List<Member> members, Node declaration, EntityId id) {
+    private void callable(List<Member> members, BodyDeclaration<?> declaration, EntityId id) {
       if (id != null) {
         callables.put(declaration, id);
-        members.add(new Member(id, location(declaration)));
+        members.add(
+            new Member(id, location(declaration), annotations(declaration.getAnnotations())));
       }
     }
 
@@ -384,6 +437,205 @@ final class JavaParserAnalyzer {
         types.add(describe(p.getType(), context) + (p.isVarArgs() ? "[]" : ""));
       }
       return types;
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Annotations
+
+    private List<Annotation> annotations(List<AnnotationExpr> written) {
+      List<Annotation> annotations = new ArrayList<>();
+      for (AnnotationExpr a : written) {
+        annotation(a, location(a), annotations);
+      }
+      return annotations;
+    }
+
+    /** Adds an annotation, or the annotations a container of repeated annotations holds. */
+    private void annotation(AnnotationExpr a, Location where, List<Annotation> annotations) {
+      Map<String, List<String>> values = new LinkedHashMap<>();
+      List<AnnotationExpr> nested = new ArrayList<>();
+      if (a instanceof SingleMemberAnnotationExpr single) {
+        values.put(VALUE, values(single.getMemberValue(), nested));
+      } else if (a instanceof NormalAnnotationExpr normal) {
+        for (MemberValuePair pair : normal.getPairs()) {
+          String element = pair.getNameAsString();
+          values.put(element, values(pair.getValue(), element.equals(VALUE) ? nested : null));
+        }
+      }
+      if (!nested.isEmpty() && values.size() == 1 && values.get(VALUE).isEmpty()) {
+        for (AnnotationExpr n : nested) {
+          annotation(n, where, annotations);
+        }
+        return;
+      }
+      annotations.add(new Annotation(annotationType(a), values, where));
+    }
+
+    /** An element's value as strings, constants folded; nested annotations go to {@code nested}. */
+    private List<String> values(Expression value, List<AnnotationExpr> nested) {
+      List<Expression> items =
+          value instanceof ArrayInitializerExpr array ? array.getValues() : List.of(value);
+      List<String> values = new ArrayList<>();
+      for (Expression item : items) {
+        if (item instanceof AnnotationExpr a) {
+          if (nested != null) {
+            nested.add(a);
+          }
+          continue;
+        }
+        Object constant = constant(item, 0);
+        if (constant != null) {
+          values.add(String.valueOf(constant));
+        }
+      }
+      return List.copyOf(values);
+    }
+
+    /**
+     * Folds a constant expression as javac would: a String, Long, Double, Character or Boolean, a
+     * class literal's or enum constant's name as a String, or null if it cannot be folded. Integer
+     * arithmetic is done in {@code long}, so a result that overflows an {@code int} differs.
+     */
+    private Object constant(Expression e, int depth) {
+      if (depth > MAX_CONSTANT_DEPTH) {
+        return null;
+      }
+      try {
+        return switch (e) {
+          case StringLiteralExpr s -> s.asString();
+          case TextBlockLiteralExpr t -> t.asString();
+          case CharLiteralExpr c -> c.asChar();
+          case IntegerLiteralExpr i -> i.asNumber().longValue();
+          case LongLiteralExpr l -> l.asNumber().longValue();
+          case DoubleLiteralExpr d -> d.asDouble();
+          case BooleanLiteralExpr b -> b.getValue();
+          case EnclosedExpr inner -> constant(inner.getInner(), depth + 1);
+          case CastExpr cast -> constant(cast.getExpression(), depth + 1);
+          case UnaryExpr u -> unary(u, constant(u.getExpression(), depth + 1));
+          case BinaryExpr b ->
+              binary(
+                  b.getOperator(),
+                  constant(b.getLeft(), depth + 1),
+                  constant(b.getRight(), depth + 1));
+          case ClassExpr c -> describe(c.getType(), c);
+          case NameExpr n -> reference(JavaParserFacade.get(solver).solve(n), depth);
+          case FieldAccessExpr f -> reference(JavaParserFacade.get(solver).solve(f), depth);
+          default -> null;
+        };
+      } catch (RuntimeException | StackOverflowError ex) {
+        // Not resolvable without the classpath the build would have given.
+        return null;
+      }
+    }
+
+    /** The value of a constant or enum constant a name refers to, or null. */
+    private Object reference(SymbolReference<? extends ResolvedValueDeclaration> ref, int depth) {
+      if (!ref.isSolved()) {
+        return null;
+      }
+      ResolvedValueDeclaration d = ref.getCorrespondingDeclaration();
+      if (d.isEnumConstant()) {
+        return d.getName();
+      }
+      if (d instanceof AssociableToAST declaration
+          && declaration.toAst().orElse(null) instanceof Node node) {
+        VariableDeclarator variable =
+            node instanceof VariableDeclarator v
+                ? v
+                : node instanceof FieldDeclaration f
+                    ? f.getVariables().stream()
+                        .filter(v -> v.getNameAsString().equals(d.getName()))
+                        .findFirst()
+                        .orElse(null)
+                    : null;
+        if (variable != null && variable.getInitializer().isPresent()) {
+          return constant(variable.getInitializer().get(), depth + 1);
+        }
+      }
+      return null;
+    }
+
+    private static Object unary(UnaryExpr u, Object value) {
+      return switch (u.getOperator()) {
+        case PLUS -> value instanceof Long || value instanceof Double ? value : null;
+        case MINUS ->
+            value instanceof Long l
+                ? (Object) (-l)
+                : value instanceof Double d ? (Object) (-d) : null;
+        case LOGICAL_COMPLEMENT -> value instanceof Boolean b ? (Object) !b : null;
+        default -> null;
+      };
+    }
+
+    private static Object binary(BinaryExpr.Operator operator, Object left, Object right) {
+      if (left == null || right == null) {
+        return null;
+      }
+      if (operator == BinaryExpr.Operator.PLUS
+          && (left instanceof String || right instanceof String)) {
+        return String.valueOf(left) + right;
+      }
+      if (left instanceof Long a && right instanceof Long b) {
+        return switch (operator) {
+          case PLUS -> a + b;
+          case MINUS -> a - b;
+          case MULTIPLY -> a * b;
+          case DIVIDE -> b == 0 ? null : a / b;
+          case REMAINDER -> b == 0 ? null : a % b;
+          default -> null;
+        };
+      }
+      if (left instanceof Number a
+          && right instanceof Number b
+          && (left instanceof Double || right instanceof Double)) {
+        double x = a.doubleValue();
+        double y = b.doubleValue();
+        return switch (operator) {
+          case PLUS -> x + y;
+          case MINUS -> x - y;
+          case MULTIPLY -> x * y;
+          case DIVIDE -> x / y;
+          default -> null;
+        };
+      }
+      return null;
+    }
+
+    /**
+     * An annotation's type: resolved if possible, else named from a single-type import, as
+     * qualified when written qualified, from a wildcard import that holds a well-known annotation
+     * of that name, as {@code java.lang}'s, or else as if it were in the same package.
+     */
+    private String annotationType(AnnotationExpr a) {
+      try {
+        return binaryName(a.resolve());
+      } catch (RuntimeException | StackOverflowError e) {
+        // Guessed below.
+      }
+      String name = a.getNameAsString();
+      int dot = name.indexOf('.');
+      String first = dot < 0 ? name : name.substring(0, dot);
+      String rest = dot < 0 ? "" : name.substring(dot).replace('.', '$');
+      for (ImportDeclaration i : unit.getImports()) {
+        if (!i.isStatic() && !i.isAsterisk() && i.getName().getIdentifier().equals(first)) {
+          return i.getNameAsString() + rest;
+        }
+      }
+      if (dot >= 0) {
+        return name;
+      }
+      for (ImportDeclaration i : unit.getImports()) {
+        if (!i.isStatic() && i.isAsterisk()) {
+          String candidate = i.getNameAsString() + "." + name;
+          if (WellKnownAnnotations.isKnown(candidate)) {
+            return candidate;
+          }
+        }
+      }
+      if (JAVA_LANG_ANNOTATIONS.contains(name)) {
+        return "java.lang." + name;
+      }
+      return packageName.isEmpty() ? name : packageName + "." + name;
     }
 
     // -------------------------------------------------------------------------------------------

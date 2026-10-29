@@ -17,6 +17,7 @@ import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Call;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
@@ -29,11 +30,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.processing.Processor;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -71,6 +75,12 @@ final class JavacAnalyzer {
       "lombok.launch.AnnotationProcessorHider$AnnotationProcessor";
 
   private static final String ANNOTATION_INTERFACE = "java.lang.annotation.Annotation";
+
+  /** Annotations on annotation types that only say how annotations work, not worth recording. */
+  private static final String JAVA_LANG_ANNOTATION = "java.lang.annotation.";
+
+  /** The element a single annotation value is written for. */
+  private static final String VALUE = "value";
 
   private JavacAnalyzer() {}
 
@@ -250,7 +260,8 @@ final class JavacAnalyzer {
               kind(type),
               where,
               supertypes,
-              members));
+              members,
+              annotations(type, where, file)));
       for (TypeElement n : nested) {
         readType(n, file);
       }
@@ -259,7 +270,83 @@ final class JavacAnalyzer {
     private void add(
         List<Member> members, EntityId id, Element e, Location typeLocation, SourceFile file) {
       if (id != null) {
-        members.add(new Member(id, location(trees.getPath(e), file, typeLocation)));
+        Location where = location(trees.getPath(e), file, typeLocation);
+        members.add(new Member(id, where, annotations(e, where, file)));
+      }
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Annotations
+
+    /** The annotations written on an element, each where it is written. */
+    private List<Annotation> annotations(Element e, Location fallback, SourceFile file) {
+      List<Annotation> annotations = new ArrayList<>();
+      for (AnnotationMirror m : e.getAnnotationMirrors()) {
+        TreePath path = trees.getPath(e, m);
+        Location where = path == null ? fallback : location(path, file, fallback);
+        annotation(m, where, annotations);
+      }
+      return annotations;
+    }
+
+    /**
+     * Adds an annotation, or the annotations a container of repeated annotations holds, and records
+     * the meta-annotations of its type.
+     */
+    private void annotation(AnnotationMirror m, Location where, List<Annotation> annotations) {
+      TypeElement type = (TypeElement) m.getAnnotationType().asElement();
+      Map<String, List<String>> values = new LinkedHashMap<>();
+      List<AnnotationMirror> nested = new ArrayList<>();
+      for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> e :
+          m.getElementValues().entrySet()) {
+        String element = e.getKey().getSimpleName().toString();
+        List<String> list = new ArrayList<>();
+        value(e.getValue().getValue(), list, element.equals(VALUE) ? nested : null);
+        values.put(element, List.copyOf(list));
+      }
+      if (!nested.isEmpty() && values.size() == 1 && values.get(VALUE).isEmpty()) {
+        for (AnnotationMirror n : nested) {
+          annotation(n, where, annotations);
+        }
+        return;
+      }
+      annotations.add(new Annotation(binaryName(type), values, where));
+      metaAnnotations(type);
+    }
+
+    /** Records the annotations on an annotation type, and on theirs, once each. */
+    private void metaAnnotations(TypeElement type) {
+      String name = binaryName(type);
+      if (name.startsWith(JAVA_LANG_ANNOTATION) || structure.annotationTypes.containsKey(name)) {
+        return;
+      }
+      // Recorded before its own annotations are read, since annotation types can be cyclic.
+      structure.annotationTypes.put(name, List.of());
+      List<Annotation> meta = new ArrayList<>();
+      for (AnnotationMirror m : type.getAnnotationMirrors()) {
+        annotation(m, null, meta);
+      }
+      structure.annotationTypes.put(name, List.copyOf(meta));
+    }
+
+    /** Adds an annotation element's value as strings; nested annotations go to {@code nested}. */
+    private void value(Object value, List<String> out, List<AnnotationMirror> nested) {
+      switch (value) {
+        case AnnotationMirror m -> {
+          if (nested != null) {
+            nested.add(m);
+          }
+        }
+        case List<?> list -> {
+          for (Object item : list) {
+            if (item instanceof AnnotationValue v) {
+              value(v.getValue(), out, nested);
+            }
+          }
+        }
+        case TypeMirror t -> out.add(describe(t));
+        case VariableElement constant -> out.add(constant.getSimpleName().toString());
+        default -> out.add(String.valueOf(value));
       }
     }
 

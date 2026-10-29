@@ -4,39 +4,44 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * What an analyzer found in the sources of one module, before it becomes facts: the named types
- * (top-level and member types, not local or anonymous ones) with their members and supertypes, and
- * the calls their code makes. Both analyzers fill it the same way, so the facts do not depend on
- * which one ran, except for what each can see.
+ * (top-level and member types, not local or anonymous ones) with their members, supertypes and
+ * annotations, and the calls their code makes. Both analyzers fill it the same way, so the facts do
+ * not depend on which one ran, except for what each can see.
+ *
+ * <p>Other extractors read it through {@link JavaAnalysis}; it is not changed after analysis.
  */
-final class ModuleStructure {
+public final class ModuleStructure {
 
   /** Type kinds, as the {@code kind} attribute holds them. */
-  static final String CLASS = "class";
+  public static final String CLASS = "class";
 
-  static final String INTERFACE = "interface";
-  static final String ENUM = "enum";
-  static final String RECORD = "record";
-  static final String ANNOTATION = "annotation";
+  public static final String INTERFACE = "interface";
+  public static final String ENUM = "enum";
+  public static final String RECORD = "record";
+  public static final String ANNOTATION = "annotation";
 
   /**
    * A source file the analyzer read.
    *
    * @param path the path facts give as evidence: relative to the top of the repository, or for a
    *     generated source, to the top of the build's work directory
-   * @param file where the file is on disk
+   * @param file where the file was on disk during analysis; it is deleted afterwards
    * @param contentHash the SHA-256 of the file's content
    */
-  record SourceFile(String path, Path file, String contentHash) {}
+  public record SourceFile(String path, Path file, String contentHash) {}
 
   /**
    * Where something is: a file and an inclusive range of 1-based lines, or no lines (0) when the
    * compiler gives no position, as for some generated members.
    */
-  record Location(SourceFile file, int start, int end) {
+  public record Location(SourceFile file, int start, int end) {
 
     static Location of(SourceFile file, long startLine, long endLine) {
       if (startLine < 1) {
@@ -56,15 +61,17 @@ final class ModuleStructure {
    * @param where the declaration
    * @param supertypes the supertypes it declares
    * @param members its methods, constructors, fields and enum constants
+   * @param annotations the annotations written on it
    */
-  record TypeDecl(
+  public record TypeDecl(
       String binaryName,
       String packageName,
       String outer,
       String kind,
       Location where,
       List<Supertype> supertypes,
-      List<Member> members) {}
+      List<Member> members,
+      List<Annotation> annotations) {}
 
   /**
    * A declared supertype.
@@ -73,10 +80,44 @@ final class ModuleStructure {
    * @param binaryName the supertype's binary name
    * @param where the declaration
    */
-  record Supertype(String predicate, String binaryName, Location where) {}
+  public record Supertype(String predicate, String binaryName, Location where) {}
 
-  /** A member: a {@code method:} or {@code field:} entity, and its declaration. */
-  record Member(EntityId id, Location where) {}
+  /**
+   * A member: a {@code method:} or {@code field:} entity, its declaration and the annotations
+   * written on it.
+   */
+  public record Member(EntityId id, Location where, List<Annotation> annotations) {
+
+    /** A member without annotations. */
+    Member(EntityId id, Location where) {
+      this(id, where, List.of());
+    }
+  }
+
+  /**
+   * An annotation, with the values written for its elements, constants folded.
+   *
+   * <p>Each value is a list of strings: one for a single value, one per element of an array. A
+   * string or number is its value as Java prints it, a class literal its binary name, and an enum
+   * constant its name. A value that cannot be folded (in degraded mode, a constant the parser
+   * cannot find) is left out of its list. Nested annotations are not kept, except that a container
+   * of repeated annotations ({@code @Schedules}) is read as the annotations it contains.
+   *
+   * @param type the annotation type's binary name
+   * @param values the values written, by element name ({@code value} for a single one)
+   * @param where where it is written, or null for one read from the classpath
+   */
+  public record Annotation(String type, Map<String, List<String>> values, Location where) {
+
+    public Annotation {
+      values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
+    }
+
+    /** The values written for an element, empty if none. */
+    public List<String> values(String element) {
+      return values.getOrDefault(element, List.of());
+    }
+  }
 
   /**
    * A call from code of a named type to a method or constructor.
@@ -86,17 +127,38 @@ final class ModuleStructure {
    * @param callee the method or constructor called, as resolved
    * @param where the call
    */
-  record Call(EntityId caller, EntityId callee, Location where) {}
+  public record Call(EntityId caller, EntityId callee, Location where) {}
 
   final List<TypeDecl> types = new ArrayList<>();
   final List<Call> calls = new ArrayList<>();
 
+  /**
+   * The annotations on annotation types read from the classpath (meta-annotations), by the
+   * annotation type's binary name. Only the compiler path can read them.
+   */
+  final Map<String, List<Annotation>> annotationTypes = new LinkedHashMap<>();
+
+  /** The named types, in the order read. */
+  public List<TypeDecl> types() {
+    return Collections.unmodifiableList(types);
+  }
+
+  /** The calls the code makes, in the order read. */
+  public List<Call> calls() {
+    return Collections.unmodifiableList(calls);
+  }
+
+  /** The meta-annotations of the annotation types read from the classpath, by binary name. */
+  public Map<String, List<Annotation>> annotationTypes() {
+    return Collections.unmodifiableMap(annotationTypes);
+  }
+
   // ---------------------------------------------------------------------------------------------
   // Entity IDs
 
-  static final String METHOD = "method";
-  static final String FIELD = "field";
-  static final String CONSTRUCTOR = "<init>";
+  public static final String METHOD = "method";
+  public static final String FIELD = "field";
+  public static final String CONSTRUCTOR = "<init>";
 
   /** A {@code type:} entity, or null if the name does not form an entity key. */
   static EntityId typeId(String binaryName) {
