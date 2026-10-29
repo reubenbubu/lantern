@@ -842,6 +842,37 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aDatasourceWithAPlaceholderIsTheUnitsOwnDatabase() {
+    for (String name : List.of("auth", "files")) {
+      unit(name, name, name);
+      config(name, name, "application.properties", "spring.application.name", name, null);
+      datasource(
+          name,
+          name,
+          "application.properties",
+          "jdbc:postgresql://${db.host}:${db.port}/${db.name}",
+          "\"server\":\"${db.host}:${db.port}\",\"database\":\"${db.name}\","
+              + "\"unresolved\":[\"db.host\",\"db.port\",\"db.name\"]");
+    }
+    unit("m", "main", "main");
+    config("m", "main", "application.properties", "spring.application.name", "main", null);
+    datasource(
+        "m",
+        "main",
+        "application.properties",
+        "jdbc:postgresql://${db.host}:5432/orders",
+        "\"server\":\"${db.host}:5432\",\"database\":\"orders\",\"unresolved\":[\"db.host\"]");
+
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactlyInAnyOrder(
+            "service:g:auth USES_DATABASE database:g:auth/postgresql:g:auth",
+            "service:g:files USES_DATABASE database:g:files/postgresql:g:files",
+            "service:g:main USES_DATABASE database:g:main/postgresql:orders");
+    assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK)).isEmpty();
+  }
+
+  @Test
   void aTableIsAnothersDataOnlyWhereItsMigrationsRun() {
     unit("s", "shop", "shop");
     // shop's tables live in shop-db, where its migrations run; it also reaches a reporting copy.
