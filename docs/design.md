@@ -281,7 +281,7 @@ The LLM handles understanding that static analysis can't provide, always working
 
 **Grounding**
 
-- Every LLM output must cite the facts or summaries it used; a source file is cited through the fact observed in it. An output that fails its checks, for example one that cites nothing, is sent back once with the reason, and dropped if it fails again; the run goes on.
+- Every LLM output must cite the facts or summaries it used; a source file is cited through the fact observed in it. An output that fails its checks, for example one that cites nothing, is sent back once with the reason, and dropped if it fails again (see ADR 0010).
 - The glossary (from annotations) is included in prompts, once annotations exist (Phase 3).
 - The LLM words what extraction found: names, the responsibility sentence of each element, the intent phrase of each relationship, a system's purpose and "start here". It never invents elements or relationships. Every box and line in a document comes from a static or rule fact, an annotation, or a Resolve result that picks among candidates the code shows.
 - What code can't show (business purpose, people, owners, rationale, quality goals, production topology) comes from annotations or README claims, or is stated once, plainly, as unknown.
@@ -290,7 +290,7 @@ How summaries are built bottom-up, cached and cited is in ADR 0010, and how thei
 
 **Cost and reliability**
 
-- Results are cached by what the model sees (prompt version, model and prompt), so a commit that changes nothing a prompt shows makes no call.
+- Results are cached by what the model sees (prompt version, provider, model and prompt), so a commit that changes nothing a prompt shows makes no call.
 - Per-run and per-scope budgets in tokens and dollars, with an estimate shown before a run starts (configured run budgets and the estimate are #42).
 - Every call is logged with its role, purpose, model, tokens and cost.
 - Tests never call a real provider: they use a fake or recorded responses (see ADR 0008).
