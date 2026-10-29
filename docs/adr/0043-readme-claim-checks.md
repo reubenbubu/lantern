@@ -1,6 +1,6 @@
 # 0043: README claims checked against the code
 
-Status: accepted (#133), pending the user's review (#24)
+Status: accepted (#133), amended by ADR 0051 (#159), pending the user's review (#24)
 
 ## Context
 
@@ -76,7 +76,7 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
 - **Not covered:** ports, endpoint paths, topic and queue names, and named services a claim says
   are or are not called; positive phrasings ("only communicates asynchronously"); scope
   qualifiers ("when an order is placed"); claims in decision records; and having the LLM judge
-  free-text claims no check understands (#160). Showing the contradictions in documents is #159.
+  free-text claims no check understands (#160). Showing the contradictions in documents is ADR 0051 (#159).
 - **project-0.** `Project0LinksIT` checks DOC-2: storefront's claim is contradicted by HTTP-1,
   HTTP-2 and HTTP-5 with and without builds; payments' by DB-5's shared database with and without
   builds, and by its read of storefront's `orders` table with builds only (ADR 0036). Storefront's

@@ -101,6 +101,58 @@ final class TestFacts {
         .orElseThrow();
   }
 
+  /**
+   * {@link #runtime()} with a claim of {@code shop}'s README, that the app keeps its orders in
+   * MySQL, and the claim check's finding that the code contradicts it: the app uses {@code shop} on
+   * {@code db}, a PostgreSQL database (ADR 0043).
+   */
+  static List<Fact> runtimeWithContradictedClaim() {
+    TestFacts runtime = runtime();
+    Fact uses = runtime.find("service:com.example:app", "USES_DATABASE");
+    Fact technology = runtime.find("database:db:5432/shop", "technology");
+    Evidence readme = new Evidence("shop", COMMIT, "README.md", new Evidence.LineRange(3, 3), null);
+    Fact claim =
+        Fact.create(
+            EntityId.parse("readme:shop:README.md"),
+            "claim",
+            FactObject.string("The app keeps its orders in\nMySQL."),
+            FactJson.newObject(),
+            new Origin(Origin.Kind.STATIC, "docs", "1"),
+            readme,
+            0.5,
+            Validity.from(1));
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("claim", claim.id());
+    attributes.put("stated", "MySQL");
+    attributes.putArray("found").add("PostgreSQL");
+    attributes.putArray("units").add("service:com.example:app");
+    attributes.putArray("facts").add(claim.id()).add(uses.id()).add(technology.id());
+    var by = attributes.putArray("contradictedBy");
+    for (Fact f : List.of(uses, technology)) {
+      ObjectNode entry = by.addObject();
+      entry.put("fact", f.id());
+      entry.put("subject", f.subject().toString());
+      entry.put("predicate", f.predicate());
+      entry.put("object", f.object().value());
+      entry.put("repo", f.evidence().repo());
+      entry.put("path", f.evidence().path());
+    }
+    Fact contradiction =
+        Fact.create(
+            claim.subject(),
+            "claim-contradiction",
+            FactObject.string("database-technology"),
+            attributes,
+            new Origin(Origin.Kind.STATIC, "claim-checks", "1"),
+            readme,
+            0.8,
+            Validity.from(1));
+    List<Fact> facts = new ArrayList<>(runtime.list());
+    facts.add(claim);
+    facts.add(contradiction);
+    return facts;
+  }
+
   static Fact fact(
       String repo,
       String subject,

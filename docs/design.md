@@ -350,7 +350,7 @@ States: active, needs review, orphaned, retired. Precedence is human, then stati
 
 **Storage and audit.** Annotations are append-only events: create, edit, confirm, retire, each with user and time. The audit log is that event stream, and any past annotation state can be rebuilt for reproducing an old document.
 
-**READMEs and the wiki.** README content becomes low-trust "documented claims". Claims that contradict code are flagged, for example "README says MySQL, code connects to Postgres". The wiki is not ingested. Which claims are checked, how, and what a flag records is in ADR 0043.
+**READMEs and the wiki.** README content becomes low-trust "documented claims". Claims that contradict code are flagged, for example "README says MySQL, code connects to Postgres". The wiki is not ingested. Which claims are checked, how, and what a flag records is in ADR 0043; how documents show the flags is in ADR 0051.
 
 ## Annotations: presentation layer
 
@@ -392,7 +392,7 @@ Presentation rules follow the same lifecycle as knowledge annotations: anchored 
 
 ## Quality bar
 
-Every diagram and document is judged against these checks, each yes or no. The composer checks every check not marked *(review)* on every document and puts the failures into the document as a quality report block (ADR 0028). Checks marked *(review)* are judged by reviewing the documents of the test sets in each phase. The evidence behind the checks is in `docs/research/architecture-documentation-quality-bar.md`.
+Every diagram and document is judged against these checks, each yes or no. The composer checks every check not marked *(review)* on every document and puts the failures into the document as a quality report block (ADR 0028), which also lists each README claim the code contradicts (ADR 0051). Checks marked *(review)* are judged by reviewing the documents of the test sets in each phase. The evidence behind the checks is in `docs/research/architecture-documentation-quality-bar.md`.
 
 **Every diagram:** a title naming its type and scope; a legend for every shape, color, line style and arrowhead used; one abstraction level; at most 15 elements, else split into several at the same level (for example one per container with its direct neighbours). Every element has a name, a type and a responsibility sentence that doesn't restate the name *(review)*, and containers and components a technology. Every line is one-way, labelled with an intent phrase (never just "uses" or "depends on"), links to the facts behind it, and is marked conditional, naming the profile, when it holds only under a Spring profile; lines between containers name a protocol (`[JSON/HTTPS]`, `[AMQP]`, `[JDBC]`). Acronyms are explained in the glossary. What each diagram type contains is under Diagrams in Composition.
 
