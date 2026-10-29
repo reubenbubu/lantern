@@ -36,7 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Has the LLM word what extraction found in the C4 views (ADR 0049, docs/design.md: LLM
+ * Has the LLM word what extraction found in the C4 views (ADR 0050, docs/design.md: LLM
  * integration, Grounding): a responsibility sentence for each deployable unit and each of its
  * components, and an intent phrase for each of its links to other containers. One call per unit
  * shows extracted facts only: those that make it a unit, its README's claims, its components (when

@@ -73,7 +73,7 @@ final class RepoSections {
   }
 
   /**
-   * @param wordings the LLM's responsibility sentences and intent phrases (ADR 0049)
+   * @param wordings the LLM's responsibility sentences and intent phrases (ADR 0050)
    */
   RepoSections(
       Knowledge knowledge,

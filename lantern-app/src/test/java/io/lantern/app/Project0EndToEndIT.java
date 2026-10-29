@@ -99,7 +99,7 @@ class Project0EndToEndIT {
   static class Fake {
     /**
      * A fake model that cites the first fact and the first part's summary it is given, and words
-     * nothing when asked for responsibilities and intent phrases (ADR 0049), so the report keeps
+     * nothing when asked for responsibilities and intent phrases (ADR 0050), so the report keeps
      * the static labels this test checks.
      */
     @Bean
@@ -281,12 +281,14 @@ class Project0EndToEndIT {
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
     // Four units; the catalog and shop databases (the local profile's localhost one is a note);
     // the shop.orders exchange (its queues folded into its lines), two JMS queues and a Kafka
-    // topic; PayGate, by its default sandbox host (HTTP-4); and the components by role.
+    // topic; PayGate, by its default sandbox host (HTTP-4); and the components by role. catalog's
+    // ProductRepository is reached only from ProductController (through Spring Data's findById),
+    // so catalog has one component and no component page.
     assertThat(kinds)
         .containsExactlyEntriesOf(
             new TreeMap<>(
                 Map.of(
-                    "component", 10L,
+                    "component", 8L,
                     "container", 4L,
                     "database", 2L,
                     "external", 1L,
@@ -298,12 +300,12 @@ class Project0EndToEndIT {
         .containsExactly(
             "context",
             "containers",
-            "components-service-com-acme-shop-catalog-service",
             "components-service-com-acme-shop-fulfilment",
             "components-service-com-acme-shop-payments",
             "components-service-com-acme-shop-storefront-app",
             "sequences-storefront-ordercontroller-place",
-            "sequences-payments-settlementjob-settle");
+            "sequences-payments-settlementjob-settle",
+            "sequences-storefront-ordercontroller-order");
     JsonNode containers = data.get("pages").get(1).get("sections").get(0);
     assertThat(containers.get("relationships").toString())
         // HTTP-1: Feign by client name, with the endpoint and protocol.
@@ -330,17 +332,21 @@ class Project0EndToEndIT {
 
     // FLOW-1: placing an order, stitched across every unit through HTTP-1, HTTP-2, HTTP-4,
     // MSG-2, MSG-4, HTTP-3 and MSG-1, the tax call (HTTP-5) a note, the audit send (SPR-4) in a
-    // frame of its profile. The shop database steps are missing: calls to Spring Data's own
-    // methods are not in the call graph (#176).
-    assertThat(steps(data.get("pages").get(6)))
+    // frame of its profile, and the calls to the catalog and shop databases through Spring Data's
+    // inherited methods (#176). ProductController.find runs once per flow, so the stock check
+    // does not repeat its findById.
+    assertThat(steps(data.get("pages").get(5)))
         .containsExactly(
             "note all: Starts when storefront receives POST /api/orders"
                 + " (OrderController.place).",
             "storefront-app > catalog-service: Calls ProductController.product"
                 + " [GET /api/products/{id}]",
+            "catalog-service > database-catalog-db-5432-catalog:"
+                + " Calls ProductRepository.findById [JDBC]",
             "note all: storefront calls GET ${TAX_SERVICE_URL}/v2/quotes, which Lantern"
                 + " could not link (unresolved placeholder TAX_SERVICE_URL); the trace does not"
                 + " follow it.",
+            "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.save [JDBC]",
             "storefront-app > payments: Calls PaymentController.charge [POST /api/payments]",
             "payments > external-system-sandbox-paygate-example-com:"
                 + " Calls sandbox.paygate.example.com [POST /v1/charges]",
@@ -368,15 +374,23 @@ class Project0EndToEndIT {
             "note fulfilment, queue-jms-shipments-dispatched: fulfilment does not wait:"
                 + " storefront takes the message later.",
             "queue-jms-shipments-dispatched >> storefront-app:"
-                + " Delivers to ShipmentListener.dispatched [JMS]");
+                + " Delivers to ShipmentListener.dispatched [JMS]",
+            "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.findById [JDBC]",
+            "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.save [JDBC]");
     // FLOW-2: the nightly settlement (ENTRY-1) reads and writes the shared shop database (DB-2),
     // one of its tables storefront's (DB-5).
-    assertThat(steps(data.get("pages").get(7)))
+    assertThat(steps(data.get("pages").get(6)))
         .containsExactly(
             "note all: Starts when the schedule cron 0 0 2 * * * fires in payments"
                 + " (SettlementJob.settle).",
             "payments > database-shop-db-5432-shop: Reads orders, payment [JDBC]",
             "payments > database-shop-db-5432-shop: Writes payment [JDBC]");
+    // Looking up an order reads it through Spring Data's inherited findById (#176).
+    assertThat(steps(data.get("pages").get(7)))
+        .containsExactly(
+            "note all: Starts when storefront receives GET /api/orders/{id}"
+                + " (OrderController.order).",
+            "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.findById [JDBC]");
   }
 
   /** The steps of a sequence page, one line each, units by their artifact ID. */

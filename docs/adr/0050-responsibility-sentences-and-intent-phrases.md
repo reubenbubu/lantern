@@ -1,4 +1,4 @@
-# 0049: Responsibility sentences and intent phrases
+# 0050: Responsibility sentences and intent phrases
 
 Status: accepted (#181), amends ADR 0044, ADR 0047 and ADR 0048, pending the user's review (#24)
 

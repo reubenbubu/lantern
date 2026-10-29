@@ -20,7 +20,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The prompt that asks the LLM to word a deployable unit's responsibility sentence, its components'
- * and the intent phrases of its relationships (ADR 0049), and the check of its answers. The prompt
+ * and the intent phrases of its relationships (ADR 0050), and the check of its answers. The prompt
  * shows extracted facts only, listed as {@code [F1]}, ...; components are listed as {@code [C1]}
  * and relationships as {@code [R1]}. Fact IDs and line numbers are not shown, since they change
  * with every commit and every edit above the code; so the same unit gives the same prompt, and the

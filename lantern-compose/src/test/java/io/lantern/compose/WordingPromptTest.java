@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** The wording prompt's version and the check of its answers (ADR 0049). */
+/** The wording prompt's version and the check of its answers (ADR 0050). */
 class WordingPromptTest {
 
   private final TestFacts facts = TestFacts.runtime();

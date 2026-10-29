@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * What the LLM worded for the elements and relationships of the C4 views (ADR 0049), for the
+ * What the LLM worded for the elements and relationships of the C4 views (ADR 0050), for the
  * composer to use instead of summaries and static labels where it has them.
  *
  * @param responsibilities the responsibility sentence of each deployable unit and component (by its

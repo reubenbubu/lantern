@@ -106,7 +106,7 @@ class EndToEndIT {
     /**
      * A fake model that cites the first fact and the first part's summary it is given, picks the
      * first candidate of a link left open, citing it, and words a unit, its first component and its
-     * first relationship, citing the first fact (ADR 0049).
+     * first relationship, citing the first fact (ADR 0050).
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {

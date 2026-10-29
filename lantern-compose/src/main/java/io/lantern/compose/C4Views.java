@@ -35,7 +35,7 @@ import tools.jackson.databind.JsonNode;
  * found by role inside a unit, from Spring stereotypes and the call graph.
  *
  * <p>Nothing is invented: a line is drawn for a link, labelled with the LLM's intent phrase for it
- * when every link of the line has one (ADR 0049), else with what the link records (the endpoints
+ * when every link of the line has one (ADR 0050), else with what the link records (the endpoints
  * called, the routing keys sent), its protocol as technology and the Spring profiles it alone holds
  * under. People are drawn only when the knowledge names them, which it does not yet, so a note says
  * who uses the system is unknown.

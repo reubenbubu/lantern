@@ -66,7 +66,7 @@ public final class Composer {
   /**
    * Composes the document of a view, describing deployable units and components by their
    * responsibility sentences and labelling lines and messages with their intent phrases where the
-   * wordings have them (ADR 0049); elsewhere it is as {@link #compose(ViewDefinition, Snapshot,
+   * wordings have them (ADR 0050); elsewhere it is as {@link #compose(ViewDefinition, Snapshot,
    * Collection, Map)}. Citations of facts that do not hold in the snapshot are left out.
    *
    * @param wordings what {@link Describer} worded

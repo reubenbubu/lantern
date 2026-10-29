@@ -65,7 +65,7 @@ final class Assembler {
 
   /**
    * @param wordings the responsibility sentences that describe units and components instead of
-   *     their summaries, and the intent phrases of links (ADR 0049)
+   *     their summaries, and the intent phrases of links (ADR 0050)
    */
   Assembler(
       Knowledge knowledge,
@@ -243,7 +243,7 @@ final class Assembler {
   }
 
   /**
-   * The entity's responsibility sentence (ADR 0049), with the markers of facts that are not in the
+   * The entity's responsibility sentence (ADR 0050), with the markers of facts that are not in the
    * snapshot's facts left out, or {@code null} if it has none that still cites something.
    */
   private String responsibility(EntityId id) {
@@ -264,7 +264,7 @@ final class Assembler {
   }
 
   /**
-   * The intent phrase of a link (ADR 0049) and the facts it cites that are in the snapshot, or
+   * The intent phrase of a link (ADR 0050) and the facts it cites that are in the snapshot, or
    * {@code null} if it has none.
    */
   Phrased phrase(Fact link) {

@@ -8,7 +8,7 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 /**
- * The LLM's checked answer about one deployable unit, as cached (ADR 0049): a text for each
+ * The LLM's checked answer about one deployable unit, as cached (ADR 0050): a text for each
  * reference it worded, citing the references it rests on. The references stand for what the prompt
  * of the same key shows, so they are resolved against that prompt when used.
  *

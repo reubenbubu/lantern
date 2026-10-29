@@ -71,7 +71,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * One analysis run over a set of local repositories, every stage in order: register the
  * repositories, take a snapshot of their checked-out commits, build them in the sandbox, extract
  * and store their facts, summarize them with the LLM, have it word the responsibilities of units
- * and components and the intent of their links (ADR 0049), compose an Architecture Explorer
+ * and components and the intent of their links (ADR 0050), compose an Architecture Explorer
  * document, an Executive Brief and a C4 report per repository and a C4 report of the whole system,
  * and render each as single-file HTML (ADR 0016, ADR 0031, ADR 0044).
  *
@@ -178,7 +178,7 @@ public final class AnalysisRun {
    * @param summariesReused how many summaries came from the cache
    * @param summariesRejected the units left without a summary because the LLM's answer was rejected
    *     twice
-   * @param wordingsAsked how many deployable units the LLM was asked to word (ADR 0049)
+   * @param wordingsAsked how many deployable units the LLM was asked to word (ADR 0050)
    * @param wordingsReused how many deployable units' wordings came from the cache
    * @param llm the LLM calls made during the run, whatever their outcome
    * @param documents the rendered documents, in the order written
@@ -292,7 +292,7 @@ public final class AnalysisRun {
 
       // The LLM words the responsibilities of the snapshot's units and components and the intent
       // of their links, from every fact that holds in it, carried forward repositories included
-      // (ADR 0049).
+      // (ADR 0050).
       List<Fact> system = facts.findValidAt(snapshot.number());
       Describer.Result described = new Describer(client, wordings).describe(system);
 

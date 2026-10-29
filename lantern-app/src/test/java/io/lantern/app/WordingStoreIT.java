@@ -15,7 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 
 /**
- * The LLM's wordings of units are kept in the database (ADR 0049). The database is shared with
+ * The LLM's wordings of units are kept in the database (ADR 0050). The database is shared with
  * other tests, so each test uses keys of its own.
  */
 @SpringBootTest

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-/** The LLM's responsibility sentences and intent phrases, and how documents use them (ADR 0049). */
+/** The LLM's responsibility sentences and intent phrases, and how documents use them (ADR 0050). */
 class DescriberTest {
 
   private static final TemplateRef TEMPLATE = new TemplateRef("c4-model-sequence-diagrams", "1");

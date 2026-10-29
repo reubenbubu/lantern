@@ -37,7 +37,7 @@ import java.util.TreeSet;
  * <p>Nothing is invented: a step is drawn only for a fact, and a call Lantern could not link ends
  * there with a note. Participants are containers: deployable units, databases, topics, queues and
  * exchanges, and external systems, named as on the container diagram. An HTTP call or a send is
- * labelled with the LLM's intent phrase for its link where there is one (ADR 0049), the endpoint or
+ * labelled with the LLM's intent phrase for its link where there is one (ADR 0050), the endpoint or
  * protocol after it; other labels say what the facts say (the handler, the routing key).
  */
 final class SequenceFlows {
