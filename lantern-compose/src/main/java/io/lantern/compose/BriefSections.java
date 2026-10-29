@@ -231,7 +231,8 @@ final class BriefSections {
       unresolved +=
           (int)
               knowledge.attributes(unit).stream()
-                  .filter(f -> f.predicate().equals(C4Views.UNRESOLVED_LINK))
+                  .filter(
+                      f -> f.predicate().equals(C4Views.UNRESOLVED_LINK) && !knowledge.resolved(f))
                   .count();
     }
     if (unresolved > 0) {

@@ -29,6 +29,7 @@ final class Knowledge {
   private final Map<EntityId, List<Fact>> containsByWhole = new HashMap<>();
   private final Map<String, SortedSet<EntityId>> modulesByRepo = new HashMap<>();
   private final Map<EntityId, SortedSet<String>> reposByModule = new HashMap<>();
+  private final Map<String, Fact> resolvedLinks = new HashMap<>();
 
   Knowledge(Collection<Fact> facts) {
     List<Fact> sorted = new ArrayList<>(facts);
@@ -38,6 +39,10 @@ final class Knowledge {
         continue;
       }
       bySubject.computeIfAbsent(fact.subject(), s -> new ArrayList<>()).add(fact);
+      tools.jackson.databind.JsonNode resolves = fact.attributes().get("resolves");
+      if (resolves != null && resolves.isString()) {
+        resolvedLinks.putIfAbsent(resolves.asString(), fact);
+      }
       byPredicate.computeIfAbsent(fact.predicate(), p -> new ArrayList<>()).add(fact);
       if (fact.predicate().equals(BuiltInTypes.CONTAINS) && isEntity(fact)) {
         containsByWhole.computeIfAbsent(fact.subject(), s -> new ArrayList<>()).add(fact);
@@ -57,6 +62,25 @@ final class Knowledge {
 
   static EntityId object(Fact fact) {
     return fact.object().entityId();
+  }
+
+  /**
+   * Whether a link the linker left open ({@code unresolved-link}) was resolved: a link of the LLM
+   * resolver names it in {@code resolves}, by its stable {@code link} ID or, without one, its fact
+   * ID (ADR 0045). The link is drawn, so it is not also listed as not linked.
+   */
+  boolean resolved(Fact unresolved) {
+    return resolution(unresolved) != null;
+  }
+
+  /** The link of the LLM resolver that resolved the link left open, or {@code null}. */
+  Fact resolution(Fact unresolved) {
+    Fact byId = resolvedLinks.get(unresolved.id());
+    if (byId != null) {
+      return byId;
+    }
+    tools.jackson.databind.JsonNode link = unresolved.attributes().get("link");
+    return link != null && link.isString() ? resolvedLinks.get(link.asString()) : null;
   }
 
   /** The fact with the ID, or {@code null}. */
