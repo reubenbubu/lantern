@@ -35,7 +35,8 @@ final class DataLinker {
   /** Attribute of a database entity: the name its views show; the entity key when absent. */
   static final String DISPLAY_NAME = "display-name";
 
-  private final Map<EntityId, String> displayNames = new HashMap<>();
+  /** A display name with the datasource it comes from. */
+  private record Named(Fact datasource, String name) {}
 
   /** A setting naming an infrastructure service: its key, role and technology. */
   private record Setting(String key, String role, String technology) {}
@@ -120,7 +121,7 @@ final class DataLinker {
 
   void link(Origin origin, Validity validity) {
     Map<EntityId, Fact> technologies = new TreeMap<>(LinkIndex.BY_TEXT);
-    Map<EntityId, Fact> ownNames = new TreeMap<>(LinkIndex.BY_TEXT);
+    Map<EntityId, Named> ownNames = new TreeMap<>(LinkIndex.BY_TEXT);
     for (String view : index.views()) {
       for (Unit unit : index.units.values()) {
         databases(unit, view, technologies, ownNames);
@@ -142,16 +143,16 @@ final class DataLinker {
                     datasource.confidence(),
                     validity)));
     ownNames.forEach(
-        (database, datasource) ->
+        (database, named) ->
             out.add(
                 Fact.create(
                     database,
                     DISPLAY_NAME,
-                    FactObject.string(displayNames.get(database)),
+                    FactObject.string(named.name()),
                     FactJson.newObject(),
                     origin,
-                    datasource.evidence(),
-                    datasource.confidence(),
+                    named.datasource().evidence(),
+                    named.datasource().confidence(),
                     validity)));
   }
 
@@ -160,7 +161,7 @@ final class DataLinker {
 
   /** Links a unit to the databases its datasources point to in a view. */
   private void databases(
-      Unit unit, String view, Map<EntityId, Fact> technologies, Map<EntityId, Fact> ownNames) {
+      Unit unit, String view, Map<EntityId, Fact> technologies, Map<EntityId, Named> ownNames) {
     for (String key : index.configKeys(unit, PersistenceExtractor.DATASOURCE)) {
       Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
       if (f == null || LinkIndex.flag(f, "masked")) {
@@ -172,8 +173,10 @@ final class DataLinker {
       }
       String displayName = ownName(unit, f);
       if (displayName != null) {
-        displayNames.putIfAbsent(database, displayName);
-        ownNames.merge(database, f, (a, b) -> LinkIndex.BY_ID.compare(a, b) <= 0 ? a : b);
+        ownNames.merge(
+            database,
+            new Named(f, displayName),
+            (a, b) -> LinkIndex.BY_ID.compare(a.datasource(), b.datasource()) <= 0 ? a : b);
       }
       String technology = LinkIndex.text(f, "technology");
       if (technology != null) {
@@ -241,36 +244,35 @@ final class DataLinker {
     String server = LinkIndex.text(datasource, "server");
     String name = LinkIndex.text(datasource, "database");
     if (!LinkIndex.texts(datasource, "unresolved").isEmpty()) {
-      String technology = LinkIndex.text(datasource, "technology");
       String key = LinkIndex.text(datasource, "key");
       String own = name == null || name.contains("${") ? unit.id().key() : name;
       if (key != null && !key.equals("spring.datasource.url")) {
         own += "@" + key;
       }
-      return new EntityId(
-          CrossRepoLinks.DATABASE,
-          unit.id().key()
-              + "/"
-              + (technology == null
-                  ? ""
-                  : technology.toLowerCase(Locale.ROOT).replace(' ', '-') + ":")
-              + own);
+      return ownDatabase(unit, datasource, own);
     }
     if (server != null && name != null) {
       return new EntityId(CrossRepoLinks.DATABASE, server.toLowerCase(Locale.ROOT) + "/" + name);
     }
     if (name != null) {
-      String technology = LinkIndex.text(datasource, "technology");
-      return new EntityId(
-          CrossRepoLinks.DATABASE,
-          unit.id().key()
-              + "/"
-              + (technology == null
-                  ? ""
-                  : technology.toLowerCase(Locale.ROOT).replace(' ', '-') + ":")
-              + name);
+      return ownDatabase(unit, datasource, name);
     }
     return null;
+  }
+
+  /**
+   * A unit's own database: {@code <unit>/<technology>:<own>}, the technology as the key writes it.
+   */
+  private static EntityId ownDatabase(Unit unit, Fact datasource, String own) {
+    String technology = LinkIndex.text(datasource, "technology");
+    return new EntityId(
+        CrossRepoLinks.DATABASE,
+        unit.id().key()
+            + "/"
+            + (technology == null
+                ? ""
+                : technology.toLowerCase(Locale.ROOT).replace(' ', '-') + ":")
+            + own);
   }
 
   /**
