@@ -134,7 +134,7 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     out.println(
         "Links left open: "
             + result.linksAsked()
-            + " resolved by the LLM, "
+            + " asked of the LLM, "
             + result.linksReused()
             + " reused");
     out.println(

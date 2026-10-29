@@ -116,8 +116,8 @@ no setting turns rebuilding off, since none was needed yet.
 
 The run's report showed its summaries and wordings but not the links left open that the LLM
 resolver (ADR 0045) asked about, so on project-2 its 478 logged calls did not add up to the 473
-summaries and wordings it listed. The report now says how many open links the LLM was asked about
-and how many answers were reused, and splits the "LLM calls" line by role from the stored call log
+summaries and wordings it listed. The report now says how many open links the LLM was asked about,
+whatever it answered, and how many answers were reused, and splits the "LLM calls" line by role from the stored call log
 (`LLM calls: 478 (SUMMARIZE=449, RESOLVE=5, INFER_INTENT=17, COMPOSE=7), ...`). Retried attempts
 and answers rejected twice stay in their role's count (ADR 0021), so only with no retries or
 rejections do a role's calls equal what the run asked of it; `EndToEndIT` checks that equality

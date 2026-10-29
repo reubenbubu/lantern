@@ -52,32 +52,28 @@ public final class JdbcLlmCallLog implements LlmCallLog {
    */
   public Spending spentSince(Instant since) {
     Map<Role, Long> byRole = new EnumMap<>(Role.class);
+    long[] totals = new long[2];
+    BigDecimal[] cost = {BigDecimal.ZERO};
     jdbc.sql(
             """
-            SELECT role, count(*) AS calls
-            FROM llm_calls
-            WHERE started_at >= :since
-            GROUP BY role
-            """)
-        .param("since", since.atOffset(ZoneOffset.UTC))
-        .query((rs, row) -> Map.entry(Role.valueOf(rs.getString("role")), rs.getLong("calls")))
-        .list()
-        .forEach(entry -> byRole.put(entry.getKey(), entry.getValue()));
-    return jdbc.sql(
-            """
-            SELECT count(*) AS calls,
+            SELECT role, count(*) AS calls,
                    coalesce(sum(input_tokens + output_tokens + cache_write_tokens
                        + cache_read_tokens), 0) AS tokens,
                    coalesce(sum(cost_usd), 0) AS cost
             FROM llm_calls
             WHERE started_at >= :since
+            GROUP BY role
             """)
         .param("since", since.atOffset(ZoneOffset.UTC))
         .query(
-            (rs, row) ->
-                new Spending(
-                    rs.getLong("calls"), rs.getLong("tokens"), rs.getBigDecimal("cost"), byRole))
-        .single();
+            rs -> {
+              long calls = rs.getLong("calls");
+              byRole.put(Role.valueOf(rs.getString("role")), calls);
+              totals[0] += calls;
+              totals[1] += rs.getLong("tokens");
+              cost[0] = cost[0].add(rs.getBigDecimal("cost"));
+            });
+    return new Spending(totals[0], totals[1], cost[0], byRole);
   }
 
   /**

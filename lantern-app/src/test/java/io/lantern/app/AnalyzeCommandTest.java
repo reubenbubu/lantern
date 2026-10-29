@@ -106,7 +106,7 @@ class AnalyzeCommandTest {
                     Map.of(Role.COMPOSE, 1L, Role.SUMMARIZE, 6L, Role.RESOLVE, 2L))));
 
     assertThat(printed)
-        .contains("Links left open: 2 resolved by the LLM, 1 reused\n")
+        .contains("Links left open: 2 asked of the LLM, 1 reused\n")
         .contains("LLM calls: 9 (SUMMARIZE=6, RESOLVE=2, COMPOSE=1), tokens: 100, cost: $0.25\n");
   }
 
