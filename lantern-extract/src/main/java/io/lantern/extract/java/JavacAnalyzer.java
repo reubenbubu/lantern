@@ -856,6 +856,10 @@ final class JavacAnalyzer {
                       expression(new TreePath(path, b.getLeftOperand()), owner, depth + 1),
                       expression(new TreePath(path, b.getRightOperand()), owner, depth + 1)));
           case IdentifierTree id -> name(path, owner, depth);
+          case MemberSelectTree select when select.getIdentifier().contentEquals("class") -> {
+            String type = typeName(new TreePath(path, select.getExpression()));
+            yield type == null ? unknown(path) : new Expression.TypeRef(type);
+          }
           case MemberSelectTree select -> name(path, owner, depth);
           case MethodInvocationTree call -> {
             Expression receiver = null;

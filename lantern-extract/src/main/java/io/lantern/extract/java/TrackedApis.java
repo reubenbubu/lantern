@@ -21,6 +21,17 @@ final class TrackedApis {
           // Jakarta (and javax) REST client API
           "jakarta.ws.rs.client.",
           "javax.ws.rs.client.",
+          // Spring's HTTP interface proxies: HttpServiceProxyFactory (the adapters are in the
+          // RestClient and WebClient packages above).
+          "org.springframework.web.service.",
+          // java.net.http requests
+          "java.net.http.",
+          // OkHttp requests
+          "okhttp3.",
+          // Apache HttpClient 4 and 5 requests and request builders
+          "org.apache.http.client.methods.",
+          "org.apache.hc.client5.http.",
+          "org.apache.hc.core5.http.io.support.",
           // Messaging (the messaging extractor): Spring Kafka and Kafka's producer, JMS templates,
           // and RabbitMQ templates and declarations (queues, exchanges, bindings and builders).
           "org.springframework.kafka.core.",

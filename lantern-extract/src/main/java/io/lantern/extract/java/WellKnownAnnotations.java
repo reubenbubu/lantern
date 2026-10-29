@@ -14,11 +14,12 @@ import java.util.Set;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Well-known library annotations (Spring's stereotypes, request mappings and scheduling, Jakarta
- * REST, and the JPA and Spring Data annotations the persistence extractor reads) with their
- * meta-annotations, and the enums they take, for when the classpath cannot be read: in degraded
- * mode the parser names an annotation imported by a wildcard import from this list, and {@link
- * JavaAnalysis#metaAnnotations} falls back to it. The compiler path reads the real ones.
+ * Well-known library annotations (Spring's stereotypes, request mappings, HTTP interface exchanges
+ * and scheduling, Jakarta REST, and the JPA and Spring Data annotations the persistence extractor
+ * reads) with their meta-annotations, and the enums they take, for when the classpath cannot be
+ * read: in degraded mode the parser names an annotation imported by a wildcard import from this
+ * list, and {@link JavaAnalysis#metaAnnotations} falls back to it. The compiler path reads the real
+ * ones.
  */
 final class WellKnownAnnotations {
 

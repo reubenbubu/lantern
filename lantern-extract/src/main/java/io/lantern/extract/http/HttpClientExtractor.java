@@ -53,10 +53,11 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Turns the HTTP clients in the code into facts: the requests each method sends, with the HTTP
  * method, the target's URL or service name and the path, through Spring Cloud OpenFeign and
- * MicroProfile REST client interfaces, {@code RestTemplate}, {@code RestClient}, {@code WebClient}
- * and the Jakarta REST client API; and which code enables or injects a client interface, since that
- * code, not the library that declares the interface, makes the calls. See {@code
- * docs/adr/0038-http-client-extractor.md}.
+ * MicroProfile REST client interfaces, Spring's HTTP interfaces ({@code @HttpExchange}), {@code
+ * RestTemplate}, {@code RestClient}, {@code WebClient}, the Jakarta REST client API, {@code
+ * java.net.http}, OkHttp and Apache HttpClient; and which code enables or injects a client
+ * interface, since that code, not the library that declares the interface, makes the calls. See
+ * {@code docs/adr/0038-http-client-extractor.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}). URLs are
  * followed one hop from a {@code @Value} field or constructor argument, and their placeholders
@@ -93,6 +94,10 @@ public final class HttpClientExtractor {
   public static final String REST_CLIENT = "rest-client";
   public static final String WEB_CLIENT = "web-client";
   public static final String JAKARTA_CLIENT = "jakarta-rest-client";
+  public static final String HTTP_INTERFACE = "http-interface";
+  public static final String JAVA_HTTP_CLIENT = "java-http-client";
+  public static final String OKHTTP = "okhttp";
+  public static final String APACHE_CLIENT = "apache-http-client";
 
   private static final String RESOURCE = "/vocabulary/http-types.json";
 
@@ -113,6 +118,48 @@ public final class HttpClientExtractor {
   private static final List<String> REST_HTTP_METHODS =
       List.of("jakarta.ws.rs.HttpMethod", "javax.ws.rs.HttpMethod");
   private static final String VALUE = SPRING + "beans.factory.annotation.Value";
+  private static final String HTTP_EXCHANGE = SPRING + "web.service.annotation.HttpExchange";
+
+  /** The types an HTTP interface's proxy is made with, and the adapters they take. */
+  private static final Set<String> PROXY_FACTORIES =
+      Set.of(
+          SPRING + "web.service.invoker.HttpServiceProxyFactory",
+          SPRING + "web.service.invoker.HttpServiceProxyFactory$Builder");
+
+  private static final Set<String> PROXY_ADAPTERS =
+      Set.of(
+          SPRING + "web.client.support.RestClientAdapter",
+          SPRING + "web.client.support.RestTemplateAdapter",
+          SPRING + "web.reactive.function.client.support.WebClientAdapter");
+
+  /** Apache HttpClient's request classes, made with a URL, and the HTTP method each sends. */
+  private static final Map<String, String> APACHE_REQUESTS = apacheRequests();
+
+  private static Map<String, String> apacheRequests() {
+    Map<String, String> r = new HashMap<>();
+    for (String pkg :
+        List.of("org.apache.http.client.methods.", "org.apache.hc.client5.http.classic.methods.")) {
+      for (String method : List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")) {
+        r.put(
+            pkg + "Http" + method.charAt(0) + method.substring(1).toLowerCase(Locale.ROOT), method);
+      }
+      r.put(pkg + "HttpTrace", "TRACE");
+    }
+    return Map.copyOf(r);
+  }
+
+  /** Apache HttpClient's async request, made with {@code create(method, uri)}. */
+  private static final String APACHE_SIMPLE_REQUEST =
+      "org.apache.hc.client5.http.async.methods.SimpleHttpRequest";
+
+  /**
+   * Apache HttpClient 5's static request factories: {@code get(uri)} and the like, or {@code
+   * create(method, uri)}.
+   */
+  private static final Set<String> APACHE_FACTORIES =
+      Set.of(
+          "org.apache.hc.client5.http.classic.methods.ClassicHttpRequests",
+          "org.apache.hc.client5.http.async.methods.SimpleHttpRequests");
 
   private static final String WEB = SPRING + "web.client.";
   private static final String REACTIVE = SPRING + "web.reactive.function.client.";
@@ -138,6 +185,23 @@ public final class HttpClientExtractor {
       for (String t : List.of("Client", "ClientBuilder", "WebTarget", "Invocation$Builder")) {
         k.put(ns + ".ws.rs.client." + t, JAKARTA_CLIENT);
       }
+    }
+    k.put("java.net.http.HttpRequest", JAVA_HTTP_CLIENT);
+    k.put("java.net.http.HttpRequest$Builder", JAVA_HTTP_CLIENT);
+    k.put("okhttp3.Request$Builder", OKHTTP);
+    for (String t : APACHE_REQUESTS.keySet()) {
+      k.put(t, APACHE_CLIENT);
+    }
+    for (String t :
+        List.of(
+            "org.apache.http.client.methods.RequestBuilder",
+            "org.apache.hc.core5.http.io.support.ClassicRequestBuilder",
+            "org.apache.hc.client5.http.async.methods.SimpleRequestBuilder",
+            APACHE_SIMPLE_REQUEST)) {
+      k.put(t, APACHE_CLIENT);
+    }
+    for (String t : APACHE_FACTORIES) {
+      k.put(t, APACHE_CLIENT);
     }
     return Map.copyOf(k);
   }
@@ -239,6 +303,9 @@ public final class HttpClientExtractor {
     /** The values given to each field, by field, from every module. */
     private final Map<EntityId, List<Assignment>> assignments = new HashMap<>();
 
+    /** Where the proxies of each HTTP interface are made, by the interface's binary name. */
+    private final Map<String, List<Proxy>> proxies = new HashMap<>();
+
     private JavaAnalysis.Module module;
     private CodeConfig.View config;
 
@@ -262,6 +329,11 @@ public final class HttpClientExtractor {
           assignments.computeIfAbsent(a.field(), k -> new ArrayList<>()).add(a);
         }
       }
+      for (JavaAnalysis.Module m : code.modules()) {
+        for (Invocation invocation : m.structure().invocations()) {
+          proxy(invocation, m);
+        }
+      }
     }
 
     private Client client(TypeDecl type) {
@@ -272,7 +344,20 @@ public final class HttpClientExtractor {
         }
       }
       List<Annotation> path = code.annotationPath(type.annotations(), REGISTER_REST_CLIENT);
-      return path != null ? new Client(MICROPROFILE, path) : null;
+      if (path != null) {
+        return new Client(MICROPROFILE, path);
+      }
+      // An HTTP interface: @HttpExchange on the interface, or on one of its methods.
+      path = code.annotationPath(type.annotations(), HTTP_EXCHANGE);
+      for (Member m : type.members()) {
+        if (path != null) {
+          break;
+        }
+        if (m.id().type().equals(ModuleStructure.METHOD)) {
+          path = code.annotationPath(m.annotations(), HTTP_EXCHANGE);
+        }
+      }
+      return path != null ? new Client(HTTP_INTERFACE, path) : null;
     }
 
     void module(JavaAnalysis.Module m) {
@@ -290,10 +375,106 @@ public final class HttpClientExtractor {
       for (Invocation invocation : m.structure().invocations()) {
         imperative(invocation);
       }
+      for (List<Proxy> made : proxies.values()) {
+        for (Proxy p : made) {
+          if (p.module() == m) {
+            ObjectNode attributes = FactJson.newObject();
+            attributes.put("member", p.in().toString());
+            relation(typeId(ownerType(p.in())), ENABLES, typeId(p.client()), attributes, p.where());
+          }
+        }
+      }
     }
 
     // -------------------------------------------------------------------------------------------
-    // Declarative clients: Feign and MicroProfile REST client interfaces
+    // Declarative clients: Feign, MicroProfile REST client and HTTP interfaces
+
+    /**
+     * Where a proxy of an HTTP interface is made ({@code factory.createClient(Foo.class)}).
+     *
+     * @param client the interface
+     * @param base the base URL of the client the factory's adapter wraps, or null if not known
+     * @param module the module of the code that makes it
+     * @param in the method, constructor or type whose code makes it
+     * @param where the evidence
+     */
+    private record Proxy(
+        String client, Text base, JavaAnalysis.Module module, EntityId in, Location where) {}
+
+    /** Records the HTTP interface proxies a chain of calls on a proxy factory makes. */
+    private void proxy(Invocation invocation, JavaAnalysis.Module m) {
+      Chain chain = chain(invocation.expression(), new Scope(m, invocation.caller()), 0);
+      if (chain.rootType() == null || !PROXY_FACTORIES.contains(chain.rootType())) {
+        return;
+      }
+      Text base = null;
+      for (Link link : chain.links()) {
+        String method = link.call().method();
+        List<Expression> args = link.call().arguments();
+        if (args.size() != 1) {
+          continue;
+        }
+        if (Set.of("builderFor", "builder", "exchangeAdapter", "clientAdapter").contains(method)) {
+          base = adapterBase(args.getFirst(), link.scope());
+        } else if (method.equals("createClient")
+            && args.getFirst() instanceof Expression.TypeRef t
+            && clients.get(t.binaryName()) != null
+            && clients.get(t.binaryName()).kind().equals(HTTP_INTERFACE)) {
+          Proxy proxy = new Proxy(t.binaryName(), base, m, invocation.caller(), invocation.where());
+          List<Proxy> made = proxies.computeIfAbsent(t.binaryName(), k -> new ArrayList<>());
+          if (!made.contains(proxy)) {
+            made.add(proxy);
+          }
+        }
+      }
+    }
+
+    /**
+     * The base URL of the client a proxy factory's adapter wraps ({@code
+     * RestClientAdapter.create(restClient)}): its {@code baseUrl}, or a {@code RestTemplate}'s
+     * {@code rootUri}, or null.
+     */
+    private Text adapterBase(Expression adapter, Scope scope) {
+      Chain made = chain(adapter, scope, 0);
+      if (made.rootType() == null || !PROXY_ADAPTERS.contains(made.rootType())) {
+        return null;
+      }
+      Text base = null;
+      for (Link link : made.links()) {
+        String method = link.call().method();
+        List<Expression> args = link.call().arguments();
+        if ((method.equals("create") || method.equals("forClient")) && args.size() == 1) {
+          base = clientBase(args.getFirst(), link.scope());
+        }
+      }
+      return base;
+    }
+
+    private Text clientBase(Expression client, Scope scope) {
+      Chain made = chain(client, scope, 0);
+      String kind = made.rootType() == null ? null : KINDS.get(made.rootType());
+      if (kind == null) {
+        return null;
+      }
+      Text base = null;
+      for (Link link : made.links()) {
+        String method = link.call().method();
+        List<Expression> args = link.call().arguments();
+        if (args.size() != 1) {
+          continue;
+        }
+        if (kind.equals(REST_TEMPLATE)
+            ? method.equals("rootUri")
+            : (kind.equals(REST_CLIENT) || kind.equals(WEB_CLIENT))
+                && (method.equals("baseUrl") || method.equals("create"))) {
+          base = text(args.getFirst(), link.scope());
+        }
+      }
+      return base;
+    }
+
+    /** A base URL a declarative client's calls go to, resolved in the config of its module. */
+    private record Base(Text url, CodeConfig.View config) {}
 
     private void declarative(TypeDecl type, Client client) {
       Annotation written = client.annotation().getFirst();
@@ -303,10 +484,24 @@ public final class HttpClientExtractor {
       attributes.put("annotation", written.type());
       fact(typeId, HTTP_CLIENT, client.kind(), attributes, written.where(), module);
 
-      String base;
+      String base = "";
       String service = null;
       String clientPath = "";
-      if (client.kind().equals(FEIGN)) {
+      List<Base> bases = new ArrayList<>();
+      if (client.kind().equals(HTTP_INTERFACE)) {
+        for (Proxy p : proxies.getOrDefault(type.binaryName(), List.of())) {
+          Base b =
+              new Base(
+                  p.base() == null ? new Text("", List.of()) : p.base(),
+                  configs.forModule(p.module().repo(), p.module().directory()));
+          if (!bases.contains(b)) {
+            bases.add(b);
+          }
+        }
+        if (bases.isEmpty()) {
+          bases.add(new Base(new Text("", List.of()), config));
+        }
+      } else if (client.kind().equals(FEIGN)) {
         service = firstOf(declared, "name", "value", "serviceId");
         String url = firstOf(declared, "url");
         clientPath = Objects.requireNonNullElse(firstOf(declared, "path"), "");
@@ -323,6 +518,9 @@ public final class HttpClientExtractor {
                 ? uri
                 : "${quarkus.rest-client." + key + ".url:${" + key + "/mp-rest/url}}";
       }
+      if (bases.isEmpty()) {
+        bases.add(new Base(new Text(base, List.of()), config));
+      }
       Mapping classMapping = null;
       List<TypeDecl> lineage = lineage(type);
       for (TypeDecl t : lineage) {
@@ -331,12 +529,11 @@ public final class HttpClientExtractor {
           break;
         }
       }
-      String basePath =
-          SpringExtractor.join(
-              clientPath,
-              classMapping == null || classMapping.paths().isEmpty()
-                  ? ""
-                  : classMapping.paths().getFirst());
+      String classPath =
+          classMapping == null || classMapping.paths().isEmpty()
+              ? ""
+              : classMapping.paths().getFirst();
+      String basePath = SpringExtractor.join(clientPath, classPath);
       Map<String, Member> bySignature = new LinkedHashMap<>();
       Map<String, Mapping> mappings = new HashMap<>();
       Map<String, JavaAnalysis.Module> sources = new HashMap<>();
@@ -363,25 +560,38 @@ public final class HttpClientExtractor {
           continue;
         }
         List<String> paths = mapping.paths().isEmpty() ? List.of("") : mapping.paths();
-        List<String> methods =
-            mapping.methods().isEmpty()
-                ? (client.kind().equals(FEIGN) ? List.of("GET") : List.of())
-                : mapping.methods();
-        for (String path : paths) {
-          String url = joinUrl(base, SpringExtractor.join(basePath, path));
-          for (String method : methods.isEmpty() ? List.of("") : methods) {
-            Call call =
-                new Call(
-                    e.getValue().id(),
-                    method.isEmpty() ? null : method,
-                    new Text(url, List.of()),
-                    service,
-                    client.kind(),
-                    type.binaryName(),
-                    mapping.written().type(),
-                    mapping.written().where(),
-                    sources.get(e.getKey()));
-            call(call);
+        List<String> methods = mapping.methods();
+        if (methods.isEmpty() && client.kind().equals(FEIGN)) {
+          methods = List.of("GET");
+        } else if (methods.isEmpty() && classMapping != null) {
+          // An HTTP interface's method may take its HTTP method from the interface's annotation.
+          methods = classMapping.methods();
+        }
+        for (Base b : bases) {
+          for (String path : paths) {
+            String own =
+                client.kind().equals(HTTP_INTERFACE)
+                    // Spring joins the interface's and the method's URL, then applies the base
+                    // URL unless the result is a whole URL itself.
+                    ? joinUrl(classPath, path)
+                    : SpringExtractor.join(basePath, path);
+            String url = joinUrl(b.url().text(), own);
+            // The base's unfollowed parts count only if the base is part of the URL.
+            List<String> unknown = ABSOLUTE.matcher(own).find() ? List.of() : b.url().unknown();
+            for (String method : methods.isEmpty() ? List.of("") : methods) {
+              Call call =
+                  new Call(
+                      e.getValue().id(),
+                      method.isEmpty() ? null : method,
+                      new Text(url.isEmpty() ? "/" : url, unknown),
+                      service,
+                      client.kind(),
+                      type.binaryName(),
+                      mapping.written().type(),
+                      mapping.written().where(),
+                      sources.get(e.getKey()));
+              call(call, b.config());
+            }
           }
         }
       }
@@ -392,9 +602,13 @@ public final class HttpClientExtractor {
 
     /**
      * The mapping written on a client interface or method: a Spring request mapping or Feign
-     * request line for a Feign client, a Jakarta REST one for either.
+     * request line for a Feign client, {@code @HttpExchange} for an HTTP interface, a Jakarta REST
+     * one for the others.
      */
     private Mapping mapping(List<Annotation> annotations, String kind, boolean onType) {
+      if (kind.equals(HTTP_INTERFACE)) {
+        return exchange(annotations);
+      }
       if (kind.equals(FEIGN)) {
         Mapping spring = springMapping(annotations);
         if (spring != null) {
@@ -439,6 +653,30 @@ public final class HttpClientExtractor {
         methods.addAll(p.values("method"));
       }
       return new Mapping(List.copyOf(paths), List.copyOf(methods), a);
+    }
+
+    /**
+     * {@code @HttpExchange}, or an annotation that carries it ({@code @GetExchange}): the URL and
+     * HTTP method of the nearest annotation on the path that sets them.
+     */
+    private Mapping exchange(List<Annotation> annotations) {
+      for (Annotation candidate : annotations) {
+        List<Annotation> path = code.annotationPath(candidate, HTTP_EXCHANGE);
+        if (path == null) {
+          continue;
+        }
+        String url = null;
+        String method = null;
+        for (Annotation p : path) {
+          url = url != null ? url : firstOf(p, "value", "url");
+          method = method != null ? method : firstOf(p, "method");
+        }
+        return new Mapping(
+            url == null ? List.of() : List.of(url),
+            method == null ? List.of() : List.of(upper(method)),
+            candidate);
+      }
+      return null;
     }
 
     private Mapping restPath(List<Annotation> annotations) {
@@ -568,7 +806,7 @@ public final class HttpClientExtractor {
     private void imperative(Invocation invocation) {
       Scope scope = new Scope(module, invocation.caller());
       Chain chain = chain(invocation.expression(), scope, 0);
-      String kind = KINDS.get(chain.rootType());
+      String kind = chain.rootType() == null ? null : KINDS.get(chain.rootType());
       if (kind == null) {
         return;
       }
@@ -576,7 +814,8 @@ public final class HttpClientExtractor {
           switch (kind) {
             case REST_TEMPLATE -> restTemplate(chain.links());
             case REST_CLIENT, WEB_CLIENT -> fluent(chain.links());
-            default -> jakarta(chain.links());
+            case JAKARTA_CLIENT -> jakarta(chain.links());
+            default -> built(kind, chain.rootType(), chain.links());
           };
       if (request == null) {
         return;
@@ -591,7 +830,8 @@ public final class HttpClientExtractor {
               null,
               null,
               invocation.where(),
-              module));
+              module),
+          config);
     }
 
     /** An HTTP request a chain sends: the HTTP method, if known, and the URL as written. */
@@ -749,15 +989,81 @@ public final class HttpClientExtractor {
       return null;
     }
 
-    /** A URL argument: a string, or a {@code URI} or {@code UriComponentsBuilder} made of one. */
+    /**
+     * A request object that is built, then sent ({@code java.net.http}, OkHttp, Apache HttpClient):
+     * read where the chain makes the request, its last call, so a request kept in a variable before
+     * it is finished counts once. An HTTP method not said is {@code GET}, as the builders default.
+     */
+    private Request built(String kind, String rootType, List<Link> links) {
+      if (links.isEmpty()) {
+        return null;
+      }
+      Expression.Invoke last = links.getLast().call();
+      Scope scope = links.getLast().scope();
+      String apache = APACHE_REQUESTS.get(rootType);
+      boolean factory = APACHE_FACTORIES.contains(rootType);
+      if (apache != null || factory || rootType.equals(APACHE_SIMPLE_REQUEST)) {
+        // new HttpGet(uri), SimpleHttpRequest.create(method, uri), ClassicHttpRequests.get(uri)
+        if (links.size() != 1) {
+          return null;
+        }
+        List<Expression> args = last.arguments();
+        if (apache != null) {
+          return last.method().equals(ModuleStructure.CONSTRUCTOR) && !args.isEmpty()
+              ? new Request(apache, url(args.getFirst(), scope))
+              : null;
+        }
+        if (last.method().equals("create") && args.size() == 2) {
+          return new Request(httpMethod(args.getFirst()), url(args.get(1), scope));
+        }
+        return factory && args.size() == 1 && HTTP_METHODS.contains(upper(last.method()))
+            ? new Request(upper(last.method()), url(args.getFirst(), scope))
+            : null;
+      }
+      if (!last.method().equals("build") || !last.arguments().isEmpty()) {
+        return null;
+      }
+      String http = null;
+      Text url = null;
+      for (Link link : links) {
+        String method = link.call().method();
+        List<Expression> args = link.call().arguments();
+        if (args.size() == 1 && Set.of("newBuilder", "uri", "url", "setUri").contains(method)) {
+          url = url(args.getFirst(), link.scope());
+        } else if (method.equals("method") && !args.isEmpty()
+            || method.equals("create") && args.size() == 1 && kind.equals(APACHE_CLIENT)) {
+          http = httpMethod(args.getFirst());
+        } else if (HTTP_METHODS.contains(upper(method)) && args.size() <= 1) {
+          http = upper(method);
+          // Apache's request builders take the URI with the method: ClassicRequestBuilder.get(uri)
+          if (kind.equals(APACHE_CLIENT) && args.size() == 1) {
+            url = url(args.getFirst(), link.scope());
+          }
+        }
+      }
+      if (url == null) {
+        return null;
+      }
+      return new Request(http == null && !kind.equals(APACHE_CLIENT) ? "GET" : http, url);
+    }
+
+    /**
+     * A URL argument: a string, or a {@code URI}, {@code URL}, OkHttp {@code HttpUrl} or {@code
+     * UriComponentsBuilder} made of one.
+     */
     private Text url(Expression e, Scope scope) {
       if (e instanceof Expression.Invoke invoke) {
         List<Expression.Invoke> chain = invoke.chain();
         Expression.Invoke first = chain.getFirst();
         if (first.receiver() instanceof Expression.TypeRef t && !first.arguments().isEmpty()) {
-          if (t.binaryName().equals("java.net.URI")
+          if ((t.binaryName().equals("java.net.URI") || t.binaryName().equals("java.net.URL"))
               && (first.method().equals("create")
                   || first.method().equals(ModuleStructure.CONSTRUCTOR))
+              && first.arguments().size() == 1) {
+            return text(first.arguments().getFirst(), scope);
+          }
+          if (t.binaryName().equals("okhttp3.HttpUrl")
+              && (first.method().equals("get") || first.method().equals("parse"))
               && first.arguments().size() == 1) {
             return text(first.arguments().getFirst(), scope);
           }
@@ -975,10 +1281,10 @@ public final class HttpClientExtractor {
         Location where,
         JavaAnalysis.Module source) {}
 
-    private void call(Call call) {
-      Recorded byDefault = recorded(null, call);
+    private void call(Call call, CodeConfig.View config) {
+      Recorded byDefault = recorded(config, null, call);
       for (String profile : config.views()) {
-        Recorded value = profile == null ? byDefault : recorded(profile, call);
+        Recorded value = profile == null ? byDefault : recorded(config, profile, call);
         if (profile != null && value.equals(byDefault)) {
           continue;
         }
@@ -1039,7 +1345,7 @@ public final class HttpClientExtractor {
     private record Recorded(
         String url, String written, String service, SortedSet<String> unresolved, boolean masked) {}
 
-    private Recorded recorded(String profile, Call call) {
+    private Recorded recorded(CodeConfig.View config, String profile, Call call) {
       String written = clean(call.url().text());
       Resolution url = config.resolve(profile, written);
       SortedSet<String> unresolved = new TreeSet<>(url.unresolved());
@@ -1255,6 +1561,13 @@ public final class HttpClientExtractor {
     String key = method.key();
     String inside = key.substring(key.indexOf('(') + 1, key.lastIndexOf(')'));
     return inside.isEmpty() ? List.of() : List.of(inside.split(","));
+  }
+
+  /** The binary name of the type a member ID or type ID belongs to. */
+  private static String ownerType(EntityId member) {
+    String key = member.key();
+    int hash = key.indexOf('#');
+    return hash < 0 ? key : key.substring(0, hash);
   }
 
   private static String packageOf(String binaryName) {

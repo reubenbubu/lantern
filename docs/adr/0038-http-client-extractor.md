@@ -1,6 +1,6 @@
 # 0038: HTTP client extractor
 
-Status: accepted (#128, part of #92), pending the user's review (#24)
+Status: accepted (#128, part of #92; extended by #145), pending the user's review (#24)
 
 ## Context
 
@@ -23,18 +23,20 @@ without what must not be.
   - each field's erased type, and each written method's or constructor's parameters with their
     annotations (none for a record's constructors or implicit members, which parsing cannot see);
   - the chains of calls on a tracked API (`TrackedApis`: Spring's `web.client`, Boot's
-    `RestTemplateBuilder`, WebClient and the Jakarta and javax REST client packages), a chain
-    being a call that is not itself what another call is made on and whose innermost receiver has
-    a tracked type, read as an `Expression`;
+    `RestTemplateBuilder`, WebClient, the Jakarta and javax REST client packages, Spring's
+    `web.service` (HTTP interface proxies), `java.net.http`, OkHttp and Apache HttpClient 4 and 5),
+    a chain being a call that is not itself what another call is made on and whose innermost
+    receiver has a tracked type, read as an `Expression`;
   - the values given to `String` fields and fields of a tracked type: their initializers (unless
     a constant) and assignments to the type's own fields in its constructors and initializer
     blocks.
 
   An `Expression` folds constants and joins string concatenations, replaces a local variable
   declared in a block and never assigned again by its initializer, and names fields
-  (`FieldRef`), the enclosing method's parameters (`Param`), types (`TypeRef`) and calls
-  (`Invoke`); anything else, a lambda for one, is `Unknown` with its source. Only these APIs are
-  recorded, so the analysis stays small; another extractor adds its packages to `TrackedApis`.
+  (`FieldRef`), the enclosing method's parameters (`Param`), types (`TypeRef`, also for a class
+  literal, `Foo.class`) and calls (`Invoke`); anything else, a lambda for one, is `Unknown` with
+  its source. Only these APIs are recorded, so the analysis stays small; another extractor adds
+  its packages to `TrackedApis`.
 - **Following a value one hop.** A URL part that is a `@Value` field or parameter is its
   placeholder (`${clients.payments.url}`); a field given one value in its constructor, a `@Value`
   parameter or a constant, is that value; a client held in a field is the chain that built it
@@ -54,7 +56,29 @@ without what must not be.
   `execute` with an `HttpMethod`, a `RequestEntity`, and a `rootUri` of its builder), `RestClient`
   and `WebClient` (`create` or `baseUrl`, then `get()` to `options()` or `method(...)`, then
   `uri(...)`) and the Jakarta REST client (`target`, `path`, `request`, then the HTTP method).
-  A URL argument may be a `URI` or a `UriComponentsBuilder` made from a string.
+  A URL argument may be a `URI`, a `URL`, an OkHttp `HttpUrl` or a `UriComponentsBuilder` made
+  from a string.
+- **Spring's HTTP interfaces** (#145): interfaces with `@HttpExchange` (or `@GetExchange` and the
+  others, which carry it) on the interface or on a method. A method's URL is the interface's URL
+  joined with its own, its HTTP method its own or else the interface's (none if neither says).
+  The base URL is that of the client behind the proxy: a chain on `HttpServiceProxyFactory`
+  (`builderFor`, `builder`, `exchangeAdapter`, then `createClient(Foo.class)`) whose adapter
+  (`RestClientAdapter`, `WebClientAdapter` or `RestTemplateAdapter`, `create` or `forClient`)
+  wraps a client whose `baseUrl`, `create(url)` or `rootUri` is followed as above, resolved in
+  the config of the module that makes the proxy; a call per distinct base URL, and none (the path
+  alone) when no proxy is found or its client comes from elsewhere. A URL that is a whole URL
+  itself stands alone, as Spring sends it, without the base's `expressions`.
+- **Request objects** (#145): `java.net.http` (`HttpRequest.newBuilder(uri)` or `.uri(uri)`, then
+  `GET()`, `POST(...)` or `method(...)`), OkHttp (`new Request.Builder().url(...)`, then `get()`,
+  `post(...)` or `method(...)`) and Apache HttpClient (`new HttpGet(uri)` and the other request
+  classes of 4 and 5 classic, `RequestBuilder`, `ClassicRequestBuilder` and `SimpleRequestBuilder`
+  with `get(uri)` and the like or `create(method)` and `setUri(uri)`,
+  `SimpleHttpRequest.create(method, uri)`, and 5's static factories `ClassicHttpRequests` and
+  `SimpleHttpRequests`, `get(uri)` and the like or `create(method, uri)`). A request is recorded
+  where it is made: the chain must end in `build()` (or be the constructor or `create` call alone),
+  so one kept in a variable before it is finished counts once. An HTTP method not said is `GET`, as
+  the builders default, except for Apache's builders, which always say. Where the request is sent is
+  not read: the method that builds it is the one recorded as calling.
 - **Facts**, attributes with a string object unless said, evidence the call (an imperative client)
   or the mapping (a declarative one), in the module that declares it:
   - `http-call` on the method sending the request (the type for code outside methods; the nearest
@@ -63,17 +87,21 @@ without what must not be.
     authority, or after a leading placeholder or expression; absent when one stands for the whole
     URL), `url` and `baseUrl` when the URL
     starts with a scheme, `service` (a Feign client's name, for matching against
-    `spring.application.name`), `client` (`feign`, `microprofile-rest-client`, `rest-template`,
-    `rest-client`, `web-client` or `jakarta-rest-client`), `clientType` and `annotation` for a
-    declarative client, and `expressions`. Placeholders resolve through the code's config as ADR
-    0035 resolves them (`CodeConfig`, shared now with the Spring extractor): the default view,
-    plus a fact per profile whose URL or service differs, with `profile`, `written` and
-    `unresolved`; a property key nothing resolves stays as written (`${TAX_SERVICE_URL}`).
-  - `http-client` on a client interface: `feign` or `microprofile-rest-client`, with
-    `annotation`.
+    `spring.application.name`), `client` (`feign`, `microprofile-rest-client`, `http-interface`,
+    `rest-template`, `rest-client`, `web-client`, `jakarta-rest-client`, `java-http-client`,
+    `okhttp` or `apache-http-client`), `clientType` and `annotation` for a declarative client, and
+    `expressions`. Placeholders resolve through the code's config as ADR 0035 resolves them
+    (`CodeConfig`, shared now with the Spring extractor): the default view, plus a fact per
+    profile whose URL or service differs, with `profile`, `written` and `unresolved`; a
+    property key nothing resolves stays as written (`${TAX_SERVICE_URL}`).
+  - `http-client` on a client interface: `feign`, `microprofile-rest-client` or
+    `http-interface`, with `annotation` (for an HTTP interface without one on the interface, that
+    of its first mapped method).
   - `ENABLES` from a type with `@EnableFeignClients` to each Feign client it turns on: those in
     `clients`, else those in `value`, `basePackages` or the packages of `basePackageClasses`, else
-    in its own package (and sub-packages), across all analyzed repositories, with `annotation`.
+    in its own package (and sub-packages), across all analyzed repositories, with `annotation`;
+    and from a type whose code makes an HTTP interface's proxy to that interface, with `member`
+    (the method, constructor or type whose code calls `createClient`) instead.
   - `INJECTS` from a type to a client interface it takes as a field or constructor parameter,
     with `member`, one fact per member.
 
@@ -89,9 +117,11 @@ without what must not be.
 - **New vocabulary**, applied by the app on startup after the other extractors', with source
   `http-client-extractor`: the attribute types `http-call` and `http-client` and the relationship
   types `ENABLES` and `INJECTS`.
-- **Not covered:** Spring's HTTP interfaces (`@HttpExchange`), `java.net.http.HttpClient`, OkHttp
-  and Apache clients, a URL built across methods or from several fields' values, a `RestTemplate`
-  bean's `rootUri` set in another class, and Kotlin.
+- **Not covered:** HTTP interface groups (`@ImportHttpServices` and their configured base URLs), a
+  proxy factory or adapter made in another method (a `HttpServiceProxyFactory` bean), Apache's
+  fluent API (`Request.get(url).execute()`), a builder changed by separate statements
+  (`builder.uri(uri); builder.GET();`), a URL built across methods or from several fields' values, a
+  `RestTemplate` bean's `rootUri` set in another class, and Kotlin.
 - **project-0.** `Project0HttpIT` checks the cases HTTP-1 to HTTP-5, VAL-1, VAL-2, VAL-5 and the
   extractor side of EXT-1, with the repositories built in the sandbox and read through javac, and
   parsed without builds, and checks both give the same facts. It runs when `lantern.test.project0`
