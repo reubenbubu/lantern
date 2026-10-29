@@ -523,7 +523,12 @@ final class JavaParserAnalyzer {
           default -> null;
         };
       } catch (RuntimeException | StackOverflowError ex) {
-        // Not resolvable without the classpath the build would have given.
+        // Not resolvable without the classpath the build would have given, except a constant of
+        // a well-known enum that annotations take (RequestMethod.GET), named by its imports.
+        if (e instanceof FieldAccessExpr f
+            && WellKnownAnnotations.isKnownEnum(guessType(f.getScope().toString()))) {
+          return f.getNameAsString();
+        }
         return null;
       }
     }
@@ -601,18 +606,22 @@ final class JavaParserAnalyzer {
       return null;
     }
 
-    /**
-     * An annotation's type: resolved if possible, else named from a single-type import, as
-     * qualified when written qualified, from a wildcard import that holds a well-known annotation
-     * of that name, as {@code java.lang}'s, or else as if it were in the same package.
-     */
+    /** An annotation's type: resolved if possible, else guessed from the name as written. */
     private String annotationType(AnnotationExpr a) {
       try {
         return binaryName(a.resolve());
       } catch (RuntimeException | StackOverflowError e) {
-        // Guessed below.
+        return guessType(a.getNameAsString());
       }
-      String name = a.getNameAsString();
+    }
+
+    /**
+     * Names a type that does not resolve, as written in this file: from a single-type import, as
+     * qualified when written qualified, from a wildcard import that holds a well-known annotation
+     * or enum of that name, as {@code java.lang}'s annotation, or else as if it were in the same
+     * package.
+     */
+    private String guessType(String name) {
       int dot = name.indexOf('.');
       String first = dot < 0 ? name : name.substring(0, dot);
       String rest = dot < 0 ? "" : name.substring(dot).replace('.', '$');
@@ -627,7 +636,8 @@ final class JavaParserAnalyzer {
       for (ImportDeclaration i : unit.getImports()) {
         if (!i.isStatic() && i.isAsterisk()) {
           String candidate = i.getNameAsString() + "." + name;
-          if (WellKnownAnnotations.isKnown(candidate)) {
+          if (WellKnownAnnotations.isKnown(candidate)
+              || WellKnownAnnotations.isKnownEnum(candidate)) {
             return candidate;
           }
         }

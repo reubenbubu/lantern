@@ -17,22 +17,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
+import javax.tools.JavaCompiler;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests that need no Docker, on the {@code spring} fixture: golden facts with every module parsed
- * (degraded mode), and its app module read through javac with Lantern's own test classpath, which
- * has Spring's context, scheduling and Boot annotations but not Spring MVC or Jakarta REST. {@link
+ * Tests that need no Docker, on the {@code spring} fixture and the {@code spring-api} fixture whose
+ * interfaces it implements: golden facts with every module parsed (degraded mode), and the same
+ * facts with the spring fixture read through javac, with Lantern's own test classpath (Spring's
+ * context, scheduling and Boot annotations) and stand-ins for Spring MVC and Jakarta REST. {@link
  * Project0SpringIT} reads the synthetic test set built in the sandbox.
  */
 class SpringExtractorTest {
 
   private static final long SNAPSHOT = 5;
-
-  private static final String APP = "spring:app/";
 
   @TempDir Path temp;
 
@@ -49,15 +53,20 @@ class SpringExtractorTest {
     return facts;
   }
 
-  private Repo fixture() throws IOException {
-    return Fixtures.repo("spring", temp.resolve("spring"), "spring");
+  /** The spring fixture and the spring-api fixture, whose interfaces the first implements. */
+  private List<Repo> fixtures() throws IOException {
+    return List.of(
+        Fixtures.repo("spring", temp.resolve("spring"), "spring"),
+        Fixtures.repo("spring-api", temp.resolve("spring-api"), "spring-api"));
+  }
+
+  private static List<RepoBuild> unbuilt(List<Repo> repos) {
+    return repos.stream().map(r -> new RepoBuild(r, Fixtures.head(r), null)).toList();
   }
 
   @Test
   void parsed() throws IOException {
-    Repo repo = fixture();
-
-    List<Fact> facts = extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+    List<Fact> facts = extract(unbuilt(fixtures()));
 
     Fixtures.assertGolden("spring/spring-parsed.txt", facts);
     // A secret from the config never reaches a fact.
@@ -65,48 +74,85 @@ class SpringExtractorTest {
   }
 
   @Test
-  void compiledGivesTheSameFactsAsParsed() throws IOException {
-    Repo repo = fixture();
-    String commit = Fixtures.head(repo);
-    RepoBuild built = new RepoBuild(repo, commit, build(repo, commit));
+  void reviewCases() throws IOException {
+    List<String> facts = Fixtures.render(extract(unbuilt(fixtures()))).lines().toList();
 
-    JavaAnalysis code = JavaExtractor.analyze(List.of(built));
+    assertThat(facts)
+        .anyMatch(
+            // A path on the custom annotation's meta-annotation counts.
+            l ->
+                l.startsWith(
+                    "method:com.example.shop.web.v3.ItemController#items() endpoint GET"
+                        + " /api/v3/items "))
+        .anyMatch(
+            // An inherited mapping's evidence is in the repository that declares it.
+            l ->
+                l.startsWith(
+                        "method:com.example.shop.web.remote.RemoteOrders#orders() endpoint GET"
+                            + " /v4/orders ")
+                    && l.contains(" @spring-api:src/main/java/com/example/api/OrdersApi.java#9-9 "))
+        .anyMatch(
+            // A class whose @Path is on its interface is a resource.
+            l ->
+                l.startsWith("type:com.example.shop.web.remote.RemoteLegacy stereotype controller")
+                    && l.contains(
+                        " @spring-api:src/main/java/com/example/api/LegacyApi.java#7-7 "));
+  }
+
+  @Test
+  void compiledGivesTheSameFactsAsParsed() throws IOException {
+    List<Repo> repos = fixtures();
+    Repo spring = repos.getFirst();
+    String commit = Fixtures.head(spring);
+    List<RepoBuild> inputs = new ArrayList<>(unbuilt(repos));
+    inputs.set(0, new RepoBuild(spring, commit, build(spring, commit)));
+
+    JavaAnalysis code = JavaExtractor.analyze(inputs);
     List<Fact> compiled = new SpringExtractor().extract(code, SNAPSHOT);
-    List<Fact> parsed =
-        new SpringExtractor().extract(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT);
+    List<Fact> parsed = new SpringExtractor().extract(unbuilt(repos), SNAPSHOT);
 
     assertThat(code.modules())
-        .extracting(m -> m.directory() + " " + m.compiled())
-        .containsExactly("app true", "web false");
-    List<String> compiledApp = app(compiled);
-    assertThat(compiledApp).isNotEmpty().allMatch(line -> line.endsWith(" 1.0"));
-    assertThat(compiledApp)
-        .isEqualTo(app(parsed).stream().map(line -> line.replaceAll(" 0\\.7$", " 1.0")).toList());
+        .extracting(m -> m.repo().repo().name() + ":" + m.directory() + " " + m.compiled())
+        .containsExactly("spring:app true", "spring:web true", "spring-api: false");
+    List<String> lines = withoutConfidence(compiled);
+    assertThat(lines).hasSameSizeAs(compiled).isEqualTo(withoutConfidence(parsed));
+    assertThat(Fixtures.render(compiled).lines())
+        .filteredOn(line -> line.contains(" @spring:"))
+        .isNotEmpty()
+        .allMatch(line -> line.endsWith(" 1.0"));
   }
 
-  /** The app module's facts, rendered. */
-  private static List<String> app(List<Fact> facts) {
-    return Fixtures.render(facts).lines().filter(line -> line.contains(" @" + APP)).toList();
+  private static List<String> withoutConfidence(List<Fact> facts) {
+    return Fixtures.render(facts).lines().map(l -> l.replaceAll(" [01]\\.[07]$", "")).toList();
   }
 
-  /** A successful build of the app module alone, with Lantern's test classpath as its own. */
+  /**
+   * A successful build of the spring fixture's two modules, with Lantern's test classpath and, for
+   * what that lacks, stand-ins for the Spring MVC and Jakarta REST annotations compiled here with
+   * the spring-api fixture's interfaces.
+   */
   private BuildResult build(Repo repo, String commit) throws IOException {
     List<String> classpath =
-        Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
-            .filter(entry -> entry.endsWith(".jar"))
-            .toList();
-    BuildModule app =
-        new BuildModule(
-            "app",
-            "com.example.shop",
-            "shop-app",
-            "jar",
-            "1.0.0",
-            List.of(),
-            classpath,
-            null,
-            null,
-            null);
+        new ArrayList<>(
+            Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
+                .filter(entry -> entry.endsWith(".jar"))
+                .toList());
+    classpath.add(compileStubs().toString());
+    List<BuildModule> modules = new ArrayList<>();
+    for (String module : List.of("app", "web")) {
+      modules.add(
+          new BuildModule(
+              module,
+              "com.example.shop",
+              "shop-" + module,
+              "jar",
+              "1.0.0",
+              List.of(),
+              classpath,
+              null,
+              null,
+              null));
+    }
     Path directory = Files.createDirectories(temp.resolve("builds").resolve(repo.name()));
     return new BuildResult(
         repo.name(),
@@ -120,8 +166,37 @@ class SpringExtractorTest {
         Instant.EPOCH,
         Duration.ZERO,
         null,
-        List.of(app),
+        modules,
         directory);
+  }
+
+  private Path compileStubs() throws IOException {
+    List<Path> sources = new ArrayList<>();
+    for (String root : List.of("spring-web-stubs", "spring-api/src/main/java")) {
+      try (Stream<Path> files = Files.walk(Fixtures.fixture(root))) {
+        files.filter(f -> f.toString().endsWith(".java")).forEach(sources::add);
+      }
+    }
+    Path classes = Files.createDirectories(temp.resolve("stub-classes"));
+    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+    try (StandardJavaFileManager files = compiler.getStandardFileManager(null, null, null)) {
+      boolean ok =
+          compiler
+              .getTask(
+                  null,
+                  files,
+                  null,
+                  List.of(
+                      "-d",
+                      classes.toString(),
+                      "-classpath",
+                      System.getProperty("java.class.path")),
+                  null,
+                  files.getJavaFileObjectsFromPaths(sources))
+              .call();
+      assertThat(ok).as("the stand-in annotations compile").isTrue();
+    }
+    return classes;
   }
 
   @Test

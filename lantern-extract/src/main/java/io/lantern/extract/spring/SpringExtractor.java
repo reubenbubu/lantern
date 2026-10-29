@@ -279,8 +279,8 @@ public final class SpringExtractor {
           return;
         }
       }
-      for (String restPath : REST_PATHS) {
-        List<Annotation> path = first(type.annotations(), restPath);
+      for (TypeDecl t : lineage(type)) {
+        List<Annotation> path = restPathAnnotation(t.annotations());
         if (path != null) {
           ObjectNode attributes = FactJson.newObject();
           attributes.put("annotation", path.getFirst().type());
@@ -289,7 +289,13 @@ public final class SpringExtractor {
             path.subList(1, path.size()).forEach(a -> via.add(a.type()));
           }
           attributes.put("rest", true);
-          fact(typeId(type), STEREOTYPE, "controller", attributes, path.getFirst().where());
+          fact(
+              typeId(type),
+              STEREOTYPE,
+              "controller",
+              attributes,
+              path.getFirst().where(),
+              declaring(type, t));
           return;
         }
       }
@@ -300,6 +306,9 @@ public final class SpringExtractor {
 
     /** A request mapping: its paths and HTTP methods, and the annotation written. */
     private record Mapping(List<String> paths, List<String> methods, Annotation written) {}
+
+    /** A mapping on a method, and the module whose code it is written in. */
+    private record Mapped(Mapping mapping, JavaAnalysis.Module source) {}
 
     private void endpoints(TypeDecl type) {
       List<TypeDecl> lineage = lineage(type);
@@ -339,8 +348,9 @@ public final class SpringExtractor {
      */
     private void endpoints(TypeDecl type, List<TypeDecl> lineage, Mapping base, String framework) {
       Map<String, Member> declared = new LinkedHashMap<>();
-      Map<String, Mapping> mappings = new HashMap<>();
+      Map<String, Mapped> mappings = new HashMap<>();
       for (TypeDecl t : lineage) {
+        JavaAnalysis.Module source = declaring(type, t);
         for (Member m : t.members()) {
           if (!m.id().type().equals(ModuleStructure.METHOD)) {
             continue;
@@ -356,17 +366,18 @@ public final class SpringExtractor {
                     ? springMapping(m.annotations())
                     : restMethod(m.annotations());
             if (mapping != null) {
-              mappings.put(signature, mapping);
+              mappings.put(signature, new Mapped(mapping, source));
             }
           }
         }
       }
       List<String> basePaths = base == null || base.paths().isEmpty() ? List.of("") : base.paths();
       for (Map.Entry<String, Member> e : declared.entrySet()) {
-        Mapping mapping = mappings.get(e.getKey());
-        if (mapping == null) {
+        Mapped mapped = mappings.get(e.getKey());
+        if (mapped == null) {
           continue;
         }
+        Mapping mapping = mapped.mapping();
         Member method = e.getValue();
         List<String> paths = mapping.paths().isEmpty() ? List.of("") : mapping.paths();
         Set<String> methods = new LinkedHashSet<>();
@@ -380,7 +391,15 @@ public final class SpringExtractor {
         for (String basePath : basePaths) {
           for (String path : paths) {
             for (String httpMethod : httpMethods) {
-              endpoint(type, method, mapping.written(), framework, basePath, path, httpMethod);
+              endpoint(
+                  type,
+                  method,
+                  mapping.written(),
+                  mapped.source(),
+                  framework,
+                  basePath,
+                  path,
+                  httpMethod);
             }
           }
         }
@@ -391,6 +410,7 @@ public final class SpringExtractor {
         TypeDecl controller,
         Member method,
         Annotation written,
+        JavaAnalysis.Module source,
         String framework,
         String basePath,
         String path,
@@ -410,7 +430,7 @@ public final class SpringExtractor {
         attributes.put("annotation", written.type());
         attributes.put("framework", framework);
         String object = httpMethod == null ? value.value() : httpMethod + " " + value.value();
-        fact(method.id(), ENDPOINT, object, attributes, written.where());
+        fact(method.id(), ENDPOINT, object, attributes, written.where(), source);
       }
     }
 
@@ -428,14 +448,28 @@ public final class SpringExtractor {
 
     /** A Spring request mapping written on an element, directly or through a composed one. */
     private Mapping springMapping(List<Annotation> annotations) {
-      for (Annotation a : annotations) {
-        List<Annotation> path = find(a, REQUEST_MAPPING, new HashSet<>());
-        if (path == null) {
-          continue;
+      // As Spring finds them, the nearest first: one written directly before one carried by a
+      // custom annotation.
+      Annotation a = null;
+      List<Annotation> path = null;
+      for (Annotation candidate : annotations) {
+        List<Annotation> found = find(candidate, REQUEST_MAPPING, new HashSet<>());
+        if (found != null && (path == null || found.size() < path.size())) {
+          a = candidate;
+          path = found;
         }
-        // A composed mapping (@GetMapping) aliases its path to the request mapping's.
-        Set<String> paths = new LinkedHashSet<>(a.values("path"));
-        paths.addAll(a.values("value"));
+      }
+      if (path != null) {
+        // A composed mapping (@GetMapping) aliases its path to the request mapping's; one that
+        // sets none takes the nearest along its meta-annotations that does.
+        Set<String> paths = new LinkedHashSet<>();
+        for (Annotation p : path) {
+          paths.addAll(p.values("path"));
+          paths.addAll(p.values("value"));
+          if (!paths.isEmpty()) {
+            break;
+          }
+        }
         Set<String> methods = new LinkedHashSet<>();
         for (Annotation p : path) {
           methods.addAll(p.values("method"));
@@ -469,6 +503,29 @@ public final class SpringExtractor {
         }
       }
       return null;
+    }
+
+    /** The first Jakarta REST {@code @Path} written on an element: the meta-annotation path. */
+    private List<Annotation> restPathAnnotation(List<Annotation> annotations) {
+      for (String type : REST_PATHS) {
+        List<Annotation> path = first(annotations, type);
+        if (path != null) {
+          return path;
+        }
+      }
+      return null;
+    }
+
+    /**
+     * The module whose code declares a type of a class's lineage: the module being read for the
+     * class itself, else the one that declares the supertype.
+     */
+    private JavaAnalysis.Module declaring(TypeDecl type, TypeDecl t) {
+      if (t == type) {
+        return module;
+      }
+      JavaAnalysis.Module declaring = code.module(t.binaryName());
+      return declaring != null ? declaring : module;
     }
 
     /** The type and its supertypes declared in the analyzed sources, nearest first. */
@@ -641,10 +698,24 @@ public final class SpringExtractor {
 
     private void fact(
         EntityId subject, String predicate, String object, ObjectNode attributes, Location where) {
+      fact(subject, predicate, object, attributes, where, module);
+    }
+
+    /**
+     * Records a fact whose evidence is in the code of the given module, such as a mapping on an
+     * interface in another repository.
+     */
+    private void fact(
+        EntityId subject,
+        String predicate,
+        String object,
+        ObjectNode attributes,
+        Location where,
+        JavaAnalysis.Module source) {
       if (subject == null) {
         return;
       }
-      RepoBuild repo = module.repo();
+      RepoBuild repo = source.repo();
       Evidence evidence =
           new Evidence(
               repo.repo().name(),
@@ -660,7 +731,7 @@ public final class SpringExtractor {
               attributes,
               ORIGIN,
               evidence,
-              module.confidence(),
+              source.confidence(),
               validity);
       facts.putIfAbsent(fact.id(), fact);
     }

@@ -45,6 +45,7 @@ public final class JavaAnalysis {
 
   private final List<Module> modules;
   private final Map<String, TypeDecl> types = new HashMap<>();
+  private final Map<String, Module> declaringModules = new HashMap<>();
   private final Map<String, List<Annotation>> classpathAnnotationTypes = new HashMap<>();
 
   JavaAnalysis(List<Module> modules) {
@@ -52,6 +53,7 @@ public final class JavaAnalysis {
     for (Module m : this.modules) {
       for (TypeDecl t : m.structure().types) {
         types.putIfAbsent(t.binaryName(), t);
+        declaringModules.putIfAbsent(t.binaryName(), m);
       }
       m.structure().annotationTypes.forEach(classpathAnnotationTypes::putIfAbsent);
     }
@@ -70,6 +72,17 @@ public final class JavaAnalysis {
    */
   public TypeDecl type(String binaryName) {
     return types.get(binaryName);
+  }
+
+  /**
+   * The module that declares the type {@link #type} returns, which may be in another repository
+   * than code that uses it.
+   *
+   * @param binaryName the type's binary name
+   * @return the module, or null if no module declares the type
+   */
+  public Module module(String binaryName) {
+    return declaringModules.get(binaryName);
   }
 
   /**

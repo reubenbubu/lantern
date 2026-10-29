@@ -29,7 +29,8 @@ code, what its facts look like and how it handles inherited mappings, libraries 
   sources, from the classpath as javac read it, or from a small list of well-known annotations
   (Spring stereotypes, Boot, request mappings, scheduling, Jakarta and javax REST) shipped with
   Lantern for code that was only parsed. The parser also uses that list to name an annotation
-  imported by a wildcard import when no jar resolves it. A test checks that the javac and parser
+  imported by a wildcard import when no jar resolves it, and names a constant of an enum those
+  annotations take (`RequestMethod.PUT`, `TimeUnit.SECONDS`) when no jar resolves it. A test checks that the javac and parser
   paths give the same Spring facts for the same code, and project-0 is checked both ways.
 - **Facts**, all attributes with a string object, confidence that of the module's reading (1.0
   compiled, 0.7 parsed), evidence the annotation's lines:
@@ -45,12 +46,17 @@ code, what its facts look like and how it handles inherited mappings, libraries 
     listeners, #129) and #96 finds every kind through the parent: `endpoint` and `scheduled`.
   - `endpoint` on a handler method: `GET /api/orders/{id}`, or the path alone when the mapping
     takes any HTTP method, with `httpMethod`, `path`, `controller` (the controller's binary name),
-    `annotation` and `framework` (`spring-mvc` or `jakarta-rest`). Paths join the class and method
+    `annotation` and `framework` (`spring-mvc` or `jakarta-rest`). A mapping carried by a custom
+    annotation (`@ApiController` meta-annotated with `@RequestMapping("/api")`) takes its path from
+    the nearest annotation along the chain that sets one; one written directly wins over one
+    carried. Paths join the class and method
     mappings with one slash between, one fact per path and HTTP method. Spring controllers and
     Jakarta resources inherit mappings from the supertypes in the analyzed sources (an interface
     an OpenAPI generator wrote, an abstract base controller): the subject is the nearest
     declaration of the method, so an inherited method that is not overridden is the base type's
-    method, and `controller` says which controller serves it. Jakarta sub-resource locators
+    method, and `controller` says which controller serves it. Evidence is where the mapping is
+    written, in the repository and module that declare it, which may be another repository (an
+    API library). A class whose Jakarta `@Path` is on a supertype is a resource too. Jakarta sub-resource locators
     (`@Path` without an HTTP method) and `@ApplicationPath` prefixes are left out.
   - `scheduled` on a method: the cron expression, delay or rate, with `trigger` (`cron`,
     `fixed-delay`, `fixed-rate`) and `timeUnit` when written.
