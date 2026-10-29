@@ -93,5 +93,6 @@ snapshots would pick it up (ADR 0005, 0019).
   `EndToEndIT` now has the carried-forward library's build given to the service's, which builds,
   and checks the service is built again once the library moves to a new commit. `BuildOrderTest` and
   `UpstreamRepositoryTest` check the order, cycles and the written repository.
-- project-0 still keeps its thin service and library in one repository; splitting them is a change
-  to its source repository, outside this one (ADR 0029), described on #118.
+- project-0 splits its thin service and library into two repositories (#155): `Project0BuildIT`
+  builds `catalog` with `catalog-lib`'s build, and the project-0 extractor and linker tests build
+  the set in dependency order (ADR 0029, case `BUILD-1`).
