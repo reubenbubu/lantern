@@ -1,0 +1,3 @@
+# project-2: Event Management Platform (docs/adr/0029, #251). One "<name> <clone URL> <full commit hash>"
+# line per repository. The reference in reference/ describes exactly these commits; moving a pin means redoing it.
+Event-Management-platform https://github.com/Abdelrahman2411200/Event-Management-platform.git 462516947458d4a161dfa0aef482865d9940e241

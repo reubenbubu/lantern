@@ -1,0 +1,4 @@
+# project-7: piggymetrics. HELD-OUT (see "Held-out sets" in docs/design.md, and CLAUDE.md): pinned only. Nobody reads its code or
+# analyzes it before Phase 2 acceptance (2D), where its reference is written. One "<name> <clone URL> <full commit hash>" line per repository.
+# Pinned (#251) to the default branch's HEAD on 2026-10-29, read with git ls-remote alone.
+piggymetrics https://github.com/sqshq/piggymetrics.git 6bb2cf9ddbca980b664d3edbb6ff775d75369278

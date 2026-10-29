@@ -1,0 +1,2631 @@
+{
+  "document": {
+    "id": "project-3",
+    "title": "MediaHub Architecture",
+    "subtitle": "C4 views of the MediaHub system for **architects and new engineers**: context, containers, components and seven runtime flows. Written by hand from the nine repositories at their current commits; no Lantern output.",
+    "version": "1.0.0",
+    "status": "Draft",
+    "updated": "2026-10-29",
+    "revisions": [
+      {
+        "version": "1.0.0",
+        "date": "2026-10-29",
+        "author": "Hand-written from the code",
+        "summary": "First version, from mediahub-api-gateway `3ad3447`, mediahub-config-repo `a57c8a6`, mediahub-config-server `7def2da`, mediahub-discovery-server `4363aa9`, mediahub-frontend-ui `acefeda`, mediahub-infra `aef86fb`, mediahub-media-service `fab6a4c`, mediahub-subscription-service `8a16d85` and mediahub-user-service `c5698fa`.",
+        "status": "Draft"
+      }
+    ]
+  },
+  "elements": {
+    "viewer": {
+      "kind": "person",
+      "name": "Viewer",
+      "description": "Uses the web app to browse and search the media catalogue, see their watch history and choose a subscription plan. The app expects them to sign in, but no sign-in exists in the backend.",
+      "properties": {
+        "access": "Role USER in user-service; nothing checks it"
+      }
+    },
+    "operator": {
+      "kind": "person",
+      "name": "Operator (API client)",
+      "description": "Manages users, the media catalogue and subscriptions by calling the gateway API directly, as the Makefile test and the Insomnia collection do; also reads the gateway actuator and Eureka. No admin screen exists.",
+      "properties": {
+        "access": "Role ADMIN exists in user-service; nothing checks it, so any caller can do this"
+      }
+    },
+    "mediahub": {
+      "kind": "system",
+      "name": "MediaHub",
+      "description": "A streaming-platform back office: user accounts with watch history, a catalogue of movies and series, and subscription plans that say whether a user may view premium media."
+    },
+    "picsum": {
+      "kind": "external",
+      "name": "Lorem Picsum",
+      "description": "Public placeholder-image service (picsum.photos). The browser loads every thumbnail from it, because the backend stores no image URLs."
+    },
+    "frontend": {
+      "kind": "container",
+      "parent": "mediahub",
+      "name": "mediahub-ui",
+      "tag": "Single-Page App",
+      "technology": "Angular 21.2 · Bootstrap 5.3",
+      "description": "Browser UI: home, sign-in and registration, catalogue and media detail, dashboard, watch history and subscription plans. Run only with ng serve, which proxies /api to the gateway on localhost:8080.",
+      "properties": {
+        "repo": "mediahub-frontend-ui",
+        "commit": "acefeda",
+        "stack": "Angular ^21.2 standalone components, RxJS 7.8, Bootstrap 5.3, bootstrap-icons, TypeScript 5.9, Vitest",
+        "port": "4200 (ng serve only; not containerized)"
+      }
+    },
+    "gateway": {
+      "kind": "container",
+      "parent": "mediahub",
+      "name": "api-gateway",
+      "tag": "API Gateway",
+      "technology": "Spring Cloud Gateway · Boot 3.4.3 / Java 17",
+      "description": "The single published entry point: routes /api/v1/users, /api/v1/media and /api/v1/subscriptions to the services by Eureka name, and also routes /{SERVICE-ID}/** to every registered service. No authentication or filters.",
+      "properties": {
+        "repo": "mediahub-api-gateway",
+        "commit": "3ad3447",
+        "stack": "Spring Cloud 2024.0.0: gateway (WebFlux), config client, bootstrap, Eureka client, LoadBalancer, actuator",
+        "port": "8080 (published)"
+      }
+    },
+    "discovery": {
+      "kind": "container",
+      "parent": "mediahub",
+      "name": "discovery-server",
+      "tag": "Infrastructure",
+      "technology": "Eureka server · Spring Boot 4.0.3 / Java 17",
+      "description": "Service registry: every service and the config server register here with a 5 s lease renewal; the gateway and the services resolve lb:// names through it. A single instance with no peers.",
+      "properties": {
+        "repo": "mediahub-discovery-server",
+        "commit": "4363aa9",
+        "stack": "Spring Cloud 2025.1.0 spring-cloud-starter-netflix-eureka-server, actuator, Prometheus registry",
+        "port": "8761 (published)"
+      }
+    },
+    "config": {
+      "kind": "container",
+      "parent": "mediahub",
+      "name": "config-server",
+      "tag": "Infrastructure",
+      "technology": "Spring Cloud Config Server · Spring Boot 4.0.3 / Java 17",
+      "description": "Serves each service its configuration (port, datasource, Eureka, actuator, gateway routes) from the config repository at start-up. Unauthenticated; registers in Eureka.",
+      "properties": {
+        "repo": "mediahub-config-server",
+        "commit": "7def2da",
+        "stack": "Spring Cloud 2025.1.0 spring-cloud-config-server, Eureka client, actuator",
+        "port": "8888 (published)"
+      }
+    },
+    "user": {
+      "kind": "container",
+      "parent": "mediahub",
+      "name": "user-service",
+      "tag": "Service",
+      "technology": "Spring MVC · Spring Boot 4.0.3 / Java 17",
+      "description": "Owns user accounts (names, unique email, BCrypt password, role USER or ADMIN) and the watch history; checks a media item exists before recording a watch.",
+      "properties": {
+        "repo": "mediahub-user-service",
+        "commit": "c5698fa",
+        "stack": "Spring Cloud 2025.1.0: Spring Data JPA, validation, OpenFeign, config client, bootstrap, Eureka client, spring-security-crypto, Lombok",
+        "port": "8081"
+      }
+    },
+    "media": {
+      "kind": "container",
+      "parent": "mediahub",
+      "name": "media-service",
+      "tag": "Service",
+      "technology": "Spring MVC · Spring Boot 4.0.3 / Java 17",
+      "description": "Owns the media catalogue: titles with description, release year, duration, genre, category and rating; create, update, delete, paged listing and search by title or genre.",
+      "properties": {
+        "repo": "mediahub-media-service",
+        "commit": "fab6a4c",
+        "stack": "Spring Cloud 2025.1.0: Spring Data JPA, validation, config client, bootstrap, Eureka client, OpenFeign (unused), Lombok",
+        "port": "8082"
+      }
+    },
+    "subscription": {
+      "kind": "container",
+      "parent": "mediahub",
+      "name": "subscription-service",
+      "tag": "Service",
+      "technology": "Spring MVC · Spring Boot 4.0.3 / Java 17",
+      "description": "Owns subscriptions (plan BASIC, PREMIUM or PRO, price, dates, status) and answers whether a user has an active one; checks the user exists in user-service and can relay media details from media-service.",
+      "properties": {
+        "repo": "mediahub-subscription-service",
+        "commit": "8a16d85",
+        "stack": "Spring Cloud 2025.1.0: Spring Data JPA, validation, OpenFeign, WebFlux WebClient (load-balanced), config client, bootstrap, Eureka client, Lombok",
+        "port": "8083"
+      }
+    },
+    "user-db": {
+      "kind": "database",
+      "parent": "mediahub",
+      "name": "mediahub_user",
+      "technology": "PostgreSQL 15",
+      "description": "Tables app_users (BCrypt password hashes, roles) and watch_history (user id, media id, time). Schema by Hibernate ddl-auto=update.",
+      "properties": {
+        "owner": "user-service",
+        "container": "user-db (host port 54331)"
+      }
+    },
+    "media-db": {
+      "kind": "database",
+      "parent": "mediahub",
+      "name": "mediahub_media",
+      "technology": "PostgreSQL 15",
+      "description": "Table medias: catalogue metadata only, no video files or image URLs. Schema by Hibernate ddl-auto=update.",
+      "properties": {
+        "owner": "media-service",
+        "container": "media-db (host port 54341)"
+      }
+    },
+    "subscription-db": {
+      "kind": "database",
+      "parent": "mediahub",
+      "name": "mediahub_subscription",
+      "technology": "PostgreSQL 15",
+      "description": "Table subscriptions keyed by UUID, with the user id by value, plan, status, price and dates. Schema by Hibernate ddl-auto=update.",
+      "properties": {
+        "owner": "subscription-service",
+        "container": "subscription-db (host port 54351)"
+      }
+    },
+    "config-repo": {
+      "kind": "database",
+      "parent": "mediahub",
+      "name": "mediahub-config-repo",
+      "technology": "Git repository · YAML files",
+      "description": "application.yml shared by all clients, plus api-gateway.yml, user-service.yml, media-service.yml and subscription-service.yml. Compose mounts a local checkout (native profile); by default the config server clones it from GitHub (A-007481D/mediahub-config-repo) with a personal access token.",
+      "properties": {
+        "repo": "mediahub-config-repo",
+        "commit": "a57c8a6",
+        "owner": "config-server (reader)"
+      }
+    },
+    "fe-auth": {
+      "kind": "component",
+      "parent": "frontend",
+      "name": "Sign-in and registration",
+      "technology": "Angular pages · AuthService",
+      "description": "Login and register forms that post to /api/v1/auth/login and /register and keep the returned token and user in localStorage; neither endpoint exists, so both always fail.",
+      "properties": {
+        "classes": "LoginComponent, RegisterComponent, AuthService"
+      }
+    },
+    "fe-guard": {
+      "kind": "component",
+      "parent": "frontend",
+      "name": "Route guard and token interceptor",
+      "technology": "Angular CanActivateFn · HttpInterceptorFn",
+      "description": "Lets a page open only if a token is in localStorage, and adds it as a Bearer header to every API call; no backend reads the header.",
+      "properties": {
+        "classes": "authGuard, jwtInterceptor"
+      }
+    },
+    "fe-catalog": {
+      "kind": "component",
+      "parent": "frontend",
+      "name": "Catalogue pages",
+      "technology": "Angular pages · MediaService",
+      "description": "Lists, searches and shows media through /api/v1/media; expects an array and image URLs that the backend does not return, and asks for a non-existent /recommended list.",
+      "properties": {
+        "classes": "CatalogComponent, MediaDetailComponent, MediaService"
+      }
+    },
+    "fe-account": {
+      "kind": "component",
+      "parent": "frontend",
+      "name": "Account pages",
+      "technology": "Angular pages · SubscriptionService, UserService",
+      "description": "Dashboard, history and plans. They call /subscriptions/my, /subscriptions/history and /users/stats, which the services read as ids and answer with 500; the plan cards are hard-coded and the Subscribe button only logs.",
+      "properties": {
+        "classes": "DashboardComponent, HistoryComponent, SubscriptionComponent, SubscriptionService, UserService"
+      }
+    },
+    "fe-home": {
+      "kind": "component",
+      "parent": "frontend",
+      "name": "Home page",
+      "technology": "Angular page · UserService",
+      "description": "Landing page that shows the backend as online when GET /api/v1/users, the full user list, succeeds.",
+      "properties": {
+        "classes": "HomeComponent"
+      }
+    },
+    "gw-routes": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Route table",
+      "technology": "Spring Cloud Gateway routes in YAML",
+      "description": "Three path routes, /api/v1/users/**, /api/v1/media/** and /api/v1/subscriptions/**, to lb://USER-SERVICE, MEDIA-SERVICE and SUBSCRIPTION-SERVICE, with no filters; defined both in the gateway and in the config repository.",
+      "properties": {
+        "classes": "application.yaml, config-repo api-gateway.yml"
+      }
+    },
+    "gw-locator": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Discovery locator",
+      "technology": "Spring Cloud Gateway DiscoveryClientRouteDefinitionLocator",
+      "description": "Adds a route /{SERVICE-ID}/** for every service registered in Eureka, upper-case ids kept; the only gateway path to user-service's /api/history, and it also exposes the config server.",
+      "properties": {
+        "classes": "spring.cloud.gateway.discovery.locator"
+      }
+    },
+    "gw-lb": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Load balancer and registry client",
+      "technology": "Spring Cloud LoadBalancer · Eureka client",
+      "description": "Resolves lb:// names to instances from a local copy of the Eureka registry, refreshed every 5 s.",
+      "properties": {
+        "classes": "spring-cloud-starter-loadbalancer, spring-cloud-starter-netflix-eureka-client"
+      }
+    },
+    "gw-actuator": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Actuator endpoints",
+      "technology": "Spring Boot Actuator · gateway endpoint",
+      "description": "Exposes health, info and the gateway endpoint (route list, and by framework default route changes) on the public port; the gateway's own file exposes every actuator endpoint.",
+      "properties": {
+        "classes": "management.endpoint.gateway, management.endpoints.web.exposure"
+      }
+    },
+    "us-user-api": {
+      "kind": "component",
+      "parent": "user",
+      "name": "User API",
+      "technology": "Spring MVC controller · /api/v1/users",
+      "description": "Creates, lists, reads, updates and deletes users, changes a role and lists users by role; the role is taken from the request body.",
+      "properties": {
+        "classes": "UserController"
+      }
+    },
+    "us-user-logic": {
+      "kind": "component",
+      "parent": "user",
+      "name": "User service",
+      "technology": "Spring service · BCryptPasswordEncoder",
+      "description": "Rejects a duplicate email with 409, hashes passwords with BCrypt and maps users to responses without the hash.",
+      "properties": {
+        "classes": "UserServiceImpl, SecurityConfig"
+      }
+    },
+    "us-history-api": {
+      "kind": "component",
+      "parent": "user",
+      "name": "Watch history API",
+      "technology": "Spring MVC controller · /api/history",
+      "description": "Records that a user watched a media item and lists a user's history, newest first; returns entities without the ApiResponse envelope.",
+      "properties": {
+        "classes": "WatchHistoryController"
+      }
+    },
+    "us-history-logic": {
+      "kind": "component",
+      "parent": "user",
+      "name": "Watch history service",
+      "technology": "Spring service",
+      "description": "Checks the media item through media-service before saving a watch; any failure becomes a RuntimeException and a 500.",
+      "properties": {
+        "classes": "WatchHistoryServiceImpl"
+      }
+    },
+    "us-media-client": {
+      "kind": "component",
+      "parent": "user",
+      "name": "Media client",
+      "technology": "OpenFeign · Eureka name media-service",
+      "description": "Calls GET /api/media/{id}, a path media-service does not serve (it serves /api/v1/media/{id}), so every call fails: media-service's catch-all exception handler answers the unmatched path with 500.",
+      "properties": {
+        "classes": "MediaServiceClient"
+      }
+    },
+    "us-repos": {
+      "kind": "component",
+      "parent": "user",
+      "name": "Repositories",
+      "technology": "Spring Data JPA",
+      "description": "Read and write app_users and watch_history.",
+      "properties": {
+        "classes": "UserRepository, WatchHistoryRepository"
+      }
+    },
+    "ms-api": {
+      "kind": "component",
+      "parent": "media",
+      "name": "Media API",
+      "technology": "Spring MVC controller · /api/v1/media",
+      "description": "Create, read, update and delete media, a paged list (10 per page, newest first) and search by title and genre; messages in French.",
+      "properties": {
+        "classes": "MediaController"
+      }
+    },
+    "ms-logic": {
+      "kind": "component",
+      "parent": "media",
+      "name": "Media service",
+      "technology": "Spring service · @Transactional",
+      "description": "Rejects duplicate titles (case-insensitive) with 409, maps requests to entities and picks the search query.",
+      "properties": {
+        "classes": "MediaServiceImpl, MediaMapper"
+      }
+    },
+    "ms-repo": {
+      "kind": "component",
+      "parent": "media",
+      "name": "Media repository",
+      "technology": "Spring Data JPA",
+      "description": "Reads and writes medias, with derived title, genre and category queries.",
+      "properties": {
+        "classes": "MediaRepository"
+      }
+    },
+    "ss-api": {
+      "kind": "component",
+      "parent": "subscription",
+      "name": "Subscription API",
+      "technology": "Spring MVC controller · /api/v1/subscriptions",
+      "description": "Create, read, list per user and cancel subscriptions, answer whether a user has an active one, and relay media details.",
+      "properties": {
+        "classes": "SubscriptionController"
+      }
+    },
+    "ss-logic": {
+      "kind": "component",
+      "parent": "subscription",
+      "name": "Subscription service",
+      "technology": "Spring service",
+      "description": "Checks the user exists, then stores the plan, price and dates as sent with status ACTIVE; the active check looks only at status, not at the end date.",
+      "properties": {
+        "classes": "SubscriptionServiceImpl, SubscriptionMapper"
+      }
+    },
+    "ss-user-client": {
+      "kind": "component",
+      "parent": "subscription",
+      "name": "User client",
+      "technology": "OpenFeign · Eureka name user-service",
+      "description": "GET /api/v1/users/{id}; any error, including user-service being down, is reported as \"User not found\".",
+      "properties": {
+        "classes": "UserClient"
+      }
+    },
+    "ss-webclient": {
+      "kind": "component",
+      "parent": "subscription",
+      "name": "Media WebClient",
+      "technology": "Spring WebFlux WebClient · @LoadBalanced",
+      "description": "GET http://media-service/api/v1/media/{id}, blocking, for the media-info endpoint.",
+      "properties": {
+        "classes": "WebClientConfig"
+      }
+    },
+    "ss-media-client": {
+      "kind": "component",
+      "parent": "subscription",
+      "name": "Unused media client",
+      "technology": "OpenFeign · Eureka name media-service",
+      "description": "Declares GET /api/v1/media/{id} but nothing calls it.",
+      "properties": {
+        "classes": "MediaClient"
+      }
+    },
+    "ss-repo": {
+      "kind": "component",
+      "parent": "subscription",
+      "name": "Subscription repository",
+      "technology": "Spring Data JPA",
+      "description": "Reads and writes subscriptions by id, by user, and by user and status.",
+      "properties": {
+        "classes": "SubscriptionRepository"
+      }
+    }
+  },
+  "pages": [
+    {
+      "id": "ctx-mediahub",
+      "level": "context",
+      "title": "MediaHub",
+      "element": "mediahub",
+      "summary": "MediaHub is a small Spring Cloud microservice system for a streaming platform: users with watch history, a media catalogue and subscription plans, behind one gateway with central configuration and a service registry. The most important fact for anyone changing it: **nothing authenticates or authorizes any call**, and the gateway publishes every registered service, the config server included.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "This document is for **architects and new engineers**. It was written by hand from the code of the nine MediaHub repositories at the commits listed under Sources (dates up to 2026-03-24), on 2026-10-29. Lantern produced none of it.\n\nThe repositories hold no architecture decision records, owners or quality goals; the service READMEs are task briefs (\"You need to implement…\") and several of their endpoints were built differently or not at all. Where this document needs something the code does not show, it says *unknown*. People and external systems below are only those the code shows."
+        },
+        {
+          "type": "stats",
+          "id": "key-facts",
+          "items": [
+            {
+              "label": "Runtime units",
+              "value": "7",
+              "note": "1 web app, 1 gateway, config and registry servers, 3 services"
+            },
+            {
+              "label": "Data stores",
+              "value": "3 + 1",
+              "note": "One PostgreSQL database per service, plus the config repository"
+            },
+            {
+              "label": "External systems",
+              "value": "1",
+              "note": "Lorem Picsum for placeholder images"
+            },
+            {
+              "label": "Authentication",
+              "value": "None",
+              "note": "No component checks who is calling"
+            }
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "System Context Diagram",
+          "caption": "System Context diagram for MediaHub",
+          "focus": "mediahub",
+          "relationships": [
+            {
+              "from": "viewer",
+              "to": "mediahub",
+              "label": "Browses the catalogue, history and plans in"
+            },
+            {
+              "from": "operator",
+              "to": "mediahub",
+              "label": "Manages users, media and subscriptions through the API of"
+            },
+            {
+              "from": "mediahub",
+              "to": "picsum",
+              "label": "Has the browser load placeholder thumbnails from"
+            }
+          ],
+          "layout": {
+            "rules": [
+              {
+                "a": "viewer",
+                "rel": "leftOf",
+                "b": "mediahub",
+                "strict": false
+              },
+              {
+                "a": "operator",
+                "rel": "above",
+                "b": "mediahub",
+                "strict": false
+              },
+              {
+                "a": "picsum",
+                "rel": "rightOf",
+                "b": "mediahub",
+                "strict": false
+              }
+            ]
+          }
+        },
+        {
+          "type": "elements",
+          "id": "people",
+          "eyebrow": "Catalogue",
+          "title": "People",
+          "select": {
+            "kind": "person"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Person"
+            },
+            {
+              "key": "description",
+              "label": "Does"
+            },
+            {
+              "key": "properties.access",
+              "label": "Access"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "external",
+          "eyebrow": "Catalogue",
+          "title": "External Systems",
+          "select": {
+            "kind": "external"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "System"
+            },
+            {
+              "key": "description",
+              "label": "Provides"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "left-out",
+          "tone": "info",
+          "body": "Left out on purpose: GitHub hosts the config repository (modelled as a data store, since the config server only reads it) and GitHub Actions tries to push three services' images to GHCR, which no deployment uses (its publish job builds no jar first, so the image build would fail as read). Prometheus and Grafana have configuration files but are not in compose. No payment provider, email service or video storage exists anywhere in the code."
+        },
+        {
+          "type": "table",
+          "id": "sources",
+          "eyebrow": "Provenance",
+          "title": "Sources",
+          "columns": [
+            "Repository",
+            "Commit",
+            "Commit date",
+            "Runtime unit"
+          ],
+          "rows": [
+            [
+              "mediahub-frontend-ui",
+              "`acefeda`",
+              "2026-03-24",
+              "mediahub-ui (dev server only)"
+            ],
+            [
+              "mediahub-api-gateway",
+              "`3ad3447`",
+              "2026-03-15",
+              "api-gateway"
+            ],
+            [
+              "mediahub-discovery-server",
+              "`4363aa9`",
+              "2026-03-15",
+              "discovery-server"
+            ],
+            [
+              "mediahub-config-server",
+              "`7def2da`",
+              "2026-03-15",
+              "config-server"
+            ],
+            [
+              "mediahub-config-repo",
+              "`a57c8a6`",
+              "2026-03-15",
+              "none: the YAML files the config server serves"
+            ],
+            [
+              "mediahub-user-service",
+              "`c5698fa`",
+              "2026-03-15",
+              "user-service"
+            ],
+            [
+              "mediahub-media-service",
+              "`fab6a4c`",
+              "2026-03-15",
+              "media-service"
+            ],
+            [
+              "mediahub-subscription-service",
+              "`8a16d85`",
+              "2026-03-15",
+              "subscription-service"
+            ],
+            [
+              "mediahub-infra",
+              "`aef86fb`",
+              "2026-03-15",
+              "none: Docker Compose, Makefile, Insomnia collection, unused Prometheus and Grafana files"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "id": "glossary",
+          "eyebrow": "Reference",
+          "title": "Glossary",
+          "columns": [
+            "Term",
+            "Meaning here"
+          ],
+          "rows": [
+            [
+              "ApiResponse",
+              "The JSON envelope every service wraps its answers in: success, message, data, timestamp."
+            ],
+            [
+              "BCrypt",
+              "A slow, salted password-hashing function; user-service stores only the hash."
+            ],
+            [
+              "Config Server, native and git profiles",
+              "Spring Cloud Config Server hands each service its settings at start-up. In the native profile it reads a folder (compose mounts the config repository); in the git profile, its default, it clones the repository from GitHub."
+            ],
+            [
+              "Discovery locator",
+              "A Spring Cloud Gateway option that creates a route /{SERVICE-ID}/** for every service in the registry."
+            ],
+            [
+              "Eureka",
+              "Netflix's service registry: services register their address and renew a lease; clients look addresses up by name."
+            ],
+            [
+              "Feign",
+              "OpenFeign, the declarative HTTP client the services use to call each other."
+            ],
+            [
+              "GHCR",
+              "GitHub Container Registry, where three services' CI tries to push images."
+            ],
+            [
+              "JPA, ddl-auto=update",
+              "Java Persistence API; Hibernate alters the tables to match the entities at start-up, instead of versioned migrations."
+            ],
+            [
+              "lb://",
+              "A load-balanced service name that Spring Cloud resolves to an instance through the registry."
+            ],
+            [
+              "SPA",
+              "Single-page application: the Angular app that runs in the browser."
+            ],
+            [
+              "WebClient",
+              "Spring's reactive HTTP client; subscription-service uses it in blocking mode."
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "no-adrs",
+          "tone": "warning",
+          "title": "No recorded decisions",
+          "body": "None of the nine repositories has architecture decision records or design documents. The decisions below are observed in code and configuration; their rationale is *not recorded* unless a README states it."
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Observed",
+          "title": "Observed decisions",
+          "items": [
+            {
+              "title": "Spring Cloud microservices: gateway, Eureka and Config Server",
+              "status": "Observed",
+              "body": "One Spring Cloud Gateway, one Eureka registry and one Config Server in front of three domain services, each in its own repository. Rationale: not recorded."
+            },
+            {
+              "title": "Configuration in a separate Git repository",
+              "status": "Observed",
+              "body": "Per-service YAML files plus a shared application.yml in mediahub-config-repo, cloned from GitHub by default and mounted as a folder in compose. Services fail fast if the config server is missing. Rationale: not recorded; the READMEs only say credentials \"are injected via the Config Server\" (`mediahub-media-service/README.md:9`)."
+            },
+            {
+              "title": "One PostgreSQL database per service",
+              "status": "Observed",
+              "body": "mediahub_user, mediahub_media and mediahub_subscription, each in its own PostgreSQL 15 container and written only by its service. Rationale: not recorded."
+            },
+            {
+              "title": "Other services' data referenced by id only",
+              "status": "Observed",
+              "body": "subscriptions.user_id and watch_history.media_id hold plain ids checked over HTTP at write time. Rationale recorded: a subscription \"should not duplicate the User entity, only reference userId\" (`mediahub-subscription-service/README.md:29`)."
+            },
+            {
+              "title": "Synchronous HTTP between services, no messaging",
+              "status": "Observed",
+              "body": "OpenFeign clients and one load-balanced WebClient, resolved through Eureka; no broker or events. Rationale: not recorded."
+            },
+            {
+              "title": "Routing by path prefix plus discovery locator",
+              "status": "Observed",
+              "body": "/api/v1/users, /media and /subscriptions map to one service each; the discovery locator additionally routes /{SERVICE-ID}/** to every registered service. Rationale: not recorded."
+            },
+            {
+              "title": "Uniform response envelope and exception mapping",
+              "status": "Observed",
+              "body": "Every service wraps answers in ApiResponse and maps its exceptions in a @RestControllerAdvice. Rationale recorded as a rule: \"ALL endpoints MUST return responses wrapped in the ApiResponse<T> class\" (`mediahub-user-service/README.md:7-8`)."
+            },
+            {
+              "title": "Passwords hashed with BCrypt",
+              "status": "Observed",
+              "body": "user-service hashes on create and update with spring-security-crypto, without Spring Security itself. Rationale: not recorded."
+            },
+            {
+              "title": "Schema by Hibernate ddl-auto=update",
+              "status": "Observed",
+              "body": "No migrations in any service. Rationale: not recorded."
+            },
+            {
+              "title": "Docker Compose as the only deployment",
+              "status": "Observed",
+              "body": "mediahub-infra builds every backend image from pre-built jars and runs it with three databases; three services' CI also tries to push images to GHCR, unused by compose. Rationale: not recorded."
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "risks",
+          "eyebrow": "Findings",
+          "title": "Risks and findings",
+          "columns": [
+            "Impact",
+            "Finding",
+            "Consequence",
+            "Evidence"
+          ],
+          "rows": [
+            [
+              "**High**",
+              "No authentication or authorization anywhere: the gateway has no security or filters, the services have no Spring Security, and the role is taken from the request body.",
+              "Anyone who reaches port 8080 can create an ADMIN user, change roles, list every user's email, delete users or media and cancel any subscription.",
+              "gateway `pom.xml:21-50`, `application.yaml:12-24`; `UserController.java:24-67`; `UserRequestDto.java:36-37`; `UserServiceImpl.java:34-40`"
+            ],
+            [
+              "**High**",
+              "The gateway's discovery locator routes /{SERVICE-ID}/** to every registered service, including config-server, and the gateway actuator (with the gateway endpoint) is exposed on the public port.",
+              "Through port 8080 a caller can read every service's configuration, including database users and default passwords, and see and probably change the gateway's routes (framework default; not run). The config server is also published directly on port 8888.",
+              "gateway `application.yaml:8-11,35-39`; config-repo `api-gateway.yml:4-7,22-29`; `ConfigServerApplication.java:10`; config-server `application.yaml` (no security); `docker-compose.yml:18-19`"
+            ],
+            [
+              "**High**",
+              "The web app does not match the backend: it signs in and registers at /api/v1/auth/**, which has no route or controller, and calls /subscriptions/my, /subscriptions/history, /users/stats and /media/recommended, which the services parse as ids and answer with 500. The catalogue expects an array where media-service returns a page.",
+              "Nobody can sign in, so every guarded page is unreachable; even with a token, the dashboard, history and the media detail's recommendations fail and the catalogue list is empty or broken.",
+              "`auth.service.ts:23,35-53`; `subscription.ts:14-28`; `user.ts:17-27`; `media.ts:14-28`; `catalog.ts:161-166`; `MediaController.java:45-59`"
+            ],
+            [
+              "Medium",
+              "user-service's Feign client asks media-service for /api/media/{id}; media-service serves /api/v1/media/{id}.",
+              "Recording a watch always fails with 500 and nothing is saved, so watch history stays empty.",
+              "`MediaServiceClient.java:10`; `MediaController.java:21,45`; `WatchHistoryServiceImpl.java:22-29`"
+            ],
+            [
+              "Medium",
+              "The active-subscription check looks only at status: end dates are never compared and nothing sets EXPIRED; creation does not stop a second ACTIVE subscription, after which the Optional query throws.",
+              "Expired subscriptions count as active forever, and a user with two active subscriptions gets 500 from the check that decides access to premium media.",
+              "`SubscriptionServiceImpl.java:26-46,79-84`; `SubscriptionRepository.java:15`; `SubscriptionStatus.java:3-8`"
+            ],
+            [
+              "Medium",
+              "Subscriptions take plan, price and dates from the caller with no payment step, and any failure calling user-service (including it being down) is reported as 404 \"User not found\".",
+              "Prices are whatever the client sends; an outage looks like a bad request.",
+              "`CreateSubscriptionRequest.java:16-29`; `SubscriptionServiceImpl.java:28-41`"
+            ],
+            [
+              "Medium",
+              "Access to premium media is not enforced: no service calls the active-subscription check, and the catalogue is open to everyone.",
+              "Subscriptions have no effect on what a user can see.",
+              "`SubscriptionController.java:49-54`; media-service has no client; `MediaController.java:20-77`"
+            ],
+            [
+              "Medium",
+              "No cross-service consistency: deleting a user leaves their subscriptions and watch history; deleting media leaves watch rows; there are no events.",
+              "Orphaned rows that point at users or media that no longer exist.",
+              "`UserServiceImpl.java:78-85`; `MediaServiceImpl.java:70-77`; `Subscription.java:23-24`; `WatchHistory.java:20-24`"
+            ],
+            [
+              "Medium",
+              "Single instances and a start-up chain: one Eureka with no peers, one config server that every service needs at start (fail-fast, 5 retries), one gateway.",
+              "If the config server is down no service can start or restart; if the gateway is down the system is unreachable.",
+              "discovery-server `application.yaml:8-15`; user `bootstrap.yaml:4-9`; media and subscription `application.yaml:4-9`; `docker-compose.yml:44-48,112-118`"
+            ],
+            [
+              "Medium",
+              "Credentials: PostgreSQL user postgres with password \"password\" in compose and as config defaults, database ports published on the host; the config server's default git profile needs a GitHub personal access token; encrypt.key is set but no value is encrypted.",
+              "Anyone on the host network can open the databases with the default password; the token must be handled as a secret.",
+              "`docker-compose.yml:55-60,72-77,89-94`; config-repo `user-service.yml:7-8`; config-server `application.yaml:10-22`; `.env.example:1-3`"
+            ],
+            [
+              "Low",
+              "The compose file cannot run as committed: its build contexts (./api-gateway, ./user-service, …) are not in mediahub-infra, the images need jars built beforehand, and the web app is not in it at all. The CI publish job has the same gap: it builds the image without building the jar.",
+              "Starting the system needs undocumented manual steps; the web app runs only under ng serve; the GHCR images are probably never produced.",
+              "`docker-compose.yml:3,16,24,36,104,123,142`; `Makefile:7,27-35`; `proxy.conf.json:1-7`; `ci-cd.yml:42-74`; `Dockerfile:3`"
+            ],
+            [
+              "Low",
+              "Framework versions differ: the gateway is on Boot 3.4.3 and Spring Cloud 2024.0.0, everything else on Boot 4.0.3 and 2025.1.0.",
+              "Two dependency lines to keep patched and compatible.",
+              "gateway `pom.xml:8,18`; other `pom.xml:8,31`"
+            ],
+            [
+              "Low",
+              "Error handling: user- and subscription-service return the exception message in 500 bodies, and because every service catches Exception, a malformed path id and an unknown path both become 500 instead of 400 or 404.",
+              "Internal details leak to callers; client mistakes look like server faults.",
+              "user `GlobalExceptionHandler.java:46-50`; subscription `GlobalExceptionHandler.java:46-50`; media `GlobalExceptionHandler.java:50-56`"
+            ],
+            [
+              "Low",
+              "Monitoring is configured but not deployed: Prometheus and Grafana are not in compose, the gateway has no Prometheus registry, the registry does not expose /actuator/prometheus, and the three services' ports 8081-8083, which prometheus.yml scrapes on the host, are not published.",
+              "None of the five application targets could be scraped; there is no working metrics collection.",
+              "`prometheus/prometheus.yml:1-32`; gateway `pom.xml:21-50`; discovery-server `application.yaml:1-15`; `docker-compose.yml:103-158` (no ports)"
+            ],
+            [
+              "Low",
+              "Stale or inconsistent docs: READMEs give database ports 5433-5435 and endpoints that do not exist; .env.example gives other ports than compose; the plan names in the web app (ULTRA) differ from the backend (PRO).",
+              "New engineers following them are misled.",
+              "user `README.md:9,45-51`; `.env.example:10-13`; `subscription.ts:100-104`; `Plan.java:3-7`"
+            ],
+            [
+              "Low",
+              "No schema migrations (ddl-auto=update), SQL logging on, gateway logging at TRACE, and run logs committed to the repositories.",
+              "Schema changes cannot be reviewed or rolled back; logs grow and may carry request data.",
+              "config-repo `*-service.yml:10-13`; `api-gateway.yml:31-35`; tracked `app.log`, `config.log`, `eureka.log`"
+            ]
+          ]
+        },
+        {
+          "type": "list",
+          "id": "unknowns",
+          "eyebrow": "Gaps",
+          "title": "Unknowns",
+          "items": [
+            "Owners, quality goals and the rationale of most decisions: not recorded.",
+            "How sign-in is meant to work: the web app expects an /api/v1/auth API with tokens, and no repository has one.",
+            "How the web app is meant to be served outside ng serve: no Dockerfile, web server or production API URL exists.",
+            "Which config backend runs outside compose (the GitHub clone is the default) and where the GitHub token comes from.",
+            "Whether the GHCR images of user-, media- and subscription-service exist (the publish job looks unable to build them) and are deployed anywhere; no descriptor uses them.",
+            "Whether payments are planned: the PENDING_PAYMENT status exists but nothing sets it."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-requests",
+      "level": "containers",
+      "title": "Requests and data",
+      "summary": "How a browser or API call reaches the services through the gateway, which calls the services make to each other, and which database each one owns.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "Every call goes through **api-gateway** on port 8080, which forwards it by Eureka name without looking at it. The three services own one PostgreSQL database each and call each other only over HTTP: subscription-service checks users and relays media details, and user-service checks media before recording a watch (on a wrong path, so it always fails).\n\nThe web app runs only under `ng serve`, whose proxy sends `/api` to the gateway; the operator calls the gateway directly, as the Makefile and the Insomnia collection do."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "mediahub",
+          "caption": "Container diagram for MediaHub: requests and data",
+          "relationships": [
+            {
+              "from": "viewer",
+              "to": "frontend",
+              "label": "Browses the catalogue, history and plans in",
+              "technology": "HTTP, browser"
+            },
+            {
+              "from": "operator",
+              "to": "gateway",
+              "label": "Manages users, media and subscriptions; reads the actuator",
+              "technology": "JSON/HTTP :8080"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "label": "Calls /api/v1/** through the dev-server proxy",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "frontend",
+              "to": "picsum",
+              "label": "Loads placeholder thumbnails from",
+              "technology": "HTTPS, browser"
+            },
+            {
+              "from": "gateway",
+              "to": "user",
+              "label": "Routes /api/v1/users/** and /USER-SERVICE/**",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gateway",
+              "to": "media",
+              "label": "Routes /api/v1/media/**",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gateway",
+              "to": "subscription",
+              "label": "Routes /api/v1/subscriptions/**",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "subscription",
+              "to": "user",
+              "label": "Checks the user exists",
+              "technology": "HTTP/Feign GET /api/v1/users/{id}"
+            },
+            {
+              "from": "subscription",
+              "to": "media",
+              "label": "Fetches media details",
+              "technology": "HTTP/WebClient GET /api/v1/media/{id}"
+            },
+            {
+              "from": "user",
+              "to": "media",
+              "label": "Checks a media item before recording a watch (wrong path: always fails)",
+              "technology": "HTTP/Feign GET /api/media/{id}"
+            },
+            {
+              "from": "user",
+              "to": "user-db",
+              "label": "Stores users and watch history",
+              "technology": "JDBC"
+            },
+            {
+              "from": "media",
+              "to": "media-db",
+              "label": "Stores the catalogue",
+              "technology": "JDBC"
+            },
+            {
+              "from": "subscription",
+              "to": "subscription-db",
+              "label": "Stores subscriptions",
+              "technology": "JDBC"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "platform-note",
+          "tone": "info",
+          "body": "How the services get their configuration and find each other is on the next page, [Configuration and discovery](#/cnt-platform/diagram)."
+        },
+        {
+          "type": "elements",
+          "id": "containers",
+          "eyebrow": "Catalogue",
+          "title": "Container Catalogue",
+          "select": {
+            "ids": [
+              "frontend",
+              "gateway",
+              "discovery",
+              "config",
+              "user",
+              "media",
+              "subscription"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Container"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            "technology",
+            {
+              "key": "properties.stack",
+              "label": "Libraries"
+            },
+            {
+              "key": "properties.port",
+              "label": "Port"
+            },
+            {
+              "key": "properties.repo",
+              "label": "Repository"
+            },
+            {
+              "key": "properties.commit",
+              "label": "Commit",
+              "format": "code"
+            },
+            "zoom"
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "data",
+          "eyebrow": "Persistence",
+          "title": "Data Stores",
+          "select": {
+            "ids": [
+              "user-db",
+              "media-db",
+              "subscription-db",
+              "config-repo"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Store"
+            },
+            {
+              "key": "description",
+              "label": "Holds"
+            },
+            {
+              "key": "technology",
+              "label": "Engine"
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "deployment",
+          "eyebrow": "Runtime",
+          "title": "Deployments",
+          "columns": [
+            "Descriptor",
+            "What runs",
+            "Notes"
+          ],
+          "rows": [
+            [
+              "`mediahub-infra/docker-compose.yml`",
+              "discovery-server, config-server (native profile, config repository mounted at /config), api-gateway, the three services, and three PostgreSQL 15 containers on one bridge network. Published: 8080, 8761, 8888 and the databases on 54331, 54341, 54351.",
+              "Build contexts are folders the repository does not contain; the Dockerfiles copy a `target/app.jar` built by `make build`. No web app, Prometheus or Grafana."
+            ],
+            [
+              "GitHub Actions `ci-cd.yml` (user-, media-, subscription-service)",
+              "`mvn clean verify`, then, on main and develop, a separate job builds the image and pushes it to `ghcr.io/<repository>`.",
+              "That job checks out the code without building it, so the Dockerfile's `COPY target/app.jar` has nothing to copy and the push would fail (as read; not run). No workflow for the gateway, config server, registry or web app; no descriptor pulls the images."
+            ],
+            [
+              "`ng serve` (mediahub-frontend-ui)",
+              "The Angular dev server on port 4200, proxying `/api` to `http://localhost:8080`.",
+              "The only way the web app runs."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-platform",
+      "level": "containers",
+      "title": "Configuration and discovery",
+      "summary": "The start-up view: where each service gets its configuration and how the services find each other.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "At start-up the gateway and the three services fetch `{name}/{profile}` from **config-server**, which reads the shared `application.yml` and the service's own file from **mediahub-config-repo**: a mounted folder in compose, a GitHub clone by default. The shared file points every client at **discovery-server** and sets a 5 s lease renewal and registry fetch, \"for development\" by its commit message. The config server registers in Eureka too, which is how the gateway's discovery locator ends up exposing it."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "mediahub",
+          "caption": "Container diagram for MediaHub: configuration and discovery",
+          "relationships": [
+            {
+              "from": "config",
+              "to": "config-repo",
+              "label": "Reads application.yml and the per-service YAML",
+              "technology": "File mount (native) or HTTPS git clone"
+            },
+            {
+              "from": "gateway",
+              "to": "config",
+              "label": "Fetches its routes and actuator settings at start",
+              "technology": "HTTP GET /api-gateway/default"
+            },
+            {
+              "from": "user",
+              "to": "config",
+              "label": "Fetches port and datasource at start (fail-fast)",
+              "technology": "HTTP GET /user-service/dev"
+            },
+            {
+              "from": "media",
+              "to": "config",
+              "label": "Fetches port and datasource at start (fail-fast)",
+              "technology": "HTTP GET /media-service/dev"
+            },
+            {
+              "from": "subscription",
+              "to": "config",
+              "label": "Fetches port and datasource at start (fail-fast)",
+              "technology": "HTTP GET /subscription-service/dev"
+            },
+            {
+              "from": "config",
+              "to": "discovery",
+              "label": "Registers as CONFIG-SERVER",
+              "technology": "Eureka REST"
+            },
+            {
+              "from": "gateway",
+              "to": "discovery",
+              "label": "Registers and fetches the registry every 5 s",
+              "technology": "Eureka REST"
+            },
+            {
+              "from": "user",
+              "to": "discovery",
+              "label": "Registers; looks up media-service",
+              "technology": "Eureka REST"
+            },
+            {
+              "from": "media",
+              "to": "discovery",
+              "label": "Registers",
+              "technology": "Eureka REST"
+            },
+            {
+              "from": "subscription",
+              "to": "discovery",
+              "label": "Registers; looks up user- and media-service",
+              "technology": "Eureka REST"
+            },
+            {
+              "from": "operator",
+              "to": "discovery",
+              "label": "Views the Eureka dashboard",
+              "technology": "HTTP :8761"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "config-files",
+          "eyebrow": "Catalogue",
+          "title": "Configuration files",
+          "columns": [
+            "File",
+            "Read by",
+            "Sets"
+          ],
+          "rows": [
+            [
+              "`application.yml`",
+              "every client",
+              "Eureka URL, 5 s registry fetch and lease renewal, 10 s lease expiry, actuator health/info/prometheus"
+            ],
+            [
+              "`api-gateway.yml`",
+              "api-gateway",
+              "Discovery locator, the three routes, the gateway actuator endpoint, TRACE logging"
+            ],
+            [
+              "`user-service.yml`",
+              "user-service",
+              "Port 8081, `mediahub_user` on user-db, ddl-auto=update, SQL logging"
+            ],
+            [
+              "`media-service.yml`",
+              "media-service",
+              "Port 8082, `mediahub_media` on media-db, ddl-auto=update, SQL logging"
+            ],
+            [
+              "`subscription-service.yml`",
+              "subscription-service",
+              "Port 8083, `mediahub_subscription` on subscription-db, ddl-auto=update, SQL logging"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-frontend",
+      "level": "components",
+      "title": "mediahub-ui",
+      "element": "frontend",
+      "summary": "What the web app calls and why most of it cannot work against the current backend.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Standalone Angular components; all API paths are relative `/api/v1/...` and reach the gateway through the dev-server proxy.",
+            "Only the catalogue reads and the user list reach a working endpoint; sign-in, registration, dashboard, history and recommendations do not.",
+            "No admin screen: managing users, media and subscriptions is done through the API."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "frontend",
+          "caption": "Component diagram for mediahub-ui",
+          "relationships": [
+            {
+              "from": "viewer",
+              "to": "fe-auth",
+              "label": "Signs in or registers in"
+            },
+            {
+              "from": "viewer",
+              "to": "fe-catalog",
+              "label": "Browses and searches media in"
+            },
+            {
+              "from": "viewer",
+              "to": "fe-account",
+              "label": "Views dashboard, history and plans in"
+            },
+            {
+              "from": "viewer",
+              "to": "fe-home",
+              "label": "Opens"
+            },
+            {
+              "from": "fe-guard",
+              "to": "fe-catalog",
+              "label": "Lets in only with a stored token"
+            },
+            {
+              "from": "fe-guard",
+              "to": "fe-account",
+              "label": "Lets in only with a stored token"
+            },
+            {
+              "from": "fe-auth",
+              "to": "gateway",
+              "label": "POST /api/v1/auth/login, /register (no route: 404)",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "fe-catalog",
+              "to": "gateway",
+              "label": "GET /api/v1/media, /{id}, /search, /recommended",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "fe-account",
+              "to": "gateway",
+              "label": "GET /subscriptions/my, /history, /users/stats (500)",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "fe-home",
+              "to": "gateway",
+              "label": "GET /api/v1/users as an online check",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "fe-catalog",
+              "to": "picsum",
+              "label": "Loads thumbnails from",
+              "technology": "HTTPS"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "frontend"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-gateway",
+      "level": "components",
+      "title": "api-gateway",
+      "element": "gateway",
+      "summary": "How the gateway forwards calls: a fixed route table, a route per registered service, and its actuator.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "The only Java class is the application class; everything is configuration, in the gateway's own `application.yaml` and again in the config repository's `api-gateway.yml`.",
+            "No filters, security, CORS, rate limiting, retries or circuit breakers.",
+            "Its own file exposes every actuator endpoint; the config repository narrows this to health, info, gateway and routes."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "gateway",
+          "caption": "Component diagram for api-gateway",
+          "relationships": [
+            {
+              "from": "frontend",
+              "to": "gw-routes",
+              "label": "Calls /api/v1/**",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "operator",
+              "to": "gw-routes",
+              "label": "Calls /api/v1/**",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "operator",
+              "to": "gw-actuator",
+              "label": "Reads /actuator/gateway/routes",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-routes",
+              "to": "gw-lb",
+              "label": "Resolves lb://USER-SERVICE, MEDIA-SERVICE, SUBSCRIPTION-SERVICE"
+            },
+            {
+              "from": "gw-locator",
+              "to": "gw-lb",
+              "label": "Resolves /{SERVICE-ID}/** targets"
+            },
+            {
+              "from": "gw-lb",
+              "to": "discovery",
+              "label": "Fetches the registry every 5 s",
+              "technology": "Eureka REST"
+            },
+            {
+              "from": "gw-lb",
+              "to": "user",
+              "label": "Forwards to",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-lb",
+              "to": "media",
+              "label": "Forwards to",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-lb",
+              "to": "subscription",
+              "label": "Forwards to",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gw-lb",
+              "to": "config",
+              "label": "Forwards /CONFIG-SERVER/** to",
+              "technology": "HTTP"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "gateway"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "routes",
+          "eyebrow": "Catalogue",
+          "title": "Routes",
+          "columns": [
+            "Route",
+            "Path",
+            "Target",
+            "Filters"
+          ],
+          "rows": [
+            [
+              "user_route",
+              "`/api/v1/users/**`",
+              "`lb://USER-SERVICE`",
+              "none"
+            ],
+            [
+              "media_route",
+              "`/api/v1/media/**`",
+              "`lb://MEDIA-SERVICE`",
+              "none"
+            ],
+            [
+              "subscription_route",
+              "`/api/v1/subscriptions/**`",
+              "`lb://SUBSCRIPTION-SERVICE`",
+              "none"
+            ],
+            [
+              "discovery locator",
+              "`/{SERVICE-ID}/**` per registered service",
+              "`lb://{SERVICE-ID}`, prefix removed",
+              "none"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-user",
+      "level": "components",
+      "title": "user-service",
+      "element": "user",
+      "summary": "User accounts and watch history, and the broken media check behind recording a watch.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "`/api/v1/users` is routed by the gateway; `/api/history` only through the discovery locator.",
+            "No sign-in endpoint: passwords are hashed and stored but never checked.",
+            "The README asked for history under `/api/v1/users/{id}/history`; it was built at `/api/history`."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "user",
+          "caption": "Component diagram for user-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "us-user-api",
+              "label": "Forwards /api/v1/users/**",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "us-history-api",
+              "label": "Forwards /USER-SERVICE/api/history/**",
+              "technology": "HTTP"
+            },
+            {
+              "from": "subscription",
+              "to": "us-user-api",
+              "label": "Checks a user exists",
+              "technology": "HTTP/Feign"
+            },
+            {
+              "from": "us-user-api",
+              "to": "us-user-logic",
+              "label": "Calls"
+            },
+            {
+              "from": "us-user-logic",
+              "to": "us-repos",
+              "label": "Reads and writes users"
+            },
+            {
+              "from": "us-history-api",
+              "to": "us-history-logic",
+              "label": "Calls"
+            },
+            {
+              "from": "us-history-logic",
+              "to": "us-media-client",
+              "label": "Checks the media item"
+            },
+            {
+              "from": "us-history-logic",
+              "to": "us-repos",
+              "label": "Saves and lists watches"
+            },
+            {
+              "from": "us-media-client",
+              "to": "media",
+              "label": "GET /api/media/{id} (no such path: always fails)",
+              "technology": "HTTP/Feign via Eureka"
+            },
+            {
+              "from": "us-repos",
+              "to": "user-db",
+              "label": "Reads and writes",
+              "technology": "JDBC"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "user"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-media",
+      "level": "components",
+      "title": "media-service",
+      "element": "media",
+      "summary": "The media catalogue: a plain CRUD service with search.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Holds metadata only; no video, stream or image is stored or served.",
+            "Calls no other service; `@EnableFeignClients` is set but no client exists.",
+            "The list endpoint returns a page of 10, newest first."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "media",
+          "caption": "Component diagram for media-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "ms-api",
+              "label": "Forwards /api/v1/media/**",
+              "technology": "HTTP"
+            },
+            {
+              "from": "subscription",
+              "to": "ms-api",
+              "label": "GET /api/v1/media/{id}",
+              "technology": "HTTP/WebClient"
+            },
+            {
+              "from": "user",
+              "to": "ms-api",
+              "label": "GET /api/media/{id}: no such mapping, answered with 500",
+              "technology": "HTTP/Feign"
+            },
+            {
+              "from": "ms-api",
+              "to": "ms-logic",
+              "label": "Calls"
+            },
+            {
+              "from": "ms-logic",
+              "to": "ms-repo",
+              "label": "Reads and writes media"
+            },
+            {
+              "from": "ms-repo",
+              "to": "media-db",
+              "label": "Reads and writes",
+              "technology": "JDBC"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "media"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-subscription",
+      "level": "components",
+      "title": "subscription-service",
+      "element": "subscription",
+      "summary": "Subscriptions and the active-subscription check, and the two ways the service calls others.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Every endpoint answers HTTP 200 with an `ApiResponse`; errors come from the exception handler.",
+            "Uses OpenFeign for users and a load-balanced WebClient for media; a Feign media client is declared but unused.",
+            "No payment step; nothing expires a subscription."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "subscription",
+          "caption": "Component diagram for subscription-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "ss-api",
+              "label": "Forwards /api/v1/subscriptions/**",
+              "technology": "HTTP"
+            },
+            {
+              "from": "ss-api",
+              "to": "ss-logic",
+              "label": "Calls"
+            },
+            {
+              "from": "ss-logic",
+              "to": "ss-user-client",
+              "label": "Checks the user on create"
+            },
+            {
+              "from": "ss-logic",
+              "to": "ss-webclient",
+              "label": "Fetches media details"
+            },
+            {
+              "from": "ss-logic",
+              "to": "ss-repo",
+              "label": "Reads and writes subscriptions"
+            },
+            {
+              "from": "ss-user-client",
+              "to": "user",
+              "label": "GET /api/v1/users/{id}",
+              "technology": "HTTP/Feign via Eureka"
+            },
+            {
+              "from": "ss-webclient",
+              "to": "media",
+              "label": "GET /api/v1/media/{id}",
+              "technology": "HTTP via lb://media-service"
+            },
+            {
+              "from": "ss-repo",
+              "to": "subscription-db",
+              "label": "Reads and writes",
+              "technology": "JDBC"
+            }
+          ],
+          "elements": [
+            "ss-media-client"
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "subscription"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seq-startup",
+      "level": "sequence",
+      "title": "Service start-up",
+      "summary": "A service (here subscription-service) gets its configuration from config-server before anything else, then registers in Eureka and renews its lease every 5 s. The gateway learns the new instance on its next registry fetch. In compose, health checks hold each service back until the registry, the config server and its database are up.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Container starts (compose `up` or restart)"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "discovery-server and config-server are healthy; the database is up"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "The service runs with its configuration and is reachable as lb://SUBSCRIPTION-SERVICE"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "subscription",
+            "config",
+            "config-repo",
+            "subscription-db",
+            "discovery",
+            "gateway"
+          ],
+          "steps": [
+            {
+              "from": "subscription",
+              "to": "config",
+              "message": "Fetches its configuration",
+              "code": "GET /subscription-service/dev [HTTP]",
+              "info": "Name, URI, fail-fast and profile come from the service's own application.yaml (user-service: bootstrap.yaml)."
+            },
+            {
+              "from": "config",
+              "to": "config-repo",
+              "message": "Reads application.yml and subscription-service.yml",
+              "code": "file:///config/ (native) or git clone (default)"
+            },
+            {
+              "from": "config",
+              "to": "subscription",
+              "message": "Port 8083, datasource, Eureka and actuator settings",
+              "type": "return"
+            },
+            {
+              "frame": "alt",
+              "label": "config-server unreachable"
+            },
+            {
+              "from": "subscription",
+              "to": "subscription",
+              "message": "Retries up to 5 times, then stops (fail-fast)"
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "subscription",
+              "to": "subscription-db",
+              "message": "Connects and updates the schema",
+              "code": "JDBC, ddl-auto=update"
+            },
+            {
+              "from": "subscription",
+              "to": "discovery",
+              "message": "Registers SUBSCRIPTION-SERVICE with its IP address",
+              "code": "POST /eureka/apps/SUBSCRIPTION-SERVICE [Eureka REST]"
+            },
+            {
+              "frame": "loop",
+              "label": "every 5 s"
+            },
+            {
+              "from": "subscription",
+              "to": "discovery",
+              "message": "Renews the lease (expires after 10 s without one)",
+              "code": "PUT /eureka/apps/... [Eureka REST]"
+            },
+            {
+              "from": "gateway",
+              "to": "discovery",
+              "message": "Fetches the registry",
+              "code": "GET /eureka/apps/delta [Eureka REST]"
+            },
+            {
+              "end": true
+            },
+            {
+              "note": "The gateway now routes /api/v1/subscriptions/** and /SUBSCRIPTION-SERVICE/** to the new instance.",
+              "over": [
+                "gateway"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-sign-in",
+      "level": "sequence",
+      "title": "Sign-in attempt from the web app",
+      "summary": "The web app guards its pages with a token in localStorage and gets it by posting to /api/v1/auth/login. The gateway has no route for that path and no service implements it, so the attempt always fails and the guarded pages stay closed.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Viewer opens a guarded page such as /catalog"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Web app running under ng serve; gateway up"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "No token; the viewer stays on the login page with an error"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "viewer",
+            "frontend",
+            "gateway"
+          ],
+          "steps": [
+            {
+              "from": "viewer",
+              "to": "frontend",
+              "message": "Opens /catalog"
+            },
+            {
+              "from": "frontend",
+              "to": "frontend",
+              "message": "authGuard finds no token and redirects to /login"
+            },
+            {
+              "from": "viewer",
+              "to": "frontend",
+              "message": "Submits email and password"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Requests a token",
+              "code": "POST /api/v1/auth/login [JSON/HTTP via /api proxy]"
+            },
+            {
+              "from": "gateway",
+              "to": "gateway",
+              "message": "Matches no route (/api/v1/users, /media, /subscriptions only)"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "404 Not Found",
+              "type": "return"
+            },
+            {
+              "from": "frontend",
+              "to": "viewer",
+              "message": "\"An error occurred. Please try again.\"",
+              "type": "return",
+              "info": "Registration (POST /api/v1/auth/register) fails the same way. The real user-create endpoint is POST /api/v1/users, which the app does not call."
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-browse",
+      "level": "sequence",
+      "title": "Browse the catalogue",
+      "summary": "The catalogue page lists media through the gateway and media-service; search and the detail view work, but the list arrives as a page object the app does not unpack, recommendations fail with 500, and every thumbnail comes from Lorem Picsum.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Viewer opens the catalogue"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "A token is in localStorage (no working sign-in exists to get one)"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Media shown, as far as the app understands the answers"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "viewer",
+            "frontend",
+            "gateway",
+            "media",
+            "media-db",
+            "picsum"
+          ],
+          "steps": [
+            {
+              "from": "viewer",
+              "to": "frontend",
+              "message": "Opens /catalog"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Lists media",
+              "code": "GET /api/v1/media [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "media",
+              "message": "Forwards",
+              "code": "GET /api/v1/media [HTTP lb://MEDIA-SERVICE]"
+            },
+            {
+              "from": "media",
+              "to": "media-db",
+              "message": "Reads the first 10, newest first",
+              "code": "SELECT … FROM medias [JDBC]"
+            },
+            {
+              "from": "media",
+              "to": "gateway",
+              "message": "ApiResponse with a Page",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "ApiResponse with a Page",
+              "type": "return",
+              "info": "The app stores res.data as if it were an array of media."
+            },
+            {
+              "from": "viewer",
+              "to": "frontend",
+              "message": "Types a search of 3+ characters"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Searches by title",
+              "code": "GET /api/v1/media/search?title=… [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "media",
+              "message": "Forwards",
+              "code": "HTTP lb://MEDIA-SERVICE"
+            },
+            {
+              "from": "media",
+              "to": "gateway",
+              "message": "Matching media (list)",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "Matching media",
+              "type": "return"
+            },
+            {
+              "from": "viewer",
+              "to": "frontend",
+              "message": "Opens one media item"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Fetches it",
+              "code": "GET /api/v1/media/{id} [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "media",
+              "message": "Forwards",
+              "code": "HTTP lb://MEDIA-SERVICE"
+            },
+            {
+              "from": "media",
+              "to": "gateway",
+              "message": "The media item",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "The media item",
+              "type": "return"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Asks for recommendations",
+              "code": "GET /api/v1/media/recommended [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "media",
+              "message": "Forwards",
+              "code": "HTTP lb://MEDIA-SERVICE"
+            },
+            {
+              "from": "media",
+              "to": "gateway",
+              "message": "500: \"recommended\" is not a numeric id",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "500",
+              "type": "return"
+            },
+            {
+              "from": "frontend",
+              "to": "picsum",
+              "message": "Loads a placeholder image per item",
+              "code": "GET https://picsum.photos/…?random={id}"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-create-subscription",
+      "level": "sequence",
+      "title": "Create a subscription",
+      "summary": "The core business call, made by an API client (the Makefile test, the Insomnia collection): subscription-service checks over Feign that the user exists in user-service, then stores the plan, price and dates exactly as sent, as ACTIVE. The web app has no path to this.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "POST /api/v1/subscriptions with userId, planType, price, startDate, endDate"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "The user exists; user- and subscription-service registered in Eureka"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "A new ACTIVE subscription row; no payment, no check for an existing one"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "operator",
+            "gateway",
+            "subscription",
+            "user",
+            "user-db",
+            "subscription-db"
+          ],
+          "steps": [
+            {
+              "from": "operator",
+              "to": "gateway",
+              "message": "Creates a subscription",
+              "code": "POST /api/v1/subscriptions [JSON/HTTP :8080]"
+            },
+            {
+              "from": "gateway",
+              "to": "subscription",
+              "message": "Forwards without any check",
+              "code": "HTTP lb://SUBSCRIPTION-SERVICE"
+            },
+            {
+              "from": "subscription",
+              "to": "subscription",
+              "message": "Validates that all five fields are present"
+            },
+            {
+              "from": "subscription",
+              "to": "user",
+              "message": "Checks the user exists",
+              "code": "GET /api/v1/users/{userId} [HTTP/Feign via Eureka]"
+            },
+            {
+              "from": "user",
+              "to": "user-db",
+              "message": "Finds the user",
+              "code": "SELECT … FROM app_users [JDBC]"
+            },
+            {
+              "frame": "alt",
+              "label": "user found"
+            },
+            {
+              "from": "user",
+              "to": "subscription",
+              "message": "The user",
+              "type": "return"
+            },
+            {
+              "from": "subscription",
+              "to": "subscription-db",
+              "message": "Saves the subscription as ACTIVE with the price sent",
+              "code": "INSERT INTO subscriptions [JDBC]"
+            },
+            {
+              "from": "subscription",
+              "to": "gateway",
+              "message": "200, ApiResponse \"Subscription created\"",
+              "type": "return"
+            },
+            {
+              "else": "any Feign error: 404, timeout, user-service down"
+            },
+            {
+              "from": "subscription",
+              "to": "gateway",
+              "message": "404 \"User not found\"",
+              "type": "return"
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "gateway",
+              "to": "operator",
+              "message": "The response",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-active-check",
+      "level": "sequence",
+      "title": "Check for an active subscription",
+      "summary": "The check the subscription README calls crucial: does this user have an active subscription right now? It looks only for a row with status ACTIVE. End dates are ignored and nothing in the system calls this check before serving media.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "GET /api/v1/subscriptions/user/{userId}/active"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "subscription-service registered in Eureka"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "true or false; no state changes"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "operator",
+            "gateway",
+            "subscription",
+            "subscription-db"
+          ],
+          "steps": [
+            {
+              "from": "operator",
+              "to": "gateway",
+              "message": "Asks whether the user has an active subscription",
+              "code": "GET /api/v1/subscriptions/user/{userId}/active [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "subscription",
+              "message": "Forwards",
+              "code": "HTTP lb://SUBSCRIPTION-SERVICE"
+            },
+            {
+              "from": "subscription",
+              "to": "subscription-db",
+              "message": "Looks for the user's ACTIVE subscription",
+              "code": "findByUserIdAndStatus(userId, ACTIVE) [JDBC]"
+            },
+            {
+              "frame": "alt",
+              "label": "zero or one ACTIVE row"
+            },
+            {
+              "from": "subscription",
+              "to": "gateway",
+              "message": "200, data true or false",
+              "type": "return",
+              "info": "An ACTIVE subscription whose endDate has passed still counts."
+            },
+            {
+              "else": "two or more ACTIVE rows"
+            },
+            {
+              "from": "subscription",
+              "to": "gateway",
+              "message": "500: the single-result query fails",
+              "type": "return"
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "gateway",
+              "to": "operator",
+              "message": "The response",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-register-watch",
+      "level": "sequence",
+      "title": "Record a watch",
+      "summary": "user-service records that a user watched a media item after asking media-service whether the item exists. Its Feign client uses a path media-service does not serve, so the check always fails and nothing is saved. Through the gateway the endpoint is reachable only via the discovery locator.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "POST /USER-SERVICE/api/history/watch/{userId}/{mediaId}"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "The media item exists in media-service"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Nothing saved; the caller gets 500"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "operator",
+            "gateway",
+            "user",
+            "media",
+            "user-db"
+          ],
+          "steps": [
+            {
+              "from": "operator",
+              "to": "gateway",
+              "message": "Records a watch",
+              "code": "POST /USER-SERVICE/api/history/watch/{u}/{m} [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "user",
+              "message": "Forwards through the discovery locator, prefix removed",
+              "code": "POST /api/history/watch/{u}/{m} [HTTP lb://USER-SERVICE]"
+            },
+            {
+              "from": "user",
+              "to": "media",
+              "message": "Checks the media item",
+              "code": "GET /api/media/{mediaId} [HTTP/Feign via Eureka]"
+            },
+            {
+              "from": "media",
+              "to": "user",
+              "message": "500: no handler for /api/media/**; the NoResourceFoundException reaches the catch-all handler",
+              "type": "return"
+            },
+            {
+              "from": "user",
+              "to": "user",
+              "message": "Turns the Feign error into a RuntimeException"
+            },
+            {
+              "from": "user",
+              "to": "gateway",
+              "message": "500 \"Internal server error: Media service error or media not found\"",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "operator",
+              "message": "500",
+              "type": "return"
+            },
+            {
+              "note": "Had the check passed, the watch would be saved in watch_history with the current time; the user id is never checked.",
+              "over": [
+                "user",
+                "user-db"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-media-info",
+      "level": "sequence",
+      "title": "Media details through subscription-service",
+      "summary": "An endpoint the Makefile uses to show service-to-service calls with WebClient: subscription-service fetches a media item from media-service through a load-balanced WebClient and returns it wrapped in its own ApiResponse.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "GET /api/v1/subscriptions/media-info/{mediaId}"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "media-service registered in Eureka"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "No state changes"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "operator",
+            "gateway",
+            "subscription",
+            "media",
+            "media-db"
+          ],
+          "steps": [
+            {
+              "from": "operator",
+              "to": "gateway",
+              "message": "Asks for media details",
+              "code": "GET /api/v1/subscriptions/media-info/{id} [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "subscription",
+              "message": "Forwards",
+              "code": "HTTP lb://SUBSCRIPTION-SERVICE"
+            },
+            {
+              "from": "subscription",
+              "to": "media",
+              "message": "Fetches the media item, blocking",
+              "code": "GET http://media-service/api/v1/media/{id} [HTTP/WebClient, @LoadBalanced]"
+            },
+            {
+              "from": "media",
+              "to": "media-db",
+              "message": "Reads the item",
+              "code": "SELECT … FROM medias [JDBC]"
+            },
+            {
+              "frame": "alt",
+              "label": "found"
+            },
+            {
+              "from": "media",
+              "to": "subscription",
+              "message": "ApiResponse with the media item",
+              "type": "return"
+            },
+            {
+              "from": "subscription",
+              "to": "gateway",
+              "message": "ApiResponse wrapping that ApiResponse",
+              "type": "return"
+            },
+            {
+              "else": "not found"
+            },
+            {
+              "from": "media",
+              "to": "subscription",
+              "message": "404",
+              "type": "return"
+            },
+            {
+              "from": "subscription",
+              "to": "gateway",
+              "message": "500: the WebClient error reaches the catch-all handler",
+              "type": "return"
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "gateway",
+              "to": "operator",
+              "message": "The response",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    }
+  ]
+}

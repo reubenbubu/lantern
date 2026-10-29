@@ -1,0 +1,10 @@
+# project-4: CRM (APA-CRM) (docs/adr/0029, #251). One "<name> <clone URL> <full commit hash>" line per repository.
+# The reference in reference/ describes exactly these commits; moving a pin means redoing it.
+Auth-Service https://github.com/APA-CRM/Auth-Service 6cb4edae467de8eaddd30ed4f528636e5f053114
+CRM-Frontend https://github.com/APA-CRM/CRM-Frontend 0797125f7be4662b3849d079a9314e99936199ed
+crm-shared-lib https://github.com/APA-CRM/crm-shared-lib 442bbbb7b82243754e528ad09768fdaa8290050d
+Deployment https://github.com/APA-CRM/Deployment 3857d2884a7ee350136cfbca8b5e86ae0a84ba0e
+Discovery-and-Gateway https://github.com/APA-CRM/Discovery-and-Gateway 62649cb897f8759c54efcc2613b7bef30b95957a
+File-Service https://github.com/APA-CRM/File-Service 413caa5eaa7e9790fbd804b8ab9029e427831d28
+Main-Service https://github.com/APA-CRM/Main-Service 0b59f25e6aa3717e59a30da4745795d4e273976b
+Notification-Service https://github.com/APA-CRM/Notification-Service 0fc0353cb541ca7e323d3d56dafba83a5cfb864e

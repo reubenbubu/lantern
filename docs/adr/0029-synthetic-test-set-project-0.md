@@ -60,3 +60,25 @@ author and dates, and that Lantern pins that repository's commit.
   come from `pins.txt` alone: `setup.sh` records the pin it set the folder up from in
   `<destination>/.lantern-pin`, the test fails, saying to run `setup.sh`, when that is not the
   current pin, and it reads each repository's commit from the repository. It adds about 50 seconds.
+
+## Amendment (#251): the open-source sets, their references and the held-out sets
+
+- **Format for project-1 to project-7.** `testsets/project-N/pins.txt` lists every repository with
+  its clone URL and full commit hash, as for project-0. `setup.sh [destination]` is one line that
+  calls the shared `testsets/setup-pins.sh`: it clones each repository to
+  `~/workspace/lantern-test-projects/project-N/<name>` (or the destination) if missing, checks the
+  checkout's `origin` is the pinned URL, fetches the pin and checks it out detached; safe to run
+  again. Which sets are development and which are held-out is in `docs/design.md`, Test sets; the
+  held-out ones were pinned with `git ls-remote` alone and their `setup.sh` header says so.
+- **References.** `testsets/project-N/reference/` holds `reference.c4.json` (the report spec's
+  data), `facts/` (the cited `file:line` facts), `notes.md` (what it describes, scope choices),
+  `verification.md` (the independent second pass) and `build-data.mjs`, which writes the JSON from
+  the facts. The rendered `reference.c4.html` is not committed: `testsets/reference-tools/embed.cjs`
+  embeds the JSON into the spec's template and `render.mjs` renders it in headless Chrome. The
+  schema and cross-reference checks are `lantern-web/scripts/report-spec-check.mjs`, the one
+  implementation, which also replaces the per-set `validate.cjs` copies.
+- **Proof.** `lantern-web/test/test-set-references.test.mjs`, part of `./mvnw verify` and needing
+  no network or checkout, checks for each reference that it is valid for the spec, that every
+  `repo` and `commit` its sources cite is a repository and a prefix of the commit in `pins.txt`,
+  and that `notes.md` names each pinned commit in full. Moving a pin therefore fails the build
+  until the reference is redone.

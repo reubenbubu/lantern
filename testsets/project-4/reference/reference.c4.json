@@ -1,0 +1,3320 @@
+{
+  "document": {
+    "id": "project-4",
+    "title": "APA-CRM Architecture",
+    "subtitle": "C4 views of the APA-CRM system for **architects and new engineers**: context, containers, components and six runtime flows. Written by hand from the eight repositories at their current commits; no Lantern output.",
+    "version": "1.1.0",
+    "status": "Draft",
+    "updated": "2026-10-29",
+    "revisions": [
+      {
+        "version": "1.0.0",
+        "date": "2026-10-29",
+        "author": "Hand-written from the code",
+        "summary": "First version, from Auth-Service `6cb4eda`, CRM-Frontend `0797125`, crm-shared-lib `442bbbb`, Deployment `3857d28`, Discovery-and-Gateway `62649cb`, File-Service `413caa5`, Main-Service `0b59f25` and Notification-Service `0fc0353`.",
+        "status": "Draft"
+      },
+      {
+        "version": "1.1.0",
+        "date": "2026-10-29",
+        "author": "Independent second pass over the same commits",
+        "summary": "Verified every cited claim against the code. Corrected the check-access filter (organization id in effect only from the header), the consequences of publishing before commit, the frontend build risk, the identity-header risk and the reminder pre-conditions; added three risks (cross-organization permission mix-up, unscoped file deletes and creates, organization details readable by any signed-in user). See verification.md.",
+        "status": "Draft"
+      }
+    ]
+  },
+  "elements": {
+    "member": {
+      "kind": "person",
+      "name": "Organization member",
+      "description": "Signs up and in, creates or switches between organizations and, as far as their custom per-organization role allows, manages members, roles, invitations, files and tasks; receives real-time notices and email reminders.",
+      "properties": {
+        "access": "Custom per-organization role: a resource × action matrix; no fixed role names in the code"
+      }
+    },
+    "invitee": {
+      "kind": "person",
+      "name": "Invited user",
+      "description": "A registered user invited into an organization: gets the invitation by email and accepts or declines it in the web app while signed in.",
+      "properties": {
+        "access": "Becomes a member with the role chosen by the inviter"
+      }
+    },
+    "apa-crm": {
+      "kind": "system",
+      "name": "APA-CRM",
+      "description": "Lets teams do their CRM work inside organizations: membership with custom roles, a shared file tree, tasks with reminders, and real-time and email notifications."
+    },
+    "gmail": {
+      "kind": "external",
+      "name": "Gmail SMTP",
+      "description": "Delivers all of the system's outbound email: invitations, generated passwords, password-reset codes and task reminders."
+    },
+    "frontend": {
+      "kind": "container",
+      "parent": "apa-crm",
+      "name": "CRM-Frontend",
+      "tag": "Single-Page App",
+      "technology": "Angular 19.2 · nginx",
+      "description": "Browser UI for organizations, members, roles, files and tasks; keeps the tokens in localStorage, adds the Organization-Id header to every call and listens for notices over STOMP.",
+      "properties": {
+        "repo": "CRM-Frontend",
+        "commit": "0797125",
+        "stack": "Angular ^19.2, PrimeNG ^19, Tailwind 4, @stomp/stompjs ^7.2.1, TypeScript ~5.7; built on node:24.3.0-alpine3.22, served by nginx:alpine3.22",
+        "port": "4200 in the container (82 on the host in dev compose)"
+      }
+    },
+    "gateway": {
+      "kind": "container",
+      "parent": "apa-crm",
+      "name": "api-gateway",
+      "tag": "API Gateway",
+      "technology": "Spring Cloud Gateway · Boot 3.5.8 / Java 21",
+      "description": "The only public entry point: verifies the JWT, looks up the caller's permissions in the organization, adds identity headers and routes to the services; also merges task lists with user details.",
+      "properties": {
+        "repo": "Discovery-and-Gateway",
+        "commit": "62649cb",
+        "stack": "Spring Cloud 2025.0.0 (WebFlux gateway), reactive Redis, jjwt 0.12.6, crm-shared-lib core + rbac 0.2.0-SNAPSHOT",
+        "port": "8080"
+      }
+    },
+    "eureka": {
+      "kind": "container",
+      "parent": "apa-crm",
+      "name": "eureka-service",
+      "tag": "Infrastructure",
+      "technology": "Eureka · Boot 3.5.8 / Java 21",
+      "description": "Service registry for the compose deployments: every service registers and lb:// names resolve through it. Single instance, no peers; disabled in Kubernetes.",
+      "properties": {
+        "repo": "Discovery-and-Gateway",
+        "commit": "62649cb",
+        "stack": "spring-cloud-starter-netflix-eureka-server, Spring Cloud 2025.0.0",
+        "port": "8761"
+      }
+    },
+    "auth": {
+      "kind": "container",
+      "parent": "apa-crm",
+      "name": "auth-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5.8 / Java 21",
+      "description": "Identity provider: sign-up, sign-in, refresh tokens and sessions, password reset, the organization role definitions and the per-organization permission cache.",
+      "properties": {
+        "repo": "Auth-Service",
+        "commit": "6cb4eda",
+        "stack": "Spring Cloud 2025.0.0, jjwt 0.12.6, yauaa 8.1.0, MapStruct 1.6.3, Spring Data Redis, crm-shared-lib 0.2.0-SNAPSHOT",
+        "port": "8080"
+      }
+    },
+    "main": {
+      "kind": "container",
+      "parent": "apa-crm",
+      "name": "main-service",
+      "tag": "Service",
+      "technology": "Spring Boot 4.1.1 / Java 25",
+      "description": "Core CRM domain: organizations, membership and role assignment, invitations, organization file links, and tasks with priorities, statuses and reminders; publishes the domain events.",
+      "properties": {
+        "repo": "Main-Service",
+        "commit": "0b59f25",
+        "stack": "Spring Cloud 2025.1.2, OpenFeign, Spring AMQP, JobRunr 8.6.1, MapStruct 1.6.3, crm-shared-lib 0.3.0-SNAPSHOT",
+        "port": "8080"
+      }
+    },
+    "file": {
+      "kind": "container",
+      "parent": "apa-crm",
+      "name": "file-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5.8 / Java 21",
+      "description": "Keeps the directory tree and file bytes: uploads, downloads, renames, moves and deletes files, and creates an organization's root directory on request.",
+      "properties": {
+        "repo": "File-Service",
+        "commit": "413caa5",
+        "stack": "Spring Cloud 2025.0.0, Spring Data JPA, Spring AMQP, crm-shared-lib 0.2.1-SNAPSHOT",
+        "port": "8080"
+      }
+    },
+    "notification": {
+      "kind": "container",
+      "parent": "apa-crm",
+      "name": "notification-service",
+      "tag": "Service",
+      "technology": "Spring Boot 3.5.8 / Java 21 · STOMP",
+      "description": "Turns events into what people see: pushes real-time notices to users and organizations over STOMP and sends every transactional email from templates.",
+      "properties": {
+        "repo": "Notification-Service",
+        "commit": "0fc0353",
+        "stack": "Spring WebSocket (STOMP, SockJS), Thymeleaf, Spring Mail, OpenFeign, Spring AMQP, crm-shared-lib 0.2.5-SNAPSHOT",
+        "port": "8080"
+      }
+    },
+    "auth-db": {
+      "kind": "database",
+      "parent": "apa-crm",
+      "name": "auth_db",
+      "technology": "PostgreSQL 17.5",
+      "description": "Users with BCrypt passwords, roles and their access controls, refresh tokens (sessions) and password-restore requests. Schema by Hibernate ddl-auto=update.",
+      "properties": {
+        "owner": "auth-service"
+      }
+    },
+    "main-db": {
+      "kind": "database",
+      "parent": "apa-crm",
+      "name": "main_db",
+      "technology": "PostgreSQL 17.5",
+      "description": "Organizations, members and their role links, invitations, file links, tasks, priorities and statuses, plus JobRunr's job tables. Schema by Hibernate ddl-auto=update.",
+      "properties": {
+        "owner": "main-service"
+      }
+    },
+    "file-db": {
+      "kind": "database",
+      "parent": "apa-crm",
+      "name": "file_db",
+      "technology": "PostgreSQL 17.5",
+      "description": "The file metadata tree and the file content itself as LOBs; there is no object store. Schema by Hibernate ddl-auto=update.",
+      "properties": {
+        "owner": "file-service"
+      }
+    },
+    "redis": {
+      "kind": "database",
+      "parent": "apa-crm",
+      "name": "Redis permission cache",
+      "technology": "Redis 8.4.0",
+      "description": "Redis 8.4.0 (7.4.4 in dev compose). Per-organization permissions under organization:{o}:user:{u}:permissions (TTL 10 h), with 10 s failure markers and a distributed lock; written by auth-service, read by api-gateway.",
+      "properties": {
+        "owner": "auth-service (writer)"
+      }
+    },
+    "x-main-events": {
+      "kind": "queue",
+      "parent": "apa-crm",
+      "name": "main-service.events",
+      "technology": "RabbitMQ topic exchange",
+      "description": "Main-Service's domain events: org.created, org-user.role-changes, org-invitation.created and org.task.remind.",
+      "properties": {
+        "owner": "main-service (declares it)"
+      }
+    },
+    "x-file-events": {
+      "kind": "queue",
+      "parent": "apa-crm",
+      "name": "file-service.events",
+      "technology": "RabbitMQ topic exchange",
+      "description": "The reply org.root-dir.created, sent once an organization's root directory exists.",
+      "properties": {
+        "owner": "file-service (declares it)"
+      }
+    },
+    "x-auth-event": {
+      "kind": "queue",
+      "parent": "apa-crm",
+      "name": "auth-service.event",
+      "technology": "RabbitMQ topic exchange",
+      "description": "Email requests from Auth-Service: user.random-password and user.restore-password.",
+      "properties": {
+        "owner": "auth-service (declares it)"
+      }
+    },
+    "q-send-message": {
+      "kind": "queue",
+      "parent": "apa-crm",
+      "name": "notification-service.send-message",
+      "technology": "RabbitMQ queue",
+      "description": "Published to through the default exchange. In-app notices (CrmNotification) addressed to one user or to a whole organization.",
+      "properties": {
+        "owner": "notification-service (declares it)"
+      }
+    },
+    "gw-routes": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Route table",
+      "technology": "Spring Cloud Gateway RouteLocator",
+      "description": "Matches seven routes in order and forwards to lb://auth-service, main-service, file-service and lb:ws://notification-service; /api/organizations/*/preview matches none of them.",
+      "properties": {
+        "classes": "RouteConfig"
+      }
+    },
+    "gw-auth-filter": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "AuthFilter",
+      "technology": "Gateway filter",
+      "description": "Rejects a request with 401 unless its Bearer JWT is valid, then adds User-Id and User-Login.",
+      "properties": {
+        "classes": "AuthFilter"
+      }
+    },
+    "gw-check-access": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Check-access filter",
+      "technology": "Gateway filter",
+      "description": "Verifies the JWT, takes the organization id from the Organization-Id header (403 if none; its path pattern is matched against the absolute URI and never applies) and adds a serialized User-Permissions header; leaves allow or deny to the services.",
+      "properties": {
+        "classes": "AuthorizeAndCheckAccessFilter, OrganizationIdExtractor"
+      }
+    },
+    "gw-org-files": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Organization-files filter",
+      "technology": "Gateway filter · WebClient",
+      "description": "For GET and PATCH on /api/files/{id}, asks main-service whether the file belongs to the organization and passes a 4xx back.",
+      "properties": {
+        "classes": "OrganizationFilesFilter, OrganizationFilesClient"
+      }
+    },
+    "gw-jwt": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "JWT verifier",
+      "technology": "jjwt 0.12.6",
+      "description": "Checks the HMAC signature with the key shared with auth-service and the expiry, and reads the userId and login claims.",
+      "properties": {
+        "classes": "JwtService"
+      }
+    },
+    "gw-permissions": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Permission lookup",
+      "technology": "Reactive Redis · WebClient",
+      "description": "Reads the member's permissions from Redis and on a miss asks auth-service, on a path auth-service does not serve.",
+      "properties": {
+        "classes": "UserPermissionService, UserPermissionRepository, UserPermissionClient"
+      }
+    },
+    "gw-composite": {
+      "kind": "component",
+      "parent": "gateway",
+      "name": "Tasks composite API",
+      "technology": "Spring WebFlux controller · @LoadBalanced WebClient",
+      "description": "Serves /api/composite/organizations/{org}/tasks: forwards to main-service with identity headers and merges in user details from auth-service.",
+      "properties": {
+        "classes": "TasksCompositeController, TasksComposite, TasksClient, UsersClient"
+      }
+    },
+    "au-sign-in-api": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Sign-in API",
+      "technology": "Spring MVC controller · jjwt",
+      "description": "Signs users up and in, rotates refresh tokens and logs out; issues 30-minute HS-signed JWTs and stores each refresh token with parsed device info.",
+      "properties": {
+        "classes": "AuthController, AuthFacade, AuthenticationService, JwtService, RefreshTokenService"
+      }
+    },
+    "au-restore-api": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Password restore API",
+      "technology": "Spring MVC controller",
+      "description": "Creates and resends 4-digit reset codes (one request per user per 3 h) and checks a code (5 attempts), returning tokens.",
+      "properties": {
+        "classes": "RestorePasswordRequestController, PasswordRecoveryService"
+      }
+    },
+    "au-users-api": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Users and sessions API",
+      "technology": "Spring MVC controllers",
+      "description": "Returns and updates the signed-in user's profile and password, searches users by name and lists or ends sessions; trusts the User-Id header.",
+      "properties": {
+        "classes": "UserController, UserSessionController"
+      }
+    },
+    "au-internal-api": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Internal API",
+      "technology": "Spring MVC controllers · /api/internal",
+      "description": "Serves the other services: role create, edit, filter and delete, user lookups, access-token validation (POST /auth/authorize) and a member's permissions.",
+      "properties": {
+        "classes": "InternalRolesController, InternalUsersController, InternalAuthController, InternalUserPermissionsController"
+      }
+    },
+    "au-permission-resolver": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Permission resolver",
+      "technology": "Spring service · OpenFeign MainClient",
+      "description": "Builds a member's resource/action permissions from their role ids, fetched from main-service, under a Redis lock with a 10 s failure marker.",
+      "properties": {
+        "classes": "UserPermissionExtractor, UserPermissionSaver, MainClient"
+      }
+    },
+    "au-role-sync": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Role-change consumer",
+      "technology": "@RabbitListener",
+      "description": "Recomputes and overwrites a member's cached permissions when main-service reports changed roles.",
+      "properties": {
+        "classes": "UpdateOrganizationUserPermission"
+      }
+    },
+    "au-permission-cache": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Permission cache repository",
+      "technology": "Spring Data Redis · RedisLockRegistry",
+      "description": "Reads and writes the permission entries, failure markers and lock in Redis.",
+      "properties": {
+        "classes": "cache/UserPermissionRepository"
+      }
+    },
+    "au-email-producers": {
+      "kind": "component",
+      "parent": "auth",
+      "name": "Email request publishers",
+      "technology": "Spring AMQP",
+      "description": "Asks notification-service to email a generated password or a reset code.",
+      "properties": {
+        "classes": "SendPasswordToEmailProducer, SendVerificationCodeProducer"
+      }
+    },
+    "ms-org-api": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Organization API",
+      "technology": "Spring MVC controller",
+      "description": "Lists, previews, creates and updates organizations; creation sets up the Admin and Member roles in auth-service and the creator's membership in one transaction.",
+      "properties": {
+        "classes": "OrganizationController, OrganizationFacade, OrganizationCreatorService"
+      }
+    },
+    "ms-membership-api": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Membership and roles API",
+      "technology": "Spring MVC controllers",
+      "description": "Invites users, accepts and declines invitations, removes members, and creates, edits and assigns organization roles whose definitions live in auth-service.",
+      "properties": {
+        "classes": "OrganizationInvitationController, OrganizationUsersController, OrganizationRolesController, OrganizationUserRoleController and their facades"
+      }
+    },
+    "ms-files-api": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Organization files API",
+      "technology": "Spring MVC controller",
+      "description": "Links File-Service file ids to an organization and returns its root directory; holds no file bytes.",
+      "properties": {
+        "classes": "OrganizationFileController, OrganizationFileService"
+      }
+    },
+    "ms-tasks-api": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Tasks API",
+      "technology": "Spring MVC controllers · JobRunr scheduler",
+      "description": "Creates, filters, updates and deletes tasks and the organization's priorities and statuses, and schedules or cancels each task's reminder job.",
+      "properties": {
+        "classes": "TaskController, TaskPriorityController, TaskStatusController, TaskProcessorService"
+      }
+    },
+    "ms-internal-api": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Internal API",
+      "technology": "Spring MVC controllers · /api/internal/organizations",
+      "description": "Answers service-to-service questions: a member's role ids, whether a user is a member, whether a file belongs to an organization.",
+      "properties": {
+        "classes": "InternalOrganizationUserController, InternalOrganizationFilesController"
+      }
+    },
+    "ms-access-guard": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Access guard",
+      "technology": "Spring AOP aspects",
+      "description": "Rejects a request with 403 unless User-Id is a member of the organization (a database check) and User-Permissions grants the resource and action.",
+      "properties": {
+        "classes": "OrganizationMembershipControlAspect, shared-lib PermissionControlAspect"
+      }
+    },
+    "ms-auth-client": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Auth client",
+      "technology": "OpenFeign · shared-lib FeignClientConfig",
+      "description": "Calls auth-service's internal API to create, edit, filter and delete roles and to look up users.",
+      "properties": {
+        "classes": "AuthClient, RoleClientWrapper, UserClientWrapper"
+      }
+    },
+    "ms-producers": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Event publishers",
+      "technology": "Spring AMQP RabbitTemplate",
+      "description": "Publishes domain events to main-service.events and in-app notices to notification-service.send-message; the notice sender swallows send errors.",
+      "properties": {
+        "classes": "OrganizationCreatedProducer, OrgUserRoleChangedProducer, InvitationCreatedProducer, TaskReminderProducer, shared-lib MessagingService"
+      }
+    },
+    "ms-consumers": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Organization event consumers",
+      "technology": "@RabbitListener × 3",
+      "description": "On org.created, creates the 3 default task priorities and 5 default statuses; on org.root-dir.created, records the organization's root directory.",
+      "properties": {
+        "classes": "CreateTaskDefaultPrioritiesConsumer, CreateTaskDefaultStatusesConsumer, OrganizationRootDirCreatedConsumer"
+      }
+    },
+    "ms-reminder-job": {
+      "kind": "component",
+      "parent": "main",
+      "name": "Task reminder job",
+      "technology": "JobRunr 8.6.1 background job server",
+      "description": "At a task's reminderAt, collects the assignee and creator emails, publishes org.task.remind and marks the task reminded.",
+      "properties": {
+        "classes": "TaskReminderJobHandler"
+      }
+    },
+    "fs-api": {
+      "kind": "component",
+      "parent": "file",
+      "name": "File API",
+      "technology": "Spring MVC controller",
+      "description": "Uploads (multipart, at most 15 MiB), downloads, updates and deletes files and directories under /api/files.",
+      "properties": {
+        "classes": "FileController, FileFacade"
+      }
+    },
+    "fs-guard": {
+      "kind": "component",
+      "parent": "file",
+      "name": "Permission guard",
+      "technology": "Spring AOP · shared-lib PermissionControlAspect",
+      "description": "Rejects a request with 403 unless the User-Permissions header grants FILES with the needed action.",
+      "properties": {
+        "classes": "PermissionControlAspect (@RequiresPermission)"
+      }
+    },
+    "fs-service": {
+      "kind": "component",
+      "parent": "file",
+      "name": "File tree service",
+      "technology": "Spring service",
+      "description": "Applies the file-tree rules: creates files and directories, renames and moves them, and refuses to delete a non-empty directory without forceDelete.",
+      "properties": {
+        "classes": "FileService, FileExtensionFactory, FileMetadataMapper"
+      }
+    },
+    "fs-repos": {
+      "kind": "component",
+      "parent": "file",
+      "name": "File repositories",
+      "technology": "Spring Data JPA",
+      "description": "Persist the metadata tree and the content row that shares each file's id.",
+      "properties": {
+        "classes": "FileMetadataRepository, FileContentRepository"
+      }
+    },
+    "fs-root-consumer": {
+      "kind": "component",
+      "parent": "file",
+      "name": "Root-directory consumer",
+      "technology": "@RabbitListener · RabbitTemplate",
+      "description": "Creates \"Root <organization name>\" when an organization is created and replies with the new directory id.",
+      "properties": {
+        "classes": "CreateRootDirConsumer"
+      }
+    },
+    "ns-email-consumers": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Email consumers",
+      "technology": "@RabbitListener × 4",
+      "description": "Take password, reset-code, invitation and task-reminder requests off their queues and send one email per recipient.",
+      "properties": {
+        "classes": "PasswordSenderConsumer, VerificationCodeSenderConsumer, SendInvitationOfOrganizationConsumer, TaskReminderConsumer"
+      }
+    },
+    "ns-templates": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Template builder",
+      "technology": "Thymeleaf",
+      "description": "Renders the four HTML email templates, with links built from FRONTEND_URL and due dates in Europe/Kyiv.",
+      "properties": {
+        "classes": "TemplateBuilder"
+      }
+    },
+    "ns-email": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Email sender",
+      "technology": "Spring Mail JavaMailSender",
+      "description": "Sends the HTML email; a failed send throws, so the message is requeued and retried (Spring AMQP default); no dead-letter queue is declared.",
+      "properties": {
+        "classes": "EmailService"
+      }
+    },
+    "ns-message-consumer": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "In-app notice consumer",
+      "technology": "@RabbitListener",
+      "description": "Receives each CrmNotification and rejects a failed one without requeueing.",
+      "properties": {
+        "classes": "SendMessageConsumer"
+      }
+    },
+    "ns-sender": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Notification sender",
+      "technology": "SimpMessagingTemplate",
+      "description": "Pushes a notice to /user/topic/notifications for one user or /topic/organizations/{id}/notifications for an organization.",
+      "properties": {
+        "classes": "NotificationSender"
+      }
+    },
+    "ns-stomp": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "STOMP endpoint and broker",
+      "technology": "Spring WebSocket · SockJS · in-memory simple broker",
+      "description": "Accepts client sockets at /ws-notifications and keeps sessions and subscriptions in memory, so only one instance can serve them.",
+      "properties": {
+        "classes": "WebSocketsConfig"
+      }
+    },
+    "ns-interceptor": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "STOMP auth interceptor",
+      "technology": "Spring messaging ChannelInterceptor",
+      "description": "Authorizes CONNECT through auth-service, checks organization-topic SUBSCRIBE through main-service and rejects any client SEND.",
+      "properties": {
+        "classes": "StompAuthChannelInterceptor"
+      }
+    },
+    "ns-clients": {
+      "kind": "component",
+      "parent": "notification",
+      "name": "Auth and Main clients",
+      "technology": "OpenFeign",
+      "description": "Call auth-service to validate a token and main-service to check membership.",
+      "properties": {
+        "classes": "AuthClient, AuthClientWrapper, MainClient"
+      }
+    }
+  },
+  "pages": [
+    {
+      "id": "ctx-apa-crm",
+      "level": "context",
+      "title": "APA-CRM",
+      "element": "apa-crm",
+      "summary": "APA-CRM is a multi-tenant CRM in which each organization defines its own roles and manages members, files and tasks. The most important fact for anyone changing it: **all authorization is decided from headers that api-gateway adds**, so the services trust whatever reaches them.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "This document is for **architects and new engineers**. It was written by hand from the code of the eight APA-CRM repositories at the commits listed under Sources (dates up to 2026-08-23), on 2026-10-29. Lantern produced none of it.\n\nThe repositories hold no architecture decision records, owners or quality goals; where this document needs one of those it says *unknown*. People and external systems below are only those the code shows."
+        },
+        {
+          "type": "stats",
+          "id": "key-facts",
+          "items": [
+            {
+              "label": "Runtime units",
+              "value": "7",
+              "note": "1 web app, 1 gateway, 1 registry, 4 services"
+            },
+            {
+              "label": "User roles",
+              "value": "Custom",
+              "note": "Defined per organization; none fixed in code"
+            },
+            {
+              "label": "External systems",
+              "value": "1",
+              "note": "Gmail for all outbound email"
+            },
+            {
+              "label": "Owners, quality goals",
+              "value": "Unknown",
+              "note": "Not recorded in any repository"
+            }
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "System Context Diagram",
+          "caption": "System Context diagram for APA-CRM",
+          "focus": "apa-crm",
+          "relationships": [
+            {
+              "from": "member",
+              "to": "apa-crm",
+              "label": "Manages organizations, members, files and tasks in"
+            },
+            {
+              "from": "invitee",
+              "to": "apa-crm",
+              "label": "Accepts or declines invitations in"
+            },
+            {
+              "from": "apa-crm",
+              "to": "gmail",
+              "label": "Sends all outbound email through"
+            },
+            {
+              "from": "gmail",
+              "to": "invitee",
+              "label": "Delivers invitations to"
+            },
+            {
+              "from": "gmail",
+              "to": "member",
+              "label": "Delivers passwords, codes and reminders to"
+            }
+          ],
+          "layout": {
+            "rules": [
+              {
+                "a": "member",
+                "rel": "leftOf",
+                "b": "apa-crm",
+                "strict": false
+              },
+              {
+                "a": "invitee",
+                "rel": "below",
+                "b": "apa-crm",
+                "strict": false
+              },
+              {
+                "a": "gmail",
+                "rel": "rightOf",
+                "b": "apa-crm",
+                "strict": false
+              }
+            ]
+          }
+        },
+        {
+          "type": "elements",
+          "id": "people",
+          "eyebrow": "Catalogue",
+          "title": "People",
+          "select": {
+            "kind": "person"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Person"
+            },
+            {
+              "key": "description",
+              "label": "Does"
+            },
+            {
+              "key": "properties.access",
+              "label": "Access"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "external",
+          "eyebrow": "Catalogue",
+          "title": "External Systems",
+          "select": {
+            "kind": "external"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "System"
+            },
+            {
+              "key": "description",
+              "label": "Provides"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "left-out",
+          "tone": "info",
+          "body": "Left out on purpose: Docker Hub and JitPack are used only to build and publish (images `aappaa/*`, the shared library), and Prometheus and Grafana only scrape metrics. None takes part in a user request."
+        },
+        {
+          "type": "table",
+          "id": "sources",
+          "eyebrow": "Provenance",
+          "title": "Sources",
+          "columns": [
+            "Repository",
+            "Commit",
+            "Commit date",
+            "Runtime unit"
+          ],
+          "rows": [
+            [
+              "CRM-Frontend",
+              "`0797125`",
+              "2026-06-28",
+              "CRM-Frontend"
+            ],
+            [
+              "Discovery-and-Gateway",
+              "`62649cb`",
+              "2026-06-04",
+              "api-gateway, eureka-service"
+            ],
+            [
+              "Auth-Service",
+              "`6cb4eda`",
+              "2026-08-02",
+              "auth-service"
+            ],
+            [
+              "Main-Service",
+              "`0b59f25`",
+              "2026-08-22",
+              "main-service"
+            ],
+            [
+              "File-Service",
+              "`413caa5`",
+              "2026-05-28",
+              "file-service"
+            ],
+            [
+              "Notification-Service",
+              "`0fc0353`",
+              "2026-06-23",
+              "notification-service"
+            ],
+            [
+              "crm-shared-lib",
+              "`442bbbb`",
+              "2026-08-22",
+              "none: a library (core, messaging, rbac) built into the services"
+            ],
+            [
+              "Deployment",
+              "`3857d28`",
+              "2026-08-23",
+              "none: Docker Compose, Helm and Kustomize descriptors"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "id": "glossary",
+          "eyebrow": "Reference",
+          "title": "Glossary",
+          "columns": [
+            "Term",
+            "Meaning here"
+          ],
+          "rows": [
+            [
+              "Organization",
+              "The tenant: members, roles, files and tasks all belong to one. A user can be in several and switches between them."
+            ],
+            [
+              "Role / permission",
+              "A per-organization role is a set of resource × action pairs (resources such as USERS, ROLES, INVITATIONS, FILES, TASKS; actions CREATE, READ, UPDATE, DELETE; ALL as a wildcard)."
+            ],
+            [
+              "User-Id, User-Permissions",
+              "Request headers the gateway adds after checking the token; the services trust them instead of checking the token again."
+            ],
+            [
+              "AMQP",
+              "Advanced Message Queuing Protocol, spoken by RabbitMQ."
+            ],
+            [
+              "Exchange, routing key, queue",
+              "RabbitMQ terms: a producer publishes to an exchange with a routing key; bindings copy the message to queues, which consumers read."
+            ],
+            [
+              "Feign",
+              "OpenFeign, the declarative HTTP client the services use to call each other."
+            ],
+            [
+              "HMAC, HS-signed",
+              "A token signature made with one secret key shared by signer and checker."
+            ],
+            [
+              "JobRunr",
+              "A Java library that stores delayed background jobs in the database and runs them at their due time."
+            ],
+            [
+              "JWT",
+              "JSON Web Token: the 30-minute access token issued by auth-service."
+            ],
+            [
+              "LOB",
+              "Large object: a database column holding binary content, here the file bytes."
+            ],
+            [
+              "lb://, lb:ws://",
+              "Load-balanced service names that Spring Cloud resolves to an instance through the service registry."
+            ],
+            [
+              "RBAC",
+              "Role-based access control."
+            ],
+            [
+              "SMTP, STARTTLS",
+              "The mail-sending protocol, upgraded to TLS on port 587."
+            ],
+            [
+              "SPA",
+              "Single-page application: the Angular app that runs in the browser."
+            ],
+            [
+              "STOMP",
+              "Simple Text Oriented Messaging Protocol, a pub/sub protocol run over a WebSocket."
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "no-adrs",
+          "tone": "warning",
+          "title": "No recorded decisions",
+          "body": "None of the eight repositories has architecture decision records or design documents. The decisions below are observed in code and configuration; their rationale is *not recorded* unless a README states it."
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Observed",
+          "title": "Observed decisions",
+          "items": [
+            {
+              "title": "Authorization at the gateway; services trust headers",
+              "status": "Observed",
+              "body": "api-gateway verifies the JWT and adds `User-Id` and `User-Permissions`; the services check those headers, not the token. Rationale: Main-Service's README says authorization is expected at the gateway (`Main-Service/README.md:70`)."
+            },
+            {
+              "title": "One PostgreSQL schema per service",
+              "status": "Observed",
+              "body": "auth_db, main_db and file_db, each written only by its service. Compose runs three PostgreSQL containers; Kustomize puts all three in one instance. Rationale: not recorded."
+            },
+            {
+              "title": "Shared HMAC key for access tokens",
+              "status": "Observed",
+              "body": "auth-service signs HS JWTs and the gateway checks them with the same `auth.token.signing.key`; refresh tokens are opaque strings in auth_db. Rationale: not recorded."
+            },
+            {
+              "title": "Permissions cached in Redis, refreshed by events",
+              "status": "Observed",
+              "body": "auth-service writes each member's permissions to Redis (TTL 10 h); the gateway reads them; `org-user.role-changes` triggers a recompute. Rationale: not recorded."
+            },
+            {
+              "title": "One topic exchange per producing service",
+              "status": "Observed",
+              "body": "main-service.events, file-service.events and auth-service.event; most queues are declared by both producer and consumer. Rationale: not recorded."
+            },
+            {
+              "title": "File bytes in PostgreSQL",
+              "status": "Observed",
+              "body": "file-service keeps content as LOBs in file_db and serves it from memory; no object store exists in any deployment. Rationale: not recorded."
+            },
+            {
+              "title": "Delayed reminders with JobRunr",
+              "status": "Observed",
+              "body": "main-service schedules a one-off job per task reminder, stored in main_db. Rationale: not recorded."
+            },
+            {
+              "title": "Shared library for cross-cutting code",
+              "status": "Observed",
+              "body": "crm-shared-lib (core, messaging, rbac) is pulled from JitPack as a SNAPSHOT at a different version by each service. Rationale: not recorded."
+            },
+            {
+              "title": "Compose for local and dev, Helm for Kubernetes",
+              "status": "Observed",
+              "body": "Rationale recorded: Compose for local and development, Helm for \"Kubernetes production\" (`Deployment/README.md:18-21`)."
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "risks",
+          "eyebrow": "Findings",
+          "title": "Risks and findings",
+          "columns": [
+            "Impact",
+            "Finding",
+            "Consequence",
+            "Evidence"
+          ],
+          "rows": [
+            [
+              "**High**",
+              "Identity headers are trusted and never stripped. The gateway does not remove client-sent `User-Id` or `User-Permissions` on its public routes (`/api/auth/**`, `/api/restore-password-request/**`, `/ws-notifications/**`), and `/api/internal/**` has no authentication; only the route table keeps it private.",
+              "Anyone who reaches a service directly on the network can act as any user with any permission. Through the gateway this is latent today: the public routes lead only to endpoints that ignore these headers.",
+              "`AuthorizeAndCheckAccessFilter.java:53-55`; `PermissionControlAspect.java:29-31`; gateway `RouteConfig.java:33-85`"
+            ],
+            [
+              "**High**",
+              "The check-access filter takes the organization from the `Organization-Id` header, never from the path: its pattern `^/api/organizations/(\\d+)…` is matched against the absolute request URI. main-service checks membership in the path's organization but the permission in the header, which is computed for the header's organization.",
+              "A member of an organization can probably act there with the permissions they hold in another organization, for example one they created themselves (Admin = ALL:ALL), by sending that organization's id in the header.",
+              "gateway `OrganizationIdExtractor.java:17-21,30-34`; `AuthorizeAndCheckAccessFilter.java:45-55`; `OrganizationMembershipControlAspect.java:28-35`; `OrganizationCreatorService.java:69-77`"
+            ],
+            [
+              "**High**",
+              "The gateway's permission fallback calls `/users/{u}/organizations/{o}/persmissions` without the `/api/internal` prefix that auth-service serves.",
+              "Organization-scoped calls probably fail whenever the Redis entry is missing or has expired (TTL 10 h), until a role change rewrites it.",
+              "`UserPermissionClient.java:12-13,24`; `InternalUserPermissionsController.java:12,18`"
+            ],
+            [
+              "**High**",
+              "Secrets: one HMAC signing key shared by gateway and auth-service; Gmail SMTP credentials; generated passwords sent in plaintext through RabbitMQ and email; Hibernate bind parameters logged at TRACE (password hashes, refresh tokens); Helm secrets as plaintext `stringData`; test keys committed.",
+              "Whoever holds the signing key can mint tokens for any user; logs and the broker carry credentials.",
+              "Auth `application.properties:11,21,35`; Notification `application.properties:10-15`; `templates/secrets.yaml`; `Deployment/README.md:450-458`"
+            ],
+            [
+              "Medium",
+              "Events and Feign side effects happen inside database transactions, before commit, with no outbox. Example: organization creation publishes `org.created` before its transaction commits.",
+              "Consumers can run before the organization exists: the default priorities and statuses consumers then fail without requeue, leaving the organization without them, while the root-directory reply is requeued and retried until it succeeds; roles created in auth-service are orphaned if the transaction rolls back.",
+              "`OrganizationCreatorService.java:46-64`; `CreateTaskDefaultPrioritiesConsumer.java:57-60`; `OrganizationRootDirCreatedConsumer.java:38-41`"
+            ],
+            [
+              "Medium",
+              "notification-service declares `GET /api/internal/auth/authorize` with a body; auth-service maps `POST`.",
+              "It works only because the default Feign HTTP client turns a GET with a body into a POST; changing the client would break every notification socket.",
+              "`Notification-Service/.../feign/AuthClient.java:13`; `InternalAuthController.java:19`"
+            ],
+            [
+              "Medium",
+              "The web app calls `GET /api/organizations/{id}/preview`, which main-service serves, but no gateway route matches it (`*` matches one path segment).",
+              "The organization preview probably returns 404 in every deployment.",
+              "FE `organization.service.ts:26`; `OrganizationController.java:36`; `RouteConfig.java:39-61`"
+            ],
+            [
+              "Medium",
+              "crm-shared-lib versions differ: gateway and auth-service 0.2.0, file-service 0.2.1, notification-service 0.2.5, main-service 0.3.0 (Boot 4, Jackson 3), all SNAPSHOTs from JitPack. Message classes differ between them.",
+              "Builds are not reproducible, and messages from main-service may not deserialize in the older consumers (unverified).",
+              "each `pom.xml` near lines 30-33; Auth `OrgUserRoleChangedEvent` vs Main `OrgUserRoleChangedMessage`"
+            ],
+            [
+              "Medium",
+              "Single instances: one Eureka with no peers, one PostgreSQL for all schemas in Kustomize, single Redis and RabbitMQ, one replica of everything in Helm, and an in-memory STOMP broker.",
+              "Any one of them failing stops the system; notification-service cannot run more than one instance; gateway authorization depends on Redis and auth-service.",
+              "`eureka-service/application.properties:1-4`; `kustomize/base/postgres.yml`; Helm `values.yaml:121-187`; `WebSocketsConfig.java:39-41`"
+            ],
+            [
+              "Medium",
+              "file-service has no notion of organization, and only GET and PATCH on `/api/files/**` get the gateway's ownership check; DELETE and POST check only a FILES permission. Removing a member does not refresh their cached permissions.",
+              "Anyone with FILES:DELETE or FILES:CREATE in some organization (their own, for instance) can delete or add files in another organization's tree if they know a file id; a removed member keeps their cached permissions for up to 10 h.",
+              "gateway `RouteConfig.java:65-78`; `FileController.java:39-63`; `OrganizationUserAssignmentService.java:62-72`"
+            ],
+            [
+              "Medium",
+              "`DELETE /api/organizations/{id}/tasks/{taskId}` requires only TASKS:READ.",
+              "Any member who can read tasks can delete them.",
+              "`TaskController.java:78`"
+            ],
+            [
+              "Medium",
+              "The frontend image is built with `--configuration development`, so it calls `http://localhost:8080`; the production configuration uses a hardcoded LAN IP. The API URL is fixed at build time.",
+              "The image only works where the gateway is on the user's own machine.",
+              "FE `Dockerfile:12`; `angular.json:39,59-64,78`; `environment.ts:2`"
+            ],
+            [
+              "Low",
+              "CORS allows every origin at the gateway, and the Helm ingress combines `*` with credentials.",
+              "Browsers reject the Helm combination; the gateway accepts calls from any site.",
+              "gateway `application.properties:18-20`; Helm `values.yaml:36-38`"
+            ],
+            [
+              "Low",
+              "READMEs are stale: Main-Service says Java 21 and Boot 3; Notification-Service says Java 17 and lists test endpoints and destinations that do not exist; File-Service lists a non-existent internal endpoint; Deployment lists templates, a local frontend and environment variables that do not exist.",
+              "New engineers following the READMEs are misled.",
+              "`Main-Service/README.md:30-31,63`; `Notification-Service/README.md:26,67-71`; `File-Service/README.md:83`; `Deployment/README.md:183,399-404,526-579`"
+            ],
+            [
+              "Low",
+              "`GET /api/organizations/{id}` has no membership check and its gateway route only authenticates.",
+              "Any signed-in user can read any organization's details (name, address, email, description) by id.",
+              "`OrganizationController.java:55-61`; gateway `RouteConfig.java:38-45`"
+            ],
+            [
+              "Low",
+              "No schema migrations anywhere: Hibernate `ddl-auto=update`.",
+              "Schema changes are applied implicitly at startup and cannot be reviewed or rolled back.",
+              "each service's `application.*`"
+            ]
+          ]
+        },
+        {
+          "type": "list",
+          "id": "unknowns",
+          "eyebrow": "Gaps",
+          "title": "Unknowns",
+          "items": [
+            "Owners, quality goals and the rationale of most decisions: not recorded.",
+            "Which Kubernetes descriptor (Helm or Kustomize) is used in production, and how the web app is served there: no frontend manifest exists and the ingress sends `/` to the gateway.",
+            "Whether `lb://` and Feign names actually resolve in Kubernetes with Eureka off: all five services have Spring Cloud Kubernetes on the classpath, but this was not run.",
+            "Where the `aappaa/discovery-service` image is built: no workflow builds it.",
+            "Whether main-service's 0.3.0 messages deserialize in the consumers on 0.2.x.",
+            "The values of the `.env.*` files and secrets, which are not committed."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-requests",
+      "level": "containers",
+      "title": "Requests and data",
+      "summary": "The synchronous view: how a browser request reaches the services through the gateway, which calls the services make to each other, and which store each one owns.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "The Angular app is only served by nginx; the browser then calls **api-gateway** directly on port 8080. The gateway verifies the JWT itself, adds `User-Id`, `User-Login` and, for organization routes, `User-Permissions`, and routes by `lb://` name. Each service owns one PostgreSQL schema except notification-service, which has none.\n\n**crm-shared-lib** is not a container: its core, messaging and rbac modules are compiled into every service (exception mapping, Feign error decoding, the permission aspect, message classes and queue names). Each service pins a different version of it."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "apa-crm",
+          "caption": "Container diagram for APA-CRM: requests and data",
+          "relationships": [
+            {
+              "from": "member",
+              "to": "frontend",
+              "label": "Works with organizations, members, files and tasks in",
+              "technology": "HTTPS, browser"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "label": "Calls the API with a Bearer JWT and opens the notification socket",
+              "technology": "JSON/HTTP; STOMP/WebSocket"
+            },
+            {
+              "from": "gateway",
+              "to": "eureka",
+              "label": "Resolves service instances (compose only)",
+              "technology": "Eureka REST"
+            },
+            {
+              "from": "gateway",
+              "to": "redis",
+              "label": "Reads the caller's cached permissions",
+              "technology": "Redis, reactive"
+            },
+            {
+              "from": "gateway",
+              "to": "auth",
+              "label": "Routes sign-in and user calls; fetches permissions on a cache miss",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gateway",
+              "to": "main",
+              "label": "Routes organization calls with identity headers; checks file ownership",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gateway",
+              "to": "file",
+              "label": "Routes file calls with User-Permissions",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gateway",
+              "to": "notification",
+              "label": "Relays the notification socket without a token check",
+              "technology": "WebSocket via lb:ws://"
+            },
+            {
+              "from": "auth",
+              "to": "auth-db",
+              "label": "Stores users, roles, sessions and reset requests",
+              "technology": "JDBC"
+            },
+            {
+              "from": "auth",
+              "to": "redis",
+              "label": "Writes permissions, failure markers and locks",
+              "technology": "Redis"
+            },
+            {
+              "from": "auth",
+              "to": "main",
+              "label": "Fetches a member's role ids on a cache miss",
+              "technology": "HTTP/Feign, /api/internal"
+            },
+            {
+              "from": "main",
+              "to": "auth",
+              "label": "Creates and edits roles and looks up users",
+              "technology": "HTTP/Feign, /api/internal"
+            },
+            {
+              "from": "main",
+              "to": "main-db",
+              "label": "Stores organizations, members, invitations, tasks and reminder jobs",
+              "technology": "JDBC"
+            },
+            {
+              "from": "file",
+              "to": "file-db",
+              "label": "Stores the file tree and file bytes",
+              "technology": "JDBC"
+            },
+            {
+              "from": "notification",
+              "to": "auth",
+              "label": "Validates the token on STOMP CONNECT",
+              "technology": "HTTP/Feign"
+            },
+            {
+              "from": "notification",
+              "to": "main",
+              "label": "Checks membership on an organization SUBSCRIBE",
+              "technology": "HTTP/Feign, /api/internal"
+            },
+            {
+              "from": "notification",
+              "to": "gmail",
+              "label": "Sends transactional email",
+              "technology": "SMTP STARTTLS :587"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "id": "messaging-note",
+          "tone": "info",
+          "body": "Asynchronous events between the same services are on the next page, [Messaging](#/cnt-messaging/diagram). Every service also registers with eureka-service; only the gateway's lookup is drawn."
+        },
+        {
+          "type": "elements",
+          "id": "containers",
+          "eyebrow": "Catalogue",
+          "title": "Container Catalogue",
+          "select": {
+            "ids": [
+              "frontend",
+              "gateway",
+              "eureka",
+              "auth",
+              "main",
+              "file",
+              "notification"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Container"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            "technology",
+            {
+              "key": "properties.stack",
+              "label": "Libraries"
+            },
+            {
+              "key": "properties.repo",
+              "label": "Repository"
+            },
+            {
+              "key": "properties.commit",
+              "label": "Commit",
+              "format": "code"
+            },
+            "zoom"
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "data",
+          "eyebrow": "Persistence",
+          "title": "Data Stores",
+          "select": {
+            "ids": [
+              "auth-db",
+              "main-db",
+              "file-db",
+              "redis"
+            ]
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Store"
+            },
+            {
+              "key": "description",
+              "label": "Holds"
+            },
+            {
+              "key": "technology",
+              "label": "Engine"
+            },
+            {
+              "key": "properties.owner",
+              "label": "Owner"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "deployment",
+          "eyebrow": "Runtime",
+          "title": "Deployments",
+          "columns": [
+            "Descriptor",
+            "What runs",
+            "Notes"
+          ],
+          "rows": [
+            [
+              "`docker-compose.local.yml`",
+              "All backend containers built from source, three PostgreSQL 17.5 containers (one per schema), RabbitMQ 3, Redis 8.4.0; Prometheus and Grafana under the `observability` profile.",
+              "No frontend, although the README says there is one."
+            ],
+            [
+              "`docker-compose.dev.yml`",
+              "Pre-built `aappaa/*:develop` images, including the frontend on host port 82; three PostgreSQL containers, RabbitMQ 3, Redis 7.4.4.",
+              "The gateway gets no Redis settings or signing key and file-service no RabbitMQ settings, so both probably fail to start."
+            ],
+            [
+              "Helm chart `heml-chart`",
+              "The gateway and four services, one replica each, behind an nginx Ingress for `www.apa.local`.",
+              "PostgreSQL, RabbitMQ, Redis, Eureka and the frontend are expected to exist elsewhere; Eureka is switched off."
+            ],
+            [
+              "Kustomize (namespace `aappaa`)",
+              "The gateway and four services, plus **one** PostgreSQL StatefulSet holding auth_db, file_db and main_db, RabbitMQ 4 and Redis 8.4.0; Ingress for `www.aappaa.com`.",
+              "Eureka is off; discovery presumably uses Spring Cloud Kubernetes. No frontend."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cnt-messaging",
+      "level": "containers",
+      "title": "Messaging",
+      "summary": "The asynchronous view: which service publishes what to RabbitMQ and who consumes it. Each producing service has its own topic exchange, drawn here as its own element; in-app notices go straight to one queue.",
+      "sections": [
+        {
+          "type": "text",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "body": "Main-Service drives most traffic: organization creation, role changes, invitations and task reminders. File-Service answers `org.created` with `org.root-dir.created`, a request and reply over two exchanges. Notification-Service only consumes. Exchange and queue names are constants in crm-shared-lib, except Auth-Service's exchange, which is a local constant. No dead-letter queues are declared."
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Container Diagram",
+          "boundary": "apa-crm",
+          "caption": "Container diagram for APA-CRM: messaging",
+          "relationships": [
+            {
+              "from": "main",
+              "to": "x-main-events",
+              "label": "Publishes organization, role, invitation and reminder events",
+              "technology": "AMQP · 4 routing keys"
+            },
+            {
+              "from": "x-main-events",
+              "to": "file",
+              "label": "Asks for a root directory",
+              "technology": "AMQP · org.created"
+            },
+            {
+              "from": "x-main-events",
+              "to": "main",
+              "label": "Triggers default task priorities and statuses",
+              "technology": "AMQP · org.created"
+            },
+            {
+              "from": "x-main-events",
+              "to": "auth",
+              "label": "Requests a permission recompute",
+              "technology": "AMQP · org-user.role-changes"
+            },
+            {
+              "from": "x-main-events",
+              "to": "notification",
+              "label": "Requests invitation and reminder emails",
+              "technology": "AMQP · invitation, reminder"
+            },
+            {
+              "from": "file",
+              "to": "x-file-events",
+              "label": "Reports the new root directory",
+              "technology": "AMQP · org.root-dir.created"
+            },
+            {
+              "from": "x-file-events",
+              "to": "main",
+              "label": "Delivers the root directory id",
+              "technology": "AMQP"
+            },
+            {
+              "from": "auth",
+              "to": "x-auth-event",
+              "label": "Requests password and reset-code emails",
+              "technology": "AMQP · 2 routing keys"
+            },
+            {
+              "from": "x-auth-event",
+              "to": "notification",
+              "label": "Delivers the email requests",
+              "technology": "AMQP"
+            },
+            {
+              "from": "main",
+              "to": "q-send-message",
+              "label": "Sends in-app notices to a user or organization",
+              "technology": "AMQP, default exchange"
+            },
+            {
+              "from": "q-send-message",
+              "to": "notification",
+              "label": "Delivers in-app notices",
+              "technology": "AMQP"
+            },
+            {
+              "from": "notification",
+              "to": "gmail",
+              "label": "Sends the requested email",
+              "technology": "SMTP STARTTLS"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "exchanges",
+          "eyebrow": "Catalogue",
+          "title": "Exchanges and queues",
+          "select": {
+            "kind": "queue"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Exchange / queue"
+            },
+            {
+              "key": "description",
+              "label": "Carries"
+            },
+            "technology",
+            {
+              "key": "properties.owner",
+              "label": "Declared by"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "bindings",
+          "eyebrow": "Catalogue",
+          "title": "Queues and bindings",
+          "columns": [
+            "Queue",
+            "Exchange / routing key",
+            "Message",
+            "Producer → consumer"
+          ],
+          "rows": [
+            [
+              "`file-service.create-organization-root-dir`",
+              "`main-service.events` / `org.created`",
+              "OrgCreatedMessage",
+              "main-service → file-service CreateRootDirConsumer"
+            ],
+            [
+              "`main-service.create-defaut-task-priorities`",
+              "`main-service.events` / `org.created`",
+              "OrgCreatedMessage",
+              "main-service → main-service CreateTaskDefaultPrioritiesConsumer"
+            ],
+            [
+              "`main-service.create-defaut-task-statuses`",
+              "`main-service.events` / `org.created`",
+              "OrgCreatedMessage",
+              "main-service → main-service CreateTaskDefaultStatusesConsumer"
+            ],
+            [
+              "`auth-service.org-user-role-sync` (TTL 15 min)",
+              "`main-service.events` / `org-user.role-changes`",
+              "OrgUserRoleChangedMessage (Auth reads it as OrgUserRoleChangedEvent)",
+              "main-service → auth-service UpdateOrganizationUserPermission"
+            ],
+            [
+              "`notification-service.send-invitation-of-organization`",
+              "`main-service.events` / `org-invitation.created`",
+              "SendInvitationOfOrganizationMessage",
+              "main-service → notification-service SendInvitationOfOrganizationConsumer"
+            ],
+            [
+              "`notification-service.task-reminder`",
+              "`main-service.events` / `org.task.remind`",
+              "TaskReminderMessage",
+              "main-service TaskReminderJobHandler → notification-service TaskReminderConsumer"
+            ],
+            [
+              "`main-service.create-root-dir-for-organization`",
+              "`file-service.events` / `org.root-dir.created`",
+              "OrgRootDirCreatedMessage",
+              "file-service → main-service OrganizationRootDirCreatedConsumer"
+            ],
+            [
+              "`notification-service.send-password`",
+              "`auth-service.event` / `user.random-password`",
+              "SendPasswordByEmailMessage",
+              "auth-service → notification-service PasswordSenderConsumer"
+            ],
+            [
+              "`notification-service.send-verification-code`",
+              "`auth-service.event` / `user.restore-password`",
+              "SendVerificationCodeByEmailMessage",
+              "auth-service → notification-service VerificationCodeSenderConsumer"
+            ],
+            [
+              "`notification-service.send-message`",
+              "default exchange",
+              "CrmNotification",
+              "main-service (shared-lib MessagingService) → notification-service SendMessageConsumer"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-gateway",
+      "level": "components",
+      "title": "api-gateway",
+      "element": "gateway",
+      "summary": "How the gateway decides who the caller is and what they may do in an organization, before routing.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Seven routes, checked in order; the public ones (`/api/auth/**`, `/api/restore-password-request/**`, `/ws-notifications/**`) have no filter.",
+            "Filters authenticate and attach permissions but never deny on a permission; the services do that.",
+            "No rate limiting, circuit breaker or retry is configured."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "gateway",
+          "caption": "Component diagram for api-gateway",
+          "relationships": [
+            {
+              "from": "frontend",
+              "to": "gw-routes",
+              "label": "Sends API calls and the notification socket to",
+              "technology": "JSON/HTTP; WebSocket"
+            },
+            {
+              "from": "frontend",
+              "to": "gw-composite",
+              "label": "Lists and edits tasks through",
+              "technology": "JSON/HTTP"
+            },
+            {
+              "from": "gw-routes",
+              "to": "gw-auth-filter",
+              "label": "Applies to /api/users/** and top-level organization paths"
+            },
+            {
+              "from": "gw-routes",
+              "to": "gw-check-access",
+              "label": "Applies to organization sub-paths and /api/files/**"
+            },
+            {
+              "from": "gw-routes",
+              "to": "gw-org-files",
+              "label": "Applies to GET and PATCH on /api/files/**"
+            },
+            {
+              "from": "gw-auth-filter",
+              "to": "gw-jwt",
+              "label": "Verifies the token with"
+            },
+            {
+              "from": "gw-check-access",
+              "to": "gw-jwt",
+              "label": "Verifies the token with"
+            },
+            {
+              "from": "gw-check-access",
+              "to": "gw-permissions",
+              "label": "Gets the caller's permissions from"
+            },
+            {
+              "from": "gw-composite",
+              "to": "gw-permissions",
+              "label": "Gets the caller's permissions from"
+            },
+            {
+              "from": "gw-permissions",
+              "to": "redis",
+              "label": "Reads cached permissions",
+              "technology": "Redis"
+            },
+            {
+              "from": "gw-permissions",
+              "to": "auth",
+              "label": "Fetches permissions on a miss (wrong path)",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gw-org-files",
+              "to": "main",
+              "label": "Checks the file belongs to the organization",
+              "technology": "HTTP, /api/internal"
+            },
+            {
+              "from": "gw-routes",
+              "to": "auth",
+              "label": "Forwards sign-in and user calls",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gw-routes",
+              "to": "main",
+              "label": "Forwards organization calls",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gw-routes",
+              "to": "file",
+              "label": "Forwards file calls",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gw-routes",
+              "to": "notification",
+              "label": "Relays the notification socket",
+              "technology": "WebSocket via lb:ws://"
+            },
+            {
+              "from": "gw-composite",
+              "to": "main",
+              "label": "Forwards task calls with identity headers",
+              "technology": "HTTP via lb://"
+            },
+            {
+              "from": "gw-composite",
+              "to": "auth",
+              "label": "Looks up user details for tasks",
+              "technology": "HTTP, GET /api/internal/users"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "gateway"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "routes",
+          "eyebrow": "Catalogue",
+          "title": "Routes",
+          "columns": [
+            "Route",
+            "Paths",
+            "Filters",
+            "Target"
+          ],
+          "rows": [
+            [
+              "notifications-service-web-sockets",
+              "`/ws-notifications/**`",
+              "none",
+              "notification-service (WebSocket)"
+            ],
+            [
+              "main-service-authorize",
+              "`/api/organizations`, `/api/organizations/*`, `/api/organizations/invitations/**` (GET, POST, PATCH)",
+              "AuthFilter",
+              "main-service"
+            ],
+            [
+              "auth-service-authorize",
+              "`/api/users/**`",
+              "AuthFilter",
+              "auth-service"
+            ],
+            [
+              "main-service-check-access",
+              "`/api/organizations/*` (the methods not matched above, e.g. PUT), `/api/organizations/*/{users,roles,invitations,files,tasks}…`",
+              "Check-access filter",
+              "main-service"
+            ],
+            [
+              "file-service-check-access-and-file-existence",
+              "`/api/files/**` (GET, PATCH)",
+              "Check-access + organization-files",
+              "file-service"
+            ],
+            [
+              "file-service-check-access",
+              "`/api/files/**` (DELETE, POST)",
+              "Check-access",
+              "file-service"
+            ],
+            [
+              "authorization-api",
+              "`/api/auth/**`, `/api/restore-password-request/**`",
+              "none",
+              "auth-service"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-auth",
+      "level": "components",
+      "title": "auth-service",
+      "element": "auth",
+      "summary": "Sign-in, sessions, password reset, and the permissions every organization-scoped request depends on.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "No Spring Security filter chain: only BCrypt from spring-security-crypto. Users and sessions endpoints trust the `User-Id` header.",
+            "Permissions are computed from role ids that main-service holds and cached in Redis for 10 hours.",
+            "Emails are not sent here: two publishers ask notification-service to send them."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "auth",
+          "caption": "Component diagram for auth-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "au-sign-in-api",
+              "label": "Forwards public sign-up, sign-in, refresh and logout",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "au-restore-api",
+              "label": "Forwards public reset requests",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "au-users-api",
+              "label": "Forwards user calls with User-Id",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "au-internal-api",
+              "label": "Fetches permissions and user details",
+              "technology": "HTTP"
+            },
+            {
+              "from": "main",
+              "to": "au-internal-api",
+              "label": "Manages roles and looks up users",
+              "technology": "HTTP/Feign"
+            },
+            {
+              "from": "notification",
+              "to": "au-internal-api",
+              "label": "Validates STOMP tokens",
+              "technology": "HTTP/Feign"
+            },
+            {
+              "from": "au-sign-in-api",
+              "to": "auth-db",
+              "label": "Checks credentials and stores refresh tokens",
+              "technology": "JDBC"
+            },
+            {
+              "from": "au-restore-api",
+              "to": "auth-db",
+              "label": "Stores reset requests",
+              "technology": "JDBC"
+            },
+            {
+              "from": "au-users-api",
+              "to": "auth-db",
+              "label": "Reads and updates users and sessions",
+              "technology": "JDBC"
+            },
+            {
+              "from": "au-internal-api",
+              "to": "auth-db",
+              "label": "Reads and writes roles and users",
+              "technology": "JDBC"
+            },
+            {
+              "from": "au-internal-api",
+              "to": "au-permission-resolver",
+              "label": "Resolves a member's permissions with"
+            },
+            {
+              "from": "au-permission-resolver",
+              "to": "au-permission-cache",
+              "label": "Reads, locks and writes permissions through"
+            },
+            {
+              "from": "au-permission-resolver",
+              "to": "main",
+              "label": "Fetches the member's role ids",
+              "technology": "HTTP/Feign, /api/internal"
+            },
+            {
+              "from": "x-main-events",
+              "to": "au-role-sync",
+              "label": "Delivers role changes",
+              "technology": "AMQP org-user.role-changes"
+            },
+            {
+              "from": "au-role-sync",
+              "to": "au-permission-cache",
+              "label": "Overwrites cached permissions through"
+            },
+            {
+              "from": "au-permission-cache",
+              "to": "redis",
+              "label": "Stores entries, failure markers and the lock",
+              "technology": "Redis"
+            },
+            {
+              "from": "au-sign-in-api",
+              "to": "au-email-producers",
+              "label": "Requests a generated-password email"
+            },
+            {
+              "from": "au-restore-api",
+              "to": "au-email-producers",
+              "label": "Requests a reset-code email"
+            },
+            {
+              "from": "au-email-producers",
+              "to": "x-auth-event",
+              "label": "Publishes email requests",
+              "technology": "AMQP"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "auth"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-main",
+      "level": "components",
+      "title": "main-service",
+      "element": "main",
+      "summary": "The CRM domain. Shown as two diagrams: the HTTP entry points, then the events and the reminder job.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "37 public and 3 internal endpoints; every controller delegates to a facade.",
+            "Most endpoints pass two checks: a database membership check and the shared permission aspect.",
+            "Events and Feign calls run inside the business transaction, before commit; there is no outbox."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Requests",
+          "boundary": "main",
+          "caption": "Component diagram for main-service: requests",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "ms-org-api",
+              "label": "Forwards organization calls with User-Id",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "ms-membership-api",
+              "label": "Forwards member, role and invitation calls with identity headers",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "ms-files-api",
+              "label": "Forwards organization file calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "ms-tasks-api",
+              "label": "Forwards task calls",
+              "technology": "HTTP"
+            },
+            {
+              "from": "gateway",
+              "to": "ms-internal-api",
+              "label": "Checks file ownership",
+              "technology": "HTTP"
+            },
+            {
+              "from": "auth",
+              "to": "ms-internal-api",
+              "label": "Fetches a member's role ids",
+              "technology": "HTTP/Feign"
+            },
+            {
+              "from": "notification",
+              "to": "ms-internal-api",
+              "label": "Checks membership",
+              "technology": "HTTP/Feign"
+            },
+            {
+              "from": "ms-membership-api",
+              "to": "ms-access-guard",
+              "label": "Is admitted by"
+            },
+            {
+              "from": "ms-files-api",
+              "to": "ms-access-guard",
+              "label": "Is admitted by"
+            },
+            {
+              "from": "ms-tasks-api",
+              "to": "ms-access-guard",
+              "label": "Is admitted by"
+            },
+            {
+              "from": "ms-org-api",
+              "to": "ms-auth-client",
+              "label": "Creates Admin and Member roles through"
+            },
+            {
+              "from": "ms-membership-api",
+              "to": "ms-auth-client",
+              "label": "Manages roles and looks up users through"
+            },
+            {
+              "from": "ms-auth-client",
+              "to": "auth",
+              "label": "Calls the internal roles and users API",
+              "technology": "HTTP/Feign, /api/internal"
+            },
+            {
+              "from": "ms-org-api",
+              "to": "main-db",
+              "label": "Stores organizations and memberships",
+              "technology": "JPA/JDBC"
+            },
+            {
+              "from": "ms-membership-api",
+              "to": "main-db",
+              "label": "Stores invitations, members and role links",
+              "technology": "JPA/JDBC"
+            },
+            {
+              "from": "ms-files-api",
+              "to": "main-db",
+              "label": "Stores file links",
+              "technology": "JPA/JDBC"
+            },
+            {
+              "from": "ms-tasks-api",
+              "to": "main-db",
+              "label": "Stores tasks, priorities and statuses",
+              "technology": "JPA/JDBC"
+            },
+            {
+              "from": "ms-access-guard",
+              "to": "main-db",
+              "label": "Checks membership",
+              "technology": "JPA/JDBC"
+            }
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram-2",
+          "eyebrow": "Diagram",
+          "title": "Events and jobs",
+          "boundary": "main",
+          "caption": "Component diagram for main-service: events and jobs",
+          "relationships": [
+            {
+              "from": "ms-org-api",
+              "to": "ms-producers",
+              "label": "Announces new organizations and role grants through"
+            },
+            {
+              "from": "ms-membership-api",
+              "to": "ms-producers",
+              "label": "Announces invitations, role changes and notices through"
+            },
+            {
+              "from": "ms-tasks-api",
+              "to": "ms-producers",
+              "label": "Sends task-assigned notices through"
+            },
+            {
+              "from": "ms-tasks-api",
+              "to": "main-db",
+              "label": "Schedules or deletes the reminder job",
+              "technology": "JobRunr, JDBC"
+            },
+            {
+              "from": "ms-reminder-job",
+              "to": "main-db",
+              "label": "Picks up due jobs and marks the task reminded",
+              "technology": "JobRunr, JDBC"
+            },
+            {
+              "from": "ms-reminder-job",
+              "to": "ms-auth-client",
+              "label": "Looks up assignee and creator emails through"
+            },
+            {
+              "from": "ms-reminder-job",
+              "to": "ms-producers",
+              "label": "Publishes the reminder through"
+            },
+            {
+              "from": "ms-producers",
+              "to": "x-main-events",
+              "label": "Publishes domain events",
+              "technology": "AMQP"
+            },
+            {
+              "from": "ms-producers",
+              "to": "q-send-message",
+              "label": "Sends in-app notices",
+              "technology": "AMQP, default exchange"
+            },
+            {
+              "from": "x-main-events",
+              "to": "ms-consumers",
+              "label": "Delivers org.created",
+              "technology": "AMQP, 2 queues"
+            },
+            {
+              "from": "x-file-events",
+              "to": "ms-consumers",
+              "label": "Delivers org.root-dir.created",
+              "technology": "AMQP"
+            },
+            {
+              "from": "ms-consumers",
+              "to": "main-db",
+              "label": "Stores default priorities, statuses and the root directory link",
+              "technology": "JPA/JDBC"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "main"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-file",
+      "level": "components",
+      "title": "file-service",
+      "element": "file",
+      "summary": "The file tree and its content. The service knows nothing about organizations: scoping comes from main-service's root-directory link and the gateway's ownership check.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "Every endpoint requires a FILES permission from the `User-Permissions` header.",
+            "Content is a LOB that shares the metadata id; a download is served from memory.",
+            "The README's `POST /api/internal/files/default` does not exist: root directories are created over RabbitMQ."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "file",
+          "caption": "Component diagram for file-service",
+          "relationships": [
+            {
+              "from": "gateway",
+              "to": "fs-api",
+              "label": "Forwards file calls with User-Permissions",
+              "technology": "HTTP, multipart"
+            },
+            {
+              "from": "fs-api",
+              "to": "fs-guard",
+              "label": "Is admitted by"
+            },
+            {
+              "from": "fs-api",
+              "to": "fs-service",
+              "label": "Creates, reads, updates and deletes files through"
+            },
+            {
+              "from": "x-main-events",
+              "to": "fs-root-consumer",
+              "label": "Delivers org.created",
+              "technology": "AMQP"
+            },
+            {
+              "from": "fs-root-consumer",
+              "to": "fs-service",
+              "label": "Creates the root directory through"
+            },
+            {
+              "from": "fs-root-consumer",
+              "to": "x-file-events",
+              "label": "Replies with the root directory id",
+              "technology": "AMQP org.root-dir.created"
+            },
+            {
+              "from": "fs-service",
+              "to": "fs-repos",
+              "label": "Persists metadata and content through"
+            },
+            {
+              "from": "fs-repos",
+              "to": "file-db",
+              "label": "Reads and writes metadata and LOBs",
+              "technology": "JDBC"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "file"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cmp-notification",
+      "level": "components",
+      "title": "notification-service",
+      "element": "notification",
+      "summary": "Two paths out: email through Gmail and real-time notices over STOMP. No database and no REST controller.",
+      "sections": [
+        {
+          "type": "list",
+          "id": "overview",
+          "eyebrow": "Scope",
+          "title": "Overview",
+          "items": [
+            "The gateway relays the socket without checking the token; the interceptor checks it with auth-service.",
+            "The broker is in memory, so subscriptions live in one instance only.",
+            "The README's test REST endpoints and `/user/{userId}/queue/notifications` destination are not in the code."
+          ]
+        },
+        {
+          "type": "diagram",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Component Diagram",
+          "boundary": "notification",
+          "caption": "Component diagram for notification-service",
+          "relationships": [
+            {
+              "from": "x-auth-event",
+              "to": "ns-email-consumers",
+              "label": "Delivers password and reset-code requests",
+              "technology": "AMQP"
+            },
+            {
+              "from": "x-main-events",
+              "to": "ns-email-consumers",
+              "label": "Delivers invitation and reminder requests",
+              "technology": "AMQP"
+            },
+            {
+              "from": "ns-email-consumers",
+              "to": "ns-templates",
+              "label": "Renders the email with"
+            },
+            {
+              "from": "ns-email-consumers",
+              "to": "ns-email",
+              "label": "Sends the email with"
+            },
+            {
+              "from": "ns-email",
+              "to": "gmail",
+              "label": "Sends HTML email",
+              "technology": "SMTP STARTTLS :587"
+            },
+            {
+              "from": "q-send-message",
+              "to": "ns-message-consumer",
+              "label": "Delivers in-app notices",
+              "technology": "AMQP"
+            },
+            {
+              "from": "ns-message-consumer",
+              "to": "ns-sender",
+              "label": "Hands each notice to"
+            },
+            {
+              "from": "ns-sender",
+              "to": "ns-stomp",
+              "label": "Publishes to the user or organization destination on"
+            },
+            {
+              "from": "gateway",
+              "to": "ns-stomp",
+              "label": "Relays client sockets",
+              "technology": "STOMP over WebSocket"
+            },
+            {
+              "from": "ns-stomp",
+              "to": "ns-interceptor",
+              "label": "Passes CONNECT, SUBSCRIBE and SEND frames to"
+            },
+            {
+              "from": "ns-interceptor",
+              "to": "ns-clients",
+              "label": "Checks tokens and membership through"
+            },
+            {
+              "from": "ns-clients",
+              "to": "auth",
+              "label": "Validates the access token",
+              "technology": "HTTP/Feign"
+            },
+            {
+              "from": "ns-clients",
+              "to": "main",
+              "label": "Checks organization membership",
+              "technology": "HTTP/Feign"
+            }
+          ]
+        },
+        {
+          "type": "elements",
+          "id": "components",
+          "eyebrow": "Catalogue",
+          "title": "Components",
+          "select": {
+            "parent": "notification"
+          },
+          "columns": [
+            {
+              "key": "name",
+              "label": "Component"
+            },
+            {
+              "key": "description",
+              "label": "Responsibility"
+            },
+            {
+              "key": "technology",
+              "label": "Implementation"
+            },
+            {
+              "key": "properties.classes",
+              "label": "Classes",
+              "format": "code"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seq-sign-in",
+      "level": "sequence",
+      "title": "Sign-in and an organization request",
+      "summary": "A member signs in and then lists the members of their organization. auth-service issues the tokens; on every later call the gateway checks the JWT itself and attaches the member's permissions from Redis. main-service then enforces membership and the permission and asks auth-service for the user details.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Member submits the login form"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "The member has an account and belongs to the organization"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Tokens are in localStorage; the member list is shown"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "member",
+            "frontend",
+            "gateway",
+            "redis",
+            "auth",
+            "main"
+          ],
+          "steps": [
+            {
+              "from": "member",
+              "to": "frontend",
+              "message": "Signs in"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Requests tokens",
+              "code": "POST /api/auth/sign-in [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "auth",
+              "message": "Forwards without a filter (public route)",
+              "code": "POST /api/auth/sign-in [HTTP lb://]"
+            },
+            {
+              "from": "auth",
+              "to": "auth",
+              "message": "Checks the BCrypt password, stores a refresh token, signs a 30-minute JWT"
+            },
+            {
+              "from": "auth",
+              "to": "gateway",
+              "message": "Access token, type, refresh token",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "Tokens",
+              "type": "return",
+              "info": "The app stores them in localStorage and later sends the chosen organization as `Organization-Id`."
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Lists organization members with the Bearer JWT",
+              "code": "GET /api/organizations/{org}/users/filter [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "gateway",
+              "message": "Verifies the JWT signature and expiry"
+            },
+            {
+              "from": "gateway",
+              "to": "redis",
+              "message": "Reads the member's permissions",
+              "code": "GET organization:{org}:user:{uid}:permissions [Redis]"
+            },
+            {
+              "frame": "alt",
+              "label": "cache miss"
+            },
+            {
+              "from": "gateway",
+              "to": "auth",
+              "message": "Fetches permissions",
+              "code": "GET /users/{uid}/organizations/{org}/persmissions [HTTP]",
+              "info": "The path lacks `/api/internal`, which auth-service needs, so this probably returns 404."
+            },
+            {
+              "from": "auth",
+              "to": "gateway",
+              "message": "Not found (likely)",
+              "type": "return"
+            },
+            {
+              "end": true
+            },
+            {
+              "from": "gateway",
+              "to": "main",
+              "message": "Forwards with User-Id, User-Login, User-Permissions",
+              "code": "GET /api/organizations/{org}/users/filter [HTTP lb://]"
+            },
+            {
+              "from": "main",
+              "to": "main",
+              "message": "Checks membership and USERS:READ"
+            },
+            {
+              "from": "main",
+              "to": "auth",
+              "message": "Fetches user details",
+              "code": "POST /api/internal/users/filter [HTTP/Feign]"
+            },
+            {
+              "from": "auth",
+              "to": "main",
+              "message": "Users",
+              "type": "return"
+            },
+            {
+              "from": "main",
+              "to": "gateway",
+              "message": "Member page",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "Member page",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-create-org",
+      "level": "sequence",
+      "title": "Create an organization",
+      "summary": "Creating an organization sets up its Admin and Member roles in auth-service and the creator's membership in one transaction, then announces `org.created`. file-service answers with a root directory over a second exchange, and main-service fills in default task priorities and statuses from its own event. Both events are published before the transaction commits.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Signed-in user submits the new organization form"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Valid JWT"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Organization with Admin and Member roles, the creator as Admin, a root directory, 3 priorities and 5 statuses"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "frontend",
+            "gateway",
+            "main",
+            "auth",
+            "x-main-events",
+            "file",
+            "x-file-events"
+          ],
+          "steps": [
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Creates an organization",
+              "code": "POST /api/organizations [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "gateway",
+              "message": "AuthFilter verifies the JWT and adds User-Id"
+            },
+            {
+              "from": "gateway",
+              "to": "main",
+              "message": "Forwards",
+              "code": "POST /api/organizations [HTTP lb://]"
+            },
+            {
+              "from": "main",
+              "to": "main",
+              "message": "Opens a transaction and inserts the organization"
+            },
+            {
+              "from": "main",
+              "to": "auth",
+              "message": "Creates the Admin role (ALL:ALL)",
+              "code": "POST /api/internal/roles [HTTP/Feign]"
+            },
+            {
+              "from": "auth",
+              "to": "main",
+              "message": "Role id",
+              "type": "return"
+            },
+            {
+              "from": "main",
+              "to": "auth",
+              "message": "Creates the Member role (ALL:READ)",
+              "code": "POST /api/internal/roles [HTTP/Feign]"
+            },
+            {
+              "from": "auth",
+              "to": "main",
+              "message": "Role id",
+              "type": "return"
+            },
+            {
+              "from": "main",
+              "to": "main",
+              "message": "Adds the creator as a member with the Admin role"
+            },
+            {
+              "from": "main",
+              "to": "x-main-events",
+              "message": "Announces the creator's role grant",
+              "code": "org-user.role-changes [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "main",
+              "to": "x-main-events",
+              "message": "Announces the new organization",
+              "code": "org.created [AMQP]",
+              "type": "async"
+            },
+            {
+              "note": "Published inside the transaction, before commit; no outbox",
+              "over": [
+                "main",
+                "x-main-events"
+              ]
+            },
+            {
+              "from": "main",
+              "to": "gateway",
+              "message": "Created organization",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "Created organization",
+              "type": "return"
+            },
+            {
+              "frame": "par",
+              "label": "consumers of the two events"
+            },
+            {
+              "from": "x-main-events",
+              "to": "auth",
+              "message": "Recompute the creator's permissions",
+              "code": "auth-service.org-user-role-sync [AMQP]",
+              "type": "async"
+            },
+            {
+              "else": "org.created to file-service"
+            },
+            {
+              "from": "x-main-events",
+              "to": "file",
+              "message": "Make a root directory",
+              "code": "file-service.create-organization-root-dir [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "file",
+              "to": "file",
+              "message": "Creates directory \"Root <organization name>\""
+            },
+            {
+              "from": "file",
+              "to": "x-file-events",
+              "message": "Reports the root directory",
+              "code": "org.root-dir.created [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "x-file-events",
+              "to": "main",
+              "message": "Delivers the root directory id",
+              "code": "main-service.create-root-dir-for-organization [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "main",
+              "to": "main",
+              "message": "Stores the root directory link"
+            },
+            {
+              "else": "org.created back to main-service"
+            },
+            {
+              "from": "x-main-events",
+              "to": "main",
+              "message": "Create default priorities and statuses",
+              "code": "main-service.create-defaut-task-priorities / -statuses [AMQP]",
+              "type": "async"
+            },
+            {
+              "end": true
+            },
+            {
+              "note": "Before commit, the defaults consumers fail (no requeue); the reply retries",
+              "over": [
+                "x-main-events",
+                "file",
+                "x-file-events"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-invite",
+      "level": "sequence",
+      "title": "Invite a member",
+      "summary": "A member with INVITATIONS:CREATE invites a registered user. main-service records a pending invitation for 72 hours and hands two messages to RabbitMQ: an invitation email and an in-app notice. notification-service turns them into a Gmail email with a link to the web app and a STOMP push; the invitee later accepts in the web app, which adds them to the organization.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Inviter submits the invite form"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Inviter is a member whose role grants INVITATIONS:CREATE; the invitee has an account"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Pending invitation; invitee has an email and, if connected, an in-app notice"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "frontend",
+            "gateway",
+            "main",
+            "auth",
+            "x-main-events",
+            "q-send-message",
+            "notification",
+            "gmail"
+          ],
+          "steps": [
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Invites a user with a role",
+              "code": "POST /api/organizations/{org}/invitations [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "gateway",
+              "message": "Check-access filter: JWT plus permissions from Redis"
+            },
+            {
+              "from": "gateway",
+              "to": "main",
+              "message": "Forwards with identity headers",
+              "code": "POST /api/organizations/{org}/invitations [HTTP lb://]"
+            },
+            {
+              "from": "main",
+              "to": "main",
+              "message": "Checks membership and INVITATIONS:CREATE"
+            },
+            {
+              "from": "main",
+              "to": "auth",
+              "message": "Looks up the invitee's email",
+              "code": "GET /api/internal/users/{userId} [HTTP/Feign]"
+            },
+            {
+              "from": "auth",
+              "to": "main",
+              "message": "User with email",
+              "type": "return"
+            },
+            {
+              "from": "main",
+              "to": "main",
+              "message": "Stores a PENDING invitation expiring in 72 h"
+            },
+            {
+              "from": "main",
+              "to": "x-main-events",
+              "message": "Requests the invitation email",
+              "code": "org-invitation.created [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "main",
+              "to": "q-send-message",
+              "message": "Sends an in-app notice to the invitee",
+              "code": "CrmNotification [AMQP, default exchange]",
+              "type": "async"
+            },
+            {
+              "note": "Notice send errors are logged and swallowed",
+              "over": [
+                "main",
+                "q-send-message"
+              ]
+            },
+            {
+              "from": "main",
+              "to": "gateway",
+              "message": "Invitation",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "Invitation",
+              "type": "return"
+            },
+            {
+              "from": "x-main-events",
+              "to": "notification",
+              "message": "Delivers the invitation request",
+              "code": "notification-service.send-invitation-of-organization [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "notification",
+              "to": "gmail",
+              "message": "Emails the invitation link built from FRONTEND_URL",
+              "code": "SMTP STARTTLS"
+            },
+            {
+              "from": "q-send-message",
+              "to": "notification",
+              "message": "Delivers the notice",
+              "code": "notification-service.send-message [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "notification",
+              "to": "frontend",
+              "message": "Pushes to the invitee if connected",
+              "code": "/user/topic/notifications [STOMP via gateway]",
+              "type": "async"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-task-reminder",
+      "level": "sequence",
+      "title": "Task reminder",
+      "summary": "Saving a task with a reminder time schedules a JobRunr job that is stored in main_db. At that time main-service's job server looks up the assignee and creator emails in auth-service, publishes `org.task.remind` and marks the task reminded; notification-service sends one Gmail email per recipient.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Member saves a task with a reminder time; later, the reminder time passes"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Member has TASKS:CREATE"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "The creator and the assignee, if any, receive a reminder email; the task is marked reminded"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "frontend",
+            "gateway",
+            "main",
+            "auth",
+            "x-main-events",
+            "notification",
+            "gmail"
+          ],
+          "steps": [
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Creates a task with reminderAt",
+              "code": "POST /api/composite/organizations/{org}/tasks [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "gateway",
+              "message": "Verifies the JWT and gets permissions"
+            },
+            {
+              "from": "gateway",
+              "to": "main",
+              "message": "Forwards with User-Id and User-Permissions",
+              "code": "POST /api/organizations/{org}/tasks [HTTP lb://]"
+            },
+            {
+              "from": "main",
+              "to": "main",
+              "message": "Stores the task and schedules the reminder job in main_db"
+            },
+            {
+              "from": "main",
+              "to": "gateway",
+              "message": "Task",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "Task",
+              "type": "return"
+            },
+            {
+              "note": "Later: at reminderAt the JobRunr job server picks up the job",
+              "over": [
+                "main"
+              ]
+            },
+            {
+              "from": "main",
+              "to": "auth",
+              "message": "Looks up assignee and creator emails",
+              "code": "GET /api/internal/users/{id} [HTTP/Feign]"
+            },
+            {
+              "from": "auth",
+              "to": "main",
+              "message": "Users with emails",
+              "type": "return"
+            },
+            {
+              "from": "main",
+              "to": "x-main-events",
+              "message": "Publishes the reminder",
+              "code": "org.task.remind [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "main",
+              "to": "main",
+              "message": "Marks the task reminded"
+            },
+            {
+              "note": "Hand-off: the email is sent independently of the job",
+              "over": [
+                "main",
+                "x-main-events"
+              ]
+            },
+            {
+              "from": "x-main-events",
+              "to": "notification",
+              "message": "Delivers the reminder",
+              "code": "notification-service.task-reminder [AMQP]",
+              "type": "async"
+            },
+            {
+              "frame": "loop",
+              "label": "each recipient"
+            },
+            {
+              "from": "notification",
+              "to": "gmail",
+              "message": "Emails the reminder, due date in Europe/Kyiv",
+              "code": "SMTP STARTTLS"
+            },
+            {
+              "end": true
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-realtime",
+      "level": "sequence",
+      "title": "Real-time notification",
+      "summary": "The web app opens one STOMP socket through the gateway, which relays it without checking the token. notification-service authorizes the CONNECT with auth-service and each organization subscription with main-service. Notices from main-service then arrive over RabbitMQ and are pushed to one user or to everyone subscribed to the organization.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "Member opens the web app after sign-in"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "Valid JWT; member of the organization"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "Socket subscribed to the user and organization destinations; notices appear live"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "frontend",
+            "gateway",
+            "notification",
+            "auth",
+            "main",
+            "q-send-message"
+          ],
+          "steps": [
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Opens the notification socket with the JWT in CONNECT",
+              "code": "/ws-notifications [STOMP over WebSocket]"
+            },
+            {
+              "from": "gateway",
+              "to": "notification",
+              "message": "Relays the socket, no token check",
+              "code": "lb:ws://notification-service"
+            },
+            {
+              "from": "notification",
+              "to": "auth",
+              "message": "Validates the access token",
+              "code": "GET /api/internal/auth/authorize [HTTP/Feign]",
+              "info": "auth-service maps this as POST; it works only because the default Feign client sends a GET with a body as POST."
+            },
+            {
+              "from": "auth",
+              "to": "notification",
+              "message": "User id and login",
+              "type": "return"
+            },
+            {
+              "from": "notification",
+              "to": "notification",
+              "message": "Sets the session principal to the user id"
+            },
+            {
+              "from": "frontend",
+              "to": "notification",
+              "message": "Subscribes to the organization topic",
+              "code": "SUBSCRIBE /topic/organizations/{org}/notifications [STOMP via gateway]"
+            },
+            {
+              "from": "notification",
+              "to": "main",
+              "message": "Checks membership",
+              "code": "GET /api/internal/organizations/{org}/users/{uid}/exists [HTTP/Feign]"
+            },
+            {
+              "from": "main",
+              "to": "notification",
+              "message": "Is a member",
+              "type": "return"
+            },
+            {
+              "from": "frontend",
+              "to": "notification",
+              "message": "Subscribes to the personal destination",
+              "code": "SUBSCRIBE /user/topic/notifications [STOMP via gateway]"
+            },
+            {
+              "from": "main",
+              "to": "q-send-message",
+              "message": "Sends a notice, e.g. task assigned",
+              "code": "CrmNotification [AMQP, default exchange]",
+              "type": "async"
+            },
+            {
+              "from": "q-send-message",
+              "to": "notification",
+              "message": "Delivers the notice",
+              "code": "notification-service.send-message [AMQP]",
+              "type": "async"
+            },
+            {
+              "note": "Hand-off: main-service does not wait or learn about failures",
+              "over": [
+                "main",
+                "q-send-message",
+                "notification"
+              ]
+            },
+            {
+              "frame": "alt",
+              "label": "recipient is a user"
+            },
+            {
+              "from": "notification",
+              "to": "frontend",
+              "message": "Pushes to that user",
+              "code": "/user/topic/notifications [STOMP]",
+              "type": "async"
+            },
+            {
+              "else": "recipient is an organization"
+            },
+            {
+              "from": "notification",
+              "to": "frontend",
+              "message": "Pushes to every subscriber",
+              "code": "/topic/organizations/{org}/notifications [STOMP]",
+              "type": "async"
+            },
+            {
+              "end": true
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "seq-password-reset",
+      "level": "sequence",
+      "title": "Password reset by email",
+      "summary": "A user who forgot their password asks for a reset code on a public route. auth-service stores a 4-digit code, at most one request per user every 3 hours, and asks notification-service over RabbitMQ to email it. Entering the right code within 5 attempts returns fresh tokens.",
+      "sections": [
+        {
+          "type": "stats",
+          "id": "overview",
+          "eyebrow": "Context",
+          "title": "Overview",
+          "columns": 3,
+          "variant": "text",
+          "items": [
+            {
+              "label": "Trigger",
+              "value": "User submits the forgot-password form"
+            },
+            {
+              "label": "Pre-conditions",
+              "value": "User has an account and no reset request in the last 3 hours"
+            },
+            {
+              "label": "Post-conditions",
+              "value": "User is signed in with new tokens"
+            }
+          ]
+        },
+        {
+          "type": "sequence",
+          "id": "diagram",
+          "eyebrow": "Diagram",
+          "title": "Sequence Diagram",
+          "participants": [
+            "frontend",
+            "gateway",
+            "auth",
+            "x-auth-event",
+            "notification",
+            "gmail"
+          ],
+          "steps": [
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Requests a reset code",
+              "code": "POST /api/restore-password-request [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "auth",
+              "message": "Forwards without a filter (public route)",
+              "code": "POST /api/restore-password-request [HTTP lb://]"
+            },
+            {
+              "from": "auth",
+              "to": "auth",
+              "message": "Stores a restore request with a 4-digit code"
+            },
+            {
+              "from": "auth",
+              "to": "x-auth-event",
+              "message": "Requests the code email",
+              "code": "user.restore-password [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "auth",
+              "to": "gateway",
+              "message": "Request id",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "Request id",
+              "type": "return"
+            },
+            {
+              "note": "Hand-off: the response does not wait for the email",
+              "over": [
+                "auth",
+                "x-auth-event"
+              ]
+            },
+            {
+              "from": "x-auth-event",
+              "to": "notification",
+              "message": "Delivers the request",
+              "code": "notification-service.send-verification-code [AMQP]",
+              "type": "async"
+            },
+            {
+              "from": "notification",
+              "to": "gmail",
+              "message": "Emails the code",
+              "code": "SMTP STARTTLS"
+            },
+            {
+              "from": "frontend",
+              "to": "gateway",
+              "message": "Submits the code",
+              "code": "PUT /api/restore-password-request/{id}/restore-password [JSON/HTTP]"
+            },
+            {
+              "from": "gateway",
+              "to": "auth",
+              "message": "Forwards",
+              "code": "PUT …/restore-password [HTTP lb://]"
+            },
+            {
+              "from": "auth",
+              "to": "auth",
+              "message": "Checks the code (at most 5 attempts) and deletes the request"
+            },
+            {
+              "from": "auth",
+              "to": "gateway",
+              "message": "Tokens",
+              "type": "return"
+            },
+            {
+              "from": "gateway",
+              "to": "frontend",
+              "message": "Tokens",
+              "type": "return"
+            }
+          ]
+        },
+        {
+          "type": "steps",
+          "id": "steps",
+          "eyebrow": "Walkthrough",
+          "title": "Steps",
+          "of": "diagram"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# project-1: Enterprise Spring Microservices Template (docs/adr/0029, #251). One "<name> <clone URL> <full commit hash>"
+# line per repository. The reference in reference/ describes exactly these commits; moving a pin means redoing it.
+Enterprise-Spring-Microservices-Template https://github.com/mohamad-awwaad/Enterprise-Spring-Microservices-Template.git 8f5cb6873691f8b67353c4924fb06f469c2ef4e4

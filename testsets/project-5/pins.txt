@@ -1,0 +1,4 @@
+# project-5: booking-microservices. HELD-OUT (see "Held-out sets" in docs/design.md, and CLAUDE.md): pinned only. Nobody reads its code or
+# analyzes it before Phase 2 acceptance (2D), where its reference is written. One "<name> <clone URL> <full commit hash>" line per repository.
+# Pinned (#251) to the default branch's HEAD on 2026-10-29, read with git ls-remote alone.
+booking-microservices-java-spring-boot https://github.com/meysamhadeli/booking-microservices-java-spring-boot.git ea481c3ee7ebd405cd7e11d1b1a3ab9b73b5b972
