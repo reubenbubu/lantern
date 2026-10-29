@@ -28,6 +28,7 @@ import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
+import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.extract.test.TestExtractor;
@@ -318,6 +319,7 @@ public final class AnalysisRun {
       found.addAll(new PersistenceExtractor().extract(code, snapshot.number()));
       found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
       found.addAll(new MessagingExtractor().extract(code, snapshot.number()));
+      found.addAll(new RedisExtractor().extract(code, repoBuilds, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       Stored stored =
           store(snapshot.number(), registered.keySet(), snapshot.commits().keySet(), found, client);
