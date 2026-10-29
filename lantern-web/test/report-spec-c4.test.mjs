@@ -33,3 +33,23 @@ for (const name of goldens) {
     check(read(goldenDir + name));
   });
 }
+
+// mdInline is the template's Markdown-lite formatter; load it from the template source.
+const template = readFileSync(`${specDir}${spec}.html`, 'utf8');
+const mdInline = new Function(
+  `${template.match(/^const esc = .*$/m)[0]}\n${template.match(/^function mdInline[\s\S]*?^\}/m)[0]}\nreturn mdInline;`,
+)();
+
+test('text inside code spans renders literally', () => {
+  assert.equal(mdInline('`/api/auth/**`'), '<code>/api/auth/**</code>');
+  assert.equal(mdInline('`a*b*c` and `_x_`'), '<code>a*b*c</code> and <code>_x_</code>');
+  assert.equal(mdInline('`<b>&</b>`'), '<code>&lt;b&gt;&amp;&lt;/b&gt;</code>');
+});
+
+test('markdown outside code spans renders as before', () => {
+  assert.equal(
+    mdInline('**bold** *it* `/api/auth/**` [x](https://a.b)'),
+    '<b>bold</b> <em>it</em> <code>/api/auth/**</code> <a href="https://a.b" target="_blank" rel="noopener">x</a>',
+  );
+  assert.equal(mdInline('**a `/x/**` b**'), '<b>a <code>/x/**</code> b</b>');
+});

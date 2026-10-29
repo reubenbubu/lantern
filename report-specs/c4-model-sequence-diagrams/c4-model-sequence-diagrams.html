@@ -4405,13 +4405,15 @@ function wrap(text, max, lines){
   return out;
 }
 
-/* Markdown-lite: **bold**, *italic*, `code`, [links](url), paragraphs and "- " lists. */
+/* Markdown-lite: **bold**, *italic*, `code` (kept literal), [links](url), paragraphs and "- " lists. */
 function mdInline(s){
+  const spans = [];
   return esc(s)
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/`([^`]+)`/g, (m, c) => '\u0000' + (spans.push(c) - 1) + '\u0000')
     .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => /^(https?:|#|mailto:)/.test(u) ? `<a href="${u}"${/^https?:/.test(u) ? ' target="_blank" rel="noopener"' : ''}>${t}</a>` : t);
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => /^(https?:|#|mailto:)/.test(u) ? `<a href="${u}"${/^https?:/.test(u) ? ' target="_blank" rel="noopener"' : ''}>${t}</a>` : t)
+    .replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${spans[i]}</code>`);
 }
 function md(s){
   return String(s ?? '').trim().split(/\n\s*\n/).map(block => {
