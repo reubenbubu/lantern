@@ -730,9 +730,127 @@ class ExecutiveBriefTest {
     assertThat(notes(blocks)).containsExactly("quality_evidence.none", "quality_evidence.goals");
     assertThat(text(((Callout) blocks.getFirst()).content()))
         .isEqualTo(
-            "No module of shop declares a test library Lantern recognizes, such as JUnit or"
-                + " TestNG, so Lantern found no evidence of tests, architecture tests or"
-                + " coverage.");
+            "No module of shop has test classes, runs a coverage tool or declares a test library"
+                + " Lantern recognizes, such as JUnit or TestNG, so Lantern found no evidence of"
+                + " tests, architecture tests or coverage.");
+  }
+
+  @Test
+  void qualityEvidenceCountsTestClassesAndCoverage() {
+    List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
+    facts.addAll(
+        new TestFacts()
+            .attribute("shop", TOOLS, "packaging", "jar")
+            .relate("shop", "library:com.example:tools", "CONTAINS", TOOLS)
+            .attribute("shop", "module:com.example:other", "packaging", "jar")
+            .relate("shop", "library:com.example:other", "CONTAINS", "module:com.example:other")
+            .relate("shop", "test-class:com.example:app:a.OrderTest", "TESTS", APP, "{\"tests\":4}")
+            .relate(
+                "shop",
+                "test-class:com.example:app:a.LayerTest",
+                "TESTS",
+                APP,
+                "{\"tests\":2,\"architecture\":true}")
+            .relate(
+                "shop", "test-class:com.example:tools:b.ToolTest", "TESTS", TOOLS, "{\"tests\":1}")
+            .attribute(
+                "shop",
+                APP,
+                "coverage-tool",
+                "org.jacoco:jacoco-maven-plugin",
+                "{\"goals\":[\"check\",\"prepare-agent\"],\"limits\":["
+                    + "{\"counter\":\"LINE\",\"element\":\"BUNDLE\",\"minimum\":\"0.80\","
+                    + "\"value\":\"COVEREDRATIO\"},"
+                    + "{\"counter\":\"LINE\",\"element\":\"CLASS\",\"minimum\":\"0.5\","
+                    + "\"value\":\"COVEREDRATIO\"}]}")
+            .attribute("shop", TOOLS, "coverage-tool", "org.jacoco:jacoco-maven-plugin")
+            .list());
+    List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
+
+    Paragraph tests = (Paragraph) blocks.getFirst();
+    assertThat(tests.id()).isEqualTo("quality_evidence.tests");
+    assertThat(text(tests.content()))
+        .isEqualTo(
+            "Lantern found 7 tests in 3 test classes, in 2 of the 3 services and libraries shop"
+                + " builds. 1 of the test classes is an architecture test. There are no test"
+                + " classes in other.");
+    assertThat(tests.facts()).hasSize(3);
+    Paragraph coverage = (Paragraph) blocks.get(1);
+    assertThat(coverage.id()).isEqualTo("quality_evidence.coverage");
+    assertThat(text(coverage.content()))
+        .isEqualTo(
+            "JaCoCo measures test coverage in the build of 2 of the 3 services and libraries shop"
+                + " builds. One build checks a minimum coverage: app (80% of lines).");
+    assertThat(coverage.facts()).hasSize(2);
+    Table table = (Table) blocks.get(2);
+    assertThat(table.id()).isEqualTo("quality_evidence.tests_table");
+    assertThat(rows(table))
+        .containsExactly(
+            "tools | 1 | 1 | 0 | JaCoCo", "app | 2 | 6 | 1 | JaCoCo, at least 80% of lines");
+    assertThat(table.rows().getLast().facts()).hasSize(3);
+    assertThat(((Paragraph) blocks.get(3)).id()).isEqualTo("quality_evidence.summary");
+    assertThat(text(((Paragraph) blocks.get(3)).content())).doesNotContain("architecture tests");
+    assertThat(notes(blocks)).containsExactly("quality_evidence.limits", "quality_evidence.goals");
+    assertThat(text(((Callout) blocks.get(blocks.size() - 2)).content()))
+        .startsWith("Lantern counts the tests in the test sources without running them");
+  }
+
+  @Test
+  void qualityEvidenceWithOnlyACoverageToolSaysNoTestClassesWereFound() {
+    List<Fact> facts =
+        new ArrayList<>(
+            TestFacts.shop().list().stream().filter(f -> !RepoSections.isTestScope(f)).toList());
+    facts.addAll(
+        new TestFacts()
+            .attribute("shop", APP, "coverage-tool", "org.codehaus.mojo:cobertura-maven-plugin")
+            .list());
+    List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
+
+    assertThat(blocks)
+        .extracting(Block::id)
+        .containsExactly(
+            "quality_evidence.coverage",
+            "quality_evidence.tests_table",
+            "quality_evidence.limits",
+            "quality_evidence.goals");
+    assertThat(text(((Paragraph) blocks.getFirst()).content()))
+        .isEqualTo(
+            "Cobertura measures test coverage in the build of the one service or library shop"
+                + " builds. No build checks a minimum coverage.");
+    assertThat(rows((Table) blocks.get(1))).containsExactly("app | 0 | 0 | 0 | Cobertura");
+  }
+
+  @Test
+  void coverageMinimumsAreBundleWideCoveredRatios() {
+    Fact fact =
+        new TestFacts()
+            .attribute(
+                "shop",
+                APP,
+                "coverage-tool",
+                "org.jacoco:jacoco-maven-plugin",
+                "{\"limits\":["
+                    + "{\"counter\":\"BRANCH\",\"element\":\"BUNDLE\",\"minimum\":\"0.755\","
+                    + "\"value\":\"COVEREDRATIO\"},"
+                    + "{\"counter\":\"LINE\",\"element\":\"BUNDLE\",\"minimum\":\"10\","
+                    + "\"value\":\"MISSEDCOUNT\"},"
+                    + "{\"counter\":\"LINE\",\"element\":\"BUNDLE\",\"minimum\":\"x\","
+                    + "\"value\":\"COVEREDRATIO\"},"
+                    + "{\"counter\":\"INSTRUCTION\",\"element\":\"BUNDLE\",\"minimum\":\"1\","
+                    + "\"value\":\"COVEREDRATIO\"},"
+                    + "{\"counter\":\"METHOD\",\"element\":\"BUNDLE\",\"minimum\":\"60%\","
+                    + "\"value\":\"COVEREDRATIO\"}]}")
+            .list()
+            .getFirst();
+
+    assertThat(BriefSections.minimums(fact))
+        .containsExactly("75.5% of branches", "100% of instructions", "60% of methods");
+  }
+
+  @Test
+  void namesEveryCoverageToolTheMavenExtractorRecords() {
+    assertThat(BriefSections.COVERAGE_TOOLS.keySet())
+        .isEqualTo(io.lantern.extract.maven.MavenExtractor.COVERAGE_PLUGINS);
   }
 
   @Test

@@ -37,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -65,7 +66,7 @@ public final class MavenExtractor {
   public static final String NAME = "maven";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
@@ -90,6 +91,20 @@ public final class MavenExtractor {
 
   /** Attribute: the Java release a module compiles for. */
   public static final String JAVA_RELEASE = "java-release";
+
+  /** Attribute: a coverage tool the module's build runs, by its plugin's groupId:artifactId. */
+  public static final String COVERAGE_TOOL = "coverage-tool";
+
+  /** The Maven plugins of coverage tools, by {@code groupId:artifactId}. */
+  public static final Set<String> COVERAGE_PLUGINS =
+      Set.of(
+          "org.jacoco:jacoco-maven-plugin",
+          "org.codehaus.mojo:cobertura-maven-plugin",
+          "org.openclover:clover-maven-plugin",
+          "com.atlassian.maven.plugins:clover-maven-plugin",
+          "com.atlassian.maven.plugins:maven-clover2-plugin");
+
+  private static final String JACOCO_PLUGIN = "org.jacoco:jacoco-maven-plugin";
 
   /** Confidence of facts read from an effective POM. */
   static final double EFFECTIVE_CONFIDENCE = 1.0;
@@ -222,6 +237,17 @@ public final class MavenExtractor {
             m,
             validity);
       }
+      for (XmlElement plugin : coveragePlugins(m)) {
+        add(
+            facts,
+            id,
+            COVERAGE_TOOL,
+            FactObject.string(Pom.pluginKey(plugin)),
+            coverageAttributes(plugin, m.properties()),
+            m.evidence(ownPlugin(m, Pom.pluginKey(plugin))),
+            m.confidence(),
+            validity);
+      }
       EntityId container = m.container();
       if (container != null) {
         add(
@@ -308,6 +334,66 @@ public final class MavenExtractor {
       }
     }
     return modules;
+  }
+
+  /**
+   * The test source directory of each module of a repository at its commit, found as {@link
+   * #moduleDirectories} finds the modules: the {@code <build><testSourceDirectory>} the module's
+   * POM as written sets, when it is a directory inside the module (relative, or starting with
+   * {@code ${project.basedir}/} or {@code ${basedir}/}), else Maven's default {@code
+   * src/test/java}. Each is relative to the top of the repository.
+   *
+   * @return the test source directories by module directory, ordered by module directory
+   */
+  public static SortedMap<String, String> testSourceDirectories(RepoBuild repo) {
+    Objects.requireNonNull(repo, "repo");
+    SortedMap<String, String> directories = new TreeMap<>();
+    for (Written w : new MavenExtractor().discover(repo)) {
+      String configured =
+          w.pom().xml().child("build").map(b -> b.text("testSourceDirectory")).orElse(null);
+      String relative = moduleRelative(configured);
+      String within = relative == null ? "src/test/java" : relative;
+      directories.putIfAbsent(
+          w.directory(), w.directory().isEmpty() ? within : w.directory() + "/" + within);
+    }
+    return directories;
+  }
+
+  /**
+   * A directory a POM names, relative to the module and normalized, or null if it is not set, names
+   * a property other than the base directory, or leaves the module.
+   */
+  static String moduleRelative(String configured) {
+    if (configured == null || configured.isBlank()) {
+      return null;
+    }
+    String path = configured.strip().replace('\\', '/');
+    for (String base : List.of("${project.basedir}", "${basedir}")) {
+      if (path.equals(base)) {
+        return null;
+      }
+      if (path.startsWith(base + "/")) {
+        path = path.substring(base.length() + 1);
+      }
+    }
+    if (path.startsWith("/") || path.contains("${") || path.contains(":")) {
+      return null;
+    }
+    Deque<String> parts = new ArrayDeque<>();
+    for (String part : path.split("/")) {
+      if (part.isEmpty() || part.equals(".")) {
+        continue;
+      }
+      if (part.equals("..")) {
+        if (parts.isEmpty()) {
+          return null;
+        }
+        parts.removeLast();
+      } else {
+        parts.addLast(part);
+      }
+    }
+    return parts.isEmpty() ? null : String.join("/", parts);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -817,6 +903,122 @@ public final class MavenExtractor {
     }
     int version = Integer.parseInt(matcher.group(1));
     return version < 1 ? null : Integer.toString(version);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Coverage tools
+
+  /**
+   * The coverage plugins the module's build runs: those of {@link #COVERAGE_PLUGINS} among its
+   * build plugins (not plugin management), leaving out one skipped with {@code <skip>} or, for
+   * JaCoCo, the {@code jacoco.skip} property.
+   */
+  private static List<XmlElement> coveragePlugins(Module m) {
+    List<XmlElement> found = new ArrayList<>();
+    Set<String> seen = new HashSet<>();
+    for (XmlElement plugin : m.plugins()) {
+      String key = Pom.pluginKey(plugin);
+      if (!COVERAGE_PLUGINS.contains(key) || !seen.add(key)) {
+        continue;
+      }
+      boolean skipped =
+          "true".equals(Pom.interpolate(configuration(plugin, "skip"), m.properties()))
+              || (key.equals(JACOCO_PLUGIN)
+                  && "true"
+                      .equals(Pom.interpolate(m.properties().get("jacoco.skip"), m.properties())));
+      if (!skipped) {
+        found.add(plugin);
+      }
+    }
+    return found;
+  }
+
+  /**
+   * A coverage plugin's attributes: the goals its executions bind, sorted, and for JaCoCo the
+   * limits of the rules its {@code check} goal enforces, with JaCoCo's defaults for what a limit
+   * leaves out. A limit whose values cannot be resolved is left out.
+   */
+  private static ObjectNode coverageAttributes(XmlElement plugin, Map<String, String> properties) {
+    ObjectNode attributes = FactJson.newObject();
+    Set<String> goals = new TreeSet<>();
+    List<ObjectNode> limits = new ArrayList<>();
+    for (XmlElement execution : plugin.list("executions", "execution")) {
+      List<String> bound = new ArrayList<>();
+      for (XmlElement goal : execution.list("goals", "goal")) {
+        String name = blankToNull(Pom.interpolate(goal.text(), properties));
+        if (name != null) {
+          bound.add(name);
+        }
+      }
+      goals.addAll(bound);
+      if (Pom.pluginKey(plugin).equals(JACOCO_PLUGIN) && bound.contains("check")) {
+        XmlElement rules =
+            execution
+                .child("configuration")
+                .flatMap(c -> c.child("rules"))
+                .or(() -> plugin.child("configuration").flatMap(c -> c.child("rules")))
+                .orElse(null);
+        if (rules != null) {
+          limits.addAll(jacocoLimits(rules, properties));
+        }
+      }
+    }
+    if (!goals.isEmpty()) {
+      goals.forEach(attributes.putArray("goals")::add);
+    }
+    List<ObjectNode> distinct = new ArrayList<>();
+    for (ObjectNode limit : limits) {
+      if (!distinct.contains(limit)) {
+        distinct.add(limit);
+      }
+    }
+    if (!distinct.isEmpty()) {
+      distinct.forEach(attributes.putArray("limits")::add);
+    }
+    return attributes;
+  }
+
+  /** The limits of JaCoCo's {@code <rules>}, in order. */
+  private static List<ObjectNode> jacocoLimits(XmlElement rules, Map<String, String> properties) {
+    List<ObjectNode> limits = new ArrayList<>();
+    for (XmlElement rule : rules.children("rule")) {
+      String element = Pom.interpolate(orDefault(rule.text("element"), "BUNDLE"), properties);
+      for (XmlElement limit : rule.list("limits", "limit")) {
+        String counter =
+            Pom.interpolate(orDefault(limit.text("counter"), "INSTRUCTION"), properties);
+        String value = Pom.interpolate(orDefault(limit.text("value"), "COVEREDRATIO"), properties);
+        String minimum = blankToNull(Pom.interpolate(limit.text("minimum"), properties));
+        String maximum = blankToNull(Pom.interpolate(limit.text("maximum"), properties));
+        if (element == null
+            || counter == null
+            || value == null
+            || (minimum == null && maximum == null)
+            || (limit.text("minimum") != null && minimum == null)
+            || (limit.text("maximum") != null && maximum == null)) {
+          continue;
+        }
+        ObjectNode node = FactJson.newObject();
+        node.put("element", element);
+        node.put("counter", counter);
+        node.put("value", value);
+        if (minimum != null) {
+          node.put("minimum", minimum);
+        }
+        if (maximum != null) {
+          node.put("maximum", maximum);
+        }
+        limits.add(node);
+      }
+    }
+    return limits;
+  }
+
+  /** The plugin's element in the module's own POM's build plugins, or null. */
+  private static XmlElement ownPlugin(Module m, String key) {
+    return m.written().pom().plugins().stream()
+        .filter(p -> Pom.pluginKey(p).equals(key))
+        .findFirst()
+        .orElse(null);
   }
 
   // ---------------------------------------------------------------------------------------------
