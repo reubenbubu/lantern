@@ -122,6 +122,81 @@ class C4ViewsTest {
   }
 
   @Test
+  void contextShowsTheInferredPeopleTheCodeShowsWithTheFrontendTheyUse() {
+    TestFacts withPeople = TestFacts.runtime();
+    withPeople.attribute(
+        "shop",
+        "type:com.example.RequiresOrganizationMembership",
+        "person-evidence",
+        "membership",
+        "{\"scope\":\"Organization\",\"type\":\"com.example.RequiresOrganizationMembership\"}");
+    Fact evidence =
+        withPeople.find("type:com.example.RequiresOrganizationMembership", "person-evidence");
+    withPeople.attribute(
+        "shop",
+        "person:organization-member",
+        "person-basis",
+        "member",
+        "{\"basis\":\"member\",\"description\":\"The code has members of an organization.\","
+            + "\"cites\":[\""
+            + evidence.id()
+            + "\"],\"repos\":[\"shop\"],\"frontends\":[\"web\"]}");
+    withPeople.attribute(
+        "shop", "person:organization-member", "display-name", "Organization member");
+    Fact basis = withPeople.find("person:organization-member", "person-basis");
+
+    Document document = repo(withPeople.list());
+    Section context = section(document, "context");
+    Diagram diagram = block(context, Diagram.class);
+
+    assertThat(nodes(diagram)).contains("person:organization-member \"Organization member\"");
+    assertThat(edges(diagram))
+        .contains("person:organization-member -> system:snapshot: Uses, through web");
+    assertThat(
+            diagram.edges().stream()
+                .filter(e -> e.from().type().equals("person"))
+                .findFirst()
+                .orElseThrow()
+                .facts())
+        .containsExactlyInAnyOrder(basis.id(), evidence.id());
+    DocumentEntity person =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("person:organization-member"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(person.description()))
+        .startsWith("Inferred: The code has members of an organization.");
+    assertThat(person.description()).anyMatch(i -> i instanceof io.lantern.core.document.Citation);
+    assertThat(text(block(context, Callout.class).content()))
+        .isEqualTo(
+            "These people are inferred from the code. Who else uses base and shop is not known.");
+    assertThat(block(context, Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains("People 1");
+    assertThat(
+            block(context, Metrics.class).items().stream()
+                .filter(i -> i.label().equals("People"))
+                .findFirst()
+                .orElseThrow()
+                .facts())
+        .containsExactly(basis.id());
+    // A repository the person's files are not in does not show them.
+    assertThat(
+            nodes(
+                block(
+                    section(
+                        new Composer("1")
+                            .compose(
+                                ViewDefinition.c4Report("base.c4", "base", TEMPLATE),
+                                SNAPSHOT,
+                                withPeople.list(),
+                                Map.of()),
+                        "context"),
+                    Diagram.class)))
+        .noneMatch(n -> n.startsWith("person:"));
+  }
+
+  @Test
   void containersAreTheUnitsWithTheirStoresQueuesAndNeighboursInsideTheSystem() {
     Diagram diagram = block(section(repo(facts.list()), "containers"), Diagram.class);
 

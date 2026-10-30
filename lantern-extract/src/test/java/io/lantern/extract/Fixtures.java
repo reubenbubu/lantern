@@ -17,6 +17,7 @@ import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.extract.people.PeopleExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
@@ -150,6 +151,7 @@ public final class Fixtures {
             MessagingExtractor.vocabulary(),
             MailExtractor.vocabulary(),
             RedisExtractor.vocabulary(),
+            PeopleExtractor.vocabulary(),
             GatewayExtractor.vocabulary(),
             TestExtractor.vocabulary())) {
       vocabulary.changes(extractor).forEach(t -> types.put(t.name(), t));

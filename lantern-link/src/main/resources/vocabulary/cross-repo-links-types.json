@@ -53,6 +53,62 @@
     }
   },
   {
+    "name": "person",
+    "kind": "entity",
+    "parent": "system",
+    "description": "A kind of person who uses the system, as far as the code shows (ADR 0074): a role it checks, the members of something it has members of, those it invites, or the user who signs up and in. Its key is the person's name in lower case with dashes, such as organization-member. Always inferred; never invented beyond what the code names.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "person-basis",
+    "kind": "attribute",
+    "description": "What a person rests on: the value is role (a role the code checks), member (members of something), invited (those invited) or account (the user who signs up and in). A person is always inferred from the code.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "basis": {
+          "type": "string",
+          "description": "The same as the value."
+        },
+        "description": {
+          "type": "string",
+          "description": "One sentence in the code's words saying what shows the person, with the screens of frontends for it."
+        },
+        "cites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the person rests on, the first few."
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The repositories whose files show the person, sorted."
+        },
+        "frontends": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The repositories of frontends that have screens for the person, sorted."
+        }
+      },
+      "required": [
+        "basis",
+        "description",
+        "cites",
+        "repos",
+        "frontends"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "infrastructure",
     "kind": "entity",
     "description": "A service discovery, config or tracing server outside the snapshot that a unit's config connects to. Its key is its host and port, such as config:8888. It has no C4 level: infrastructure is kept apart from the business dependencies.",
@@ -689,7 +745,7 @@
   {
     "name": "display-name",
     "kind": "attribute",
-    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several.",
+    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words.",
     "attributeSchema": {
       "type": "object",
       "properties": {},

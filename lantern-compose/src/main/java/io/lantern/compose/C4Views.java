@@ -38,7 +38,8 @@ import tools.jackson.databind.JsonNode;
  * <p>Nothing is invented: a line is drawn for a link, labelled with the LLM's intent phrase for it
  * when every link of the line has one (ADR 0050), else with what the link records (the endpoints
  * called, the routing keys sent), its protocol as technology and the Spring profiles it alone holds
- * under. People are drawn only when the knowledge names them, which it does not yet, so a note says
+ * under. People are drawn only when the code shows them (ADR 0074): the linker infers them from
+ * roles, memberships, invitations and sign-in, and they are marked inferred; otherwise a note says
  * who uses the system is unknown.
  */
 final class C4Views {
@@ -61,6 +62,9 @@ final class C4Views {
   static final String EXCHANGE = "exchange";
   static final String EXTERNAL_SYSTEM = "external-system";
   static final String DECISION = "decision";
+  static final String PERSON = "person";
+  static final String PERSON_BASIS = "person-basis";
+  static final String USES = "USES";
 
   /** The kinds of container that are not deployable units: data stores and destinations. */
   static final Set<String> DESTINATIONS = Set.of(DATABASE, TOPIC, QUEUE, EXCHANGE, EXTERNAL_SYSTEM);
@@ -811,8 +815,23 @@ final class C4Views {
         edge.phrased(assembler.phrase(link.facts.getFirst()));
       }
     }
+    SortedMap<EntityId, Fact> people = people();
+    for (Map.Entry<EntityId, Fact> person : people.entrySet()) {
+      List<Fact> cited = cited(person.getValue());
+      nodes.put(person.getKey(), node(person.getKey(), null, null, cited));
+      EdgeBuilder edge = edges.get(person.getKey(), USES, system);
+      List<String> frontends = strings(person.getValue(), "frontends");
+      edge.add(
+          frontends.isEmpty() ? "Uses" : "Uses, through " + String.join(", ", frontends),
+          null,
+          null,
+          null,
+          null);
+      edge.facts.addAll(cited);
+      edge.phrased(null);
+    }
     List<Block> blocks = new ArrayList<>();
-    blocks.add(counts(section));
+    blocks.add(counts(section, people));
     blocks.add(
         new Diagram(
             assembler.id(section, "diagram"),
@@ -830,18 +849,52 @@ final class C4Views {
             null,
             List.of(
                 TextRun.of(
-                    "The code names no people or user roles, so who uses "
-                        + assembler.name(system)
-                        + " is not known.")),
+                    people.isEmpty()
+                        ? "The code names no people or user roles, so who uses "
+                            + assembler.name(system)
+                            + " is not known."
+                        : "These people are inferred from the code. Who else uses "
+                            + assembler.name(system)
+                            + " is not known.")),
             List.of()));
     return blocks;
+  }
+
+  /**
+   * The people the linker inferred from the code (ADR 0074) that the scope's repositories show,
+   * each with its {@code person-basis} fact.
+   */
+  SortedMap<EntityId, Fact> people() {
+    SortedMap<EntityId, Fact> result = new TreeMap<>(Knowledge.BY_ID);
+    for (Fact basis : knowledge.withPredicate(PERSON_BASIS)) {
+      if (!basis.subject().type().equals(PERSON)) {
+        continue;
+      }
+      List<String> shownBy = strings(basis, "repos");
+      if (repos.isEmpty() || shownBy.stream().anyMatch(repos::contains)) {
+        result.putIfAbsent(basis.subject(), basis);
+      }
+    }
+    return result;
+  }
+
+  /** The facts a person rests on, with its own. */
+  private List<Fact> cited(Fact basis) {
+    List<Fact> facts = new ArrayList<>(List.of(basis));
+    for (String id : strings(basis, "cites")) {
+      Fact fact = knowledge.fact(id);
+      if (fact != null) {
+        facts.add(fact);
+      }
+    }
+    return facts;
   }
 
   /**
    * How many deployable units the scope has, and how many data stores, queues and external systems
    * they use, each citing the facts it counts.
    */
-  private Metrics counts(String section) {
+  private Metrics counts(String section, SortedMap<EntityId, Fact> people) {
     List<Fact> unitFacts = new ArrayList<>();
     units.forEach(u -> unitFacts.addAll(containerFacts(u)));
     Map<String, SortedMap<EntityId, List<Fact>>> used = new TreeMap<>();
@@ -868,6 +921,9 @@ final class C4Views {
     items.add(metric("Databases", used.get(DATABASE)));
     items.add(metric("Topics, queues and exchanges", used.get(QUEUE)));
     items.add(metric("External systems", used.get(EXTERNAL_SYSTEM)));
+    if (!people.isEmpty()) {
+      items.add(metric("People", people.size(), List.copyOf(people.values())));
+    }
     return new Metrics(assembler.id(section, "counts"), items, List.of());
   }
 

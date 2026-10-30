@@ -1,0 +1,43 @@
+{
+  "realm": "my-realm",
+  "clients": [
+    {
+      "clientId": "web",
+      "roles": [
+        {
+          "name": "editor"
+        }
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "offline_access"
+      },
+      {
+        "name": "default-roles-my-realm"
+      },
+      {
+        "name": "ADMIN"
+      },
+      {
+        "name": "editor"
+      },
+      {
+        "name": "WORKER"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "service-account-worker",
+      "serviceAccountClientId": "worker",
+      "realmRoles": ["WORKER"]
+    },
+    {
+      "username": "alice",
+      "realmRoles": ["editor"]
+    }
+  ]
+}

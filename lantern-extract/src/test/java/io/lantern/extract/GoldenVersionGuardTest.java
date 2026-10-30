@@ -8,6 +8,7 @@ import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.extract.people.PeopleExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
@@ -52,6 +53,7 @@ class GoldenVersionGuardTest {
           Map.entry(
               "persistence",
               new String[] {PersistenceExtractor.NAME, PersistenceExtractor.VERSION}),
+          Map.entry("people", new String[] {PeopleExtractor.NAME, PeopleExtractor.VERSION}),
           Map.entry("redis", new String[] {RedisExtractor.NAME, RedisExtractor.VERSION}),
           Map.entry("spring", new String[] {SpringExtractor.NAME, SpringExtractor.VERSION}),
           Map.entry("sql", new String[] {SqlExtractor.NAME, SqlExtractor.VERSION}));
