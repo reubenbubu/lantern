@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - orders.yaml
   - postgres.yaml
+  - ingress.yaml
 configMapGenerator:
   - name: init-scripts
     files:

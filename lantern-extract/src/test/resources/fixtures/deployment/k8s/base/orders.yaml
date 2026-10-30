@@ -25,6 +25,13 @@ spec:
                   key: password
             - name: JAVA_OPTS
               value: "-Xmx512m"
+            - name: PORT
+              value: "8080"
+            - name: SPRING_APPLICATION_JSON
+              value: '{"server":{"port":9000},"orders":{"region":"eu"}}'
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Dspring.profiles.active=jvm -Dorders.mode=fast"
+          args: ["--spring.profiles.active=k8s", "--server.port=$(PORT)"]
 ---
 apiVersion: v1
 kind: Service

@@ -1,0 +1,15 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: legacy
+spec:
+  backend:
+    serviceName: web
+    servicePort: 80
+  rules:
+    - http:
+        paths:
+          - path: /reports
+            backend:
+              serviceName: reports
+              servicePort: 8080
