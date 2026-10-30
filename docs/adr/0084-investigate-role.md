@@ -144,4 +144,8 @@ Proposals of people and components, and of elements without a connection, and co
   of static facts other than a repeated link (#329); merging Investigate's risks with the static checks,
 decisions and unknowns (#273); a turn limit per role (ADR 0081); prompt
 caching of a conversation's earlier turns, which would cut the cost of long conversations. A
-real model's recording on project-4 needs the user's go-ahead (ADR 0070) and is not made here.
+real model's recording on project-4 (one run, capped at $5, with the user's go-ahead) is in
+`testsets/project-4/recordings` beside the hand-written ones: its system, api-gateway, auth-service,
+main-service and notification-service conversations reached the cap before they answered, since
+each turn resends the whole conversation uncached (#349); only the eureka-service and file-service
+conversations answered.
