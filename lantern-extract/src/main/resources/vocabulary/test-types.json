@@ -3,7 +3,9 @@
     "name": "test-class",
     "kind": "entity",
     "description": "A top-level class in a module's test sources that declares tests. Its key is the module's groupId:artifactId, ':' and the class's binary name.",
-    "attributeSchema": { "additionalProperties": false }
+    "attributeSchema": {
+      "additionalProperties": false
+    }
   },
   {
     "name": "TESTS",
@@ -12,10 +14,106 @@
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "tests": { "type": "integer", "description": "How many tests the class and its member classes declare: test methods, and ArchUnit rule fields." },
-        "architecture": { "type": "boolean", "description": "Present and true when the class's file uses an architecture test library, such as ArchUnit." }
+        "tests": {
+          "type": "integer",
+          "description": "How many tests the class and its member classes declare: test methods, and ArchUnit rule fields."
+        },
+        "architecture": {
+          "type": "boolean",
+          "description": "Present and true when the class's file uses an architecture test library, such as ArchUnit."
+        }
       },
-      "required": ["tests"],
+      "required": [
+        "tests"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "test-container",
+    "kind": "attribute",
+    "description": "A container the subject module's tests start: a Testcontainers container or an embedded Kafka broker. The value is its image as written, else its class (EmbeddedKafka for an embedded broker). It shows infrastructure the tests run against, not what production runs. Evidence is its declaration.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "description": "The container's class as written, such as PostgreSQLContainer."
+        },
+        "image": {
+          "type": "string",
+          "description": "The image as written in a literal or constant."
+        },
+        "technology": {
+          "type": "string",
+          "description": "The product and version when Lantern knows it, such as PostgreSQL 16."
+        },
+        "role": {
+          "type": "string",
+          "description": "What the product is to the system: database, cache, broker, identity or cloud."
+        },
+        "serviceConnection": {
+          "type": "boolean",
+          "description": "Present and true when Spring Boot's @ServiceConnection connects the application to it."
+        },
+        "embedded": {
+          "type": "boolean",
+          "description": "Present and true for a broker that runs inside the test, not in a container."
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The topics an embedded Kafka broker creates, as written."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "architecture-rule",
+    "kind": "attribute",
+    "description": "An architecture rule the subject module's tests declare with one of ArchUnit's library rules. The value is its kind: layered, onion or slices. It states what the team intends; Lantern does not run it, so whether the code keeps it is not known. Evidence is the rule's lines.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "layers": {
+          "type": "object",
+          "description": "Each layer, onion ring (domainModels, domainServices, applicationServices) or adapter ('adapter <name>') with its package patterns, in the rule's order."
+        },
+        "access": {
+          "type": "object",
+          "description": "Each layer's access rule: ArchUnit's method, such as mayOnlyBeAccessedByLayers, then the layers it names."
+        },
+        "slices": {
+          "type": "string",
+          "description": "The package pattern whose captures make the slices."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "What the rule checks of the slices: beFreeOfCycles, notDependOnEachOther."
+        },
+        "because": {
+          "type": "string",
+          "description": "The reason the rule gives."
+        },
+        "frozen": {
+          "type": "boolean",
+          "description": "Present and true when FreezingArchRule.freeze wraps it, so known violations are let be."
+        },
+        "ignored": {
+          "type": "boolean",
+          "description": "Present and true when @ArchIgnore or @Disabled switches it off."
+        },
+        "unresolved": {
+          "type": "boolean",
+          "description": "Present and true when an argument is not a string literal or constant of the file, so it is left out."
+        }
+      },
       "additionalProperties": false
     }
   }
