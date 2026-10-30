@@ -185,9 +185,10 @@ commits.
 - **People** are drawn only from human-facing evidence: a frontend's screens, sign-in or sign-up,
   accounts, memberships, invitations. A GUI is for people; an API is for software. Roles the code
   checks say what those people may do; on their own they make no person.
-- **Unknown callers.** An API is there to be called, so an entry point that nothing in the analysed
-  set reaches and no person is shown to use is drawn as called by an "Unknown caller", marked as
-  unknown. It is neither left out nor replaced by an invented actor.
+- **Unknown callers.** An API is there to be called, so an entry point meant to be called (an HTTP
+  or WebSocket endpoint, or a queue or topic consumed but never published to; not a scheduled job)
+  that nothing in the analysed set reaches and no person is shown to use is drawn as called by an
+  "Unknown caller", marked as unknown. An endpoint behind a gateway is reached through it. It is neither left out nor replaced by an invented actor.
 - **Business purpose** is not required for now. Where the report shows one, it is marked as
   evidenced (people wrote it) or inferred.
 - **Owners, rationale, quality goals and production topology** beyond deployment files are not in
@@ -236,8 +237,8 @@ LLM found is marked as such.
 
 | Diagram | Passes only if |
 | --- | --- |
-| System Context | Exactly one system in focus. People only from human-facing evidence, and external systems, directly connected. An "Unknown caller" where entry points are reached by nothing and used by no person. No technology. Unknown actors are marked unknown, never invented. |
-| Container | Every box is a deployable app, frontend, job or data store, with `[technology]` and a job. No library modules, no packages. Each service's schema is its own data store. Queues and topics are their own elements or "via" labels, never one broker hub. Every edge is a runtime call with a protocol. Profile-gated edges are marked conditional. Containers with entry points nothing reaches have a line from the "Unknown caller". |
+| System Context | Exactly one system in focus. People only from human-facing evidence, and external systems, directly connected. An "Unknown caller" where entry points meant to be called are reached by nothing and used by no person (What the code can and cannot tell). No technology. Unknown actors are marked unknown, never invented. |
+| Container | Every box is a deployable app, frontend, job or data store, with `[technology]` and a job. No library modules, no packages. Each service's schema is its own data store. Queues and topics are their own elements or "via" labels, never one broker hub. Every edge is a runtime call with a protocol. Profile-gated edges are marked conditional. Containers with entry points meant to be called that nothing reaches have a line from the "Unknown caller". |
 | Component | Scope is one container. Components are anchored on entry points, with the code only they reach; code several entry points share is its own component. Each carries a technology (e.g. "Spring MVC controller") and a job. Domain, DTO, mapper, configuration and util classes are left out. Edges leaving the container carry a protocol. Packages never decide a component on their own. Drawn only when it adds value: more than one component, and not a repeat of the container diagram. |
 | Code | Not drawn in the C4 report for now. |
 | Landscape | All analysed systems and their people, with no internals. Edges are aggregated from container-level facts. |

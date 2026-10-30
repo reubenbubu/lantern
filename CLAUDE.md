@@ -18,8 +18,8 @@ changes them. This file covers only how you work.
   milestones.
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
   which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
-  picks up an issue without one writes it first. A PR runs Lantern on those sets only; the milestone's test drop runs all development
-  sets, and held-out ones only at 2D's acceptance.
+  picks up an issue without one writes it first. A PR runs Lantern on those sets only; the
+  milestone's test drop runs all development sets, and held-out ones only at 2D's acceptance.
 - Held-out test sets (`docs/design.md`, Test sets) are only pinned: no session reads their code,
   analyzes them or looks at their output until 2D's acceptance, where they are scored and judged
   once.

@@ -439,6 +439,15 @@ The standard every document must meet, with its rubric and the evidence behind i
 
 A reference is a report of a test set written by hand from cited code facts (file:line), in the format of the C4 report spec (`report-specs/`), checked line by line by a second, independent reader, and kept in `testsets/<set>/reference/` with the commits it describes. Each milestone of a phase sets targets for the scores (its milestone in GitHub); targets are confirmed only once a baseline is measured. Real-model runs are recorded, so they can be replayed without cost.
 
+**Other documents (out of scope for now).** The checks of the Architecture Explorer and the Executive Brief, kept for when they come back into scope (Non-goals), with the bar's *(review)* marks for what is judged:
+
+| Document | Passes only if |
+| --- | --- |
+| Architecture Explorer | An orientation section of at most 300 words followed by a "start here" list of the entry points and files to read first; the container diagram first; the main flows as sequence diagrams; a catalog of containers, components, endpoints, queues, tables and config, each linked to source; change guidance ("to add an endpoint, follow X in Y") *(review)*; observed decisions, with rationale quoted from ADRs or READMEs or marked unknown |
+| Executive Brief | Business purpose first, in one sentence *(review)*. Who depends on it and what it depends on (blast radius). Technology currency: runtime and framework versions against their end of life. Risks ranked by impact, each with its consequence and confidence. Quality evidence (tests, architecture tests and coverage where present), with quality goals marked unrecorded when absent. The decisions or options the reader faces *(review)*. No implementation detail *(review)* |
+
+Change-history measures (activity level, hotspots of complex code that changes often) need git history beyond the snapshot and come later. Until then the Brief doesn't present static findings as ranked debt.
+
 **Readable diagrams.** The bar sets no element cap. A view is split at the same level, or detail folded away, when a readability signal passes its threshold: the number of elements, the number of lines, and line crossings after layout, each threshold configurable. Until #366 measures the defaults on the test sets, the views split above 15 elements.
 
 ## Composition, layout stability and prose stability
@@ -449,7 +458,7 @@ Composition decides what a document says and shows; rendering only formats it. C
 
 What the document model contains, and how its TypeScript types are generated and checked, is in ADR 0011; sequence diagrams and the quality report block are in ADR 0028; the commits and date that pin a document are in ADR 0063. How templates show a summary's citations of other summaries is in ADR 0027.
 
-How the first composer builds per-repository documents from view definitions is in ADR 0012. How the composer draws the context, container and component views below, and composes the system scope's C4 report, is in ADR 0044. How it traces, stitches, ranks and caps the sequence flows, and starts them in the browser, is in ADR 0047, and how it uses the LLM's walkthrough and conditions of each in ADR 0058. Which checks of the quality bar the composer makes, and how it reports them, is in ADR 0046. How it composes the Architecture Explorer's start-here list, catalog, change guidance and decisions with their rationale, and orders the Explorer's sections, is in ADR 0048. How each default view names its reader, how the composer builds the glossary and how Lantern's templates draw legends is in ADR 0063; how the glossary takes meanings from the repositories' documentation, and the C4 report's glossary and legend, in ADR 0087.
+How the first composer builds per-repository documents from view definitions is in ADR 0012. How the composer draws the context, container and component views below, and composes the system scope's C4 report, is in ADR 0044. How it traces, stitches, ranks and caps the sequence flows, and starts them in the browser, is in ADR 0047, and how it uses the LLM's walkthrough and conditions of each in ADR 0058. Which checks of the quality bar the composer makes, and how it reports them, is in ADR 0046. Why a line carries one intent phrase, not a list of them, is in ADR 0088. How it composes the Architecture Explorer's start-here list, catalog, change guidance and decisions with their rationale, and orders the Explorer's sections, is in ADR 0048. How each default view names its reader, how the composer builds the glossary and how Lantern's templates draw legends is in ADR 0063; how the glossary takes meanings from the repositories' documentation, and the C4 report's glossary and legend, in ADR 0087.
 
 **View definitions.** A spec per document: scope, audience profile, template, sections and diagrams. Lantern's defaults are kept in code, so their new sections reach every workspace; a changed view is persisted (ADR 0047). Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
@@ -610,7 +619,7 @@ Each phase delivers something usable on real repos. The knowledge model and stab
    - Spring, HTTP client, messaging, WebSocket, persistence, config and SQL extractors, following values
    - Deployment and frontend extractors; repos without a Maven build
    - Cross-repo linker, LLM resolver and Investigate
-   - Deployable units, container, component and sequence views, findings, and Quality bar checks
+   - Deployable units, container, component and sequence views, findings, and the quality bar's checks
    - Executive Brief blast radius, technology currency, ranked risks and quality evidence (built; further Brief work is out of scope for now, Non-goals)
    - System scope, audience profiles, granularity switch
    - References, scoring and the LLM judge
