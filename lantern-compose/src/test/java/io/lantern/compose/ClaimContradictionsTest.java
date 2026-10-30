@@ -48,7 +48,7 @@ class ClaimContradictionsTest {
   }
 
   private static List<Callout> contradictions(Document document) {
-    return blocks(section(document, "containers"), Callout.class).stream()
+    return blocks(section(document, "decisions"), Callout.class).stream()
         .filter(c -> ClaimContradictions.TITLE.equals(c.title()))
         .toList();
   }
@@ -75,7 +75,7 @@ class ClaimContradictionsTest {
   }
 
   @Test
-  void theExplorerQuotesTheClaimInTheContainersAndCitesBothSides() {
+  void theExplorerQuotesTheClaimInTheDecisionsAndCitesBothSides() {
     Document document = compose(ViewDefinition.perRepo("shop", "shop", EXPLORER));
     Fact claim = find("claim");
     Fact contradiction = find("claim-contradiction");
@@ -176,7 +176,7 @@ class ClaimContradictionsTest {
     List<Callout> callouts = contradictions(document);
     assertThat(callouts)
         .extracting(Callout::id)
-        .containsExactly("containers.contradicted-claim", "containers.contradicted-claim-2");
+        .containsExactly("decisions.contradicted-claim", "decisions.contradicted-claim-2");
     assertThat(text(callouts.get(1).content()))
         .isEqualTo(
             "`README.md`, line 9, in shop says: “"
