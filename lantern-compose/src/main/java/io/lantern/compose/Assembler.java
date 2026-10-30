@@ -388,13 +388,38 @@ final class Assembler {
     Matcher matcher = MARKER.matcher(text);
     StringBuilder kept = new StringBuilder();
     boolean cites = false;
+    int last = 0;
     while (matcher.find()) {
       boolean known = !matcher.group(1).equals("fact") || knowledge.fact(matcher.group(2)) != null;
       cites |= known;
-      matcher.appendReplacement(kept, known ? Matcher.quoteReplacement(matcher.group()) : "");
+      kept.append(text, last, matcher.start());
+      last = matcher.end();
+      if (known) {
+        kept.append(matcher.group());
+      } else {
+        dropped(kept, text, last);
+      }
     }
-    matcher.appendTail(kept);
-    return cites ? kept.toString() : null;
+    kept.append(text, last, text.length());
+    return cites ? kept.toString().strip() : null;
+  }
+
+  /**
+   * Called when a marker was left out after {@code kept}: removes the space before it when what
+   * follows is the end, a space or punctuation, or when nothing precedes it, so that no leading,
+   * trailing or doubled space remains.
+   */
+  private static void dropped(StringBuilder kept, String text, int next) {
+    boolean atEnd = next >= text.length();
+    boolean spaceAfter = !atEnd && Character.isWhitespace(text.charAt(next));
+    boolean punctuationAfter = !atEnd && ".,;:!?)".indexOf(text.charAt(next)) >= 0;
+    if (atEnd || spaceAfter || punctuationAfter || kept.toString().isBlank()) {
+      int end = kept.length();
+      while (end > 0 && Character.isWhitespace(kept.charAt(end - 1))) {
+        end--;
+      }
+      kept.setLength(end);
+    }
   }
 
   /**

@@ -884,6 +884,34 @@ class DescriberTest {
   }
 
   @Test
+  void leftOutCitationsLeaveNoLeadingTrailingOrDoubledSpace() {
+    String bad = "[fact:" + "f".repeat(64) + "]";
+    String good = "[fact:" + facts.find(APP.toString(), "deployable-unit").id() + "]";
+    Wordings wordings =
+        new Wordings(
+            Map.of(
+                APP, "Takes orders " + bad + " " + good + " " + bad + ".",
+                WORKER,
+                    bad + " Stores orders " + bad + " and ships them " + bad + " " + good + " "),
+            Map.of());
+
+    Document document = system(wordings);
+
+    for (EntityId id : List.of(APP, WORKER)) {
+      DocumentEntity entity =
+          document.entities().stream().filter(e -> e.id().equals(id)).findFirst().orElseThrow();
+      String description = text(entity.description());
+      assertThat(description).isNotEmpty().isEqualTo(description.strip());
+      assertThat(description).doesNotContain("  ").doesNotContain(" .");
+    }
+    DocumentEntity worker =
+        document.entities().stream().filter(e -> e.id().equals(WORKER)).findFirst().orElseThrow();
+    assertThat(text(worker.description()))
+        .endsWith("Stores orders and ships them")
+        .doesNotStartWith(" ");
+  }
+
+  @Test
   void aUnitWithNothingToWordIsNotAskedAbout() {
     TestFacts bare =
         new TestFacts()
