@@ -8,7 +8,11 @@
       "properties": {
         "platform": {
           "type": "string",
-          "enum": ["compose", "kubernetes", "helm"],
+          "enum": [
+            "compose",
+            "kubernetes",
+            "helm"
+          ],
           "description": "What runs it: Docker Compose, Kubernetes manifests (kustomize or plain) or a Helm chart."
         },
         "environment": {
@@ -41,49 +45,78 @@
         },
         "hosts": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "description": "The names other containers of the environment reach it by: the compose service, container name, hostname and network aliases; the workload's name, its StatefulSet service and the Services that select its pods."
         },
         "aliases": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "description": "Other names it goes by that are not hosts: its pod's app labels and its container's name."
         },
         "env": {
           "type": "object",
-          "description": "Its environment variables as the descriptor sets them, ConfigMaps a Kubernetes container takes them from included; values with credentials in a URL have them left out."
+          "description": "Its environment variables as the descriptor sets them: a compose env_file and the ConfigMaps a Kubernetes container takes them from included; values with credentials in a URL have them left out."
         },
         "masked": {
           "type": "array",
-          "items": {"type": "string"},
-          "description": "Environment variables it sets whose values are not recorded: secret ones by name, and those taken from a Kubernetes Secret or the pod's fields."
+          "items": {
+            "type": "string"
+          },
+          "description": "Environment variables and properties it sets whose values are not recorded: secret ones by name or value, and those taken from a Kubernetes Secret or the pod's fields."
         },
         "ports": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "description": "Its ports as written: a compose service's published ports (host:container), a Kubernetes container's container ports."
         },
         "dependsOn": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "description": "The compose services it starts after."
         },
         "composeProfiles": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "description": "The compose profiles it runs under; without any it always runs."
         },
         "databases": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "description": "The databases it creates on start: the one an official image's variable names (POSTGRES_DB, MYSQL_DATABASE, MARIADB_DATABASE, MONGO_INITDB_DATABASE) and those its init scripts create."
         },
         "replicas": {
           "type": "integer",
           "description": "The replicas a Kubernetes workload asks for."
+        },
+        "properties": {
+          "type": "object",
+          "description": "Spring properties the last stage's ENTRYPOINT and CMD set when they run java (-Dkey=value, --key=value), and -D options in its JAVA_OPTS, JAVA_TOOL_OPTIONS or JDK_JAVA_OPTIONS; secret ones are masked."
+        },
+        "activeProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The Spring profiles it makes active: SPRING_PROFILES_ACTIVE, or the spring.profiles.active property, when written out (not a placeholder)."
         }
       },
-      "required": ["platform", "environment", "kind"],
+      "required": [
+        "platform",
+        "environment",
+        "kind"
+      ],
       "additionalProperties": false
     },
     "objectKind": "string"
@@ -105,11 +138,103 @@
         },
         "exposes": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "description": "The ports the last stage exposes."
+        },
+        "env": {
+          "type": "object",
+          "description": "The variables the last stage's ENV instructions set; secret ones are masked."
+        },
+        "masked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Variables and properties it sets whose values are not recorded because they are secrets."
+        },
+        "properties": {
+          "type": "object",
+          "description": "Spring properties the last stage's ENTRYPOINT and CMD set when they run java (-Dkey=value, --key=value), and -D options in its JAVA_OPTS, JAVA_TOOL_OPTIONS or JDK_JAVA_OPTIONS; secret ones are masked."
+        },
+        "activeProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The Spring profiles it makes active: SPRING_PROFILES_ACTIVE, or the spring.profiles.active property, when written out (not a placeholder)."
         }
       },
-      "required": ["from"],
+      "required": [
+        "from"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "deployment-route",
+    "kind": "attribute",
+    "description": "A route into the system that a Kubernetes Ingress or Gateway API HTTPRoute of the subject repository declares; the value is its host (or *) and path, such as api.example.com/orders.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "type": "string",
+          "description": "kubernetes or helm."
+        },
+        "environment": {
+          "type": "string",
+          "description": "The environment, as for a deployment container."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Ingress or HTTPRoute."
+        },
+        "name": {
+          "type": "string",
+          "description": "The Ingress's or HTTPRoute's name."
+        },
+        "class": {
+          "type": "string",
+          "description": "An Ingress's ingressClassName, such as nginx."
+        },
+        "gateway": {
+          "type": "string",
+          "description": "The Gateway an HTTPRoute attaches to (its first parentRef)."
+        },
+        "host": {
+          "type": "string",
+          "description": "The host it matches, if any."
+        },
+        "path": {
+          "type": "string",
+          "description": "The path it matches."
+        },
+        "pathType": {
+          "type": "string",
+          "description": "How the path matches: Prefix, Exact or ImplementationSpecific for an Ingress; PathPrefix, Exact or RegularExpression for an HTTPRoute."
+        },
+        "service": {
+          "type": "string",
+          "description": "The Service it sends to."
+        },
+        "port": {
+          "type": "string",
+          "description": "The Service's port, by number or name."
+        },
+        "rewrite": {
+          "type": "string",
+          "description": "The path it rewrites to: the nginx rewrite-target annotation, or an HTTPRoute URLRewrite filter's replacePrefixMatch or replaceFullPath."
+        }
+      },
+      "required": [
+        "platform",
+        "environment",
+        "kind",
+        "path"
+      ],
       "additionalProperties": false
     },
     "objectKind": "string"

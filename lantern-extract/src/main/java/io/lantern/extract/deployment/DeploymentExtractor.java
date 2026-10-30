@@ -53,13 +53,19 @@ public final class DeploymentExtractor {
   public static final String NAME = "deployment";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "deployment-extractor";
 
   /** Attribute: a container a deployment descriptor of the subject repository runs. */
   public static final String DEPLOYMENT_CONTAINER = "deployment-container";
+
+  /**
+   * Attribute: a route an Ingress or Gateway API HTTPRoute of the subject repository sends into a
+   * Service; the value is its host (or {@code *}) and path.
+   */
+  public static final String DEPLOYMENT_ROUTE = "deployment-route";
 
   /** Attribute: a Dockerfile of the subject repository; the value is its path. */
   public static final String DOCKERFILE = "dockerfile";
@@ -69,6 +75,19 @@ public final class DeploymentExtractor {
 
   public static final String KUBERNETES = "kubernetes";
   public static final String HELM = "helm";
+
+  /** The variables the JVM reads extra options from, such as {@code -Dspring.profiles.active=x}. */
+  private static final List<String> JAVA_OPTIONS =
+      List.of("JAVA_OPTS", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS");
+
+  /** A system property ({@code -Dkey=value}) or a Spring argument ({@code --key=value}). */
+  private static final Pattern COMMAND_PROPERTY =
+      Pattern.compile("^(?:-D|--)([A-Za-z][\\w.\\-\\[\\]]*)=(.*)$");
+
+  private static final Pattern PATH_LINE = Pattern.compile("^[\\s-]*(?:path|value):(.*)$");
+
+  private static final Pattern DEPENDENT_VARIABLE =
+      Pattern.compile("\\$\\(([A-Za-z_][A-Za-z0-9_]*)\\)");
 
   /** The environment variables that name the database a database image creates on start. */
   public static final Set<String> DATABASE_VARIABLES =
@@ -92,7 +111,7 @@ public final class DeploymentExtractor {
   /** Environment variable names whose values are secrets, so never recorded. */
   private static final Pattern SECRET_NAME =
       Pattern.compile(
-          "(?i).*(pass(word|wd)?|pwd|secret|token|credential|private|api_?key|access_?key"
+          "(?i).*(pass(word|wd)?|pwd|secret|token|credential|private|api[_-]?key|access[_-]?key"
               + "|signing|_key$|^key$).*");
 
   private static final Pattern URL_USER = Pattern.compile("(?i)(://)[^/@\\s]+@");
@@ -102,7 +121,8 @@ public final class DeploymentExtractor {
    */
   private static final Pattern SECRET_VALUE =
       Pattern.compile(
-          "(?i)(pass(word|wd)?|pwd|secret|token|credential|api_?key|access_?key|private_?key)"
+          "(?i)(pass(word|wd)?|pwd|secret|token|credential|api[_-]?key|access[_-]?key"
+              + "|private[_-]?key)"
               + "[\\w.-]*\\s*[=:]");
 
   private static final Pattern CREATE_DATABASE =
@@ -200,6 +220,8 @@ public final class DeploymentExtractor {
     final Set<String> dependsOn = new TreeSet<>();
     final Set<String> profiles = new TreeSet<>();
     final Set<String> databases = new TreeSet<>();
+    final Map<String, String> properties = new TreeMap<>();
+    final List<String> command = new ArrayList<>();
     Integer replicas;
     File file;
     int line;
@@ -268,6 +290,9 @@ public final class DeploymentExtractor {
       String from = null;
       int fromLine = 0;
       Set<String> exposes = new LinkedHashSet<>();
+      Found settings = new Found();
+      List<String> entrypoint = List.of();
+      List<String> cmd = List.of();
       List<String> lines = joined(file.lines());
       for (int n = 0; n < lines.size(); n++) {
         String line = lines.get(n).strip();
@@ -292,6 +317,9 @@ public final class DeploymentExtractor {
             }
             fromLine = n + 1;
             exposes.clear();
+            settings = new Found();
+            entrypoint = List.of();
+            cmd = List.of();
           }
         } else if (upper.startsWith("EXPOSE ")) {
           for (String port : line.substring(7).strip().split("\\s+")) {
@@ -299,6 +327,15 @@ public final class DeploymentExtractor {
               exposes.add(substitute(port, args));
             }
           }
+        } else if (upper.startsWith("ENV ")) {
+          for (Map.Entry<String, String> e : dockerEnv(line.substring(4).strip()).entrySet()) {
+            putEnv(settings, e.getKey(), substitute(e.getValue(), args));
+          }
+        } else if (upper.startsWith("ENTRYPOINT ")) {
+          entrypoint = commandWords(line.substring(11).strip());
+          cmd = List.of(); // an ENTRYPOINT resets the CMD inherited from the base image
+        } else if (upper.startsWith("CMD ")) {
+          cmd = commandWords(line.substring(4).strip());
         }
       }
       if (from == null) {
@@ -314,6 +351,9 @@ public final class DeploymentExtractor {
         ArrayNode array = attributes.putArray("exposes");
         exposes.forEach(array::add);
       }
+      settings.command.addAll(entrypoint);
+      settings.command.addAll(cmd);
+      settings(settings, attributes);
       add(DOCKERFILE, path, attributes, file, fromLine);
     }
 
@@ -358,6 +398,169 @@ public final class DeploymentExtractor {
       }
       m.appendTail(b);
       return b.toString();
+    }
+
+    /**
+     * The variables an {@code ENV} instruction sets: {@code KEY=value ...}, or the legacy {@code
+     * KEY value} with the rest of the line as the value.
+     */
+    private static Map<String, String> dockerEnv(String text) {
+      Map<String, String> env = new LinkedHashMap<>();
+      List<String> words = shellWords(text);
+      if (!words.isEmpty() && !words.getFirst().contains("=")) {
+        String key = words.getFirst();
+        String value = text.substring(text.indexOf(key) + key.length()).strip();
+        env.put(key, unquote(value));
+        return env;
+      }
+      for (String word : words) {
+        int eq = word.indexOf('=');
+        if (eq > 0) {
+          env.put(word.substring(0, eq), word.substring(eq + 1));
+        }
+      }
+      return env;
+    }
+
+    /** The words of an {@code ENTRYPOINT} or {@code CMD}: its JSON array, else its shell form. */
+    private static List<String> commandWords(String text) {
+      if (text.startsWith("[")) {
+        Object parsed = Yaml.load(text);
+        if (parsed instanceof List<?> list) {
+          return list.stream().map(String::valueOf).toList();
+        }
+      }
+      return shellWords(text);
+    }
+
+    /** A command line split into words the way a shell splits plain and quoted words. */
+    static List<String> shellWords(String text) {
+      List<String> words = new ArrayList<>();
+      StringBuilder word = new StringBuilder();
+      char quote = 0;
+      boolean inWord = false;
+      for (int i = 0; i < text.length(); i++) {
+        char ch = text.charAt(i);
+        if (quote != 0) {
+          if (ch == quote) {
+            quote = 0;
+          } else {
+            word.append(ch);
+          }
+        } else if (ch == '"' || ch == '\'') {
+          quote = ch;
+          inWord = true;
+        } else if (Character.isWhitespace(ch)) {
+          if (inWord) {
+            words.add(word.toString());
+            word.setLength(0);
+            inWord = false;
+          }
+        } else {
+          word.append(ch);
+          inWord = true;
+        }
+      }
+      if (inWord) {
+        words.add(word.toString());
+      }
+      return words;
+    }
+
+    /**
+     * Records what configures a container's Spring application: the properties its Java command
+     * line and the JVM option variables set, and the Spring profiles its variables or properties
+     * make active.
+     */
+    private void settings(Found c, ObjectNode attributes) {
+      List<String> words = new ArrayList<>();
+      // A shell's -c script, or a variable holding options, is a command line of its own.
+      c.command.forEach(w -> words.addAll(w.contains(" ") ? shellWords(w) : List.of(w)));
+      boolean runsJava =
+          words.stream().anyMatch(w -> w.equals("java") || w.endsWith("/java") || w.equals("-jar"));
+      // Arguments alone go to the image's own entrypoint, which for an application image (not a
+      // known product's) is its java command.
+      boolean appArguments =
+          !words.isEmpty()
+              && words.getFirst().startsWith("-")
+              && (c.image == null || Image.of(c.image) == null);
+      boolean readsCommand = runsJava || appArguments;
+      // Lowest first, as Spring orders its sources: system properties from the JVM's option
+      // variables and the command line, then SPRING_APPLICATION_JSON, then command-line arguments.
+      // JAVA_OPTS is no JVM variable: it counts only where the command expands it.
+      boolean expandsJavaOpts = c.command.stream().anyMatch(w -> w.contains("JAVA_OPTS"));
+      for (String variable : JAVA_OPTIONS) {
+        String options = c.env.get(variable);
+        if (options != null && (!variable.equals("JAVA_OPTS") || expandsJavaOpts)) {
+          shellWords(options).stream()
+              .filter(w -> w.startsWith("-D"))
+              .forEach(w -> commandProperty(c, w));
+        }
+      }
+      if (readsCommand) {
+        words.stream().filter(w -> w.startsWith("-D")).forEach(w -> commandProperty(c, w));
+      }
+      String json = c.env.get("SPRING_APPLICATION_JSON");
+      if (json != null && Yaml.load(json) instanceof Map<?, ?> tree) {
+        applicationJson(c, "", tree);
+      }
+      if (readsCommand) {
+        words.stream().filter(w -> w.startsWith("--")).forEach(w -> commandProperty(c, w));
+      }
+      if (!c.env.isEmpty()) {
+        ObjectNode env = attributes.putObject("env");
+        c.env.forEach(env::put);
+      }
+      array(attributes, "masked", c.masked);
+      if (!c.properties.isEmpty()) {
+        ObjectNode properties = attributes.putObject("properties");
+        c.properties.forEach(properties::put);
+      }
+      // A command-line property wins over the environment, as in Spring's property sources.
+      String value = c.properties.get("spring.profiles.active");
+      if (value == null) {
+        value = c.env.get("SPRING_PROFILES_ACTIVE");
+      }
+      Set<String> profiles = new LinkedHashSet<>();
+      if (value != null && !value.contains("${") && !value.contains("$(")) {
+        for (String profile : value.split(",")) {
+          if (!profile.isBlank()) {
+            profiles.add(profile.strip());
+          }
+        }
+      }
+      array(attributes, "activeProfiles", profiles);
+    }
+
+    /**
+     * Records the properties of a {@code SPRING_APPLICATION_JSON} tree, flattened to dotted keys.
+     */
+    private static void applicationJson(Found c, String prefix, Map<?, ?> tree) {
+      tree.forEach(
+          (k, v) -> {
+            String key = prefix + k;
+            if (v instanceof Map<?, ?> m) {
+              applicationJson(c, key + ".", m);
+            } else if (v != null && !(v instanceof List<?>)) {
+              commandProperty(c, "--" + key + "=" + v);
+            }
+          });
+    }
+
+    /** Records a {@code -Dkey=value} or {@code --key=value} word as a property, masking secrets. */
+    private static void commandProperty(Found c, String word) {
+      Matcher m = COMMAND_PROPERTY.matcher(word);
+      if (!m.matches()) {
+        return;
+      }
+      String key = m.group(1);
+      String value = m.group(2);
+      if (SECRET_NAME.matcher(key).matches() || SECRET_VALUE.matcher(word).find()) {
+        c.masked.add(key);
+        c.properties.remove(key);
+        return;
+      }
+      c.properties.put(key, URL_USER.matcher(value).replaceAll("$1"));
     }
 
     // -------------------------------------------------------------------------------------------
@@ -413,6 +616,17 @@ public final class DeploymentExtractor {
         }
         Object environmentNode = service.get("environment");
         Map<String, String> env = new TreeMap<>();
+        // env_file comes first: environment overrides what it sets.
+        Object envFiles = service.get("env_file");
+        for (Object item :
+            envFiles instanceof List<?> l ? l : envFiles == null ? List.of() : List.of(envFiles)) {
+          String envFile =
+              item instanceof Map<?, ?> m ? Yaml.string(m.get("path")) : Yaml.string(item);
+          File envText = envFile == null ? null : read(normalize(dir, resolve(envFile, dotEnv)));
+          if (envText != null) {
+            env.putAll(properties(envText));
+          }
+        }
         if (environmentNode instanceof Map<?, ?> m) {
           m.forEach(
               (k, v) -> {
@@ -431,6 +645,14 @@ public final class DeploymentExtractor {
           }
         }
         env.forEach((k, v) -> putEnv(c, k, resolve(v, dotEnv)));
+        for (String key : List.of("entrypoint", "command")) {
+          Object node = service.get(key);
+          if (node instanceof List<?> words) {
+            words.forEach(w -> c.command.add(resolve(String.valueOf(w), dotEnv)));
+          } else if (Yaml.string(node) != null) {
+            shellWords(resolve(Yaml.string(node), dotEnv)).forEach(c.command::add);
+          }
+        }
         for (Object port : Yaml.list(service.get("ports"))) {
           if (port instanceof Map<?, ?> p) {
             String target = Yaml.string(p.get("target"));
@@ -806,6 +1028,14 @@ public final class DeploymentExtractor {
         if (kind == null) {
           continue;
         }
+        if (kind.equals("Ingress")) {
+          ingress(doc, platform, environment);
+          continue;
+        }
+        if (kind.equals("HTTPRoute")) {
+          httpRoute(doc, platform, environment);
+          continue;
+        }
         Map<String, Object> metadata = Yaml.map(doc.map().get("metadata"));
         String workload = metadata == null ? null : Yaml.string(metadata.get("name"));
         Map<String, Object> spec = Yaml.map(doc.map().get("spec"));
@@ -930,6 +1160,11 @@ public final class DeploymentExtractor {
               }
             }
           }
+          for (String key : List.of("command", "args")) {
+            for (Object word : Yaml.list(container.get(key))) {
+              c.command.add(dependentVariables(String.valueOf(word), c.env));
+            }
+          }
           for (Object p : Yaml.list(container.get("ports"))) {
             Map<String, Object> port = Yaml.map(p);
             String number = port == null ? null : Yaml.string(port.get("containerPort"));
@@ -954,6 +1189,250 @@ public final class DeploymentExtractor {
           record(c, platform, environment);
         }
       }
+    }
+
+    /**
+     * The routes of an Ingress: each rule's host (or {@code *}) and path, the Service and port it
+     * sends to, and the path rewrite the nginx or Traefik controller's annotation sets.
+     */
+    private void ingress(Doc doc, String platform, String environment) {
+      Map<String, Object> metadata = Yaml.map(doc.map().get("metadata"));
+      Map<String, Object> spec = Yaml.map(doc.map().get("spec"));
+      if (spec == null) {
+        return;
+      }
+      String name = metadata == null ? null : Yaml.string(metadata.get("name"));
+      Map<String, Object> annotations =
+          metadata == null ? null : Yaml.map(metadata.get("annotations"));
+      String rewrite = null;
+      if (annotations != null) {
+        rewrite = Yaml.string(annotations.get("nginx.ingress.kubernetes.io/rewrite-target"));
+      }
+      String className = Yaml.string(spec.get("ingressClassName"));
+      Map<String, Object> defaultBackend = Yaml.map(spec.get("defaultBackend"));
+      if (defaultBackend != null) {
+        route(
+            doc,
+            platform,
+            environment,
+            "Ingress",
+            name,
+            className,
+            null,
+            "/",
+            null,
+            serviceBackend(defaultBackend),
+            rewrite);
+      }
+      for (Object item : Yaml.list(spec.get("rules"))) {
+        Map<String, Object> rule = Yaml.map(item);
+        if (rule == null) {
+          continue;
+        }
+        String host = Yaml.string(rule.get("host"));
+        Map<String, Object> http = Yaml.map(rule.get("http"));
+        for (Object p : http == null ? List.of() : Yaml.list(http.get("paths"))) {
+          Map<String, Object> path = Yaml.map(p);
+          if (path == null) {
+            continue;
+          }
+          route(
+              doc,
+              platform,
+              environment,
+              "Ingress",
+              name,
+              className,
+              host,
+              Objects.requireNonNullElse(Yaml.string(path.get("path")), "/"),
+              Yaml.string(path.get("pathType")),
+              serviceBackend(Yaml.map(path.get("backend"))),
+              rewrite);
+        }
+      }
+    }
+
+    /** The first value if it is set, else the second, which may be null too. */
+    private static String either(String first, String second) {
+      return first != null ? first : second;
+    }
+
+    /** An Ingress backend's Service name and port (number or name), or nulls. */
+    private static String[] serviceBackend(Map<String, Object> backend) {
+      Map<String, Object> service = backend == null ? null : Yaml.map(backend.get("service"));
+      if (service != null) {
+        Map<String, Object> port = Yaml.map(service.get("port"));
+        String number =
+            port == null
+                ? null
+                : either(Yaml.string(port.get("number")), Yaml.string(port.get("name")));
+        return new String[] {Yaml.string(service.get("name")), number};
+      }
+      // networking.k8s.io/v1beta1 and extensions/v1beta1
+      return backend == null
+          ? new String[2]
+          : new String[] {
+            Yaml.string(backend.get("serviceName")), Yaml.string(backend.get("servicePort"))
+          };
+    }
+
+    /**
+     * The routes of a Gateway API HTTPRoute: each rule's path matches for each of its hostnames,
+     * the Service backends it sends to, and the URLRewrite filter's path.
+     */
+    private void httpRoute(Doc doc, String platform, String environment) {
+      Map<String, Object> metadata = Yaml.map(doc.map().get("metadata"));
+      Map<String, Object> spec = Yaml.map(doc.map().get("spec"));
+      if (spec == null) {
+        return;
+      }
+      String name = metadata == null ? null : Yaml.string(metadata.get("name"));
+      List<String> hosts = new ArrayList<>();
+      Yaml.list(spec.get("hostnames")).forEach(h -> hosts.add(String.valueOf(h)));
+      if (hosts.isEmpty()) {
+        hosts.add(null);
+      }
+      String gateway = null;
+      for (Object item : Yaml.list(spec.get("parentRefs"))) {
+        Map<String, Object> parent = Yaml.map(item);
+        if (parent != null && gateway == null) {
+          gateway = Yaml.string(parent.get("name"));
+        }
+      }
+      for (Object item : Yaml.list(spec.get("rules"))) {
+        Map<String, Object> rule = Yaml.map(item);
+        if (rule == null) {
+          continue;
+        }
+        String rewrite = null;
+        for (Object f : Yaml.list(rule.get("filters"))) {
+          Map<String, Object> filter = Yaml.map(f);
+          Map<String, Object> urlRewrite =
+              filter == null ? null : Yaml.map(filter.get("urlRewrite"));
+          Map<String, Object> path = urlRewrite == null ? null : Yaml.map(urlRewrite.get("path"));
+          if (path != null) {
+            rewrite =
+                either(
+                    Yaml.string(path.get("replacePrefixMatch")),
+                    Yaml.string(path.get("replaceFullPath")));
+          }
+        }
+        List<String[]> paths = new ArrayList<>();
+        for (Object m : Yaml.list(rule.get("matches"))) {
+          Map<String, Object> match = Yaml.map(m);
+          Map<String, Object> path = match == null ? null : Yaml.map(match.get("path"));
+          if (path != null) {
+            paths.add(
+                new String[] {
+                  Objects.requireNonNullElse(Yaml.string(path.get("value")), "/"),
+                  Objects.requireNonNullElse(Yaml.string(path.get("type")), "PathPrefix")
+                });
+          }
+        }
+        if (paths.isEmpty()) {
+          paths.add(new String[] {"/", "PathPrefix"});
+        }
+        List<String[]> backends = new ArrayList<>();
+        for (Object b : Yaml.list(rule.get("backendRefs"))) {
+          Map<String, Object> ref = Yaml.map(b);
+          String refKind = ref == null ? null : Yaml.string(ref.get("kind"));
+          if (ref != null && (refKind == null || refKind.equals("Service"))) {
+            backends.add(new String[] {Yaml.string(ref.get("name")), Yaml.string(ref.get("port"))});
+          }
+        }
+        if (backends.isEmpty()) {
+          backends.add(new String[2]);
+        }
+        for (String host : hosts) {
+          for (String[] path : paths) {
+            for (String[] backend : backends) {
+              route(
+                  doc,
+                  platform,
+                  environment,
+                  "HTTPRoute",
+                  name,
+                  gateway,
+                  host,
+                  path[0],
+                  path[1],
+                  backend,
+                  rewrite);
+            }
+          }
+        }
+      }
+    }
+
+    private void route(
+        Doc doc,
+        String platform,
+        String environment,
+        String kind,
+        String name,
+        String className,
+        String host,
+        String path,
+        String pathType,
+        String[] backend,
+        String rewrite) {
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("platform", platform);
+      attributes.put("environment", environment);
+      attributes.put("kind", kind);
+      if (name != null) {
+        attributes.put("name", name);
+      }
+      if (className != null) {
+        attributes.put(kind.equals("Ingress") ? "class" : "gateway", className);
+      }
+      if (host != null) {
+        attributes.put("host", host);
+      }
+      attributes.put("path", path);
+      if (pathType != null) {
+        attributes.put("pathType", pathType);
+      }
+      if (backend[0] != null) {
+        attributes.put("service", backend[0]);
+      }
+      if (backend[1] != null) {
+        attributes.put("port", backend[1]);
+      }
+      if (rewrite != null) {
+        attributes.put("rewrite", rewrite);
+      }
+      add(
+          DEPLOYMENT_ROUTE,
+          (host == null ? "*" : host) + path,
+          attributes,
+          doc.file(),
+          valueLine(doc, path));
+    }
+
+    /** The first line of the document whose {@code path:} or {@code value:} is the value. */
+    private static int valueLine(Doc doc, String value) {
+      for (int n = doc.start() - 1; n < doc.end() && n < doc.file().lines().size(); n++) {
+        Matcher m = PATH_LINE.matcher(doc.file().lines().get(n));
+        if (m.matches() && unquote(m.group(1).strip()).equals(value)) {
+          return n + 1;
+        }
+      }
+      return doc.start();
+    }
+
+    /**
+     * A command word with the {@code $(VAR)} references Kubernetes fills from the container's env.
+     */
+    private static String dependentVariables(String word, Map<String, String> env) {
+      Matcher m = DEPENDENT_VARIABLE.matcher(word);
+      StringBuilder b = new StringBuilder();
+      while (m.find()) {
+        String value = env.get(m.group(1));
+        m.appendReplacement(b, Matcher.quoteReplacement(value == null ? m.group() : value));
+      }
+      m.appendTail(b);
+      return b.toString();
     }
 
     /** An image as kustomize's {@code images} transformer changes it. */
@@ -1072,11 +1551,7 @@ public final class DeploymentExtractor {
       Set<String> aliases = new TreeSet<>(c.aliases);
       aliases.removeAll(c.hosts);
       array(attributes, "aliases", aliases);
-      if (!c.env.isEmpty()) {
-        ObjectNode env = attributes.putObject("env");
-        c.env.forEach(env::put);
-      }
-      array(attributes, "masked", c.masked);
+      settings(c, attributes);
       array(attributes, "ports", c.ports);
       array(attributes, "dependsOn", c.dependsOn);
       array(attributes, "composeProfiles", c.profiles);

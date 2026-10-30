@@ -7,6 +7,9 @@ services:
       context: ./app
       dockerfile: Dockerfile
     container_name: orders-app
+    env_file:
+      - ./app/orders.env
+    command: ["java", "-jar", "/app.jar", "--spring.profiles.active=docker,local"]
     environment:
       <<: *common
       ORDERS_DB_HOST: db
@@ -37,6 +40,7 @@ services:
 
   cache:
     image: redis:${REDIS_VERSION:-7.2}-alpine
+    command: redis-server --requirepass hunter2 --save=60
     ports:
       - target: 6379
         published: 6379
