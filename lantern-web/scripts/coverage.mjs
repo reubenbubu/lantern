@@ -186,7 +186,8 @@ function citedLine(checkoutDir, at) {
 
 /**
  * What is wrong with the map's citations in the set's checkout: missing files or lines, a line
- * citation whose first line no longer has the hash the map records (or has none), and a compose
+ * citation whose first line is blank or no longer has the hash the map records (or has none), a
+ * hash on a whole-file citation, and a compose
  * citation that is not inside one service from its first line (ADR 0089), since a range across
  * services is met by any of their facts.
  */
@@ -204,9 +205,13 @@ export function checkCitations(map, checkoutDir) {
       const text = readFileSync(file, 'utf8');
       const lines = text.replace(/\n$/, '').split('\n').length;
       if (at.end !== null && at.end > lines) errors.push(`${key}: ${need.at}: the file has ${lines} lines`);
+      if (at.start === null && need.hash !== undefined) errors.push(`${key}: ${need.at}: a hash without a line`);
       if (at.start !== null && at.start <= lines) {
-        const hash = lineHash(text.split('\n')[at.start - 1]);
-        if (need.hash === undefined) errors.push(`${key}: ${need.at}: no hash (coverage.mjs hash)`);
+        const line = text.split('\n')[at.start - 1];
+        const hash = lineHash(line);
+        // A blank first line hashes the same whatever replaces it, so it could not show drift.
+        if (line.trim() === '') errors.push(`${key}: ${need.at}: the first cited line is blank`);
+        else if (need.hash === undefined) errors.push(`${key}: ${need.at}: no hash (coverage.mjs hash)`);
         else if (need.hash !== hash) errors.push(`${key}: ${need.at}: the line changed since it was cited`);
       }
       if (at.start !== null && /compose[^/]*\.ya?ml$/.test(at.path)) {

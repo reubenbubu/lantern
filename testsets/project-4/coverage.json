@@ -381,13 +381,13 @@
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java:24-90",
-          "hash": "e3b0c44298fc1c14"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java:25-90",
+          "hash": "8c12f5303870fa36"
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/UsersClient.java:15-32",
-          "hash": "e3b0c44298fc1c14"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/UsersClient.java:16-32",
+          "hash": "b4d034e8a4686920"
         }
       ]
     },
@@ -934,8 +934,8 @@
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java:24-90",
-          "hash": "e3b0c44298fc1c14"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java:25-90",
+          "hash": "8c12f5303870fa36"
         }
       ]
     },

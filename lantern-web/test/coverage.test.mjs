@@ -249,6 +249,12 @@ test('the citation check flags a cited line that changed, or has no hash', () =>
     assert.deepEqual(checkCitations(map, dir), ['x: shop:App.java:2: the line changed since it was cited']);
     const { hash, ...bare } = map.items.x.needs[0];
     assert.deepEqual(checkCitations({ items: { x: { needs: [bare] } } }, dir), ['x: shop:App.java:2: no hash (coverage.mjs hash)']);
+    // A blank first line cannot show drift; a whole-file citation has no line to hash.
+    writeFileSync(join(dir, 'shop', 'App.java'), 'class App {\n\n  void start() {}\n}\n');
+    assert.deepEqual(checkCitations(withHashes(map, dir), dir), ['x: shop:App.java:2: the first cited line is blank']);
+    assert.deepEqual(checkCitations({ items: { x: { needs: [{ area: 'java', at: 'shop:App.java', hash: lineHash('x') }] } } }, dir), [
+      'x: shop:App.java: a hash without a line',
+    ]);
     assert.deepEqual(checkMap([{ key: 'x', category: 'containers' }], { items: { x: { needs: [{ ...bare, hash: 'nope' }] } } }), [
       "x: bad hash 'nope' for shop:App.java:2",
     ]);
