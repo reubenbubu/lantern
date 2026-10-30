@@ -1908,6 +1908,132 @@
     } ],
     "sections" : [ ]
   }, {
+    "id" : "glossary",
+    "title" : "Glossary",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "table",
+      "id" : "glossary.terms",
+      "columns" : [ {
+        "label" : "Term"
+      }, {
+        "label" : "Meaning"
+      }, {
+        "label" : "Source"
+      } ],
+      "rows" : [ {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "ADR"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Architecture decision record: a short document recording one design decision and its reasons"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "HTTP"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Hypertext Transfer Protocol, the request and response protocol of the web"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "HTTPS"
+        } ], [ {
+          "kind" : "text",
+          "text" : "HTTP encrypted with TLS"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "ID"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Identifier"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "JDBC"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Java Database Connectivity, Java's standard interface to relational databases"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "JSON"
+        } ], [ {
+          "kind" : "text",
+          "text" : "JavaScript Object Notation, a plain-text data format"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "MVC"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Model-view-controller, the pattern Spring's web framework, Spring MVC, is named after"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "REST"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Representational state transfer: a style of web interface built on HTTP resources and methods"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "TLS"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Transport Layer Security, which encrypts network connections"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
+        } ] ],
+        "facts" : [ ]
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "quality",
     "title" : "Quality report",
     "facts" : [ ],
@@ -1915,17 +2041,6 @@
       "kind" : "quality-report",
       "id" : "quality.report",
       "failures" : [ {
-        "check" : "A legend for every shape, color, line style and arrowhead used",
-        "target" : {
-          "kind" : "block",
-          "id" : "containers.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The template's legend has no entry for the dashed boundary."
-        } ],
-        "facts" : [ ]
-      }, {
         "check" : "Every line is labelled with an intent phrase",
         "target" : {
           "kind" : "block",
@@ -1937,17 +2052,6 @@
         } ],
         "facts" : [ ]
       }, {
-        "check" : "A legend for every shape, color, line style and arrowhead used",
-        "target" : {
-          "kind" : "block",
-          "id" : "components.service:com.example:app.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The template's legend has no entry for the dashed boundary."
-        } ],
-        "facts" : [ ]
-      }, {
         "check" : "Every line is labelled with an intent phrase",
         "target" : {
           "kind" : "block",
@@ -1956,35 +2060,6 @@
         "detail" : [ {
           "kind" : "text",
           "text" : "Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "A legend for every shape, color, line style and arrowhead used",
-        "target" : {
-          "kind" : "block",
-          "id" : "sequences.shop-app.Controller.list.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The template's legend has no arrowhead for asynchronous messages."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "A legend for every shape, color, line style and arrowhead used",
-        "target" : {
-          "kind" : "block",
-          "id" : "sequences.shop-app.Jobs.run.diagram"
-        },
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The template's legend has no arrowhead for asynchronous messages."
-        } ],
-        "facts" : [ ]
-      }, {
-        "check" : "Acronyms are explained in the glossary",
-        "detail" : [ {
-          "kind" : "text",
-          "text" : "The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST."
         } ],
         "facts" : [ ]
       }, {

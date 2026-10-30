@@ -1,8 +1,9 @@
 # What the acronyms Lantern's documents use stand for (ADR 0063): ACRONYM,meaning, split at the
-# first comma. A document's glossary lists those it uses; one missing here is named in the glossary
-# and fails the Quality bar check "Acronyms are explained in the glossary". Add any acronym the
-# documents of the test sets use. A meaning uses no acronym this table does not explain
-# (GlossaryTest checks).
+# first comma. A document's glossary lists those it uses, preferring what the repositories'
+# documentation says (ADR 0087); one neither explains is named in the glossary and fails the
+# Quality bar check "Acronyms are explained in the glossary". Add only standard terms, never a
+# meaning a system coins. A meaning uses no acronym this table does not explain (GlossaryTest
+# checks).
 ADR,Architecture decision record: a short document recording one design decision and its reasons
 AMQP,Advanced Message Queuing Protocol, the wire protocol of message brokers such as RabbitMQ
 AOP,Aspect-oriented programming: code run around methods without changing them, such as transactions
@@ -22,6 +23,7 @@ CRUD,Create, read, update and delete: the basic operations on stored data
 CSRF,Cross-site request forgery, an attack that makes a browser send requests its user did not mean
 CSS,Cascading Style Sheets, the styling language of web pages
 CSV,Comma-separated values, a plain-text table format
+CVV,Card verification value: the security code printed on a payment card
 DAO,Data access object: a class that reads and writes stored data
 DB,Database
 DDD,Domain-driven design
@@ -57,6 +59,7 @@ JSON,JavaScript Object Notation, a plain-text data format
 JSP,Jakarta Server Pages, Java's templates for web pages
 JTA,Jakarta Transactions, Java's standard for transactions across several resources
 JVM,Java virtual machine, which runs compiled Java code
+JWKS,JSON Web Key Set: the public keys that verify the signatures of JWTs
 JWT,JSON Web Token: a signed token carrying claims about a user
 KPI,Key performance indicator
 LDAP,Lightweight Directory Access Protocol, used for directories of users and groups
@@ -70,11 +73,16 @@ OS,Operating system
 PDF,Portable Document Format
 PII,Personally identifiable information
 POJO,Plain old Java object
+POM,Project object model: a Maven project's build file, pom.xml
 QA,Quality assurance
+QR,Quick response, as in QR code: a two-dimensional barcode
 RAM,Random-access memory
 RDBMS,Relational database management system
+README,The file that introduces a repository to its readers
+RESP,Redis serialization protocol, the wire protocol of Redis
 REST,Representational state transfer: a style of web interface built on HTTP resources and methods
 RPC,Remote procedure call
+RSA,Rivest-Shamir-Adleman, a public-key algorithm for encryption and signatures
 SAML,Security Assertion Markup Language, a single sign-on protocol
 SDK,Software development kit
 SE,Standard Edition, as in Java SE
@@ -104,9 +112,11 @@ URL,Uniform resource locator: a web address
 UTC,Coordinated Universal Time
 UUID,Universally unique identifier
 VM,Virtual machine
+W3C,World Wide Web Consortium, which sets the standards of the web
 WAR,Web application archive: a JAR packaged for a servlet container
 WMS,Warehouse management system
 WSDL,Web Services Description Language, which describes SOAP web services
+XA,The X/Open standard for transactions across several resources, with two-phase commit
 XML,Extensible Markup Language
 XSD,XML Schema Definition
 YAML,A plain-text configuration format, short for YAML Ain't Markup Language

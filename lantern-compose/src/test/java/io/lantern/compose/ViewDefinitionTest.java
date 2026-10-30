@@ -78,7 +78,8 @@ class ViewDefinitionTest {
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
             SectionKind.DECISIONS,
-            SectionKind.DEPLOYMENT);
+            SectionKind.DEPLOYMENT,
+            SectionKind.GLOSSARY);
     assertThat(system.audience()).isEqualTo("architects and new engineers");
     assertThat(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE).audience())
         .isEqualTo("architects and new engineers");

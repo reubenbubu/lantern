@@ -1457,8 +1457,9 @@ final class C4Views {
         .orElse(Integer.MAX_VALUE);
   }
 
+  /** A cell of the decision record's Markdown text, its code spans as code. */
   private static List<Inline> cell(String text) {
-    return text == null || text.isBlank() ? List.of() : List.of(TextRun.of(text));
+    return text == null || text.isBlank() ? List.of() : Assembler.withCodeSpans(text);
   }
 
   // Components.

@@ -203,6 +203,51 @@ class C4ViewsTest {
   }
 
   @Test
+  void codeSpansOfADecisionRecordAreCode() {
+    assertThat(Assembler.withCodeSpans("Verify old `PROCESSING` records, then `X`"))
+        .containsExactly(
+            TextRun.of("Verify old "),
+            new TextRun("PROCESSING", TextRun.Style.CODE),
+            TextRun.of(" records, then "),
+            new TextRun("X", TextRun.Style.CODE));
+    assertThat(Assembler.withCodeSpans("No code")).containsExactly(TextRun.of("No code"));
+  }
+
+  @Test
+  void theRoleAPersonRestsOnIsCodeNotAnAcronym() {
+    TestFacts withRole = TestFacts.runtime();
+    withRole.attribute(
+        "shop",
+        "type:com.example.AdminController",
+        "person-evidence",
+        "role",
+        "{\"name\":\"ADMIN\",\"type\":\"com.example.AdminController\"}");
+    Fact evidence = withRole.find("type:com.example.AdminController", "person-evidence");
+    withRole.attribute(
+        "shop",
+        "person:admin",
+        "person-basis",
+        "role",
+        "{\"basis\":\"role\",\"description\":\"The code checks the role ADMIN"
+            + " (@PreAuthorize in AdminController.java).\",\"cites\":[\""
+            + evidence.id()
+            + "\"],\"repos\":[\"shop\"]}");
+    withRole.attribute("shop", "person:admin", "display-name", "Admin");
+
+    Document document = repo(withRole.list());
+    DocumentEntity person =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("person:admin"))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(person.description())
+        .contains(new TextRun("ADMIN", TextRun.Style.CODE))
+        .contains(TextRun.of(" (@PreAuthorize in AdminController.java)."));
+    assertThat(QualityBar.acronymsUsed(document)).doesNotContain("ADMIN");
+  }
+
+  @Test
   void aFrontendIsAContainerWithItsTechnologyItsCallsAndThePeopleWithScreensInIt() {
     TestFacts withFrontend = TestFacts.runtime();
     withFrontend.attribute(

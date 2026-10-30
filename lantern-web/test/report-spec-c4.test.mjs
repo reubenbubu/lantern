@@ -65,3 +65,23 @@ test('a code span inside link text and an unmatched backtick', () => {
   );
   assert.equal(mdInline('a ` b **c**'), 'a ` b <b>c</b>');
 });
+
+// legendHTML draws the legend under each diagram; load it, with the element kinds, from the
+// template source.
+const legendHTML = new Function(
+  `${template.match(/^const KIND = \{[\s\S]*?^\};/m)[0]}\n${template.match(/^function legendHTML[\s\S]*?^\}/m)[0]}\nreturn legendHTML;`,
+)();
+
+test('the legend has the dashed boundary of a diagram drawn inside one', () => {
+  const legend = legendHTML(['container'], { boundary: 'system' });
+  assert.match(legend, /<i class="sw bnd k-system"><\/i>Software System boundary/);
+  assert.doesNotMatch(legendHTML(['container'], {}), /boundary/);
+});
+
+test('the legend of a sequence has the async arrowhead when a message is async', () => {
+  const legend = legendHTML(['container'], { seq: true, async: true });
+  assert.match(legend, /Call \(waits for the reply\)/);
+  assert.match(legend, /class="sw-arrow async"[^]*?<\/svg>Async message \(does not wait\)/);
+  assert.match(legend, /Return/);
+  assert.doesNotMatch(legendHTML(['container'], { seq: true }), /Async message/);
+});

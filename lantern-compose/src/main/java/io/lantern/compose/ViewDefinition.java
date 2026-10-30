@@ -101,8 +101,8 @@ public record ViewDefinition(
   /**
    * A view of one repository for a C4 report: overview, where to start reading, context,
    * containers, components and main flows, the sections whose diagrams the C4 report spec draws
-   * (ADR 0031), the first two in its introduction; then the decisions and unknowns and the
-   * deployment, its documentation pages (ADR 0086).
+   * (ADR 0031), the first two in its introduction; then the decisions and unknowns, the deployment
+   * and the glossary, its documentation pages (ADR 0086, #229).
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -119,13 +119,14 @@ public record ViewDefinition(
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
             SectionKind.DECISIONS,
-            SectionKind.DEPLOYMENT));
+            SectionKind.DEPLOYMENT,
+            SectionKind.GLOSSARY));
   }
 
   /**
    * A view of the whole system for a C4 report: overview, where to start reading, context,
-   * containers, components and main flows (ADR 0031), then the decisions and unknowns and the
-   * deployment (ADR 0086).
+   * containers, components and main flows (ADR 0031), then the decisions and unknowns, the
+   * deployment and the glossary (ADR 0086, #229).
    */
   public static ViewDefinition c4System(String id, String title, TemplateRef template) {
     return new ViewDefinition(
@@ -142,7 +143,8 @@ public record ViewDefinition(
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
             SectionKind.DECISIONS,
-            SectionKind.DEPLOYMENT));
+            SectionKind.DEPLOYMENT,
+            SectionKind.GLOSSARY));
   }
 
   /**
