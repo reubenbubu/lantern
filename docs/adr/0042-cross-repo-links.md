@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), amended (#272), amended by ADR 0083 (#267)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), amended (#272), amended by ADR 0083 (#267), amended (#473)
 
 ## Context
 
@@ -197,3 +197,44 @@ to itself, like any other, so the sequence flows draw the delivery (ADR 0047, am
 Before, such sends were left out. The Executive Brief's dependents and dependencies already leave
 out links inside the repository's units. The step's version becomes 15.
 
+## Amendment (#473): one way to tell where an address leads
+
+Each linker decided "which unit, container or external system is this address" on its own, and
+the answers differed: only frontend calls matched compose names and published ports, only identity
+links filled placeholders from a deployment, and a backend call to `192.168.1.10` became an external
+system. `Addresses` (`lantern-link`), built once per run beside `LinkIndex` and the deployments,
+now answers for HTTP calls, gateway routes, frontend calls, identity providers and mail hosts. The
+linkers keep their own work: paths and endpoints, Feign and `lb://` names, identity provider
+containers.
+
+1. **Fill.** An address is taken as the calling unit's config resolves it, then as the environment
+   of each deployment container that runs the unit fills it in (ADR 0082), the way Spring Boot
+   reads it: a key the config sets keeps the config's value, one it does not set takes the
+   environment's value (relaxed binding) before the placeholder's default. Where the config's
+   answer and the environments' answers lead to different units or systems, the link is left open
+   as `ambiguous` with all of them as candidates; an answer that leads nowhere does not count
+   against one that does. A link filled in this way shows the filled URL and lists the container
+   among its `facts`.
+2. **Classify** the host: this machine (`localhost`, `127.*`, `[::1]`); a private address
+   (RFC 1918, `0.0.0.0`, `host.docker.internal`, `.local`, `.internal`, `.lan`, `.home.arpa`); a
+   Kubernetes name (`.svc`); a name without a domain; a public domain; a public IP address.
+3. **Match** in one order, the first step that names any unit deciding: `spring.application.name`
+   (`host`, 0.9); a name of a deployment container that runs a unit, in the filling container's
+   environment when one filled it (`container-host`, 0.9); the artifact ID (`artifact-id`, 0.8); a
+   Kubernetes name by its first label when the whole name names none. This machine or a private
+   address goes by its port (the scheme's when none is written): the unit whose compose container
+   publishes it (`published-port`, 0.8), else the units whose `server.port` it is, 8080 for one that
+   sets none (`port`, 0.8). A unit on the default port is still taken only where it serves the path.
+4. **Answer**: a unit; several (`ambiguous`, with candidates); an external system, only for a
+   public domain that names no unit; or unknown. A private address or a public IP address is never
+   an external system: an HTTP call to one that no unit listens on goes by its path as a call to
+   this machine does, and is otherwise left open.
+
+Frontend links take these factors too (a host was 1.0 and a port 0.7 before). Gateway routes left
+open (`kind: route`) go to the LLM resolver (ADR 0045) with the units whose endpoints the route's
+paths reach as candidates, when a path has a literal segment; a pick is a `CALLS_HTTP` link from the
+gateway with the route's id, paths, URL and protocol. This covers two items of **Not covered**
+above: deploy-time values from compose and Kubernetes environments, and service names that differ
+from `spring.application.name` and the artifact ID. Containers are still tied to units by name and
+image (ADR 0082), not by a compose `build` context. project-0 covers it with DEP-1 to DEP-4. The
+step's version becomes 17.

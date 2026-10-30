@@ -10,6 +10,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
@@ -303,6 +304,63 @@ class LinkResolverTest {
         .findFirst()
         .orElseThrow()
         .id();
+  }
+
+  @Test
+  void aGatewayRouteLeftOpenIsAskedWithTheUnitsItsPathsReachAndBecomesARouteLink() {
+    unit("g", "edge");
+    type("g", "edge", "gw.Routes");
+    add(
+        GatewayExtractor.NAME,
+        "type:gw.Routes",
+        GatewayExtractor.ROUTE,
+        FactObject.string("quotes"),
+        "{\"definedIn\":\"config\",\"uri\":\"http://quotes-svc:8080\","
+            + "\"paths\":[\"/v2/quotes\"]}",
+        "g:src/main/resources/application.yml#12");
+    unit("b", "billing");
+    endpoint("b", "billing", "b.BillingController", "/v2/quotes");
+    unit("t", "tax");
+    endpoint("t", "tax", "t.TaxController", "/v2/quotes");
+    FakeLlmProvider fake =
+        answering(
+            r -> {
+              String user = user(r);
+              String line =
+                  user.lines()
+                      .filter(l -> l.contains("t.TaxController#quotes() endpoint"))
+                      .findFirst()
+                      .orElseThrow();
+              String ref = line.substring(line.indexOf('[') + 1, line.indexOf(']'));
+              return "{\"target\": \"C2\", \"confidence\": \"high\", \"cites\": [\"C2\", \""
+                  + ref
+                  + "\"], \"rationale\": \"The route's host names quotes.\"}";
+            });
+
+    LinkResolver.Result result = resolve(fake);
+
+    assertThat(user(fake.sent().getFirst().request()))
+        .startsWith(
+            "The HTTP call a gateway route forwards that static matching left open:"
+                + " http://quotes-svc:8080\n")
+        .contains("Facts about the route:")
+        .contains("[C1] service:g:billing")
+        .contains("[C2] service:g:tax");
+    Fact link = result.facts().getFirst();
+    assertThat(link.subject()).isEqualTo(EntityId.parse("service:g:edge"));
+    assertThat(link.predicate()).isEqualTo(CrossRepoLinks.CALLS_HTTP);
+    assertThat(link.object().value()).isEqualTo("service:g:tax");
+    ObjectNode attributes = link.attributes().deepCopy();
+    attributes.remove("facts");
+    attributes.remove("link");
+    attributes.remove("resolves");
+    assertThat(attributes.toString())
+        .isEqualTo(
+            "{\"endpoint\":\"GET /v2/quotes\",\"matchedBy\":\"llm\",\"model\":\"fake/m\","
+                + "\"paths\":[\"/v2/quotes\"],\"protocol\":\"JSON/HTTP\","
+                + "\"rationale\":\"The route's host names quotes.\",\"route\":\"quotes\","
+                + "\"source\":\"type:gw.Routes\",\"target\":\"method:t.TaxController#quotes()\","
+                + "\"url\":\"http://quotes-svc:8080\"}");
   }
 
   @Test

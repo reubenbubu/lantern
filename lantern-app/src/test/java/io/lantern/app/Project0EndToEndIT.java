@@ -441,17 +441,18 @@ class Project0EndToEndIT {
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
     // Four units; the catalog and shop databases (the local profile's localhost one is a note);
     // the shop.orders and shop.returns exchanges (their queues folded into their lines), two JMS
-    // queues and a Kafka topic; PayGate, by its default sandbox host (HTTP-4); and the components
+    // queues and a Kafka topic; PayGate, by its default sandbox host (HTTP-4), and the mail host
+    // compose gives payments (DEP-4); and the components
     // by role. catalog's ProductRepository is reached only from ProductController (through Spring
     // Data's findById), so catalog has one component and no component page.
     assertThat(kinds)
         .containsExactlyEntriesOf(
             new TreeMap<>(
                 Map.of(
-                    "component", 14L,
+                    "component", 17L,
                     "container", 4L,
                     "database", 2L,
-                    "external", 1L,
+                    "external", 2L,
                     "queue", 5L,
                     "system", 1L)));
     List<String> pages = new ArrayList<>();
@@ -468,8 +469,10 @@ class Project0EndToEndIT {
             "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
             // The decision records and unknowns are a documentation page (ADR 0086), then the
+            // deployment table of storefront's compose file (ADR 0082, DEP-1 to DEP-4) and the
             // glossary (ADR 0087).
             "decisions",
+            "deployment",
             "glossary");
     assertThat(data.get("pages").get(8).get("level").asString()).isEqualTo("documentation");
     assertThat(data.get("pages").get(9).get("level").asString()).isEqualTo("documentation");

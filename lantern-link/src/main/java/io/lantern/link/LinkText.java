@@ -98,6 +98,45 @@ final class LinkText {
     return out.toString();
   }
 
+  /**
+   * Replaces {@code ${key}} and {@code ${key:default}}, nested ones included, with the text the
+   * lookup gives each key, itself resolved the same way; a key it gives nothing for takes its
+   * default, or is kept as written.
+   */
+  static String substitute(String text, Function<String, String> lookup) {
+    return substitute(text, lookup, 0);
+  }
+
+  private static String substitute(String text, Function<String, String> lookup, int depth) {
+    if (depth > 10) {
+      return text;
+    }
+    StringBuilder out = new StringBuilder();
+    int i = 0;
+    while (i < text.length()) {
+      int start = text.indexOf("${", i);
+      int end = start < 0 ? -1 : closing(text, start);
+      if (end < 0) {
+        out.append(text, i, text.length());
+        break;
+      }
+      out.append(text, i, start);
+      String inner = text.substring(start + 2, end);
+      int colon = separator(inner);
+      String key = substitute(colon < 0 ? inner : inner.substring(0, colon), lookup, depth + 1);
+      String value = lookup.apply(key);
+      if (value != null) {
+        out.append(substitute(value, lookup, depth + 1));
+      } else if (colon >= 0) {
+        out.append(substitute(inner.substring(colon + 1), lookup, depth + 1));
+      } else {
+        out.append("${").append(key).append('}');
+      }
+      i = end + 1;
+    }
+    return out.toString();
+  }
+
   /** The index of the brace closing the placeholder at {@code start}, or -1. */
   private static int closing(String text, int start) {
     int depth = 0;

@@ -11,6 +11,8 @@ import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.link.Addresses.Answer;
+import io.lantern.link.Addresses.Kind;
 import io.lantern.link.Deployments.Container;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
@@ -54,8 +56,6 @@ final class IdentityLinker {
   static final String MANAGES_USERS = "manages-users";
 
   private static final double BY_NAME = 1.0;
-  private static final double BY_HOST = 0.9;
-  private static final double BY_PORT = 0.8;
   private static final double BY_CONTAINER = 0.8;
   private static final double BY_DEFAULT_PORT = 0.6;
 
@@ -85,15 +85,17 @@ final class IdentityLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
+  private final Addresses addresses;
   private final Deployments deployments;
 
   /** The identity provider containers each external system found from them is deployed in. */
   private final Map<EntityId, Map<String, Container>> deployed = new TreeMap<>(LinkIndex.BY_TEXT);
 
-  IdentityLinker(LinkIndex index, FoundLinks out, Deployments deployments) {
+  IdentityLinker(LinkIndex index, FoundLinks out, Addresses addresses) {
     this.index = index;
     this.out = out;
-    this.deployments = deployments;
+    this.addresses = addresses;
+    this.deployments = addresses.deployments();
   }
 
   void link(Origin origin, Validity validity) {
@@ -298,96 +300,55 @@ final class IdentityLinker {
   }
 
   /**
-   * What a provider's URL reaches in a view: as written in config, else filled in by the
-   * environment of each container that runs the unit. Null when it names nothing known.
+   * What a provider's URL reaches in a view, as {@link Addresses} resolves it (filled in by the
+   * environment of a container that runs the unit where config leaves the host to it): a unit of
+   * the system; else an identity provider container a deployment runs, by its host or, for this
+   * machine, the port it publishes; else an external system. Null when it names nothing known.
+   *
+   * @param value the URL as config resolved it, placeholders nothing resolved kept as written
+   * @param written the URL as written, when config changed it
    */
   private Reached reach(Unit unit, String view, String value, String written) {
-    Reached reached = reach(unit, view, LinkText.parse(value), null);
-    if (reached != null || written == null) {
-      return reached;
-    }
-    for (Container c : deployments.running(unit)) {
-      String filled = Deployments.fill(c, written);
-      if (filled != null) {
-        reached = reach(unit, view, LinkText.parse(filled), c);
-        if (reached != null) {
-          return reached.at(filled);
-        }
-      }
-    }
-    return null;
-  }
-
-  private Reached reach(Unit unit, String view, Url url, Container from) {
-    if (url.host() == null || !("http".equals(url.scheme()) || "https".equals(url.scheme()))) {
-      return null;
-    }
+    Answer answer = addresses.resolve(unit, view, value, written);
+    Url url = answer.url();
     String host = url.host();
-    if (url.local() || host.equals("0.0.0.0")) {
-      if (url.port() == null) {
-        return null;
-      }
-      List<Unit> byPort = new ArrayList<>();
-      List<Fact> ports = new ArrayList<>();
-      for (Unit other : index.units.values()) {
-        Fact port = index.config(other, view, ConfigExtractor.CONFIG_VALUE, "server.port");
-        if (port != null
-            && !LinkIndex.flag(port, "masked")
-            && port.object().value().equals(url.port())) {
-          byPort.add(other);
-          ports.add(port);
-        }
-      }
-      if (byPort.size() == 1) {
-        return unit(unit, byPort.getFirst(), "port", BY_PORT, ports.getFirst(), url, view);
-      }
-      if (!byPort.isEmpty()) {
-        return null;
-      }
-      Reached container = byPublishedPort(url.port());
-      if (container != null) {
-        return container;
-      }
-      if (url.port().equals("8080")) {
-        List<Unit> unset = new ArrayList<>();
-        for (Unit other : index.units.values()) {
-          if (index.config(other, view, ConfigExtractor.CONFIG_VALUE, "server.port") == null) {
-            unset.add(other);
-          }
-        }
-        if (unset.size() == 1) {
-          // Only when the URL's path reaches one of its endpoints: 8080 is also Keycloak's port.
-          Reached reached = unit(unit, unset.getFirst(), "port", BY_DEFAULT_PORT, null, url, view);
-          return reached != null && reached.path() != null ? reached : null;
-        }
-      }
+    if (host == null || !("http".equals(url.scheme()) || "https".equals(url.scheme()))) {
       return null;
     }
-    List<Unit> byName = new ArrayList<>();
-    Fact name = null;
-    for (Unit other : index.units.values()) {
-      Fact n = index.name(other.id(), view);
-      if (n != null && n.object().value().equalsIgnoreCase(host)) {
-        byName.add(other);
-        name = n;
+    Container from = answer.filledBy();
+    Reached reached = null;
+    if (answer.kind() == Kind.UNIT) {
+      Addresses.Target t = answer.target();
+      if (answer.local() && t.fact() == null) {
+        // Only when the URL's path reaches one of its endpoints: 8080 is also Keycloak's port.
+        Reached byDefault = unit(unit, t.unit(), "port", BY_DEFAULT_PORT, null, url, view);
+        reached = byDefault != null && byDefault.path() != null ? byDefault : null;
+      } else {
+        reached = unit(unit, t.unit(), t.matchedBy(), t.factor(), t.fact(), url, view);
+        if (reached == null) {
+          return null;
+        }
       }
     }
-    if (byName.size() == 1) {
-      return unit(unit, byName.getFirst(), "host", BY_HOST, name, url, view);
-    }
-    for (Container c : deployments.all()) {
-      if ("identity".equals(LinkIndex.text(c.fact(), "role"))
-          && c.product() != null
-          && c.answers(host)
-          && (from == null || sameEnvironment(c, from))) {
-        return provider(c, "container");
+    if (reached == null && answer.local()) {
+      if (url.port() != null) {
+        reached = byPublishedPort(url.port());
+      }
+    } else if (reached == null && answer.kind() != Kind.AMBIGUOUS) {
+      for (Container c : deployments.all()) {
+        if ("identity".equals(LinkIndex.text(c.fact(), "role"))
+            && c.product() != null
+            && c.answers(host)
+            && (from == null || sameEnvironment(c, from))) {
+          reached = provider(c, "container");
+          break;
+        }
       }
     }
-    if (byName.isEmpty() && MailLinker.isExternal(host)) {
-      return new Reached(
-          new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, host), "external", 1.0, null, null, null);
+    if (reached == null && answer.kind() == Kind.EXTERNAL) {
+      reached = new Reached(answer.external(), "external", 1.0, null, null, null);
     }
-    return null;
+    return reached == null || from == null ? reached : reached.at(answer.address());
   }
 
   private static boolean sameEnvironment(Container a, Container b) {

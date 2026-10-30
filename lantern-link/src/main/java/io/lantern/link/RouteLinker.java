@@ -10,6 +10,9 @@ import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.websocket.WebSocketExtractor;
+import io.lantern.link.Addresses.Answer;
+import io.lantern.link.Addresses.Kind;
+import io.lantern.link.Addresses.Target;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.LinkText.Url;
@@ -29,24 +32,13 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Links Spring Cloud Gateway routes to the units they send requests to (ADR 0077): a load-balanced
  * URI ({@code lb://name}, {@code lb:ws://name}) by the name against {@code
- * spring.application.name}, any other by its host as an HTTP call's URL is matched, and one to this
- * machine by its port against the units' {@code server.port}. Each route is a {@code CALLS_HTTP}
- * link from the gateway, with the route's id, paths and protocol (HTTP, HTTPS or WebSocket); a
- * WebSocket route also names the target's WebSocket endpoint it reaches (ADR 0080). Then, for each
- * unit a gateway routes to, the endpoints no route of that gateway reaches are recorded on the
- * gateway as {@code unrouted-endpoint}.
+ * spring.application.name}, any other as {@link Addresses} resolves it, as an HTTP call's URL is.
+ * Each route is a {@code CALLS_HTTP} link from the gateway, with the route's id, paths and protocol
+ * (HTTP, HTTPS or WebSocket); a WebSocket route also names the target's WebSocket endpoint it
+ * reaches (ADR 0080). Then, for each unit a gateway routes to, the endpoints no route of that
+ * gateway reaches are recorded on the gateway as {@code unrouted-endpoint}.
  */
 final class RouteLinker {
-
-  /** Confidence factors of the ways a target is found. */
-  static final double BY_NAME = 1.0;
-
-  static final double BY_HOST = 0.9;
-  static final double BY_ARTIFACT_ID = 0.8;
-  static final double BY_PORT = 0.8;
-
-  /** The port a unit that sets none listens on, as Spring Boot's embedded server does. */
-  private static final String DEFAULT_PORT = "8080";
 
   /** Filters that change the path in ways the linker does not follow. */
   private static final Set<String> REWRITES = Set.of("RewritePath", "SetPath");
@@ -74,11 +66,13 @@ final class RouteLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
+  private final Addresses addresses;
   private final List<Routed> routed = new ArrayList<>();
 
-  RouteLinker(LinkIndex index, FoundLinks out) {
+  RouteLinker(LinkIndex index, FoundLinks out, Addresses addresses) {
     this.index = index;
     this.out = out;
+    this.addresses = addresses;
   }
 
   void link() {
@@ -130,6 +124,17 @@ final class RouteLinker {
     }
     Url url = LinkText.parse(rest);
     String scheme = url.scheme();
+    Answer answer = null;
+    if (!balanced && scheme == null && rest.startsWith("${")) {
+      // The whole URI is left to a placeholder, which the deployment may set.
+      answer = addresses.resolve(gateway, view, rest, written(route, false));
+      scheme = answer.url().scheme();
+      if (scheme == null) {
+        unresolved(
+            gateway, route, view, candidates(gateway, route, view), reasonWithoutHost(route));
+        return null;
+      }
+    }
     if (scheme == null || !Set.of("http", "https", "ws", "wss").contains(scheme)) {
       // forward:, no://op and the like: the gateway answers itself.
       return null;
@@ -140,58 +145,59 @@ final class RouteLinker {
           case "https" -> "HTTPS";
           default -> "HTTP";
         };
-    String host = url.host();
-    if (host == null) {
-      unresolved(
-          gateway,
-          route,
-          view,
-          List.of(),
-          LinkIndex.texts(route, "unresolved").isEmpty()
-              ? "unknown-url"
-              : "unresolved-placeholder");
-      return null;
-    }
-    List<Target> targets;
+    Target target;
+    Set<String> facts = new TreeSet<>();
+    facts.add(route.id());
     if (balanced) {
-      targets = byName(host, view, "service-name", BY_NAME);
-    } else if (url.local() || host.equals("0.0.0.0")) {
-      targets = byPort(gateway, url, view);
-      if (targets.isEmpty()) {
-        unresolved(gateway, route, view, List.of(), "no-match");
+      if (url.host() == null) {
+        unresolved(gateway, route, view, List.of(), reasonWithoutHost(route));
         return null;
       }
+      List<Target> targets =
+          addresses.byApplicationName(url.host(), view, "service-name", Addresses.BY_SERVICE_NAME);
+      if (targets.size() != 1) {
+        unresolved(
+            gateway,
+            route,
+            view,
+            targets.isEmpty() ? candidates(gateway, route, view) : targets,
+            targets.isEmpty() ? "unknown-host" : "ambiguous");
+        return null;
+      }
+      target = targets.getFirst();
     } else {
-      targets = byName(host, view, "host", BY_HOST);
-      if (targets.isEmpty() && (host.endsWith(".svc") || host.endsWith(".svc.cluster.local"))) {
-        targets = byName(host.substring(0, host.indexOf('.')), view, "host", BY_HOST);
+      if (answer == null) {
+        answer = addresses.resolve(gateway, view, rest, written(route, balanced));
       }
-      if (targets.isEmpty()) {
-        for (Unit unit : index.units.values()) {
-          if (unit.artifactId().equalsIgnoreCase(host)) {
-            targets.add(new Target(unit, null, "artifact-id", BY_ARTIFACT_ID));
-          }
-        }
+      if (answer.filledBy() != null) {
+        facts.add(answer.filledBy().fact().id());
       }
-      if (targets.isEmpty() && (host.contains(".") || host.contains(":"))) {
-        external(gateway, route, view, host, protocol);
+      switch (answer.kind()) {
+        case EXTERNAL -> external(gateway, route, view, answer.external(), protocol, facts);
+        case AMBIGUOUS -> unresolved(gateway, route, view, answer.targets(), "ambiguous");
+        case UNKNOWN ->
+            unresolved(
+                gateway,
+                route,
+                view,
+                candidates(gateway, route, view),
+                answer.url().host() == null
+                    ? reasonWithoutHost(route)
+                    : answer.local() ? "no-match" : "unknown-host");
+        case UNIT -> {}
+      }
+      if (answer.kind() != Kind.UNIT) {
         return null;
       }
+      target = answer.target();
     }
-    if (targets.size() != 1) {
-      unresolved(gateway, route, view, targets, targets.isEmpty() ? "unknown-host" : "ambiguous");
-      return null;
-    }
-    Target target = targets.getFirst();
     if (target.unit().equals(gateway)) {
       return null;
     }
     ObjectNode attributes = common(route);
-    attributes.put("url", uri);
+    attributes.put("url", answer != null && answer.filledBy() != null ? answer.address() : uri);
     attributes.put("protocol", protocol);
     attributes.put("matchedBy", target.matchedBy());
-    Set<String> facts = new TreeSet<>();
-    facts.add(route.id());
     if (target.fact() != null) {
       facts.add(target.fact().id());
     }
@@ -260,48 +266,70 @@ final class RouteLinker {
     return found;
   }
 
-  /** A target found for a route, with the fact it was found by (a name or port), if any. */
-  private record Target(Unit unit, Fact fact, String matchedBy, double factor) {}
-
-  private List<Target> byName(String name, String view, String matchedBy, double factor) {
-    List<Target> targets = new ArrayList<>();
-    for (Unit unit : index.units.values()) {
-      Fact fact = index.name(unit.id(), view);
-      if (fact != null && fact.object().value().equalsIgnoreCase(name)) {
-        targets.add(new Target(unit, fact, matchedBy, factor));
-      }
+  /** A route's URI as written, without its {@code lb:} prefix, when config changed it. */
+  private static String written(Fact route, boolean balanced) {
+    String written = LinkIndex.text(route, "written");
+    if (written == null) {
+      return null;
     }
-    return targets;
+    String rest = balanced && written.startsWith("lb:") ? written.substring(3) : written;
+    return rest.startsWith("//") ? "http:" + rest : rest;
   }
 
-  /** The other units listening on the URL's port in the view ({@value #DEFAULT_PORT} if unset). */
-  private List<Target> byPort(Unit gateway, Url url, String view) {
-    List<Target> targets = new ArrayList<>();
-    if (url.port() == null) {
-      return targets;
-    }
-    for (Unit unit : index.units.values()) {
-      if (unit.equals(gateway)) {
-        continue;
-      }
-      Fact port = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, "server.port");
-      if (port != null && LinkIndex.flag(port, "masked")) {
-        continue;
-      }
-      String value = port == null ? DEFAULT_PORT : port.object().value();
-      if (value.equals(url.port())) {
-        targets.add(new Target(unit, port, "port", BY_PORT));
-      }
-    }
-    return targets;
+  /** Why a route whose URI has no host is left open. */
+  private static String reasonWithoutHost(Fact route) {
+    return LinkIndex.texts(route, "unresolved").isEmpty()
+        ? "unknown-url"
+        : "unresolved-placeholder";
   }
 
-  private void external(Unit gateway, Fact route, String view, String host, String protocol) {
+  /**
+   * The units a route left open might go to: those, other than the gateway, with an endpoint its
+   * paths reach, when a path has a literal segment to tell them by.
+   */
+  private List<Target> candidates(Unit gateway, Fact route, String view) {
+    List<String> patterns = patterns(route);
+    List<Target> found = new ArrayList<>();
+    if (patterns == null || patterns.stream().allMatch(p -> literals(p) == 0)) {
+      return found;
+    }
+    for (Unit unit : index.units.values()) {
+      if (!unit.equals(gateway) && !reachedEndpoints(unit, route, view).isEmpty()) {
+        found.add(new Target(unit, null, "path", 0));
+      }
+    }
+    return found;
+  }
+
+  /** The endpoints of a unit the route's paths reach in the view, behind its servlet prefix. */
+  List<Fact> reachedEndpoints(Unit unit, Fact route, String view) {
+    List<Fact> found = new ArrayList<>();
+    List<String> patterns = patterns(route);
+    if (patterns == null) {
+      return found;
+    }
+    List<String> methods = LinkIndex.texts(route, "methods");
+    String prefix = index.servletPrefix(unit, view);
+    for (Fact endpoint : endpointsOf(unit, view)) {
+      String method = LinkIndex.text(endpoint, "httpMethod");
+      String path = LinkIndex.text(endpoint, "path");
+      if (path == null || (method != null && !methods.isEmpty() && !methods.contains(method))) {
+        continue;
+      }
+      String served = LinkText.join(prefix, path);
+      if (patterns.stream().anyMatch(p -> matches(served, p))) {
+        found.add(endpoint);
+      }
+    }
+    return found;
+  }
+
+  private void external(
+      Unit gateway, Fact route, String view, EntityId system, String protocol, Set<String> facts) {
     ObjectNode attributes = common(route);
     attributes.put("url", LinkIndex.text(route, "uri"));
     attributes.put("protocol", protocol);
     attributes.put("matchedBy", "external");
-    EntityId system = new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, host);
     out.add(
         view,
         new Found(
@@ -320,7 +348,7 @@ final class RouteLinker {
             attributes,
             route.evidence(),
             CrossRepoLinks.round(route.confidence()),
-            new TreeSet<>(Set.of(route.id()))));
+            facts));
   }
 
   /** Records a route static matching cannot place, with the units it might go to. */
