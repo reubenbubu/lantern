@@ -186,7 +186,11 @@ final class RouteLinker {
         attributes.put("target", endpoint.subject().toString());
       } else if (!endpoints.isEmpty()) {
         ArrayNode array = attributes.putArray("endpoints");
-        endpoints.stream().map(e -> LinkIndex.text(e, "path")).distinct().forEach(array::add);
+        endpoints.stream()
+            .map(e -> LinkIndex.text(e, "path"))
+            .distinct()
+            .sorted()
+            .forEach(array::add);
       }
       endpoints.forEach(e -> facts.add(e.id()));
     }

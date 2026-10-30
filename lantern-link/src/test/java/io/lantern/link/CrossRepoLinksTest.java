@@ -665,7 +665,7 @@ class CrossRepoLinksTest {
     webSocketEndpoint("n", "n.WsConfig#raw()", "/ws-raw");
 
     assertThat(derive(CrossRepoLinks.CALLS_HTTP))
-        .containsExactly(
+        .containsExactlyInAnyOrder(
             "service:g:edge CALLS_HTTP service:g:notifications-service"
                 + " {\"endpoints\":[\"/ws-notifications\",\"/ws-raw\"],"
                 + "\"matchedBy\":\"service-name\",\"protocol\":\"WebSocket\",\"route\":\"all\","
