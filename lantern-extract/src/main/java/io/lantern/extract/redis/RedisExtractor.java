@@ -15,6 +15,7 @@ import io.lantern.extract.config.ConfigValue;
 import io.lantern.extract.config.ModuleConfig;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
+import io.lantern.extract.java.ModuleStructure;
 import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
@@ -59,7 +60,7 @@ public final class RedisExtractor {
   public static final String NAME = "redis";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "redis-extractor";
@@ -93,6 +94,57 @@ public final class RedisExtractor {
   private static final String LISTENER_PACKAGE = "org.springframework.data.redis.listener.";
   private static final String LISTENER_CONTAINER =
       "org.springframework.data.redis.listener.RedisMessageListenerContainer";
+
+  /**
+   * The keys the gateway's RedisRateLimiter writes: {@code request_rate_limiter.{route.id}.tokens}.
+   */
+  private static final String RATE_LIMITER_KEY = "request_rate_limiter.*";
+
+  private static final String SPRING_CACHE = "org.springframework.cache.";
+  private static final String CACHE_ANNOTATION = SPRING_CACHE + "annotation.";
+  private static final String JCACHE_ANNOTATION = "javax.cache.annotation.";
+  private static final String ENABLE_CACHING = CACHE_ANNOTATION + "EnableCaching";
+
+  /** Spring's and JCache's cache annotations on a method, and what each does with the cache. */
+  private static final Map<String, String> CACHE_OPERATIONS =
+      Map.of(
+          CACHE_ANNOTATION + "Cacheable", "read",
+          CACHE_ANNOTATION + "CachePut", "write",
+          CACHE_ANNOTATION + "CacheEvict", "delete",
+          JCACHE_ANNOTATION + "CacheResult", "read",
+          JCACHE_ANNOTATION + "CachePut", "write",
+          JCACHE_ANNOTATION + "CacheRemove", "delete",
+          JCACHE_ANNOTATION + "CacheRemoveAll", "delete");
+
+  /** The class annotations that name the caches of a class's methods that name none. */
+  private static final Set<String> CACHE_DEFAULTS =
+      Set.of(CACHE_ANNOTATION + "CacheConfig", JCACHE_ANNOTATION + "CacheDefaults");
+
+  /** What a call on a Spring {@code Cache} does with it. */
+  private static final Map<String, String> CACHE_CALLS =
+      Map.ofEntries(
+          Map.entry("get", "read"),
+          Map.entry("retrieve", "read"),
+          Map.entry("put", "write"),
+          Map.entry("putIfAbsent", "write"),
+          Map.entry("evict", "delete"),
+          Map.entry("evictIfPresent", "delete"),
+          Map.entry("clear", "delete"),
+          Map.entry("invalidate", "delete"));
+
+  /**
+   * Dependencies, by artifact ID prefix, of the cache providers Spring Boot tries before Redis
+   * (JCache providers such as Ehcache 3 and Caffeine's {@code jcache}, Hazelcast, Infinispan and
+   * Couchbase). JCache's own {@code cache-api}, which its annotations need, picks no provider.
+   */
+  private static final List<String> EARLIER_CACHE_PROVIDERS =
+      List.of(
+          "ehcache",
+          "jcache",
+          "hazelcast",
+          "infinispan",
+          "couchbase",
+          "spring-boot-starter-data-couchbase");
 
   /** The template accessors that name the data structure operations are made on. */
   private static final Map<String, String> STRUCTURES =
@@ -181,13 +233,32 @@ public final class RedisExtractor {
           "spring-boot-starter-session-data-redis",
           "spring-boot-session-data-redis");
 
+  /**
+   * Dependencies that bring Spring Data Redis, which Spring Boot's Redis cache needs, by artifact
+   * ID; a plain Jedis, Lettuce or Redisson client does not.
+   */
+  private static final Set<String> SPRING_DATA_REDIS_ARTIFACTS =
+      Set.of(
+          "spring-boot-starter-data-redis",
+          "spring-boot-starter-data-redis-reactive",
+          "spring-boot-data-redis",
+          "spring-data-redis",
+          "redisson-spring-boot-starter",
+          "spring-integration-redis",
+          "spring-session-data-redis",
+          "spring-boot-starter-session-data-redis",
+          "spring-boot-session-data-redis");
+
   /** Dependencies that bring a Redis client, by artifact ID. */
   private static final Set<String> CLIENT_ARTIFACTS =
       Set.of(
           "spring-boot-starter-data-redis",
           "spring-boot-starter-data-redis-reactive",
+          "spring-boot-data-redis",
           "spring-data-redis",
+          "spring-integration-redis",
           "redisson-spring-boot-starter",
+          "redisson",
           "jedis",
           "lettuce-core");
 
@@ -275,6 +346,7 @@ public final class RedisExtractor {
         run.config(config);
       }
     }
+    run.caches();
     return run.facts.values().stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
@@ -293,6 +365,13 @@ public final class RedisExtractor {
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
 
+    /** What decides each module's cache provider, and its cache uses until that is decided. */
+    private final Map<EntityId, Caching> caching = new LinkedHashMap<>();
+
+    private Caching caching(EntityId module) {
+      return caching.computeIfAbsent(module, k -> new Caching());
+    }
+
     Run(Validity validity) {
       this.validity = validity;
     }
@@ -305,6 +384,7 @@ public final class RedisExtractor {
         for (Annotation a : type.annotations()) {
           annotation(m, type, a);
         }
+        cacheAnnotations(m, type);
       }
       for (Invocation i : m.structure().invocations()) {
         invocation(m, i);
@@ -359,6 +439,10 @@ public final class RedisExtractor {
       }
       List<Expression.Invoke> chain = i.expression().chain();
       Expression.Invoke first = chain.getFirst();
+      if (root.startsWith(SPRING_CACHE) && !root.startsWith(CACHE_ANNOTATION)) {
+        cacheCall(m, i);
+        return;
+      }
       ObjectNode attributes = FactJson.newObject();
       attributes.put("api", root);
       if (root.equals(LOCK_REGISTRY)) {
@@ -377,11 +461,15 @@ public final class RedisExtractor {
         code(m, i.caller(), LOCK, attributes, i.where());
       } else if (root.equals(RATE_LIMITER_TYPE) && first.method().equals("<init>")) {
         attributes.put("operation", "other");
+        attributes.put("key", RATE_LIMITER_KEY);
         code(m, i.caller(), RATE_LIMITER, attributes, i.where());
       } else if ((simpleName(root).equals("RedisCacheManager")
               || simpleName(root).equals("RedisCacheConfiguration"))
           && root.startsWith(CACHE_MANAGER)
           && !first.method().startsWith("get")) {
+        if (simpleName(root).equals("RedisCacheManager")) {
+          caching(m.id()).redisManager = true;
+        }
         attributes.put("operation", "other");
         code(m, i.caller(), CACHE, attributes, i.where());
       } else if (listens(root, chain)) {
@@ -439,6 +527,171 @@ public final class RedisExtractor {
       }
     }
 
+    /**
+     * The cache annotations of a type's methods ({@code @Cacheable("books")}), with the caches its
+     * {@code @CacheConfig} names for methods that name none, and its {@code @EnableCaching}; kept
+     * until the module's cache provider is known.
+     */
+    private void cacheAnnotations(JavaAnalysis.Module m, TypeDecl type) {
+      List<String> defaults = List.of();
+      for (Annotation a : type.annotations()) {
+        if (CACHE_DEFAULTS.contains(a.type())) {
+          defaults = cacheNames(a);
+        } else if (a.type().equals(ENABLE_CACHING)) {
+          ObjectNode attributes = FactJson.newObject();
+          attributes.put("api", a.type());
+          attributes.put("operation", "other");
+          pending(
+              m,
+              typeId(type.binaryName()),
+              attributes,
+              a.where() != null ? a.where() : type.where());
+        }
+      }
+      // On a class, an operation applies to each of its public methods; it is recorded on the
+      // class.
+      cacheOperations(m, typeId(type.binaryName()), type.annotations(), defaults, type.where());
+      for (ModuleStructure.Member member : type.members()) {
+        cacheOperations(m, member.id(), member.annotations(), defaults, member.where());
+      }
+    }
+
+    /** The cache operations among annotations, alone or inside {@code @Caching}. */
+    private void cacheOperations(
+        JavaAnalysis.Module m,
+        EntityId subject,
+        List<Annotation> annotations,
+        List<String> defaults,
+        Location fallback) {
+      for (Annotation a : annotations) {
+        List<Annotation> operations = new ArrayList<>();
+        if (a.type().equals(CACHE_ANNOTATION + "Caching")) {
+          a.nested().values().forEach(operations::addAll);
+        } else {
+          operations.add(a);
+        }
+        for (Annotation op : operations) {
+          String operation = CACHE_OPERATIONS.get(op.type());
+          if (operation == null) {
+            continue;
+          }
+          List<String> names = cacheNames(op);
+          Location at = a.where() != null ? a.where() : fallback;
+          for (String name : names.isEmpty() ? defaults : names) {
+            ObjectNode attributes = FactJson.newObject();
+            attributes.put("api", op.type());
+            attributes.put("operation", operation);
+            attributes.put("cache", name);
+            attributes.put("key", name + "::*");
+            pending(m, subject, attributes, at);
+          }
+          if (names.isEmpty() && defaults.isEmpty()) {
+            ObjectNode attributes = FactJson.newObject();
+            attributes.put("api", op.type());
+            attributes.put("operation", operation);
+            pending(m, subject, attributes, at);
+          }
+        }
+      }
+    }
+
+    /** The caches an annotation names: {@code cacheNames} or {@code value}, or JCache's one. */
+    private static List<String> cacheNames(Annotation a) {
+      List<String> names = new ArrayList<>();
+      for (String element : List.of("cacheNames", "value", "cacheName")) {
+        for (String v : a.values(element)) {
+          if (!v.isBlank() && !names.contains(v.strip())) {
+            names.add(v.strip());
+          }
+        }
+      }
+      return names;
+    }
+
+    /**
+     * A call on a Spring {@code CacheManager} or {@code Cache}: {@code
+     * cacheManager.getCache("books").evict(id)}, the cache it names and what it does with it.
+     */
+    private void cacheCall(JavaAnalysis.Module m, Invocation i) {
+      // A cache manager the code builds itself (new CaffeineCacheManager(...)) is the provider.
+      Expression.Invoke built = i.expression().chain().getFirst();
+      if (simpleName(i.rootType()).endsWith("CacheManager")
+          && !i.rootType().equals(SPRING_CACHE + "CacheManager")
+          && (built.method().equals("<init>")
+              || Set.of("create", "builder").contains(built.method()))) {
+        caching(m.id()).otherManager = true;
+        return;
+      }
+      String name = null;
+      String operation = null;
+      for (Expression.Invoke call : i.expression().chain()) {
+        if (call.method().equals("getCache")) {
+          name =
+              call.arguments().isEmpty()
+                      || !(call.arguments().getFirst() instanceof Expression.Literal l)
+                  ? null
+                  : l.value();
+        } else if (CACHE_CALLS.containsKey(call.method())) {
+          operation = CACHE_CALLS.get(call.method());
+        }
+      }
+      if (operation == null) {
+        return;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("api", i.rootType());
+      attributes.put("operation", operation);
+      if (name != null) {
+        attributes.put("cache", name);
+        attributes.put("key", name + "::*");
+      }
+      pending(m, i.caller(), attributes, i.where());
+    }
+
+    /** A cache use, kept until the module's cache provider is known. */
+    private void pending(
+        JavaAnalysis.Module m, EntityId subject, ObjectNode attributes, Location at) {
+      if (subject == null) {
+        return;
+      }
+      RepoBuild repo = m.repo();
+      Evidence evidence =
+          new Evidence(
+              repo.repo().name(),
+              repo.commit(),
+              at.file().path(),
+              at.start() > 0 ? new Evidence.LineRange(at.start(), at.end()) : null,
+              at.file().contentHash());
+      caching(m.id()).uses.add(new CacheUse(subject, attributes, evidence, m.confidence()));
+    }
+
+    /**
+     * The kept cache uses of the modules whose cache provider is Redis: a Redis cache manager built
+     * in code; else, with no other cache manager built in code, as Spring Boot picks it: {@code
+     * spring.cache.type}, else Spring Data Redis with no provider Boot tries first; with the time
+     * to live {@code spring.cache.redis.time-to-live} sets.
+     */
+    void caches() {
+      for (Caching c : caching.values()) {
+        boolean redis =
+            c.redisManager
+                || (!c.otherManager
+                    && (c.type != null
+                        ? c.type.equalsIgnoreCase("redis")
+                        : c.springDataRedis && !c.earlierProvider));
+        if (!redis) {
+          continue;
+        }
+        for (CacheUse use : c.uses) {
+          ObjectNode attributes = use.attributes().deepCopy();
+          if (c.ttl != null && attributes.has("cache")) {
+            attributes.put("ttl", c.ttl);
+          }
+          add(use.subject(), CACHE, attributes, use.evidence(), use.confidence());
+        }
+      }
+    }
+
     private void code(
         JavaAnalysis.Module m, EntityId subject, String kind, ObjectNode attributes, Location at) {
       if (subject == null) {
@@ -484,12 +737,21 @@ public final class RedisExtractor {
           continue;
         }
         String id = artifact.group(1);
+        if (id.endsWith("-test")) {
+          continue;
+        }
+        if (EARLIER_CACHE_PROVIDERS.stream().anyMatch(id::startsWith)) {
+          caching(m.id()).earlierProvider = true;
+        }
         String kind =
             SESSION_ARTIFACTS.contains(id)
                 ? SESSION
                 : CLIENT_ARTIFACTS.contains(id) ? CLIENT : null;
         if (kind == null) {
           continue;
+        }
+        if (SPRING_DATA_REDIS_ARTIFACTS.contains(id)) {
+          caching(m.id()).springDataRedis = true;
         }
         int line = line(pom, dependency.start(1) + artifact.start());
         ObjectNode attributes = FactJson.newObject();
@@ -523,8 +785,15 @@ public final class RedisExtractor {
         if ((relaxed.contains("redisratelimiter") || requestLimiter) && !limiter) {
           kind = RATE_LIMITER;
           limiter = true;
-        } else if (relaxed.equals("spring.cache.type") && v.value().equalsIgnoreCase("redis")) {
+        } else if (relaxed.equals("spring.cache.type")) {
+          caching(config.module()).type = v.value().strip();
+          if (!v.value().strip().equalsIgnoreCase("redis")) {
+            continue;
+          }
           kind = CACHE;
+        } else if (relaxed.equals("spring.cache.redis.timetolive")) {
+          caching(config.module()).ttl = v.value().strip();
+          continue;
         } else if (!session
             && ((relaxed.equals("spring.session.storetype") && v.value().equalsIgnoreCase("redis"))
                 || relaxed.startsWith("spring.session.redis.")
@@ -538,6 +807,9 @@ public final class RedisExtractor {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("source", "config");
         attributes.put("configKey", key);
+        if (kind.equals(RATE_LIMITER)) {
+          attributes.put("key", RATE_LIMITER_KEY);
+        }
         ConfigValue.Where where = v.where();
         add(
             config.module(),
@@ -554,6 +826,21 @@ public final class RedisExtractor {
     }
 
     // -------------------------------------------------------------------------------------------
+
+    /** A cache use found in code. */
+    private record CacheUse(
+        EntityId subject, ObjectNode attributes, Evidence evidence, double confidence) {}
+
+    /** What decides a module's cache provider, and the cache uses found in its code. */
+    private static final class Caching {
+      String type;
+      String ttl;
+      boolean redisManager;
+      boolean otherManager;
+      boolean springDataRedis;
+      boolean earlierProvider;
+      final List<CacheUse> uses = new ArrayList<>();
+    }
 
     private void add(
         EntityId subject,

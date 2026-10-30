@@ -1,6 +1,6 @@
 # 0073: Redis as a data store
 
-Status: accepted (#259), amended by ADR 0082 (#266)
+Status: accepted (#259), amended by ADR 0082 (#266) and for #392
 
 ## Context
 
@@ -75,3 +75,47 @@ The Deployment extractor reads compose files, kustomize and Helm in place of the
 (ADR 0082): the `redis-image` facts are gone (`redis` version 2), the store's technology comes from
 the Redis, Valkey and Redis Stack containers the deployments run, and differing versions are listed
 from oldest to newest (`Redis 7.4.4 / 8.4.0`) instead of leaving only the product.
+
+## Amendment (#392): Spring Cache on Redis
+
+Research: [`docs/research/extractor-redis.md`](../research/extractor-redis.md). A cache server
+reached over the network is a data store; an in-process cache is part of its container
+(`docs/quality-bar.md`). `redis` version 3:
+
+- **Cache annotations and calls are `cache` uses**, kept per module until its cache provider is
+  known and recorded only when that is Redis. They are:
+  - Spring's `@Cacheable` (`read`), `@CachePut` (`write`) and `@CacheEvict` (`delete`), alone or
+    inside `@Caching`, and JCache's `@CacheResult`, `@CachePut`, `@CacheRemove` and
+    `@CacheRemoveAll`. Each gives a fact on the method, at the annotation, one per cache, with
+    `cache` and the key `<cache>::*`. Constants are folded, and a class's `@CacheConfig` or
+    `@CacheDefaults` names the caches of its methods that name none.
+  - `@EnableCaching`, as a fact on its class.
+  - A call on a `CacheManager` or `Cache` (`getCache(name)` with `get`, `put`, `evict` or
+    `clear`), at the call. `org.springframework.cache.` joins the tracked APIs.
+
+  `spring.cache.redis.time-to-live` gives each cache fact of the module its `ttl`.
+- **The provider is Redis** when the module's code builds a Redis cache manager. Otherwise,
+  when the code builds no other cache manager (`new CaffeineCacheManager(...)`), it is decided as
+  Spring Boot picks it: by `spring.cache.type`, and without that property when the module has
+  Spring Data Redis among its own dependencies (a plain Jedis, Lettuce or Redisson client has no
+  `RedisConnectionFactory`) and no provider Boot tries first (a JCache provider such as Ehcache 3
+  or Caffeine's `jcache`, Hazelcast, Infinispan, Couchbase; JCache's `cache-api` alone picks
+  none). Any other `spring.cache.type`, `none` included, means no cache fact. Only the default
+  view of the module's own config is read: a value set only in a profile file or served by a
+  config repository is not seen (#426).
+- **A class-level** `@Cacheable`, `@CachePut` or `@CacheEvict`, which applies to the class's
+  public methods, gives its fact on the class.
+- **The rate limiter's facts** carry the key `request_rate_limiter.*` its Redis script writes.
+- **Client artifacts** add `spring-boot-data-redis` (Spring Boot 4), `spring-integration-redis`
+  and `redisson`. Artifacts named `*-test` (Spring Boot 4's test starters) are skipped, like
+  test-scoped ones.
+
+Not read yet, each with a project-0 case first:
+
+- Redisson, Lettuce and Jedis commands, streams, `@RedisListener` and ShedLock (#423).
+- Keys from helper methods, call TTLs, Spring Session's namespace and meta-annotated cache
+  annotations (#424).
+- Cache servers other than Redis (#425).
+
+Deciding the provider per view, and not linking a unit on a client dependency alone, are the
+linker's (#426).
