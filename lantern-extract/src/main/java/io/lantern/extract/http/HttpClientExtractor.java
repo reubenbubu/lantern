@@ -873,8 +873,10 @@ public final class HttpClientExtractor {
         }
         for (TypeDecl t : m.structure().types()) {
           for (Member member : t.members()) {
+            // @LoadBalanced is also a qualifier: at an injection point it takes only such beans.
             if (type.equals(member.returns())
-                && code.annotationPath(member.annotations(), BEAN) != null) {
+                && code.annotationPath(member.annotations(), BEAN) != null
+                && (!point.loadBalanced() || loadBalanced(member.annotations()))) {
               (m == scope.module() ? own : others).add(member);
               modules.put(member, m);
             }
@@ -2136,7 +2138,7 @@ public final class HttpClientExtractor {
           value.masked() ? null : service,
           value.unresolved(),
           value.masked(),
-          loadBalanced && service != null);
+          loadBalanced && !value.masked());
     }
 
     /** The host of an absolute URL without placeholders in it, or null. */
@@ -2150,7 +2152,9 @@ public final class HttpClientExtractor {
       host = at < 0 ? host : host.substring(at + 1);
       int colon = host.indexOf(':');
       host = colon < 0 ? host : host.substring(0, colon);
-      return host.isEmpty() || host.contains("{") || host.contains("$") ? null : host;
+      return host.isEmpty() || host.startsWith("[") || host.contains("{") || host.contains("$")
+          ? null
+          : host;
     }
 
     private void fact(

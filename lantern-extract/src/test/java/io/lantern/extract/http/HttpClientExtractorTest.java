@@ -128,7 +128,7 @@ class HttpClientExtractorTest {
             l ->
                 l.startsWith(beans + "lbBuilder() http-client-bean web-client ")
                     && l.contains("\"loadBalanced\":true")
-                    && l.contains("LoadBalancedBeans.java#14-18 "))
+                    && l.contains("LoadBalancedBeans.java#15-19 "))
         .anyMatch(
             l ->
                 l.startsWith(beans + "plainRestTemplate() http-client-bean rest-template ")
@@ -155,7 +155,34 @@ class HttpClientExtractorTest {
             l ->
                 l.startsWith(callers + "routed() http-call ")
                     && l.contains("\"service\":\"billing\"")
-                    && l.contains("\"loadBalanced\":true"));
+                    && l.contains("\"loadBalanced\":true"))
+        // @LoadBalanced on a field.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "shipping() http-call ")
+                    && l.contains("\"service\":\"shipping\""))
+        // As a qualifier, @LoadBalanced passes over the @Primary bean.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "order() http-call GET http://orders/orders ")
+                    && l.contains("\"service\":\"orders\""))
+        // A bean made from a load-balanced builder.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "items() http-call GET http://catalog/items ")
+                    && l.contains("\"service\":\"catalog\""))
+        // A host from a placeholder: load balanced, no service.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "charge() http-call ")
+                    && l.contains("\"loadBalanced\":true")
+                    && !l.contains("\"service\""))
+        // Credentials in an lb:// URL are neither the service nor recorded.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "ledger() http-call ")
+                    && l.contains("\"service\":\"ledger\""))
+        .noneMatch(l -> l.contains("t0ps3cret"));
   }
 
   @Test

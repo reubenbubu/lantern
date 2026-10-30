@@ -224,9 +224,13 @@ fact unless a call was followed to it.
 - **`loadBalanced` on `http-call`**: a call is load balanced when its client is injected at a
   point marked `@LoadBalanced` (the annotation is also a qualifier), when the bean picked for it is
   `@LoadBalanced`, or when that bean is made from an injected builder that is (up to two beans
-  deep); and when its URL starts with `lb://`. A load-balanced call with no `service` yet takes the
-  URL's host, without user info or port, as its `service`, unless the host holds a placeholder or
-  an expression. Declarative clients keep their own `service`.
+  deep); and when its URL starts with `lb://`. At an injection point, `@LoadBalanced` takes only
+  beans that carry it, as Spring's qualifier does, before the bean is picked by name or
+  `@Primary`. A load-balanced call with no `service` yet takes the URL's host, without user info
+  or port, as its `service`, unless the host holds a placeholder or an expression or is an IPv6
+  literal; the call stays `loadBalanced` without a `service` then. Declarative clients keep their
+  own `service`, and an HTTP interface proxy built on a load-balanced client is not yet marked
+  (#455).
 - Still not read: Feign's property URL, HTTP service group defaults under the load balancer, and
   MicroProfile and Quarkus precedence (#454); load-balancer filters, `String.format` URLs,
   `DefaultUriBuilderFactory`, client subclasses, Retrofit, manual Feign, `DiscoveryClient` and
