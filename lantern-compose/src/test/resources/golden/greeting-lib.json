@@ -670,6 +670,24 @@
     } ],
     "sections" : [ ]
   }, {
+    "id" : "findings",
+    "title" : "Risks and findings",
+    "levels" : [ "L0", "L1" ],
+    "entity" : "repo:greeting-lib",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "findings.none",
+      "variant" : "note",
+      "title" : "No risks found",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "Lantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "catalog",
     "title" : "Catalog",
     "levels" : [ "L2", "L3" ],
@@ -777,6 +795,15 @@
         } ], [ {
           "kind" : "text",
           "text" : "Hypertext Transfer Protocol, the request and response protocol of the web"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "LLM"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Large language model, such as the one Lantern asks to word and investigate the code"
         } ] ],
         "facts" : [ ]
       }, {

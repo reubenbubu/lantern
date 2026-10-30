@@ -1,5 +1,6 @@
 package io.lantern.app;
 
+import io.lantern.compose.SectionKind;
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
 import io.lantern.core.document.Citation;
@@ -227,9 +228,9 @@ public final class C4ReportRenderer {
         first = false;
       } else if (enclosing == null
           && !pages.isEmpty()
-          && section.blocks().stream().noneMatch(QualityReport.class::isInstance)) {
-        // A section that is at no C4 level, such as the risks and findings (ADR 0082), goes at the
-        // end of the context page until the spec has documentation pages (#249).
+          && section.id().equals(SectionKind.FINDINGS.jsonName())) {
+        // The risks and findings (ADR 0082) are at no C4 level: they go at the end of the context
+        // page until the spec has documentation pages (#249).
         target =
             pages.stream()
                 .filter(p -> p.level.equals("context"))

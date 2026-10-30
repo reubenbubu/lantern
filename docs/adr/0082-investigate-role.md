@@ -71,9 +71,8 @@ fixed extractor makes.
   A new section, risks and findings (`SectionKind.FINDINGS`), is a table of Investigate's risks
   in scope (impact, finding, consequence, confidence, evidence as `repo:path:from-to`), most
   serious first, or a note that it found none; the Architecture Explorer has it after the main
-  flows and both C4 reports after the sequence diagrams. The C4 report renderer puts a top-level
-  section that is at no C4 level and comes after a page at the end of the context page, the
-  stopgap the user chose until the spec has documentation pages (#249), which will also give the
+  flows and both C4 reports after the sequence diagrams. The C4 report renderer puts this section,
+  which is at no C4 level, at the end of the context page, the stopgap the user chose until the spec has documentation pages (#249), which will also give the
   spec a badge of its own. The Executive Brief lists the risks of its units as risk callouts
   among its own, ordered by severity. A connection is drawn as a line of its own, labelled
   "Found by the LLM:" and its description, in every container and context diagram that shows
