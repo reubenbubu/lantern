@@ -127,6 +127,30 @@ class GatewayExtractorTest {
                         "module:com.example.edge:finder gateway-discovery-locator 'http://'+serviceId ")
                     && l.contains("\"filters\":[\"StripPrefix=1\"]")
                     && l.contains("\"profile\":\"custom\""))
+        // A path without a wildcard strips nothing, and the global prefix is kept.
+        .anyMatch(
+            l ->
+                l.startsWith("module:com.example.edge:classic gateway-route health ")
+                    && l.contains("\"uri\":\"lb://health-service\"")
+                    && l.contains("\"paths\":[\"/v2/health\"]")
+                    && !l.contains("StripPrefix"))
+        // url wins over serviceId; only the route's own prefix is stripped.
+        .anyMatch(
+            l ->
+                l.startsWith("module:com.example.edge:classic gateway-route reports ")
+                    && l.contains("\"uri\":\"http://reports:8080\"")
+                    && l.contains("\"filters\":[\"StripPrefix=1\"]"))
+        // The locator under the old prefix, its predicate in name and args form.
+        .anyMatch(
+            l ->
+                l.startsWith("module:com.example.edge:classic gateway-discovery-locator ")
+                    && !l.contains("profile")
+                    && l.contains("\"predicates\":[\"Path='/svc/'+serviceId+'/**'\"]"))
+        // A profile that turns it off says so.
+        .anyMatch(
+            l ->
+                l.startsWith("module:com.example.edge:classic gateway-discovery-locator ")
+                    && l.contains("{\"enabled\":false,\"profile\":\"prod\"}"))
         // A gateway without the locator has no such fact.
         .noneMatch(l -> l.startsWith("module:com.example.edge:edge gateway-discovery-locator"));
   }

@@ -163,14 +163,18 @@ becomes 3.
   `path`, `url`, `serviceId` and `strip-prefix` (in any relaxed form): the path, or `/<name>/**`
   without one, behind `zuul.prefix`; the URI is `url`, else `lb://` and `serviceId`, else `lb://`
   and the name. What Zuul strips is a `StripPrefix` filter of as many segments: the path's whole
-  segments before its first wildcard unless the route's `strip-prefix` is false, and the global
-  prefix's unless `zuul.strip-prefix` is. The route linker draws them as it draws other routes.
+  segments before its first `*` unless the route's `strip-prefix` is false (a path without a
+  wildcard is not stripped), and the global prefix's unless `zuul.strip-prefix` is. The route
+  linker draws them as it draws other routes.
 - **`gateway-discovery-locator`**, on the module whose config turns the locator on
   (`spring.cloud.gateway.discovery.locator.enabled` or under `server.webflux`), valued with its URL
   expression (`'lb://'+serviceId` by default), with `lowerCaseServiceId`, `includeExpression`,
   `routeIdPrefix`, and `predicates` and `filters` that replace its defaults, in shortcut form;
-  recorded in the default view and with `profile` where one differs, evidenced by its keys. The
-  route linker still reads the locator from config (#459 moves it to the fact).
+  recorded in the default view and with `profile` where one differs, evidenced by its keys; a
+  profile that turns it off has a fact with `enabled: false`. The route linker still reads the
+  locator from config (#459 moves it to the fact).
+- **Map keys in brackets.** A predicate's or filter's `args[pattern]`, as properties files write
+  it, is read as `args.pattern`, for routes and the locator alike.
 - Still not read: Zuul's default routes for each discovered service and `ignored-services`
   (#459); the WebMVC `RouterFunction` DSL, `routes-map` and `default-filters` (#458); routes in a
   config server's repository (#461); nginx and Traefik (#460); Kubernetes Ingress and Gateway API

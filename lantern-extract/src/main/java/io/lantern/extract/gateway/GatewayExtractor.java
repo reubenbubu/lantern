@@ -627,13 +627,13 @@ public final class GatewayExtractor {
           int strip = 0;
           ConfigValue stripRoute = route.get("stripprefix");
           if (stripRoute == null || !"false".equalsIgnoreCase(stripRoute.value().strip())) {
-            strip += literalSegments(path);
+            strip += zuulStripped(path);
           }
           String full = path;
           if (prefix != null && !prefix.isBlank()) {
             full = SpringExtractor.join(prefix, path);
             if (stripGlobal) {
-              strip += literalSegments(prefix);
+              strip += segments(prefix);
             }
           }
           List<String> filters = strip > 0 ? List.of("StripPrefix=" + strip) : List.of();
@@ -702,6 +702,18 @@ public final class GatewayExtractor {
         }
         ConfigValue enabled = settings.get("enabled");
         if (enabled == null || !"true".equalsIgnoreCase(enabled.value().strip())) {
+          if (view != null && standard != null) {
+            // A profile that turns off the locator the default view turns on.
+            ObjectNode off = FactJson.newObject();
+            off.put("enabled", false);
+            off.put("profile", view);
+            List<ConfigValue> keys =
+                enabled == null ? new ArrayList<>(settings.values()) : List.of(enabled);
+            Evidence evidence = configEvidence(config, keys);
+            if (evidence != null) {
+              put(config.module(), LOCATOR, standard.get("value").asString(), off, evidence, 1.0);
+            }
+          }
           continue;
         }
         ObjectNode attributes = FactJson.newObject();
@@ -821,6 +833,10 @@ public final class GatewayExtractor {
         String list = m.group(1);
         int index = Integer.parseInt(m.group(2));
         String rest = m.group(3);
+        if (rest.startsWith(".args[") && rest.endsWith("]")) {
+          // A map key in brackets, as properties files write it, binds as a dotted one.
+          rest = ".args." + rest.substring(6, rest.length() - 1);
+        }
         String text = recorded(e.getKey(), e.getValue());
         if (rest.isEmpty()) {
           (list.equals("predicates") ? predicates : filters).put(index, text);
@@ -1103,13 +1119,23 @@ public final class GatewayExtractor {
     return name.replace("-", "").replace("_", "").toLowerCase(Locale.ROOT);
   }
 
-  /** The number of whole path segments before a pattern's first wildcard or variable. */
-  private static int literalSegments(String pattern) {
+  /**
+   * The number of path segments Zuul strips of a route's path: the text before the first {@code *}
+   * and the slash in front of it, in whole segments; none when the path has no wildcard.
+   */
+  private static int zuulStripped(String path) {
+    int star = path.indexOf('*');
+    if (star <= 0) {
+      return 0;
+    }
+    int whole = path.charAt(star - 1) == '/' ? star - 1 : path.lastIndexOf('/', star - 1);
+    return whole <= 0 ? 0 : segments(path.substring(0, whole));
+  }
+
+  /** The number of non-empty segments of a path. */
+  private static int segments(String path) {
     int count = 0;
-    for (String segment : pattern.split("/")) {
-      if (segment.contains("*") || segment.contains("{")) {
-        break;
-      }
+    for (String segment : path.split("/")) {
       if (!segment.isEmpty()) {
         count++;
       }

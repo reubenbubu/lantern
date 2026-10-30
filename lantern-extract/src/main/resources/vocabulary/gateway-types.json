@@ -52,6 +52,7 @@
         "routeIdPrefix": { "type": "string", "description": "The prefix of the ids of the routes it makes, when set." },
         "predicates": { "type": "array", "items": { "type": "string" }, "description": "Predicates that replace the default Path one, in shortcut form, their arguments SpEL over serviceId." },
         "filters": { "type": "array", "items": { "type": "string" }, "description": "Filters that replace the default RewritePath one, in shortcut form, their arguments SpEL over serviceId." },
+        "enabled": { "type": "boolean", "description": "Present and false on a profile's fact when that profile turns off the locator the default view turns on." },
         "profile": { "type": "string", "description": "The profile active instead of the default one when it was read. Absent for the default view; present only where it differs from it." }
       },
       "additionalProperties": false
