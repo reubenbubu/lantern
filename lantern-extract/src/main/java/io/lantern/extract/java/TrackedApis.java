@@ -50,6 +50,19 @@ final class TrackedApis {
           "org.springframework.mail.",
           "jakarta.mail.",
           "javax.mail.",
+          // ... Apache Commons Email, Simple Java Mail, Quarkus's and Micronaut's mailers, and the
+          // SendGrid, Amazon SES and Mailgun SDKs.
+          "org.apache.commons.mail.",
+          "org.apache.commons.mail2.",
+          "org.simplejavamail.",
+          "io.quarkus.mailer.",
+          "io.micronaut.email.",
+          "com.sendgrid.",
+          "com.amazonaws.services.simpleemail.",
+          "com.amazonaws.services.simpleemailv2.",
+          "software.amazon.awssdk.services.ses.",
+          "software.amazon.awssdk.services.sesv2.",
+          "com.mailgun.api.",
           // JWT libraries and Keycloak's admin client (the identity extractor): the secrets HMAC
           // keys are made of, and the admin server's URL.
           "io.jsonwebtoken.",

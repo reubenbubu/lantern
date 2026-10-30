@@ -28,9 +28,11 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Turns the code that sends mail into facts: the methods that call {@code send} on a Spring {@code
- * JavaMailSender} or {@code MailSender}, or on Jakarta Mail's {@code Transport} (ADR 0076). The
- * mail server comes from the config, which the linker reads, so a fact names no host.
+ * Turns the code that sends mail into facts (ADR 0076): the methods that send through a mail
+ * library (Spring's {@code JavaMailSender} or {@code MailSender}, Jakarta Mail's {@code Transport},
+ * Apache Commons Email, Simple Java Mail, Quarkus's and Micronaut's mailers) or a mail provider's
+ * SDK (SendGrid, Amazon SES, Mailgun), and the mail server hosts that code sets. A library's server
+ * usually comes from the config, which the linker reads; an SDK names its provider.
  */
 public final class MailExtractor {
 
@@ -38,7 +40,7 @@ public final class MailExtractor {
   public static final String NAME = "mail";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "mail-extractor";
@@ -46,20 +48,102 @@ public final class MailExtractor {
   /** Attribute: the method sends mail. */
   public static final String MAIL_SEND = "mail-send";
 
+  /** Attribute: the method sets the mail server's host. */
+  public static final String MAIL_HOST = "mail-host";
+
   private static final String RESOURCE = "/vocabulary/mail-types.json";
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
-  /** The types whose {@code send} sends mail. */
-  private static final Set<String> SENDERS =
-      Set.of(
-          "org.springframework.mail.MailSender",
-          "org.springframework.mail.javamail.JavaMailSender",
-          "org.springframework.mail.javamail.JavaMailSenderImpl",
-          "jakarta.mail.Transport",
-          "javax.mail.Transport");
+  /**
+   * What sends mail: the methods of a type that do, and the provider the type names, or null for a
+   * library that sends to whatever server the config gives it.
+   */
+  private record Sender(Set<String> methods, String provider) {}
 
-  private static final Set<String> METHODS = Set.of("send", "sendMessage");
+  private static final Set<String> SEND = Set.of("send");
+
+  /** The types that send mail, by binary name. */
+  private static final Map<String, Sender> SENDERS = senders();
+
+  /** The types and methods that set the mail server's host from their first argument. */
+  private static final Map<String, String> HOST_SETTERS = hostSetters();
+
+  private static Map<String, Sender> senders() {
+    Map<String, Sender> senders = new LinkedHashMap<>();
+    Sender library = new Sender(SEND, null);
+    for (String type :
+        List.of(
+            "org.springframework.mail.MailSender",
+            "org.springframework.mail.javamail.JavaMailSender",
+            "org.springframework.mail.javamail.JavaMailSenderImpl",
+            "io.quarkus.mailer.Mailer",
+            "io.quarkus.mailer.reactive.ReactiveMailer",
+            "io.micronaut.email.EmailSender",
+            "io.micronaut.email.AsyncEmailSender")) {
+      senders.put(type, library);
+    }
+    Sender transport = new Sender(Set.of("send", "sendMessage"), null);
+    senders.put("jakarta.mail.Transport", transport);
+    senders.put("javax.mail.Transport", transport);
+    for (String type : commonsEmailTypes()) {
+      senders.put(type, library);
+    }
+    senders.put("org.simplejavamail.api.mailer.Mailer", new Sender(Set.of("sendMail"), null));
+    Sender sendGrid = new Sender(Set.of("api"), "SendGrid");
+    senders.put("com.sendgrid.SendGrid", sendGrid);
+    senders.put("com.sendgrid.SendGridAPI", sendGrid);
+    Sender ses =
+        new Sender(
+            Set.of(
+                "sendEmail",
+                "sendRawEmail",
+                "sendTemplatedEmail",
+                "sendBulkTemplatedEmail",
+                "sendBulkEmail"),
+            "Amazon SES");
+    for (String type :
+        List.of(
+            "com.amazonaws.services.simpleemail.AmazonSimpleEmailService",
+            "com.amazonaws.services.simpleemail.AmazonSimpleEmailServiceAsync",
+            "com.amazonaws.services.simpleemailv2.AmazonSimpleEmailServiceV2",
+            "software.amazon.awssdk.services.ses.SesClient",
+            "software.amazon.awssdk.services.ses.SesAsyncClient",
+            "software.amazon.awssdk.services.sesv2.SesV2Client",
+            "software.amazon.awssdk.services.sesv2.SesV2AsyncClient")) {
+      senders.put(type, ses);
+    }
+    senders.put(
+        "com.mailgun.api.v3.MailgunMessagesApi",
+        new Sender(Set.of("sendMessage", "sendMessageAsync", "sendMIMEMessage"), "Mailgun"));
+    return Map.copyOf(senders);
+  }
+
+  /** Apache Commons Email's message types, in 1.x and in 2.x for Jakarta and javax Mail. */
+  private static List<String> commonsEmailTypes() {
+    List<String> types = new ArrayList<>();
+    for (String pkg :
+        List.of(
+            "org.apache.commons.mail.",
+            "org.apache.commons.mail2.jakarta.",
+            "org.apache.commons.mail2.javax.")) {
+      for (String name :
+          List.of("Email", "SimpleEmail", "HtmlEmail", "MultiPartEmail", "ImageHtmlEmail")) {
+        types.add(pkg + name);
+      }
+    }
+    return types;
+  }
+
+  private static Map<String, String> hostSetters() {
+    Map<String, String> setters = new LinkedHashMap<>();
+    setters.put("org.springframework.mail.javamail.JavaMailSenderImpl", "setHost");
+    for (String type : commonsEmailTypes()) {
+      setters.put(type, "setHostName");
+    }
+    setters.put("org.simplejavamail.mailer.MailerBuilder", "withSMTPServer");
+    return Map.copyOf(setters);
+  }
 
   /** The vocabulary types this extractor's facts use. */
   public static List<VocabularyType> vocabulary() {
@@ -103,11 +187,21 @@ public final class MailExtractor {
     for (JavaAnalysis.Module module : code.modules()) {
       for (Invocation i : module.structure().invocations()) {
         String type = i.rootType();
-        Expression.Invoke call = i.expression().chain().getFirst();
-        if (type == null
-            || !SENDERS.contains(type)
-            || !METHODS.contains(call.method())
-            || call.receiver() == null) {
+        List<Expression.Invoke> chain = i.expression().chain();
+        Expression.Invoke call = chain.getFirst();
+        if (call.method().equals("<init>") && chain.size() > 1) {
+          call = chain.get(1); // the first call on an object made here, such as a local's
+        }
+        if (type == null || call.receiver() == null) {
+          continue;
+        }
+        Sender sender = SENDERS.get(type);
+        boolean sends = sender != null && sender.methods().contains(call.method());
+        String host =
+            call.method().equals(HOST_SETTERS.get(type)) && !call.arguments().isEmpty()
+                ? host(call.arguments().getFirst())
+                : null;
+        if (!sends && host == null) {
           continue;
         }
         Location where = i.where();
@@ -122,11 +216,14 @@ public final class MailExtractor {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("template", type);
         attributes.put("method", call.method());
+        if (sends && sender.provider() != null) {
+          attributes.put("provider", sender.provider());
+        }
         Fact fact =
             Fact.create(
                 i.caller(),
-                MAIL_SEND,
-                FactObject.string(call.method()),
+                sends ? MAIL_SEND : MAIL_HOST,
+                FactObject.string(sends ? call.method() : host),
                 attributes,
                 ORIGIN,
                 evidence,
@@ -141,5 +238,12 @@ public final class MailExtractor {
                 .thenComparing(Fact::predicate)
                 .thenComparing(Fact::id))
         .toList();
+  }
+
+  /** A host written as a string constant, or null when code computes it or leaves it blank. */
+  private static String host(Expression argument) {
+    return argument instanceof Expression.Literal(String value) && !value.isBlank()
+        ? value.strip()
+        : null;
   }
 }
