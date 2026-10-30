@@ -947,6 +947,39 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void deploymentsThatGiveARouteDifferentLoadBalancedUrisLeaveItOpenWithBoth() {
+    shopAndFulfilment();
+    unit("p", "payments", "payments");
+    unit("g", "edge", "edge");
+    type("g", "edge", "gw.Routes");
+    route(
+        "g",
+        "type:gw.Routes",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"${ORDERS_URI}\",\"unresolved\":[\"ORDERS_URI\"],"
+            + "\"paths\":[\"/api/orders/**\"]}");
+    container(
+        "d",
+        "edge",
+        composeService(
+            "acme/edge:1.0", "\"edge\"", "\"env\":{\"ORDERS_URI\":\"lb://storefront\"}"));
+    container(
+        "d",
+        "edge",
+        "{\"platform\":\"kubernetes\",\"environment\":\"prod\",\"kind\":\"Deployment\","
+            + "\"image\":\"acme/edge:1.0\",\"hosts\":[\"edge\"],"
+            + "\"env\":{\"ORDERS_URI\":\"lb://payments\"}}");
+
+    assertThat(derive())
+        .filteredOn(l -> l.contains("CALLS_HTTP") || l.contains("unresolved-link"))
+        .singleElement()
+        .asString()
+        .contains("unresolved-link")
+        .contains("\"candidates\":[\"service:g:storefront-app\",\"service:g:payments\"]")
+        .contains("\"reason\":\"ambiguous\"");
+  }
+
+  @Test
   void environmentsThatSendACallToDifferentUnitsLeaveItOpenWithBoth() {
     shopAndFulfilment();
     unit("p", "payments", "payments");

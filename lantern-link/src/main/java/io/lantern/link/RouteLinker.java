@@ -133,6 +133,11 @@ final class RouteLinker {
       // The whole URI is left to a placeholder, which the deployment may set.
       answer = addresses.resolve(gateway, view, rest, written(route, false));
       scheme = answer.url().scheme();
+      if (answer.kind() == Kind.AMBIGUOUS) {
+        // Deployments that fill it differently: left open with each unit they lead to.
+        unresolved(gateway, route, view, answer.targets(), "ambiguous");
+        return null;
+      }
       if (answer.address().startsWith("lb:")) {
         // The deployment gives a load-balanced URI: matched by its name, as one written so.
         balanced = true;
