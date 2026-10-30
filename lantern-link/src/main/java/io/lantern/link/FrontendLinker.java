@@ -6,9 +6,9 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.websocket.WebSocketExtractor;
+import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Deployments.Container;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
@@ -21,36 +21,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Links the URLs a frontend calls from the browser to the units that serve them, or to external
  * systems (ADR 0083). A path on the page's own origin goes where the nginx that serves the frontend
  * passes it on ({@code proxy_pass}), else where its development server does; an absolute URL goes
- * to its host. A host that names a unit (its {@code spring.application.name}, its artifact ID, or a
- * deployment container that runs it) is that unit; this machine or an address on a private network
- * is the unit whose deployment container publishes that port, else the only unit listening on it
- * ({@code server.port}). A host with a domain that names no unit is an external system. Each call
- * is a {@code CALLS_HTTP} link from the frontend; a proxy that no call goes through is one too.
+ * to its host, as {@link Addresses} resolves it: a unit (by its {@code spring.application.name}, a
+ * deployment container that runs it, its artifact ID, or for this machine or a private address the
+ * port a deployment container publishes, else its {@code server.port}), or an external system for a
+ * public domain that names no unit. Each call is a {@code CALLS_HTTP} link from the frontend; a
+ * proxy that no call goes through is one too.
  */
 final class FrontendLinker {
-
-  /** Confidence factors of the ways a target is found. */
-  static final double BY_NAME = 1.0;
-
-  static final double BY_CONTAINER = 0.9;
-  static final double BY_ARTIFACT_ID = 0.8;
-  static final double BY_PUBLISHED_PORT = 0.8;
-  static final double BY_PORT = 0.7;
-
-  /** The port a unit that sets none listens on, as Spring Boot's embedded server does. */
-  private static final String DEFAULT_PORT = "8080";
-
-  private static final Pattern PRIVATE_ADDRESS =
-      Pattern.compile(
-          "10\\.\\d+\\.\\d+\\.\\d+|192\\.168\\.\\d+\\.\\d+|172\\.(1[6-9]|2\\d|3[01])\\.\\d+\\.\\d+"
-              + "|127\\.\\d+\\.\\d+\\.\\d+|0\\.0\\.0\\.0|localhost|\\[::1]|host\\.docker\\.internal");
 
   /** A target found for a URL: the unit or external system, the fact it was found by, if any. */
   private record Target(EntityId to, Fact fact, String matchedBy, double factor) {}
@@ -60,19 +43,17 @@ final class FrontendLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
+  private final Addresses addresses;
   private final Deployments deployments;
   private final HttpLinker http;
   private final RouteLinker routes;
 
   FrontendLinker(
-      LinkIndex index,
-      FoundLinks out,
-      Deployments deployments,
-      HttpLinker http,
-      RouteLinker routes) {
+      LinkIndex index, FoundLinks out, Addresses addresses, HttpLinker http, RouteLinker routes) {
     this.index = index;
     this.out = out;
-    this.deployments = deployments;
+    this.addresses = addresses;
+    this.deployments = addresses.deployments();
     this.http = http;
     this.routes = routes;
   }
@@ -292,89 +273,17 @@ final class FrontendLinker {
           case "https" -> "HTTPS";
           default -> FrontendExtractor.HTTP;
         };
-    List<Target> targets;
-    if (PRIVATE_ADDRESS.matcher(host).matches()) {
-      String port = parsed.port();
-      if (port == null) {
-        port = scheme.equals("https") || scheme.equals("wss") ? "443" : "80";
-      }
-      targets = byPublishedPort(port);
-      if (targets.isEmpty()) {
-        targets = byPort(port, view);
-      }
-    } else {
-      targets = byName(host, view);
-      if (targets.isEmpty() && host.contains(".") && !host.matches("[0-9.]+")) {
-        targets =
-            List.of(
-                new Target(
-                    new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, host), null, "external", 1.0));
-      }
-    }
-    if (targets.size() != 1) {
-      return null;
-    }
-    return new Reached(targets.getFirst(), url, parsed.path(), protocol, proxy);
-  }
-
-  /** The units whose name is the host: application name, artifact ID or deployment container. */
-  private List<Target> byName(String host, String view) {
-    String wanted = host.contains(".svc") ? host.substring(0, host.indexOf('.')) : host;
-    List<Target> targets = new ArrayList<>();
-    for (Unit unit : index.units.values()) {
-      Fact name = index.name(unit.id(), view);
-      if (name != null && name.object().value().equalsIgnoreCase(wanted)) {
-        targets.add(new Target(unit.id(), name, "host", BY_NAME));
-      }
-    }
-    if (targets.isEmpty()) {
-      for (Unit unit : index.units.values()) {
-        if (unit.artifactId().equalsIgnoreCase(wanted)) {
-          targets.add(new Target(unit.id(), null, "artifact-id", BY_ARTIFACT_ID));
-        }
-      }
-    }
-    if (targets.isEmpty()) {
-      for (Unit unit : index.units.values()) {
-        for (Container c : deployments.running(unit)) {
-          if (c.answers(wanted)) {
-            targets.add(new Target(unit.id(), c.fact(), "container-host", BY_CONTAINER));
-            break;
+    Answer answer = addresses.resolve(null, view, url, null);
+    Target target =
+        switch (answer.kind()) {
+          case UNIT -> {
+            Addresses.Target t = answer.target();
+            yield new Target(t.unit().id(), t.fact(), t.matchedBy(), t.factor());
           }
-        }
-      }
-    }
-    return targets;
-  }
-
-  /** The units a deployment container publishes the port on the host for. */
-  private List<Target> byPublishedPort(String port) {
-    List<Target> targets = new ArrayList<>();
-    for (Unit unit : index.units.values()) {
-      for (Container c : deployments.running(unit)) {
-        if (publishes(c.fact(), port)) {
-          targets.add(new Target(unit.id(), c.fact(), "published-port", BY_PUBLISHED_PORT));
-          break;
-        }
-      }
-    }
-    return targets;
-  }
-
-  /** The units listening on the port in the view ({@value #DEFAULT_PORT} if they set none). */
-  private List<Target> byPort(String port, String view) {
-    List<Target> targets = new ArrayList<>();
-    for (Unit unit : index.units.values()) {
-      Fact fact = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, "server.port");
-      if (fact != null && LinkIndex.flag(fact, "masked")) {
-        continue;
-      }
-      String value = fact == null ? DEFAULT_PORT : fact.object().value();
-      if (value.equals(port)) {
-        targets.add(new Target(unit.id(), fact, "port", BY_PORT));
-      }
-    }
-    return targets;
+          case EXTERNAL -> new Target(answer.external(), null, "external", 1.0);
+          default -> null;
+        };
+    return target == null ? null : new Reached(target, url, parsed.path(), protocol, proxy);
   }
 
   private void emit(EntityId frontend, Fact from, Reached reached, String view) {

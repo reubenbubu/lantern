@@ -4,22 +4,26 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
+import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.mail.MailExtractor;
+import io.lantern.link.Addresses.Answer;
+import io.lantern.link.Addresses.Kind;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Links units to the mail server their config names (ADR 0076): the {@code spring.mail.host} a unit
- * sees in a view is an external system, keyed by the host, and each method of the unit that sends
- * mail {@code SENDS_MAIL} through it over SMTP. A unit whose config names a host but whose code
- * sends no mail the extractor recognises has one link without a source, since Spring Boot only sets
- * up a {@code JavaMailSender} for a unit that means to use it.
+ * sees in a view, filled in by the environment of a deployment container that runs it where config
+ * leaves it to one, is an external system keyed by the host when it is a public domain ({@link
+ * Addresses}), and each method of the unit that sends mail {@code SENDS_MAIL} through it over SMTP.
+ * A unit whose config names a host but whose code sends no mail the extractor recognises has one
+ * link without a source, since Spring Boot only sets up a {@code JavaMailSender} for a unit that
+ * means to use it.
  */
 final class MailLinker {
 
@@ -29,10 +33,12 @@ final class MailLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
+  private final Addresses addresses;
 
-  MailLinker(LinkIndex index, FoundLinks out) {
+  MailLinker(LinkIndex index, FoundLinks out, Addresses addresses) {
     this.index = index;
     this.out = out;
+    this.addresses = addresses;
   }
 
   void link() {
@@ -45,15 +51,30 @@ final class MailLinker {
   }
 
   private void link(Unit unit, String view, List<Fact> allSends) {
-    List<Fact> hosts = DataLinker.values(index, unit, view, HOST);
-    if (hosts.isEmpty()) {
+    Fact host = host(unit, view);
+    if (host == null) {
       return;
     }
-    Fact host = hosts.getFirst();
-    String name = host.object().value().trim().toLowerCase(Locale.ROOT);
-    if (!isExternal(name)) {
+    String written = LinkIndex.text(host, "written");
+    List<Answer> answers =
+        addresses.answers(
+            unit,
+            view,
+            "smtp://" + host.object().value().trim(),
+            written == null ? null : "smtp://" + written.trim());
+    // Where a deployment sets the host, the config's own value is not what runs there: every
+    // deployment must name the same system outside.
+    List<Answer> filled = answers.stream().filter(a -> a.filledBy() != null).toList();
+    List<Answer> deciding = filled.isEmpty() ? answers : filled;
+    Answer answer = deciding.getFirst();
+    if (deciding.stream()
+        .anyMatch(
+            a ->
+                a.kind() != Kind.EXTERNAL
+                    || !a.external().equals(deciding.getFirst().external()))) {
       return;
     }
+    String name = answer.url().host();
     List<Fact> ports = DataLinker.values(index, unit, view, PORT);
     List<Fact> protocols = DataLinker.values(index, unit, view, PROTOCOL);
     String port = ports.isEmpty() ? null : ports.getFirst().object().value().trim();
@@ -71,6 +92,9 @@ final class MailLinker {
     }
     Set<String> config = new TreeSet<>();
     config.add(host.id());
+    if (answer.filledBy() != null) {
+      config.add(answer.filledBy().fact().id());
+    }
     ports.stream().limit(1).forEach(p -> config.add(p.id()));
     protocols.stream().limit(1).forEach(p -> config.add(p.id()));
     if (sends.isEmpty()) {
@@ -83,23 +107,18 @@ final class MailLinker {
     }
   }
 
-  /**
-   * Whether a host names a system outside: not this machine, an IP address, a name without a domain
-   * (a compose or Kubernetes service) or one under a private suffix.
-   */
-  static boolean isExternal(String host) {
-    if (!host.contains(".") || host.contains(":") || host.startsWith("[")) {
-      return false;
-    }
-    if (host.matches("[0-9.]+")) {
-      return false;
-    }
-    for (String suffix : List.of(".local", ".localhost", ".internal", ".svc", ".cluster.local")) {
-      if (host.endsWith(suffix)) {
-        return false;
+  /** The unit's {@code spring.mail.host} in the view, a placeholder nothing resolves kept. */
+  private Fact host(Unit unit, String view) {
+    String wanted = DataLinker.relaxed(HOST);
+    for (String k : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
+      if (DataLinker.relaxed(k).equals(wanted)) {
+        Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
+        if (f != null && !LinkIndex.flag(f, "masked") && !f.object().value().isBlank()) {
+          return f;
+        }
       }
     }
-    return true;
+    return null;
   }
 
   private void add(

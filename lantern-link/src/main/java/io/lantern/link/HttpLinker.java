@@ -8,6 +8,8 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.link.Addresses.Answer;
+import io.lantern.link.Addresses.Target;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.LinkText.Url;
@@ -26,22 +28,14 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Links HTTP calls to the units that serve them, or to external systems (ADR 0042): by a Feign
- * client's name against {@code spring.application.name}, else by the URL's host against unit names,
- * then the path against the target's endpoints; a call to this machine by its port against the
- * units' {@code server.port} when one other unit listens there, else by its path alone.
+ * client's name against {@code spring.application.name}, else by the URL as {@link Addresses}
+ * resolves it, then the path against the target's endpoints; a call to this machine or a private
+ * address that no single unit listens on is linked by its path alone.
  */
 final class HttpLinker {
 
-  /** Confidence factors of the ways a target is found. */
-  static final double BY_NAME = 1.0;
-
-  static final double BY_HOST = 0.9;
-  static final double BY_ARTIFACT_ID = 0.8;
-  static final double BY_PORT = 0.8;
+  /** Confidence factor of a target found by the call's path alone. */
   static final double BY_PATH = 0.6;
-
-  /** The port a unit that sets none listens on, as Spring Boot's embedded server does. */
-  private static final String DEFAULT_PORT = "8080";
 
   /** Factor for a target found without an endpoint that matches the path. */
   static final double WITHOUT_ENDPOINT = 0.8;
@@ -49,7 +43,13 @@ final class HttpLinker {
   /** An endpoint a unit serves. */
   private record Endpoint(Fact fact, Unit unit) {}
 
-  /** A call as it is made in one view by one unit. */
+  /**
+   * A call as it is made in one view by one unit.
+   *
+   * @param address the URL as the unit's config resolved it, placeholders it left kept as written
+   * @param used the config facts, and the deployment container, that filled the URL in
+   * @param filled the URL as a deployment container's environment filled it in, or null
+   */
   private record Call(
       Fact fact,
       String httpMethod,
@@ -57,21 +57,41 @@ final class HttpLinker {
       Url url,
       Set<String> unresolved,
       String text,
-      List<Fact> used) {}
+      String address,
+      String written,
+      List<Fact> used,
+      String filled) {
 
-  /** A target found for a call. */
-  private record Target(Unit unit, Fact name, String matchedBy, double factor) {}
+    /** The call with its URL as a deployment container's environment filled it in. */
+    Call filled(String filled, Fact container) {
+      List<Fact> facts = new ArrayList<>(used);
+      facts.add(container);
+      return new Call(
+          fact,
+          httpMethod,
+          service,
+          LinkText.parse(filled),
+          new LinkedHashSet<>(),
+          text,
+          address,
+          written,
+          facts,
+          filled);
+    }
+  }
 
   private final LinkIndex index;
   private final FoundLinks out;
+  private final Addresses addresses;
   private final List<Endpoint> endpoints = new ArrayList<>();
 
   /** The client interfaces each type enables ({@code @EnableFeignClients}). */
   private final Map<EntityId, List<Fact>> enabledBy = new HashMap<>();
 
-  HttpLinker(LinkIndex index, FoundLinks out) {
+  HttpLinker(LinkIndex index, FoundLinks out, Addresses addresses) {
     this.index = index;
     this.out = out;
+    this.addresses = addresses;
     for (Fact f : index.of(SpringExtractor.ENDPOINT)) {
       String controller = LinkIndex.text(f, "controller");
       EntityId code =
@@ -101,7 +121,7 @@ final class HttpLinker {
         for (Map.Entry<String, Call> e : calls.entrySet()) {
           String view = e.getKey().isEmpty() ? null : e.getKey();
           Call call = e.getValue();
-          link(caller, call, view, targets(call, view));
+          link(caller, call, view);
         }
         flush();
       }
@@ -187,151 +207,129 @@ final class HttpLinker {
           LinkText.parse(resolved.text()),
           resolved.unresolved(),
           (httpMethod == null ? "" : httpMethod + " ") + resolved.text(),
-          resolved.used());
+          resolved.text(),
+          written,
+          resolved.used(),
+          null);
     }
     String url = LinkIndex.text(fact, "url");
     Url parsed =
         url != null ? LinkText.parse(url) : new Url(null, null, null, LinkIndex.text(fact, "path"));
+    String object = fact.object().value();
+    String address =
+        url != null
+            ? url
+            : httpMethod != null && object.startsWith(httpMethod + " ")
+                ? object.substring(httpMethod.length() + 1)
+                : object;
     return new Call(
         fact,
         httpMethod,
         service,
         parsed,
         new LinkedHashSet<>(LinkIndex.texts(fact, "unresolved")),
-        fact.object().value(),
-        List.of());
+        object,
+        address,
+        written,
+        List.of(),
+        null);
   }
 
   /**
-   * The units a call goes to: by the Feign client's name when its URL is the load-balanced one,
-   * else by the URL's host. An empty list when the host is not known or is this machine, so only
-   * the path can tell; null when a host with a domain names no unit, so it is an external system.
+   * Records what a call in a view links to: by the Feign client's name when its URL is the
+   * load-balanced one, else where its URL leads ({@link Addresses}). A call to this machine or a
+   * private address that no single unit listens on, or one whose host names nothing, is decided by
+   * its path when only one unit serves it there, else left open with the units that serve it.
    */
-  private List<Target> targets(Call call, String view) {
+  private void link(Unit caller, Call call, String view) {
     String host = call.url().host();
     if (call.service() != null
         && (host == null || host.equals(call.service().toLowerCase(Locale.ROOT)))) {
-      List<Target> byName = byName(call.service(), view, "service-name", BY_NAME);
-      if (!byName.isEmpty() || host == null) {
-        return byName;
+      List<Target> byName =
+          addresses.byApplicationName(
+              call.service(), view, "service-name", Addresses.BY_SERVICE_NAME);
+      if (byName.size() > 1) {
+        unresolved(caller, call, view, byName, "ambiguous");
+        return;
+      }
+      if (byName.size() == 1) {
+        linkTo(caller, call, view, byName.getFirst());
+        return;
+      }
+      if (host == null) {
+        byPath(caller, call, view, false);
+        return;
       }
     }
-    if (host == null || call.url().local()) {
-      return List.of();
-    }
-    List<Target> byHost = byName(host, view, "host", BY_HOST);
-    if (byHost.isEmpty() && (host.endsWith(".svc") || host.endsWith(".svc.cluster.local"))) {
-      // A Kubernetes service name: <service>.<namespace>.svc...
-      byHost = byName(host.substring(0, host.indexOf('.')), view, "host", BY_HOST);
-    }
-    if (byHost.isEmpty()) {
-      for (Unit unit : index.units.values()) {
-        if (unit.artifactId().equalsIgnoreCase(host)) {
-          byHost.add(new Target(unit, null, "artifact-id", BY_ARTIFACT_ID));
-        }
-      }
-    }
-    if (byHost.isEmpty() && !host.contains(".") && !host.contains(":") && !host.startsWith("[")) {
-      // A name without a domain is a compose, Kubernetes or discovery name, not a system on the
-      // internet: only the path can tell which unit it is.
-      return List.of();
-    }
-    return byHost.isEmpty() ? null : byHost;
-  }
-
-  private List<Target> byName(String name, String view, String matchedBy, double factor) {
-    List<Target> targets = new ArrayList<>();
-    for (Unit unit : index.units.values()) {
-      Fact fact = index.name(unit.id(), view);
-      if (fact != null && fact.object().value().equalsIgnoreCase(name)) {
-        targets.add(new Target(unit, fact, matchedBy, factor));
-      }
-    }
-    return targets;
-  }
-
-  /** Records what a call in a view links to. */
-  private void link(Unit caller, Call call, String view, List<Target> targets) {
-    String path = call.url().path();
-    if (targets == null) {
-      linkExternal(caller, call, view, call.url().host());
-      return;
-    }
-    if (targets.isEmpty() && call.url().local()) {
-      // A call to this machine goes to what listens on its port, when that is one other unit.
-      List<Target> byPort = byPort(caller, call.url(), view);
-      if (byPort.size() == 1) {
-        Target target = byPort.getFirst();
-        Endpoint endpoint = path == null ? null : endpoint(target.unit(), call, view);
+    Answer answer = addresses.resolve(caller, view, call.address(), call.written());
+    Call used =
+        answer.filledBy() == null ? call : call.filled(answer.address(), answer.filledBy().fact());
+    switch (answer.kind()) {
+      case EXTERNAL -> linkExternal(caller, used, view, answer.external());
+      case UNIT -> {
+        Target target = answer.target();
+        String path = used.url().path();
+        Endpoint endpoint = path == null ? null : endpoint(target.unit(), used, view);
         // A unit on the default port, setting none, is taken only where it serves the path: other
         // servers on this machine (an identity provider, say) listen on 8080 too.
-        if (target.name() != null || endpoint != null) {
-          linkUnit(caller, call, view, target, endpoint);
-          return;
+        if (answer.local() && target.fact() == null && endpoint == null) {
+          byPath(caller, used, view, true);
+        } else if (!target.unit().equals(caller)) {
+          linkUnit(caller, used, view, target, endpoint);
         }
       }
-    }
-    if (targets.isEmpty()) {
-      // Only the path can tell: decided for a call to this machine when one unit serves it.
-      List<Target> byPath = new ArrayList<>();
-      Map<Unit, Endpoint> best = new LinkedHashMap<>();
-      if (path != null) {
-        for (Unit unit : index.units.values()) {
-          Endpoint endpoint = endpoint(unit, call, view);
-          if (endpoint != null && !unit.equals(caller)) {
-            byPath.add(new Target(unit, null, "path", BY_PATH));
-            best.put(unit, endpoint);
-          }
+      case AMBIGUOUS -> {
+        if (answer.local()) {
+          byPath(caller, used, view, true);
+        } else {
+          unresolved(caller, used, view, answer.targets(), "ambiguous");
         }
       }
-      if (call.url().local() && byPath.size() == 1) {
-        Target target = byPath.getFirst();
-        linkUnit(caller, call, view, target, best.get(target.unit()));
-      } else if (call.url().local()) {
-        unresolved(caller, call, view, byPath, byPath.isEmpty() ? "no-match" : "ambiguous");
-      } else if (call.url().host() != null) {
-        unresolved(caller, call, view, byPath, "unknown-host");
-      } else {
-        unresolved(
-            caller,
-            call,
-            view,
-            byPath,
-            call.unresolved().isEmpty() ? "unknown-url" : "unresolved-placeholder");
-      }
-      return;
+      case UNKNOWN -> byPath(caller, used, view, answer.local());
     }
-    if (targets.size() > 1) {
-      unresolved(caller, call, view, targets, "ambiguous");
-      return;
-    }
-    Target target = targets.getFirst();
+  }
+
+  /** Links a call to a unit found by name, with the endpoint its path reaches. */
+  private void linkTo(Unit caller, Call call, String view, Target target) {
     if (!target.unit().equals(caller)) {
+      String path = call.url().path();
       linkUnit(
           caller, call, view, target, path == null ? null : endpoint(target.unit(), call, view));
     }
   }
 
-  /** The other units listening on the URL's port in the view ({@value #DEFAULT_PORT} if unset). */
-  private List<Target> byPort(Unit caller, Url url, String view) {
-    List<Target> targets = new ArrayList<>();
-    if (url.port() == null) {
-      return targets;
-    }
-    for (Unit unit : index.units.values()) {
-      if (unit.equals(caller)) {
-        continue;
-      }
-      Fact port = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, "server.port");
-      if (port != null && LinkIndex.flag(port, "masked")) {
-        continue;
-      }
-      String value = port == null ? DEFAULT_PORT : port.object().value();
-      if (value.equals(url.port())) {
-        targets.add(new Target(unit, port, "port", BY_PORT));
+  /**
+   * Decides a call by its path: for this machine or a private address, linked when exactly one
+   * other unit serves it; else left open with the units serving it as candidates.
+   */
+  private void byPath(Unit caller, Call call, String view, boolean local) {
+    String path = call.url().path();
+    List<Target> byPath = new ArrayList<>();
+    Map<Unit, Endpoint> best = new LinkedHashMap<>();
+    if (path != null) {
+      for (Unit unit : index.units.values()) {
+        Endpoint endpoint = endpoint(unit, call, view);
+        if (endpoint != null && !unit.equals(caller)) {
+          byPath.add(new Target(unit, null, "path", BY_PATH));
+          best.put(unit, endpoint);
+        }
       }
     }
-    return targets;
+    if (local && byPath.size() == 1) {
+      Target target = byPath.getFirst();
+      linkUnit(caller, call, view, target, best.get(target.unit()));
+    } else if (local) {
+      unresolved(caller, call, view, byPath, byPath.isEmpty() ? "no-match" : "ambiguous");
+    } else if (call.url().host() != null) {
+      unresolved(caller, call, view, byPath, "unknown-host");
+    } else {
+      unresolved(
+          caller,
+          call,
+          view,
+          byPath,
+          call.unresolved().isEmpty() ? "unknown-url" : "unresolved-placeholder");
+    }
   }
 
   private void linkUnit(Unit caller, Call call, String view, Target target, Endpoint endpoint) {
@@ -340,8 +338,8 @@ final class HttpLinker {
     Set<String> facts = new TreeSet<>();
     facts.add(fact.id());
     call.used().forEach(u -> facts.add(u.id()));
-    if (target.name() != null) {
-      facts.add(target.name().id());
+    if (target.fact() != null) {
+      facts.add(target.fact().id());
     }
     double confidence = fact.confidence() * target.factor();
     String protocol = "https".equals(call.url().scheme()) ? "HTTPS" : "HTTP";
@@ -384,7 +382,7 @@ final class HttpLinker {
             facts));
   }
 
-  private void linkExternal(Unit caller, Call call, String view, String host) {
+  private void linkExternal(Unit caller, Call call, String view, EntityId system) {
     Fact fact = call.fact();
     ObjectNode attributes = common(call);
     attributes.put("protocol", "https".equals(call.url().scheme()) ? "HTTPS" : "HTTP");
@@ -392,7 +390,6 @@ final class HttpLinker {
     Set<String> facts = new TreeSet<>();
     facts.add(fact.id());
     call.used().forEach(u -> facts.add(u.id()));
-    EntityId system = new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, host);
     emit(
         view,
         new Found(
@@ -453,7 +450,10 @@ final class HttpLinker {
       attributes.put("path", call.url().path().isEmpty() ? "/" : call.url().path());
     }
     String text = call.text();
-    String url = call.httpMethod() == null ? text : text.substring(call.httpMethod().length() + 1);
+    String url =
+        call.filled() != null
+            ? call.filled()
+            : call.httpMethod() == null ? text : text.substring(call.httpMethod().length() + 1);
     if (call.url().host() != null) {
       attributes.put("url", url);
     }
