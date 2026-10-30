@@ -395,6 +395,42 @@ class MavenRulesTest {
             "module:g:source java-release 8 @source:pom.xml#1-1 0.7");
   }
 
+  @Test
+  void theCompilerPluginsOwnSettingWinsOverItsProperty() throws IOException {
+    Repo release =
+        repo(
+            "release",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "release",
+                    "<properties><maven.compiler.release>11</maven.compiler.release></properties>"
+                        + "<build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>"
+                        + "<configuration><release>17</release></configuration></plugin>"
+                        + "</plugins></build>")));
+    Repo source =
+        repo(
+            "source",
+            Map.of(
+                "pom.xml",
+                pom(
+                    "g",
+                    "source",
+                    "<properties><maven.compiler.source>1.8</maven.compiler.source></properties>"
+                        + "<build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId>"
+                        + "<configuration><source>11</source></configuration></plugin>"
+                        + "</plugins></build>")));
+
+    List<String> facts =
+        extract(release, source).stream().filter(f -> f.contains(" java-release ")).toList();
+
+    assertThat(facts)
+        .containsExactly(
+            "module:g:release java-release 17 @release:pom.xml#1-1 0.7",
+            "module:g:source java-release 11 @source:pom.xml#1-1 0.7");
+  }
+
   private static final String JACOCO =
       "<build><plugins><plugin><groupId>org.jacoco</groupId>"
           + "<artifactId>jacoco-maven-plugin</artifactId><executions>"

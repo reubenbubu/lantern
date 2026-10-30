@@ -49,7 +49,7 @@ how these are named and modelled, what "internal" means, and how a service's lib
   bound; in a POM as written a bare `spring-boot-maven-plugin` declaration also counts, since the
   parent may bind it. Deployable modules become `service:` entities, other non-`pom` modules
   `library:` entities. Other ways of making a runnable artifact (shade or assembly plugins with a
-  main class) are not recognized yet.
+  main class) are not recognized yet (they are since the amendment for #382).
 - **Facts.** For each module: `version` and `packaging` attribute facts; `<service or library>
   CONTAINS <module>`; `<aggregator> CONTAINS <module>` for each `<modules>` entry; and
   `<module> BUILD_DEPENDS_ON <module or artifact>` for each direct dependency except `import`
@@ -147,3 +147,40 @@ unit bundled it.
   repositories or mirror it is given (ADR 0023, ADR 0030), and does not give the library's own
   build under them; whether the extractor finds the library does not depend on the build.
 - The extractor's version becomes 4.
+
+## Amendment (#382): what makes a module deployable
+
+Research: `docs/research/extractor-maven.md`. Only `war`, `ear` and Spring Boot's `repackage`
+made a module deployable, so a Quarkus service, an image built by Jib or Eclipse JKube, or a jar
+made executable by shade or assembly was drawn as a library; a repackage moved to
+`<phase>none</phase>` still counted; and nothing said why a module was deployable. The
+extractor's version becomes 5.
+
+- **Deployable** is decided from the build's `<plugins>` (never `pluginManagement`, which the
+  effective POM keeps out), in this order of strength: `war` or `ear` packaging; Spring Boot's
+  `repackage`; Quarkus (`quarkus` packaging, or `quarkus-maven-plugin`'s `build` goal); a shade
+  execution with a transformer whose `mainClass` resolves; an assembly `single` execution whose
+  archive manifest's `mainClass` resolves; Spring Boot's `build-image` or `build-image-no-fork`
+  (unless `spring-boot.build-image.skip`); Jib, Eclipse JKube (`kubernetes-maven-plugin`,
+  `openshift-maven-plugin`) and the Spotify and fabric8 Docker plugins, unless `jib.skip`,
+  `jkube.skip`, `dockerfile.skip` or `docker.skip` is set. An image plugin declared without
+  executions counts, since it is run from the command line; one with executions counts only if
+  one remains. The fabric8 Docker plugin counts only for a `build` execution, or, without
+  executions, an image with a `<build>`: it is often declared just to start and stop containers
+  for integration tests. A plugin or execution with `<skip>` true, or an execution bound to phase
+  `none`, does not count, nor does Quarkus with `quarkus.build.skip`. A `pom` module is never
+  deployable. In a POM as written, a bare Spring Boot or Quarkus plugin still counts, since a
+  parent's plugins or `pluginManagement` may bind its goal, and the shade and assembly main class
+  may sit in the plugin's configuration rather than the execution's. A single `main` method and the jar plugin's manifest are not signals:
+  Spring Boot's parent gives every jar module a `${start-class}` main class.
+- **`deployable-by`**, a new string attribute of a deployable module: `war`, `ear`,
+  `spring-boot`, `quarkus`, `shade`, `assembly`, `spring-boot-build-image`, `jib`, `jkube` or
+  `docker`, the strongest that applies. Its evidence is the module's `<packaging>` or the plugin
+  in its own POM, or the file without lines when a parent declares it.
+- **The Java release** now follows Maven's precedence: the compiler plugin's `release`, then
+  `maven.compiler.release`, then the plugin's `source`, then `maven.compiler.source`, then
+  `java.version`.
+- **Not covered yet:** an app that is also a library (#484), deployables only named profiles build
+  (#485), test and sample modules (#486), the built artifact's manifest, and Dockerfiles or
+  manifests that ship a module (the Deployment extractor's, #397).
+

@@ -67,7 +67,7 @@ public final class MavenExtractor {
   public static final String NAME = "maven";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
@@ -89,6 +89,14 @@ public final class MavenExtractor {
 
   /** Attribute: the coordinates of a module's parent POM. */
   public static final String PARENT = "parent";
+
+  /**
+   * Attribute: what makes a module deployable: {@code war}, {@code ear}, {@code spring-boot}
+   * (repackaged executable jar), {@code quarkus}, {@code shade} or {@code assembly} (a jar with a
+   * main class), {@code spring-boot-build-image}, {@code jib}, {@code jkube} or {@code docker} (an
+   * image).
+   */
+  public static final String DEPLOYABLE_BY = "deployable-by";
 
   /** Attribute: the Java release a module compiles for. */
   public static final String JAVA_RELEASE = "java-release";
@@ -238,6 +246,16 @@ public final class MavenExtractor {
             PARENT,
             FactObject.string(parent),
             m.evidence(xml.child("parent").orElse(null)),
+            m,
+            validity);
+      }
+      if (m.deployable()) {
+        add(
+            facts,
+            id,
+            DEPLOYABLE_BY,
+            FactObject.string(m.deployedBy()),
+            m.evidence(deployDeclaration(m)),
             m,
             validity);
       }
@@ -611,7 +629,7 @@ public final class MavenExtractor {
       String artifactId,
       String version,
       String packaging,
-      boolean deployable,
+      String deployedBy,
       List<Dep> dependencies,
       Map<String, String> properties,
       List<XmlElement> plugins,
@@ -619,6 +637,10 @@ public final class MavenExtractor {
 
     String key() {
       return groupId + ":" + artifactId;
+    }
+
+    boolean deployable() {
+      return deployedBy != null;
     }
 
     EntityId id() {
@@ -630,7 +652,7 @@ public final class MavenExtractor {
       if (packaging.equals("pom")) {
         return null;
       }
-      return new EntityId(deployable ? BuiltInTypes.SERVICE : BuiltInTypes.LIBRARY, key());
+      return new EntityId(deployable() ? BuiltInTypes.SERVICE : BuiltInTypes.LIBRARY, key());
     }
 
     /** Evidence pointing at the module's POM, at the element's lines if one is given. */
@@ -692,7 +714,7 @@ public final class MavenExtractor {
         pom.artifactId(),
         Pom.interpolate(pom.effectiveVersion(), properties),
         packaging,
-        pom.deployable(packaging, properties, false),
+        pom.deployedBy(packaging, properties, false),
         deps,
         writtenProperties(w, properties),
         pom.plugins(),
@@ -776,7 +798,7 @@ public final class MavenExtractor {
         artifactId,
         Pom.interpolate(own.effectiveVersion(), properties),
         packaging,
-        withPlugins.deployable(packaging, properties, true),
+        withPlugins.deployedBy(packaging, properties, true),
         deps,
         properties,
         withPlugins.plugins(),
@@ -866,6 +888,36 @@ public final class MavenExtractor {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // What makes a module deployable
+
+  /** The plugins each {@code deployable-by} value comes from, by artifact ID. */
+  private static final Map<String, List<String>> DEPLOY_PLUGINS =
+      Map.of(
+          Pom.SPRING_BOOT, List.of(Pom.SPRING_BOOT_PLUGIN),
+          Pom.SPRING_BOOT_IMAGE, List.of(Pom.SPRING_BOOT_PLUGIN),
+          Pom.QUARKUS, List.of("quarkus-maven-plugin"),
+          Pom.SHADE, List.of("maven-shade-plugin"),
+          Pom.ASSEMBLY, List.of("maven-assembly-plugin"),
+          Pom.JIB, List.of("jib-maven-plugin"),
+          Pom.JKUBE, List.of("kubernetes-maven-plugin", "openshift-maven-plugin"),
+          Pom.DOCKER, List.of("dockerfile-maven-plugin", "docker-maven-plugin"));
+
+  /**
+   * The element of the module's own POM that makes it deployable: its packaging for a war, ear or
+   * Quarkus packaging, else the plugin, else null when it is inherited.
+   */
+  private static XmlElement deployDeclaration(Module m) {
+    XmlElement xml = m.written().pom().xml();
+    if (m.packaging().equals(m.deployedBy())) {
+      return xml.child("packaging").orElse(null);
+    }
+    List<String> artifacts = DEPLOY_PLUGINS.getOrDefault(m.deployedBy(), List.of());
+    return xml.child("build").map(b -> b.list("plugins", "plugin")).orElse(List.of()).stream()
+        .filter(p -> artifacts.contains(p.text("artifactId")))
+        .findFirst()
+        .orElse(null);
+  }
+
   // The Java release
 
   /** A module's Java release and the element of its own POM that declares it, if any. */
@@ -883,10 +935,11 @@ public final class MavenExtractor {
     List<XmlElement> compilers =
         m.plugins().stream().filter(p -> Pom.pluginKey(p).equals(COMPILER_PLUGIN)).toList();
     List<String> candidates = new ArrayList<>();
-    candidates.add(m.properties().get("maven.compiler.release"));
+    // The plugin's own configuration wins over the user property, as in Maven.
     compilers.forEach(c -> candidates.add(configuration(c, "release")));
-    candidates.add(m.properties().get("maven.compiler.source"));
+    candidates.add(m.properties().get("maven.compiler.release"));
     compilers.forEach(c -> candidates.add(configuration(c, "source")));
+    candidates.add(m.properties().get("maven.compiler.source"));
     candidates.add(m.properties().get("java.version"));
     for (String candidate : candidates) {
       String version = majorJavaVersion(Pom.interpolate(candidate, m.properties()));
