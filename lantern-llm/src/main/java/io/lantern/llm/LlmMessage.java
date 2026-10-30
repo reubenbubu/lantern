@@ -11,9 +11,15 @@ import java.util.Objects;
  * @param text what it says; empty only in a turn with tool calls or results
  * @param toolCalls the tool calls of an assistant turn, empty for a user turn
  * @param toolResults the tool results of a user turn, empty for an assistant turn
+ * @param thinking the thinking an assistant turn that asks for tools came with, sent back as the
+ *     provider requires; empty for a user turn
  */
 public record LlmMessage(
-    Author author, String text, List<LlmToolCall> toolCalls, List<LlmToolResult> toolResults) {
+    Author author,
+    String text,
+    List<LlmToolCall> toolCalls,
+    List<LlmToolResult> toolResults,
+    List<LlmThinking> thinking) {
 
   /** Who wrote a turn. */
   public enum Author {
@@ -26,6 +32,10 @@ public record LlmMessage(
     Objects.requireNonNull(text, "text");
     toolCalls = List.copyOf(Objects.requireNonNull(toolCalls, "toolCalls"));
     toolResults = List.copyOf(Objects.requireNonNull(toolResults, "toolResults"));
+    thinking = List.copyOf(Objects.requireNonNull(thinking, "thinking"));
+    if (author == Author.USER && !thinking.isEmpty()) {
+      throw new IllegalArgumentException("A user turn cannot hold thinking");
+    }
     if (author == Author.USER && !toolCalls.isEmpty()) {
       throw new IllegalArgumentException("A user turn cannot hold tool calls");
     }
@@ -39,7 +49,7 @@ public record LlmMessage(
 
   /** A turn of text only. */
   public LlmMessage(Author author, String text) {
-    this(author, text, List.of(), List.of());
+    this(author, text, List.of(), List.of(), List.of());
   }
 
   public static LlmMessage user(String text) {
@@ -52,12 +62,18 @@ public record LlmMessage(
 
   /** An assistant turn that asks for tool calls, with any text the model wrote before them. */
   public static LlmMessage assistant(String text, List<LlmToolCall> toolCalls) {
-    return new LlmMessage(Author.ASSISTANT, text, toolCalls, List.of());
+    return new LlmMessage(Author.ASSISTANT, text, toolCalls, List.of(), List.of());
+  }
+
+  /** An answer that asks for tool calls, as the model gave it: its thinking, text and calls. */
+  public static LlmMessage assistant(LlmResponse answer) {
+    return new LlmMessage(
+        Author.ASSISTANT, answer.text(), answer.toolCalls(), List.of(), answer.thinking());
   }
 
   /** A user turn that answers tool calls, with any text after the results. */
   public static LlmMessage toolResults(List<LlmToolResult> results, String text) {
-    return new LlmMessage(Author.USER, text, List.of(), results);
+    return new LlmMessage(Author.USER, text, List.of(), results, List.of());
   }
 
   /** The characters this turn sends, for estimates: its text, tool calls and tool results. */
@@ -68,6 +84,9 @@ public record LlmMessage(
     }
     for (LlmToolResult result : toolResults) {
       chars += result.content().length();
+    }
+    for (LlmThinking block : thinking) {
+      chars += block.text().length();
     }
     return chars;
   }

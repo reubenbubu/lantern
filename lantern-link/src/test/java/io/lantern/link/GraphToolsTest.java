@@ -200,4 +200,61 @@ class GraphToolsTest {
     assertThat(found.lines().filter(l -> l.startsWith("[T"))).hasSize(GraphTools.MAX_FACTS);
     assertThat(found).endsWith("... and 5 more; narrow the call, for example with a predicate.\n");
   }
+
+  private static String masked(String path, String text) {
+    return GraphTools.masked(path, text.getBytes(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void masksSecretsInEveryKindOfFileAndKeepsLineNumbers() {
+    assertThat(
+            masked(
+                "deploy/tls.txt",
+                "a\n-----BEGIN RSA PRIVATE KEY-----\nMIIEabc\ndef==\n-----END RSA PRIVATE KEY-----\nb"))
+        .isEqualTo(
+            "a\n-----BEGIN RSA PRIVATE KEY-----\n******\n******\n-----END RSA PRIVATE KEY-----\nb");
+    assertThat(masked(".env", "export API_KEY=abc123\nexport HOST=db"))
+        .isEqualTo("export API_KEY=******\nexport HOST=db");
+    assertThat(masked("k8s/secret.yml", "data:\n  password: |\n    hunter2\n    more\n  user: app"))
+        .isEqualTo("data:\n  password: |\n    ******\n    ******\n  user: app");
+    assertThat(
+            masked(
+                "settings.xml",
+                "<server><id>x</id><password>hunter2</password></server>\n"
+                    + "<property name=\"db.password\" value=\"s3cret\"/>\n"
+                    + "<datasource password=\"pw\" user=\"app\"/>"))
+        .isEqualTo(
+            "<server><id>x</id><password>******</password></server>\n"
+                + "<property name=\"db.password\" value=\"******\"/>\n"
+                + "<datasource user=\"app\"/>");
+    assertThat(masked("src/main/kotlin/A.kt", "val password = \"hunter2\""))
+        .doesNotContain("hunter2");
+  }
+
+  @Test
+  void keysKeystoresAndBinaryFilesAreNotShown() {
+    assertThat(masked("certs/server.key", "x")).isNull();
+    assertThat(masked("src/main/resources/keystore.p12", "x")).isNull();
+    assertThat(masked("home/.ssh/id_rsa", "x")).isNull();
+    assertThat(GraphTools.masked("logo.png", new byte[] {(byte) 0x89, 0, 1})).isNull();
+  }
+
+  @Test
+  void aFactCutOffForLengthGetsNoReference() {
+    for (int i = 0; i < 30; i++) {
+      fact(
+          "type:o.T" + i,
+          "stereotype",
+          FactObject.string("component " + "x".repeat(2_000)),
+          "src/main/java/o/T" + i + ".java");
+    }
+    GraphTools tools = new GraphTools.Graph(facts, GraphTools.RepoFiles.NONE).tools();
+
+    String found = tools.run(call("search_facts", "{\"text\": \"component\"}")).content();
+
+    long listed = found.lines().filter(l -> l.startsWith("[T")).count();
+    assertThat(listed).isLessThan(30);
+    assertThat(tools.shown()).hasSize((int) listed);
+    assertThat(tools.shown().keySet()).first().isEqualTo("T1");
+  }
 }

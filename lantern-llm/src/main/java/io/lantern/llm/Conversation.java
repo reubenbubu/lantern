@@ -124,7 +124,9 @@ public final class Conversation {
       // A turn cannot be empty, so the reply goes with the last user turn instead.
       LlmMessage user = messages.removeLast();
       String joined = user.text().isEmpty() ? text : user.text() + "\n" + text;
-      messages.add(new LlmMessage(user.author(), joined, user.toolCalls(), user.toolResults()));
+      messages.add(
+          new LlmMessage(
+              user.author(), joined, user.toolCalls(), user.toolResults(), user.thinking()));
     } else {
       messages.add(LlmMessage.assistant(last.text()));
       messages.add(LlmMessage.user(text));
@@ -168,8 +170,7 @@ public final class Conversation {
     while (true) {
       if (turns >= turnCap) {
         String reason =
-            "Stopped after %d turns, the safety cap, with the model still asking for tools"
-                .formatted(turns);
+            "Stopped at the safety cap of %d turns before the model answered".formatted(turns);
         end(LlmConversation.Ending.TURN_CAP, reason);
         throw new LlmException(reason);
       }
@@ -212,7 +213,7 @@ public final class Conversation {
         }
         results.add(result);
       }
-      messages.add(LlmMessage.assistant(response.text(), response.toolCalls()));
+      messages.add(LlmMessage.assistant(response));
       messages.add(LlmMessage.toolResults(results, ""));
     }
   }

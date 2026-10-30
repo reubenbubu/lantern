@@ -121,6 +121,9 @@ public final class RecordReplayLlmProvider implements LlmProvider {
       if (!message.toolCalls().isEmpty()) {
         turn.set("toolCalls", toolCalls(message.toolCalls()));
       }
+      if (!message.thinking().isEmpty()) {
+        turn.set("thinking", thinking(message.thinking()));
+      }
       if (!message.toolResults().isEmpty()) {
         ArrayNode results = turn.putArray("toolResults");
         for (LlmToolResult result : message.toolResults()) {
@@ -169,6 +172,18 @@ public final class RecordReplayLlmProvider implements LlmProvider {
     return array;
   }
 
+  private static ArrayNode thinking(List<LlmThinking> blocks) {
+    ArrayNode array = COMPACT.createArrayNode();
+    for (LlmThinking block : blocks) {
+      ObjectNode node =
+          array.addObject().put("text", block.text()).put("redacted", block.redacted());
+      if (block.signature() != null) {
+        node.put("signature", block.signature());
+      }
+    }
+    return array;
+  }
+
   private static void write(Path file, ObjectNode key, LlmResponse response) {
     ObjectNode root = MAPPER.createObjectNode();
     root.set("request", key);
@@ -187,6 +202,9 @@ public final class RecordReplayLlmProvider implements LlmProvider {
         .put("cacheRead", response.usage().cacheRead());
     if (!response.toolCalls().isEmpty()) {
       answer.set("toolCalls", toolCalls(response.toolCalls()));
+    }
+    if (!response.thinking().isEmpty()) {
+      answer.set("thinking", thinking(response.thinking()));
     }
     try {
       Files.createDirectories(file.getParent());
@@ -220,6 +238,15 @@ public final class RecordReplayLlmProvider implements LlmProvider {
               call.required("name").asString(),
               call.required("input")));
     }
+    List<LlmThinking> thought = new ArrayList<>();
+    for (JsonNode block : answer.path("thinking")) {
+      JsonNode signature = block.path("signature");
+      thought.add(
+          new LlmThinking(
+              block.required("text").asString(),
+              signature.isString() ? signature.asString() : null,
+              block.path("redacted").asBoolean(false)));
+    }
     return new LlmResponse(
         answer.required("text").asString(),
         stopReason.isString() ? stopReason.asString() : null,
@@ -228,6 +255,7 @@ public final class RecordReplayLlmProvider implements LlmProvider {
             usage.required("output").asLong(),
             usage.required("cacheWrite").asLong(),
             usage.required("cacheRead").asLong()),
-        calls);
+        calls,
+        thought);
   }
 }

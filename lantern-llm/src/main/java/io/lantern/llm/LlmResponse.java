@@ -11,9 +11,15 @@ import java.util.Objects;
  *     {@code tool_use} or {@code max_tokens}), or {@code null} if not reported
  * @param usage the tokens the call used
  * @param toolCalls the tool calls it asked for, in order; empty when it answered
+ * @param thinking the thinking blocks it gave, kept only so an answer that asks for tools can be
+ *     sent back whole; never part of the text
  */
 public record LlmResponse(
-    String text, String stopReason, TokenUsage usage, List<LlmToolCall> toolCalls) {
+    String text,
+    String stopReason,
+    TokenUsage usage,
+    List<LlmToolCall> toolCalls,
+    List<LlmThinking> thinking) {
 
   /** The stop reason of an answer cut off at its output limit, as Anthropic reports it. */
   public static final String MAX_TOKENS = "max_tokens";
@@ -31,11 +37,18 @@ public record LlmResponse(
     Objects.requireNonNull(text, "text");
     Objects.requireNonNull(usage, "usage");
     toolCalls = List.copyOf(Objects.requireNonNull(toolCalls, "toolCalls"));
+    thinking = List.copyOf(Objects.requireNonNull(thinking, "thinking"));
   }
 
-  /** An answer without tool calls. */
+  /** An answer without tool calls or kept thinking. */
   public LlmResponse(String text, String stopReason, TokenUsage usage) {
-    this(text, stopReason, usage, List.of());
+    this(text, stopReason, usage, List.of(), List.of());
+  }
+
+  /** An answer with tool calls and no kept thinking. */
+  public LlmResponse(
+      String text, String stopReason, TokenUsage usage, List<LlmToolCall> toolCalls) {
+    this(text, stopReason, usage, toolCalls, List.of());
   }
 
   /**

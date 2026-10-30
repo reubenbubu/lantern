@@ -88,6 +88,10 @@ public final class LinkResolver implements LinkStep {
 
   private static final Logger LOG = LoggerFactory.getLogger(LinkResolver.class);
 
+  /** A fact ID, which a cached answer cites a fact a tool showed by. */
+  private static final java.util.regex.Pattern FACT_ID =
+      java.util.regex.Pattern.compile("[0-9a-f]{64}");
+
   private static final Origin ORIGIN = new Origin(Origin.Kind.LLM, NAME, ResolvePrompt.VERSION);
 
   /** At most this many characters of a rejected answer are logged. */
@@ -211,7 +215,7 @@ public final class LinkResolver implements LinkStep {
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       List<Future<Outcome>> futures = new ArrayList<>();
       for (Question question : questions) {
-        futures.add(executor.submit(() -> answer(question, model, graph, system)));
+        futures.add(executor.submit(() -> answer(question, model, graph, system, byId)));
       }
       for (Future<Outcome> future : futures) {
         outcomes.add(future.get());
@@ -379,10 +383,17 @@ public final class LinkResolver implements LinkStep {
   private record Outcome(Kind kind, Resolution resolution, boolean cached) {}
 
   private Outcome answer(
-      Question question, ModelConfig model, GraphTools.Graph graph, String system) {
+      Question question,
+      ModelConfig model,
+      GraphTools.Graph graph,
+      String system,
+      Map<String, Fact> byId) {
     String key = key(question, ResolvePrompt.VERSION, model.provider(), model.model(), system);
     Resolution cached = store.find(key).orElse(null);
-    if (cached != null) {
+    // An answer that rests on a fact a tool showed holds only while that fact does; else ask again.
+    if (cached != null
+        && cached.cited().stream()
+            .allMatch(ref -> !FACT_ID.matcher(ref).matches() || byId.containsKey(ref))) {
       return new Outcome(Kind.ANSWERED, cached, true);
     }
     Fact unresolved = question.unresolved();
@@ -407,6 +418,22 @@ public final class LinkResolver implements LinkStep {
                 MAX_OUTPUT_TOKENS,
                 false),
             tools == null ? ToolBox.NONE : tools);
+    try {
+      return converse(question, conversation, purpose, key, tools, model);
+    } finally {
+      // Whatever ended the conversation unchecked, such as a failing store, it is still logged.
+      conversation.end(LlmConversation.Ending.FAILED, "Ended without a checked answer");
+    }
+  }
+
+  private Outcome converse(
+      Question question,
+      Conversation conversation,
+      String purpose,
+      String key,
+      GraphTools tools,
+      ModelConfig model) {
+    Fact unresolved = question.unresolved();
     try {
       LlmResponse first = conversation.answer();
       Answer answer;

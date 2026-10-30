@@ -12,6 +12,7 @@ import io.lantern.llm.LlmToolResult;
 import io.lantern.llm.ToolBox;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -40,7 +41,8 @@ import tools.jackson.databind.node.ObjectNode;
  * numbers, and listed in a fixed order, so the same snapshot gives the same results and recorded
  * conversations replay. A file is shown with its secrets masked: Java source as summaries show it
  * (ADR 0054), any other file with the value of each secret key masked and credentials removed from
- * URLs.
+ * URLs, private keys masked in every file, secret XML elements and attributes masked; keys,
+ * keystores and binary files are not shown.
  *
  * <p>One instance serves one conversation ({@link Graph#tools()}); not thread-safe.
  */
@@ -79,7 +81,8 @@ public final class GraphTools implements ToolBox {
 
   /** A key and its value on one line of a config file: {@code key: value} or {@code key=value}. */
   private static final Pattern KEY_VALUE =
-      Pattern.compile("^(\\s*(?:-\\s+)?[\"']?)([A-Za-z0-9_.\\-\\[\\]]+)([\"']?\\s*[:=]\\s*)(.+)$");
+      Pattern.compile(
+          "^(\\s*(?:-\\s+)?(?:export\\s+)?[\"']?)([A-Za-z0-9_.\\-\\[\\]]+)([\"']?\\s*[:=]\\s*)(.+)$");
 
   private static final Pattern ONLY_PLACEHOLDERS = Pattern.compile("[\"']?(\\$\\{[^}:]+})+[\"']?");
 
@@ -133,7 +136,7 @@ public final class GraphTools implements ToolBox {
 
   /** The facts the tools have shown so far, by reference, in the order shown. */
   public Map<String, Fact> shown() {
-    return Map.copyOf(shown);
+    return Collections.unmodifiableMap(new LinkedHashMap<>(shown));
   }
 
   @Override
@@ -281,10 +284,14 @@ public final class GraphTools implements ToolBox {
       if (listed == MAX_FACTS) {
         break;
       }
-      String line = "[" + ref(fact) + "] " + rendered.get(fact.id()) + "\n";
+      String known = refs.get(fact.id());
+      // The longest a new reference can be, so a fact cut off for length gets no reference.
+      String line = "[" + (known == null ? "T" + (shown.size() + 1) : known) + "] ";
+      line += rendered.get(fact.id()) + "\n";
       if (out.length() + line.length() > MAX_CHARS) {
         break;
       }
+      ref(fact);
       out.append(line);
       listed++;
     }
@@ -327,7 +334,11 @@ public final class GraphTools implements ToolBox {
     if (content.isEmpty()) {
       return LlmToolResult.error(call, "No file " + path + " in " + repo + ".");
     }
-    String text = masked(path, new String(content.get(), StandardCharsets.UTF_8));
+    String text = masked(path, content.get());
+    if (text == null) {
+      return LlmToolResult.error(
+          call, path + " is not shown: it is binary, or a key or keystore that holds secrets.");
+    }
     List<String> lines = text.lines().toList();
     int from = Math.max(1, input.path("from").asInt(1));
     int to = input.path("to").isNumber() ? input.path("to").asInt() : from + MAX_LINES - 1;
@@ -362,25 +373,147 @@ public final class GraphTools implements ToolBox {
     return LlmToolResult.of(call, out.toString());
   }
 
-  /** A file's text as the model may see it: its secrets masked. */
-  static String masked(String path, String text) {
-    if (path.endsWith(".java")) {
+  /** File names and extensions of keys and keystores, which are never shown. */
+  private static final Pattern KEY_FILE =
+      Pattern.compile(
+          "(?i)(^|/)(id_(rsa|dsa|ecdsa|ed25519)|[^/]*\\.(pem|key|p8|p12|pfx|jks|jceks|keystore|truststore|der|gpg|asc|kdbx))$");
+
+  /** Source languages whose secrets are masked as Java's are (ADR 0054). */
+  private static final Pattern CODE_FILE =
+      Pattern.compile("(?i).*\\.(java|kt|kts|groovy|gradle|scala)$");
+
+  /** A private key's body, between its PEM lines. */
+  private static final Pattern PEM =
+      Pattern.compile(
+          "(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----)(.*?)(-----END [A-Z0-9 ]*PRIVATE KEY-----)",
+          Pattern.DOTALL);
+
+  /** An XML element whose text is its whole content: {@code <password>x</password>}. */
+  private static final Pattern XML_ELEMENT =
+      Pattern.compile("<([A-Za-z0-9_.:\\-]+)(\\s[^>]*)?>([^<]*)</\\1>");
+
+  /** An XML attribute: {@code password="x"}. */
+  private static final Pattern XML_ATTRIBUTE =
+      Pattern.compile("([A-Za-z0-9_.:\\-]+)(\\s*=\\s*)([\"'])([^\"']*)\\3");
+
+  /** A Spring-style {@code name="db.password" value="x"} pair. */
+  private static final Pattern NAME_VALUE =
+      Pattern.compile(
+          "(name\\s*=\\s*[\"']([^\"']+)[\"'][^>]*?value\\s*=\\s*[\"'])([^\"']*)([\"'])");
+
+  /**
+   * A file's text as the model may see it, its secrets masked; {@code null} for a binary file or a
+   * key or keystore, which are never shown. Line breaks are kept, so line numbers hold.
+   */
+  static String masked(String path, byte[] content) {
+    if (KEY_FILE.matcher(path).find()) {
+      return null;
+    }
+    for (byte b : content) {
+      if (b == 0) {
+        return null;
+      }
+    }
+    String text = new String(content, StandardCharsets.UTF_8);
+    text = withoutPrivateKeys(text);
+    if (CODE_FILE.matcher(path).matches()) {
       return SourceSecrets.scrub(text);
     }
     StringBuilder out = new StringBuilder();
+    int blockIndent = -1;
     for (String line : text.split("\n", -1)) {
+      int indent = indent(line);
+      if (blockIndent >= 0) {
+        // The lines of a block scalar under a secret key (password: |) are its value.
+        if (line.isBlank() || indent > blockIndent) {
+          out.append(line.isBlank() ? line : " ".repeat(indent) + "******").append('\n');
+          continue;
+        }
+        blockIndent = -1;
+      }
       Matcher kv = KEY_VALUE.matcher(line);
-      String shown = line;
-      if (kv.matches()
-          && ConfigExtractor.isSecret(kv.group(2))
-          && !ONLY_PLACEHOLDERS.matcher(kv.group(4).strip()).matches()) {
-        shown = kv.group(1) + kv.group(2) + kv.group(3) + "******";
+      String shown;
+      if (kv.matches() && ConfigExtractor.isSecret(kv.group(2))) {
+        String value = kv.group(4).strip();
+        if (value.matches("[|>][-+0-9]*")) {
+          blockIndent = indent;
+          shown = line;
+        } else if (ONLY_PLACEHOLDERS.matcher(value).matches()) {
+          shown = line;
+        } else {
+          shown = kv.group(1) + kv.group(2) + kv.group(3) + "******";
+        }
       } else {
-        shown = UrlCredentials.withoutCredentials(line);
+        shown = xmlMasked(UrlCredentials.withoutCredentials(line));
       }
       out.append(shown).append('\n');
     }
     out.setLength(out.length() - 1);
+    return out.toString();
+  }
+
+  private static int indent(String line) {
+    int i = 0;
+    while (i < line.length() && (line.charAt(i) == ' ' || line.charAt(i) == '\t')) {
+      i++;
+    }
+    return i;
+  }
+
+  /** A private key's body masked line by line, so line numbers hold. */
+  private static String withoutPrivateKeys(String text) {
+    Matcher pem = PEM.matcher(text);
+    StringBuilder out = new StringBuilder();
+    while (pem.find()) {
+      String body = pem.group(2).replaceAll("[^\\r\\n]+", "******");
+      pem.appendReplacement(out, Matcher.quoteReplacement(pem.group(1) + body + pem.group(3)));
+    }
+    pem.appendTail(out);
+    return out.toString();
+  }
+
+  /** The values of secret XML elements and attributes masked. */
+  private static String xmlMasked(String line) {
+    Matcher element = XML_ELEMENT.matcher(line);
+    StringBuilder out = new StringBuilder();
+    while (element.find()) {
+      String name = element.group(1).substring(element.group(1).indexOf(':') + 1);
+      String replacement =
+          ConfigExtractor.isSecret(name) && !element.group(3).isBlank()
+              ? "<"
+                  + element.group(1)
+                  + (element.group(2) == null ? "" : element.group(2))
+                  + ">******</"
+                  + element.group(1)
+                  + ">"
+              : element.group();
+      element.appendReplacement(out, Matcher.quoteReplacement(replacement));
+    }
+    element.appendTail(out);
+    Matcher pair = NAME_VALUE.matcher(out.toString());
+    out = new StringBuilder();
+    while (pair.find()) {
+      String replacement =
+          ConfigExtractor.isSecret(pair.group(2))
+              ? pair.group(1) + "******" + pair.group(4)
+              : pair.group();
+      pair.appendReplacement(out, Matcher.quoteReplacement(replacement));
+    }
+    pair.appendTail(out);
+    Matcher attribute = XML_ATTRIBUTE.matcher(out.toString());
+    out = new StringBuilder();
+    while (attribute.find()) {
+      String replacement =
+          ConfigExtractor.isSecret(attribute.group(1)) && !attribute.group(4).isEmpty()
+              ? attribute.group(1)
+                  + attribute.group(2)
+                  + attribute.group(3)
+                  + "******"
+                  + attribute.group(3)
+              : attribute.group();
+      attribute.appendReplacement(out, Matcher.quoteReplacement(replacement));
+    }
+    attribute.appendTail(out);
     return out.toString();
   }
 }

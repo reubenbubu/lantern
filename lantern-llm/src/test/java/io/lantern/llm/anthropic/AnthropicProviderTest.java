@@ -186,6 +186,60 @@ class AnthropicProviderTest {
     assertThat(sent.at("/messages/2/content/0/is_error").asBoolean()).isTrue();
     assertThat(sent.at("/messages/2/content/1/type").asString()).isEqualTo("text");
     assertThat(sent.at("/messages/2/content/1/text").asString()).isEqualTo("Go on.");
+    // The schema's type is sent once, not again among its other fields.
+    String body = requestBody.get().replace(" ", "");
+    assertThat(body.split("\"type\":\"object\"", -1)).hasSize(2);
+  }
+
+  @Test
+  void keepsTheThinkingOfAToolUseAnswerAndSendsItBackFirst() {
+    responseBody =
+        """
+        {"id": "msg_4", "type": "message", "role": "assistant", "model": "stub-model",
+         "content": [{"type": "thinking", "thinking": "I should look.", "signature": "sig-1"},
+                     {"type": "redacted_thinking", "data": "opaque"},
+                     {"type": "tool_use", "id": "toolu_9", "name": "facts_about",
+                      "input": {"entity": "unit:a"}}],
+         "stop_reason": "tool_use", "stop_sequence": null,
+         "usage": {"input_tokens": 10, "output_tokens": 30}}
+        """;
+    tools.jackson.databind.node.ObjectNode schema = JSON.createObjectNode().put("type", "object");
+    LlmTool tool = new LlmTool("facts_about", "Facts about an entity.", schema);
+    LlmRequest first =
+        new LlmRequest(
+            Role.RESOLVE,
+            "resolve",
+            null,
+            List.of(LlmMessage.user("Which unit?")),
+            300,
+            false,
+            List.of(tool));
+
+    LlmResponse answer;
+    try (AnthropicProvider provider = provider()) {
+      answer = provider.complete("stub-model", first);
+      assertThat(answer.text()).isEmpty();
+      assertThat(answer.thinking())
+          .containsExactly(
+              new io.lantern.llm.LlmThinking("I should look.", "sig-1", false),
+              new io.lantern.llm.LlmThinking("opaque", null, true));
+      provider.complete(
+          "stub-model",
+          first.withMessages(
+              List.of(
+                  LlmMessage.user("Which unit?"),
+                  LlmMessage.assistant(answer),
+                  LlmMessage.toolResults(
+                      List.of(LlmToolResult.of(answer.toolCalls().getFirst(), "none")), ""))));
+    }
+
+    JsonNode sent = JSON.readTree(requestBody.get());
+    assertThat(sent.at("/messages/1/content/0/type").asString()).isEqualTo("thinking");
+    assertThat(sent.at("/messages/1/content/0/thinking").asString()).isEqualTo("I should look.");
+    assertThat(sent.at("/messages/1/content/0/signature").asString()).isEqualTo("sig-1");
+    assertThat(sent.at("/messages/1/content/1/type").asString()).isEqualTo("redacted_thinking");
+    assertThat(sent.at("/messages/1/content/1/data").asString()).isEqualTo("opaque");
+    assertThat(sent.at("/messages/1/content/2/type").asString()).isEqualTo("tool_use");
   }
 
   @Test

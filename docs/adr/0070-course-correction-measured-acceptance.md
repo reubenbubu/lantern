@@ -41,7 +41,7 @@ someone wrote an extractor for.
 The user's decisions, recorded here; the design says what follows from them.
 
 1. **The LLM may find, not only word.** A new role, Investigate (design, LLM integration), reads
-   files and queries the graph through tools (#169) and proposes elements, connections and risks.
+   files and queries the graph through tools (#169, ADR 0081) and proposes elements, connections and risks.
    Each proposal cites file:line ranges that Lantern verifies: the range exists at the snapshot's
    commit and holds the identifiers the proposal names; anything else is rejected. Accepted
    proposals are facts with `origin=llm` and a confidence, and documents mark them as found by the

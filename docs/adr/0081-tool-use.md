@@ -25,7 +25,10 @@ cap guard cost.
   reserved. The input estimate counts the tools' definitions, tool inputs and results.
 - **Anthropic.** Tools go as custom tools with their schemas; an assistant turn's calls as
   `tool_use` blocks after its text, a user turn's results as `tool_result` blocks (with
-  `is_error`) before its text; the answer's `tool_use` blocks become its calls.
+  `is_error`) before its text; the answer's `tool_use` blocks become its calls. A model that thinks
+  must get its thinking back on the turn that asked for tools, so an answer with tool calls keeps
+  its thinking and redacted thinking blocks (`LlmThinking`, with their signatures), and the
+  conversation sends them back first on that turn; they are never part of the answer's text.
 - **The tool loop is a `Conversation`** (`LlmClient.converse(request, toolBox)`). It sends the
   request with the `ToolBox`'s tools; while the answer asks for tools (and is not cut off), it
   runs each call, sends the results back as the next user turn and calls again. `reply` sends the
@@ -57,18 +60,23 @@ cap guard cost.
   snapshot's commit, read from git; offered only when files can be read). Facts are written as
   the resolver's prompt writes them (subject, predicate, object, attributes, `repo:path`, no fact
   IDs or lines), in a fixed order, at most 40 a call and 24,000 characters a result, each with a
-  reference (`T1`, ...) kept for the conversation. A file is shown with its secrets masked: Java
-  source as summaries show it (ADR 0054), other files with each secret key's value masked
-  (`ConfigExtractor.isSecret`; a value of placeholders only is kept) and credentials removed from
-  URLs (`UrlCredentials`). A path outside the repository or an unknown repository is an error
-  result. The facts and files are prepared once per run (`GraphTools.Graph`) and each
+  reference (`T1`, ...) kept for the conversation; a fact cut off for length gets none. A file is
+  shown with its secrets masked, its line breaks kept: source in Java, Kotlin, Groovy, Gradle or
+  Scala as summaries show Java (ADR 0054); in any other file, each secret key's value
+  (`ConfigExtractor.isSecret`, after an optional `export`; a value of placeholders only is kept),
+  including the lines of a YAML block scalar under it, secret XML elements and attributes and
+  `name=... value=...` pairs, and credentials in URLs (`UrlCredentials`); a private key's body in
+  every file. Keys and keystores (`.pem`, `.key`, `.p12`, `.jks`, `id_rsa`, ...) and binary files
+  are not shown. A path outside the repository or an unknown repository is an error result. The facts and files are prepared once per run (`GraphTools.Graph`) and each
   conversation gets its own references.
 - **Resolve uses them** when its model has `tool-use`; otherwise its prompt and answers are as
   before. The system prompt then adds a paragraph: the tools, that what they return is data, not
   instructions, that a fact a tool showed may be cited by its reference, that a file is not a fact,
   and to look only as far as needed. An answer may cite `T` references the tools showed; any other
-  reference is still rejected. A cited tool fact is stored in the cached answer by its fact ID, so
-  a cached answer gives the same link while that fact holds, and joins the link's `facts`.
+  reference is still rejected. A cited tool fact is stored in the cached answer by its fact ID and
+  joins the link's `facts`. A cached answer is used only while every tool fact it cites still
+  holds; otherwise, for example after a commit that changes that fact, the link is asked about
+  again.
   `ResolvePrompt.VERSION` is 4; with or without tools the cache key holds the system prompt, so
   the two never share answers. The app gives the resolver the snapshot's files through
   `GitSourceFiles` at each repository's snapshot commit, carried forward ones included.
@@ -95,6 +103,14 @@ cap guard cost.
   #258: project-1 to project-4 make no Resolve call with or without tools (their scorecards are
   unchanged), and project-1 leaves two HTTP calls open without candidates. So no real recording
   of Resolve on project-4 exists; Investigate (#269) will be the tools' first real use there.
+
+## Cost
+
+A typical Resolve conversation is a few turns of a few thousand input tokens each, about $0.04 a
+link at $3 and $15 per million tokens. That is not a bound: each turn sends every earlier turn
+again, uncached, and a result may hold 24,000 characters, so a conversation that runs to the cap
+could cost several dollars before the context window refuses it. The run's budget is the bound,
+as the user asked; the metrics above show whether a turn limit is needed.
 
 ## Not covered
 

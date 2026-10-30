@@ -745,6 +745,23 @@ class LinkResolverTest {
   }
 
   @Test
+  void aCachedAnswerWhoseToolsFactNoLongerHoldsIsAskedAgain() {
+    taxCall();
+    resolveWithFiles(lookingFurther());
+    facts.removeIf(
+        f ->
+            f.predicate().equals(SpringExtractor.STEREOTYPE)
+                && f.subject().toString().equals("type:t.TaxController"));
+    FakeLlmProvider again = lookingFurther();
+
+    LinkResolver.Result second = resolveWithFiles(again);
+
+    assertThat(again.sent()).isNotEmpty();
+    assertThat(second.reused()).isZero();
+    assertThat(second.asked()).isEqualTo(1);
+  }
+
+  @Test
   void aModelWithoutToolUseGetsThePromptAlone() {
     taxCall();
     FakeLlmProvider fake = answering(r -> PICK_TAX);

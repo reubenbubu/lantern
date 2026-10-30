@@ -14,9 +14,11 @@ import com.anthropic.models.messages.ContentBlockParam;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
+import com.anthropic.models.messages.RedactedThinkingBlockParam;
 import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.TextBlock;
 import com.anthropic.models.messages.TextBlockParam;
+import com.anthropic.models.messages.ThinkingBlockParam;
 import com.anthropic.models.messages.ThinkingConfigDisabled;
 import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolResultBlockParam;
@@ -28,6 +30,7 @@ import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
+import io.lantern.llm.LlmThinking;
 import io.lantern.llm.LlmTool;
 import io.lantern.llm.LlmToolCall;
 import io.lantern.llm.LlmToolResult;
@@ -59,7 +62,8 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>A request's tools are sent as custom tools with their input schemas; an assistant turn's tool
  * calls as {@code tool_use} blocks after its text, and a user turn's tool results as {@code
  * tool_result} blocks before its text. An answer's {@code tool_use} blocks become its tool calls
- * (ADR 0081).
+ * (ADR 0081). The thinking blocks of an answer that asks for tools are kept, with their signatures,
+ * and sent back first on that assistant turn, as the API requires when thinking is on.
  */
 public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 
@@ -211,12 +215,12 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
               .description(tool.description())
               .inputSchema(
                   Tool.InputSchema.builder()
-                      .additionalProperties(fields(tool.inputSchema()))
+                      .additionalProperties(withoutType(fields(tool.inputSchema())))
                       .build())
               .build());
     }
     for (LlmMessage turn : request.messages()) {
-      if (turn.toolCalls().isEmpty() && turn.toolResults().isEmpty()) {
+      if (turn.toolCalls().isEmpty() && turn.toolResults().isEmpty() && turn.thinking().isEmpty()) {
         switch (turn.author()) {
           case USER -> params.addUserMessage(turn.text());
           case ASSISTANT -> params.addAssistantMessage(turn.text());
@@ -224,6 +228,18 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
         continue;
       }
       List<ContentBlockParam> blocks = new ArrayList<>();
+      // Thinking goes back first, unchanged, on the turn that asked for tools, as the API asks.
+      for (LlmThinking thought : turn.thinking()) {
+        blocks.add(
+            thought.redacted()
+                ? ContentBlockParam.ofRedactedThinking(
+                    RedactedThinkingBlockParam.builder().data(thought.text()).build())
+                : ContentBlockParam.ofThinking(
+                    ThinkingBlockParam.builder()
+                        .thinking(thought.text())
+                        .signature(thought.signature() == null ? "" : thought.signature())
+                        .build()));
+      }
       // Tool results come first in a user turn, as the API asks.
       for (LlmToolResult result : turn.toolResults()) {
         blocks.add(
@@ -257,6 +273,12 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     return params.build();
   }
 
+  /** The schema's fields without its type, which the SDK always sends as {@code object}. */
+  private static Map<String, JsonValue> withoutType(Map<String, JsonValue> fields) {
+    fields.remove("type");
+    return fields;
+  }
+
   /** The fields of a JSON object as the SDK's values. */
   private static Map<String, JsonValue> fields(JsonNode object) {
     Map<String, JsonValue> fields = new LinkedHashMap<>();
@@ -269,10 +291,15 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
   static LlmResponse response(Message message) {
     StringBuilder text = new StringBuilder();
     List<LlmToolCall> calls = new ArrayList<>();
-    // Only text and tool use blocks: thinking and redacted thinking blocks are not part of the
-    // answer.
+    List<LlmThinking> thought = new ArrayList<>();
+    // Thinking and redacted thinking blocks are not part of the answer's text; they are kept only
+    // for an answer that asks for tools, to be sent back with it.
     for (ContentBlock block : message.content()) {
       block.text().map(TextBlock::text).ifPresent(text::append);
+      block
+          .thinking()
+          .ifPresent(t -> thought.add(new LlmThinking(t.thinking(), t.signature(), false)));
+      block.redactedThinking().ifPresent(r -> thought.add(new LlmThinking(r.data(), null, true)));
       block
           .toolUse()
           .ifPresent(
@@ -294,6 +321,7 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
             usage.outputTokens(),
             usage.cacheCreationInputTokens().orElse(0L),
             usage.cacheReadInputTokens().orElse(0L)),
-        calls);
+        calls,
+        calls.isEmpty() ? List.of() : thought);
   }
 }
