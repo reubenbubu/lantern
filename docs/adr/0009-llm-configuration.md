@@ -24,8 +24,8 @@ app; model identifiers, prices and keys must not be in the code.
     `lantern.llm.anthropic.base-url`.
   - `lantern.llm.monthly-budget-usd`, set to 100 in `application.properties` from the design.
   - Per-model call limits and `lantern.llm.retry.*`, which have defaults: see ADR 0021.
-  - Per-model `disable-thinking` and `thinking-headroom-tokens`, for models that think by
-    default: see ADR 0022.
+  - Per-model `disable-thinking`, `thinking-off-switch` and `thinking-headroom-tokens`, for
+    models that think by default: see ADR 0022.
   No model has a default anywhere in the repository. Properties can come from any Spring source,
   such as environment variables or a file outside the repository.
 - **Unconfigured means refused, not broken.** With no tier set, or when the models in use need

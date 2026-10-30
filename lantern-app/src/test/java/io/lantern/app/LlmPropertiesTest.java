@@ -266,4 +266,28 @@ class LlmPropertiesTest {
         .hasMessageContaining(
             "lantern.llm.models.glm.thinking-headroom-tokens must not be negative");
   }
+
+  @Test
+  void theThinkingOffSwitchIsReadAndAModelWithoutOneIsNotAskedToTurnThinkingOff() {
+    model("sonnet", "fake", "sonnet-model");
+    model("opus", "fake", "opus-model");
+    tiers("sonnet", "opus");
+    values.put("lantern.llm.models.sonnet.disable-thinking", "true");
+    values.put("lantern.llm.models.sonnet.thinking-off-switch", "between-tools");
+    values.put("lantern.llm.models.opus.thinking-off-switch", "none");
+    values.put("lantern.llm.models.opus.thinking-headroom-tokens", "2000");
+
+    ModelSettings settings = bind().modelSettings();
+
+    assertThat(settings.forRole(Role.SUMMARIZE).thinking())
+        .isEqualTo(new Thinking(true, 0, Thinking.OffSwitch.BETWEEN_TOOLS));
+    assertThat(settings.forRole(Role.RESOLVE).thinking())
+        .isEqualTo(new Thinking(false, 2000, Thinking.OffSwitch.NONE));
+
+    values.put("lantern.llm.models.opus.disable-thinking", "true");
+    assertThatThrownBy(this::bindAndBuild)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("lantern.llm.models.opus.disable-thinking is true")
+        .hasMessageContaining("cannot turn thinking off");
+  }
 }

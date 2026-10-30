@@ -1,6 +1,6 @@
 # 0022: Models that think by default
 
-Status: accepted (#69), pending the user's review (#24)
+Status: accepted (#69), amended for #301, pending the user's review (#24)
 
 ## Context
 
@@ -55,3 +55,37 @@ default, and accepts both `thinking: {type: "disabled"}` and OpenRouter's
 
 Turning thinking off through provider-specific fields other than Anthropic's `thinking`, and sizing
 the headroom automatically from observed usage.
+
+## Amendment (#301): models that turn thinking off another way, or cannot
+
+One provider's models differ in how thinking is turned off. Some current Anthropic models reject
+`thinking: {type: "disabled"}` with a 400 and take `{type: "between_tools"}`, with no other field
+in the object, as their off switch; others cannot turn thinking off at all, and only a lower
+effort reduces it. So a model configured with `disable-thinking=true` failed every call on the
+first kind, and could never work on the second.
+
+- **A third per-model setting, `thinking-off-switch`**, says how the model turns thinking off, so
+  the behavior comes from configuration and the code names no model:
+  - `disabled` (the default, so existing settings are unchanged): `{type: "disabled"}`.
+  - `between-tools`: `{type: "between_tools"}` and nothing else in the thinking object. It takes
+    effect only at effort `high` or below; Lantern sends no effort, and these models' default is
+    `high`.
+  - `none`: the model cannot turn thinking off.
+
+  For example, for a model under the name `sonnet` that turns thinking off between tools:
+  `lantern.llm.models.sonnet.disable-thinking=true` and
+  `lantern.llm.models.sonnet.thinking-off-switch=between-tools`.
+- **Turning thinking off where it cannot be is refused at startup.** `disable-thinking=true` with
+  `thinking-off-switch=none` stops the app with a message naming both properties and pointing to
+  `thinking-headroom-tokens`, the way to run such a model with thinking on. Mapping the request to
+  the lowest effort instead was rejected: effort also changes how well the model answers, Lantern
+  has no effort setting yet, and silently trading quality for a setting that asked for something
+  else would hide the mismatch. `Thinking` refuses the same combination, so no other way in can
+  build it.
+- **Record/replay keys on the off switch only when thinking is off and the switch is not
+  `disabled`**, so existing recordings keep their names, and a switch that is set but not used
+  sends nothing more and keys nothing more.
+- **Tests**: the loopback stub also plays a model that rejects `disabled` with a 400 and turns
+  thinking off on `between_tools`; the provider tests check the thinking object each setting
+  sends.
+

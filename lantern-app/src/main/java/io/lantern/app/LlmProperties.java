@@ -142,6 +142,8 @@ public record LlmProperties(
    *     set
    * @param thinkingHeadroomTokens extra output tokens added to every call's output limit, for a
    *     model that thinks anyway; none if not set
+   * @param thinkingOffSwitch how the model turns thinking off ({@code disabled}, {@code
+   *     between-tools} or {@code none}); {@code disabled} if not set
    */
   public record Model(
       String provider,
@@ -152,7 +154,8 @@ public record LlmProperties(
       Integer maxConcurrency,
       Integer requestsPerMinute,
       Boolean disableThinking,
-      Integer thinkingHeadroomTokens) {
+      Integer thinkingHeadroomTokens,
+      Thinking.OffSwitch thinkingOffSwitch) {
 
     ModelConfig toConfig(String property) {
       require(property + ".provider", provider);
@@ -175,9 +178,19 @@ public record LlmProperties(
         throw new IllegalStateException(
             property + ".thinking-headroom-tokens must not be negative: " + thinkingHeadroomTokens);
       }
+      boolean disabled = Boolean.TRUE.equals(disableThinking);
+      Thinking.OffSwitch offSwitch =
+          thinkingOffSwitch == null ? Thinking.OffSwitch.DISABLED : thinkingOffSwitch;
+      if (disabled && offSwitch == Thinking.OffSwitch.NONE) {
+        throw new IllegalStateException(
+            property
+                + ".disable-thinking is true, but "
+                + property
+                + ".thinking-off-switch is none: this model cannot turn thinking off. Remove"
+                + " disable-thinking and set thinking-headroom-tokens instead");
+      }
       return new Thinking(
-          Boolean.TRUE.equals(disableThinking),
-          thinkingHeadroomTokens == null ? 0 : thinkingHeadroomTokens);
+          disabled, thinkingHeadroomTokens == null ? 0 : thinkingHeadroomTokens, offSwitch);
     }
 
     private CallLimits limits(String property) {

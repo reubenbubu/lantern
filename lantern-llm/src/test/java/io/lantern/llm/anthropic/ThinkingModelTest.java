@@ -1,12 +1,14 @@
 package io.lantern.llm.anthropic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmClient;
+import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelConfig;
@@ -34,8 +36,9 @@ import tools.jackson.databind.node.ObjectNode;
  * Runs {@link LlmClient} and {@link AnthropicProvider} against a stub of a model that thinks by
  * default, on the loopback interface. The stub writes a thinking block before its answer and counts
  * the thinking tokens against {@code max_tokens}, like the real APIs; it can honor {@code thinking:
- * {type: "disabled"}} (as DeepSeek does) or accept it and think anyway (as GLM through OpenRouter
- * does). Never reaches the network.
+ * {type: "disabled"}} (as DeepSeek does), accept it and think anyway (as GLM through OpenRouter
+ * does), or reject it with a 400 and take {@code thinking: {type: "between_tools"}} with no other
+ * field as its off switch instead (as current Sonnet models do). Never reaches the network.
  */
 class ThinkingModelTest {
 
@@ -46,6 +49,7 @@ class ThinkingModelTest {
 
   private HttpServer server;
   private volatile boolean honorsDisabled;
+  private volatile boolean offOnlyBetweenTools;
   private final AtomicReference<JsonNode> sent = new AtomicReference<>();
   private final InMemoryLlmCallLog log = new InMemoryLlmCallLog();
 
@@ -59,9 +63,21 @@ class ThinkingModelTest {
               JSON.readTree(
                   new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
           sent.set(request);
-          byte[] body = JSON.writeValueAsBytes(answer(request));
+          int status = 200;
+          byte[] body;
+          if (offOnlyBetweenTools && request.at("/thinking/type").asString("").equals("disabled")) {
+            status = 400;
+            body =
+                """
+                {"type": "error", "error": {"type": "invalid_request_error",
+                 "message": "thinking.type: disabled is not supported for this model"}}
+                """
+                    .getBytes(StandardCharsets.UTF_8);
+          } else {
+            body = JSON.writeValueAsBytes(answer(request));
+          }
           exchange.getResponseHeaders().add("Content-Type", "application/json");
-          exchange.sendResponseHeaders(200, body.length);
+          exchange.sendResponseHeaders(status, body.length);
           exchange.getResponseBody().write(body);
           exchange.close();
         });
@@ -78,7 +94,12 @@ class ThinkingModelTest {
     int maxTokens = request.get("max_tokens").asInt();
     JsonNode type = request.at("/thinking/type");
     boolean disabled = type.isString() && type.asString().equals("disabled");
-    int thinking = disabled && honorsDisabled ? 0 : THINKING_TOKENS;
+    boolean betweenTools =
+        type.isString()
+            && type.asString().equals("between_tools")
+            && request.get("thinking").size() == 1;
+    int thinking =
+        (disabled && honorsDisabled) || (betweenTools && offOnlyBetweenTools) ? 0 : THINKING_TOKENS;
     ObjectNode message = JSON.createObjectNode();
     message.put("id", "msg_1").put("type", "message").put("role", "assistant");
     message.put("model", request.get("model").asString());
@@ -171,5 +192,41 @@ class ThinkingModelTest {
     assertThat(whole.text()).isEqualTo(ANSWER);
     assertThat(whole.usage().output()).isEqualTo(THINKING_TOKENS + ANSWER_TOKENS);
     assertThat(log.calls().getLast().outcome()).isEqualTo(LlmCall.Outcome.SUCCEEDED);
+  }
+
+  @Test
+  void aModelWhoseOffSwitchIsBetweenToolsAnswersInFull() {
+    offOnlyBetweenTools = true;
+
+    // Asked the old way, such a model refuses the call.
+    assertThatThrownBy(() -> call(new Thinking(true, 0)))
+        .isInstanceOf(LlmException.class)
+        .hasMessageContaining("400");
+
+    LlmResponse response = call(new Thinking(true, 0, Thinking.OffSwitch.BETWEEN_TOOLS));
+
+    assertThat(sent.get().get("thinking"))
+        .isEqualTo(JSON.createObjectNode().put("type", "between_tools"));
+    assertThat(sent.get().get("max_tokens").asInt()).isEqualTo(50);
+    assertThat(response.cutOff()).isFalse();
+    assertThat(response.text()).isEqualTo(ANSWER);
+    assertThat(log.calls().getLast().outcome()).isEqualTo(LlmCall.Outcome.SUCCEEDED);
+  }
+
+  @Test
+  void anOffSwitchSendsNothingWhileThinkingIsOn() {
+    call(new Thinking(false, 0, Thinking.OffSwitch.BETWEEN_TOOLS));
+    assertThat(sent.get().has("thinking")).isFalse();
+
+    call(new Thinking(false, 400, Thinking.OffSwitch.NONE));
+    assertThat(sent.get().has("thinking")).isFalse();
+    assertThat(sent.get().get("max_tokens").asInt()).isEqualTo(450);
+  }
+
+  @Test
+  void aModelWithoutAnOffSwitchCannotBeAskedToTurnThinkingOff() {
+    assertThatThrownBy(() -> new Thinking(true, 0, Thinking.OffSwitch.NONE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("off switch is none");
   }
 }
