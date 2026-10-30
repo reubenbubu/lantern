@@ -277,6 +277,39 @@ class MessagingExtractorTest {
             l ->
                 l.startsWith(
                     declarations + "paymentsTopic() message-destination payments.settled "))
+        // Dead letters in an arguments Map, of the constructor and of withArguments, the latter
+        // followed from a @Value parameter.
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "held() message-destination orders.held ")
+                    && l.contains("\"deadLetterExchange\":\"shop.dlx\"")
+                    && l.contains("\"deadLetterRoutingKey\":\"held\"")
+                    && l.contains("\"durable\":true"))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        declarations
+                            + "paymentsHeld(java.lang.String) message-destination payments.held ")
+                    && l.contains("\"deadLetterExchange\":\"payments.refunds\""))
+        // A custom exchange's durable is its third argument, true when absent.
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "delayed() message-destination delayed ")
+                    && l.contains("\"exchangeType\":\"x-delayed-message\"")
+                    && l.contains("\"durable\":true"))
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "delayed() message-destination delayed.temp ")
+                    && l.contains("\"durable\":false"))
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "auditEvents() message-destination audit.events ")
+                    && l.contains("\"durable\":false"))
+        // A field initializer: on the type.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "type:com.example.events.DeclarationsConfig message-destination audit.parked "))
         // Declarations bound elsewhere are declarations too, with placeholders resolved.
         .anyMatch(
             l ->

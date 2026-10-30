@@ -114,16 +114,19 @@ Research: [`docs/research/extractor-messaging.md`](../research/extractor-messagi
   or a binding, is a chain of its own and gives its own fact.
 - **Attributes:** `broker` (`rabbitmq`, `kafka`), `destinationKind` (`queue`, `exchange`,
   `topic`), `exchangeType` when known, and for RabbitMQ `durable` when the declaration tells (a
-  `QueueBuilder` factory or `durable(...)` call, a constructor's literal second argument; a
-  `new Queue(name)` and an exchange are durable by default). A queue's dead-letter routing:
-  `deadLetterExchange` and `deadLetterRoutingKey`, from the builder's methods or the
-  `x-dead-letter-exchange` and `x-dead-letter-routing-key` arguments of `withArgument`, followed
-  and resolved like the name.
+  `QueueBuilder` factory, `ExchangeBuilder`'s `durable(...)`, a constructor's literal `durable`
+  argument, the second, or the third for `CustomExchange`; durable when the constructor has no
+  such argument, and for `ExchangeBuilder` without `durable(...)`, as Spring's are). A queue's
+  dead-letter routing: `deadLetterExchange` and `deadLetterRoutingKey`, from the builder's
+  methods, or the `x-dead-letter-exchange` and `x-dead-letter-routing-key` arguments given to
+  `withArgument` or written as `Map.of(...)` for `withArguments` or the queue constructor's
+  arguments, followed and resolved like the name.
 - **Still not covered**, each a later issue: values behind `@ConfigurationProperties` accessors
   and helper methods (#447); template defaults and the JMS queue or topic from the container
   factory (#448); Kafka retry and dead-letter topics, Kafka Streams, plain consumers,
   `topicPartitions` and the group from config (#449); Spring Integration adapters, request and
   reply templates, `AmqpAdmin` and XML declarations, exchange-to-exchange bindings and
   programmatic containers (#450); Spring Modulith, outbox and CDC, the cloud brokers and Pulsar
-  (#451); the arguments `Map` of `new Queue(name, durable, exclusive, autoDelete, arguments)`;
+  (#451); queue arguments other than `Map.of(...)` written in place (a map built over statements
+  or held in a field), and dead-letter routing set by a broker policy, which code does not show;
   and how documents show declared destinations and dead-letter routes (#452).

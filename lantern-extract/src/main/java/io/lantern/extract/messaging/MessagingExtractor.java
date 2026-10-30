@@ -905,13 +905,23 @@ public final class MessagingExtractor {
       Expression.Invoke first = chain.getFirst();
       Boolean durable = null;
       if (first.method().equals(ModuleStructure.CONSTRUCTOR)) {
-        // new Queue(name), new Queue(name, durable, ...), new TopicExchange(name, durable, ...)
+        // new Queue(name), new Queue(name, durable, exclusive, autoDelete, arguments), new
+        // TopicExchange(name, durable, ...), new CustomExchange(name, type, durable, ...)
+        boolean custom =
+            first.receiver() instanceof Expression.TypeRef t
+                && t.binaryName().equals(AMQP + "CustomExchange");
+        int index = custom ? 2 : 1;
+        List<Expression> arguments = first.arguments();
         durable =
-            first.arguments().size() >= 2
-                    && first.arguments().get(1) instanceof Expression.Literal l
-                    && (l.value().equals("true") || l.value().equals("false"))
-                ? Boolean.valueOf(l.value())
-                : first.arguments().size() >= 2 ? null : true;
+            arguments.size() <= index
+                ? Boolean.TRUE
+                : arguments.get(index) instanceof Expression.Literal l
+                        && (l.value().equals("true") || l.value().equals("false"))
+                    ? Boolean.valueOf(l.value())
+                    : null;
+        if (!exchange && arguments.size() == 5) {
+          deadLetters(arguments.get(4), context, named);
+        }
       } else if (first.method().equals("durable") || first.method().equals("nonDurable")) {
         durable = first.method().equals("durable");
       } else if (exchange) {
@@ -932,6 +942,11 @@ public final class MessagingExtractor {
               named.put(link.method(), t);
             }
           }
+          case "withArguments" -> {
+            if (link.arguments().size() == 1) {
+              deadLetters(link.arguments().getFirst(), context, named);
+            }
+          }
           case "withArgument" -> {
             if (link.arguments().size() == 2
                 && link.arguments().getFirst() instanceof Expression.Literal key
@@ -949,6 +964,28 @@ public final class MessagingExtractor {
         attributes.put("durable", durable);
       }
       emit(context, DESTINATION, d.name(), named, attributes, where);
+    }
+
+    /**
+     * The dead-letter routing in a queue's arguments written as {@code Map.of(key, value, ...)}.
+     */
+    private void deadLetters(Expression map, EntityId context, Map<String, Text> named) {
+      if (!(map instanceof Expression.Invoke call)
+          || !call.method().equals("of")
+          || !(call.receiver() instanceof Expression.TypeRef t)
+          || !t.binaryName().equals("java.util.Map")) {
+        return;
+      }
+      List<Expression> pairs = call.arguments();
+      for (int k = 0; k + 1 < pairs.size(); k += 2) {
+        if (pairs.get(k) instanceof Expression.Literal key
+            && DEAD_LETTER_ARGUMENTS.containsKey(key.value())) {
+          Text value = text(pairs.get(k + 1), context);
+          if (value != null) {
+            named.put(DEAD_LETTER_ARGUMENTS.get(key.value()), value);
+          }
+        }
+      }
     }
 
     /** The Kafka topic a chain declares: {@code TopicBuilder.name(...)} or {@code new NewTopic}. */
