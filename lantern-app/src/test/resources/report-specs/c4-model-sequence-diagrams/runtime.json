@@ -270,7 +270,7 @@
   }, {
     "id" : "sequences-shop-app-controller-list",
     "level" : "sequence",
-    "title" : "GET /orders on shop-app",
+    "title" : "List (GET /orders on shop-app)",
     "summary" : "Starts when shop-app receives GET /orders, handled by Controller.list. It reaches orders, shop on db, pay.example.com and worker. It hands work on asynchronously through orders.",
     "sections" : [ {
       "type" : "table",
@@ -281,7 +281,7 @@
     }, {
       "type" : "sequence",
       "id" : "sequences-shop-app-controller-list-diagram",
-      "title" : "GET /orders on shop-app",
+      "title" : "List (GET /orders on shop-app)",
       "participants" : [ "service-com-example-app", "topic-kafka-orders", "database-db-5432-shop", "external-system-pay-example-com", "service-com-example-worker" ],
       "steps" : [ {
         "note" : "Starts when shop-app receives GET /orders (Controller.list).",
@@ -331,12 +331,12 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([GET /orders on shop-app](#/sequences-shop-app-controller-list/sequences-shop-app-controller-list-diagram)): The template's legend has no arrowhead for asynchronous messages." ]
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([List (GET /orders on shop-app)](#/sequences-shop-app-controller-list/sequences-shop-app-controller-list-diagram)): The template's legend has no arrowhead for asynchronous messages." ]
     } ]
   }, {
     "id" : "sequences-shop-app-jobs-run",
     "level" : "sequence",
-    "title" : "Jobs.run on its schedule in shop-app",
+    "title" : "Run (Jobs.run on its schedule in shop-app)",
     "summary" : "Starts when the schedule 0 0 * * * * fires in shop-app, handled by Jobs.run. It reaches orders, shop on db and worker. It hands work on asynchronously through orders.",
     "sections" : [ {
       "type" : "table",
@@ -347,7 +347,7 @@
     }, {
       "type" : "sequence",
       "id" : "sequences-shop-app-jobs-run-diagram",
-      "title" : "Jobs.run on its schedule in shop-app",
+      "title" : "Run (Jobs.run on its schedule in shop-app)",
       "participants" : [ "service-com-example-app", "topic-kafka-orders", "database-db-5432-shop", "service-com-example-worker" ],
       "steps" : [ {
         "note" : "Starts when the schedule 0 0 * * * * fires in shop-app (Jobs.run).",
@@ -385,7 +385,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Jobs.run on its schedule in shop-app](#/sequences-shop-app-jobs-run/sequences-shop-app-jobs-run-diagram)): The template's legend has no arrowhead for asynchronous messages." ]
+      "items" : [ "**A legend for every shape, color, line style and arrowhead used** ([Run (Jobs.run on its schedule in shop-app)](#/sequences-shop-app-jobs-run/sequences-shop-app-jobs-run-diagram)): The template's legend has no arrowhead for asynchronous messages." ]
     } ]
   }, {
     "id" : "decisions",

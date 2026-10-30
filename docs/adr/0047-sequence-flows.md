@@ -1,8 +1,8 @@
 # 0047: Sequence flows traced from entry points and stitched across containers
 
 Status: accepted (#96), amended by ADR 0049 (#176), ADR 0050 (#181), ADR 0058 (#195), ADR 0070
-(#250), which supersedes its choosing of flows, and the amendments below (#313, #331), pending the
-user's review (#24)
+(#250), which supersedes its choosing of flows, and the amendments below (#313, #331, #272),
+pending the user's review (#24)
 
 ## Context
 
@@ -160,3 +160,57 @@ are not traced into the flow; a request the gateway answers itself through a `fo
 to its gateway); and an entry point that both a frontend and another flow reach is shown only as
 part of that flow. On project-4 the password-reset flow still ranks below the seven shown (#272
 chooses by business weight).
+
+## Amendment: business scenarios, not endpoints (#272)
+
+Status: accepted, pending the user's review (#24). ADR 0070 asked that flows be chosen by
+cross-service reach and business weight and titled as scenarios. project-4's report titled flows
+by endpoint, showed one role call where creating an organization makes two, dropped main-service's
+deliveries to its own listeners, and noted fourteen times that one of `CrmException`'s subclasses
+"runs" a constructor; project-2's flows were pollers and CRUD, three of them at the message cap.
+
+- **A method is traced each time the code calls it**, not once per flow: two calls to the same
+  helper from two places are two steps. Only a recursive call, to a method being traced, is not
+  followed again; a method whose code added nothing is not traced again, so the trace stays
+  small (code that reached a recursive call it did not follow is not taken as adding nothing). A
+  delivery or a job is traced once per flow, so a listener that sends to itself does not loop. The
+  trace also stops after 80 steps, notes included, as well as after 40 messages.
+- **A constructor is never an alternative**: `new X()` runs `X`'s constructor, not one of a class
+  below it, so it is followed directly, without an `alt` frame or a note.
+- **Self-deliveries are kept.** The linker now links a send to a listener of the same unit
+  (ADR 0042, amendment for #272), so the flow draws the delivery back to the unit, such as
+  main-service's default task statuses and priorities after `org.created`.
+- **A run of data access is one step.** A unit's reads, writes and repository calls in the same
+  database, under the same profiles, one after another, are one message: "Reads orders, payment;
+  writes payment; calls ParcelRepository.save", with at most four names a verb before "and N
+  more".
+- **Choosing.** After the sign-in and socket flows, which still come first (a sign-in now also
+  when no browser starts it: an endpoint whose own path has a sign-in segment), the rest are taken
+  in rank order with what someone asks for (a request, a socket or a STOMP message from a client)
+  before a message a listener takes, before a schedule or a job that runs apart from a request.
+  A flow that reaches nothing but databases from its entry point, not started in a browser, shows
+  nothing the container diagram does not: it comes last and is shown only while fewer than three
+  are. Same-shape and containing flows are handled as before.
+- **Titles.** A flow's title names its scenario, then its trigger in brackets: "Create
+  organization (POST /api/organizations on main-service)". The LLM words the scenario as a title
+  of at most six words in the same call that words the walkthrough and conditions (ADR 0058; the
+  answer's `title`, which must cite a fact like the other texts, raising the flow prompt's
+  version). Without its title, the scenario is the entry point's method name in words
+  (`createOrganization` as "Create organization"); a method of one word adds the words of its
+  type that do not name a kind of class (`Status.get` as "Get status"). The free fake model of
+  ADR 0072 answers the title with `{{placeholder: scenario title}}`.
+- **Checks.** `SequenceFlowsTest` covers constructors, a helper called from two places, a unit
+  sending to its own listener, a run of data access, the order of requests, schedules and flows
+  that reach only databases, a sign-in endpoint without a browser and the titles;
+  `CrossRepoLinksTest` a send to the unit's own listener; `DescriberTest` the LLM's title;
+  `Project0EndToEndIT` the new steps of FLOW-1 and FLOW-2.
+
+### Not covered
+
+Branches around a send, such as an email sent only under a condition, are still drawn as always
+happening: the call graph records no conditions (#350). A flow still starts at its unit's
+endpoint when no frontend's call reaches it, not at the gateway route a client calls (#351), so
+project-1's administrator flow and project-3's watch record keep the unit's path as their
+trigger. Flows of the same shape still differ only by rank: of project-4's sign-up, password
+reset and resend, the first by ID is shown.
+

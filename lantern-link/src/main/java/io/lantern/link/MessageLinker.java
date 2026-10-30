@@ -294,12 +294,13 @@ final class MessageLinker {
     return (topic ? LinkText.topicMatches(pattern, key) : pattern.equals(key)) ? 1.0 : 0;
   }
 
-  /** The link from the unit sending to the unit listening, unless they are the same. */
+  /**
+   * The link from the unit sending to the unit listening, also when they are the same: a unit that
+   * hands work to its own listener through the broker is a step of its flows (ADR 0047, amendment
+   * for #272).
+   */
   private void link(
       Use send, String view, EntityId destination, Use binding, Use listener, double factor) {
-    if (send.unit().equals(listener.unit())) {
-      return;
-    }
     Fact s = send.fact();
     Fact l = listener.fact();
     ObjectNode attributes = FactJson.newObject();

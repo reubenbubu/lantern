@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), pending the user's review (#24)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), amended (#272), pending the user's review (#24)
 
 ## Context
 
@@ -189,3 +189,11 @@ expressions, which several units' endpoints match.
   `${...}` placeholder) starts, and a path's segments are split at slashes outside braces, so an
   expression is one segment whatever its source holds.
 - The step's version becomes 14.
+
+## Amendment (#272): a send to the unit's own listener
+
+A send that reaches a listener of the sending unit is now a `SENDS_MESSAGES_TO` link from the unit
+to itself, like any other, so the sequence flows draw the delivery (ADR 0047, amendment for #272).
+Before, such sends were left out. The Executive Brief's dependents and dependencies already leave
+out links inside the repository's units. The step's version becomes 15.
+

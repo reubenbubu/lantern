@@ -250,6 +250,13 @@ class SequenceFlowsTest {
         .orElseThrow();
   }
 
+  /** The trigger a flow's title names after its scenario: "GET /status on ship". */
+  private static String trigger(Section flow) {
+    String title = flow.title();
+    int open = title.indexOf(" (");
+    return open < 0 || !title.endsWith(")") ? title : title.substring(open + 2, title.length() - 1);
+  }
+
   private static SequenceDiagram diagram(Section flow) {
     return flow.blocks().stream()
         .filter(SequenceDiagram.class::isInstance)
@@ -301,7 +308,7 @@ class SequenceFlowsTest {
     // pay's endpoint and ship's listener are part of the order flow; ship's status endpoint
     // reaches nothing outside ship.
     assertThat(flows.sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .containsExactly("POST /orders on front", "Nightly.run on its schedule in ship");
     Section order = flows.sections().getFirst();
     SequenceDiagram diagram = diagram(order);
@@ -366,10 +373,10 @@ class SequenceFlowsTest {
   @Test
   void aRepositoryShowsTheFlowsThatStartInOrPassThroughIt() {
     assertThat(flows(repo("ship")).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .containsExactly("POST /orders on front", "Nightly.run on its schedule in ship");
     assertThat(flows(repo("pay")).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .containsExactly("POST /orders on front");
   }
 
@@ -439,7 +446,7 @@ class SequenceFlowsTest {
     attribute("ship", STATUS, "stomp-send", "/topic/status", "{\"method\": \"convertAndSend\"}", 4);
 
     assertThat(flows(system(facts)).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .contains("GET /status on ship");
   }
 
@@ -451,7 +458,7 @@ class SequenceFlowsTest {
         "ship", STATUS, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 4);
 
     assertThat(flows(system(facts)).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .contains("STOMP message to /parcels/track on ship");
   }
 
@@ -539,7 +546,7 @@ class SequenceFlowsTest {
     Section order = flows(system(facts)).sections().getFirst();
     SequenceDiagram diagram = diagram(order);
 
-    assertThat(order.title()).isEqualTo("POST /orders on front");
+    assertThat(order.title()).isEqualTo("Place (POST /orders on front)");
     assertThat(diagram.participants())
         .extracting(p -> p.id().toString())
         .startsWith("person:customer", UI, FRONT);
@@ -579,7 +586,7 @@ class SequenceFlowsTest {
 
     Section status =
         flows(system(facts)).sections().stream()
-            .filter(f -> f.title().equals("GET /status on ship"))
+            .filter(f -> trigger(f).equals("GET /status on ship"))
             .findFirst()
             .orElseThrow();
     SequenceDiagram diagram = diagram(status);
@@ -649,7 +656,7 @@ class SequenceFlowsTest {
 
     Section socket =
         flows(system(facts)).sections().stream()
-            .filter(f -> f.title().equals("WebSocket connection to /ws on ship"))
+            .filter(f -> trigger(f).equals("WebSocket connection to /ws on ship"))
             .findFirst()
             .orElseThrow();
 
@@ -685,7 +692,7 @@ class SequenceFlowsTest {
 
     Section first = flows(system(facts)).sections().getFirst();
 
-    assertThat(first.title()).isEqualTo("GET /status on ship");
+    assertThat(trigger(first)).isEqualTo("GET /status on ship");
     assertThat(steps(diagram(first).steps()))
         .contains(
             "frontend:front/ui > service:x:edge: Navigates the browser to Status.get"
@@ -698,7 +705,7 @@ class SequenceFlowsTest {
     // but one starts with a request and the other on a schedule, so both are shown.
     relate("ship", STATUS, "READS_TABLE", "table:x:ship:parcel", "{}", 4);
     assertThat(flows(system(facts)).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .contains("GET /status on ship", "Nightly.run on its schedule in ship");
 
     // A second endpoint with the same lifelines in the same order is the same picture.
@@ -707,7 +714,7 @@ class SequenceFlowsTest {
     attribute("ship", track, "endpoint", "GET /track", "{}", 0);
     relate("ship", track, "READS_TABLE", "table:x:ship:parcel", "{}", 5);
     assertThat(flows(system(facts)).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .contains("GET /status on ship")
         .doesNotContain("GET /track on ship");
   }
@@ -751,7 +758,7 @@ class SequenceFlowsTest {
         2);
 
     assertThat(flows(system(facts)).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .doesNotContain("WebSocket connection to /ws on ship");
   }
 
@@ -834,7 +841,7 @@ class SequenceFlowsTest {
 
   private Section flow(Document document, String title) {
     return flows(document).sections().stream()
-        .filter(s -> s.title().equals(title))
+        .filter(s -> s.title().equals(title) || trigger(s).equals(title))
         .findFirst()
         .orElseThrow();
   }
@@ -998,7 +1005,7 @@ class SequenceFlowsTest {
     // The job's own flow is part of the endpoint's, so it is not shown apart, though it ranks
     // level with it and comes first by ID.
     assertThat(flows.sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .containsExactly("POST /orders on front", "GET /status on ship");
     SequenceDiagram diagram = diagram(flows.sections().getLast());
     assertThat(steps(diagram.steps()))
@@ -1027,7 +1034,7 @@ class SequenceFlowsTest {
         0);
 
     assertThat(flows(system(facts)).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .containsExactly("POST /orders on front", "Nightly.run on its schedule in ship");
   }
 
@@ -1044,7 +1051,7 @@ class SequenceFlowsTest {
         0);
 
     assertThat(flows(system(facts)).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .containsExactly("POST /orders on front", "Nightly.run on its schedule in ship");
   }
 
@@ -1084,7 +1091,7 @@ class SequenceFlowsTest {
 
     // The order flow touches most containers; the nightly job and the jobs touch two each, by ID.
     assertThat(flows(system(facts)).sections())
-        .extracting(Section::title)
+        .extracting(SequenceFlowsTest::trigger)
         .containsExactly(
             "POST /orders on front",
             "Job0.run on its schedule in pay",
@@ -1093,5 +1100,184 @@ class SequenceFlowsTest {
             "Job3.run on its schedule in pay",
             "Job4.run on its schedule in pay",
             "Job5.run on its schedule in pay");
+  }
+
+  // Business scenarios (ADR 0047, amendment for #272).
+
+  @Test
+  void aConstructorRunsForTheClassTheCodeNamesNotAsAlternatives() {
+    type("front", "x.front", "x.front.Problem", "class", "<init>()");
+    type("front", "x.front", "x.front.NotFound", "class", "<init>()");
+    relate("front", "type:x.front.NotFound", "EXTENDS", "type:x.front.Problem", "{}", 0);
+    relate("front", SERVICE, "CALLS", "method:x.front.Problem#<init>()", "{}", 25);
+    httpCall("front", FRONT, "method:x.front.Problem#<init>()", "log.example.com", 3);
+    httpCall("front", FRONT, "method:x.front.NotFound#<init>()", "other.example.com", 3);
+
+    List<String> steps = steps(diagram(flow(system(facts), "POST /orders on front")).steps());
+
+    assertThat(steps)
+        .contains(
+            "service:x:front > external-system:log.example.com: Calls log.example.com [POST /n]"
+                + " (Over HTTPS.)")
+        .noneMatch(step -> step.startsWith("alt") || step.contains("other.example.com"));
+  }
+
+  @Test
+  void aMethodCalledFromTwoPlacesIsTracedEachTime() {
+    // OrderService.place calls Roles.admin and Roles.member, which both call Roles.create, which
+    // calls an external system: the code makes the call twice, so the flow shows it twice.
+    type("front", "x.front", "x.front.Roles", "class", "admin()", "member()", "create()");
+    relate("front", SERVICE, "CALLS", "method:x.front.Roles#admin()", "{}", 25);
+    relate("front", SERVICE, "CALLS", "method:x.front.Roles#member()", "{}", 26);
+    relate(
+        "front", "method:x.front.Roles#admin()", "CALLS", "method:x.front.Roles#create()", "{}", 3);
+    relate(
+        "front",
+        "method:x.front.Roles#member()",
+        "CALLS",
+        "method:x.front.Roles#create()",
+        "{}",
+        7);
+    httpCall("front", FRONT, "method:x.front.Roles#create()", "roles.example.com", 11);
+
+    assertThat(steps(diagram(flow(system(facts), "POST /orders on front")).steps()))
+        .filteredOn(step -> step.contains("roles.example.com"))
+        .hasSize(2);
+  }
+
+  @Test
+  void aUnitsSendToItsOwnListenerIsDeliveredOnceInTheFlow() {
+    // ship's listener sends on the topic it listens on: front's message is delivered to it, then
+    // its own once, and the flow does not loop.
+    relate(
+        "ship",
+        SHIP,
+        "PUBLISHES",
+        "topic:kafka:orders",
+        "{\"protocol\": \"Kafka\", \"source\": \"" + LISTEN + "\"}",
+        8);
+    relate(
+        "ship",
+        SHIP,
+        "SENDS_MESSAGES_TO",
+        SHIP,
+        "{\"protocol\": \"Kafka\", \"destination\": \"topic:kafka:orders\", \"source\": \""
+            + LISTEN
+            + "\", \"target\": \""
+            + LISTEN
+            + "\"}",
+        8);
+
+    List<String> steps = steps(diagram(flow(system(facts), "POST /orders on front")).steps());
+
+    assertThat(steps)
+        .filteredOn(step -> step.startsWith("topic:kafka:orders >> service:x:ship"))
+        .containsExactly(
+            "topic:kafka:orders >> service:x:ship: Delivers to Listener.on [Kafka]",
+            "topic:kafka:orders >> service:x:ship: Delivers to Listener.on [Kafka]");
+    assertThat(steps)
+        .contains(
+            "service:x:ship >> topic:kafka:orders: Sends a message [Kafka]",
+            "note [service:x:ship, topic:kafka:orders]: ship does not wait: ship takes the"
+                + " message later.");
+  }
+
+  @Test
+  void aRunOfDataAccessInOneDatabaseIsOneStep() {
+    // The nightly job reads two tables and writes one, then calls a repository: one step.
+    relate("ship", NIGHTLY, "READS_TABLE", "table:x:ship:orders", "{}", 2);
+    relate("ship", NIGHTLY, "READS_TABLE", "table:x:ship:payment", "{}", 3);
+    type("ship", "x.ship", "x.ship.ParcelRepository", "interface");
+    relate("ship", "type:x.ship.ParcelRepository", "REPOSITORY_FOR", "type:x.ship.Parcel", "{}", 0);
+    relate(
+        "ship", NIGHTLY, "CALLS", "method:x.ship.ParcelRepository#save(java.lang.Object)", "{}", 6);
+
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .containsExactly(
+            "note []: Starts when the schedule cron 0 0 2 * * * fires in ship (Nightly.run).",
+            "service:x:ship > database:db:5432/ship: Reads orders, payment; writes parcel;"
+                + " calls ParcelRepository.save [JDBC]");
+  }
+
+  @Test
+  void codeWhoseAccessJoinedARunIsTracedAgainWhenCalledAgain() {
+    // Nightly.run writes parcel, then a() reads stock through find(), joining the run; after a
+    // call out, b() runs find() again, which is a step of its own.
+    type("ship", "x.ship", "x.ship.Nightly", "class", "a()", "b()", "find()");
+    relate("ship", NIGHTLY, "CALLS", "method:x.ship.Nightly#a()", "{}", 5);
+    relate("ship", NIGHTLY, "CALLS", "method:x.ship.Nightly#b()", "{}", 7);
+    relate("ship", "method:x.ship.Nightly#a()", "CALLS", "method:x.ship.Nightly#find()", "{}", 11);
+    relate("ship", "method:x.ship.Nightly#b()", "CALLS", "method:x.ship.Nightly#find()", "{}", 12);
+    relate("ship", "method:x.ship.Nightly#find()", "READS_TABLE", "table:x:ship:stock", "{}", 15);
+    httpCall("ship", SHIP, NIGHTLY, "rates.example.com", 6);
+
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .containsExactly(
+            "note []: Starts when the schedule cron 0 0 2 * * * fires in ship (Nightly.run).",
+            "service:x:ship > database:db:5432/ship: Writes parcel; reads stock [JDBC]",
+            "service:x:ship > external-system:rates.example.com: Calls rates.example.com [POST /n]"
+                + " (Over HTTPS.)",
+            "service:x:ship > database:db:5432/ship: Reads stock [JDBC]");
+  }
+
+  @Test
+  void aRunOfDataAccessNamesFourAndSaysHowManyMore() {
+    for (int i = 0; i < 6; i++) {
+      relate("ship", NIGHTLY, "WRITES_TABLE", "table:x:ship:t" + i, "{}", 4);
+    }
+
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .contains(
+            "service:x:ship > database:db:5432/ship: Writes parcel, t0, t1, t2 and 3 more [JDBC]");
+  }
+
+  @Test
+  void requestsComeBeforeSchedulesAndFlowsThatOnlyReachTheirOwnDatabaseComeLast() {
+    // ship's status endpoint reads its own database only; a job reaches more containers than a
+    // request, but what someone asks for comes first.
+    relate("ship", STATUS, "READS_TABLE", "table:x:ship:parcel", "{}", 4);
+    for (int i = 0; i < 3; i++) {
+      httpCall("ship", SHIP, NIGHTLY, "n" + i + ".example.com", 10 + i);
+    }
+    String quote = "method:x.pay.Api#quote()";
+    relate("pay", "type:x.pay.Api", "CONTAINS", quote, "{}", 0);
+    attribute("pay", quote, "endpoint", "GET /quote", "{}", 0);
+    httpCall("pay", PAY, quote, "rates.example.com", 4);
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(SequenceFlowsTest::trigger)
+        .containsExactly(
+            "POST /orders on front", "GET /quote on pay", "Nightly.run on its schedule in ship");
+  }
+
+  @Test
+  void anEndpointThatSignsAPersonInComesFirstWithoutABrowser() {
+    String login = "method:x.pay.Api#login()";
+    relate("pay", "type:x.pay.Api", "CONTAINS", login, "{}", 0);
+    attribute("pay", login, "endpoint", "POST /api/auth/login", "{}", 0);
+    httpCall("pay", PAY, login, "idp.example.com", 4);
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(SequenceFlowsTest::trigger)
+        .first()
+        .isEqualTo("POST /api/auth/login on pay");
+  }
+
+  @Test
+  void aFlowIsTitledByItsScenarioThenItsTrigger() {
+    Section order = flows(system(facts)).sections().getFirst();
+    assertThat(order.title()).isEqualTo("Place (POST /orders on front)");
+    assertThat(diagram(order).title()).isEqualTo(order.title());
+    assertThat(
+            SequenceFlows.scenario(
+                new SequenceFlows.Entry(
+                    EntityId.parse(PAY),
+                    EntityId.parse("method:x.pay.OrganizationController#createOrganization()"),
+                    null)))
+        .isEqualTo("Create organization");
+    assertThat(
+            SequenceFlows.scenario(
+                new SequenceFlows.Entry(EntityId.parse(SHIP), EntityId.parse(STATUS), null)))
+        .isEqualTo("Get status");
   }
 }

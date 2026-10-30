@@ -834,10 +834,15 @@ public final class Describer {
         .items()
         .forEach(
             (field, item) -> sentence(question, item).ifPresent(text -> texts.put(field, text)));
+    // The title is a heading, which holds no citation markers; it is kept when it cites a fact.
+    WordingAnswer.Item title = answer.items().get(WordingPrompt.TITLE);
     return new Wordings.Flow(
         texts.get(WordingPrompt.WALKTHROUGH),
         texts.get(WordingPrompt.PRECONDITIONS),
-        texts.get(WordingPrompt.POSTCONDITIONS));
+        texts.get(WordingPrompt.POSTCONDITIONS),
+        title == null || !texts.containsKey(WordingPrompt.TITLE)
+            ? null
+            : title.text().replaceAll("[.\\s]+$", ""));
   }
 
   private static Optional<String> sentence(Question question, WordingAnswer.Item item) {
