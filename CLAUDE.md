@@ -24,6 +24,22 @@ changes them. This file covers only how you work.
 - Every issue has a milestone and is written to a template in `.github/ISSUE_TEMPLATE/`:
   `fix.md` for what Lantern does wrong, `feature.md` for what it cannot do yet, chores and
   foundations (a test drop excepted).
+- Every issue also carries one or more area labels, for each part of Lantern it changes, set
+  when it is opened and corrected when its scope changes:
+  - `area:core`: the fact model, vocabulary and fact store (`lantern-core`)
+  - `area:sandbox`: repository registry, snapshots and build sandbox (`lantern-sandbox`)
+  - `area:extract`: the extractors (`lantern-extract`)
+  - `area:link`: the linker, deployable units and the LLM resolver (`lantern-link`)
+  - `area:llm`: providers, configuration, budgets and caching of LLM calls (`lantern-llm`)
+  - `area:summarize`: summaries and wordings (`lantern-summarize`)
+  - `area:compose`: the composer: views, flows, quality checks (`lantern-compose`)
+  - `area:app`: the application, the `analyze` command and the database (`lantern-app`)
+  - `area:web`: templates, renderers and the frontend (`lantern-web`, `report-specs/`)
+  - `area:testsets`: test sets, references, scoring and coverage (`testsets/`, the scoring and
+    coverage scripts)
+  - `area:tooling`: build, scripts, architecture tests and CI (`scripts/`, `lantern-archtest`)
+  - `area:docs`: the bar, the design, ADRs, research notes and this file, when an issue changes
+    only them
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
   which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
   picks up an issue without one writes it first. A PR runs Lantern on those sets only; the
