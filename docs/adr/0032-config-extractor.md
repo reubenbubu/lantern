@@ -222,7 +222,8 @@ Config repository with no Maven module, which the extractor did not read. The re
   repository when a module of the snapshot sets up a config server (a key under
   `spring.cloud.config.server.`, in any profile). Finding it through the server's git URI or a
   compose volume is not needed: project-3's server names a URI other than its clone, and the
-  native backend reaches it through a mount.
+  native backend reaches it through a mount. Any repository without a Maven module qualifies (a
+  Gradle or frontend repository too), but only files named after an application are read from it.
 - **Which files.** The files at its top named `application`, or exactly one of the names the
   snapshot's modules give themselves (`spring.application.name`, and each name of
   `spring.cloud.config.name`), each optionally followed by `-<profile>`, with extension
@@ -237,10 +238,12 @@ Config repository with no Maven module, which the extractor did not read. The re
   - Placeholders resolve within that file set only. A placeholder the client would fill, such as
     `${spring.application.name}` in the shared file, stays unresolved.
   - No linker reads these facts yet, since config is looked up per module.
-- **`{cipher}` values** are masked wherever they are found. The server decrypts them; the
+- **`{cipher}` values** are masked wherever they are found, also when a placeholder brings one in. The server decrypts them; the
   repository holds only ciphertext.
 - **Not covered:**
   - `{application}` folders (`search-paths`) and repositories chosen by pattern
+  - a native backend that serves from the server's own classpath (`search-locations:
+    classpath:/shared`); with `classpath:/config`, those files are read as the server's own config
   - the label: the pinned commit stands in for the branch a server serves
   - Vault, JDBC, Consul, AWS and Azure stores, whose values are not in any repository
   - environment variables a deployment sets

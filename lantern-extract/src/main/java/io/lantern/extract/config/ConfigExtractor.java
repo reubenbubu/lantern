@@ -305,7 +305,8 @@ public final class ConfigExtractor {
     if (exposesSecret(value, known)
         || mayHoldCredential(object)
         || mayHoldCredential(written)
-        || written.startsWith(CIPHER)) {
+        || written.contains(CIPHER)
+        || object.contains(CIPHER)) {
       object = MASK;
       attributes.put("masked", true);
     } else {

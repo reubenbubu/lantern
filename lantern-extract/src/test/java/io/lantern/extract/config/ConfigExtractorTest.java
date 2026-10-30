@@ -523,7 +523,14 @@ class ConfigExtractorTest {
                 "pom.xml",
                 POM.replace("<artifactId>app", "<artifactId>orders"),
                 RESOURCES + "application.yml",
-                "spring:\n  application:\n    name: orders-service\n"));
+                """
+                spring:
+                  application:
+                    name: orders-service
+                  cloud:
+                    config:
+                      name: ${CONFIG_NAMES:orders,orders-service}
+                """));
     Repo repository =
         Fixtures.repo(
             temp.resolve("config-repo"),
@@ -542,7 +549,18 @@ class ConfigExtractorTest {
                   datasource:
                     url: jdbc:postgresql://${DB_HOST:orders-db}:5432/orders
                     password: '{cipher}AQBx7b1e'
+                    username: ${ORDERS_USER:'{cipher}AQBx7b1f'}
+                app:
+                  hint: '{cipher}AQBx7b1g'
                 """,
+                "orders-service.properties",
+                "spring.datasource.url=jdbc:postgresql://orders-db:5432/orders_main\n",
+                "application-dev.yml",
+                "logging:\n  level:\n    root: DEBUG\n",
+                "orders-dev.yml",
+                "orders:\n  mode: dev\n",
+                "orders-service/orders-service.yml",
+                "nested:\n  read: false\n",
                 "orders-service-dev.yml",
                 "spring:\n  datasource:\n    url: jdbc:postgresql://localhost:5432/orders\n",
                 "docker-compose.yml",
@@ -568,28 +586,45 @@ class ConfigExtractorTest {
         ConfigExtractor.NAME,
         ConfigExtractor.VERSION);
 
-    assertThat(
-            Fixtures.render(facts).lines().filter(l -> l.startsWith("repo:config-repo ")).toList())
-        .containsExactlyInAnyOrder(
+    List<String> lines =
+        Fixtures.render(facts).lines().filter(l -> l.startsWith("repo:config-repo ")).toList();
+    assertThat(lines)
+        .contains(
+            // The shared file every application gets.
             "repo:config-repo config-value http://discovery:8761/eureka/"
                 + " {\"application\":\"application\","
                 + "\"key\":\"eureka.client.service-url.defaultZone\","
                 + "\"source\":\"config-repository\"}"
                 + " @config-repo:application.yml#4-4 1.0",
-            "repo:config-repo config-value jdbc:postgresql://orders-db:5432/orders"
+            // Properties win over YAML for the same application.
+            "repo:config-repo config-value jdbc:postgresql://orders-db:5432/orders_main"
                 + " {\"application\":\"orders-service\",\"key\":\"spring.datasource.url\","
-                + "\"source\":\"config-repository\","
-                + "\"written\":\"jdbc:postgresql://${DB_HOST:orders-db}:5432/orders\"}"
-                + " @config-repo:orders-service.yml#3-3 1.0",
-            "repo:config-repo config-value ******"
-                + " {\"application\":\"orders-service\",\"key\":\"spring.datasource.password\","
-                + "\"masked\":true,\"source\":\"config-repository\"}"
-                + " @config-repo:orders-service.yml#4-4 1.0",
+                + "\"source\":\"config-repository\"}"
+                + " @config-repo:orders-service.properties#1-1 1.0",
+            // The longest known name the file starts with: orders-service, not orders.
             "repo:config-repo config-value jdbc:postgresql://localhost:5432/orders"
                 + " {\"application\":\"orders-service\",\"key\":\"spring.datasource.url\","
                 + "\"profile\":\"dev\",\"source\":\"config-repository\"}"
-                + " @config-repo:orders-service-dev.yml#3-3 1.0");
-    assertThat(Fixtures.render(facts)).doesNotContain("AQBx7b1e").doesNotContain("billing");
+                + " @config-repo:orders-service-dev.yml#3-3 1.0",
+            // The shared file's profile.
+            "repo:config-repo config-value DEBUG"
+                + " {\"application\":\"application\",\"key\":\"logging.level.root\","
+                + "\"profile\":\"dev\",\"source\":\"config-repository\"}"
+                + " @config-repo:application-dev.yml#3-3 1.0",
+            // Each name of spring.cloud.config.name, its default resolved.
+            "repo:config-repo config-value dev"
+                + " {\"application\":\"orders\",\"key\":\"orders.mode\","
+                + "\"profile\":\"dev\",\"source\":\"config-repository\"}"
+                + " @config-repo:orders-dev.yml#2-2 1.0");
+    // Encrypted values are masked whatever the key, also when reached through a placeholder.
+    assertThat(lines)
+        .filteredOn(l -> l.contains("\"key\":\"app.hint\"") || l.contains("datasource.username"))
+        .hasSize(2)
+        .allMatch(l -> l.contains(" ****** ") && l.contains("\"masked\":true"));
+    assertThat(Fixtures.render(facts))
+        .doesNotContain("AQBx7b1")
+        .doesNotContain("billing")
+        .doesNotContain("nested.read");
   }
 
   @Test
