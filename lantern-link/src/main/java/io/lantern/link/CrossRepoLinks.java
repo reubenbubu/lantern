@@ -38,7 +38,7 @@ public final class CrossRepoLinks implements LinkStep {
   public static final String NAME = "cross-repo-links";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "9";
+  public static final String VERSION = "10";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -147,6 +147,7 @@ public final class CrossRepoLinks implements LinkStep {
     Deployments deployments = new Deployments(index);
     deployments.link(index, found, ORIGIN, validity);
     new DataLinker(index, found, deployments).link(ORIGIN, validity);
+    new FrontendLinker(index, found, deployments).link(ORIGIN, validity);
     new MailLinker(index, found).link();
     new RedisLinker(index, found, deployments).link(ORIGIN, validity);
     new PeopleLinker(index, found).link(ORIGIN, validity);

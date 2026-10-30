@@ -160,3 +160,13 @@ placeholders: the database takes its `display-name` from the database the server
 creates and its `technology` version from that container's image, and the link lists the
 `deployments` (ADR 0082). Containers that run a unit or a data store are `deployed-in` facts on
 it, a new attribute type with source `cross-repo-links`.
+
+## Amendment (#267): frontends call units
+
+A `CALLS_HTTP` link's subject may be a frontend (`frontend:<repo>[/<folder>]`): one link per URL
+its code calls from the browser, and one per nginx proxy that no call goes through. Such a link
+names the `proxy` prefix it went through, and `matchedBy` gains `published-port` (this machine or
+a private address, by the port a compose container that runs the unit publishes) and
+`container-host` (the host is a name of a deployment container that runs the unit). A frontend
+built by a compose service from its folder gets `deployed-in` and that service's name as its
+`display-name`. The step's version becomes 10. The rules are in ADR 0083.

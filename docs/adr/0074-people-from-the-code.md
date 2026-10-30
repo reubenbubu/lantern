@@ -64,3 +64,9 @@ unknown users are marked unknown, not invented.
   an Admin. A role name that is a permission in disguise, or a type named `Member` for another
   reason, makes a wrong person; it is marked inferred and cites the line.
 - The extractor is new (`people`, version 2 after the service-account rule) and `cross-repo-links` moves to version 7.
+
+## Amendment (#267): people in the container diagrams
+
+Frontends are containers now (ADR 0083). Each person gets a line in the container diagrams to the
+frontend whose folder holds a route it cites, among the repositories its `person-basis` names as
+`frontends`, labelled with those screens; the system context's line is unchanged.

@@ -13,6 +13,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
+import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
@@ -1788,6 +1789,136 @@ class CrossRepoLinksTest {
         "t",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         4);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Frontends
+
+  private void frontend(String repo, String directory) {
+    add(
+        FrontendExtractor.NAME,
+        "frontend:" + repo + (directory.isEmpty() ? "" : "/" + directory),
+        FrontendExtractor.APP,
+        FactObject.string("angular"),
+        "{\"name\":\"web\",\"directory\":\""
+            + directory
+            + "\",\"framework\":\"Angular\",\"technology\":\"Angular 19.2\"}",
+        repo + ":" + (directory.isEmpty() ? "" : directory + "/") + "package.json#4",
+        1.0);
+  }
+
+  private void frontendCall(String frontend, String method, String url, String more, int line) {
+    add(
+        FrontendExtractor.NAME,
+        frontend,
+        FrontendExtractor.CALL,
+        FactObject.string((method == null ? "WebSocket" : method) + " " + url),
+        "{"
+            + (method == null ? "" : "\"httpMethod\":\"" + method + "\",")
+            + "\"url\":\""
+            + url
+            + "\",\"protocol\":\""
+            + (method == null ? "WebSocket" : "HTTP")
+            + "\""
+            + (more == null ? "" : "," + more)
+            + "}",
+        frontend.substring(frontend.indexOf(':') + 1).split("/")[0] + ":src/app/api.ts#" + line,
+        0.9);
+  }
+
+  private void frontendProxy(String frontend, String prefix, String target, String source) {
+    add(
+        FrontendExtractor.NAME,
+        frontend,
+        FrontendExtractor.PROXY,
+        FactObject.string(prefix),
+        "{\"target\":\"" + target + "\",\"source\":\"" + source + "\"}",
+        frontend.substring(frontend.indexOf(':') + 1).split("/")[0] + ":nginx.conf#9",
+        0.9);
+  }
+
+  @Test
+  void aFrontendsCallsToThisMachineReachTheUnitWhoseContainerPublishesThePort() {
+    unit("gw", "api-gateway", "api-gateway");
+    unit("auth", "auth-service", "auth-service");
+    // Both listen on 8080 inside their containers; only the gateway is published on it.
+    container(
+        "deploy",
+        "api-gateway",
+        "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+            + "\"image\":\"acme/api-gateway:1\",\"hosts\":[\"api-gateway\"],"
+            + "\"ports\":[\"8080:8080\"]}");
+    container(
+        "deploy",
+        "auth-service",
+        "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+            + "\"image\":\"acme/auth-service:1\",\"hosts\":[\"auth-service\"]}");
+    frontend("web", "");
+    frontendCall(
+        "frontend:web",
+        "POST",
+        "http://192.168.1.20:8080/api/auth/sign-in",
+        "\"alternates\":[\"http://localhost:8080/api/auth/sign-in\"]",
+        3);
+    frontendCall("frontend:web", null, "http://localhost:8080/ws-notifications", null, 5);
+    frontendCall("frontend:web", "GET", "https://maps.example.com/tiles/{z}", null, 7);
+    frontendCall("frontend:web", "GET", "http://localhost:9999/nothing", null, 9);
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactlyInAnyOrder(
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
+                + "\"matchedBy\":\"published-port\",\"path\":\"/api/auth/sign-in\","
+                + "\"protocol\":\"JSON/HTTP\",\"url\":\"http://192.168.1.20:8080/api/auth/sign-in\"}"
+                + " 0.72",
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"matchedBy\":\"published-port\","
+                + "\"path\":\"/ws-notifications\",\"protocol\":\"WebSocket\","
+                + "\"url\":\"http://localhost:8080/ws-notifications\"} 0.72",
+            "frontend:web CALLS_HTTP external-system:maps.example.com {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"external\",\"path\":\"/tiles/{z}\",\"protocol\":\"HTTPS\","
+                + "\"url\":\"https://maps.example.com/tiles/{z}\"} 0.9");
+  }
+
+  @Test
+  void aFrontendsOwnPathsGoWhereItsNginxPassesThemAndItsComposeServiceNamesIt() {
+    unit("shop", "bff", "bff");
+    config("shop", "bff", "application.yml", "server.port", "8081", null);
+    unit("shop", "files", "files");
+    frontend("shop", "web-ui");
+    String web = "frontend:shop/web-ui";
+    frontendProxy(web, "/bff/", "http://bff:8081/bff/", "nginx");
+    frontendProxy(web, "/bff", "http://localhost:8081", "dev-server");
+    frontendProxy(web, "/media/", "http://files:8080", "nginx");
+    frontendCall(web, "GET", "/bff/api/orders", null, 3);
+    // A path no proxy takes is the page's own.
+    frontendCall(web, "GET", "/assets/logo.svg", null, 4);
+    add(
+        DeploymentExtractor.NAME,
+        "repo:shop",
+        DeploymentExtractor.DEPLOYMENT_CONTAINER,
+        FactObject.string("shop-web"),
+        "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+            + "\"build\":\"./web-ui\",\"hosts\":[\"shop-web\"],\"ports\":[\"4200:80\"]}",
+        "shop:compose.yaml#40",
+        1.0);
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactlyInAnyOrder(
+            "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"host\",\"path\":\"/bff/api/orders\",\"protocol\":\"JSON/HTTP\","
+                + "\"proxy\":\"/bff/\",\"url\":\"http://bff:8081/bff/api/orders\"} 0.9",
+            "frontend:shop/web-ui CALLS_HTTP service:g:files {\"matchedBy\":\"host\","
+                + "\"protocol\":\"JSON/HTTP\",\"proxy\":\"/media/\",\"url\":\"http://files:8080\"}"
+                + " 0.9");
+    assertThat(derive(Deployments.DEPLOYED_IN))
+        .containsExactly(
+            "frontend:shop/web-ui deployed-in Docker Compose (default)"
+                + " {\"container\":\"shop-web\",\"environment\":\"default\",\"platform\":\"compose\"}"
+                + " 1.0");
+    assertThat(derive(DataLinker.DISPLAY_NAME))
+        .containsExactly("frontend:shop/web-ui display-name shop-web 1.0");
+    assertThat(FrontendLinker.folder("deploy/compose.yaml", "../web-ui Dockerfile.prod"))
+        .isEqualTo("web-ui");
+    assertThat(FrontendLinker.folder("compose.yaml", "../elsewhere")).isNull();
   }
 
   // ---------------------------------------------------------------------------------------------
