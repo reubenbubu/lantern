@@ -18,6 +18,14 @@ public record TokenUsage(long input, long output, long cacheWrite, long cacheRea
     }
   }
 
+  /**
+   * The same usage with its cache writes and reads counted as normal input, for a model without
+   * prompt caching whose server still reports part of the prompt as cache tokens.
+   */
+  public TokenUsage cacheAsInput() {
+    return new TokenUsage(Math.addExact(Math.addExact(input, cacheWrite), cacheRead), output, 0, 0);
+  }
+
   /** All tokens, input of every kind plus output. */
   public long total() {
     return input + output + cacheWrite + cacheRead;
