@@ -17,7 +17,8 @@
         "version": { "type": "string", "description": "The version the build asks for, if known." },
         "optional": { "type": "boolean", "description": "Present and true for an optional dependency." },
         "classifier": { "type": "string", "description": "The artifact classifier, if any." },
-        "artifactType": { "type": "string", "description": "The artifact type if not jar, such as test-jar or pom." }
+        "artifactType": { "type": "string", "description": "The artifact type if not jar, such as test-jar or pom." },
+        "coordinates": { "type": "string", "description": "The groupId:artifactId the POM declares, when it differs from the object module's own: JitPack coordinates naming an analyzed repository." }
       },
       "required": ["scope"],
       "additionalProperties": false

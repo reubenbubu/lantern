@@ -97,6 +97,25 @@ public sealed interface Expression {
     }
   }
 
+  /**
+   * A lambda, with its source text as {@link Unknown} keeps it, so a reader that does not look
+   * inside sees what it saw before lambdas were read, and its body: the expression of an expression
+   * lambda, or of the one {@code return} of a block lambda that has nothing else, else {@link
+   * Unknown}. Its own parameters are {@link Unknown} in the body, as their names.
+   *
+   * @param source the lambda's source, whitespace collapsed and cut to {@link #MAX_SOURCE}
+   * @param body what it returns
+   * @param start the 1-based line it starts on, 0 if not known
+   * @param end the 1-based line it ends on, 0 if not known
+   */
+  record Lambda(String source, Expression body, int start, int end) implements Expression {
+
+    public Lambda {
+      source = new Unknown(source).source();
+      Objects.requireNonNull(body, "body");
+    }
+  }
+
   /** Anything else, with its source text, whitespace collapsed and cut to {@link #MAX_SOURCE}. */
   record Unknown(String source) implements Expression {
 

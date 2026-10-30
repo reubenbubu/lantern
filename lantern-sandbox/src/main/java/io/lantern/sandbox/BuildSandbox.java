@@ -81,6 +81,22 @@ public class BuildSandbox {
   static final String HELP_PLUGIN = "org.apache.maven.plugins:maven-help-plugin:3.5.2";
   static final String DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.10.0";
 
+  /** The names of Gradle's build and settings files. */
+  /**
+   * Shell commands that delete the failures Maven recorded in the shared cache, which build.sh runs
+   * too: Maven does not retry a failed download for a day (#314, a mirror that missed once), and
+   * does not need the marker to find what is there. Not {@code -U}, which rechecks all metadata and
+   * snapshots in every build, which hurts the reproducibility of pinned builds and can pull remote
+   * snapshots that shadow the artifacts of the repositories analyzed together.
+   */
+  private static final String FORGET_FAILURES =
+      "find /var/lantern/m2 -name '*.lastUpdated' -type f -delete 2>/dev/null;"
+          + " grep -rl --include=resolver-status.properties '[.]error=' /var/lantern/m2"
+          + " 2>/dev/null | while read -r f; do sed -i '/[.]error=/d' \"$f\"; done; ";
+
+  private static final Set<String> GRADLE_FILES =
+      Set.of("build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts");
+
   private static final String PROXY_ALIAS = "lantern-proxy";
 
   /** The directory under {@code /lantern} that holds other repositories' artifacts. */
@@ -260,6 +276,69 @@ public class BuildSandbox {
       }
     }
     return ended;
+  }
+
+  /**
+   * Whether the repository has a Maven build at the commit: a {@code pom.xml} file at its top. A
+   * repository without one, such as a frontend or a repository of deployment files, is not built;
+   * the extractors that apply read its files, and that is not degraded mode (design, Repository
+   * registry; ADR 0005). {@link #build} still records a failed build for one, if asked.
+   *
+   * @param repo a registered repository
+   * @param commit a commit in the repository
+   * @throws IllegalStateException if git cannot read the commit's files
+   */
+  public static boolean hasMavenBuild(Repo repo, String commit) {
+    Objects.requireNonNull(repo, "repo");
+    Objects.requireNonNull(commit, "commit");
+    // Lists nothing, successfully, when there is no such path; fails only when git cannot read.
+    Git.Result top = Git.run(repo.path(), "ls-tree", commit, "--", "pom.xml");
+    if (!top.ok()) {
+      throw new IllegalStateException(
+          "Cannot read the files of " + repo.name() + "@" + commit + ": " + top.err());
+    }
+    // "<mode> <type> <object>\t<path>"
+    String[] entry = top.out().split("\\s+", 3);
+    return entry.length == 3 && entry[1].equals("blob");
+  }
+
+  /**
+   * What a repository without a Maven build ({@link #hasMavenBuild}) has at the commit that only a
+   * build would let Lantern analyze: Java sources, Gradle build files, or POMs below the top. None
+   * of these is read without a top {@code pom.xml}, so the run warns about them (ADR 0016,
+   * amendment for #254).
+   *
+   * @return what it has, in that order; empty if none of them
+   * @throws IllegalStateException if git cannot read the commit's files
+   */
+  public static List<String> codeWithoutMavenBuild(Repo repo, String commit) {
+    Objects.requireNonNull(repo, "repo");
+    Objects.requireNonNull(commit, "commit");
+    Git.Result files = Git.run(repo.path(), "ls-tree", "-r", "--name-only", "-z", commit);
+    if (!files.ok()) {
+      throw new IllegalStateException(
+          "Cannot read the files of " + repo.name() + "@" + commit + ": " + files.err());
+    }
+    boolean java = false;
+    boolean gradle = false;
+    boolean poms = false;
+    for (String path : files.out().split("\0")) {
+      String name = path.substring(path.lastIndexOf('/') + 1);
+      java |= name.endsWith(".java");
+      gradle |= GRADLE_FILES.contains(name);
+      poms |= name.equals("pom.xml") && path.contains("/");
+    }
+    List<String> found = new ArrayList<>();
+    if (java) {
+      found.add("Java sources");
+    }
+    if (gradle) {
+      found.add("Gradle build files");
+    }
+    if (poms) {
+      found.add("POMs below the top");
+    }
+    return found;
   }
 
   /** The stored result of building the repository at the commit, if there is one. */
@@ -508,7 +587,8 @@ public class BuildSandbox {
       command.add("--non-recursive");
       command.add(HELP_PLUGIN + ":effective-pom");
       command.add("-Doutput=target/lantern/jdk-effective-pom.xml");
-      command.addAll(0, List.of("-c", "umask " + UMASK + " && exec mvn \"$@\"", "sh"));
+      command.addAll(
+          0, List.of("-c", FORGET_FAILURES + "umask " + UMASK + " && exec mvn \"$@\"", "sh"));
       createContainer(
           detector, settings.images().get(settings.defaultJdk()), "sh", command, lantern);
       ContainerExit exit = runContainer(detector);

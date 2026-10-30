@@ -1,5 +1,6 @@
 package com.example.shop.web.api;
 
+import com.example.shop.web.secure.Secured;
 import org.springframework.web.bind.annotation.*;
 
 @WebApi
@@ -7,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
   @PostMapping
+  @Secured("orders:create")
   public long place(@RequestBody String order) {
     return 1;
   }

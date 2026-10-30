@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250), pending the user's review (#24)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), pending the user's review (#24)
 
 ## Context
 
@@ -79,7 +79,8 @@ its path is known, and what is matched when.
   server and database share the entity, which gets a `technology` fact (the attribute type now
   describes containers, not only units). An embedded database without a server is the unit's own
   (keyed by the unit), and so is one whose server or database is a placeholder no config resolves
-  (#255): it is never shared. The linker gives it a `display-name` attribute (#291): its database when
+  (#255): it is never shared (Redis is the exception: units that write the same placeholder
+  text for the host and port share one store, ADR 0073). The linker gives it a `display-name` attribute (#291): its database when
   that is written out, else "<unit name> database", with the datasource key in parentheses when it is
   not the main one; views show that name, with the technology as technology, never the key (which is
   `<unit>/<technology>:<name>`, the technology lowercased with spaces as dashes). A database on a
@@ -124,7 +125,7 @@ its path is known, and what is matched when.
 - **Not covered:** profile combinations (`@Profile("a & b")` never matches one active profile, so
   such code links nowhere), env vars and deploy-time overrides, JPA entities as table access
   (only SQL in code), a Feign client's placeholder name, a request's port compared with the
-  target's `server.port`, gateways and routes, Kubernetes or compose service names that differ
+  target's `server.port` (ADR 0077 compares it for gateway routes, which it links), Kubernetes or compose service names that differ
   from `spring.application.name` and the artifact ID, and Spring Cloud Stream specifics beyond
   the shared fact shapes (#139).
 - **project-0.** `Project0LinksIT` checks HTTP-1 to HTTP-7, EXT-1, MSG-1 to MSG-5, SPR-4, DB-5
@@ -133,3 +134,20 @@ its path is known, and what is matched when.
   without builds; DB-5's table access needs the build (ADR 0036). It runs when
   `lantern.test.project0` is set, with the same command as `Project0BuildIT` (see Commands in
   `CLAUDE.md`) but `-pl lantern-link` and `-Dit.test=Project0LinksIT`.
+
+## Amendment (#265): a send in a shared library is its callers'
+
+Once JitPack coordinates are matched (ADR 0006, amendment for #265), project-4's four services all
+bundle crm-shared-lib's `messaging` module, whose `MessagingService` sends to
+`notification-service.send-message`. Taking every unit that runs the code as a sender drew four
+senders where only main-service calls the service.
+
+- **The senders of a send in library code** are, of the units running it, those whose own module
+  declares it or that run other code calling its method, directly or through other methods (the
+  Java extractor's `CALLS`). A call may point at the method as an interface or a supertype
+  declares it, or as a subtype inherits it, so the callers of a method include those of the same
+  signature on its type's supertypes and subtypes (`EXTENDS`, `IMPLEMENTS`), as the sequence
+  flows resolve dispatch. When none of them calls it (it runs from a listener or a schedule of
+  the library, say), or only one unit runs it, every unit running it sends, as before. Listeners
+  and bindings are unchanged.
+- The step's version becomes 6.

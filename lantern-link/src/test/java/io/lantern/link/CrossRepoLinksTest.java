@@ -12,15 +12,23 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
+import io.lantern.extract.mail.MailExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.extract.people.PeopleExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
+import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -230,6 +238,30 @@ class CrossRepoLinksTest {
             + (more == null ? "" : "," + more)
             + "}",
         repo + ":src/main/resources/" + file + "#4",
+        1.0);
+  }
+
+  /** A Redis use ({@code kind}) by a type of a module, with the attributes besides its source. */
+  private void redisUse(String repo, String module, String type, String kind, String attributes) {
+    add(
+        RedisExtractor.NAME,
+        "type:" + type,
+        RedisExtractor.REDIS_USE,
+        FactObject.string(kind),
+        attributes,
+        repo + ":src/main/java/" + type.replace('.', '/') + ".java#5",
+        1.0);
+  }
+
+  /** A Redis image a repository's compose file runs. */
+  private void redisImage(String repo, String module, String image, String technology) {
+    add(
+        RedisExtractor.NAME,
+        "repository:" + repo,
+        RedisExtractor.REDIS_IMAGE,
+        FactObject.string(image),
+        "{\"technology\":\"" + technology + "\",\"service\":\"redis\"}",
+        repo + ":compose.yaml#5",
         1.0);
   }
 
@@ -550,6 +582,175 @@ class CrossRepoLinksTest {
   // ---------------------------------------------------------------------------------------------
   // Messaging
 
+  // ---------------------------------------------------------------------------------------------
+  // Gateway routes
+
+  private void route(String repo, String subject, String id, String attributes) {
+    add(
+        GatewayExtractor.NAME,
+        subject,
+        GatewayExtractor.ROUTE,
+        FactObject.string(id),
+        attributes,
+        repo + ":src/main/java/gw/Routes.java#30",
+        1.0);
+  }
+
+  @Test
+  void codeRoutesLinkByTheirLoadBalancedNameWithTheirProtocol() {
+    unit("gw", "edge", "edge");
+    type("gw", "edge", "gw.Routes");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "users",
+        "{\"definedIn\":\"java\",\"uri\":\"lb://users\",\"paths\":[\"/api/users/**\"],"
+            + "\"methods\":[\"GET\"]}");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "notify",
+        "{\"definedIn\":\"java\",\"uri\":\"lb:ws://notifications\",\"paths\":[\"/ws/**\"]}");
+    // A route the gateway answers itself is no line.
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "fallback",
+        "{\"definedIn\":\"java\",\"uri\":\"forward:/fallback\"}");
+    unit("u", "users-service", "users");
+    unit("n", "notifications-service", "notifications");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactly(
+            "service:g:edge CALLS_HTTP service:g:notifications-service"
+                + " {\"matchedBy\":\"service-name\",\"paths\":[\"/ws/**\"],"
+                + "\"protocol\":\"WebSocket\",\"route\":\"notify\","
+                + "\"source\":\"method:gw.Routes#routes()\",\"url\":\"lb:ws://notifications\"} 1.0",
+            "service:g:edge CALLS_HTTP service:g:users-service"
+                + " {\"matchedBy\":\"service-name\",\"methods\":[\"GET\"],"
+                + "\"paths\":[\"/api/users/**\"],\"protocol\":\"HTTP\",\"route\":\"users\","
+                + "\"source\":\"method:gw.Routes#routes()\",\"url\":\"lb://users\"} 1.0");
+  }
+
+  private void webSocketEndpoint(String repo, String method, String path) {
+    add(
+        WebSocketExtractor.NAME,
+        "method:" + method,
+        WebSocketExtractor.ENDPOINT,
+        FactObject.string(path),
+        "{\"path\":\"" + path + "\",\"protocol\":\"stomp\",\"sockjs\":true}",
+        repo + ":src/main/java/n/WsConfig.java#12",
+        1.0);
+  }
+
+  @Test
+  void aWebSocketRouteNamesTheWebSocketEndpointItReaches() {
+    unit("gw", "edge", "edge");
+    type("gw", "edge", "gw.Routes");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "notify",
+        "{\"definedIn\":\"java\",\"uri\":\"lb:ws://notifications\","
+            + "\"paths\":[\"/ws-notifications/**\"]}");
+    // Without a Path predicate a route reaches every endpoint, so it names none of several.
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "all",
+        "{\"definedIn\":\"java\",\"uri\":\"lb:ws://notifications\"}");
+    unit("n", "notifications-service", "notifications");
+    type("n", "notifications-service", "n.WsConfig");
+    webSocketEndpoint("n", "n.WsConfig#stomp()", "/ws-notifications");
+    webSocketEndpoint("n", "n.WsConfig#raw()", "/ws-raw");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactly(
+            "service:g:edge CALLS_HTTP service:g:notifications-service"
+                + " {\"endpoints\":[\"/ws-notifications\",\"/ws-raw\"],"
+                + "\"matchedBy\":\"service-name\",\"protocol\":\"WebSocket\",\"route\":\"all\","
+                + "\"source\":\"method:gw.Routes#routes()\",\"url\":\"lb:ws://notifications\"} 1.0",
+            "service:g:edge CALLS_HTTP service:g:notifications-service"
+                + " {\"endpoint\":\"/ws-notifications\",\"matchedBy\":\"service-name\","
+                + "\"paths\":[\"/ws-notifications/**\"],\"protocol\":\"WebSocket\","
+                + "\"route\":\"notify\",\"source\":\"method:gw.Routes#routes()\","
+                + "\"target\":\"method:n.WsConfig#stomp()\",\"url\":\"lb:ws://notifications\"}"
+                + " 1.0");
+  }
+
+  @Test
+  void configRoutesToThisMachineLinkByPortAndUnroutedEndpointsAreRecorded() {
+    unit("gw", "edge", "edge");
+    config("gw", "edge", "application.yml", "server.port", "8080", null);
+    route(
+        "gw",
+        "module:g:edge",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"http://localhost:8082\","
+            + "\"paths\":[\"/orders/**\"],\"filters\":[\"StripPrefix=1\",\"PrefixPath=/api\"]}");
+    route(
+        "gw",
+        "module:g:edge",
+        "partner",
+        "{\"definedIn\":\"config\",\"uri\":\"https://partner.example.com\"}");
+    route(
+        "gw",
+        "module:g:edge",
+        "compose",
+        "{\"definedIn\":\"config\",\"uri\":\"http://billing:8080\"}");
+    unit("o", "orders-service", "orders");
+    config("o", "orders-service", "application.yml", "server.port", "8082", null);
+    type("o", "orders-service", "o.OrderController");
+    endpoint("o", "o.OrderController", "list()", "GET", "/api/orders");
+    endpoint("o", "o.OrderController", "one(long)", "GET", "/api/orders/{id}");
+    endpoint("o", "o.OrderController", "internal(long)", "GET", "/internal/orders/{id}");
+    unit("r", "reports", "reports");
+    type("r", "reports", "r.ReportJob");
+    call(
+        "r",
+        "r.ReportJob#run()",
+        "GET http://orders/internal/orders/1",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/internal/orders/1\","
+            + "\"url\":\"http://orders/internal/orders/1\"}",
+        12);
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .contains(
+            "service:g:edge CALLS_HTTP service:g:orders-service {\"matchedBy\":\"port\","
+                + "\"paths\":[\"/orders/**\"],\"protocol\":\"HTTP\",\"route\":\"orders\","
+                + "\"source\":\"module:g:edge\",\"url\":\"http://localhost:8082\"} 0.8",
+            "service:g:edge CALLS_HTTP external-system:partner.example.com"
+                + " {\"matchedBy\":\"external\",\"protocol\":\"HTTPS\",\"route\":\"partner\","
+                + "\"source\":\"module:g:edge\",\"url\":\"https://partner.example.com\"} 1.0");
+    assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK))
+        .containsExactly(
+            "service:g:edge unresolved-link http://billing:8080 {\"kind\":\"route\","
+                + "\"reason\":\"unknown-host\",\"source\":\"module:g:edge\"} 1.0");
+    // /orders/** reaches /api/** behind StripPrefix and PrefixPath; the internal endpoint is
+    // reached only by another unit's call.
+    assertThat(derive(CrossRepoLinks.UNROUTED_ENDPOINT))
+        .containsExactly(
+            "service:g:edge unrouted-endpoint GET /internal/orders/{id}"
+                + " {\"calledBy\":[\"service:g:reports\"],"
+                + "\"endpoint\":\"method:o.OrderController#internal(long)\","
+                + "\"target\":\"service:g:orders-service\"} 1.0");
+  }
+
+  @Test
+  void routePatternsTakeOnlyTheEndpointsTheyMatch() {
+    assertThat(RouteLinker.matches("/api/organizations/{id}", "/api/organizations/*")).isTrue();
+    assertThat(RouteLinker.matches("/api/organizations/{id}/preview", "/api/organizations/*"))
+        .isFalse();
+    // A literal of the pattern does not take a variable of the endpoint.
+    assertThat(
+            RouteLinker.matches(
+                "/api/organizations/{id}/preview", "/api/organizations/invitations/**"))
+        .isFalse();
+    assertThat(RouteLinker.matches("/api/files", "/api/files/**")).isTrue();
+    assertThat(RouteLinker.matches("/v2/a/b", "/v*/**")).isTrue();
+    assertThat(RouteLinker.matches("/api/files/{id}/x", "/api/{*rest}")).isTrue();
+  }
+
   @Test
   void aRabbitSendReachesTheListenersOfQueuesBoundWithMatchingWildcards() {
     unit("s", "shop", "shop");
@@ -686,6 +887,140 @@ class CrossRepoLinksTest {
             "service:g:shop unresolved-link direct.x {\"candidates\":[\"service:g:worker\"],"
                 + "\"kind\":\"message\",\"reason\":\"unknown-routing-key\","
                 + "\"source\":\"method:s.Publisher#unknown()\"} 1.0");
+  }
+
+  @Test
+  void aSendInALibraryBundledBySeveralUnitsIsTheirsWhoCallIt() {
+    type("lib", "messaging-lib", "l.Messages");
+    messaging(
+        "lib",
+        "l.Messages#send()",
+        MessagingExtractor.SEND,
+        "notify.send",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        30);
+    // Nothing calls the heartbeat, so it runs in every unit bundling the library.
+    messaging(
+        "lib",
+        "l.Messages#heartbeat()",
+        MessagingExtractor.SEND,
+        "heartbeat",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        40);
+    calls("lib", "l.Messages#toUser()", "l.Messages#send()");
+    unit("a", "shop", "shop");
+    bundled("a", "shop", "messaging-lib");
+    type("a", "shop", "s.Orders");
+    calls("a", "s.Orders#place()", "l.Messages#toUser()");
+    unit("b", "admin", "admin");
+    bundled("b", "admin", "messaging-lib");
+
+    assertThat(derive(CrossRepoLinks.PUBLISHES))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:admin PUBLISHES queue:rabbitmq:heartbeat",
+            "service:g:shop PUBLISHES queue:rabbitmq:heartbeat",
+            "service:g:shop PUBLISHES queue:rabbitmq:notify.send");
+  }
+
+  @Test
+  void aCallThroughAnInterfaceOrAnInheritedMethodReachesALibrarysSend() {
+    type("lib", "messaging-lib", "l.Messages");
+    type("lib", "messaging-lib", "l.Api");
+    type("lib", "messaging-lib", "l.Base");
+    messaging(
+        "lib",
+        "l.Messages#send()",
+        MessagingExtractor.SEND,
+        "notify.send",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        30);
+    messaging(
+        "lib",
+        "l.Base#audit()",
+        MessagingExtractor.SEND,
+        "audit",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        31);
+    relation("lib", "l.Messages", BuiltInTypes.IMPLEMENTS, "l.Api");
+    relation("lib", "l.Messages", BuiltInTypes.EXTENDS, "l.Base");
+    unit("a", "shop", "shop");
+    bundled("a", "shop", "messaging-lib");
+    type("a", "shop", "s.Orders");
+    // shop calls the interface's method, which l.Messages implements.
+    calls("a", "s.Orders#place()", "l.Api#send()");
+    unit("b", "admin", "admin");
+    bundled("b", "admin", "messaging-lib");
+    type("b", "admin", "b.Audit");
+    // admin calls the method l.Messages inherits from l.Base.
+    calls("b", "b.Audit#run()", "l.Messages#audit()");
+
+    assertThat(derive(CrossRepoLinks.PUBLISHES))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:admin PUBLISHES queue:rabbitmq:audit",
+            "service:g:shop PUBLISHES queue:rabbitmq:notify.send");
+  }
+
+  @Test
+  void aLibrarysSendStaysWithASingleUnitAndWithTheUnitWhoseOwnModuleDeclaresIt() {
+    // One unit runs the library: it sends, though nothing calls the method. (With one unit the
+    // result is that unit either way; unitsCalling only skips the call search for it.)
+    type("lib", "messaging-lib", "l.Messages");
+    messaging(
+        "lib",
+        "l.Messages#send()",
+        MessagingExtractor.SEND,
+        "notify.send",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        30);
+    unit("a", "shop", "shop");
+    bundled("a", "shop", "messaging-lib");
+    // worker's own module declares a send that shop, which bundles worker as a library, calls.
+    unit("w", "worker", "worker");
+    type("w", "worker", "w.Jobs");
+    messaging(
+        "w",
+        "w.Jobs#done()",
+        MessagingExtractor.SEND,
+        "jobs.done",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        12);
+    bundled("a", "shop", "worker");
+    type("a", "shop", "s.Orders");
+    calls("a", "s.Orders#place()", "w.Jobs#done()");
+
+    assertThat(derive(CrossRepoLinks.PUBLISHES))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:shop PUBLISHES queue:rabbitmq:jobs.done",
+            "service:g:shop PUBLISHES queue:rabbitmq:notify.send",
+            "service:g:worker PUBLISHES queue:rabbitmq:jobs.done");
+  }
+
+  private void relation(String repo, String from, String predicate, String to) {
+    add(
+        JavaExtractor.NAME,
+        "type:" + from,
+        predicate,
+        FactObject.entity(EntityId.parse("type:" + to)),
+        null,
+        repo + ":src/main/java/" + from.replace('.', '/') + ".java#3",
+        1.0);
+  }
+
+  private void calls(String repo, String from, String to) {
+    add(
+        JavaExtractor.NAME,
+        "method:" + from,
+        BuiltInTypes.CALLS,
+        FactObject.entity(EntityId.parse("method:" + to)),
+        null,
+        repo
+            + ":src/main/java/"
+            + from.substring(0, from.indexOf('#')).replace('.', '/')
+            + ".java#9",
+        1.0);
   }
 
   @Test
@@ -1032,6 +1367,170 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void unitsOnOneRedisServerShareItWithTheProtocolTechnologyAndWhatTheyStore() {
+    unit("bff", "bff", "bff");
+    unit("gw", "gateway", "gateway");
+    unit("other", "other", "other");
+    for (String module : List.of("bff", "gateway")) {
+      String repo = module.equals("bff") ? "bff" : "gw";
+      config(repo, module, "application.properties", "spring.data.redis.host", "Redis", null);
+      config(repo, module, "application.properties", "spring.data.redis.port", "6379", null);
+      config(
+          repo,
+          module,
+          "application.properties",
+          "spring.data.redis.password",
+          "******",
+          "\"masked\":true");
+    }
+    // The other unit's Redis is another server, on a port of its own.
+    config("other", "other", "application.properties", "spring.redis.host", "cache", null);
+    config("other", "other", "application.properties", "spring.redis.port", "6400", null);
+    type("bff", "bff", "app.SessionStore");
+    redisUse(
+        "bff",
+        "bff",
+        "app.SessionStore",
+        "template",
+        "{\"api\":\"org.springframework.data.redis.core.RedisTemplate\",\"key\":\"bff:session:*\","
+            + "\"operation\":\"write\",\"structure\":\"value\"}");
+    redisUse(
+        "bff",
+        "bff",
+        "app.SessionStore",
+        "template",
+        "{\"api\":\"org.springframework.data.redis.core.RedisTemplate\",\"key\":\"bff:session:*\","
+            + "\"operation\":\"delete\",\"structure\":\"value\"}");
+    redisImage("bff", "bff", "redis:8-alpine", "Redis 8");
+    redisImage("gw", "gateway", "redis:8-alpine", "Redis 8");
+    redisImage("other", "other", "redis/redis-stack:7", "Redis Stack 7");
+
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .containsExactly(
+            "service:g:bff USES_DATABASE database:redis:6379/redis"
+                + " {\"key\":\"spring.data.redis.host\",\"protocol\":\"RESP\","
+                + "\"server\":\"redis:6379\",\"stores\":[{\"key\":\"bff:session:*\","
+                + "\"kind\":\"template\",\"operations\":[\"delete\",\"write\"],"
+                + "\"structure\":\"value\"}],\"technology\":\"Redis 8\","
+                + "\"uses\":[\"template\"]} 1.0",
+            "service:g:gateway USES_DATABASE database:redis:6379/redis"
+                + " {\"key\":\"spring.data.redis.host\",\"protocol\":\"RESP\","
+                + "\"server\":\"redis:6379\",\"technology\":\"Redis 8\"} 1.0",
+            "service:g:other USES_DATABASE database:cache:6400/redis"
+                + " {\"key\":\"spring.redis.host\",\"protocol\":\"RESP\","
+                + "\"server\":\"cache:6400\",\"technology\":\"Redis Stack 7\"} 1.0");
+    assertThat(derive())
+        .filteredOn(l -> l.startsWith("database:") || l.contains(" technology "))
+        .anySatisfy(l -> assertThat(l).contains("database:redis:6379/redis technology Redis 8"))
+        .anySatisfy(
+            l ->
+                assertThat(l)
+                    .contains("database:cache:6400/redis display-name Redis Stack (cache:6400)"));
+  }
+
+  @Test
+  void aRedisHostOrPortNoConfigResolvesIsSharedByTheUnitsThatWriteItTheSameWay() {
+    for (String name : List.of("auth", "gw")) {
+      unit(name, name, name);
+      config(
+          name,
+          name,
+          "application.properties",
+          "spring.data.redis.host",
+          "${redis.host}",
+          "\"unresolved\":[\"redis.host\"]");
+      config(
+          name,
+          name,
+          "application.properties",
+          "spring.data.redis.port",
+          "${redis.port}",
+          "\"unresolved\":[\"redis.port\"]");
+    }
+    unit("main", "main", "main");
+    config(
+        "main",
+        "main",
+        "application.properties",
+        "spring.data.redis.host",
+        "${cache.host}",
+        "\"unresolved\":[\"cache.host\"]");
+
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:auth USES_DATABASE database:${redis.host}:${redis.port}/redis",
+            "service:g:gw USES_DATABASE database:${redis.host}:${redis.port}/redis",
+            "service:g:main USES_DATABASE database:${cache.host}:6379/redis");
+    assertThat(derive(CrossRepoLinks.USES_DATABASE).getFirst())
+        .contains("\"inferred\"")
+        .endsWith(" 0.8");
+  }
+
+  @Test
+  void aRedisUrlAndAClusterAreLinked() {
+    unit("a", "a", "a");
+    config(
+        "a",
+        "a",
+        "application.properties",
+        "spring.data.redis.url",
+        "rediss://u:p@Cache-A/2",
+        null);
+    unit("b", "b", "b");
+    config(
+        "b", "b", "application.properties", "spring.data.redis.cluster.nodes[0]", "n2:7001", null);
+    config(
+        "b", "b", "application.properties", "spring.data.redis.cluster.nodes[1]", "n1:7000", null);
+
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:a USES_DATABASE database:cache-a:6379/redis",
+            "service:g:b USES_DATABASE database:n1:7000,n2:7001/redis");
+    assertThat(derive(CrossRepoLinks.USES_DATABASE).getFirst()).contains("\"ssl\":true");
+    assertThat(derive()).noneMatch(l -> l.contains("u:p"));
+  }
+
+  @Test
+  void aUnitUsingRedisWithoutConfigTakesTheOnlyConfiguredServerElseTheDefaultElseNone() {
+    unit("c", "c", "c");
+    type("c", "c", "app.Limiter");
+    redisUse("c", "c", "app.Limiter", "rate-limiter", "{\"operation\":\"other\"}");
+
+    // No server is configured anywhere: Spring Boot's default.
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .singleElement()
+        .satisfies(
+            l ->
+                assertThat(l)
+                    .startsWith("service:g:c USES_DATABASE database:localhost:6379/redis")
+                    .contains("\"defaulted\":true")
+                    .endsWith(" 0.6"));
+
+    // One server is configured: the unit is taken to use it, inferred.
+    unit("a", "a", "a");
+    config("a", "a", "application.properties", "spring.data.redis.host", "cache", null);
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .anySatisfy(
+            l ->
+                assertThat(l)
+                    .startsWith("service:g:c USES_DATABASE database:cache:6379/redis")
+                    .contains("\"inferred\"")
+                    .doesNotContain("defaulted")
+                    .endsWith(" 0.6"));
+
+    // Several are: left open, no link and no guess.
+    unit("b", "b", "b");
+    config("b", "b", "application.properties", "spring.data.redis.host", "other", null);
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:a USES_DATABASE database:cache:6379/redis",
+            "service:g:b USES_DATABASE database:other:6379/redis");
+  }
+
+  @Test
   void brokersAndInfrastructureComeFromConfigAndInfrastructureIsKeptApart() {
     unit("s", "shop", "shop");
     config(
@@ -1120,8 +1619,416 @@ class CrossRepoLinksTest {
         4);
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // People
+
+  private void evidence(String subject, String kind, String attributes, String where) {
+    add(
+        PeopleExtractor.NAME,
+        subject,
+        PeopleExtractor.PERSON_EVIDENCE,
+        FactObject.string(kind),
+        attributes,
+        where,
+        0.7);
+  }
+
+  private void signInEndpoint(String path) {
+    add(
+        SpringExtractor.NAME,
+        "method:a.AuthController#in()",
+        SpringExtractor.ENDPOINT,
+        FactObject.string("POST " + path),
+        "{\"httpMethod\":\"POST\",\"path\":\""
+            + path
+            + "\",\"controller\":\"a.AuthController\","
+            + "\"annotation\":\"org.springframework.web.bind.annotation.PostMapping\","
+            + "\"framework\":\"spring-mvc\"}",
+        "auth:src/main/java/a/AuthController.java#9",
+        1.0);
+  }
+
+  private Map<String, Fact> people() {
+    Map<String, Fact> result = new TreeMap<>();
+    linked().stream()
+        .filter(f -> f.subject().type().equals("person") && f.predicate().equals("person-basis"))
+        .forEach(f -> result.put(f.subject().key(), f));
+    return result;
+  }
+
+  private String nameOf(String person) {
+    return linked().stream()
+        .filter(f -> f.subject().toString().equals("person:" + person))
+        .filter(f -> f.predicate().equals("display-name"))
+        .map(f -> f.object().value())
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void membersAndTheInvitedAreInferredPeopleLinkedToTheScreensOfTheFrontendThatHasThem() {
+    evidence(
+        "type:m.RequiresOrganizationMembership",
+        "membership",
+        "{\"scope\":\"Organization\",\"type\":\"m.RequiresOrganizationMembership\"}",
+        "main:src/main/java/m/RequiresOrganizationMembership.java#7");
+    evidence(
+        "type:m.OrganizationInvitation",
+        "invitation",
+        "{\"type\":\"m.OrganizationInvitation\"}",
+        "main:src/main/java/m/OrganizationInvitation.java#6");
+    evidence(
+        "repo:web",
+        "route",
+        "{\"framework\":\"angular\",\"path\":\"/invitation/:invitationId\"}",
+        "web:src/app/app.routes.ts#5");
+    evidence(
+        "repo:web",
+        "route",
+        "{\"framework\":\"angular\",\"path\":\"/registration\"}",
+        "web:src/app/app.routes.ts#6");
+    evidence(
+        "repo:web",
+        "route",
+        "{\"framework\":\"angular\",\"path\":\"/tasks\"}",
+        "web:src/app/app.routes.ts#7");
+    signInEndpoint("/api/auth/sign-in");
+
+    Map<String, Fact> people = people();
+
+    assertThat(people.keySet()).containsExactly("invited-user", "organization-member");
+    assertThat(nameOf("organization-member")).isEqualTo("Organization member");
+    assertThat(nameOf("invited-user")).isEqualTo("Invited user");
+    Fact member = people.get("organization-member");
+    assertThat(member.object().value()).isEqualTo("member");
+    assertThat(member.attributes().get("frontends").toString()).isEqualTo("[\"web\"]");
+    assertThat(member.attributes().get("repos").toString())
+        .isEqualTo("[\"auth\",\"main\",\"web\"]");
+    assertThat(member.attributes().get("description").asString())
+        .startsWith("The code has members of an organization: it checks membership in")
+        .contains("RequiresOrganizationMembership")
+        .contains("It signs up and in at POST /api/auth/sign-in.")
+        .contains("web has the screens /registration.")
+        .doesNotContain("/tasks");
+    assertThat(people.get("invited-user").attributes().get("description").asString())
+        .contains("OrganizationInvitation")
+        .contains("web has the screens /invitation/:invitationId.")
+        .doesNotContain("sign");
+    assertThat(member.confidence()).isEqualTo(0.7);
+    // Every fact it cites is a fact of the snapshot.
+    Set<String> known = facts.stream().map(Fact::id).collect(java.util.stream.Collectors.toSet());
+    for (Fact person : people.values()) {
+      for (var id : person.attributes().get("cites")) {
+        assertThat(known).contains(id.asString());
+      }
+    }
+  }
+
+  @Test
+  void eachRoleTheCodeChecksIsAPersonNamedByTheRoleAcrossTheWaysItIsWritten() {
+    evidence(
+        "method:m.Orders#all()",
+        "role",
+        "{\"name\":\"EVENT_STAFF\",\"source\":\"PreAuthorize\"}",
+        "m:src/main/java/m/Orders.java#12");
+    evidence(
+        "method:m.Orders#scan()",
+        "role",
+        "{\"name\":\"EVENT_STAFF\",\"source\":\"Secured\"}",
+        "m:src/main/java/m/Orders.java#20");
+    evidence(
+        "repo:kc",
+        "role",
+        "{\"name\":\"Event_staff\",\"source\":\"keycloak-realm\"}",
+        "kc:realm.json#4");
+    evidence(
+        "repo:kc", "role", "{\"name\":\"admin\",\"source\":\"keycloak-realm\"}", "kc:realm.json#8");
+
+    assertThat(people().keySet()).containsExactly("admin", "event-staff");
+    assertThat(nameOf("event-staff")).isEqualTo("Event staff");
+    assertThat(nameOf("admin")).isEqualTo("Admin");
+    assertThat(people().get("event-staff").attributes().get("cites")).hasSize(3);
+    assertThat(people().get("admin").attributes().get("description").asString())
+        .isEqualTo("The code checks the role admin (a role of the Keycloak realm, realm.json).");
+  }
+
+  @Test
+  void signingUpAndInWithNoMemberOrRoleMakesTheUser() {
+    signInEndpoint("/api/auth/sign-in");
+    signInEndpoint("/register/{id}");
+    signInEndpoint("/orders");
+
+    assertThat(people().keySet()).containsExactly("user");
+    assertThat(people().get("user").object().value()).isEqualTo("account");
+    assertThat(people().get("user").attributes().get("description").asString())
+        .contains("POST /api/auth/sign-in")
+        .contains("POST /register/{id}")
+        .doesNotContain("/orders");
+  }
+
+  @Test
+  void aDescriptionNamesOnlyTheFactsItCites() {
+    evidence(
+        "type:m.RequiresOrganizationMembership",
+        "membership",
+        "{\"scope\":\"Organization\",\"type\":\"m.RequiresOrganizationMembership\"}",
+        "main:src/main/java/m/RequiresOrganizationMembership.java#7");
+    for (int n = 0; n < 20; n++) {
+      evidence(
+          "repo:web",
+          "route",
+          "{\"framework\":\"angular\",\"path\":\"/x" + n + "/login\"}",
+          "web:src/app/app.routes.ts#" + (n + 1));
+    }
+    add(
+        SpringExtractor.NAME,
+        "method:a.AuthController#up()",
+        SpringExtractor.ENDPOINT,
+        FactObject.string("POST /sign-up"),
+        "{\"httpMethod\":\"POST\",\"path\":\"/sign-up\",\"controller\":\"a.AuthController\","
+            + "\"annotation\":\"x\",\"framework\":\"spring-mvc\"}",
+        "auth:src/main/java/a/AuthController.java#9",
+        1.0);
+    signInEndpoint("/login");
+
+    Fact member = people().get("organization-member");
+
+    assertThat(member.attributes().get("cites")).hasSize(PeopleLinker.MAX_CITED);
+    String description = member.attributes().get("description").asString();
+    Map<String, Fact> byId = new TreeMap<>();
+    facts.forEach(f -> byId.put(f.id(), f));
+    // Every screen and endpoint the sentence names is a cited fact, and the rest are not named.
+    List<String> citedPaths = new java.util.ArrayList<>();
+    for (var id : member.attributes().get("cites")) {
+      Fact cited = byId.get(id.asString());
+      citedPaths.add(cited.attributes().path("path").asString(""));
+    }
+    for (java.util.regex.Matcher m =
+            java.util.regex.Pattern.compile("(/[a-z0-9/-]+)").matcher(description);
+        m.find(); ) {
+      assertThat(citedPaths).contains(m.group(1));
+    }
+    assertThat(member.attributes().get("frontends").toString()).isEqualTo("[\"web\"]");
+  }
+
+  @Test
+  void rolesAreWordedAsAnnotationsAndCallsAreChecks() {
+    evidence(
+        "method:m.A#a()",
+        "role",
+        "{\"name\":\"ADMIN\",\"source\":\"RolesAllowed\"}",
+        "m:src/main/java/m/A.java#5");
+    evidence(
+        "method:m.A#b()",
+        "role",
+        "{\"name\":\"CLERK\",\"source\":\"hasRole\"}",
+        "m:src/main/java/m/A.java#9");
+
+    assertThat(people().get("admin").attributes().get("description").asString())
+        .isEqualTo("The code checks the role ADMIN (@RolesAllowed in A.java).");
+    assertThat(people().get("clerk").attributes().get("description").asString())
+        .isEqualTo("The code checks the role CLERK (a hasRole check in A.java).");
+  }
+
+  @Test
+  void aRoleOnlyServiceAccountsHoldIsNoPerson() {
+    evidence(
+        "repo:kc",
+        "role",
+        "{\"name\":\"WORKER\",\"source\":\"keycloak-realm\",\"serviceAccountOnly\":true}",
+        "kc:realm.json#4");
+    evidence(
+        "method:m.A#reg()",
+        "role",
+        "{\"name\":\"WORKER\",\"source\":\"PreAuthorize\"}",
+        "m:src/main/java/m/A.java#5");
+    evidence(
+        "repo:kc",
+        "role",
+        "{\"name\":\"editor\",\"source\":\"keycloak-realm\"}",
+        "kc:realm.json#8");
+
+    assertThat(people().keySet()).containsExactly("editor");
+  }
+
+  @Test
+  void aRoleThatGuardsOnlyOperatorEndpointsIsNoPersonButOneGuardingOthersIs() {
+    for (String[] role :
+        new String[][] {
+          {"OPS", "/actuator/env"}, {"STAFF", "/api/internal/x"}, {"ADMIN", "/api/users"}
+        }) {
+      String controller = "m.C" + role[0];
+      add(
+          SpringExtractor.NAME,
+          "method:" + controller + "#h()",
+          SpringExtractor.ENDPOINT,
+          FactObject.string("GET " + role[1]),
+          "{\"httpMethod\":\"GET\",\"path\":\""
+              + role[1]
+              + "\",\"controller\":\""
+              + controller
+              + "\",\"annotation\":\"x\",\"framework\":\"spring-mvc\"}",
+          "m:src/main/java/m/C.java#3",
+          1.0);
+      evidence(
+          "type:" + controller,
+          "role",
+          "{\"name\":\"" + role[0] + "\",\"source\":\"Secured\"}",
+          "m:src/main/java/m/C.java#2");
+    }
+    // A role checked in code with no endpoint to tell by is kept.
+    evidence(
+        "method:m.D#x()",
+        "role",
+        "{\"name\":\"CLERK\",\"source\":\"Secured\"}",
+        "m:src/main/java/m/D.java#2");
+
+    assertThat(people().keySet()).containsExactly("admin", "clerk");
+  }
+
+  @Test
+  void aRoleAndAMembershipOfOneNameAreOnePersonThatTheMembershipDescribes() {
+    evidence(
+        "method:m.A#a()",
+        "role",
+        "{\"name\":\"member\",\"source\":\"Secured\"}",
+        "m:src/main/java/m/A.java#5");
+    evidence(
+        "type:m.Member",
+        "membership",
+        "{\"type\":\"m.Member\"}",
+        "m:src/main/java/m/Member.java#3");
+    signInEndpoint("/login");
+
+    assertThat(people().keySet()).containsExactly("member");
+    Fact person = people().get("member");
+    assertThat(person.object().value()).isEqualTo("member");
+    assertThat(person.attributes().get("cites")).hasSize(3);
+    assertThat(person.attributes().get("description").asString())
+        .startsWith("The code has members: it checks membership in Member (Member.java).");
+  }
+
+  @Test
+  void aCodeWithNoSignOfUsersHasNoPeople() {
+    unit("shop", "shop-app", "shop");
+    signInEndpoint("/orders");
+    evidence("repo:web", "route", "{\"framework\":\"vue\",\"path\":\"/cart\"}", "web:router.js#3");
+
+    assertThat(people()).isEmpty();
+  }
+
+  @Test
+  void aCodeWithManyRolesMakesPeopleOfTheMostChecked() {
+    for (int n = 0; n < PeopleLinker.MAX_ROLES + 3; n++) {
+      evidence(
+          "method:m.A#m" + n + "()",
+          "role",
+          "{\"name\":\"R" + (char) ('A' + n) + "\",\"source\":\"Secured\"}",
+          "m:src/main/java/m/A.java#" + (n + 1));
+    }
+    evidence(
+        "method:m.A#again()",
+        "role",
+        "{\"name\":\"RC\",\"source\":\"Secured\"}",
+        "m:src/main/java/m/A.java#99");
+
+    assertThat(people()).hasSize(PeopleLinker.MAX_ROLES).containsKey("rc");
+  }
+
   @Test
   void noFactsNoLinks() {
     assertThat(new CrossRepoLinks().derive(List.of(), 1)).isEmpty();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Mail
+
+  private void mailSend(String repo, String method, int line) {
+    add(
+        MailExtractor.NAME,
+        "method:" + method,
+        MailExtractor.MAIL_SEND,
+        FactObject.string("send"),
+        "{\"method\":\"send\",\"template\":\"org.springframework.mail.javamail.JavaMailSender\"}",
+        repo
+            + ":src/main/java/"
+            + method.substring(0, method.indexOf('#')).replace('.', '/')
+            + ".java#"
+            + line,
+        1.0);
+  }
+
+  @Test
+  void aUnitThatSendsMailThroughTheHostInItsConfigSendsMailToAnExternalSystem() {
+    unit("n", "notification", "notification");
+    type("n", "notification", "n.EmailService");
+    config(
+        "n", "notification", "application.properties", "spring.mail.host", "smtp.gmail.com", null);
+    config("n", "notification", "application.properties", "spring.mail.port", "587", null);
+    mailSend("n", "n.EmailService#send(java.lang.String)", 35);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+        .containsExactly(
+            "service:g:notification SENDS_MAIL external-system:smtp.gmail.com"
+                + " {\"host\":\"smtp.gmail.com\",\"key\":\"spring.mail.host\","
+                + "\"port\":\"587\",\"protocol\":\"SMTP\","
+                + "\"source\":\"method:n.EmailService#send(java.lang.String)\"} 1.0");
+  }
+
+  @Test
+  void port465OrTheSmtpsProtocolMakesItSmtps() {
+    unit("n", "notification", "notification");
+    type("n", "notification", "n.EmailService");
+    config(
+        "n",
+        "notification",
+        "application.properties",
+        "spring.mail.host",
+        "smtp.example.org",
+        null);
+    config("n", "notification", "application.properties", "spring.mail.port", "465", null);
+    mailSend("n", "n.EmailService#send()", 12);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+        .singleElement()
+        .asString()
+        .contains("\"protocol\":\"SMTPS\"");
+  }
+
+  @Test
+  void aMailHostInConfigWithoutRecognisedCodeIsOneLinkWithoutASource() {
+    unit("n", "notification", "notification");
+    config(
+        "n", "notification", "application.properties", "spring.mail.host", "smtp.gmail.com", null);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+        .containsExactly(
+            "service:g:notification SENDS_MAIL external-system:smtp.gmail.com"
+                + " {\"host\":\"smtp.gmail.com\",\"key\":\"spring.mail.host\","
+                + "\"protocol\":\"SMTP\"} 1.0");
+  }
+
+  @Test
+  void aMailHostWithoutADomainOrWithAnUnresolvedPlaceholderIsNotAnExternalSystem() {
+    unit("n", "notification", "notification");
+    type("n", "notification", "n.EmailService");
+    config("n", "notification", "application.properties", "spring.mail.host", "mailhog", null);
+    mailSend("n", "n.EmailService#send()", 12);
+    for (String local :
+        List.of("localhost", "127.0.0.1", "10.0.0.5", "mail.internal", "smtp.corp.local")) {
+      config("n", "notification", "application.properties", "spring.mail.host", local, null);
+      assertThat(derive(CrossRepoLinks.SENDS_MAIL)).as(local).isEmpty();
+      facts.removeIf(f -> f.object().value().equals(local));
+    }
+    unit("m", "mailer", "mailer");
+    config(
+        "m",
+        "mailer",
+        "application.properties",
+        "spring.mail.host",
+        "${SMTP_HOST}",
+        "\"unresolved\":[\"SMTP_HOST\"]");
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL)).isEmpty();
   }
 }

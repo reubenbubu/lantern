@@ -65,14 +65,36 @@
     "name": "scheduled",
     "kind": "attribute",
     "parent": "entry-point",
-    "description": "The subject method runs on a schedule (@Scheduled): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module.",
+    "description": "The subject method runs on a schedule (@Scheduled, JobRunr's @Recurring or a request scheduled recurrently, or a Quartz job whose cron was found): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "trigger": { "type": "string", "enum": ["cron", "fixed-delay", "fixed-rate"], "description": "What the value is." },
-        "timeUnit": { "type": "string", "description": "The unit of a delay or rate when written, such as SECONDS. Milliseconds when absent." }
+        "timeUnit": { "type": "string", "description": "The unit of a delay or rate when written, such as SECONDS. Milliseconds when absent." },
+        "framework": { "type": "string", "enum": ["jobrunr", "quartz"], "description": "The job library, for a job of JobRunr or Quartz. Absent for @Scheduled." },
+        "request": { "type": "string", "description": "A JobRunr request handler's request type, the binary name." },
+        "job": { "type": "string", "description": "A Quartz job's class, the binary name." },
+        "scheduledBy": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the methods whose code sets the job up: passes its request to the scheduler, or builds its Quartz job and trigger. Absent when none is found in the analyzed code." }
       },
       "required": ["trigger"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "background-job",
+    "kind": "attribute",
+    "parent": "entry-point",
+    "description": "The subject method runs as a background job that a library starts, not on a cron, delay or rate: a JobRunr request handler's run method (the job runs when its request is enqueued or scheduled once), an @Job method, a @Recurring interval, or a Quartz job whose cron was not found. The value is the job's name, interval or class.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "framework": { "type": "string", "enum": ["jobrunr", "quartz"], "description": "The job library." },
+        "kind": { "type": "string", "enum": ["job", "interval"], "description": "What the value is: the job (its @Job name, its request type or its Quartz class), or a @Recurring interval." },
+        "request": { "type": "string", "description": "A JobRunr request handler's request type, the binary name." },
+        "job": { "type": "string", "description": "A Quartz job's class, the binary name." },
+        "scheduledBy": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the methods whose code sets the job up: passes its request to the scheduler, or builds its Quartz job and trigger. Absent when none is found in the analyzed code." }
+      },
+      "required": ["framework", "kind"],
       "additionalProperties": false
     }
   },
@@ -97,5 +119,36 @@
     "description": "The subject method defines a Spring bean (@Bean); the value is the bean's name, the first name the annotation gives or else the method's name.",
     "attributeSchema": { "additionalProperties": false },
     "objectKind": "string"
+  },
+  {
+    "name": "aspect",
+    "kind": "attribute",
+    "description": "The subject type is an AspectJ aspect (an @Aspect class) with advice (@Before, @After, @AfterReturning, @AfterThrowing, @Around). It runs around the methods its pointcuts select, which ADVISES lists; an aspect that enforces access (a permission or membership check) is a component of the units whose entry points it advises.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "advice": { "type": "array", "items": { "type": "string" }, "description": "The kinds of advice the aspect has: before, after, after-returning, after-throwing, around." },
+        "pointcuts": { "type": "array", "items": { "type": "string" }, "description": "The pointcut expressions of its advice, as written." },
+        "annotations": { "type": "array", "items": { "type": "string" }, "description": "The binary names of the annotations its pointcuts select methods or types by (@annotation, @within, @target), such as a permission annotation. Absent when none." }
+      },
+      "required": ["advice", "pointcuts"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "ADVISES",
+    "kind": "relationship",
+    "description": "The subject aspect's advice selects the object method: the aspect runs around its calls. Read from the advice's pointcut (@annotation, @within, @target, within and execution designators, and named pointcuts) against the methods of the analyzed code, including other repositories.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "advice": { "type": "string", "description": "The entity ID of the advice method." },
+        "kind": { "type": "string", "enum": ["before", "after", "after-returning", "after-throwing", "around"], "description": "The kind of advice." },
+        "pointcut": { "type": "string", "description": "The pointcut expression, as written." }
+      },
+      "required": ["advice", "kind", "pointcut"],
+      "additionalProperties": false
+    }
   }
 ]

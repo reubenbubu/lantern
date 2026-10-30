@@ -1263,10 +1263,9 @@ final class JavaParserAnalyzer {
           return fieldAccess(f);
         }
         case MethodCallExpr call -> {
+          // A chain's receivers are not nesting: a long chain of calls is read whole.
           Expression receiver =
-              call.getScope().isPresent()
-                  ? expression(call.getScope().get(), owner, depth + 1)
-                  : null;
+              call.getScope().isPresent() ? expression(call.getScope().get(), owner, depth) : null;
           return new Expression.Invoke(
               receiver, call.getNameAsString(), arguments(call.getArguments(), owner, depth));
         }
@@ -1279,10 +1278,31 @@ final class JavaParserAnalyzer {
               ModuleStructure.CONSTRUCTOR,
               arguments(created.getArguments(), owner, depth));
         }
+        case LambdaExpr lambda -> {
+          return lambda(lambda, owner, depth);
+        }
         default -> {
           return unknown(e);
         }
       }
+    }
+
+    /** A lambda: its source, and what its body returns when that is one expression. */
+    private Expression lambda(LambdaExpr lambda, EntityId owner, int depth) {
+      Expression value;
+      if (lambda.getExpressionBody().isPresent()) {
+        value = expression(lambda.getExpressionBody().get(), owner, depth + 1);
+      } else if (lambda.getBody() instanceof BlockStmt block
+          && block.getStatements().size() == 1
+          && block.getStatements().getFirst().orElseThrow() instanceof ReturnStmt returned
+          && returned.getExpression().isPresent()) {
+        value = expression(returned.getExpression().get(), owner, depth + 1);
+      } else {
+        value = unknown(lambda.getBody());
+      }
+      Location where = location(lambda);
+      return new Expression.Lambda(
+          ((Expression.Unknown) unknown(lambda)).source(), value, where.start(), where.end());
     }
 
     private List<Expression> arguments(

@@ -5,21 +5,26 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactRepository;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Git;
+import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.Role;
 import io.lantern.sandbox.BuildResult;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.MavenMirror;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -32,9 +37,11 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -158,7 +165,7 @@ class Project0EndToEndIT {
   /** The workspace, and the Maven mirror of the test properties file, as EndToEndIT sets them. */
   @DynamicPropertySource
   static void workspace(DynamicPropertyRegistry registry) throws IOException {
-    registry.add("lantern.workspace", Workspace.PATH::toString);
+    registry.add("lantern.workspace", workspace::toString);
     String file = System.getProperty("lantern.test.properties");
     if (file == null || file.isBlank()) {
       file = System.getenv("LANTERN_TEST_PROPERTIES");
@@ -172,14 +179,10 @@ class Project0EndToEndIT {
 
   @Autowired AnalysisRun run;
   @Autowired FakeLlmProvider fake;
+  @Autowired FactRepository facts;
 
   @AfterAll
-  static void cleanUp() throws IOException {
-    try (Stream<Path> paths = Files.walk(Workspace.PATH)) {
-      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-        Files.delete(path);
-      }
-    }
+  static void cleanUp() {
     assertThat(docker("ps", "--all", "--quiet", "--filter", "label=" + RUN_LABEL + "=" + RUN))
         .as("sandbox containers left behind")
         .isEmpty();
@@ -267,13 +270,15 @@ class Project0EndToEndIT {
   }
 
   /**
-   * Analyzes project-4's repositories with a Maven build (the others fail the run until #254) into
-   * the database that holds project-0, as another named system, and checks that its report shows
-   * nothing of project-0, is titled by the words its READMEs' headings share, that a removed
-   * repository leaves the next snapshot, and that project-0 analyzed again finds the same facts
-   * without an LLM call (ADR 0071). Runs after the test above, which needs a database without
-   * project-0, and only when {@code lantern.test.project4} names the folder project-4 is set up in.
-   * Writes project-4's system document and report to {@code target/project-4}, to look at.
+   * Analyzes all of project-4's repositories at their pins, with the {@code analyze} command, into
+   * the database that holds project-0, as another named system, and checks that the repositories
+   * without a {@code pom.xml} are analyzed without a build and not in degraded mode, and their
+   * READMEs read (#254); that its report shows nothing of project-0, is titled by the words its
+   * READMEs' headings share, that a removed repository leaves the next snapshot, and that project-0
+   * analyzed again finds the same facts without an LLM call (ADR 0071). Runs after the test above,
+   * which needs a database without project-0, and only when {@code lantern.test.project4} names the
+   * folder project-4 is set up in. Writes the command's output and project-4's system document and
+   * report to {@code target/project-4}, to look at.
    */
   @Test
   @Order(2)
@@ -284,12 +289,61 @@ class Project0EndToEndIT {
     Map<String, Path> crm = new TreeMap<>();
     try (Stream<Path> repos = Files.list(Path.of(folder))) {
       repos
-          .filter(repo -> Files.isRegularFile(repo.resolve("pom.xml")))
+          .filter(repo -> Files.exists(repo.resolve(".git")))
           .forEach(repo -> crm.put(repo.getFileName().toString(), repo));
     }
-    assertThat(crm).hasSizeGreaterThan(1);
+    Map<String, String> pins = project4Pins();
+    assertThat(crm).containsOnlyKeys(pins.keySet());
+    crm.forEach(
+        (name, path) ->
+            assertThat(Git.run(path, "rev-parse", "HEAD").out())
+                .as(name + " at its pin")
+                .isEqualTo(pins.get(name)));
+    List<String> withoutPom =
+        crm.entrySet().stream()
+            .filter(repo -> !Files.exists(repo.getValue().resolve("pom.xml")))
+            .map(Map.Entry::getKey)
+            .toList();
+    assertThat(withoutPom).containsExactly("CRM-Frontend", "Deployment");
+    Path out = Path.of("target", "project-4");
+    Files.createDirectories(out);
 
+    // The command a user runs, which prints what the run did.
+    ByteArrayOutputStream printed = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(printed, true, StandardCharsets.UTF_8));
+    List<String> args = new ArrayList<>(List.of(AnalyzeCommand.NAME, "--system=project-4"));
+    crm.values().forEach(path -> args.add(path.toString()));
+    command.run(new DefaultApplicationArguments(args.toArray(String[]::new)));
+    String report4 = printed.toString(StandardCharsets.UTF_8);
+    Files.writeString(out.resolve("analyze.txt"), report4);
+    assertThat(command.getExitCode()).as(report4).isZero();
+    for (String name : withoutPom) {
+      assertThat(report4)
+          .contains("  " + name + "@" + pins.get(name) + ": analyzed without a build (no pom.xml)");
+    }
+    assertThat(report4).doesNotContain("degraded mode");
+
+    // The same run again, for its result: it reuses every build and fact.
     AnalysisRun.Result first = run.run("project-4", null, crm);
+
+    assertThat(first.newFacts()).isZero();
+    assertThat(first.withoutBuild()).containsExactlyInAnyOrderElementsOf(withoutPom);
+    assertThat(first.builds()).doesNotContainKeys(withoutPom.toArray(String[]::new));
+    assertThat(first.builds().keySet()).hasSize(crm.size() - withoutPom.size());
+    // Their READMEs are read, as claims of their own README entity.
+    List<Fact> held = facts.findValidAt(first.snapshot().number(), crm.keySet());
+    for (String name : withoutPom) {
+      assertThat(held)
+          .as(name + "'s README claims")
+          .anySatisfy(
+              fact -> {
+                assertThat(fact.evidence().repo()).isEqualTo(name);
+                assertThat(fact.origin().kind()).isEqualTo(Origin.Kind.README);
+                assertThat(fact.subject().toString()).isEqualTo("readme:" + name + ":README.md");
+                assertThat(fact.predicate()).isEqualTo(DocsExtractor.CLAIM);
+              });
+    }
 
     assertThat(first.snapshot().commits()).containsOnlyKeys(crm.keySet());
     AnalysisRun.Rendered report = first.documents().getLast();
@@ -300,8 +354,6 @@ class Project0EndToEndIT {
         .allSatisfy(fact -> assertThat(crm).containsKey(fact.evidence().repo()));
     String json = DocumentJson.write(report.document());
     String html = Files.readString(report.file());
-    Path out = Path.of("target", "project-4");
-    Files.createDirectories(out);
     Files.writeString(out.resolve("system.json"), json);
     Files.copy(report.file(), out.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
     // project-0's repositories, packages, hosts and exchanges.
@@ -566,6 +618,17 @@ class Project0EndToEndIT {
     return lines.getFirst().split("\\s+")[2];
   }
 
+  /** project-4's pinned commits by repository, from {@code testsets/project-4/pins.txt}. */
+  private static Map<String, String> project4Pins() throws IOException {
+    Map<String, String> pins = new TreeMap<>();
+    Files.readAllLines(Path.of("..", "testsets", "project-4", "pins.txt")).stream()
+        .map(String::strip)
+        .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+        .map(line -> line.split("\\s+"))
+        .forEach(parts -> pins.put(parts[0], parts[2]));
+    return pins;
+  }
+
   /** The folder {@code lantern.test.project0} names, or null if it is not set. */
   private static String given() {
     String given = System.getProperty("lantern.test.project0");
@@ -578,18 +641,8 @@ class Project0EndToEndIT {
         .resolve("project-0");
   }
 
-  /** The workspace, a temporary directory made only when the test runs. */
-  private static final class Workspace {
-    static final Path PATH;
-
-    static {
-      try {
-        PATH = Files.createTempDirectory("lantern-project0-workspace-");
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-    }
-  }
+  /** The workspace; JUnit removes it after the class, whether its tests passed or not. */
+  @TempDir static Path workspace;
 
   private static String docker(String... args) {
     List<String> command = new ArrayList<>(List.of("docker"));

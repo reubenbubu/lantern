@@ -1,6 +1,6 @@
 # 0072: Scoring harness: a report against a reference, and the models of a run
 
-Status: accepted (#252), pending the user's review (#24)
+Status: accepted (#252), amended (#254), pending the user's review (#24)
 
 ## Context
 
@@ -65,7 +65,8 @@ measurement, the assessment of snapshot-4's project-4 report, was counted by han
   `--role`/`--tier` overrides, scores each and, with `--compare-with`, writes a side-by-side
   comparison with an earlier run. With `--fake-llm` it runs every role on a free fake model: the
   Spring profile `fake-llm` adds a fake provider bean, which ADR 0009 already lets models name, so
-  a whole run of the sets costs nothing. It refuses the held-out sets unless `--held-out` is given
+  a whole run of the sets costs nothing. Every text the fake words is wrapped in `{{ }}` with a hint of what a model would write
+  (`{{placeholder: summary of class Order from its parts}}`), so a reader tells it from Lantern's own text. It refuses the held-out sets unless `--held-out` is given
   (design, Test sets); `TestSetScoreIT` likewise needs `lantern.test.held-out`. Recordings were already keyed by provider and model (ADR 0008),
   so replaying with one role switched makes new calls only for that role; a test shows it.
 - **Output.** `score.mjs` writes `<prefix>.scorecard.json` and `.md` (default: the report's path
@@ -74,8 +75,8 @@ measurement, the assessment of snapshot-4's project-4 report, was counted by han
 ## Not in this issue
 
 Replaying recordings in `analyze` itself, so a real-model run can be repeated for free, is #202's.
-The judge (#277). Repositories without a Maven build are left out of the script's runs until #254,
-so project-3's and project-4's frontends and deployment repositories are not analyzed yet.
+The judge (#277). Repositories without a Maven build were left out of the script's runs until #254
+(see the amendment below).
 
 ## Recounts against the assessment
 
@@ -83,3 +84,9 @@ Scoring snapshot-4's report reproduces the assessment of ADR 0070 except where i
 differently: the reference now has 16 risks, not 13, since its second pass added three; and HTTP
 connections are 6 of 10, not 6 of 8, because frontend to gateway and gateway to Eureka count as
 HTTP here.
+
+## Amendment (#254): every repository of a set is analyzed
+
+Since #254 a repository without a Maven build is analyzed without a build (ADR 0016, amendment for
+#254), so `score-testsets.sh` and `TestSetScoreIT` analyze every repository a set's pins name,
+project-3's and project-4's frontends and deployment repositories included.

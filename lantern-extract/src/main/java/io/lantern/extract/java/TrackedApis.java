@@ -43,6 +43,22 @@ final class TrackedApis {
           "org.springframework.amqp.",
           // Spring Cloud Stream: StreamBridge, and the legacy Source and Processor bindings.
           "org.springframework.cloud.stream.",
+          // Mail (the mail extractor): JavaMailSender and MailSender, and Jakarta Mail.
+          "org.springframework.mail.",
+          "jakarta.mail.",
+          "javax.mail.",
+          // Redis templates and their operations (the Redis extractor): the keys they are given.
+          "org.springframework.data.redis.core.",
+          "org.springframework.data.redis.cache.",
+          "org.springframework.data.redis.listener.",
+          "org.springframework.integration.redis.util.",
+          "org.springframework.cloud.gateway.filter.ratelimit.",
+          // Spring Cloud Gateway (the gateway extractor): routes built with RouteLocatorBuilder.
+          "org.springframework.cloud.gateway.",
+
+          // Jobs (the Spring extractor): JobRunr's schedulers and Quartz's builders and scheduler.
+          "org.jobrunr.scheduling.",
+          "org.quartz.",
           // WebSocket and STOMP (the WebSocket extractor): endpoint and handler registries, the
           // broker's and client channel's registrations, and the Simp messaging templates.
           "org.springframework.web.socket.config.annotation.",

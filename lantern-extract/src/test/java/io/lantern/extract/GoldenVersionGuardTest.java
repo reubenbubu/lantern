@@ -3,11 +3,14 @@ package io.lantern.extract;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.extract.people.PeopleExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
+import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.extract.websocket.WebSocketExtractor;
@@ -42,6 +45,7 @@ class GoldenVersionGuardTest {
   private static final Map<String, String[]> EXTRACTORS =
       Map.ofEntries(
           Map.entry("docs", new String[] {DocsExtractor.NAME, DocsExtractor.VERSION}),
+          Map.entry("gateway", new String[] {GatewayExtractor.NAME, GatewayExtractor.VERSION}),
           Map.entry("http", new String[] {HttpClientExtractor.NAME, HttpClientExtractor.VERSION}),
           Map.entry("java", new String[] {JavaExtractor.NAME, JavaExtractor.VERSION}),
           Map.entry("maven", new String[] {MavenExtractor.NAME, MavenExtractor.VERSION}),
@@ -50,6 +54,8 @@ class GoldenVersionGuardTest {
           Map.entry(
               "persistence",
               new String[] {PersistenceExtractor.NAME, PersistenceExtractor.VERSION}),
+          Map.entry("people", new String[] {PeopleExtractor.NAME, PeopleExtractor.VERSION}),
+          Map.entry("redis", new String[] {RedisExtractor.NAME, RedisExtractor.VERSION}),
           Map.entry("spring", new String[] {SpringExtractor.NAME, SpringExtractor.VERSION}),
           Map.entry("sql", new String[] {SqlExtractor.NAME, SqlExtractor.VERSION}),
           Map.entry(

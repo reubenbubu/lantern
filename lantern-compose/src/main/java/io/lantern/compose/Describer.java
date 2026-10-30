@@ -118,6 +118,7 @@ public final class Describer {
   private static final List<String> LINKS =
       List.of(
           C4Views.CALLS_HTTP,
+          C4Views.SENDS_MAIL,
           C4Views.PUBLISHES,
           C4Views.CONSUMES,
           C4Views.USES_DATABASE,
@@ -128,7 +129,13 @@ public final class Describer {
   private static final String KIND = "kind";
   private static final String TABLE = "table";
   private static final Set<String> ENTRY_POINTS =
-      Set.of("endpoint", "message-listener", "stomp-mapping", "websocket-endpoint", "scheduled");
+      Set.of(
+          "endpoint",
+          "message-listener",
+          "stomp-mapping",
+          "websocket-endpoint",
+          "scheduled",
+          "background-job");
 
   private static final Logger LOG = LoggerFactory.getLogger(Describer.class);
 
@@ -339,7 +346,7 @@ public final class Describer {
         components.add(
             new ComponentInput(
                 component.main(),
-                assembler.name(component.main()),
+                c4.componentName(component),
                 component.technology().isEmpty() ? null : component.technology(),
                 shown.subList(0, Math.min(MAX_COMPONENT_FACTS, shown.size())),
                 code));
@@ -556,6 +563,7 @@ public final class Describer {
     }
     return switch (neighbour.relationship()) {
       case C4Views.CALLS_HTTP -> "calls it";
+      case C4Views.SENDS_MAIL -> "sends mail through it";
       case C4Views.PUBLISHES -> "sends messages to it";
       case C4Views.USES_DATABASE -> "connects to it";
       case C4Views.ACCESSES_DATA_OF -> "reads or writes tables of it";
@@ -639,6 +647,7 @@ public final class Describer {
   private static String verb(String predicate) {
     return switch (predicate) {
       case C4Views.CALLS_HTTP -> "calls";
+      case C4Views.SENDS_MAIL -> "sends mail through";
       case C4Views.PUBLISHES -> "sends messages to";
       case C4Views.CONSUMES -> "receives messages from";
       case C4Views.USES_DATABASE -> "connects to";

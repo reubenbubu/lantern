@@ -122,6 +122,81 @@ class C4ViewsTest {
   }
 
   @Test
+  void contextShowsTheInferredPeopleTheCodeShowsWithTheFrontendTheyUse() {
+    TestFacts withPeople = TestFacts.runtime();
+    withPeople.attribute(
+        "shop",
+        "type:com.example.RequiresOrganizationMembership",
+        "person-evidence",
+        "membership",
+        "{\"scope\":\"Organization\",\"type\":\"com.example.RequiresOrganizationMembership\"}");
+    Fact evidence =
+        withPeople.find("type:com.example.RequiresOrganizationMembership", "person-evidence");
+    withPeople.attribute(
+        "shop",
+        "person:organization-member",
+        "person-basis",
+        "member",
+        "{\"basis\":\"member\",\"description\":\"The code has members of an organization.\","
+            + "\"cites\":[\""
+            + evidence.id()
+            + "\"],\"repos\":[\"shop\"],\"frontends\":[\"web\"]}");
+    withPeople.attribute(
+        "shop", "person:organization-member", "display-name", "Organization member");
+    Fact basis = withPeople.find("person:organization-member", "person-basis");
+
+    Document document = repo(withPeople.list());
+    Section context = section(document, "context");
+    Diagram diagram = block(context, Diagram.class);
+
+    assertThat(nodes(diagram)).contains("person:organization-member \"Organization member\"");
+    assertThat(edges(diagram))
+        .contains("person:organization-member -> system:snapshot: Uses, through web");
+    assertThat(
+            diagram.edges().stream()
+                .filter(e -> e.from().type().equals("person"))
+                .findFirst()
+                .orElseThrow()
+                .facts())
+        .containsExactlyInAnyOrder(basis.id(), evidence.id());
+    DocumentEntity person =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("person:organization-member"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(person.description()))
+        .startsWith("Inferred: The code has members of an organization.");
+    assertThat(person.description()).anyMatch(i -> i instanceof io.lantern.core.document.Citation);
+    assertThat(text(block(context, Callout.class).content()))
+        .isEqualTo(
+            "These people are inferred from the code. Who else uses base and shop is not known.");
+    assertThat(block(context, Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains("People 1");
+    assertThat(
+            block(context, Metrics.class).items().stream()
+                .filter(i -> i.label().equals("People"))
+                .findFirst()
+                .orElseThrow()
+                .facts())
+        .containsExactly(basis.id());
+    // A repository the person's files are not in does not show them.
+    assertThat(
+            nodes(
+                block(
+                    section(
+                        new Composer("1")
+                            .compose(
+                                ViewDefinition.c4Report("base.c4", "base", TEMPLATE),
+                                SNAPSHOT,
+                                withPeople.list(),
+                                Map.of()),
+                        "context"),
+                    Diagram.class)))
+        .noneMatch(n -> n.startsWith("person:"));
+  }
+
+  @Test
   void containersAreTheUnitsWithTheirStoresQueuesAndNeighboursInsideTheSystem() {
     Diagram diagram = block(section(repo(facts.list()), "containers"), Diagram.class);
 
@@ -217,6 +292,132 @@ class C4ViewsTest {
                 + " Calls POST /charges [HTTPS] [prod]",
             "service:com.example:worker -> type:com.example.web.Controller: Calls GET /orders"
                 + " [JSON/HTTP]");
+  }
+
+  /** The runtime facts plus an aspect advising the controller's {@code list()}. */
+  private Diagram componentsWithAspect(String aspect, boolean inUnit, String aspectJson) {
+    List<Fact> withAspect = new ArrayList<>(facts.list());
+    TestFacts more = new TestFacts();
+    if (inUnit) {
+      more.relate("shop", "package:com.example:app:com.example.web", "CONTAINS", aspect);
+    }
+    more.attribute("shop", aspect, "stereotype", "component")
+        .attribute("shop", aspect, "aspect", "aspect", aspectJson)
+        .relate(
+            "shop",
+            aspect,
+            "ADVISES",
+            "method:com.example.web.Controller#list()",
+            "{\"advice\":\"method:x.A#check()\",\"kind\":\"before\",\"pointcut\":\"p\"}");
+    withAspect.addAll(more.list());
+    return block(section(repo(withAspect), "components").sections().getFirst(), Diagram.class);
+  }
+
+  private static final String BY_ANNOTATION =
+      "{\"advice\":[\"before\"],\"pointcuts\":[\"@annotation(p)\"],"
+          + "\"annotations\":[\"com.example.rbac.RequiresPermission\"]}";
+  private static final String BY_NAME =
+      "{\"advice\":[\"before\"],\"pointcuts\":[\"execution(* *(..))\"]}";
+
+  @Test
+  void anAspectThatAdvisesAnEntryPointIsAComponentLinkedToIt() {
+    Diagram diagram = componentsWithAspect("type:com.example.web.PermissionAspect", true, BY_NAME);
+
+    assertThat(nodes(diagram))
+        .contains(
+            "type:com.example.web.PermissionAspect \"PermissionAspect\" [Spring AOP aspect]"
+                + " in service:com.example:app");
+    assertThat(edges(diagram))
+        .contains(
+            "type:com.example.web.PermissionAspect -> type:com.example.web.Controller: Advises");
+  }
+
+  @Test
+  void aLibraryAspectOutsideTheUnitCountsOnlyWhenItSelectsByAnnotation() {
+    Diagram selecting = componentsWithAspect("type:com.lib.rbac.LibAspect", false, BY_ANNOTATION);
+    assertThat(edges(selecting))
+        .contains(
+            "type:com.lib.rbac.LibAspect -> type:com.example.web.Controller: Advises"
+                + " @RequiresPermission");
+
+    Diagram byName = componentsWithAspect("type:com.lib.rbac.LibAspect", false, BY_NAME);
+    assertThat(nodes(byName)).noneMatch(n -> n.contains("LibAspect"));
+  }
+
+  @Test
+  void gatewayRoutesAndFiltersAreComponentsAndRoutesAreLines() {
+    String app = "service:com.example:app";
+    String routes = "method:com.example.web.Routes#routes()";
+    String web = "package:com.example:app:com.example.web";
+    List<Fact> gateway =
+        new ArrayList<>(
+            facts
+                .relate("shop", web, "CONTAINS", "type:com.example.web.Routes")
+                .relate("shop", "type:com.example.web.Routes", "CONTAINS", routes)
+                .attribute(
+                    "shop",
+                    routes,
+                    "gateway-route",
+                    "users",
+                    "{\"definedIn\": \"java\", \"uri\": \"lb:ws://worker\", \"paths\":"
+                        + " [\"/ws/**\"], \"filterTypes\": [\"com.example.web.AuthFilter\"]}")
+                .relate("shop", web, "CONTAINS", "type:com.example.web.AuthFilter")
+                .attribute(
+                    "shop",
+                    "type:com.example.web.AuthFilter",
+                    "gateway-filter",
+                    "gateway",
+                    "{\"implements\": \"org.springframework.cloud.gateway.filter.GatewayFilter\"}")
+                .attribute(
+                    "shop",
+                    "module:com.example:app",
+                    "gateway-route",
+                    "reports",
+                    "{\"definedIn\": \"config\", \"uri\": \"http://localhost:8081\"}")
+                .relate(
+                    "shop",
+                    app,
+                    "CALLS_HTTP",
+                    "service:com.example:worker",
+                    "{\"protocol\": \"WebSocket\", \"route\": \"users\", \"paths\":"
+                        + " [\"/ws/**\"], \"source\": \""
+                        + routes
+                        + "\"}")
+                .relate(
+                    "shop",
+                    app,
+                    "CALLS_HTTP",
+                    "service:com.example:worker",
+                    "{\"protocol\": \"HTTP\", \"route\": \"reports\", \"paths\":"
+                        + " [\"/reports/**\"], \"source\": \"module:com.example:app\"}")
+                .relate(
+                    "shop",
+                    app,
+                    "CALLS_HTTP",
+                    "service:com.example:worker",
+                    "{\"protocol\": \"HTTP\", \"httpMethod\": \"GET\", \"path\": \"/jobs\"}")
+                .list());
+
+    Diagram containers = block(section(repo(gateway), "containers"), Diagram.class);
+    assertThat(edges(containers))
+        .contains(
+            "service:com.example:app -> service:com.example:worker: Calls and routes"
+                + " /reports/**, /ws/** and 1 more [HTTP, WebSocket]");
+    Diagram components =
+        block(section(repo(gateway), "components").sections().getFirst(), Diagram.class);
+    assertThat(nodes(components))
+        .contains(
+            "type:com.example.web.Routes \"Routes\" [Gateway routes] in service:com.example:app",
+            "type:com.example.web.AuthFilter \"AuthFilter\" [Gateway filter]"
+                + " in service:com.example:app",
+            "module:com.example:app \"Gateway routes\" [Gateway routes]"
+                + " in service:com.example:app");
+    assertThat(edges(components))
+        .contains(
+            "type:com.example.web.Routes -> type:com.example.web.AuthFilter:"
+                + " Applies on routes users",
+            "type:com.example.web.Routes -> service:com.example:worker: Routes /ws/** [WebSocket]",
+            "module:com.example:app -> service:com.example:worker: Routes /reports/** [HTTP]");
   }
 
   @Test
@@ -375,6 +576,40 @@ class C4ViewsTest {
     assertThat(block(section(repo(more.list()), "context"), Metrics.class).items())
         .extracting(i -> i.label() + " " + i.value())
         .contains("Databases 1");
+  }
+
+  @Test
+  void aProfileOnlyMailHostIsANoteNotAnotherSystem() {
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "SENDS_MAIL",
+            "external-system:smtp.dev.example.com",
+            "{\"protocol\": \"SMTP\", \"source\": \"method:com.example.Mailer#send()\","
+                + " \"profile\": \"staging\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "SENDS_MAIL",
+            "external-system:smtp.gmail.com",
+            "{\"protocol\": \"SMTP\", \"source\": \"method:com.example.Mailer#send()\","
+                + " \"exceptProfiles\": [\"staging\"]}");
+
+    Section context = section(repo(more.list()), "context");
+
+    assertThat(nodes(block(context, Diagram.class)))
+        .noneMatch(n -> n.startsWith("external-system:smtp.dev"));
+    Callout note =
+        context.blocks().stream()
+            .filter(b -> b instanceof Callout c && "Under other profiles".equals(c.title()))
+            .map(Callout.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(note.content()))
+        .isEqualTo(
+            "Under the Spring profile staging, shop-app sends mail through smtp.dev.example.com"
+                + " instead of Gmail SMTP.");
   }
 
   @Test

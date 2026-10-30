@@ -2,6 +2,8 @@
 
 Status: accepted (#262, part of 2B), pending the user's review (#24)
 
+Amends ADR 0077 (a WebSocket route names the endpoint it reaches).
+
 ## Context
 
 project-4's notification-service pushes notifications to the browser over STOMP at
@@ -22,10 +24,7 @@ extractors) lists extractors; this adds one.
     `StompEndpointRegistry`, `addHandler` of a `WebSocketHandlerRegistry`). `protocol` (`stomp` or
     `websocket`), `sockjs`, `nativeWebSocket`, `allowedOrigins`, and for a raw handler its `handler`
     type. A path registered twice (plain and `withSockJS()`) is one fact. The path is also an
-    attribute named `path`, as on `endpoint`, so **the gateway route linker (#257) matches a
-    route's path predicate and `lb:ws://` uri against `websocket-endpoint` facts by that
-    attribute** (the route `/ws-notifications/**` reaches `/ws-notifications`), as it matches HTTP
-    routes against `endpoint` facts.
+    attribute named `path`, as on `endpoint`, which the gateway route links use (below).
   - `stomp-prefix`: one per prefix of `enableSimpleBroker`, `enableStompBrokerRelay`,
     `setApplicationDestinationPrefixes` and `setUserDestinationPrefix`, with `kind`.
   - `stomp-mapping`, a child of `entry-point` so flows can start at it: `@MessageMapping` and
@@ -50,6 +49,15 @@ extractors) lists extractors; this adds one.
   #267, may), so there is no participant to draw a message to. `stomp-mapping` also starts flows.
   The catalog lists WebSocket endpoints and STOMP handlers with the other entry points; the LLM's
   fact sheets and describer inputs include the new facts.
+- **Gateway routes to a WebSocket endpoint.** A gateway route whose URI is `ws://`, `wss://` or
+  `lb:ws://` (ADR 0077) is linked to its unit as before; then the route's paths, as the unit sees
+  them (through `StripPrefix` and `PrefixPath`) and behind the unit's servlet prefix, are matched
+  against the unit's `websocket-endpoint` paths as ADR 0077 matches them against endpoints (the
+  route `/ws-notifications/**` reaches `/ws-notifications`). When one endpoint is reached, the
+  `CALLS_HTTP` link names its path in `endpoint` and its registering method in `target`, so the
+  component view draws the route to the component that registers it, and cites its fact; when
+  several are, it lists their paths in `endpoints`. A route that rewrites the path otherwise names
+  none. `CrossRepoLinks` is version 8.
 - **Not covered:** placeholders in paths or prefixes (not resolved), the commands an interceptor
   checks (the source is not kept after the analysis), `@SendTo` return values as sends in flows,
   clients that subscribe (frontends, #267), Spring Integration and Jakarta WebSocket

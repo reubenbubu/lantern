@@ -37,11 +37,13 @@ final class FactSheet {
             "message-listener",
             "websocket-endpoint",
             "stomp-mapping",
-            "scheduled")),
+            "scheduled",
+            "background-job")),
     LINKS(
         "Links",
         List.of(
             "CALLS_HTTP",
+            "SENDS_MAIL",
             "SENDS_MESSAGES_TO",
             "PUBLISHES",
             "CONSUMES",
@@ -50,6 +52,7 @@ final class FactSheet {
             "http-call",
             "message-send",
             "stomp-send",
+            "mail-send",
             "http-client")),
     DATA_STORES(
         "Data stores",

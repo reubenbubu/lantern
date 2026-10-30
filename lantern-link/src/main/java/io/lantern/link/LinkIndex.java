@@ -69,6 +69,14 @@ final class LinkIndex {
   /** The REST controllers ({@code stereotype controller} with {@code rest}), by type. */
   final Set<EntityId> restControllers = new HashSet<>();
 
+  /** The callers of each method, from {@code CALLS} facts; built on first use. */
+  private Map<EntityId, Set<EntityId>> callers;
+
+  /** Each type's direct supertypes and subtypes, from {@code EXTENDS} and {@code IMPLEMENTS}. */
+  private Map<EntityId, Set<EntityId>> supertypes;
+
+  private Map<EntityId, Set<EntityId>> subtypes;
+
   /** Every fact by predicate, in ID order. */
   private final Map<String, List<Fact>> byPredicate = new HashMap<>();
 
@@ -226,6 +234,98 @@ final class LinkIndex {
     return List.copyOf(result);
   }
 
+  /**
+   * The units that run an entity's code and call it: of the units running it ({@link #unitsOf}),
+   * those whose own module declares it, or that run other code calling it, directly or through
+   * other methods ({@code CALLS}). A call may point at the method as an interface or a supertype
+   * declares it, or as a subtype inherits it, so each method's callers include those of the same
+   * signature on its type's supertypes and subtypes ({@code EXTENDS}, {@code IMPLEMENTS}). Library
+   * code bundled by several units thus belongs to the units that use it. When no unit calls it (it
+   * runs on its own, from a listener or a schedule, say), or only one unit runs it, every unit
+   * running it does.
+   */
+  List<Unit> unitsCalling(EntityId entity) {
+    List<Unit> running = unitsOf(entity);
+    if (running.size() < 2) {
+      return running;
+    }
+    if (callers == null) {
+      callers = new HashMap<>();
+      for (Fact call : of(BuiltInTypes.CALLS)) {
+        if (call.object().kind() == FactObject.Kind.ENTITY) {
+          callers
+              .computeIfAbsent(call.object().entityId(), o -> new LinkedHashSet<>())
+              .add(call.subject());
+        }
+      }
+      supertypes = new HashMap<>();
+      subtypes = new HashMap<>();
+      for (String relation : List.of(BuiltInTypes.EXTENDS, BuiltInTypes.IMPLEMENTS)) {
+        for (Fact f : of(relation)) {
+          if (f.object().kind() == FactObject.Kind.ENTITY) {
+            supertypes
+                .computeIfAbsent(f.subject(), t -> new LinkedHashSet<>())
+                .add(f.object().entityId());
+            subtypes
+                .computeIfAbsent(f.object().entityId(), t -> new LinkedHashSet<>())
+                .add(f.subject());
+          }
+        }
+      }
+    }
+    Set<EntityId> declaring = new HashSet<>(modulesOf(entity));
+    Set<EntityId> callerModules = new HashSet<>();
+    Set<EntityId> seen = new HashSet<>(Set.of(entity));
+    Deque<EntityId> queue = new ArrayDeque<>(List.of(entity));
+    while (!queue.isEmpty()) {
+      EntityId current = queue.poll();
+      for (EntityId target : dispatchedAs(current)) {
+        for (EntityId caller : callers.getOrDefault(target, Set.of())) {
+          if (seen.add(caller)) {
+            queue.add(caller);
+            callerModules.addAll(modulesOf(caller));
+          }
+        }
+      }
+    }
+    callerModules.removeAll(declaring);
+    List<Unit> calling =
+        running.stream()
+            .filter(
+                u ->
+                    (!u.modules().isEmpty() && declaring.contains(u.modules().getFirst()))
+                        || u.modules().stream().anyMatch(callerModules::contains))
+            .toList();
+    return calling.isEmpty() ? running : calling;
+  }
+
+  /**
+   * The methods a call may point at to run this one: itself, and the method of the same signature
+   * on each supertype and subtype of its type, through {@code EXTENDS} and {@code IMPLEMENTS}.
+   */
+  private Set<EntityId> dispatchedAs(EntityId method) {
+    Set<EntityId> result = new LinkedHashSet<>(List.of(method));
+    int hash = method.key().indexOf('#');
+    if (hash < 0) {
+      return result;
+    }
+    String signature = method.key().substring(hash);
+    EntityId own = typeOf(method);
+    for (Map<EntityId, Set<EntityId>> relation : List.of(supertypes, subtypes)) {
+      Set<EntityId> seen = new HashSet<>(Set.of(own));
+      Deque<EntityId> todo = new ArrayDeque<>(List.of(own));
+      while (!todo.isEmpty()) {
+        for (EntityId next : relation.getOrDefault(todo.poll(), Set.of())) {
+          if (seen.add(next)) {
+            todo.add(next);
+            result.add(new EntityId(method.type(), next.key() + signature));
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   /** The type that declares a member ({@code method:a.B#m()} is in {@code type:a.B}). */
   static EntityId typeOf(EntityId entity) {
     int hash = entity.key().indexOf('#');
@@ -277,6 +377,21 @@ final class LinkIndex {
       }
     }
     return null;
+  }
+
+  /**
+   * What a unit's endpoints are served behind in a view: its {@code server.servlet.context-path}
+   * and {@code spring.mvc.servlet.path} joined, {@code ""} for none.
+   */
+  String servletPrefix(Unit unit, String view) {
+    String prefix = "";
+    for (String key : List.of("server.servlet.context-path", "spring.mvc.servlet.path")) {
+      Fact value = config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
+      if (value != null && !flag(value, "masked")) {
+        prefix = LinkText.join(prefix, value.object().value());
+      }
+    }
+    return prefix;
   }
 
   /** The keys of a predicate's config facts that a unit's config files set, in any view; sorted. */

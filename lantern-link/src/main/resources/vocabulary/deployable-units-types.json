@@ -56,5 +56,19 @@
       },
       "additionalProperties": false
     }
+  },
+  {
+    "name": "version-skew",
+    "kind": "attribute",
+    "description": "The units that bundle the subject in-set library ask for versions of it other than the one its repository builds at the snapshot's commit, so the code that runs in them is not the code analyzed. The value is the version the library's module declares at that commit.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "pins": { "type": "object", "description": "The version each unit that bundles the library asks for, by the unit's entity ID. Units whose dependency names no version are left out." },
+        "versions": { "type": "array", "items": { "type": "string" }, "description": "The distinct versions the units ask for, sorted." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

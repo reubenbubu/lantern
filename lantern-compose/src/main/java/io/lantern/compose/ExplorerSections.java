@@ -40,6 +40,7 @@ final class ExplorerSections {
   private static final String SCHEDULED = "scheduled";
   private static final String STOMP_MAPPING = "stomp-mapping";
   private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
+  private static final String BACKGROUND_JOB = "background-job";
   private static final String MAIN_CLASS = "main-class";
   private static final String CONFIG_VALUE = "config-value";
   private static final String READS_TABLE = "READS_TABLE";
@@ -49,7 +50,8 @@ final class ExplorerSections {
   private static final String README = "readme";
   private static final String CLAIM = "claim";
   private static final List<String> ENTRY_KINDS =
-      List.of(ENDPOINT, MESSAGE_LISTENER, STOMP_MAPPING, WEBSOCKET_ENDPOINT, SCHEDULED);
+      List.of(
+          ENDPOINT, MESSAGE_LISTENER, STOMP_MAPPING, WEBSOCKET_ENDPOINT, SCHEDULED, BACKGROUND_JOB);
   private static final Set<String> DESTINATIONS =
       Set.of(C4Views.TOPIC, C4Views.QUEUE, C4Views.EXCHANGE);
 
@@ -175,6 +177,15 @@ final class ExplorerSections {
     return new ListBlock.Item(content, assembler.facts(List.of(fact)));
   }
 
+  /** The kind of a scheduled entry point: a JobRunr or Quartz job, else a scheduled job. */
+  static String jobKind(Fact fact) {
+    return switch (RepoSections.attribute(fact, "framework", "")) {
+      case "jobrunr" -> "JobRunr job";
+      case "quartz" -> "Quartz job";
+      default -> "Scheduled job";
+    };
+  }
+
   /** What starts an entry point, in words: the endpoint, the destination or the schedule. */
   private static String entryLabel(Fact fact) {
     String value = fact.object().value();
@@ -183,7 +194,7 @@ final class ExplorerSections {
       case MESSAGE_LISTENER -> "Messages on " + value;
       case STOMP_MAPPING -> "STOMP messages to " + value;
       case WEBSOCKET_ENDPOINT -> "WebSocket " + value;
-      default -> "Scheduled job (" + value + ")";
+      default -> jobKind(fact) + " (" + value + ")";
     };
   }
 
@@ -345,7 +356,7 @@ final class ExplorerSections {
                 "stomp".equals(RepoSections.attribute(entry.fact, "protocol", ""))
                     ? "STOMP WebSocket endpoint"
                     : "WebSocket endpoint";
-            default -> "Scheduled job";
+            default -> jobKind(entry.fact);
           };
       assembler.entity(entry.method);
       rows.add(
