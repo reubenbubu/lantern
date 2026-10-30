@@ -198,7 +198,7 @@ class FrontendExtractorTest {
                 + "\"storage\":\"localStorage:token\"}"
                 + " @media:src/app/core/jwt.interceptor.ts#3-6 0.9",
             "frontend:media frontend-auth interceptor {\"name\":\"SessionInterceptor\","
-                + "\"withCredentials\":true} @media:src/app/core/session.interceptor.ts#2-6 0.9",
+                + "\"withCredentials\":true} @media:src/app/core/session.interceptor.ts#1-6 0.9",
             "frontend:media frontend-component service {\"calls\":[\"HttpClient.get\"],"
                 + "\"injects\":[\"HttpClient\"],\"name\":\"MediaService\"}"
                 + " @media:src/app/services/media.ts#1-9 0.9",
@@ -217,5 +217,97 @@ class FrontendExtractorTest {
             "frontend:media frontend-resource https://fonts.googleapis.com/css2"
                 + " {\"host\":\"fonts.googleapis.com\",\"tag\":\"link\"}"
                 + " @media:src/index.html#1-1 0.9");
+  }
+
+  @Test
+  void classGuardsHeaderCallsLazyRoutesStylesAndBindingsAreReadAndEdgeCasesAreNot()
+      throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("edges"),
+            "edges",
+            Map.of(
+                "package.json",
+                "{\"name\": \"edges\", \"dependencies\": {\"@angular/core\": \"^19.0.0\"}}",
+                "src/app/app.routes.ts",
+                """
+                export const routes: Routes = [
+                  {
+                    data: { title: 'Admin' },
+                    path: 'admin',
+                    canMatch: [AdminGuard],
+                    loadComponent: () => import('./admin').then(m => m.AdminComponent),
+                  },
+                ];
+                """,
+                "src/app/admin.guard.ts",
+                """
+                @Injectable({ providedIn: 'root' })
+                export class AdminGuard implements CanMatch {
+                  canMatch() {
+                    return inject(Router).parseUrl('/forbidden');
+                  }
+                }
+                """,
+                "src/app/quick.guard.ts",
+                "export const quickGuard: CanActivateFn = () => inject(Auth).ok();\n"
+                    + "export function other() { inject(Router).navigate(['/elsewhere']); }\n",
+                "src/app/tenant.interceptor.ts",
+                """
+                export const tenantInterceptor: HttpInterceptorFn = (req, next) => {
+                  const headers = req.headers.set('X-Tenant', sessionStorage.getItem('tenant'));
+                  return next(req.clone({ headers }));
+                };
+                """,
+                "src/app/avatar.ts",
+                """
+                @Component({
+                  selector: 'app-avatar',
+                  template: `
+                    <img [src]="user.avatar || 'https://cdn.example.com/default.png'">
+                    <img src="https://img.example.com/{{user.id}}/200">
+                    <!-- <script src="https://old.example.com/x.js"></script> -->
+                  `
+                })
+                export class AvatarComponent {}
+                """,
+                "src/styles.scss",
+                "body { background: url('https://images.example.com/bg.png'); }\n",
+                "src/app/Card.vue",
+                "<template><img :src=\"'https://thumbs.example.com/' + item.id\"></template>\n"));
+    List<Fact> facts =
+        new FrontendExtractor()
+            .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT);
+    List<String> lines =
+        Fixtures.render(facts).lines().filter(l -> !l.contains(" frontend-app ")).toList();
+
+    assertThat(lines)
+        .contains(
+            // A class guard, from its decorator, on a lazy route whose object has data first.
+            "frontend:edges frontend-auth guard {\"name\":\"AdminGuard\",\"redirect\":\"/forbidden\","
+                + "\"routes\":[\"/admin\"],\"type\":\"CanMatch\"}"
+                + " @edges:src/app/admin.guard.ts#1-6 0.9",
+            // An expression body ends at its semicolon, so the next function's navigate is not its.
+            "frontend:edges frontend-auth guard {\"name\":\"quickGuard\",\"type\":\"CanActivate\"}"
+                + " @edges:src/app/quick.guard.ts#1-1 0.9",
+            "frontend:edges frontend-auth interceptor {\"headers\":[\"X-Tenant\"],"
+                + "\"name\":\"tenantInterceptor\",\"storage\":\"sessionStorage:tenant\"}"
+                + " @edges:src/app/tenant.interceptor.ts#1-4 0.9",
+            // A fallback to a fixed URL is not per item; an interpolated one is, cut at the {{.
+            "frontend:edges frontend-resource https://cdn.example.com/default.png"
+                + " {\"host\":\"cdn.example.com\",\"tag\":\"img\"} @edges:src/app/avatar.ts#4-4 0.9",
+            "frontend:edges frontend-resource https://img.example.com/"
+                + " {\"host\":\"img.example.com\",\"perItem\":true,\"tag\":\"img\"}"
+                + " @edges:src/app/avatar.ts#5-5 0.9",
+            "frontend:edges frontend-resource https://images.example.com/bg.png"
+                + " {\"host\":\"images.example.com\",\"tag\":\"css\"} @edges:src/styles.scss#1-1 0.9",
+            "frontend:edges frontend-resource https://thumbs.example.com/"
+                + " {\"host\":\"thumbs.example.com\",\"perItem\":true,\"tag\":\"img\"}"
+                + " @edges:src/app/Card.vue#1-1 0.9");
+    // The guard class is not also a service, and a commented-out tag loads nothing.
+    assertThat(lines)
+        .noneMatch(l -> l.contains("frontend-component service") && l.contains("AdminGuard"))
+        .noneMatch(l -> l.contains("old.example.com"))
+        .noneMatch(l -> l.contains("/elsewhere"));
   }
 }

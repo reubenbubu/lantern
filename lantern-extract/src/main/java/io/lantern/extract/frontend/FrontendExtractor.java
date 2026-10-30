@@ -844,11 +844,12 @@ public final class FrontendExtractor {
         if (!source(path, prefix)) {
           continue;
         }
-        boolean script =
-            CODE_FILE.matcher(path).matches()
-                && !path.contains("/assets/")
-                && !CONFIG_FILE.matcher(path).matches();
-        if (!script && !MARKUP_FILE.matcher(path).matches()) {
+        boolean bundled = path.contains("/assets/") || path.contains("/public/");
+        boolean script = CODE_FILE.matcher(path).matches() && !CONFIG_FILE.matcher(path).matches();
+        boolean styled =
+            MARKUP_FILE.matcher(path).matches() && (!bundled || path.endsWith("/index.html"));
+        script = script && !bundled;
+        if (!script && !styled) {
           continue;
         }
         Source source = read(path);
@@ -884,8 +885,15 @@ public final class FrontendExtractor {
       }
       List<Source> all = new ArrayList<>(scripts);
       all.addAll(markup);
+      int count = 0;
       for (Source source : all) {
-        for (FrontendCode.Resource resource : FrontendCode.resources(source.text())) {
+        // HTML comments also occur in a component's inline template.
+        String text = withoutHtmlComments(uncommented(source.text()));
+        int[] lines = lineStarts(text);
+        for (FrontendCode.Resource resource : FrontendCode.resources(text)) {
+          if (count++ >= MAX_CALLS) {
+            return;
+          }
           ObjectNode attributes = FactJson.newObject();
           attributes.put("host", resource.host());
           attributes.put("tag", resource.tag());
@@ -897,10 +905,40 @@ public final class FrontendExtractor {
               RESOURCE_URL,
               resource.url(),
               attributes,
-              evidence(source, lineOf(source.text(), resource.offset())),
+              evidence(source, line(lines, resource.offset())),
               0.9);
         }
       }
+    }
+
+    /** The text with its HTML comments blanked out, line breaks and offsets kept. */
+    private static String withoutHtmlComments(String text) {
+      StringBuilder blanked = new StringBuilder(text);
+      int at = text.indexOf("<!--");
+      while (at >= 0) {
+        int end = text.indexOf("-->", at + 4);
+        int stop = end < 0 ? text.length() : end + 3;
+        blank(blanked, at, stop);
+        at = end < 0 ? -1 : text.indexOf("<!--", stop);
+      }
+      return blanked.toString();
+    }
+
+    /** The offset each line of a text starts at. */
+    private static int[] lineStarts(String text) {
+      List<Integer> starts = new ArrayList<>(List.of(0));
+      for (int i = 0; i < text.length(); i++) {
+        if (text.charAt(i) == '\n') {
+          starts.add(i + 1);
+        }
+      }
+      return starts.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    /** The 1-based line of an offset, from {@link #lineStarts}. */
+    private static int line(int[] starts, int offset) {
+      int at = java.util.Arrays.binarySearch(starts, offset);
+      return at >= 0 ? at + 1 : -at - 1;
     }
 
     private static ObjectNode attributes(FrontendCode.Part part) {

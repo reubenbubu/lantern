@@ -41,6 +41,8 @@ final class FrontendCode {
   private static final Pattern IMPLEMENTS_AUTH =
       Pattern.compile(
           "\\bimplements\\b.*\\b(HttpInterceptor|CanActivate|CanActivateChild|CanMatch|CanDeactivate)\\b");
+  private static final Pattern LEADING_DECORATOR =
+      Pattern.compile("@[A-Za-z_$][\\w$]*\\s*(\\([^()]*\\))?\\s*(export\\s+)?$");
   private static final Pattern CLASS = Pattern.compile("\\bclass\\s+([A-Za-z_$][\\w$]*)");
   private static final Pattern SELECTOR =
       Pattern.compile("\\bselector\\s*:\\s*['\"]([^'\"]+)['\"]");
@@ -82,11 +84,11 @@ final class FrontendCode {
   private static final Pattern URL_ATTRIBUTE =
       Pattern.compile(
           "(?<![\\w-])(?:\\[|:|v-bind:)?(src|href|srcset|poster|data)\\]?\\s*=\\s*"
-              + "(\"[^\"]*\"|'[^']*'|\\{[^}\\n]*})");
+              + "(\"[^\"]*\"|'[^']*'|\\{)");
 
   private static final Pattern CSS_URL =
       Pattern.compile("\\burl\\(\\s*['\"]?(https?://[^'\")\\s]+)");
-  private static final Pattern ABSOLUTE_URL = Pattern.compile("https?://[^\\s'\"`)}<>]+");
+  private static final Pattern ABSOLUTE_URL = Pattern.compile("https?://[^\\s'\"`(){}<>$]+");
   private static final Pattern TAG = Pattern.compile("<\\s*([A-Za-z][\\w-]*)");
 
   /** Tags whose URL the browser loads by itself, not one a user follows. */
@@ -134,7 +136,8 @@ final class FrontendCode {
         if (storage.find()) {
           attributes.put("storage", storage.group(1) + ":" + storage.group(2));
         }
-        parts.add(new Part("interceptor", m.group(1), m.start(), end, attributes));
+        parts.add(
+            new Part("interceptor", m.group(1), declaration(text, m.start()), end, attributes));
       }
     }
     for (Pattern p : List.of(FUNCTIONAL_GUARD, CLASS_GUARD)) {
@@ -148,7 +151,7 @@ final class FrontendCode {
         if (redirect.find()) {
           attributes.put("redirect", redirect.group(1));
         }
-        parts.add(new Part("guard", m.group(1), m.start(), end, attributes));
+        parts.add(new Part("guard", m.group(1), declaration(text, m.start()), end, attributes));
       }
     }
     return parts;
@@ -229,6 +232,14 @@ final class FrontendCode {
     Matcher m = ROUTE_PATH.matcher(text);
     while (m.find()) {
       int open = text.lastIndexOf('{', m.start());
+      // Skip objects that close before the path, such as data: {...} written before it.
+      while (open >= 0) {
+        int closes = FrontendExtractor.closing(text, open);
+        if (closes < 0 || closes > m.start()) {
+          break;
+        }
+        open = text.lastIndexOf('{', open - 1);
+      }
       if (open < 0) {
         continue;
       }
@@ -271,13 +282,25 @@ final class FrontendCode {
       if (tag == null || !LOADING_TAGS.contains(tag)) {
         continue;
       }
-      String value = m.group(2).substring(1, m.group(2).length() - 1);
+      String value;
+      if (m.group(2).equals("{")) {
+        // A JSX expression, to its closing brace.
+        int close = FrontendExtractor.closing(text, m.start(2));
+        value = text.substring(m.start(2) + 1, close < 0 ? m.end(2) : close);
+      } else {
+        value = m.group(2).substring(1, m.group(2).length() - 1);
+      }
       Matcher url = ABSOLUTE_URL.matcher(value);
       while (url.find()) {
         String rest = value.substring(0, url.start()) + value.substring(url.end());
         boolean perItem =
-            m.group(0).startsWith("[")
-                    && rest.replaceAll("['\"`\\s]", "").replaceAll("^\\|\\|", "").length() > 0
+            (m.group(0).startsWith("[")
+                        || m.group(0).startsWith(":")
+                        || m.group(0).startsWith("v-bind:"))
+                    && rest.replaceAll("^[^'\"`]*(\\|\\||\\?\\?)", "")
+                            .replaceAll("['\"`\\s]", "")
+                            .length()
+                        > 0
                 || value.contains("${")
                 || value.contains("{{")
                 || m.group(2).startsWith("{");
@@ -311,9 +334,20 @@ final class FrontendCode {
     return m.find(open) && m.start() == open ? m.group(1).toLowerCase(Locale.ROOT) : null;
   }
 
+  /** Where a declaration starts: at the decorator just before it, such as {@code @Injectable()}. */
+  private static int declaration(String text, int start) {
+    Matcher m = LEADING_DECORATOR.matcher(text.substring(0, start));
+    return m.find() ? m.start() : start;
+  }
+
   /** The end of the body that opens at the first brace after an offset, or the text's end. */
   private static int bodyEnd(String text, int from) {
     int open = text.indexOf('{', from);
+    int semicolon = text.indexOf(';', from);
+    if (semicolon >= 0 && (open < 0 || semicolon < open)) {
+      // An expression body: const guard: CanActivateFn = () => inject(A).ok();
+      return semicolon + 1;
+    }
     if (open < 0) {
       return text.length();
     }
