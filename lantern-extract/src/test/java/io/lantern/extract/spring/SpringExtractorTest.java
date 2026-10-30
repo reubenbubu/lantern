@@ -303,4 +303,113 @@ class SpringExtractorTest {
         Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key")));
     assertThat(masked).doesNotContain("literal-test-value").contains("/items/${jwt.key}");
   }
+
+  @Test
+  void registrationsAccessChecksAndPropertyGates() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("security"),
+            "shop",
+            Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>shop</artifactId><version>1</version></project>\n",
+                "src/main/java/com/example/App.java",
+                """
+                package com.example;
+
+                import org.springframework.boot.autoconfigure.SpringBootApplication;
+                import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+                import org.springframework.cloud.config.server.EnableConfigServer;
+
+                @SpringBootApplication
+                @EnableDiscoveryClient(autoRegister = false)
+                @EnableConfigServer
+                public class App {}
+                """,
+                "src/main/java/com/example/Security.java",
+                """
+                package com.example;
+
+                import org.springframework.context.annotation.Configuration;
+                import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+
+                @Configuration
+                @EnableMethodSecurity(securedEnabled = true)
+                public class Security {}
+                """,
+                "src/main/java/com/example/AdminOnly.java",
+                """
+                package com.example;
+
+                import org.springframework.security.access.prepost.PreAuthorize;
+
+                @PreAuthorize("hasRole('ADMIN')")
+                public @interface AdminOnly {}
+                """,
+                "src/main/java/com/example/Admin.java",
+                """
+                package com.example;
+
+                import org.springframework.security.access.annotation.Secured;
+                import org.springframework.security.access.prepost.PreAuthorize;
+                import org.springframework.web.bind.annotation.RestController;
+
+                @RestController
+                @PreAuthorize("isAuthenticated()")
+                public class Admin {
+                  @Secured({"ROLE_A", "ROLE_B"})
+                  public void both() {}
+
+                  @AdminOnly
+                  public void admin() {}
+                }
+                """,
+                "src/main/java/com/example/Cache.java",
+                """
+                package com.example;
+
+                import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+                import org.springframework.context.annotation.Bean;
+                import org.springframework.context.annotation.Configuration;
+
+                @Configuration
+                @ConditionalOnProperty(prefix = "shop.cache", name = "enabled", havingValue = "true")
+                public class Cache {
+                  @Bean
+                  @ConditionalOnProperty(value = "shop.metrics", matchIfMissing = true)
+                  public Object metrics() {
+                    return new Object();
+                  }
+                }
+                """));
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+    String facts = Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT));
+    assertThat(facts.lines())
+        .contains(
+            "type:com.example.App discovery-client discovery"
+                + " {\"annotation\":\"org.springframework.cloud.client.discovery.EnableDiscoveryClient\","
+                + "\"autoRegister\":false} @shop:src/main/java/com/example/App.java#8-8 0.7",
+            "type:com.example.App infrastructure-server config"
+                + " {\"annotation\":\"org.springframework.cloud.config.server.EnableConfigServer\"}"
+                + " @shop:src/main/java/com/example/App.java#9-9 0.7",
+            "type:com.example.Security method-security on {\"annotation\":\"org.springframework"
+                + ".security.config.annotation.method.configuration.EnableMethodSecurity\","
+                + "\"jsr250Enabled\":false,\"prePostEnabled\":true,\"securedEnabled\":true}"
+                + " @shop:src/main/java/com/example/Security.java#7-7 0.7",
+            "type:com.example.Admin access-check isAuthenticated() {\"kind\":\"pre-authorize\"}"
+                + " @shop:src/main/java/com/example/Admin.java#8-8 0.7",
+            "method:com.example.Admin#both() access-check ROLE_A, ROLE_B {\"kind\":\"secured\"}"
+                + " @shop:src/main/java/com/example/Admin.java#10-10 0.7",
+            "method:com.example.Admin#admin() access-check hasRole('ADMIN')"
+                + " {\"annotation\":\"com.example.AdminOnly\",\"kind\":\"pre-authorize\"}"
+                + " @shop:src/main/java/com/example/Admin.java#13-13 0.7",
+            "type:com.example.Cache property-gate shop.cache.enabled=true"
+                + " {\"havingValue\":\"true\",\"properties\":[\"shop.cache.enabled\"]}"
+                + " @shop:src/main/java/com/example/Cache.java#8-8 0.7",
+            "method:com.example.Cache#metrics() property-gate shop.metrics"
+                + " {\"matchIfMissing\":true,\"properties\":[\"shop.metrics\"]}"
+                + " @shop:src/main/java/com/example/Cache.java#11-11 0.7");
+  }
 }

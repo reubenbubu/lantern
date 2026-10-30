@@ -1,6 +1,7 @@
 package com.example.shop.web.secure;
 
 import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
@@ -24,4 +25,10 @@ public class PermissionAspect {
 
   @After("@annotation(com.example.shop.web.secure.Secured) && args(..)")
   public void release() {}
+
+  @Pointcut("@annotation(com.example.shop.web.secure.Secured)")
+  void securedCall() {}
+
+  @AfterReturning("securedCall()")
+  public void audit() {}
 }

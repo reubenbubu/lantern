@@ -62,7 +62,7 @@ public final class SpringExtractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -90,6 +90,33 @@ public final class SpringExtractor {
 
   /** Attribute: the bean class or method is registered only under a profile expression. */
   public static final String PROFILE_GATE = "profile-gate";
+
+  /** Attribute: a bean that a property switches on, {@code @ConditionalOnProperty}. */
+  public static final String PROPERTY_GATE = "property-gate";
+
+  /**
+   * Attribute: a main class that registers with service discovery, {@code @EnableDiscoveryClient}.
+   */
+  public static final String DISCOVERY_CLIENT = "discovery-client";
+
+  /**
+   * Attribute: a main class that makes its unit an infrastructure server (Eureka, config, admin).
+   */
+  public static final String INFRASTRUCTURE_SERVER = "infrastructure-server";
+
+  /**
+   * Attribute: a method or class whose callers must pass an access check, as its annotation states.
+   */
+  public static final String ACCESS_CHECK = "access-check";
+
+  /** Attribute: a class that turns method security on, {@code @EnableMethodSecurity}. */
+  public static final String METHOD_SECURITY = "method-security";
+
+  /** Attribute: a method an aspect's advice applies to, at the annotation its pointcut selects. */
+  public static final String ADVISED_BY = "advised-by";
+
+  /** Relation: a method schedules a job method, at the call that schedules it. */
+  public static final String SCHEDULES = "SCHEDULES";
 
   /** Attribute: the method defines a bean. */
   public static final String BEAN = "bean";
@@ -126,6 +153,49 @@ public final class SpringExtractor {
           ASPECTJ + "AfterReturning", "after-returning",
           ASPECTJ + "AfterThrowing", "after-throwing",
           ASPECTJ + "Around", "around");
+
+  /** Discovery clients, by annotation. */
+  private static final List<String> DISCOVERY_ANNOTATIONS =
+      List.of(
+          "org.springframework.cloud.client.discovery.EnableDiscoveryClient",
+          "org.springframework.cloud.netflix.eureka.EnableEurekaClient");
+
+  /** Infrastructure servers, by annotation, and what the fact calls each. */
+  private static final Map<String, String> SERVER_ANNOTATIONS =
+      Map.of(
+          "org.springframework.cloud.netflix.eureka.server.EnableEurekaServer", "eureka",
+          "org.springframework.cloud.config.server.EnableConfigServer", "config",
+          "de.codecentric.boot.admin.server.config.EnableAdminServer", "admin");
+
+  /** Method security's annotations, and what the fact calls each. */
+  private static final Map<String, String> ACCESS_ANNOTATIONS =
+      Map.of(
+          "org.springframework.security.access.prepost.PreAuthorize", "pre-authorize",
+          "org.springframework.security.access.prepost.PostAuthorize", "post-authorize",
+          "org.springframework.security.access.annotation.Secured", "secured",
+          "jakarta.annotation.security.RolesAllowed", "roles-allowed",
+          "javax.annotation.security.RolesAllowed", "roles-allowed",
+          "jakarta.annotation.security.PermitAll", "permit-all",
+          "javax.annotation.security.PermitAll", "permit-all",
+          "jakarta.annotation.security.DenyAll", "deny-all",
+          "javax.annotation.security.DenyAll", "deny-all");
+
+  /** The annotations that turn method security on, newest first. */
+  private static final List<String> METHOD_SECURITY_ANNOTATIONS =
+      List.of(
+          "org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity",
+          "org.springframework.security.config.annotation.method.configuration"
+              + ".EnableReactiveMethodSecurity",
+          "org.springframework.security.config.annotation.method.configuration"
+              + ".EnableGlobalMethodSecurity");
+
+  private static final String CONDITIONAL_ON_PROPERTY =
+      "org.springframework.boot.autoconfigure.condition.ConditionalOnProperty";
+
+  /** An {@code @annotation(...)}, {@code @within(...)} or {@code @target(...)} designator. */
+  private static final java.util.regex.Pattern ANNOTATION_DESIGNATOR =
+      java.util.regex.Pattern.compile("@(annotation|within|target)\\(\\s*([^)\\s]+)\\s*\\)");
+
   private static final String JOBRUNR = "org.jobrunr.";
   private static final String JOBRUNR_HANDLER = JOBRUNR + "jobs.lambdas.JobRequestHandler";
   private static final String JOBRUNR_JOB = JOBRUNR + "jobs.annotations.Job";
@@ -229,6 +299,8 @@ public final class SpringExtractor {
                 .thenComparing(Fact::predicate)
                 .thenComparing(f -> f.object().value())
                 .thenComparing(f -> f.attributes().toString())
+                .thenComparing(f -> f.evidence().path())
+                .thenComparing(f -> f.evidence().lines() == null ? 0 : f.evidence().lines().start())
                 .thenComparing(Fact::id))
         .toList();
   }
@@ -265,10 +337,13 @@ public final class SpringExtractor {
         boolean bean = type.kind().equals(ModuleStructure.CLASS);
         if (bean) {
           mainClass(type);
+          registrations(type);
           stereotype(type);
           endpoints(type);
+          accessChecks(type.annotations(), typeId(type));
         }
         profileGate(type.annotations(), typeId(type), type.where());
+        propertyGate(type.annotations(), typeId(type), type.where());
         if (bean) {
           jobClass(type);
         }
@@ -278,8 +353,12 @@ public final class SpringExtractor {
           }
           scheduled(member);
           jobAnnotations(type, member);
+          if (bean) {
+            accessChecks(member.annotations(), member.id());
+          }
           if (beanMethod(member)) {
             profileGate(member.annotations(), member.id(), member.where());
+            propertyGate(member.annotations(), member.id(), member.where());
           }
         }
       }
@@ -671,7 +750,12 @@ public final class SpringExtractor {
 
     /** Where a job is scheduled: the calling method, the job's class and, if written, the cron. */
     private record Scheduling(
-        JavaAnalysis.Module module, EntityId caller, String framework, String job, String cron) {}
+        JavaAnalysis.Module module,
+        EntityId caller,
+        String framework,
+        String job,
+        String cron,
+        Location where) {}
 
     /** The nearest supertype named in the lineage of a type declared in the analyzed sources. */
     private Supertype supertype(TypeDecl type, String... names) {
@@ -788,7 +872,7 @@ public final class SpringExtractor {
                 ? l.value()
                 : null;
         for (String request : constructed) {
-          schedulings.add(new Scheduling(module, i.caller(), "jobrunr", request, cron));
+          schedulings.add(new Scheduling(module, i.caller(), "jobrunr", request, cron, i.where()));
         }
       } else if (root.startsWith("org.quartz.")) {
         // Quartz: a class literal given to JobBuilder, a cron expression given to
@@ -810,10 +894,12 @@ public final class SpringExtractor {
                   i.caller(),
                   "quartz",
                   job,
-                  classes.size() == 1 && crons.size() == 1 ? crons.getFirst() : null));
+                  classes.size() == 1 && crons.size() == 1 ? crons.getFirst() : null,
+                  i.where()));
         }
         if (classes.isEmpty() && crons.size() == 1) {
-          schedulings.add(new Scheduling(module, i.caller(), "quartz", null, crons.getFirst()));
+          schedulings.add(
+              new Scheduling(module, i.caller(), "quartz", null, crons.getFirst(), i.where()));
         }
       }
     }
@@ -863,6 +949,15 @@ public final class SpringExtractor {
           if (s.framework().equals(job.framework()) && Objects.equals(s.job(), key)) {
             if (s.caller() != null) {
               by.add(s.caller().toString());
+              if (s.where() != null && s.where().start() > 0) {
+                // The call that schedules the job, at its own line.
+                ObjectNode call = FactJson.newObject();
+                call.put("framework", s.framework());
+                JavaAnalysis.Module was = module;
+                module = s.module();
+                relation(s.caller(), SCHEDULES, job.method().id(), call, s.where());
+                module = was;
+              }
             }
             if (cron == null) {
               cron = s.cron();
@@ -963,6 +1058,124 @@ public final class SpringExtractor {
               : String.join(" | ", profiles.stream().map(p -> "(" + p + ")").toList());
       Location where = path.getFirst().where() != null ? path.getFirst().where() : fallback;
       fact(subject, PROFILE_GATE, expression, attributes, where);
+    }
+
+    /** Records a {@code @ConditionalOnProperty} on a bean class or method. */
+    private void propertyGate(List<Annotation> annotations, EntityId subject, Location fallback) {
+      List<Annotation> path = first(annotations, CONDITIONAL_ON_PROPERTY);
+      if (path == null || subject == null) {
+        return;
+      }
+      Annotation gate = path.getLast();
+      String prefix = firstOf(gate, "prefix");
+      List<String> names = new ArrayList<>(gate.values("name"));
+      if (names.isEmpty()) {
+        names.addAll(gate.values("value"));
+      }
+      if (names.isEmpty()) {
+        return;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      ArrayNode properties = attributes.putArray("properties");
+      for (String name : names) {
+        properties.add(
+            prefix == null || prefix.isBlank() ? name : prefix.replaceAll("\\.$", "") + "." + name);
+      }
+      String having = firstOf(gate, "havingValue");
+      if (having != null && !having.isEmpty()) {
+        attributes.put("havingValue", having);
+      }
+      String missing = firstOf(gate, "matchIfMissing");
+      if ("true".equals(missing)) {
+        attributes.put("matchIfMissing", true);
+      }
+      if (path.size() > 1) {
+        attributes.put("annotation", path.getFirst().type());
+      }
+      List<String> written = new ArrayList<>();
+      properties.forEach(n -> written.add(n.asString()));
+      String value =
+          String.join(" & ", written) + (having != null && !having.isEmpty() ? "=" + having : "");
+      Location where = path.getFirst().where() != null ? path.getFirst().where() : fallback;
+      fact(subject, PROPERTY_GATE, value, attributes, where);
+    }
+
+    /**
+     * Records a main class's registrations: with service discovery
+     * ({@code @EnableDiscoveryClient}), and as an infrastructure server (Eureka, config, admin).
+     */
+    private void registrations(TypeDecl type) {
+      for (String annotation : DISCOVERY_ANNOTATIONS) {
+        List<Annotation> path = first(type.annotations(), annotation);
+        if (path != null) {
+          ObjectNode attributes = FactJson.newObject();
+          attributes.put("annotation", path.getFirst().type());
+          String register = firstOf(path.getLast(), "autoRegister");
+          if ("false".equals(register)) {
+            attributes.put("autoRegister", false);
+          }
+          fact(typeId(type), DISCOVERY_CLIENT, "discovery", attributes, path.getFirst().where());
+          break;
+        }
+      }
+      for (Map.Entry<String, String> server : SERVER_ANNOTATIONS.entrySet()) {
+        List<Annotation> path = first(type.annotations(), server.getKey());
+        if (path != null) {
+          ObjectNode attributes = FactJson.newObject();
+          attributes.put("annotation", path.getFirst().type());
+          fact(
+              typeId(type),
+              INFRASTRUCTURE_SERVER,
+              server.getValue(),
+              attributes,
+              path.getFirst().where());
+        }
+      }
+      for (String annotation : METHOD_SECURITY_ANNOTATIONS) {
+        List<Annotation> path = first(type.annotations(), annotation);
+        if (path != null) {
+          Annotation on = path.getLast();
+          ObjectNode attributes = FactJson.newObject();
+          attributes.put("annotation", path.getFirst().type());
+          boolean legacy = annotation.endsWith("EnableGlobalMethodSecurity");
+          // @EnableMethodSecurity turns @PreAuthorize on unless told not to; the older one off.
+          String prePost = firstOf(on, "prePostEnabled");
+          attributes.put(
+              "prePostEnabled", legacy ? "true".equals(prePost) : !"false".equals(prePost));
+          attributes.put("securedEnabled", "true".equals(firstOf(on, "securedEnabled")));
+          attributes.put("jsr250Enabled", "true".equals(firstOf(on, "jsr250Enabled")));
+          fact(typeId(type), METHOD_SECURITY, "on", attributes, path.getFirst().where());
+          break;
+        }
+      }
+    }
+
+    /**
+     * Records the access checks method security's annotations state on a class or method: the
+     * expression or roles, at the annotation, through meta-annotations too.
+     */
+    private void accessChecks(List<Annotation> annotations, EntityId subject) {
+      if (subject == null) {
+        return;
+      }
+      for (Map.Entry<String, String> check : ACCESS_ANNOTATIONS.entrySet()) {
+        List<Annotation> path = first(annotations, check.getKey());
+        if (path == null) {
+          continue;
+        }
+        Annotation written = path.getLast();
+        List<String> values = written.values("value");
+        String value = values.isEmpty() ? check.getValue() : String.join(", ", values);
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("kind", check.getValue());
+        if (path.size() > 1) {
+          attributes.put("annotation", path.getFirst().type());
+        }
+        Location where = path.getFirst().where();
+        if (where != null) {
+          fact(subject, ACCESS_CHECK, value, attributes, where);
+        }
+      }
     }
 
     // -------------------------------------------------------------------------------------------
@@ -1075,10 +1288,52 @@ public final class SpringExtractor {
               attributes.put("kind", advice.kind());
               attributes.put("pointcut", advice.pointcut());
               relation(subject, ADVISES, method.id(), attributes, advice.written().where());
+              Annotation selecting = selecting(advice, names, method, type);
+              if (selecting != null && selecting.where() != null) {
+                ObjectNode at = FactJson.newObject();
+                at.put("advice", advice.method().id().toString());
+                at.put("kind", advice.kind());
+                at.put("annotation", selecting.type());
+                JavaAnalysis.Module was = module;
+                module = m;
+                fact(method.id(), ADVISED_BY, aspect.type().binaryName(), at, selecting.where());
+                module = was;
+              }
             }
           }
         }
       }
+    }
+
+    /**
+     * The annotation on an advised method, or on its class, that the advice's pointcut selects by
+     * {@code @annotation}, {@code @within} or {@code @target}; null when it selects by anything
+     * else.
+     */
+    private static Annotation selecting(
+        Advice advice, AspectPointcuts.Names names, Member method, TypeDecl type) {
+      String pointcut = advice.pointcut();
+      for (int depth = 0; depth < 3 && pointcut != null; depth++) {
+        java.util.regex.Matcher m = ANNOTATION_DESIGNATOR.matcher(pointcut);
+        while (m.find()) {
+          String annotation = names.annotationType(m.group(2));
+          if (annotation == null) {
+            continue;
+          }
+          List<Annotation> on =
+              m.group(1).equals("annotation") ? method.annotations() : type.annotations();
+          for (Annotation a : on) {
+            if (a.type().equals(annotation)) {
+              return a;
+            }
+          }
+        }
+        // A named pointcut: follow it once more.
+        java.util.regex.Matcher named =
+            java.util.regex.Pattern.compile("^\\s*([\\w.]+)\\s*\\(\\s*\\)").matcher(pointcut);
+        pointcut = named.find() ? names.pointcut(named.group(1)) : null;
+      }
+      return null;
     }
 
     /** What an advice's pointcut can mention: its parameters, named pointcuts, annotation types. */
