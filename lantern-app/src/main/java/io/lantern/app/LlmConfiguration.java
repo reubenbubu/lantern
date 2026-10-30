@@ -1,6 +1,8 @@
 package io.lantern.app;
 
+import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmCallLog;
+import io.lantern.llm.LlmConversation;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Slf4jLlmCallLog;
@@ -82,14 +84,27 @@ class LlmConfiguration {
     }
     LlmCallLog slf4j = new Slf4jLlmCallLog();
     LlmCallLog log =
-        call -> {
-          slf4j.record(call);
-          try {
-            stored.record(call);
-          } catch (RuntimeException e) {
-            // The call has happened and may have been paid for; failing it now would lose the
-            // answer or hide why it failed. The log line above still records it.
-            LOG.error("Could not store LLM call {}", call, e);
+        new LlmCallLog() {
+          @Override
+          public void record(LlmCall call) {
+            slf4j.record(call);
+            try {
+              stored.record(call);
+            } catch (RuntimeException e) {
+              // The call has happened and may have been paid for; failing it now would lose the
+              // answer or hide why it failed. The log line above still records it.
+              LOG.error("Could not store LLM call {}", call, e);
+            }
+          }
+
+          @Override
+          public void recordConversation(LlmConversation conversation) {
+            slf4j.recordConversation(conversation);
+            try {
+              stored.recordConversation(conversation);
+            } catch (RuntimeException e) {
+              LOG.error("Could not store LLM conversation {}", conversation, e);
+            }
           }
         };
     try {

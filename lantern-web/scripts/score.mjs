@@ -652,6 +652,20 @@ function fraction(numerator, denominator) {
 
 const nameList = (names) => (names.length === 0 ? 'none' : names.join('; '));
 
+/**
+ * A role's conversations with their tool loops (ADR 0081), as run.json counts them: how many, their
+ * turns, tool calls by tool and endings; empty for a role without any.
+ */
+function conversations(c) {
+  if (!c) return '';
+  const counts = (o) =>
+    Object.entries(o ?? {})
+      .map(([k, n]) => `${k} ${n}`)
+      .join(', ');
+  const tools = counts(c.toolCalls);
+  return `; ${c.count} conversations, ${c.turns} turns (at most ${c.mostTurns}), tool calls: ${tools || 'none'}; ended: ${counts(c.endings)}`;
+}
+
 /** The scorecard as Markdown: counts first, then what is missing and extra, then the checks. */
 export function scorecardMarkdown(card) {
   const lines = [];
@@ -663,7 +677,7 @@ export function scorecardMarkdown(card) {
     lines.push(`- Run: ${card.run.calls} LLM calls, ${card.run.tokens} tokens, $${card.run.costUsd}`);
     for (const role of card.run.roles) {
       lines.push(
-        `  - ${role.role}: ${role.provider}/${role.model} (${role.calls} calls, $${role.costUsd})`,
+        `  - ${role.role}: ${role.provider}/${role.model} (${role.calls} calls, $${role.costUsd})${conversations(role.conversations)}`,
       );
     }
   } else {

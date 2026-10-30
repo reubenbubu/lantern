@@ -36,6 +36,7 @@ import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.extract.test.TestExtractor;
 import io.lantern.extract.websocket.WebSocketExtractor;
+import io.lantern.link.GraphTools;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
 import io.lantern.link.ResolutionStore;
@@ -329,8 +330,26 @@ public final class AnalysisRun {
       found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new GatewayExtractor().extract(code, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
+      // The resolver's tools read files of every repository of the snapshot at its commit there,
+      // carried forward ones included (ADR 0081).
+      GitSourceFiles snapshotSources =
+          new GitSourceFiles(
+              name ->
+                  Optional.ofNullable(registered.get(name))
+                      .or(() -> registry.find(name))
+                      .map(Repo::path));
+      GraphTools.RepoFiles snapshotFiles =
+          (repo, path) ->
+              Optional.ofNullable(snapshot.commits().get(repo))
+                  .flatMap(commit -> snapshotSources.read(repo, commit, path));
       Stored stored =
-          store(snapshot.number(), registered.keySet(), snapshot.commits().keySet(), found, client);
+          store(
+              snapshot.number(),
+              registered.keySet(),
+              snapshot.commits().keySet(),
+              found,
+              client,
+              snapshotFiles);
       List<Fact> extracted = stored.facts();
       int newFacts = stored.added();
       LOG.info("Extracted {} facts, {} of them new", extracted.size(), newFacts);
@@ -418,7 +437,11 @@ public final class AnalysisRun {
           RunRecord.write(
               out,
               RunRecord.of(
-                  system, snapshot.number(), llm.models(), callLog.spentByModelSince(started)));
+                  system,
+                  snapshot.number(),
+                  llm.models(),
+                  callLog.spentByModelSince(started),
+                  callLog.conversationsSince(started)));
       LOG.info("Wrote {}", runRecord);
       return new Result(
           system,
@@ -692,14 +715,15 @@ public final class AnalysisRun {
       Set<String> repos,
       Set<String> snapshotRepos,
       List<Fact> found,
-      LlmClient client) {
+      LlmClient client,
+      GraphTools.RepoFiles files) {
     return transaction.execute(
         status -> {
           Map<String, Fact> unique = new LinkedHashMap<>();
           found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
           // The LLM resolver is the linker's last step: it picks among the candidates of the links
           // the static steps leave open, with cached answers reused (ADR 0045).
-          LinkResolver resolver = new LinkResolver(client, resolutions);
+          LinkResolver resolver = new LinkResolver(client, resolutions, files);
           Linker linker = Linker.standard(facts, resolver);
           // Each origin kind is recorded on its own, so a static analysis closes only the facts of
           // its kind; the docs extractor's facts are of kind readme (ADR 0033).

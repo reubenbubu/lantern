@@ -258,7 +258,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 
 A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open. The exception is Redis: units whose host and port are the same unresolved placeholders (`${redis.host}`) are taken to share one server, since a deployment fills them from one environment (ADR 0073). A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
 
-Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; tools to query the graph and read files come with #169, the questions queue with #170.
+Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; its tools to query the graph and read files are in ADR 0081, the questions queue comes with #170.
 
 How gateway routes become links, and which endpoints count as reached by none, is in ADR 0077. What the links look like (one relationship per call, send, datasource or setting between units and the topics, queues, exchanges, databases, brokers, external systems and infrastructure they reach, each with the facts on both ends, its protocol, its profile and a stable link ID), how profiles are applied, and how a library's code takes the config of each unit that bundles it are in ADR 0042.
 
@@ -288,8 +288,8 @@ The LLM handles understanding that static analysis can't provide, and finds what
 | Role | Input | Output |
 | --- | --- | --- |
 | Summarize | A code unit's facts and child summaries; for a type, its whole source file with secrets masked; for a module or repository, a fact sheet of its parts | Hierarchical summaries at each level |
-| Resolve | A link left open, its facts and its candidates' facts; later also tools to query the graph and read files (#169) | New facts with `origin=llm` and a confidence |
-| Investigate | A deployable unit's or the system's facts and links, with tools to query the graph and read the repos' files (#169) | Proposed elements (containers, data stores, external systems, people, components), connections and risks, each citing file:line ranges; the verified ones become facts with `origin=llm` and a confidence |
+| Resolve | A link left open, its facts and its candidates' facts, with tools to query the graph and read files when its model can use tools | New facts with `origin=llm` and a confidence |
+| Investigate | A deployable unit's or the system's facts and links, with tools to query the graph and read the repos' files (ADR 0081) | Proposed elements (containers, data stores, external systems, people, components), connections and risks, each citing file:line ranges; the verified ones become facts with `origin=llm` and a confidence |
 | Infer intent | A deployable unit's facts, README claims and the start of its components' code; a data store's or destination's facts and uses; a system's units' responsibilities with the facts they cite, and its README claims; the glossary once annotations exist | Responsibilities of units, components, data stores and destinations, intent of their links, domain role, a system's purpose |
 | Name groups | Cluster members' summaries | Group name and description |
 | Propose rules | Repeated unresolved patterns | Declarative extractor rules (see Learned rules) |
@@ -322,6 +322,7 @@ How summaries are built bottom-up, cached and cited is in ADR 0010, and how thei
 - Tests never call a real provider: they use a fake or recorded responses (see ADR 0008).
 - Calls run in parallel on virtual threads, with concurrency and rate limits per model and retry with backoff (see ADR 0021).
 - Models that think by default can have thinking turned off or extra output room per model, and an answer cut off at its output limit is logged as such (see ADR 0022).
+- A role with tools holds a conversation: the model calls tools and gets their results until it answers. Each turn is a logged call; each conversation is logged with its turns, tool calls by tool, tokens, cost and how it ended, and the run's record shows them by role. Only the run's budget and a high safety cap on turns bound it (see ADR 0081).
 
 ## Learned rules (self-improving extractors)
 

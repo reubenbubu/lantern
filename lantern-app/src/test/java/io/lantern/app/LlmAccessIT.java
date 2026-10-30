@@ -180,4 +180,120 @@ class LlmAccessIT {
         clock,
         RetryPolicy.DEFAULT);
   }
+
+  /**
+   * A conversation with a tool loop, replayed from recordings, is stored turn by turn and as a
+   * whole, and the run's record shows its turns and tool calls by role (ADR 0081).
+   */
+  @Test
+  void aRecordedToolLoopIsStoredWithItsTurnsAndToolCallsAndReportedByRole(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path recordings) throws Exception {
+    // A time no other test logs at, since the database is shared.
+    Instant start = Instant.parse("2400-01-01T00:00:00Z");
+    Clock clock = Clock.fixed(start, ZoneOffset.UTC);
+    tools.jackson.databind.json.JsonMapper json =
+        tools.jackson.databind.json.JsonMapper.builder().build();
+    io.lantern.llm.ToolBox words =
+        new io.lantern.llm.ToolBox() {
+          @Override
+          public List<io.lantern.llm.LlmTool> tools() {
+            return List.of(
+                new io.lantern.llm.LlmTool(
+                    "facts_about",
+                    "Facts about an entity.",
+                    json.createObjectNode().put("type", "object")),
+                new io.lantern.llm.LlmTool(
+                    "read_file", "Reads a file.", json.createObjectNode().put("type", "object")));
+          }
+
+          @Override
+          public io.lantern.llm.LlmToolResult run(io.lantern.llm.LlmToolCall call) {
+            return io.lantern.llm.LlmToolResult.of(call, "result of " + call.id());
+          }
+        };
+    FakeLlmProvider scripted =
+        new FakeLlmProvider()
+            .callingTools(
+                r ->
+                    switch (r.messages().size()) {
+                      case 1 ->
+                          List.of(
+                              new io.lantern.llm.LlmToolCall(
+                                  "t1", "facts_about", json.createObjectNode()),
+                              new io.lantern.llm.LlmToolCall(
+                                  "t2", "facts_about", json.createObjectNode()));
+                      case 3 ->
+                          List.of(
+                              new io.lantern.llm.LlmToolCall(
+                                  "t3", "read_file", json.createObjectNode()));
+                      default -> List.of();
+                    })
+            .answering("The answer.");
+    ModelConfig model =
+        new ModelConfig(
+            "fake",
+            "tool-model",
+            java.util.EnumSet.of(io.lantern.llm.Capability.TOOL_USE),
+            100_000,
+            new Pricing(BigDecimal.ONE, BigDecimal.TWO, BigDecimal.ONE, BigDecimal.ONE));
+    LlmRequest request =
+        LlmRequest.of(Role.RESOLVE, "resolve with tools", "You resolve.", "Which unit?", 100);
+    new io.lantern.llm.LlmClient(
+            ModelSettings.single(model),
+            List.of(io.lantern.llm.RecordReplayLlmProvider.recording(scripted, recordings)),
+            io.lantern.llm.BudgetGuard.unlimited("record"),
+            new io.lantern.llm.InMemoryLlmCallLog(),
+            clock)
+        .converse(request, words)
+        .answer();
+    io.lantern.llm.LlmClient replaying =
+        new io.lantern.llm.LlmClient(
+            ModelSettings.single(model),
+            List.of(io.lantern.llm.RecordReplayLlmProvider.replaying("fake", recordings)),
+            io.lantern.llm.BudgetGuard.unlimited("replay"),
+            stored,
+            clock);
+
+    io.lantern.llm.Conversation conversation = replaying.converse(request, words);
+    conversation.answer();
+    conversation.end(io.lantern.llm.LlmConversation.Ending.ANSWERED);
+
+    List<JdbcLlmCallLog.ConversationSpending> logged = stored.conversationsSince(start);
+    assertThat(logged).hasSize(1);
+    JdbcLlmCallLog.ConversationSpending c = logged.getFirst();
+    assertThat(c.id()).isEqualTo(conversation.id());
+    assertThat(c.role()).isEqualTo(Role.RESOLVE);
+    assertThat(c.turns()).isEqualTo(3);
+    assertThat(c.toolCalls()).containsExactly(entry("facts_about", 2), entry("read_file", 1));
+    assertThat(c.ending()).isEqualTo(io.lantern.llm.LlmConversation.Ending.ANSWERED);
+    assertThat(c.perTurn())
+        .extracting(JdbcLlmCallLog.TurnSpending::turn, JdbcLlmCallLog.TurnSpending::toolCalls)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(1, Map.of("facts_about", 2)),
+            org.assertj.core.groups.Tuple.tuple(2, Map.of("read_file", 1)),
+            org.assertj.core.groups.Tuple.tuple(3, Map.of()));
+    assertThat(c.perTurn()).allSatisfy(t -> assertThat(t.costUsd().signum()).isPositive());
+    assertThat(c.perTurn().stream().mapToLong(JdbcLlmCallLog.TurnSpending::tokens).sum())
+        .isEqualTo(c.tokens());
+
+    Map<Role, ModelConfig> models = new java.util.EnumMap<>(Role.class);
+    for (Role role : Role.values()) {
+      models.put(role, model);
+    }
+    tools.jackson.databind.JsonNode record =
+        RunRecord.of("shop", 1, models, stored.spentByModelSince(start), logged);
+    tools.jackson.databind.JsonNode resolve = record.get("roles").get(Role.RESOLVE.ordinal());
+    assertThat(resolve.get("calls").asLong()).isEqualTo(3);
+    assertThat(resolve.at("/conversations/count").asInt()).isEqualTo(1);
+    assertThat(resolve.at("/conversations/turns").asInt()).isEqualTo(3);
+    assertThat(resolve.at("/conversations/toolCalls/facts_about").asInt()).isEqualTo(2);
+    assertThat(resolve.at("/conversations/toolCalls/read_file").asInt()).isEqualTo(1);
+    assertThat(resolve.at("/conversations/endings/ANSWERED").asInt()).isEqualTo(1);
+    assertThat(record.get("roles").get(Role.SUMMARIZE.ordinal()).has("conversations")).isFalse();
+    tools.jackson.databind.JsonNode listed = record.get("conversations").get(0);
+    assertThat(listed.get("purpose").asString()).isEqualTo("resolve with tools");
+    assertThat(listed.get("turns").asInt()).isEqualTo(3);
+    assertThat(listed.get("perTurn")).hasSize(3);
+    assertThat(listed.at("/perTurn/1/toolCalls/read_file").asInt()).isEqualTo(1);
+  }
 }

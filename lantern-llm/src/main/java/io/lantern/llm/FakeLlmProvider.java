@@ -33,6 +33,7 @@ public final class FakeLlmProvider implements LlmProvider {
   private final String name;
   private final List<Sent> sent = new ArrayList<>();
   private volatile Function<LlmRequest, String> answer = request -> "fake answer";
+  private volatile Function<LlmRequest, List<LlmToolCall>> toolCalls = request -> List.of();
   private volatile Duration latency = Duration.ZERO;
   private int failuresPerRequest;
   private Supplier<? extends RuntimeException> failure;
@@ -66,6 +67,16 @@ public final class FakeLlmProvider implements LlmProvider {
    */
   public FakeLlmProvider answering(Function<LlmRequest, String> answer) {
     this.answer = Objects.requireNonNull(answer, "answer");
+    return this;
+  }
+
+  /**
+   * Before answering, asks for the tool calls the function gives for the request, if any: an answer
+   * with those calls, no text and the stop reason {@code tool_use}. When it gives none, the request
+   * is answered as usual. A request without tools is always answered.
+   */
+  public FakeLlmProvider callingTools(Function<LlmRequest, List<LlmToolCall>> toolCalls) {
+    this.toolCalls = Objects.requireNonNull(toolCalls, "toolCalls");
     return this;
   }
 
@@ -168,6 +179,18 @@ public final class FakeLlmProvider implements LlmProvider {
     }
     if (failed != null) {
       throw failed;
+    }
+    List<LlmToolCall> calls = request.tools().isEmpty() ? List.of() : toolCalls.apply(request);
+    if (!calls.isEmpty()) {
+      long chars = 0;
+      for (LlmToolCall call : calls) {
+        chars += call.name().length() + call.input().toString().length();
+      }
+      return new LlmResponse(
+          "",
+          LlmResponse.TOOL_USE,
+          new TokenUsage(request.estimatedInputTokens(), thinking + Tokens.estimate(chars), 0, 0),
+          calls);
     }
     String text = answer.apply(request);
     long limit = request.maxOutputTokens();

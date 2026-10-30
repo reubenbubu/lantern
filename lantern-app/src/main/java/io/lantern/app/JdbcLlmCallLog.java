@@ -2,6 +2,7 @@ package io.lantern.app;
 
 import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmCallLog;
+import io.lantern.llm.LlmConversation;
 import io.lantern.llm.Role;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -9,13 +10,23 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
-/** Stores every LLM call in the {@code llm_calls} table, so spending is known across runs. */
+/**
+ * Stores every LLM call in the {@code llm_calls} table, so spending is known across runs, and every
+ * conversation with its tool loop in {@code llm_conversations} (ADR 0081).
+ */
 public final class JdbcLlmCallLog implements LlmCallLog {
+
+  private static final JsonMapper JSON = JsonMapper.builder().build();
+  private static final TypeReference<Map<String, Integer>> COUNTS = new TypeReference<>() {};
 
   private final JdbcClient jdbc;
 
@@ -28,9 +39,11 @@ public final class JdbcLlmCallLog implements LlmCallLog {
     jdbc.sql(
             """
             INSERT INTO llm_calls (started_at, duration_ms, role, purpose, provider, model, outcome,
-                input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_usd, error)
+                input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_usd, error,
+                conversation_id, turn, tool_calls)
             VALUES (:startedAt, :durationMs, :role, :purpose, :provider, :model, :outcome,
-                :input, :output, :cacheWrite, :cacheRead, :cost, :error)
+                :input, :output, :cacheWrite, :cacheRead, :cost, :error,
+                :conversation, :turn, CAST(:toolCalls AS jsonb))
             """)
         .param("startedAt", call.startedAt().atOffset(ZoneOffset.UTC))
         .param("durationMs", Math.max(0, call.duration().toMillis()))
@@ -45,7 +58,166 @@ public final class JdbcLlmCallLog implements LlmCallLog {
         .param("cacheRead", call.usage().cacheRead())
         .param("cost", call.costUsd())
         .param("error", call.error())
+        .param("conversation", call.conversation())
+        .param("turn", call.turn())
+        .param("toolCalls", JSON.writeValueAsString(call.toolCalls()))
         .update();
+  }
+
+  @Override
+  public void recordConversation(LlmConversation conversation) {
+    jdbc.sql(
+            """
+            INSERT INTO llm_conversations (id, started_at, duration_ms, role, purpose, provider,
+                model, turns, tool_calls, input_tokens, output_tokens, cache_write_tokens,
+                cache_read_tokens, cost_usd, ending, error)
+            VALUES (:id, :startedAt, :durationMs, :role, :purpose, :provider, :model, :turns,
+                CAST(:toolCalls AS jsonb), :input, :output, :cacheWrite, :cacheRead, :cost,
+                :ending, :error)
+            """)
+        .param("id", conversation.id())
+        .param("startedAt", conversation.startedAt().atOffset(ZoneOffset.UTC))
+        .param("durationMs", Math.max(0, conversation.duration().toMillis()))
+        .param("role", conversation.role().name())
+        .param("purpose", conversation.purpose())
+        .param("provider", conversation.provider())
+        .param("model", conversation.model())
+        .param("turns", conversation.turns())
+        .param("toolCalls", JSON.writeValueAsString(conversation.toolCalls()))
+        .param("input", conversation.usage().input())
+        .param("output", conversation.usage().output())
+        .param("cacheWrite", conversation.usage().cacheWrite())
+        .param("cacheRead", conversation.usage().cacheRead())
+        .param("cost", conversation.costUsd())
+        .param("ending", conversation.ending().name())
+        .param("error", conversation.error())
+        .update();
+  }
+
+  /**
+   * The conversations that started at or after the given time, oldest first, each with its turns'
+   * tokens, cost and tool calls from the call log.
+   */
+  public List<ConversationSpending> conversationsSince(Instant since) {
+    // Each turn's rows, its retries included, added up in Java so no newer SQL is needed.
+    Map<String, Map<Integer, TurnSpending>> turns = new LinkedHashMap<>();
+    jdbc.sql(
+            """
+            SELECT conversation_id, turn,
+                   input_tokens + output_tokens + cache_write_tokens + cache_read_tokens AS tokens,
+                   cost_usd, tool_calls, outcome
+            FROM llm_calls
+            WHERE conversation_id IS NOT NULL AND started_at >= :since
+            ORDER BY conversation_id, turn, id
+            """)
+        .param("since", since.atOffset(ZoneOffset.UTC))
+        .query(
+            rs -> {
+              int turn = rs.getInt("turn");
+              Map<String, Integer> calls = JSON.readValue(rs.getString("tool_calls"), COUNTS);
+              String outcome = rs.getString("outcome");
+              TurnSpending row =
+                  new TurnSpending(
+                      turn,
+                      rs.getLong("tokens"),
+                      rs.getBigDecimal("cost_usd"),
+                      calls,
+                      outcome.equals("SUCCEEDED") || outcome.equals("TRUNCATED"));
+              turns
+                  .computeIfAbsent(rs.getString("conversation_id"), id -> new TreeMap<>())
+                  .merge(turn, row, TurnSpending::plus);
+            });
+    return jdbc.sql(
+            """
+            SELECT id, role, purpose, provider, model, turns, tool_calls,
+                   input_tokens + output_tokens + cache_write_tokens + cache_read_tokens AS tokens,
+                   cost_usd, ending, error
+            FROM llm_conversations
+            WHERE started_at >= :since
+            ORDER BY started_at, id
+            """)
+        .param("since", since.atOffset(ZoneOffset.UTC))
+        .query(
+            (rs, row) ->
+                new ConversationSpending(
+                    rs.getString("id"),
+                    Role.valueOf(rs.getString("role")),
+                    rs.getString("purpose"),
+                    rs.getString("provider"),
+                    rs.getString("model"),
+                    rs.getInt("turns"),
+                    JSON.readValue(rs.getString("tool_calls"), COUNTS),
+                    rs.getLong("tokens"),
+                    rs.getBigDecimal("cost_usd"),
+                    LlmConversation.Ending.valueOf(rs.getString("ending")),
+                    rs.getString("error"),
+                    List.copyOf(turns.getOrDefault(rs.getString("id"), Map.of()).values())))
+        .list();
+  }
+
+  /**
+   * One turn of a conversation as the call log has it, its retries included.
+   *
+   * @param turn the turn's number, from 1
+   * @param tokens all its tokens
+   * @param costUsd what it cost
+   * @param toolCalls the tool calls its answer asked for, by tool name
+   * @param answered whether the model answered it, rather than it failing or being refused
+   */
+  public record TurnSpending(
+      int turn, long tokens, BigDecimal costUsd, Map<String, Integer> toolCalls, boolean answered) {
+
+    public TurnSpending {
+      toolCalls = Collections.unmodifiableMap(new TreeMap<>(toolCalls));
+    }
+
+    /** This turn with another row of it, such as the attempt after a failed one. */
+    TurnSpending plus(TurnSpending other) {
+      Map<String, Integer> calls = new TreeMap<>(toolCalls);
+      other.toolCalls.forEach((tool, n) -> calls.merge(tool, n, Integer::sum));
+      return new TurnSpending(
+          turn,
+          tokens + other.tokens,
+          costUsd.add(other.costUsd),
+          calls,
+          answered || other.answered);
+    }
+  }
+
+  /**
+   * A conversation as the call log has it.
+   *
+   * @param id its id
+   * @param role what it was for
+   * @param purpose the caller's description of it
+   * @param provider the provider name
+   * @param model the model identifier
+   * @param turns how many turns it sent
+   * @param toolCalls the tool calls the model asked for, by tool name
+   * @param tokens all tokens of its turns
+   * @param costUsd what its turns cost
+   * @param ending how it ended
+   * @param error why it stopped, or null
+   * @param perTurn its turns, in order
+   */
+  public record ConversationSpending(
+      String id,
+      Role role,
+      String purpose,
+      String provider,
+      String model,
+      int turns,
+      Map<String, Integer> toolCalls,
+      long tokens,
+      BigDecimal costUsd,
+      LlmConversation.Ending ending,
+      String error,
+      List<TurnSpending> perTurn) {
+
+    public ConversationSpending {
+      toolCalls = Collections.unmodifiableMap(new TreeMap<>(toolCalls));
+      perTurn = List.copyOf(perTurn);
+    }
   }
 
   /**

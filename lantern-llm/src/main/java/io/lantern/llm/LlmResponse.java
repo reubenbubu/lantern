@@ -1,16 +1,25 @@
 package io.lantern.llm;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
  * What the model returned.
  *
- * @param text the text it wrote, without any thinking
- * @param stopReason why it stopped, as the provider reports it (for example {@code end_turn} or
- *     {@code max_tokens}), or {@code null} if not reported
+ * @param text the text it wrote, without any thinking; may be empty when it asks for tool calls
+ * @param stopReason why it stopped, as the provider reports it (for example {@code end_turn},
+ *     {@code tool_use} or {@code max_tokens}), or {@code null} if not reported
  * @param usage the tokens the call used
+ * @param toolCalls the tool calls it asked for, in order; empty when it answered
+ * @param thinking the thinking blocks it gave, kept only so an answer that asks for tools can be
+ *     sent back whole; never part of the text
  */
-public record LlmResponse(String text, String stopReason, TokenUsage usage) {
+public record LlmResponse(
+    String text,
+    String stopReason,
+    TokenUsage usage,
+    List<LlmToolCall> toolCalls,
+    List<LlmThinking> thinking) {
 
   /** The stop reason of an answer cut off at its output limit, as Anthropic reports it. */
   public static final String MAX_TOKENS = "max_tokens";
@@ -21,9 +30,25 @@ public record LlmResponse(String text, String stopReason, TokenUsage usage) {
    */
   public static final String CONTEXT_WINDOW_EXCEEDED = "model_context_window_exceeded";
 
+  /** The stop reason of an answer that asks for tool calls, as Anthropic reports it. */
+  public static final String TOOL_USE = "tool_use";
+
   public LlmResponse {
     Objects.requireNonNull(text, "text");
     Objects.requireNonNull(usage, "usage");
+    toolCalls = List.copyOf(Objects.requireNonNull(toolCalls, "toolCalls"));
+    thinking = List.copyOf(Objects.requireNonNull(thinking, "thinking"));
+  }
+
+  /** An answer without tool calls or kept thinking. */
+  public LlmResponse(String text, String stopReason, TokenUsage usage) {
+    this(text, stopReason, usage, List.of(), List.of());
+  }
+
+  /** An answer with tool calls and no kept thinking. */
+  public LlmResponse(
+      String text, String stopReason, TokenUsage usage, List<LlmToolCall> toolCalls) {
+    this(text, stopReason, usage, toolCalls, List.of());
   }
 
   /**
@@ -33,5 +58,10 @@ public record LlmResponse(String text, String stopReason, TokenUsage usage) {
    */
   public boolean cutOff() {
     return MAX_TOKENS.equals(stopReason) || CONTEXT_WINDOW_EXCEEDED.equals(stopReason);
+  }
+
+  /** Whether the model asks for tool calls to be run before it answers. */
+  public boolean wantsTools() {
+    return !toolCalls.isEmpty() && !cutOff();
   }
 }
