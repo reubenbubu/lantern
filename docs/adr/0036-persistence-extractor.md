@@ -105,3 +105,45 @@ SQL counts, and how a datasource URL is recorded without its credentials.
   without builds. It runs when `lantern.test.project0` is set, with the same command as
   `Project0BuildIT` (see Commands in `CLAUDE.md`) but `-pl lantern-extract` and
   `-Dit.test=Project0PersistenceIT`.
+
+## Amendment (#387): non-relational stores, documents, MyBatis and the configured naming
+
+Research: `docs/research/extractor-persistence.md`. A service on MongoDB, Elasticsearch, Cassandra,
+Neo4j or Couchbase had no store fact; documents had no collection; MyBatis, a common way to reach
+a relational database, was not read; and a configured physical naming strategy was ignored. The
+extractor's version becomes 4.
+
+- **`data-store`**, an attribute of the module like `datasource`, for each non-relational store its
+  config connects it to, in the default view and where a profile differs: MongoDB
+  (`spring.data.mongodb.*` and Boot 4's `spring.mongodb.*`: `uri`, else `host`, `port` and
+  `database`), Elasticsearch (`spring.elasticsearch.uris`, the first one, and older keys), Cassandra
+  (`contact-points`, `port`, `keyspace-name`), Neo4j (`uri`, `database`) and Couchbase
+  (`connection-string`, bucket), read in any relaxed form. The value is the URI without credentials
+  (`UrlCredentials`), or one made of the host, port and database; `technology`, `server` and
+  `database` (MongoDB's from the URI's path unless a `database` key sets it) are attributes. A
+  store set only by a bean of the code's own is not read. Drawing these stores is the linker's
+  (#466).
+- **Documents.** A MongoDB `@Document` maps to its collection (`collection` or `value`, else the
+  simple class name with its first letter in lower case) and an Elasticsearch `@Document` to its
+  index (`indexName`), as `MAPS_TO` to a `table` entity of the module, with `framework` `mongodb`
+  or `elasticsearch`, names kept as written. A name with `#{` or `${` is made at run time and is
+  not recorded.
+- **MyBatis.** `@Select`, `@Insert`, `@Update` and `@Delete` on a method are SQL like a native
+  `@Query` (the strings of `value` joined with spaces, `#{...}` as `?`); one with `${...}` or a
+  `<script>` is not read. The statements of XML mappers (`<mapper namespace>` files anywhere in the
+  repository's sources) are read from the method of the namespace's interface whose name is the
+  statement's id (the interface when none), evidenced by the statement's lines, with `api`
+  `org.apache.ibatis.session.SqlSession`. A statement is read as it would run if every condition
+  held: `<include>` replaced by the mapper's `<sql>` fragment, `<where>` and `<set>` with their
+  keyword and without a leading `AND`/`OR` or trailing comma, `<trim>` with its prefix, suffix and
+  overrides, `<foreach>` once between `open` and `close`, and `<choose>` by its first branch. A
+  statement with `${...}`, or an include of a fragment not in the mapper, is not read.
+- **The configured naming.** When a module's config sets
+  `spring.jpa.hibernate.naming.physical-strategy` (or Hibernate's own key) to another strategy than
+  Spring Boot's default, its entities' names are kept as written; for a strategy of the code's own,
+  `namingStrategy` names it. Spring Data relational names split as Spring Data's `ParsingUtils`
+  does, so an acronym stays one part (`URLMapping` is `url_mapping`).
+- Still not read: binding code to one of several datasources (#463); join, collection and
+  secondary tables, Cassandra and Neo4j mappings, and naming by Hibernate version (#464; the split
+  rule today follows Hibernate 7 and the treatment of quoted names Hibernate 6); reads and writes
+  from the calls made, JPQL, `MongoTemplate` and jOOQ (#465).

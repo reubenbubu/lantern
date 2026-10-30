@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.shop.catalog.ProductMapper">
+  <sql id="columns">p.id, p.name, c.title</sql>
+
+  <select id="findByCategory" resultType="map">
+    SELECT <include refid="columns"/>
+    FROM product p JOIN category c ON c.id = p.category_id
+    <where>
+      <if test="category != null">AND c.title = #{category}</if>
+      <if test="true">AND p.active = 1</if>
+    </where>
+  </select>
+
+  <update id="archive">
+    UPDATE product
+    <set>
+      <if test="true">archived = 1,</if>
+      <if test="reason != null">archive_reason = #{reason},</if>
+    </set>
+    WHERE id = #{id}
+  </update>
+
+  <delete id="purge">
+    DELETE FROM product WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </delete>
+
+  <insert id="snapshot">
+    INSERT INTO product_history (id, name)
+    <choose>
+      <when test="true">SELECT id, name FROM product</when>
+      <otherwise>SELECT id, name FROM product_draft</otherwise>
+    </choose>
+  </insert>
+</mapper>

@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: catalog
+  jpa:
+    hibernate:
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+  data:
+    mongodb:
+      uri: mongodb://shop:s3cret@mongo:27017/catalog?authSource=admin
+  elasticsearch:
+    uris: http://es:9200,http://es2:9200
+  cassandra:
+    keyspace-name: events
+    contact-points: cass1,cass2
+    port: 9042
+---
+spring.config.activate.on-profile: local
+spring.data.mongodb.uri: mongodb://localhost/catalog-dev

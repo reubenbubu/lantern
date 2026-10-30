@@ -170,6 +170,88 @@ class PersistenceExtractorTest {
   }
 
   @Test
+  void myBatisDocumentsAndNonRelationalStores() throws IOException {
+    Repo repo = fixture();
+    List<String> lines =
+        Fixtures.render(extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null))))
+            .lines()
+            .toList();
+    String mapper = "method:com.example.shop.catalog.ProductMapper#";
+    String table = "table:com.example.shop:shop-catalog:";
+    assertThat(lines)
+        // MyBatis annotations: the strings of a value are one statement.
+        .anyMatch(l -> l.startsWith(mapper + "findById(long) READS_TABLE " + table + "product "))
+        .anyMatch(l -> l.startsWith(mapper + "insert(java.lang.Object) WRITES_TABLE " + table))
+        // Text substitution may make the table at run time: nothing.
+        .noneMatch(l -> l.startsWith(mapper + "rename("))
+        // An XML mapper: an included fragment, <where> and a join.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        mapper
+                            + "findByCategory(java.lang.String) READS_TABLE "
+                            + table
+                            + "category ")
+                    && l.contains("mapper/ProductMapper.xml#6-13 "))
+        // <set> with a trailing comma, <foreach>, and <choose> taking its first <when>.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    mapper + "archive(long,java.lang.String) WRITES_TABLE " + table + "product "))
+        .anyMatch(
+            l -> l.startsWith(mapper + "purge(java.util.List) WRITES_TABLE " + table + "product "))
+        .anyMatch(
+            l -> l.startsWith(mapper + "snapshot() WRITES_TABLE " + table + "product_history "))
+        .noneMatch(l -> l.contains(table + "product_draft"))
+        // Documents: a collection named after the class or as written, an index; none at run time.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "type:com.example.shop.catalog.ReadHistory MAPS_TO "
+                            + table
+                            + "readHistory ")
+                    && l.contains("\"framework\":\"mongodb\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "type:com.example.shop.catalog.AuditLog MAPS_TO " + table + "audit_log "))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "type:com.example.shop.catalog.SearchProduct MAPS_TO " + table + "pms ")
+                    && l.contains("\"framework\":\"elasticsearch\""))
+        .noneMatch(l -> l.startsWith("type:com.example.shop.catalog.TenantNote "))
+        // Hibernate's standard naming, set in config: the name as written (folded as SQL folds it).
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "type:com.example.shop.catalog.CatalogItem MAPS_TO "
+                        + table
+                        + "shop.catalogitem "))
+        // Stores: MongoDB without its credentials, per profile; Elasticsearch's first URI;
+        // Cassandra made of its keys.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "module:com.example.shop:shop-catalog data-store mongodb://mongo:27017/catalog?authSource=admin ")
+                    && l.contains("\"database\":\"catalog\"")
+                    && l.contains("\"technology\":\"MongoDB\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "module:com.example.shop:shop-catalog data-store mongodb://localhost/catalog-dev ")
+                    && l.contains("\"profile\":\"local\""))
+        .anyMatch(
+            l -> l.startsWith("module:com.example.shop:shop-catalog data-store http://es:9200 "))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "module:com.example.shop:shop-catalog data-store cassandra://cass1:9042/events ")
+                    && l.contains("\"database\":\"events\""))
+        .noneMatch(l -> l.contains("s3cret"));
+  }
+
+  @Test
   void jpaNamesFollowSpringBootsDefaultNaming() {
     assertThat(PersistenceExtractor.jpaName("CustomerOrder")).isEqualTo("customer_order");
     assertThat(PersistenceExtractor.jpaName("orders")).isEqualTo("orders");
@@ -179,5 +261,8 @@ class PersistenceExtractorTest {
     assertThat(PersistenceExtractor.jpaName("\"OrderItems\"")).isEqualTo("\"order_items\"");
     assertThat(PersistenceExtractor.jpaName("`Mixed`")).isEqualTo("\"mixed\"");
     assertThat(PersistenceExtractor.snakeCase("StockLevel")).isEqualTo("stock_level");
+    // Spring Data splits an acronym off as one part.
+    assertThat(PersistenceExtractor.snakeCase("URLMapping")).isEqualTo("url_mapping");
+    assertThat(PersistenceExtractor.snakeCase("OrderV2")).isEqualTo("order_v2");
   }
 }

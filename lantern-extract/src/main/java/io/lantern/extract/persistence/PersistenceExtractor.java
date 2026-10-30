@@ -13,6 +13,7 @@ import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
 import io.lantern.extract.config.ModuleConfig;
+import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.java.ModuleStructure;
@@ -29,6 +30,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -41,6 +43,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -65,7 +68,7 @@ public final class PersistenceExtractor {
   public static final String NAME = "persistence";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "persistence-extractor";
@@ -89,6 +92,15 @@ public final class PersistenceExtractor {
   public static final String JPA = "jpa";
 
   public static final String SPRING_DATA_RELATIONAL = "spring-data-relational";
+
+  /** The framework of a MongoDB document's collection. */
+  public static final String MONGODB = "mongodb";
+
+  /** The framework of an Elasticsearch document's index. */
+  public static final String ELASTICSEARCH = "elasticsearch";
+
+  /** The name of the attribute type of a non-relational store a module's config connects to. */
+  public static final String DATA_STORE = "data-store";
 
   private static final String RESOURCE = "/vocabulary/persistence-types.json";
 
@@ -132,6 +144,37 @@ public final class PersistenceExtractor {
 
   private static final String JPA_QUERY = DATA + "jpa.repository.Query";
 
+  /** MyBatis's statement annotations on a mapper interface's methods: their text is SQL. */
+  private static final Set<String> MYBATIS_SQL =
+      Set.of(
+          "org.apache.ibatis.annotations.Select",
+          "org.apache.ibatis.annotations.Insert",
+          "org.apache.ibatis.annotations.Update",
+          "org.apache.ibatis.annotations.Delete");
+
+  /** The API that runs a MyBatis XML mapper's statements. */
+  private static final String MYBATIS_SESSION = "org.apache.ibatis.session.SqlSession";
+
+  private static final String MONGO_DOCUMENT = DATA + "mongodb.core.mapping.Document";
+
+  private static final String ELASTICSEARCH_DOCUMENT = DATA + "elasticsearch.annotations.Document";
+
+  /** Hibernate's physical naming strategy that keeps logical names as they are. */
+  private static final String STANDARD_NAMING =
+      "org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl";
+
+  /** The physical naming strategies that make names as Spring Boot's default does. */
+  private static final Set<String> SNAKE_CASE_NAMING =
+      Set.of(
+          "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy",
+          "org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy");
+
+  /** The config keys that set Hibernate's physical naming strategy, in relaxed form. */
+  private static final Set<String> NAMING_KEYS =
+      Set.of(
+          "spring.jpa.hibernate.naming.physicalstrategy",
+          "spring.jpa.properties.hibernate.physicalnamingstrategy");
+
   /** Types whose methods take SQL text in their {@code String} parameters. */
   private static final Set<String> SQL_TYPES =
       Set.of(
@@ -171,6 +214,60 @@ public final class PersistenceExtractor {
           "spring.r2dbc.url",
           "spring.flyway.url",
           "spring.liquibase.url");
+
+  /**
+   * A kind of non-relational store and the config keys (in relaxed form: lower case, without dashes
+   * or underscores) that connect a module to it, by Spring Boot's versions.
+   */
+  private record StoreKind(
+      String technology,
+      String scheme,
+      List<String> uris,
+      List<String> hosts,
+      List<String> ports,
+      List<String> databases) {}
+
+  private static final List<StoreKind> STORES =
+      List.of(
+          new StoreKind(
+              "MongoDB",
+              "mongodb",
+              List.of("spring.data.mongodb.uri", "spring.mongodb.uri"),
+              List.of("spring.data.mongodb.host", "spring.mongodb.host"),
+              List.of("spring.data.mongodb.port", "spring.mongodb.port"),
+              List.of("spring.data.mongodb.database", "spring.mongodb.database")),
+          new StoreKind(
+              "Elasticsearch",
+              "http",
+              List.of(
+                  "spring.elasticsearch.uris",
+                  "spring.elasticsearch.rest.uris",
+                  "spring.data.elasticsearch.client.reactive.endpoints",
+                  "spring.data.elasticsearch.clusternodes"),
+              List.of(),
+              List.of(),
+              List.of()),
+          new StoreKind(
+              "Cassandra",
+              "cassandra",
+              List.of(),
+              List.of("spring.cassandra.contactpoints", "spring.data.cassandra.contactpoints"),
+              List.of("spring.cassandra.port", "spring.data.cassandra.port"),
+              List.of("spring.cassandra.keyspacename", "spring.data.cassandra.keyspacename")),
+          new StoreKind(
+              "Neo4j",
+              "bolt",
+              List.of("spring.neo4j.uri", "spring.data.neo4j.uri"),
+              List.of(),
+              List.of(),
+              List.of("spring.data.neo4j.database")),
+          new StoreKind(
+              "Couchbase",
+              "couchbase",
+              List.of("spring.couchbase.connectionstring", "spring.couchbase.bootstraphosts"),
+              List.of(),
+              List.of(),
+              List.of("spring.data.couchbase.bucketname", "spring.couchbase.bucket.name")));
 
   /** The vocabulary types this extractor's facts use besides the built-in, Java and SQL ones. */
   public static List<VocabularyType> vocabulary() {
@@ -231,14 +328,21 @@ public final class PersistenceExtractor {
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       run.executor = executor;
       Set<RepoBuild> repos = new LinkedHashSet<>();
+      code.modules().forEach(m -> repos.add(m.repo()));
+      Map<RepoBuild, List<ModuleConfig>> configs = new LinkedHashMap<>();
+      for (RepoBuild repo : repos) {
+        configs.put(repo, ConfigExtractor.read(repo));
+        configs.get(repo).forEach(run::naming);
+      }
       for (JavaAnalysis.Module module : code.modules()) {
-        repos.add(module.repo());
         run.module(module);
       }
       for (RepoBuild repo : repos) {
-        for (ModuleConfig config : ConfigExtractor.read(repo)) {
+        for (ModuleConfig config : configs.get(repo)) {
           run.datasources(config);
+          run.stores(config);
         }
+        run.mappers(repo);
       }
     }
     return run.facts.values().stream()
@@ -261,6 +365,9 @@ public final class PersistenceExtractor {
     private final Map<String, Fact> facts = new LinkedHashMap<>();
     private ExecutorService executor;
     private final Set<String> known;
+
+    /** The physical naming strategy each module's config sets, by module. */
+    private final Map<EntityId, String> namingStrategies = new HashMap<>();
 
     Run(JavaAnalysis code, Validity validity, Set<String> known) {
       this.known = known;
@@ -307,17 +414,45 @@ public final class PersistenceExtractor {
           name = simpleName(owner.binaryName());
         }
         String schema = table == null ? null : first(table, "schema");
-        String physical = jpaName(name);
+        String strategy = namingStrategies.get(m.id());
+        boolean standard = strategy != null && !SNAKE_CASE_NAMING.contains(strategy);
+        String physical = standard ? name : jpaName(name);
         if (schema != null) {
-          physical = jpaName(schema) + "." + physical;
+          physical = (standard ? schema : jpaName(schema)) + "." + physical;
         }
         ObjectNode attributes = FactJson.newObject();
         attributes.put("framework", JPA);
+        if (standard && !strategy.equals(STANDARD_NAMING)) {
+          // A strategy of the code's own: the name is recorded as the entity gives it.
+          attributes.put("namingStrategy", strategy);
+        }
         if (inherited) {
           attributes.put("inheritedFrom", root.binaryName());
         }
         Location where = located(table != null && !inherited ? table : jpa, type.where());
         relationship(m, subject, MAPS_TO, table(m, physical), attributes, where);
+        return;
+      }
+      Annotation mongo = annotation(type.annotations(), MONGO_DOCUMENT);
+      if (mongo != null) {
+        String name = first(mongo, "collection");
+        if (name == null) {
+          name = first(mongo, "value");
+        }
+        if (name == null) {
+          // Spring Data MongoDB names a collection after the class, its first letter lower case.
+          String simple = simpleName(type.binaryName());
+          name = Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+        }
+        document(m, subject, name, MONGODB, located(mongo, type.where()));
+        return;
+      }
+      Annotation search = annotation(type.annotations(), ELASTICSEARCH_DOCUMENT);
+      if (search != null) {
+        String name = first(search, "indexName");
+        if (name != null) {
+          document(m, subject, name, ELASTICSEARCH, located(search, type.where()));
+        }
         return;
       }
       Annotation relational = annotation(type.annotations(), RELATIONAL_TABLE);
@@ -342,6 +477,20 @@ public final class PersistenceExtractor {
             attributes,
             located(relational, type.where()));
       }
+    }
+
+    /**
+     * {@code MAPS_TO} for a document class: its collection or index, by name as written (both are
+     * case sensitive); none for a name an expression makes at run time.
+     */
+    private void document(
+        JavaAnalysis.Module m, EntityId subject, String name, String framework, Location where) {
+      if (name.contains("#{") || name.contains("${")) {
+        return;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("framework", framework);
+      relationship(m, subject, MAPS_TO, tableEntity(m, name), attributes, where);
     }
 
     /**
@@ -449,6 +598,15 @@ public final class PersistenceExtractor {
     /** {@code READS_TABLE} and {@code WRITES_TABLE} for a repository method's SQL query. */
     private void nativeQuery(JavaAnalysis.Module m, Member method) {
       for (Annotation a : method.annotations()) {
+        if (MYBATIS_SQL.contains(a.type())) {
+          // MyBatis joins the strings of its value with spaces.
+          String text = String.join(" ", a.values("value")).strip();
+          if (!text.isEmpty() && !text.contains("${") && !text.startsWith("<script>")) {
+            String sql = MyBatisMappers.parameters(text);
+            access(m, method.id(), sql, a.type(), located(a, method.where()));
+          }
+          continue;
+        }
         boolean sql =
             SQL_QUERIES.contains(a.type())
                 || (a.type().equals(JPA_QUERY) && "true".equals(first(a, "nativeQuery")));
@@ -539,7 +697,181 @@ public final class PersistenceExtractor {
     }
 
     // -------------------------------------------------------------------------------------------
+    // MyBatis XML mappers
+
+    /**
+     * {@code READS_TABLE} and {@code WRITES_TABLE} for the statements of a repository's MyBatis XML
+     * mappers, from the method of the mapper interface the statement's namespace and id name (the
+     * interface itself when no method has that name), evidenced by the statement's lines.
+     */
+    void mappers(RepoBuild repo) {
+      for (MyBatisMappers.Statement st : MyBatisMappers.read(repo)) {
+        JavaAnalysis.Module m = code.module(st.namespace());
+        if (m == null || !m.repo().equals(repo)) {
+          continue;
+        }
+        EntityId subject = null;
+        for (TypeDecl type : m.structure().types()) {
+          if (!type.binaryName().equals(st.namespace())) {
+            continue;
+          }
+          subject = typeId(type.binaryName());
+          for (Member member : type.members()) {
+            String key = member.id().key();
+            if (member.id().type().equals(ModuleStructure.METHOD)
+                && key.startsWith(type.binaryName() + "#" + st.id() + "(")) {
+              subject = member.id();
+              break;
+            }
+          }
+        }
+        if (subject == null) {
+          continue;
+        }
+        Evidence evidence =
+            new Evidence(
+                repo.repo().name(),
+                repo.commit(),
+                st.path(),
+                st.start() > 0 ? new Evidence.LineRange(st.start(), st.end()) : null,
+                st.contentHash());
+        for (SqlAccess.Access a : SqlAccess.of(st.sql(), executor)) {
+          EntityId table = tableEntity(m, a.table());
+          if (table == null) {
+            continue;
+          }
+          ObjectNode attributes = FactJson.newObject();
+          attributes.put("statement", a.statement());
+          attributes.put("api", MYBATIS_SESSION);
+          add(
+              Fact.create(
+                  subject,
+                  a.write() ? WRITES_TABLE : READS_TABLE,
+                  FactObject.entity(table),
+                  attributes,
+                  ORIGIN,
+                  evidence,
+                  m.confidence(),
+                  validity));
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------------------------------
     // Config
+
+    /**
+     * {@code data-store} facts for a module's config: each non-relational store (MongoDB,
+     * Elasticsearch, Cassandra, Neo4j, Couchbase) its keys connect it to, in the default view and
+     * where a profile differs.
+     */
+    void stores(ModuleConfig config) {
+      Map<String, Datasource> defaults = new TreeMap<>();
+      for (Datasource d : stores(config, null)) {
+        defaults.put(d.key(), d);
+        datasourceFact(config, DATA_STORE, d, null);
+      }
+      for (String profile : config.profiles()) {
+        for (Datasource d : stores(config, profile)) {
+          Datasource byDefault = defaults.get(d.key());
+          if (byDefault == null
+              || !byDefault.value().equals(d.value())
+              || !byDefault.attributes().equals(d.attributes())) {
+            datasourceFact(config, DATA_STORE, d, profile);
+          }
+        }
+      }
+    }
+
+    private List<Datasource> stores(ModuleConfig config, String profile) {
+      Map<String, ConfigValue> relaxed = new TreeMap<>();
+      for (ConfigValue v : config.values(profile).values()) {
+        relaxed.putIfAbsent(v.key().replace("-", "").replace("_", "").toLowerCase(Locale.ROOT), v);
+      }
+      List<Datasource> found = new ArrayList<>();
+      for (StoreKind kind : STORES) {
+        ConfigValue uri = firstOf(relaxed, kind.uris());
+        ConfigValue host = firstOf(relaxed, kind.hosts());
+        ConfigValue port = firstOf(relaxed, kind.ports());
+        ConfigValue database = firstOf(relaxed, kind.databases());
+        ConfigValue main = uri != null ? uri : host != null ? host : database;
+        if (main == null || ConfigExtractor.isSecret(main.key(), known)) {
+          continue;
+        }
+        boolean masked = false;
+        for (ConfigValue v : new ConfigValue[] {uri, host, port, database}) {
+          if (v != null && v.used().stream().anyMatch(k -> ConfigExtractor.isSecret(k, known))) {
+            masked = true;
+          }
+        }
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("key", main.key());
+        attributes.put("technology", kind.technology());
+        String server;
+        String name = null;
+        String value;
+        if (uri != null) {
+          String first = (masked ? uri.written() : uri.value()).split(",")[0].strip();
+          value = UrlCredentials.withoutCredentials(first);
+          String authority =
+              value.contains("://") ? value.substring(value.indexOf("://") + 3) : value;
+          int slash = authority.indexOf('/');
+          String path = slash < 0 ? "" : authority.substring(slash + 1);
+          server = slash < 0 ? authority : authority.substring(0, slash);
+          int query = server.indexOf('?');
+          server = query < 0 ? server : server.substring(0, query);
+          if (kind.technology().equals("MongoDB") && !path.isEmpty()) {
+            int q = path.indexOf('?');
+            name = q < 0 ? path : path.substring(0, q);
+          }
+        } else {
+          server =
+              (host == null ? "localhost" : host.value().split(",")[0].strip())
+                  + (port == null ? "" : ":" + port.value().strip());
+          value = kind.scheme() + "://" + server;
+        }
+        if (database != null && !database.value().isBlank()) {
+          name = database.value().strip();
+        }
+        if (uri == null && name != null) {
+          value = value + "/" + name;
+        }
+        if (!server.isBlank()) {
+          attributes.put("server", server);
+        }
+        if (name != null && !name.isBlank()) {
+          attributes.put("database", name);
+        }
+        if (masked) {
+          attributes.put("masked", true);
+        } else if (!main.unresolved().isEmpty()) {
+          ArrayNode unresolved = attributes.putArray("unresolved");
+          main.unresolved().forEach(unresolved::add);
+        }
+        found.add(new Datasource(main.key(), value, attributes, main.where()));
+      }
+      return found;
+    }
+
+    private static ConfigValue firstOf(Map<String, ConfigValue> relaxed, List<String> keys) {
+      for (String key : keys) {
+        ConfigValue v = relaxed.get(key);
+        if (v != null && !v.value().isBlank()) {
+          return v;
+        }
+      }
+      return null;
+    }
+
+    /** The physical naming strategy a module's config sets, if any, for its entities' names. */
+    void naming(ModuleConfig config) {
+      for (ConfigValue v : config.values(null).values()) {
+        String key = v.key().replace("-", "").replace("_", "").toLowerCase(Locale.ROOT);
+        if (NAMING_KEYS.contains(key) && !v.value().isBlank()) {
+          namingStrategies.put(config.module(), v.value().strip());
+        }
+      }
+    }
 
     /**
      * {@code datasource} facts for a module's config: every datasource URL of the default view, and
@@ -638,6 +970,11 @@ public final class PersistenceExtractor {
     }
 
     private void datasource(ModuleConfig config, Datasource d, String profile) {
+      datasourceFact(config, DATASOURCE, d, profile);
+    }
+
+    private void datasourceFact(
+        ModuleConfig config, String predicate, Datasource d, String profile) {
       ObjectNode attributes = FactJson.newObject();
       attributes.put("key", d.key());
       if (profile != null) {
@@ -662,7 +999,7 @@ public final class PersistenceExtractor {
       add(
           Fact.create(
               config.module(),
-              DATASOURCE,
+              predicate,
               FactObject.string(d.value()),
               attributes,
               ORIGIN,
@@ -740,17 +1077,25 @@ public final class PersistenceExtractor {
     return quoted ? "\"" + physical + "\"" : physical;
   }
 
-  /** A class name in snake case, as Spring Data relational derives a table name. */
+  /** Where Spring Data's {@code ParsingUtils} splits a name in camel case. */
+  private static final Pattern CAMEL_CASE =
+      Pattern.compile("(?<!(^|[\\p{Lu}_$]))(?=\\p{Lu})|(?<!^)(?=\\p{Lu}\\p{Ll})");
+
+  /**
+   * A class name in snake case, as Spring Data relational derives a table name ({@code
+   * ParsingUtils.reconcatenateCamelCase}): split before an upper-case letter that follows another
+   * character than an upper-case letter, an underscore or {@code $}, and before an upper-case
+   * letter followed by a lower-case one; parts lower-cased and joined with underscores, so {@code
+   * URLMapping} is {@code url_mapping}.
+   */
   static String snakeCase(String name) {
-    StringBuilder b = new StringBuilder();
-    for (int i = 0; i < name.length(); i++) {
-      char c = name.charAt(i);
-      if (Character.isUpperCase(c) && i > 0) {
-        b.append('_');
+    List<String> parts = new ArrayList<>();
+    for (String part : CAMEL_CASE.split(name)) {
+      if (!part.isEmpty()) {
+        parts.add(part.toLowerCase(Locale.ROOT));
       }
-      b.append(Character.toLowerCase(c));
     }
-    return b.toString();
+    return String.join("_", parts);
   }
 
   private static String simpleName(String binaryName) {
