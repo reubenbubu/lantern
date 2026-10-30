@@ -1,8 +1,8 @@
 # 0047: Sequence flows traced from entry points and stitched across containers
 
 Status: accepted (#96), amended by ADR 0049 (#176), ADR 0050 (#181), ADR 0058 (#195), ADR 0070
-(#250), which supersedes its choosing of flows, and the amendment below (#313), pending the user's
-review (#24)
+(#250), which supersedes its choosing of flows, and the amendments below (#313, #331), pending the
+user's review (#24)
 
 ## Context
 
@@ -109,3 +109,53 @@ that creates the task and goes on into the job, so the flows now do too.
   containing flow is shown, not the part. This holds for every flow, not only jobs.
 - **Checks.** `SequenceFlowsTest` covers the continuation, the deduplication (including the job's
   flow ranking first) and a job scheduled from code no flow reaches.
+
+## Amendment: flows start in the browser (#331)
+
+Status: accepted, pending the user's review (#24). Since #267 frontends are containers and their
+calls are `CALLS_HTTP` links from `frontend:` entities (ADR 0083), but the flows still started at the
+backend's entry points with a note naming the trigger. The references start them in the browser:
+project-4's sign-in and real-time notification, project-1's web sign-in.
+
+- **The linker names the endpoint a frontend's call reaches** (ADR 0083, amendment for #331): the
+  link from the frontend carries `reaches` (the handler, or the method that registers a WebSocket
+  endpoint), `reachesUnit`, `reachesEndpoint` and, through a gateway, `throughRoute`.
+- **A flow whose entry point a frontend's call reaches starts in the browser**, with the call that
+  comes first in the frontend's code: a message from the person who uses the frontend ("Uses the
+  screens", in a web browser), then from the frontend to the unit or gateway it calls ("Calls
+  <Handler.method>", "Navigates the browser to ..." for a navigation, "Opens a socket" for a
+  socket), with the request as the browser sends it (`POST /api/auth/sign-in`) as its code, and,
+  through a gateway, from the gateway to the unit ("Routes to <Handler.method>", or the route
+  link's intent phrase; "Relays the socket"), with the endpoint as the unit serves it. The person
+  is the frontend's only one with screens on it (ADR 0074, ADR 0083), else the one with most
+  screens on it, by ID among equals; with none, the flow starts at the frontend. The participants
+  start with the person, the frontend and the gateway. The flow's opening note and trigger say so
+  ("Starts when Organization member, in crm-frontend, sends POST /api/auth/sign-in, which
+  api-gateway routes to auth-service"; trigger "POST /api/auth/sign-in from crm-frontend"); of a
+  handler with several endpoints, the one the call reaches names the flow.
+- **A socket the frontend opens starts a flow** at the WebSocket endpoint it reaches (ADR 0080),
+  titled "WebSocket connection to /ws-notifications on notification-service": after the browser's
+  steps, each method an interceptor of the unit's inbound STOMP channel declares (`preSend`, then
+  the others in the order the channel calls them) is traced, after a note that every frame the
+  client sends passes it. A WebSocket endpoint no frontend opens starts no flow.
+- **Choosing (ADR 0070's business weight).** A browser start adds the containers it touches, so
+  such flows rank higher. Then, ahead of the ranked rest, come the best ranked flow a person signs
+  in through (a request whose path has a sign-in segment as ADR 0074 reads them: `sign-in`,
+  `login`, `authenticate`...) and the best ranked flow that opens a socket from the browser: how
+  people get in, and how the system pushes to them. A candidate of the same shape as a flow already
+  shown (started the same way, by a request, a message, a schedule or a job, with the same
+  lifelines in the same order) is not shown, since it would be the same picture with other labels:
+  project-4's PUT and DELETE of a user's role, project-3's reading and updating of a user.
+- **Checks.** `SequenceFlowsTest` covers a frontend's call reaching an entry point directly and
+  through a gateway route, a socket through a gateway and the inbound interceptor, a WebSocket
+  endpoint no frontend opens, and the sign-in flow coming first. `CrossRepoLinksTest` covers the
+  link attributes.
+
+### Not covered
+
+A frontend's call is not tied to the screen that makes it, so the person is the frontend's main
+one, not the one whose screen calls; the gateway's own filters (authentication, permission caches)
+are not traced into the flow; a unit's call to a gateway still stops at the gateway (project-1's BFF
+to its gateway); and an entry point that both a frontend and another flow reach is shown only as
+part of that flow. On project-4 the password-reset flow still ranks below the seven shown (#272
+chooses by business weight).

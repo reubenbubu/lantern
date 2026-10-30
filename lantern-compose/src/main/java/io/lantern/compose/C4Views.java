@@ -654,38 +654,65 @@ final class C4Views {
     List<Link> result = new ArrayList<>();
     for (Map.Entry<EntityId, Fact> person : people().entrySet()) {
       Fact basis = person.getValue();
-      List<String> named = strings(basis, "frontends");
-      Map<EntityId, List<Fact>> screens = new java.util.TreeMap<>(Knowledge.BY_ID);
-      for (Fact route : cited(basis)) {
-        if (!route.predicate().equals(PERSON_EVIDENCE)
-            || !route.object().value().equals(ROUTE)
-            || !named.contains(route.evidence().repo())) {
-          continue;
-        }
-        EntityId frontend = frontendOf(route);
-        if (frontend != null) {
-          screens.computeIfAbsent(frontend, f -> new ArrayList<>()).add(route);
-        }
+      screens(basis)
+          .forEach(
+              (frontend, routes) -> {
+                for (Fact route : routes) {
+                  List<Fact> facts = new ArrayList<>(List.of(basis, route));
+                  frontendApp(frontend).ifPresent(facts::add);
+                  result.add(
+                      new Link(
+                          person.getKey(),
+                          USES,
+                          frontend,
+                          "Uses the screens of",
+                          "Uses the screens",
+                          attribute(route, "path"),
+                          "Web browser",
+                          null,
+                          null,
+                          facts));
+                }
+              });
+    }
+    return result;
+  }
+
+  /**
+   * The screens a person has, by frontend: the {@code route} evidence its {@code person-basis}
+   * cites, among the repositories it names as {@code frontends}, each under the frontend whose
+   * folder holds the route's file.
+   */
+  private Map<EntityId, List<Fact>> screens(Fact basis) {
+    List<String> named = strings(basis, "frontends");
+    Map<EntityId, List<Fact>> screens = new TreeMap<>(Knowledge.BY_ID);
+    for (Fact route : cited(basis)) {
+      if (!route.predicate().equals(PERSON_EVIDENCE)
+          || !route.object().value().equals(ROUTE)
+          || !named.contains(route.evidence().repo())) {
+        continue;
       }
-      screens.forEach(
-          (frontend, routes) -> {
-            for (Fact route : routes) {
-              List<Fact> facts = new ArrayList<>(List.of(basis, route));
-              frontendApp(frontend).ifPresent(facts::add);
-              result.add(
-                  new Link(
-                      person.getKey(),
-                      USES,
-                      frontend,
-                      "Uses the screens of",
-                      "Uses the screens",
-                      attribute(route, "path"),
-                      "Web browser",
-                      null,
-                      null,
-                      facts));
-            }
-          });
+      EntityId frontend = frontendOf(route);
+      if (frontend != null) {
+        screens.computeIfAbsent(frontend, f -> new ArrayList<>()).add(route);
+      }
+    }
+    return screens;
+  }
+
+  /**
+   * The people who have screens on a frontend, each with its {@code person-basis} fact and the
+   * routes of those screens, by person ID.
+   */
+  SortedMap<EntityId, List<Fact>> screensOn(EntityId frontend) {
+    SortedMap<EntityId, List<Fact>> result = new TreeMap<>(Knowledge.BY_ID);
+    for (Map.Entry<EntityId, Fact> person : people().entrySet()) {
+      List<Fact> routes = screens(person.getValue()).get(frontend);
+      if (routes != null) {
+        List<Fact> facts = new ArrayList<>(List.of(person.getValue()));
+        facts.addAll(routes);
+        result.put(person.getKey(), facts);
+      }
     }
     return result;
   }

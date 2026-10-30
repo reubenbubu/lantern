@@ -58,8 +58,12 @@ final class RouteLinker {
    */
   private record Reach(Fact route, List<String> patterns, List<String> methods) {}
 
+  /** A route linked to the unit it sends requests to, in a view (null for the default one). */
+  record Routed(Unit gateway, String view, Fact route, Unit target) {}
+
   private final LinkIndex index;
   private final FoundLinks out;
+  private final List<Routed> routed = new ArrayList<>();
 
   RouteLinker(LinkIndex index, FoundLinks out) {
     this.index = index;
@@ -85,6 +89,7 @@ final class RouteLinker {
           }
           Unit target = link(gateway, fact, view);
           if (target != null) {
+            routed.add(new Routed(gateway, view, fact, target));
             reached
                 .computeIfAbsent(gateway, g -> new LinkedHashMap<>())
                 .computeIfAbsent(view == null ? "" : view, v -> new LinkedHashMap<>())
@@ -359,6 +364,82 @@ final class RouteLinker {
     return attributes;
   }
 
+  /**
+   * The route of the gateway that takes a request with the method (null for any) and path in the
+   * view, with the path as the unit it goes to sees it; null when none takes it, or the route
+   * rewrites the path in a way not followed. Of several, the lowest {@code order} wins, then the
+   * pattern with most literal segments, then the route's id, since the code's order of routes is
+   * not kept.
+   */
+  Forward forward(Unit gateway, String view, String method, String path) {
+    Forward best = null;
+    int bestOrder = 0;
+    int bestLiterals = 0;
+    for (Routed r : routed) {
+      if (!r.gateway().equals(gateway) || !java.util.Objects.equals(r.view(), view)) {
+        continue;
+      }
+      List<String> methods = LinkIndex.texts(r.route(), "methods");
+      if (method != null
+          && !methods.isEmpty()
+          && !methods.contains(method.toUpperCase(Locale.ROOT))) {
+        continue;
+      }
+      List<String> paths = new ArrayList<>(LinkIndex.texts(r.route(), "paths"));
+      if (paths.isEmpty()) {
+        paths.add("/**");
+      }
+      int literals = -1;
+      for (String pattern : paths) {
+        if (matches(path, pattern)) {
+          literals = Math.max(literals, literals(pattern));
+        }
+      }
+      if (literals < 0) {
+        continue;
+      }
+      int order = order(r.route());
+      if (best == null
+          || order < bestOrder
+          || (order == bestOrder && literals > bestLiterals)
+          || (order == bestOrder
+              && literals == bestLiterals
+              && r.route().object().value().compareTo(best.routed().route().object().value())
+                  < 0)) {
+        List<String> forwarded = rewritten(r.route(), List.of(path));
+        best = new Forward(r, forwarded == null ? null : forwarded.getFirst());
+        bestOrder = order;
+        bestLiterals = literals;
+      }
+    }
+    return best == null || best.path() == null ? null : best;
+  }
+
+  /** A request a route takes, and its path as the route's target sees it. */
+  record Forward(Routed routed, String path) {}
+
+  private static int order(Fact route) {
+    String order = LinkIndex.text(route, "order");
+    if (order == null) {
+      return 0;
+    }
+    try {
+      return Integer.parseInt(order.strip());
+    } catch (NumberFormatException e) {
+      return 0;
+    }
+  }
+
+  private static int literals(String pattern) {
+    int count = 0;
+    for (String segment : segments(pattern)) {
+      if (!segment.contains("*") && !segment.contains("{")) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   // ---------------------------------------------------------------------------------------------
   // Endpoints no route reaches
 
@@ -372,6 +453,15 @@ final class RouteLinker {
     if (patterns.isEmpty()) {
       patterns.add("/**");
     }
+    return rewritten(route, patterns);
+  }
+
+  /**
+   * Paths or patterns as the route's target sees them, through its StripPrefix and PrefixPath
+   * filters; null when another filter rewrites the path.
+   */
+  private static List<String> rewritten(Fact route, List<String> paths) {
+    List<String> patterns = new ArrayList<>(paths);
     for (String filter : LinkIndex.texts(route, "filters")) {
       int eq = filter.indexOf('=');
       int paren = filter.indexOf('(');

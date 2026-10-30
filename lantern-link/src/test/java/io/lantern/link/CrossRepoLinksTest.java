@@ -1880,6 +1880,89 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aFrontendsCallNamesTheEndpointItReachesDirectlyOrThroughAGatewayRoute() {
+    unit("gw", "api-gateway", "api-gateway");
+    type("gw", "api-gateway", "gw.Routes");
+    type("gw", "api-gateway", "gw.CompositeController");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "auth",
+        "{\"definedIn\":\"java\",\"uri\":\"lb://auth-service\"," + "\"paths\":[\"/api/auth/**\"]}");
+    // A more specific route wins over a broader one of the same order.
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "all",
+        "{\"definedIn\":\"java\",\"uri\":\"lb://main-service\",\"paths\":[\"/api/**\"]}");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "notify",
+        "{\"definedIn\":\"java\",\"uri\":\"lb:ws://notification-service\","
+            + "\"paths\":[\"/socket/**\"],\"filters\":[\"StripPrefix=1\"]}");
+    // The gateway's own endpoint answers before any route.
+    endpoint("gw", "gw.CompositeController", "tasks()", "POST", "/api/composite/tasks");
+    unit("a", "auth-service", "auth-service");
+    type("a", "auth-service", "a.AuthController");
+    endpoint("a", "a.AuthController", "signIn()", "POST", "/api/auth/sign-in");
+    unit("m", "main-service", "main-service");
+    unit("n", "notification-service", "notification-service");
+    type("n", "notification-service", "n.WsConfig");
+    webSocketEndpoint("n", "n.WsConfig#stomp()", "/ws-notifications");
+    config("gw", "api-gateway", "application.yml", "server.port", "8080", null);
+    config("a", "auth-service", "application.yml", "server.port", "8081", null);
+    config("m", "main-service", "application.yml", "server.port", "8082", null);
+    config("n", "notification-service", "application.yml", "server.port", "8083", null);
+    frontend("web", "");
+    frontendCall("frontend:web", "POST", "http://localhost:8080/api/auth/sign-in", null, 3);
+    frontendCall("frontend:web", "POST", "http://localhost:8080/api/composite/tasks", null, 4);
+    frontendCall("frontend:web", null, "http://localhost:8080/socket/ws-notifications", null, 5);
+    // A path no route and no endpoint takes names nothing.
+    frontendCall("frontend:web", "GET", "http://localhost:8080/elsewhere", null, 6);
+    unit("shop", "bff", "bff");
+    type("shop", "bff", "b.BffController");
+    endpoint("shop", "b.BffController", "login()", "GET", "/bff/login");
+    config("shop", "bff", "application.yml", "server.port", "8090", null);
+    frontend("shop", "web-ui");
+    frontendProxy("frontend:shop/web-ui", "/bff/", "http://bff:8090/bff/", "nginx");
+    frontendCall("frontend:shop/web-ui", "GET", "/bff/login", null, 7);
+
+    List<String> links =
+        derive(CrossRepoLinks.CALLS_HTTP).stream().filter(l -> l.startsWith("frontend:")).toList();
+    assertThat(links)
+        .containsExactlyInAnyOrder(
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
+                + "\"matchedBy\":\"port\",\"path\":\"/api/auth/sign-in\","
+                + "\"protocol\":\"JSON/HTTP\",\"reaches\":\"method:a.AuthController#signIn()\","
+                + "\"reachesEndpoint\":\"POST /api/auth/sign-in\","
+                + "\"reachesUnit\":\"service:g:auth-service\",\"throughRoute\":\"auth\","
+                + "\"url\":\"http://localhost:8080/api/auth/sign-in\"} 0.63",
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
+                + "\"matchedBy\":\"port\",\"path\":\"/api/composite/tasks\","
+                + "\"protocol\":\"JSON/HTTP\","
+                + "\"reaches\":\"method:gw.CompositeController#tasks()\","
+                + "\"reachesEndpoint\":\"POST /api/composite/tasks\","
+                + "\"reachesUnit\":\"service:g:api-gateway\","
+                + "\"url\":\"http://localhost:8080/api/composite/tasks\"} 0.63",
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"matchedBy\":\"port\","
+                + "\"path\":\"/socket/ws-notifications\",\"protocol\":\"WebSocket\","
+                + "\"reaches\":\"method:n.WsConfig#stomp()\","
+                + "\"reachesEndpoint\":\"/ws-notifications\","
+                + "\"reachesUnit\":\"service:g:notification-service\","
+                + "\"throughRoute\":\"notify\","
+                + "\"url\":\"http://localhost:8080/socket/ws-notifications\"} 0.63",
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"port\",\"path\":\"/elsewhere\",\"protocol\":\"JSON/HTTP\","
+                + "\"url\":\"http://localhost:8080/elsewhere\"} 0.63",
+            "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"host\",\"path\":\"/bff/login\",\"protocol\":\"JSON/HTTP\","
+                + "\"proxy\":\"/bff/\",\"reaches\":\"method:b.BffController#login()\","
+                + "\"reachesEndpoint\":\"GET /bff/login\",\"reachesUnit\":\"service:g:bff\","
+                + "\"url\":\"http://bff:8090/bff/login\"} 0.9");
+  }
+
+  @Test
   void aFrontendsOwnPathsGoWhereItsNginxPassesThemAndItsComposeServiceNamesIt() {
     unit("shop", "bff", "bff");
     config("shop", "bff", "application.yml", "server.port", "8081", null);
