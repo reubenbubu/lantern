@@ -63,7 +63,7 @@ public final class GatewayExtractor {
   public static final String NAME = "gateway";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "gateway-extractor";
@@ -165,8 +165,20 @@ public final class GatewayExtractor {
    * @return the facts, without duplicates, ordered by subject, predicate, object, attributes and ID
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
+    return extract(code, snapshot, Set.of());
+  }
+
+  /**
+   * As {@link #extract(JavaAnalysis, long)}, with config keys known to hold a secret: a value
+   * substituted from one is masked as for a key whose name says it is secret.
+   *
+   * @param secretKeys config keys known to hold a secret, such as {@link
+   *     ConfigExtractor#jwtSecretKeys}
+   */
+  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Run run = new Run(code, Validity.from(snapshot));
+    Objects.requireNonNull(secretKeys, "secretKeys");
+    Run run = new Run(code, Validity.from(snapshot), secretKeys);
     for (JavaAnalysis.Module module : code.modules()) {
       run.codeRoutes(module);
     }
@@ -250,7 +262,7 @@ public final class GatewayExtractor {
 
     private final JavaAnalysis code;
     private final Validity validity;
-    private final CodeConfig configs = new CodeConfig();
+    private final CodeConfig configs;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
 
     /** The filter classes routes in code apply, by binary name. */
@@ -259,7 +271,8 @@ public final class GatewayExtractor {
     /** The members of the analyzed code, by ID. */
     private final Map<EntityId, Member> members = new LinkedHashMap<>();
 
-    Run(JavaAnalysis code, Validity validity) {
+    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
+      this.configs = new CodeConfig(secretKeys);
       this.code = code;
       this.validity = validity;
       for (JavaAnalysis.Module m : code.modules()) {
@@ -291,7 +304,7 @@ public final class GatewayExtractor {
           String id;
           if (call.arguments().size() == 2) {
             Text written = text(call.arguments().getFirst(), invocation.caller());
-            id = CodeValue.of(config.resolve(null, written.text()), written.text()).value();
+            id = config.value(config.resolve(null, written.text()), written.text()).value();
           } else {
             unnamed++;
             id = "route-" + unnamed;
@@ -372,15 +385,15 @@ public final class GatewayExtractor {
       }
       Map<String, Route> views = new LinkedHashMap<>();
       for (String view : config.views()) {
-        CodeValue value = CodeValue.of(config.resolve(view, uri), uri);
+        CodeValue value = config.value(config.resolve(view, uri), uri);
         // Paths, and the predicates they are in, resolve through config as the URI does.
         List<String> resolvedPaths = new ArrayList<>();
         for (String path : paths) {
-          resolvedPaths.add(CodeValue.of(config.resolve(view, path), path).value());
+          resolvedPaths.add(config.value(config.resolve(view, path), path).value());
         }
         List<String> resolvedPredicates = new ArrayList<>();
         for (String predicate : predicates) {
-          resolvedPredicates.add(CodeValue.of(config.resolve(view, predicate), predicate).value());
+          resolvedPredicates.add(config.value(config.resolve(view, predicate), predicate).value());
         }
         views.put(
             view == null ? "" : view,
@@ -538,7 +551,7 @@ public final class GatewayExtractor {
     }
 
     private Route configRoute(String id, SortedMap<String, ConfigValue> route, ConfigValue uri) {
-      CodeValue value = CodeValue.of(uri.value(), uri.written(), uri.unresolved(), uri.used());
+      CodeValue value = configs.value(uri.value(), uri.written(), uri.unresolved(), uri.used());
       Map<Integer, String> predicates = new TreeMap<>();
       Map<Integer, String> filters = new TreeMap<>();
       // The full form: name and args, by list and index.
@@ -612,11 +625,13 @@ public final class GatewayExtractor {
     }
 
     /** A config value as it may be recorded: without a secret substituted into it. */
-    private static String recorded(String key, ConfigValue value) {
-      if (ConfigExtractor.isSecret(key)) {
+    private String recorded(String key, ConfigValue value) {
+      if (configs.isSecret(key)) {
         return ConfigExtractor.MASK;
       }
-      return CodeValue.of(value.value(), value.written(), value.unresolved(), value.used()).value();
+      return configs
+          .value(value.value(), value.written(), value.unresolved(), value.used())
+          .value();
     }
 
     private static List<String> split(String values) {

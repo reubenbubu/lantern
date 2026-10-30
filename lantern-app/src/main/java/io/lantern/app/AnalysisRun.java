@@ -327,9 +327,9 @@ public final class AnalysisRun {
       found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
       found.addAll(new SqlExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new TestExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new SpringExtractor().extract(code, snapshot.number()));
+      found.addAll(new SpringExtractor().extract(code, snapshot.number(), secretKeys));
       found.addAll(new PersistenceExtractor().extract(code, snapshot.number(), secretKeys));
-      found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
+      found.addAll(new HttpClientExtractor().extract(code, snapshot.number(), secretKeys));
       found.addAll(new MessagingExtractor().extract(code, snapshot.number(), secretKeys));
       found.addAll(new WebSocketExtractor().extract(code, snapshot.number()));
       found.addAll(new MailExtractor().extract(code, snapshot.number()));
@@ -338,7 +338,7 @@ public final class AnalysisRun {
       found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new DeploymentExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new FrontendExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new GatewayExtractor().extract(code, snapshot.number()));
+      found.addAll(new GatewayExtractor().extract(code, snapshot.number(), secretKeys));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       // The resolver's tools read files of every repository of the snapshot at its commit there,
       // carried forward ones included (ADR 0081).

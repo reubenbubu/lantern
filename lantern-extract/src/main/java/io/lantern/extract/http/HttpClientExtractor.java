@@ -11,6 +11,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
+import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.Resolution;
 import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.java.Expression;
@@ -70,7 +71,7 @@ public final class HttpClientExtractor {
   public static final String NAME = "http-client";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
@@ -313,8 +314,20 @@ public final class HttpClientExtractor {
    * @throws IllegalStateException if git fails or times out while reading config
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
+    return extract(code, snapshot, Set.of());
+  }
+
+  /**
+   * As {@link #extract(JavaAnalysis, long)}, with config keys known to hold a secret: a value
+   * substituted from one is masked as for a key whose name says it is secret.
+   *
+   * @param secretKeys config keys known to hold a secret, such as {@link
+   *     ConfigExtractor#jwtSecretKeys}
+   */
+  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Run run = new Run(code, Validity.from(snapshot));
+    Objects.requireNonNull(secretKeys, "secretKeys");
+    Run run = new Run(code, Validity.from(snapshot), secretKeys);
     run.findClients();
     for (JavaAnalysis.Module module : code.modules()) {
       run.module(module);
@@ -341,7 +354,7 @@ public final class HttpClientExtractor {
     private final JavaAnalysis code;
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
-    private final CodeConfig configs = new CodeConfig();
+    private final CodeConfig configs;
 
     /** The declarative clients of every module, by binary name. */
     private final Map<String, Client> clients = new LinkedHashMap<>();
@@ -358,7 +371,8 @@ public final class HttpClientExtractor {
     private JavaAnalysis.Module module;
     private CodeConfig.View config;
 
-    Run(JavaAnalysis code, Validity validity) {
+    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
+      this.configs = new CodeConfig(secretKeys);
       this.code = code;
       this.validity = validity;
     }
@@ -1894,7 +1908,7 @@ public final class HttpClientExtractor {
         used.addAll(s.used());
         service = s.value();
       }
-      CodeConfig.CodeValue value = CodeConfig.CodeValue.of(resolved, written, unresolved, used);
+      CodeConfig.CodeValue value = config.value(resolved, written, unresolved, used);
       return new Recorded(
           value.value(),
           value.written(),
