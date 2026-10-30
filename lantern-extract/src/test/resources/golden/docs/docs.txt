@@ -36,12 +36,33 @@ decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-numbe
 decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-outcome Chosen option: "Kafka", because it keeps events for replay. @orders:docs/decisions/0004-use-kafka-for-order-events.md#25-25 0.8
 decision:orders:docs/decisions/0004-use-kafka-for-order-events.md decision-status accepted @orders:docs/decisions/0004-use-kafka-for-order-events.md#2-2 0.8
 decision:orders:docs/decisions/0004-use-kafka-for-order-events.md title Use Kafka for order events @orders:docs/decisions/0004-use-kafka-for-order-events.md#6-6 0.8
+decision:orders:docs/decisions/0007-write-docs-in-asciidoc.adoc decision-consequences Contributors need to learn AsciiDoc. @orders:docs/decisions/0007-write-docs-in-asciidoc.adoc#15-15 0.8
+decision:orders:docs/decisions/0007-write-docs-in-asciidoc.adoc decision-context Spring projects write their reference documentation in AsciiDoc. @orders:docs/decisions/0007-write-docs-in-asciidoc.adoc#7-7 0.8
+decision:orders:docs/decisions/0007-write-docs-in-asciidoc.adoc decision-date 2024-06-01 @orders:docs/decisions/0007-write-docs-in-asciidoc.adoc#3-3 0.8
+decision:orders:docs/decisions/0007-write-docs-in-asciidoc.adoc decision-number 7 @orders:docs/decisions/0007-write-docs-in-asciidoc.adoc 0.8
+decision:orders:docs/decisions/0007-write-docs-in-asciidoc.adoc decision-outcome We write our documentation in AsciiDoc. @orders:docs/decisions/0007-write-docs-in-asciidoc.adoc#11-11 0.8
+decision:orders:docs/decisions/0007-write-docs-in-asciidoc.adoc decision-status Accepted @orders:docs/decisions/0007-write-docs-in-asciidoc.adoc#2-2 0.8
+decision:orders:docs/decisions/0007-write-docs-in-asciidoc.adoc title Write documentation in AsciiDoc @orders:docs/decisions/0007-write-docs-in-asciidoc.adoc#1-1 0.8
+document:orders:ARCHITECTURE.md claim Orders is split into an API module and a deployable service. {"section":"Architecture"} @orders:ARCHITECTURE.md#3-3 0.5
+document:orders:ARCHITECTURE.md claim `orders-api`: request and response types, no dependencies on Spring. {"section":"Code map"} @orders:ARCHITECTURE.md#7-7 0.5
 readme:orders:README.md claim Module: `orders-service`; Database: PostgreSQL {"section":"Modules"} @orders:README.md#19-19 0.5
 readme:orders:README.md claim Orders keeps the orders of the shop and publishes an event for each one. {"section":"Orders"} @orders:README.md#6-7 0.5
-readme:orders:README.md claim Orders never calls another service synchronously. {"section":"Building"} @orders:README.md#28-28 0.5
-readme:orders:README.md claim See [the decisions](docs/adr/). {"section":"Building"} @orders:README.md#32-32 0.5
+readme:orders:README.md claim Orders never calls another service synchronously. {"section":"Building"} @orders:README.md#41-41 0.5
+readme:orders:README.md claim See [the decisions](docs/adr/). {"section":"Building"} @orders:README.md#45-45 0.5
 readme:orders:README.md claim `orders-api`: the REST API {"section":"Modules"} @orders:README.md#13-13 0.5
 readme:orders:README.md claim `orders-service`: the deployable application, packaging `orders-api` {"section":"Modules"} @orders:README.md#14-15 0.5
+readme:orders:README.md diagram flowchart LR
+  orders --> rabbitmq[(RabbitMQ)] {"language":"mermaid","section":"Architecture"} @orders:README.md#29-32 0.5
+readme:orders:README.md diagram ┌──────────┐     ┌────────────┐
+│  orders  │────▶│ PostgreSQL │
+└──────────┘     └────────────┘ {"language":"text","section":"Architecture"} @orders:README.md#23-27 0.5
 readme:orders:docs/user%20guide/README.md claim Customers see their orders under /my-orders. @orders:docs/user guide/README.md#1-1 0.5
 readme:orders:orders-service/README.md claim Runs on port 8080. {"section":"orders-service"} @orders:orders-service/README.md#3-3 0.5
 readme:orders:orders-service/README.md claim Secrets: `GITHUB_TOKEN=******` is never committed. {"section":"orders-service"} @orders:orders-service/README.md#5-5 0.5
+readme:orders:payments/README.adoc claim Module: `payments-service`; Database: PostgreSQL {"section":"Modules"} @orders:payments/README.adoc#17-18 0.5
+readme:orders:payments/README.adoc claim Payments charges the customer's card through the payment provider. {"section":"Payments"} @orders:payments/README.adoc#5-6 0.5
+readme:orders:payments/README.adoc claim Provider: Stripe, called over HTTPS {"section":"Modules"} @orders:payments/README.adoc#37-37 0.5
+readme:orders:payments/README.adoc claim `payments-api`: the REST API {"section":"Modules"} @orders:payments/README.adoc#10-10 0.5
+readme:orders:payments/README.adoc claim `payments-service`: the deployable {"section":"Modules"} @orders:payments/README.adoc#11-11 0.5
+readme:orders:payments/README.adoc diagram flowchart LR
+  payments --> provider[Payment provider] {"language":"mermaid","section":"Modules"} @orders:payments/README.adoc#22-25 0.5

@@ -18,6 +18,19 @@ and publishes an event for each one.
 | --- | --- |
 | `orders-service` | PostgreSQL |
 
+## Architecture
+
+```
+┌──────────┐     ┌────────────┐
+│  orders  │────▶│ PostgreSQL │
+└──────────┘     └────────────┘
+```
+
+```mermaid
+flowchart LR
+  orders --> rabbitmq[(RabbitMQ)]
+```
+
 ## Building
 
 ```bash

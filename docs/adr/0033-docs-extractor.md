@@ -1,6 +1,6 @@
 # 0033: Docs extractor: README claims and decision records
 
-Status: accepted (#114)
+Status: accepted (#114), amended for #385
 
 ## Context
 
@@ -79,3 +79,59 @@ named below).
   only in a README are kept as its claims, not as decisions. There is no cap on the number of
   claims per README yet; a very long README gives one fact per paragraph, which a later issue may
   limit if fact volume or LLM context becomes a problem.
+
+## Amendment (#385): documents, AsciiDoc and diagrams
+
+The review of the extractor and its research note (`docs/research/extractor-docs.md`) found
+architecture written outside READMEs and decision records, in AsciiDoc, and in diagrams. The
+development sets' references cite such documents, which had no facts. Extractor `docs` version 3.
+
+- **Documents.** A Markdown or AsciiDoc file in a folder named `doc`, `docs`, `documentation` or
+  `architecture` (any case, at any depth), or named `ARCHITECTURE`, is a *document*: entity type
+  `document`, keyed like a README. It gets `claim` facts as a README does, at the same confidence,
+  0.5.
+- **What a document is not.** These are left out:
+  - READMEs and decision records, which keep their own types;
+  - anything in a hidden folder (`.github`) or a decision record folder, whose other pages index
+    its records;
+  - files about the project's process rather than its architecture: contributing, changelog,
+    changes, history, release notes, code of conduct, license, notice, to-do, authors,
+    maintainers, support and governance, and the upper-case `SECURITY` policy (a `security.md`
+    page in a docs folder is a document);
+  - any name containing `template`.
+- **AsciiDoc.** READMEs (`README.adoc`, `README.asciidoc`), documents and decision records in
+  AsciiDoc are read into the same blocks as Markdown by a small line-based reader:
+  - section titles (`=` to `======`);
+  - paragraphs, list items, and description lists (`term:: text`, read as `term: text`);
+  - tables (`|===`), with a header row when the first line is followed by a blank line or the
+    table says `%header`;
+  - listing, literal, passthrough and comment blocks.
+
+  Attribute entries (`:status: Accepted`) stand in for front matter, so a decision record's
+  status and date are read as in MADR 3. The author and revision lines under the document title
+  are not text. A table's columns come from its `cols` attribute, else its first line, and
+  `%noheader` turns the implicit header row off. Includes are not followed.
+- **Diagrams.** A fenced (Markdown) or delimited (AsciiDoc) block is a diagram when either:
+  - its language is a diagram language: `mermaid`, `plantuml` (`puml`, `c4plantuml`),
+    `graphviz` (`dot`) or `ditaa`;
+  - it names no language, or plain text, and draws a box: a top-left box corner and edge
+    (`┌─`, `╔═`, `╭─`) or an ASCII box edge (`+---+`). A directory tree's `├──` is not a box.
+
+  A diagram becomes its own attribute fact, `diagram`, holding its source as written, with the
+  attributes `section` and `language` (`text` for a drawing), at a claim's confidence. It is not a
+  `claim`, so README diagrams stay out of everything that reads a README's claims as prose. Other
+  code blocks stay out.
+- **Consumers.** The summarizer, the Explorer's "start here" link, the system's purpose prompt and
+  the README claim checks (ADR 0043) use README `claim` facts only, as before; diagrams and
+  document claims do not reach them. The purpose prompt's choice of README is now limited to the
+  `readme` type, so that a root `ARCHITECTURE.md` is not taken for it. Where a repository keeps
+  both `README.adoc` and `README.md` at the same depth, the first by name, `README.adoc`, is the
+  one those consumers pick. Document claims and diagrams are stored with the other facts; how
+  documents use them is the composer's and the roles' concern, not this extractor's.
+- **Generated docs.** A folder OpenAPI Generator wrote into (one holding `.openapi-generator/` or
+  `.openapi-generator-ignore`) has no documents: its `docs` hold a page per generated model and
+  API.
+- **Kept as is.** The decision record formats above already cover Nygard, adr-tools, MADR 2 to 4
+  and log4brains' folders. Statuses stay as written: `Superceded by …`, adr-tools' spelling, is
+  kept, and a missing status stays missing. Claims are not filtered by section.
+- **Not covered:** Structurizr DSL (#488); following `.adr-dir`; reStructuredText.

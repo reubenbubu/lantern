@@ -1,0 +1,15 @@
+= 7. Write documentation in AsciiDoc
+:status: Accepted
+:date: 2024-06-01
+
+== Context
+
+Spring projects write their reference documentation in AsciiDoc.
+
+== Decision
+
+We write our documentation in AsciiDoc.
+
+== Consequences
+
+Contributors need to learn AsciiDoc.
