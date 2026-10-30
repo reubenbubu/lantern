@@ -13,6 +13,7 @@ import io.lantern.summarize.SummaryLevel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -622,6 +623,11 @@ final class Assembler {
     return new Text(List.of(TextRun.of(text.toString()), new Citation(ids)), ids);
   }
 
+  /** The people extractor's evidence that people use the system, and its kind for a role. */
+  private static final String PERSON_EVIDENCE = "person-evidence";
+
+  private static final String ROLE = "role";
+
   /** The fact saying what a person rests on, or {@code null}. */
   private Fact personBasis(EntityId id) {
     return knowledge.attributes(id).stream()
@@ -645,12 +651,78 @@ final class Assembler {
       }
     }
     List<String> ids = facts(cited);
-    return opened(
-        INFERRED_SENTENCE,
-        new Text(
-            List.of(
-                TextRun.of(basis.attributes().path("description").asString()), new Citation(ids)),
-            ids));
+    List<Inline> content =
+        new ArrayList<>(asCode(basis.attributes().path("description").asString(), roles(cited)));
+    content.add(new Citation(ids));
+    return opened(INFERRED_SENTENCE, new Text(content, ids));
+  }
+
+  /**
+   * The names of the roles the code checks, among the facts: identifiers in the code, such as the
+   * enum constant {@code ADMIN}, not acronyms (#229).
+   */
+  private static Set<String> roles(List<Fact> facts) {
+    Set<String> roles = new HashSet<>();
+    for (Fact fact : facts) {
+      if (fact.predicate().equals(PERSON_EVIDENCE) && fact.object().value().equals(ROLE)) {
+        String name = fact.attributes().path("name").asString("");
+        if (!name.isBlank()) {
+          roles.add(name);
+        }
+      }
+    }
+    return roles;
+  }
+
+  private static final Pattern CODE_SPAN = Pattern.compile("`([^`\\n]+)`");
+
+  /**
+   * Markdown text, such as a decision record's, with its code spans ({@code `PROCESSING`}) as code,
+   * so that what the documentation marks as code is code in the document too (#229).
+   */
+  static List<Inline> withCodeSpans(String text) {
+    Matcher m = CODE_SPAN.matcher(text);
+    List<Inline> content = new ArrayList<>();
+    int at = 0;
+    while (m.find()) {
+      if (m.start() > at) {
+        content.add(TextRun.of(text.substring(at, m.start())));
+      }
+      content.add(new TextRun(m.group(1), TextRun.Style.CODE));
+      at = m.end();
+    }
+    if (at < text.length()) {
+      content.add(TextRun.of(text.substring(at)));
+    }
+    return content;
+  }
+
+  /** The text with each whole-word occurrence of the identifiers as code. */
+  static List<Inline> asCode(String text, Set<String> identifiers) {
+    if (identifiers.isEmpty()) {
+      return List.of(TextRun.of(text));
+    }
+    StringBuilder alternatives = new StringBuilder();
+    identifiers.stream()
+        .sorted(Comparator.comparingInt(String::length).reversed().thenComparing(i -> i))
+        .forEach(
+            i -> alternatives.append(alternatives.isEmpty() ? "" : "|").append(Pattern.quote(i)));
+    Matcher m =
+        Pattern.compile("(?<![\\p{L}\\p{N}_])(?:" + alternatives + ")(?![\\p{L}\\p{N}_])")
+            .matcher(text);
+    List<Inline> content = new ArrayList<>();
+    int at = 0;
+    while (m.find()) {
+      if (m.start() > at) {
+        content.add(TextRun.of(text.substring(at, m.start())));
+      }
+      content.add(new TextRun(m.group(), TextRun.Style.CODE));
+      at = m.end();
+    }
+    if (at < text.length()) {
+      content.add(TextRun.of(text.substring(at)));
+    }
+    return content;
   }
 
   /**

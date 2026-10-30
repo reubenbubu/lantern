@@ -3,6 +3,7 @@ package io.lantern.compose;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -92,6 +93,14 @@ final class Knowledge {
   /** The facts with the entity as subject. */
   List<Fact> about(EntityId subject) {
     return bySubject.getOrDefault(subject, List.of());
+  }
+
+  /** The facts of the origin kind, by ID. */
+  List<Fact> withOrigin(Origin.Kind kind) {
+    return byId.values().stream()
+        .filter(f -> f.origin().kind() == kind)
+        .sorted(Comparator.comparing(Fact::id))
+        .toList();
   }
 
   /** The facts with the predicate. */

@@ -55,8 +55,8 @@ final class QualityBar {
   static final String BRIEF = "executive-brief";
 
   /**
-   * The report-spec templates that draw a legend of the element kinds and line styles their
-   * diagrams use; their legend has no entry for boundaries or asynchronous arrowheads.
+   * The report-spec templates that draw a legend of the element kinds, boundaries, line styles and
+   * arrowheads their diagrams use, the asynchronous one included (#229).
    */
   private static final Set<String> LEGEND_TEMPLATES = Set.of("c4-model-sequence-diagrams");
 
@@ -229,8 +229,6 @@ final class QualityBar {
       }
     } else if (!LEGEND_TEMPLATES.contains(document.template().name())) {
       fail(LEGEND, target, "The template draws no legend.");
-    } else if (!boundaries.isEmpty()) {
-      fail(LEGEND, target, "The template's legend has no entry for the dashed boundary.");
     }
     if (diagram.diagramKind() == Diagram.Kind.DEPENDENCY) {
       return;
@@ -333,8 +331,6 @@ final class QualityBar {
     String template = document.template().name();
     if (!OWN_TEMPLATES.contains(template) && !LEGEND_TEMPLATES.contains(template)) {
       fail(LEGEND, target, "The template draws no legend.");
-    } else if (LEGEND_TEMPLATES.contains(template) && hasAsync(diagram.steps())) {
-      fail(LEGEND, target, "The template's legend has no arrowhead for asynchronous messages.");
     }
     if (diagram.participants().size() > C4Views.MAX_ELEMENTS) {
       fail(ELEMENTS, target, "It shows " + diagram.participants().size() + " participants.");
@@ -433,12 +429,6 @@ final class QualityBar {
               }
             });
     return result;
-  }
-
-  private static boolean hasAsync(List<SequenceDiagram.Step> steps) {
-    boolean[] found = {false};
-    forEachMessage(steps, m -> found[0] |= m.messageKind() == SequenceDiagram.MessageKind.ASYNC);
-    return found[0];
   }
 
   private static int depth(List<SequenceDiagram.Step> steps) {
@@ -632,6 +622,13 @@ final class QualityBar {
    */
   static SortedSet<String> acronymsUsed(Document document) {
     SortedSet<String> used = new TreeSet<>();
+    // The roles the code checks, such as the enum constant ADMIN, are identifiers, not acronyms.
+    Set<String> roles = new HashSet<>();
+    for (Fact fact : document.facts()) {
+      if (fact.predicate().equals("person-evidence") && fact.object().value().equals("role")) {
+        roles.add(fact.attributes().path("name").asString(""));
+      }
+    }
     Consumer<String> scan = text -> acronyms(text, used);
     scan.accept(document.title());
     texts(document.sections().stream().filter(s -> !isGlossary(s)).toList(), scan);
@@ -640,6 +637,7 @@ final class QualityBar {
       scan.accept(entity.name());
       entity.description().forEach(inline -> inlineText(inline, scan));
     }
+    used.removeAll(roles);
     return used;
   }
 

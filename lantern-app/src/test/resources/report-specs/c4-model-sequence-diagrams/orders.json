@@ -110,8 +110,8 @@
     "sections" : [ {
       "type" : "table",
       "id" : "glossary-terms",
-      "columns" : [ "Term", "Meaning" ],
-      "rows" : [ [ "HTTP", "Hypertext Transfer Protocol, the request and response protocol of the web" ], [ "STOMP", "Simple Text Oriented Messaging Protocol" ] ]
+      "columns" : [ "Term", "Meaning", "Source" ],
+      "rows" : [ [ "HTTP", "Hypertext Transfer Protocol, the request and response protocol of the web", "Lantern's glossary" ], [ "STOMP", "Simple Text Oriented Messaging Protocol", "Lantern's glossary" ] ]
     } ]
   } ]
 }

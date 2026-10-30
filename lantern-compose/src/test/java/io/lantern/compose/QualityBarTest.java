@@ -153,10 +153,72 @@ class QualityBarTest {
             "architect",
             section("containers", "Containers", goodContainers("d")));
 
-    // The legend has no dashed boundary, its protocol is an acronym and there is no glossary.
-    assertThat(checks(document)).containsExactly(QualityBar.LEGEND, QualityBar.ACRONYMS);
-    assertThat(failed(document, QualityBar.LEGEND))
-        .containsExactly("d: The template's legend has no entry for the dashed boundary.");
+    // Its protocol is an acronym and there is no glossary; the legend has the dashed boundary.
+    assertThat(checks(document)).containsExactly(QualityBar.ACRONYMS);
+  }
+
+  @Test
+  void theRolesTheCodeChecksAreNotAcronyms() {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("name", "ADMIN");
+    Fact role =
+        TestFacts.fact(
+            "shop",
+            "type:com.example.AdminController",
+            "person-evidence",
+            FactObject.string("role"),
+            attributes,
+            Validity.from(1));
+    Document plain =
+        document(
+            "c4-model-sequence-diagrams",
+            "a",
+            section(
+                "s",
+                "S",
+                new Paragraph("p", List.of(TextRun.of("Only ADMIN deletes users.")), List.of())));
+    Document withRole =
+        new Document(
+            plain.id(),
+            plain.title(),
+            plain.audience(),
+            plain.template(),
+            plain.source(),
+            plain.entities(),
+            java.util.stream.Stream.concat(plain.facts().stream(), java.util.stream.Stream.of(role))
+                .toList(),
+            plain.sections());
+
+    assertThat(QualityBar.acronymsUsed(plain)).contains("ADMIN");
+    assertThat(QualityBar.acronymsUsed(withRole)).doesNotContain("ADMIN");
+  }
+
+  @Test
+  void theReportSpecsLegendHasTheAsyncArrowhead() {
+    SequenceDiagram flow =
+        new SequenceDiagram(
+            "f",
+            "Shop takes payment",
+            List.of(
+                new SequenceDiagram.Participant(SHOP, "shop", null, null, List.of()),
+                new SequenceDiagram.Participant(PAY, "pay", null, null, List.of())),
+            List.of(
+                new SequenceDiagram.Message(
+                    SHOP,
+                    PAY,
+                    "Takes payment",
+                    null,
+                    SequenceDiagram.MessageKind.ASYNC,
+                    null,
+                    null,
+                    List.of(),
+                    List.of(),
+                    List.of(CALL.id()))),
+            List.of());
+    Document document =
+        document("c4-model-sequence-diagrams", "a", section("s", "Main flows", flow));
+
+    assertThat(failed(document, QualityBar.LEGEND)).isEmpty();
   }
 
   @Test

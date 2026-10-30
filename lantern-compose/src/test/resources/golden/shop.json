@@ -1193,6 +1193,8 @@
         "label" : "Term"
       }, {
         "label" : "Meaning"
+      }, {
+        "label" : "Source"
       } ],
       "rows" : [ {
         "cells" : [ [ {
@@ -1201,6 +1203,9 @@
         } ], [ {
           "kind" : "text",
           "text" : "Hypertext Transfer Protocol, the request and response protocol of the web"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
         } ] ],
         "facts" : [ ]
       }, {
@@ -1210,6 +1215,9 @@
         } ], [ {
           "kind" : "text",
           "text" : "Simple Text Oriented Messaging Protocol"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Lantern's glossary"
         } ] ],
         "facts" : [ ]
       } ],

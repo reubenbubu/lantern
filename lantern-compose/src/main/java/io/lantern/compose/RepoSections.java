@@ -15,6 +15,8 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.summarize.Summary;
 import java.math.BigDecimal;
@@ -22,6 +24,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -145,10 +148,46 @@ final class RepoSections {
     return assembler.documentFacts();
   }
 
-  /** The glossary of the acronyms the document, composed without it, uses (ADR 0063). */
+  /**
+   * The glossary of the acronyms the document, composed without it, uses (ADR 0063): what the
+   * documentation of the repositories in scope says each stands for, citing it, else Lantern's
+   * table (#229).
+   */
   Section glossary(Document document) {
+    Map<String, String> texts = new LinkedHashMap<>();
+    for (Fact fact : knowledge.withOrigin(Origin.Kind.README)) {
+      if (fact.object().kind() == FactObject.Kind.STRING
+          && (repo == null || repo.equals(fact.evidence().repo()))) {
+        texts.put(fact.id(), fact.object().value());
+      }
+    }
+    Map<String, Glossary.Definition> documented = new TreeMap<>();
+    Glossary.defined(texts)
+        .forEach(
+            (acronym, definition) -> {
+              List<Fact> cited = definition.facts().stream().map(knowledge::fact).toList();
+              // Where the reader finds it: the files, named with their repository in a system's.
+              String source =
+                  String.join(
+                      ", ",
+                      cited.stream()
+                          .map(
+                              f ->
+                                  f.evidence().path() == null
+                                      ? f.evidence().repo()
+                                      : repo == null
+                                          ? f.evidence().repo() + "/" + f.evidence().path()
+                                          : f.evidence().path())
+                          .distinct()
+                          .toList());
+              documented.put(
+                  acronym,
+                  new Glossary.Definition(definition.meaning(), assembler.facts(cited), source));
+            });
     return Glossary.BUNDLED.section(
-        assembler.id(SectionKind.GLOSSARY.jsonName()), QualityBar.acronymsUsed(document));
+        assembler.id(SectionKind.GLOSSARY.jsonName()),
+        QualityBar.acronymsUsed(document),
+        documented);
   }
 
   Section section(SectionKind kind) {

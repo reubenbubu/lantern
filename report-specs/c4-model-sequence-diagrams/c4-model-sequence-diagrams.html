@@ -287,6 +287,12 @@ svg.panning{cursor:grabbing}
 .sw.ext{border-style:dashed;--k:var(--muted)}
 .sw.line{height:0;border:0;border-top:1.6px solid var(--edge);border-radius:0;background:none;width:20px}
 .sw.dash{height:0;border:0;border-top:1.6px dashed var(--edge);border-radius:0;background:none;width:20px}
+.sw.bnd{width:20px;height:13px;border-radius:4px;border:1.4px dashed color-mix(in srgb,var(--k) 55%,transparent);background:color-mix(in srgb,var(--k) 3%,transparent)}
+.sw-arrow{width:24px;height:10px;flex:none;overflow:visible}
+.sw-arrow path{fill:none;stroke:var(--text-2);stroke-width:1.4}
+.sw-arrow path.head{fill:var(--text-2);stroke:none}
+.sw-arrow.ret path{stroke:var(--muted)}
+.sw-arrow.ret path.shaft{stroke-dasharray:4 3}
 .sw.clk{width:14px;height:14px;border-radius:50%;border:0;background:var(--accent);display:grid;place-items:center}
 .sw.clk::after{content:'';width:4px;height:4px;border-top:1.5px solid #fff;border-right:1.5px solid #fff;transform:translate(-.5px,.5px) rotate(45deg)}
 .dlegend .hint{margin-left:auto;font:500 11px var(--mono);color:var(--faint)}
@@ -5211,8 +5217,14 @@ function c4SVG(raw, view, key=''){
 
 function legendHTML(kinds, opts={}){
   let h = kinds.map(k => `<span class="lg"><i class="sw k-${k}"></i>${KIND[k].label}</span>`).join('');
+  if (opts.boundary) h += `<span class="lg"><i class="sw bnd k-${opts.boundary}"></i>${KIND[opts.boundary].label} boundary</span>`;
   if (opts.ext) h += `<span class="lg"><i class="sw ext"></i>Outside scope</span>`;
-  if (opts.seq) h += `<span class="lg"><i class="sw line"></i>Call</span><span class="lg"><i class="sw dash"></i>Return</span>`;
+  if (opts.seq){
+    const arrow = (cls, head) => `<svg class="sw-arrow ${cls}" viewBox="0 0 24 10" aria-hidden="true"><path class="shaft" d="M1,5 H22"/>${head}</svg>`;
+    h += `<span class="lg">${arrow('sync', '<path class="head" d="M14,1 L23,5 L14,9 z"/>')}Call (waits for the reply)</span>`;
+    if (opts.async) h += `<span class="lg">${arrow('async', '<path d="M15,1 L22.5,5 L15,9"/>')}Async message (does not wait)</span>`;
+    h += `<span class="lg">${arrow('ret', '<path d="M15,1 L22.5,5 L15,9"/>')}Return</span>`;
+  }
   h += `<span class="lg"><i class="sw clk"></i>Clickable</span>`;
   return h + `<span class="hint">Hover to trace · drag to pan · ⌘/Ctrl+scroll to zoom</span>`;
 }
@@ -5460,6 +5472,8 @@ function diagramCard(kind, key){
   const kinds = isSeq ? [...new Set(spec.p.map(id => EL[id].kind))] : [...new Set([...(spec.boundary?[EL[spec.boundary.id].kind]:[]), ...spec.nodes.map(n => EL[n.id].kind)])];
   const order = Object.keys(KIND); kinds.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
   const ext = !isSeq && spec.nodes.some(n => n.ext);
+  const boundary = !isSeq && spec.boundary ? EL[spec.boundary.id].kind : null;
+  const async = isSeq && spec.s.some(st => st.k === 'async');
   const level = isSeq ? 'SEQ' : spec.level;
   const title = isSeq ? 'Sequence diagram' : spec.title;
   const sub = isSeq ? spec.title : spec.sub;
@@ -5469,7 +5483,7 @@ function diagramCard(kind, key){
       <div class="dtools">${toolsHTML()}<span class="sep"></span><button class="icon-btn" data-act="max" title="Maximize">${ICON.max}</button></div>
     </div>
     <div class="dcanvas">${isSeq ? seqSVG(spec, key) : c4SVG(spec, key, key)}</div>
-    <figcaption class="dlegend">${legendHTML(kinds, {ext, seq:isSeq})}</figcaption>
+    <figcaption class="dlegend">${legendHTML(kinds, {ext, boundary, seq:isSeq, async})}</figcaption>
   </figure>`;
 }
 
