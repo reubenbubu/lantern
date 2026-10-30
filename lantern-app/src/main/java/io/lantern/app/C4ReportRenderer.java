@@ -1,5 +1,6 @@
 package io.lantern.app;
 
+import io.lantern.compose.SectionKind;
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
 import io.lantern.core.document.Citation;
@@ -225,6 +226,16 @@ public final class C4ReportRenderer {
           pageAbout.putIfAbsent(section.entity(), target.id);
         }
         first = false;
+      } else if (enclosing == null
+          && !pages.isEmpty()
+          && section.id().equals(SectionKind.FINDINGS.jsonName())) {
+        // The risks and findings (ADR 0082) are at no C4 level: they go at the end of the context
+        // page until the spec has documentation pages (#249).
+        target =
+            pages.stream()
+                .filter(p -> p.level.equals("context"))
+                .findFirst()
+                .orElse(pages.getFirst());
       }
       sections.put(section.id(), target == null ? null : new Location(target, null));
       titles.put(section.id(), section.title());

@@ -31,6 +31,7 @@ final class Knowledge {
   private final Map<String, SortedSet<EntityId>> modulesByRepo = new HashMap<>();
   private final Map<EntityId, SortedSet<String>> reposByModule = new HashMap<>();
   private final Map<String, Fact> resolvedLinks = new HashMap<>();
+  private final Map<EntityId, List<Fact>> pointingTo = new HashMap<>();
 
   Knowledge(Collection<Fact> facts) {
     List<Fact> sorted = new ArrayList<>(facts);
@@ -45,6 +46,9 @@ final class Knowledge {
         resolvedLinks.putIfAbsent(resolves.asString(), fact);
       }
       byPredicate.computeIfAbsent(fact.predicate(), p -> new ArrayList<>()).add(fact);
+      if (isEntity(fact)) {
+        pointingTo.computeIfAbsent(object(fact), o -> new ArrayList<>()).add(fact);
+      }
       if (fact.predicate().equals(BuiltInTypes.CONTAINS) && isEntity(fact)) {
         containsByWhole.computeIfAbsent(fact.subject(), s -> new ArrayList<>()).add(fact);
         containsByPart.computeIfAbsent(object(fact), p -> new ArrayList<>()).add(fact);
@@ -55,6 +59,11 @@ final class Knowledge {
         reposByModule.computeIfAbsent(fact.subject(), m -> new TreeSet<>()).add(repo);
       }
     }
+  }
+
+  /** The facts whose object is the entity. */
+  List<Fact> pointingTo(EntityId entity) {
+    return pointingTo.getOrDefault(entity, List.of());
   }
 
   static boolean isEntity(Fact fact) {

@@ -40,6 +40,7 @@ class ViewDefinitionTest {
             SectionKind.CONTEXT,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
+            SectionKind.FINDINGS,
             SectionKind.CATALOG,
             SectionKind.CHANGE_GUIDANCE,
             SectionKind.DEPENDENCIES,

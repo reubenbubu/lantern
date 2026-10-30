@@ -1,0 +1,47 @@
+[
+  {
+    "name": "investigated-risk",
+    "kind": "attribute",
+    "description": "A risk the Investigate role found (ADR 0082): the LLM proposed it, citing file:line ranges, and Lantern verified that each range exists at the snapshot's commit and holds the identifiers it names. The subject is the first deployable unit it concerns; the value is its title. Documents mark it as found by the LLM. The evidence is its first citation.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "finding": { "type": "string", "description": "What the code does." },
+        "consequence": { "type": "string", "description": "What can happen because of it." },
+        "impact": { "type": "string", "enum": ["high", "medium", "low"] },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"], "description": "How sure the model was." },
+        "units": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the deployable units it concerns." },
+        "names": { "type": "array", "items": { "type": "string" }, "description": "The identifiers it rests on, each found in the lines it cites." },
+        "cites": { "type": "array", "items": { "type": "string" }, "description": "The ranges it cites, each repo:path:from-to." },
+        "scope": { "type": "string", "description": "What was investigated: a unit's ID, or system." },
+        "model": { "type": "string", "description": "The provider and model that proposed it." }
+      },
+      "required": ["finding", "consequence", "impact", "confidence", "units", "names", "cites", "scope"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "INVESTIGATED_CONNECTION",
+    "kind": "relationship",
+    "parent": "DEPENDS_ON",
+    "description": "A connection the Investigate role found (ADR 0082) from a deployable unit to another unit, an external system or a data store that no other fact links it to: the LLM proposed it, citing file:line ranges, and Lantern verified that each range exists at the snapshot's commit and holds the identifiers it names. Documents draw it marked as found by the LLM. The evidence is its first citation.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "interaction": { "type": "string", "enum": ["http", "messaging", "database", "mail", "other"] },
+        "description": { "type": "string", "description": "What the unit does over it, in a few words." },
+        "technology": { "type": "string", "description": "Its protocol or product." },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"], "description": "How sure the model was." },
+        "units": { "type": "array", "items": { "type": "string" } },
+        "names": { "type": "array", "items": { "type": "string" }, "description": "The identifiers it rests on, each found in the lines it cites." },
+        "cites": { "type": "array", "items": { "type": "string" }, "description": "The ranges it cites, each repo:path:from-to." },
+        "scope": { "type": "string", "description": "What was investigated: a unit's ID, or system." },
+        "model": { "type": "string", "description": "The provider and model that proposed it." },
+        "link": { "type": "string", "description": "The connection's stable ID." }
+      },
+      "required": ["interaction", "description", "confidence", "names", "cites", "scope", "link"],
+      "additionalProperties": false
+    }
+  }
+]

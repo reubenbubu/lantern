@@ -67,6 +67,22 @@ public final class Linker {
         store, List.of(new DeployableUnits(), new CrossRepoLinks(), new ClaimChecks(), resolver));
   }
 
+  /**
+   * The linker of this version of Lantern with the LLM resolver, then the Investigate role, which
+   * proposes what the steps before it missed, as its last steps (ADR 0045, ADR 0082).
+   */
+  public static Linker standard(
+      FactRepository store, LinkResolver resolver, Investigator investigator) {
+    return new Linker(
+        store,
+        List.of(
+            new DeployableUnits(),
+            new CrossRepoLinks(),
+            new ClaimChecks(),
+            resolver,
+            investigator));
+  }
+
   /** The origin names of the steps' facts. */
   public Set<String> origins() {
     Set<String> names = new LinkedHashSet<>();

@@ -41,7 +41,8 @@ import tools.jackson.databind.JsonNode;
  * called, the routing keys sent), its protocol as technology and the Spring profiles it alone holds
  * under. People are drawn only when the code shows them (ADR 0074): the linker infers them from
  * roles, memberships, invitations and sign-in, and they are marked inferred; otherwise a note says
- * who uses the system is unknown.
+ * who uses the system is unknown. A connection the LLM investigator found and Lantern verified is
+ * drawn as a line of its own, labelled as found by the LLM (ADR 0082).
  */
 final class C4Views {
 
@@ -527,6 +528,21 @@ final class C4Views {
                 tables.isEmpty() ? null : String.join(", ", tables),
                 access.profile,
                 access.facts));
+      }
+    }
+    // What the LLM investigator found, marked as such on every line that draws it (ADR 0082).
+    for (EntityId unit : units(knowledge)) {
+      for (Fact fact : knowledge.relations(unit, InvestigatedFindings.CONNECTION)) {
+        result.add(
+            link(
+                unit,
+                InvestigatedFindings.CONNECTION,
+                Knowledge.object(fact),
+                InvestigatedFindings.FOUND_BY_LLM + " " + attribute(fact, "description"),
+                null,
+                null,
+                attribute(fact, "technology"),
+                fact));
       }
     }
     for (Fact route : knowledge.withPredicate(ROUTES_TO)) {

@@ -10,6 +10,7 @@ import io.lantern.llm.Role;
 import io.lantern.llm.Thinking;
 import io.lantern.llm.Tier;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -31,6 +32,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param monthlyBudgetUsd the most US dollars all calls in a calendar month (UTC) may cost, or
  *     {@code null} for no limit
  * @param retry how calls that failed for a passing reason are retried
+ * @param recordings the roles whose calls are answered from recordings, and recorded (ADR 0082)
  */
 @ConfigurationProperties("lantern.llm")
 public record LlmProperties(
@@ -39,7 +41,8 @@ public record LlmProperties(
     Map<Role, String> roles,
     Anthropic anthropic,
     BigDecimal monthlyBudgetUsd,
-    Retry retry) {
+    Retry retry,
+    Recordings recordings) {
 
   public LlmProperties {
     models = models == null ? Map.of() : Map.copyOf(models);
@@ -47,6 +50,7 @@ public record LlmProperties(
     roles = roles == null ? Map.of() : Map.copyOf(roles);
     anthropic = anthropic == null ? new Anthropic(null, null) : anthropic;
     retry = retry == null ? new Retry(null, null, null) : retry;
+    recordings = recordings == null ? new Recordings(null, null, null) : recordings;
     if (monthlyBudgetUsd != null && monthlyBudgetUsd.signum() < 0) {
       throw new IllegalArgumentException(
           "lantern.llm.monthly-budget-usd must not be negative: " + monthlyBudgetUsd);
@@ -260,6 +264,42 @@ public record LlmProperties(
       } catch (IllegalArgumentException e) {
         throw new IllegalStateException("lantern.llm.retry: " + e.getMessage(), e);
       }
+    }
+  }
+
+  /**
+   * Which roles' calls go through recordings of the model's answers ({@link
+   * io.lantern.llm.RecordReplayLlmProvider}), such as the Investigate role's recorded on a test set
+   * (ADR 0082). Off unless a directory is set.
+   *
+   * @param directory where the recordings are, one JSON file per request; {@code null} for none
+   * @param roles the roles whose calls use them; every other call goes to its provider as usual
+   * @param mode {@code replay} answers only from recordings and fails a call that has none; {@code
+   *     record} answers from a recording when there is one and otherwise calls the provider and
+   *     records its answer, which costs money with a real model
+   */
+  public record Recordings(Path directory, Set<Role> roles, Mode mode) {
+
+    /** How recordings are used. */
+    public enum Mode {
+      REPLAY,
+      RECORD
+    }
+
+    public Recordings {
+      roles = roles == null ? Set.of() : Set.copyOf(roles);
+      mode = mode == null ? Mode.REPLAY : mode;
+      if (directory != null && roles.isEmpty()) {
+        throw new IllegalStateException(
+            "lantern.llm.recordings.roles is not set; name the roles whose calls use the"
+                + " recordings in "
+                + directory);
+      }
+    }
+
+    /** Whether any role's calls use recordings. */
+    boolean enabled() {
+      return directory != null;
     }
   }
 

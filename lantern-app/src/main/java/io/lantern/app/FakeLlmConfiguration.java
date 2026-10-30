@@ -17,7 +17,8 @@ import org.springframework.context.annotation.Profile;
  *
  * <p>It never calls out. A summary cites the first part's summary and the first fact it is given;
  * it words nothing when asked for responsibilities, intent phrases or narration, so documents keep
- * their static labels; and it answers "unknown" to a link left open, so such links stay open.
+ * their static labels; it answers "unknown" to a link left open, so such links stay open; and it
+ * proposes nothing when asked to investigate (ADR 0082).
  *
  * <p>Every text it words is wrapped in {@code {{ }}} with a hint of what a real model would write
  * there, such as {@code {{placeholder: summary of class Order}}}, so a reader of a document made
@@ -44,6 +45,9 @@ class FakeLlmConfiguration {
               }
               if (request.role() == Role.RESOLVE) {
                 return "{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}";
+              }
+              if (request.role() == Role.INVESTIGATE) {
+                return "{\"proposals\": []}";
               }
               String prompt = request.messages().getFirst().text();
               String subject = subject(prompt);

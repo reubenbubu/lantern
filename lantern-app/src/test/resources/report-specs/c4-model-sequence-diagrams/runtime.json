@@ -115,10 +115,16 @@
       "body" : "The code names no people or user roles, so who uses base and shop is not known.",
       "tone" : "info"
     }, {
+      "type" : "callout",
+      "id" : "findings-none",
+      "body" : "**The LLM investigator found no risks**\nLantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify.",
+      "tone" : "info",
+      "title" : "Risks and findings"
+    }, {
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Acronyms are explained in the glossary**: The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST." ]
+      "items" : [ "**Acronyms are explained in the glossary**: The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, LLM, MVC and REST." ]
     } ]
   }, {
     "id" : "containers",

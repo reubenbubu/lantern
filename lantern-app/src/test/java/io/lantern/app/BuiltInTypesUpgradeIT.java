@@ -33,6 +33,7 @@ import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.ClaimChecks;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
+import io.lantern.link.Investigator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -107,6 +108,7 @@ class BuiltInTypesUpgradeIT {
       registry.apply(DeployableUnits.VOCABULARY_SOURCE, DeployableUnits.vocabulary());
       registry.apply(CrossRepoLinks.VOCABULARY_SOURCE, CrossRepoLinks.vocabulary());
       registry.apply(ClaimChecks.VOCABULARY_SOURCE, ClaimChecks.vocabulary());
+      registry.apply(Investigator.VOCABULARY_SOURCE, Investigator.vocabulary());
       long before = registry.current().revision();
       Fact stored = dependsOn();
       assertThat(facts.save(stored)).isTrue();

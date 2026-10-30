@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.link.InvestigationStore;
 import io.lantern.link.ResolutionStore;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.SandboxSettings;
@@ -65,6 +66,7 @@ class AnalysisConfiguration {
       JdbcLlmCallLog callLog,
       SummaryStore summaries,
       ResolutionStore resolutions,
+      InvestigationStore investigations,
       WordingStore wordings,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
@@ -83,6 +85,7 @@ class AnalysisConfiguration {
         callLog,
         summaries,
         resolutions,
+        investigations,
         wordings,
         views,
         renderer,

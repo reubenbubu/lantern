@@ -141,7 +141,11 @@ final class Assembler {
         // it, by its responsibility sentence (ADR 0056).
         || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)
         // A person is described by what the code shows of them (ADR 0074).
-        || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)) {
+        || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)
+        // An element only the LLM investigator found, by the connections it found (ADR 0082).
+        || (C4Views.DESTINATIONS.contains(id.type())
+            && responsibility(id) == null
+            && foundOnlyByTheInvestigator(id))) {
       undescribed.add(id);
     }
     return id;
@@ -525,17 +529,59 @@ final class Assembler {
       List<Inline> description =
           entity.id().type().equals(C4Views.PERSON) && personBasis(entity.id()) != null
               ? person(entity.id()).content()
-              : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
-                  ? purpose().content()
-                  : responsibility != null
-                      ? responsibility(entity.id(), responsibility).content()
-                      : summarizedDescription(entity.id()).content();
+              : responsibility == null
+                      && C4Views.DESTINATIONS.contains(entity.id().type())
+                      && foundOnlyByTheInvestigator(entity.id())
+                  ? investigated(entity.id()).content()
+                  : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+                      ? purpose().content()
+                      : responsibility != null
+                          ? responsibility(entity.id(), responsibility).content()
+                          : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
               entity.id(), entity.name(), entity.parent(), description, entity.facts()));
     }
     return List.copyOf(entities.values());
+  }
+
+  /** The connections the LLM investigator found to an entity (ADR 0082). */
+  private List<Fact> investigatedTo(EntityId id) {
+    return knowledge.pointingTo(id).stream()
+        .filter(f -> f.predicate().equals(InvestigatedFindings.CONNECTION))
+        .toList();
+  }
+
+  /** Whether only the investigator's connections know the entity: no other fact names it. */
+  private boolean foundOnlyByTheInvestigator(EntityId id) {
+    List<Fact> pointing = knowledge.pointingTo(id);
+    return knowledge.about(id).isEmpty()
+        && !pointing.isEmpty()
+        && pointing.stream().allMatch(f -> f.predicate().equals(InvestigatedFindings.CONNECTION));
+  }
+
+  /**
+   * The description of an element only the LLM investigator found: what its units do with it, as
+   * the connections it found say, opened with {@value InvestigatedFindings#FOUND_BY_LLM},
+   * emphasized, and citing those connections (ADR 0082).
+   */
+  private Text investigated(EntityId id) {
+    List<Fact> found = investigatedTo(id);
+    StringBuilder text = new StringBuilder();
+    for (Fact fact : found) {
+      text.append(text.isEmpty() ? "" : " ")
+          .append(name(fact.subject()))
+          .append(": ")
+          .append(fact.attributes().path("description").asString())
+          .append(" ")
+          .append(name(id))
+          .append('.');
+    }
+    List<String> ids = facts(found);
+    return opened(
+        InvestigatedFindings.FOUND_BY_LLM,
+        new Text(List.of(TextRun.of(text.toString()), new Citation(ids)), ids));
   }
 
   /** The fact saying what a person rests on, or {@code null}. */

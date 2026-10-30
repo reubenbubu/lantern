@@ -128,6 +128,9 @@ class Project0EndToEndIT {
                 if (request.role() == Role.RESOLVE) {
                   return "{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}";
                 }
+                if (request.role() == Role.INVESTIGATE) {
+                  return "{\"proposals\": []}";
+                }
                 List<String> sentences = new ArrayList<>();
                 if (prompt.contains("[S1]")) {
                   sentences.add("It builds on its parts. [S1]");

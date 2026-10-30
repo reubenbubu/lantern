@@ -22,6 +22,7 @@ import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.ClaimChecks;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
+import io.lantern.link.Investigator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -70,6 +71,7 @@ class FactStoreConfiguration {
     registry.apply(DeployableUnits.VOCABULARY_SOURCE, DeployableUnits.vocabulary());
     registry.apply(CrossRepoLinks.VOCABULARY_SOURCE, CrossRepoLinks.vocabulary());
     registry.apply(ClaimChecks.VOCABULARY_SOURCE, ClaimChecks.vocabulary());
+    registry.apply(Investigator.VOCABULARY_SOURCE, Investigator.vocabulary());
   }
 
   @Bean

@@ -236,6 +236,12 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
             + result.linksReused()
             + " reused");
     out.println(
+        "Investigations: "
+            + result.investigationsAsked()
+            + " asked of the LLM, "
+            + result.investigationsReused()
+            + " reused");
+    out.println(
         "Summaries: "
             + result.summariesGenerated()
             + " written by the LLM, "

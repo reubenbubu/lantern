@@ -116,7 +116,15 @@ public final class GraphTools implements ToolBox {
 
     /** New tools for one conversation, with references of their own. */
     public GraphTools tools() {
-      return new GraphTools(this);
+      return new GraphTools(this, false);
+    }
+
+    /**
+     * New tools for one conversation of the Investigate role, whose answers cite the lines of files
+     * instead of facts (ADR 0082); the facts' references are still kept.
+     */
+    public GraphTools investigatorTools() {
+      return new GraphTools(this, true);
     }
   }
 
@@ -124,10 +132,12 @@ public final class GraphTools implements ToolBox {
   private final Map<String, String> rendered;
   private final Set<String> repos;
   private final RepoFiles files;
+  private final boolean citeLines;
   private final Map<String, Fact> shown = new LinkedHashMap<>();
   private final Map<String, String> refs = new HashMap<>();
 
-  private GraphTools(Graph graph) {
+  private GraphTools(Graph graph, boolean citeLines) {
+    this.citeLines = citeLines;
     this.facts = graph.facts;
     this.rendered = graph.rendered;
     this.repos = graph.repos;
@@ -150,8 +160,8 @@ public final class GraphTools implements ToolBox {
         new LlmTool(
             FACTS_ABOUT,
             "Lists the facts static analysis extracted about one entity: those it is the subject"
-                + " of, then those that point to it. Each fact gets a reference such as [T1] that"
-                + " an answer may cite.",
+                + " of, then those that point to it. "
+                + factsCited(),
             about));
     ObjectNode search = schema();
     property(search, "text", "string", "Text the fact holds, matched ignoring case");
@@ -161,8 +171,8 @@ public final class GraphTools implements ToolBox {
         new LlmTool(
             SEARCH_FACTS,
             "Finds the facts whose subject, predicate, value, attributes or file hold a text, such"
-                + " as a class, property, path, topic or host name. Each fact gets a reference"
-                + " such as [T1] that an answer may cite.",
+                + " as a class, property, path, topic or host name. "
+                + factsCited(),
             search));
     if (files != RepoFiles.NONE) {
       ObjectNode read = schema();
@@ -174,12 +184,23 @@ public final class GraphTools implements ToolBox {
       tools.add(
           new LlmTool(
               READ_FILE,
-              "Reads lines of a file of the analyzed repositories at the analyzed commit, with"
-                  + " line numbers and secrets masked. A file is not a fact and cannot be cited;"
-                  + " cite the facts about what it shows.",
+              citeLines
+                  ? "Reads lines of a file of the analyzed repositories at the analyzed commit,"
+                      + " with line numbers and secrets masked. Cite the lines it shows as"
+                      + " repo:path:from-to."
+                  : "Reads lines of a file of the analyzed repositories at the analyzed commit,"
+                      + " with line numbers and secrets masked. A file is not a fact and cannot be"
+                      + " cited; cite the facts about what it shows.",
               read));
     }
     return List.copyOf(tools);
+  }
+
+  /** What the fact tools say of citing what they show. */
+  private String factsCited() {
+    return citeLines
+        ? "Each fact names the file it comes from, which read_file reads."
+        : "Each fact gets a reference such as [T1] that an answer may cite.";
   }
 
   private static ObjectNode schema() {
