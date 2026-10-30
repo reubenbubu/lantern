@@ -24,22 +24,25 @@ changes them. This file covers only how you work.
 - Every issue has a milestone and is written to a template in `.github/ISSUE_TEMPLATE/`:
   `fix.md` for what Lantern does wrong, `feature.md` for what it cannot do yet, chores and
   foundations (a test drop excepted).
-- Every issue also carries one or more area labels, for each part of Lantern it changes, set
-  when it is opened and corrected when its scope changes:
-  - `area:core`: the fact model, vocabulary and fact store (`lantern-core`)
-  - `area:sandbox`: repository registry, snapshots and build sandbox (`lantern-sandbox`)
+- Every issue carries at least one area label, one for each part of Lantern it changes, set when
+  it is opened and corrected when its scope changes. This list is the source; each label's
+  description on GitHub is a short copy of its line.
+  - `area:core`: facts, vocabulary, repository registry, snapshots and the document model
+    (`lantern-core`)
+  - `area:sandbox`: building repositories in containers (`lantern-sandbox`)
   - `area:extract`: the extractors (`lantern-extract`)
-  - `area:link`: the linker, deployable units and the LLM resolver (`lantern-link`)
-  - `area:llm`: providers, configuration, budgets and caching of LLM calls (`lantern-llm`)
+  - `area:link`: deployable units, the linker and the LLM resolver (`lantern-link`)
+  - `area:llm`: providers, models, budgets and the LLM cache (`lantern-llm`)
   - `area:summarize`: summaries and wordings (`lantern-summarize`)
-  - `area:compose`: the composer: views, flows, quality checks (`lantern-compose`)
-  - `area:app`: the application, the `analyze` command and the database (`lantern-app`)
-  - `area:web`: templates, renderers and the frontend (`lantern-web`, `report-specs/`)
-  - `area:testsets`: test sets, references, scoring and coverage (`testsets/`, the scoring and
-    coverage scripts)
-  - `area:tooling`: build, scripts, architecture tests and CI (`scripts/`, `lantern-archtest`)
-  - `area:docs`: the bar, the design, ADRs, research notes and this file, when an issue changes
-    only them
+  - `area:compose`: the composer: views, flows and quality checks (`lantern-compose`)
+  - `area:app`: the `analyze` run, wiring, database migrations and rendering documents
+    (`lantern-app`)
+  - `area:web`: templates, report specs and the frontend (`lantern-web`, `report-specs/`)
+  - `area:testsets`: test sets, references, scoring and coverage, scripts included
+  - `area:tooling`: build, local database, other scripts, architecture tests, issue templates
+  - `area:docs`: docs-only issues: the bar, the design, ADRs, research notes and this file; an
+    issue that also changes code carries its code areas instead
+  - A test drop carries `area:testsets`.
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
   which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
   picks up an issue without one writes it first. A PR runs Lantern on those sets only; the
