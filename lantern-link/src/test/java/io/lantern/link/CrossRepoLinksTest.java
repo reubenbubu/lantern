@@ -3054,6 +3054,32 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aSendThroughAProvidersSdkIsNotMailToTheConfiguredHost() {
+    unit("n", "notification", "notification");
+    type("n", "notification", "n.EmailService");
+    type("n", "notification", "n.SesService");
+    config(
+        "n", "notification", "application.properties", "spring.mail.host", "smtp.gmail.com", null);
+    mailSend("n", "n.EmailService#send(java.lang.String)", 35);
+    add(
+        MailExtractor.NAME,
+        "method:n.SesService#send()",
+        MailExtractor.MAIL_SEND,
+        FactObject.string("sendEmail"),
+        "{\"method\":\"sendEmail\",\"provider\":\"Amazon SES\","
+            + "\"template\":\"software.amazon.awssdk.services.sesv2.SesV2Client\"}",
+        "n:src/main/java/n/SesService.java#12",
+        1.0);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+        .containsExactly(
+            "service:g:notification SENDS_MAIL external-system:smtp.gmail.com"
+                + " {\"host\":\"smtp.gmail.com\",\"key\":\"spring.mail.host\","
+                + "\"protocol\":\"SMTP\","
+                + "\"source\":\"method:n.EmailService#send(java.lang.String)\"} 1.0");
+  }
+
+  @Test
   void port465OrTheSmtpsProtocolMakesItSmtps() {
     unit("n", "notification", "notification");
     type("n", "notification", "n.EmailService");

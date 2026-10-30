@@ -1,6 +1,6 @@
 # 0076: Mail as an external system
 
-Status: accepted (#260)
+Status: accepted (#260), amended for #393
 
 ## Context
 
@@ -50,3 +50,44 @@ neither.
 
 Mail sent through `Transport.send(...)` (a static call), and the javac reading of `JavaMailSender`
 calls, are covered only by the parsed reading in tests; project-4 is read without a build.
+
+## Amendment (#393): more senders, provider SDKs and hosts set in code
+
+The review of the extractor and its research note (`docs/research/extractor-mail.md`) found mail
+sent through other common libraries and providers' SDKs, and mail servers set in code. Extractor
+`mail` version 2.
+
+- **More senders.** `mail-send` is also recorded for these calls, each on a receiver of the named
+  type, never matched by method name alone:
+  - Apache Commons Email's `send()` (`Email`, `SimpleEmail`, `HtmlEmail`, `MultiPartEmail`,
+    `ImageHtmlEmail`, in `org.apache.commons.mail` and 2.x's `mail2.jakarta` and `mail2.javax`);
+  - Simple Java Mail's `Mailer.sendMail`;
+  - Quarkus's `Mailer.send` and `ReactiveMailer.send`;
+  - Micronaut's `EmailSender.send` and `AsyncEmailSender.sendAsync`.
+- **Provider SDKs.** A send through a provider's SDK records `mail-send` with the attribute
+  `provider`, the provider the SDK names:
+  - SendGrid: `SendGrid.api`, whatever endpoint it calls, since nearly all SendGrid calls send
+    mail;
+  - Amazon SES: `sendEmail`, `sendRawEmail`, `sendTemplatedEmail`, `sendBulkTemplatedEmail` and
+    `sendBulkEmail` in SDK v1 and v2 (`ses` and `sesv2`), and SDK v1's `...Async` forms;
+  - Mailgun: `MailgunMessagesApi.sendMessage`, `sendMessageAsync` and `sendMIMEMessage`.
+- **Hosts set in code.** A string constant given to `JavaMailSenderImpl.setHost`, Commons Email's
+  `setHostName` or Simple Java Mail's `MailerBuilder.withSMTPServer` or `withSMTPServerHost`
+  becomes a `mail-host` fact
+  on the method, holding the host. A host the code computes is not recorded.
+- **Objects made in the method.** A call on an object the same method makes, such as `new
+  HtmlEmail()` held in a local variable, counts as a call on its type. This covers Commons Email,
+  which is always used this way, and a `JavaMailSenderImpl` made in a `@Bean` method.
+- **`TrackedApis`** records calls on those libraries' and SDKs' packages for the extractor.
+- **The linker** links only sends through Spring's or Jakarta Mail's API to the server
+  `spring.mail.host` names (`MailExtractor.sendsThroughSpringMail`); a send through another library
+  or a provider's SDK is not mail to that server.
+- **One call per chain.** As for Spring's sender, the first call of a chain is the one read (after
+  a constructor), so `new HtmlEmail().setFrom(...).send()` written as one chain is not recorded.
+- **Not here:**
+  - Linking: drawing a provider or a `mail-host` host as an external system, other libraries' host
+    properties, Spring Cloud AWS SES, and leaving test servers out are #499. Until then these
+    facts draw nothing.
+  - SMS, push and chat (Twilio, Amazon SNS, Firebase Cloud Messaging, Pushy, Slack) are a new
+    extractor, #500.
+  - Brevo's SDK package was not confirmed and is left out.

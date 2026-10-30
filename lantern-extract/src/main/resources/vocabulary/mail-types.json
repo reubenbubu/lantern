@@ -2,12 +2,28 @@
   {
     "name": "mail-send",
     "kind": "attribute",
-    "description": "The subject method sends mail through Spring's JavaMailSender or MailSender, or Jakarta Mail's Transport. The mail server is not named here: it comes from the config (spring.mail.host), which the linker reads (ADR 0076).",
+    "description": "The subject method sends mail: through a mail library (Spring's JavaMailSender or MailSender, Jakarta Mail's Transport, Apache Commons Email, Simple Java Mail, Quarkus's or Micronaut's mailer), whose server comes from the config (spring.mail.host) or a mail-host fact, or through a mail provider's SDK (SendGrid, Amazon SES, Mailgun), which names the provider (ADR 0076).",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "template": { "type": "string", "description": "The binary name of the type whose method sends, such as org.springframework.mail.javamail.JavaMailSender." },
-        "method": { "type": "string", "description": "The name of the method called, such as send." }
+        "method": { "type": "string", "description": "The name of the method called, such as send." },
+        "provider": { "type": "string", "description": "The mail provider an SDK sends through, such as SendGrid, Amazon SES or Mailgun; absent for a mail library." }
+      },
+      "required": ["template", "method"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "mail-host",
+    "kind": "attribute",
+    "description": "The subject method sets the mail server's host as a constant, such as smtp.example.com: through JavaMailSenderImpl.setHost, Apache Commons Email's setHostName or Simple Java Mail's MailerBuilder.withSMTPServer (ADR 0076).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "template": { "type": "string", "description": "The binary name of the type whose method sets the host, such as org.springframework.mail.javamail.JavaMailSenderImpl." },
+        "method": { "type": "string", "description": "The name of the method called, such as setHost." }
       },
       "required": ["template", "method"],
       "additionalProperties": false
