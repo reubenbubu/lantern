@@ -208,7 +208,7 @@
           "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:123-131"
         },
         {
-          "area": "spring",
+          "area": "identity",
           "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/config/SecurityConfig.java:94-96"
         }
       ]
@@ -269,7 +269,7 @@
         },
         {
           "area": "identity",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:45-46"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:95-96"
         }
       ]
     },

@@ -6,12 +6,34 @@
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "library": { "type": "string", "description": "The JWT library: jjwt, nimbus-jose-jwt, spring-security or java-jwt." },
-        "call": { "type": "string", "description": "The call that takes the secret, such as Keys.hmacShaKeyFor." },
-        "keys": { "type": "array", "items": { "type": "string" }, "description": "The config keys of the @Value placeholders the secret comes from, such as app.token.signing.key." },
-        "uses": { "type": "array", "items": { "type": "string" }, "description": "What the code of the method's type does with JWTs: sign, verify or both. Absent when it does neither where the extractor sees it." }
+        "library": {
+          "type": "string",
+          "description": "The JWT library: jjwt, nimbus-jose-jwt, spring-security or java-jwt."
+        },
+        "call": {
+          "type": "string",
+          "description": "The call that takes the secret, such as Keys.hmacShaKeyFor."
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The config keys of the @Value placeholders the secret comes from, such as app.token.signing.key."
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "What the code of the method's type does with JWTs: sign, verify or both. Absent when it does neither where the extractor sees it."
+        }
       },
-      "required": ["library", "call", "keys"],
+      "required": [
+        "library",
+        "call",
+        "keys"
+      ],
       "additionalProperties": false
     },
     "objectKind": "string"
@@ -23,10 +45,192 @@
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "product": { "type": "string", "description": "The identity provider, such as Keycloak." },
-        "url": { "type": "string", "description": "The server's URL as written." }
+        "product": {
+          "type": "string",
+          "description": "The identity provider, such as Keycloak."
+        },
+        "url": {
+          "type": "string",
+          "description": "The server's URL as written."
+        }
       },
-      "required": ["product", "url"],
+      "required": [
+        "product",
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "jwt-decoder",
+    "kind": "attribute",
+    "description": "The subject method builds Spring Security's JWT decoder, which checks tokens with an identity provider's keys: NimbusJwtDecoder or NimbusReactiveJwtDecoder withJwkSetUri, withIssuerLocation or withPublicKey, or JwtDecoders and ReactiveJwtDecoders fromIssuerLocation. The value says where the keys come from: jwk-set-uri, issuer or public-key (ADR 0085, amended for #395).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "library": {
+          "type": "string",
+          "description": "The library: spring-security."
+        },
+        "call": {
+          "type": "string",
+          "description": "The call that builds the decoder, such as NimbusJwtDecoder.withJwkSetUri."
+        },
+        "url": {
+          "type": "string",
+          "description": "The JWK set's or issuer's URL as written, a @Value text with its placeholders or a literal URL without credentials; absent when the code passes it on from elsewhere."
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The config keys of the @Value placeholders the URL comes from."
+        }
+      },
+      "required": [
+        "library",
+        "call"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "http-security",
+    "kind": "attribute",
+    "description": "The subject sets up how callers sign in or show a token: a method using Spring Security's HttpSecurity or ServerHttpSecurity DSL, or a type annotated with legacy Spring Security OAuth's @EnableAuthorizationServer, @EnableResourceServer, @EnableOAuth2Sso or @EnableOAuth2Client. The value is one of oauth2-login (users sign in through an OAuth2 or OIDC provider), oauth2-resource-server (callers show a provider's token), oauth2-client, oauth2-authorization-server (the subject's unit issues tokens), form-login, http-basic, saml2-login, x509, one-time-token-login or webauthn (ADR 0085, amended for #395).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "via": {
+          "type": "string",
+          "description": "HttpSecurity (servlet), ServerHttpSecurity (reactive) or annotation (legacy Spring Security OAuth)."
+        },
+        "call": {
+          "type": "string",
+          "description": "The DSL call or annotation, such as oauth2Login or @EnableResourceServer."
+        }
+      },
+      "required": [
+        "via",
+        "call"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "jwt-key-pair",
+    "kind": "attribute",
+    "description": "The subject method signs or checks JWTs with the key of a key pair: Nimbus's RSASSASigner, RSASSAVerifier, ECDSASigner or ECDSAVerifier. The value is the kind of key, RSA or EC; a key's value is never recorded (ADR 0085, amended for #395).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "library": {
+          "type": "string",
+          "description": "The library: nimbus-jose-jwt."
+        },
+        "call": {
+          "type": "string",
+          "description": "The constructor, such as new RSASSASigner."
+        },
+        "use": {
+          "type": "string",
+          "description": "sign or verify."
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The config keys of the @Value placeholders the key comes from, when the extractor can follow it."
+        }
+      },
+      "required": [
+        "library",
+        "call",
+        "use"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "identity-client",
+    "kind": "attribute",
+    "description": "A client that a Keycloak realm export in the subject repository registers: an application that signs users in or gets tokens there. The value is its client ID; its secret is never recorded (ADR 0085, amended for #395).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "type": "string",
+          "description": "The identity provider: Keycloak."
+        },
+        "realm": {
+          "type": "string",
+          "description": "The realm the export is of."
+        },
+        "public": {
+          "type": "boolean",
+          "description": "Whether the client is public (no secret, such as a browser or mobile app)."
+        },
+        "flows": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The flows it may use: authorization-code, implicit, password, client-credentials."
+        },
+        "pkce": {
+          "type": "string",
+          "description": "The PKCE challenge method it requires, such as S256."
+        },
+        "redirectUris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Where the provider may send users back to, without credentials."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the client is enabled."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "openid-connect or saml."
+        },
+        "bearerOnly": {
+          "type": "boolean",
+          "description": "Present and true when the client only checks tokens and never signs users in (Keycloak's legacy bearer-only clients)."
+        },
+        "rootUrl": {
+          "type": "string",
+          "description": "The application's root URL as the export gives it, without credentials; it may hold ${ENV} placeholders."
+        },
+        "baseUrl": {
+          "type": "string",
+          "description": "The application's base URL as the export gives it, without credentials."
+        },
+        "webOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The browser origins the provider allows for the client."
+        }
+      },
+      "required": [
+        "product",
+        "public",
+        "enabled",
+        "protocol",
+        "flows",
+        "redirectUris",
+        "webOrigins"
+      ],
       "additionalProperties": false
     },
     "objectKind": "string"

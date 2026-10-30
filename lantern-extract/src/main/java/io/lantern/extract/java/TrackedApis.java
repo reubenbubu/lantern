@@ -54,6 +54,9 @@ final class TrackedApis {
           "org.springframework.security.oauth2.jwt.",
           "com.auth0.jwt.",
           "org.keycloak.admin.client.",
+          // Spring Security's configuration DSLs (the identity extractor): how callers sign in.
+          "org.springframework.security.config.annotation.web.builders.",
+          "org.springframework.security.config.web.server.",
           // Redis templates and their operations (the Redis extractor): the keys they are given.
           "org.springframework.data.redis.core.",
           "org.springframework.data.redis.cache.",
