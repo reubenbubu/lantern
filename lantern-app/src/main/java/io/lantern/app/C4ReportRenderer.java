@@ -666,7 +666,8 @@ public final class C4ReportRenderer {
                 .collect(Collectors.joining("\n\n")));
       }
       EntityId about = page.section.entity();
-      if (about != null && elements.containsKey(about)) {
+      // A documentation page is about the whole document, not the element its section names.
+      if (about != null && elements.containsKey(about) && !page.level.equals("documentation")) {
         node.put("element", elementIds.find(about.toString()));
       }
       ArrayNode sectionsNode = node.putArray("sections");

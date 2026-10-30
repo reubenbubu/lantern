@@ -391,7 +391,6 @@
     "id" : "decisions",
     "level" : "documentation",
     "title" : "Decisions and unknowns",
-    "element" : "system-snapshot",
     "sections" : [ {
       "type" : "decisions",
       "id" : "decisions-decisions",
