@@ -1,6 +1,6 @@
 # 0008: LLM provider interface and test fake
 
-Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69) and ADR 0081 (#169), and for #298, pending the user's review (#24)
+Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69), ADR 0081 (#169) and the amendment for #298, pending the user's review (#24)
 
 ## Context
 
@@ -85,4 +85,3 @@ prompt cost nothing against the budget.
 - **A model with `prompt-caching` keeps the split as reported**, with its cache prices, as before;
   totals already sum all four counts. Real Anthropic responses therefore do not change: without
   caching asked for they report no cache tokens, and with it the split is priced as configured.
-
