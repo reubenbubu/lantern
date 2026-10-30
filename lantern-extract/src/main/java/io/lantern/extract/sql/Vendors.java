@@ -56,7 +56,8 @@ final class Vendors {
     if (m.matches() && TECHNOLOGIES.containsKey(m.group(1))) {
       return TECHNOLOGIES.get(m.group(1));
     }
-    // Folders below src/main only, so a module named after its database does not count.
+    // Folders below src/main only where the file is under it, so a module named after its database
+    // does not count; for a file outside src/main, every folder counts.
     int top = 0;
     for (int i = 0; i + 1 < parts.length; i++) {
       if (parts[i].equals("src") && parts[i + 1].equals("main")) {

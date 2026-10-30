@@ -17,8 +17,20 @@ class SettingsTest {
     Settings settings = flyway(Map.of("prefix", "app_", "Type", "text"), "sales");
 
     assertThat(
-            settings.flyway("CREATE TABLE ${flyway:defaultSchema}.${prefix}t (a ${type}, b ${x})"))
-        .isEqualTo("CREATE TABLE sales.app_t (a text, b ${x})");
+            settings.flyway(
+                "CREATE TABLE ${flyway:defaultSchema}.${prefix}t (a ${type}, b ${x});"
+                    + " SET search_path = ${flyway:defaultSchema}"))
+        .isEqualTo("CREATE TABLE app_t (a text, b ${x}); SET search_path = sales");
+  }
+
+  @Test
+  void customPrefixAndMultiLineValues() {
+    Settings settings =
+        new Settings(
+            null, Map.of("p", "x_", "nl", "a\nb"), "#[", "]", null, List.of(), Map.of(), List.of());
+
+    assertThat(settings.flyway("CREATE TABLE #[p]t (c #[nl]) -- ${p}"))
+        .isEqualTo("CREATE TABLE x_t (c #[nl]) -- ${p}");
   }
 
   @Test

@@ -6,3 +6,5 @@ spring:
     placeholders:
       table_prefix: bill_
       note_type: text
+      db_password: hunter2
+      owner: ${DB_PASSWORD:changeme}

@@ -46,6 +46,11 @@
     <sql dbms="mysql">CREATE TABLE mysql_sql (id BIGINT)</sql>
   </changeSet>
 
+  <changeSet id="7" author="test">
+    <sqlFile path="extra.sql" relativeToChangelogFile="true"/>
+  </changeSet>
+
   <include file="formatted.sql" relativeToChangelogFile="true"/>
+  <include file="postgres-only.xml" relativeToChangelogFile="true" dbms="postgresql"/>
   <include file="test-data.xml" relativeToChangelogFile="true" context="test"/>
 </databaseChangeLog>

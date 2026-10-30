@@ -86,9 +86,9 @@ modelled, and what happens with SQL the parser cannot read.
   (already in `lantern-extract` for the Config extractor) reads YAML and JSON changelogs as nodes
   only, with their lines, never constructing objects; XML changelogs are read with DTDs and
   external entities disabled.
-- **Not covered yet:** Flyway Java migrations and placeholders, Liquibase property substitution and
-  preconditions, `CREATE TABLE ... LIKE` and `AS SELECT` columns, check constraints, indexes, views,
-  and statement delimiters other than `;` (`GO`, `/`).
+- **Not covered yet:** Flyway Java migrations, Liquibase preconditions, `CREATE TABLE ... LIKE`
+  and `AS SELECT` columns, check constraints, indexes and views. (Placeholders, property
+  substitution and the `GO` and `/` delimiters are read since the amendment for #386.)
 
 ## Amendment (#386): the module's database, placeholders and client scripts
 
@@ -112,10 +112,12 @@ for MySQL's, SQL Server's or Oracle's client were split wrongly. The extractor's
   files, the other `.sql` scripts of the module are not read either.
 - **Flyway placeholders** (`spring.flyway.placeholders.*`, with the configured prefix and suffix,
   unless `placeholder-replacement` is off) are replaced before parsing, a name matched ignoring
-  case as a fallback. `${flyway:defaultSchema}` becomes `spring.flyway.default-schema` or the first
-  of `spring.flyway.schemas`; without either it is dropped with its dot, so the name means the
-  connection's default schema. Other placeholders without a value, and those whose key names a
-  secret, are left as written.
+  case as a fallback. `${flyway:defaultSchema}` followed by a dot is dropped with it, so a table it
+  qualifies is named as the unqualified tables of the same schema are (which schema that is, is
+  #468); elsewhere it becomes `spring.flyway.default-schema` or the first of
+  `spring.flyway.schemas`. Placeholders without a value or with one spanning lines, and those
+  whose key, or a placeholder written in whose value, names a secret, are left as written. A list
+  setting may be one comma-separated value or a YAML list.
 - **Liquibase** skips a change set, change, include, root changelog or property whose `dbms` leaves
   out the module's database (a list, `!` to exclude, `all`, `none`); without a known database only
   `none` is skipped. Context expressions (`,`, `or`, `and`, `!`, `not`, parentheses) are matched

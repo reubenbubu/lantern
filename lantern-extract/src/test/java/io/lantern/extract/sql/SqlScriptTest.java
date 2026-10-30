@@ -101,6 +101,22 @@ class SqlScriptTest {
   }
 
   @Test
+  void aColumnNamedDelimiterIsNotTheClientsCommand() {
+    assertThat(
+            schema(
+                """
+                CREATE TABLE csv_format (
+                  id INT,
+                  delimiter VARCHAR(1),
+                  quote CHAR(1)
+                );
+                CREATE TABLE b (id INT);
+                """))
+        .containsExactlyInAnyOrder(
+            "b(id int)", "csv_format(id int, delimiter varchar(1), quote char(1))");
+  }
+
+  @Test
   void mysqlTablesWithBackticksAndTableKeys() {
     assertThat(
             schema(

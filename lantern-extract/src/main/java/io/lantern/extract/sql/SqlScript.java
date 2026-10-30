@@ -88,8 +88,11 @@ final class SqlScript {
         String text = script.substring(i, end);
         Matcher delimiterLine = DELIMITER.matcher(text);
         boolean separator = SEPARATOR_LINE.matcher(text).matches();
-        if (delimiterLine.matches() || separator) {
-          if (!separator) {
+        // DELIMITER is the client's command, so only between statements; a column of that name is
+        // not.
+        boolean command = delimiterLine.matches() && startLine == 0;
+        if (command || separator) {
+          if (command) {
             delimiter = delimiterLine.group(1);
           }
           add(parts, current, startLine, endLine);

@@ -59,6 +59,8 @@ record Settings(
   /** Flyway's built-in placeholder for its default schema, followed by the dot that qualifies. */
   private static final String DEFAULT_SCHEMA = "flyway:defaultSchema";
 
+  private static final Pattern WRITTEN_PLACEHOLDER = Pattern.compile("\\$\\{([^}:]+)");
+
   private static final Pattern LIQUIBASE_PROPERTY = Pattern.compile("\\$\\{([^}$]+)}");
 
   Settings {
@@ -105,7 +107,10 @@ record Settings(
     Map<String, String> parameters = new LinkedHashMap<>();
     for (ConfigValue v : values.values()) {
       String key = relaxed(v.key());
-      if (!v.resolved() || ConfigExtractor.isSecret(v.key())) {
+      if (!v.resolved()
+          || ConfigExtractor.isSecret(v.key())
+          || v.used().stream().anyMatch(ConfigExtractor::isSecret)
+          || namesSecret(v.written())) {
         continue;
       }
       if (key.startsWith(FLYWAY_PLACEHOLDERS)) {
@@ -115,7 +120,7 @@ record Settings(
       }
     }
     String schema = value(byKey, "spring.flyway.default-schema");
-    String schemas = value(byKey, "spring.flyway.schemas");
+    String schemas = list(byKey, "spring.flyway.schemas");
     if (schema == null && schemas != null) {
       schema = schemas.split(",")[0].strip();
     }
@@ -124,7 +129,7 @@ record Settings(
     boolean replace =
         !"false".equalsIgnoreCase(value(byKey, "spring.flyway.placeholder-replacement"));
     List<String> contexts = new ArrayList<>();
-    String written = value(byKey, "spring.liquibase.contexts");
+    String written = list(byKey, "spring.liquibase.contexts");
     if (written != null) {
       for (String context : written.split(",")) {
         if (!context.isBlank()) {
@@ -140,14 +145,14 @@ record Settings(
         schema == null || schema.isEmpty() ? null : schema,
         contexts,
         parameters,
-        locations(value(byKey, "spring.sql.init.schema-locations")));
+        locations(list(byKey, "spring.sql.init.schema-locations")));
   }
 
   /**
-   * A Flyway migration with its placeholders replaced. Flyway's own placeholders are replaced where
-   * the config gives their values: the default schema, and where it gives none, the schema and its
-   * dot are dropped, so the name means the connection's default schema. Placeholders without a
-   * value are left as written.
+   * A Flyway migration with its placeholders replaced. {@code ${flyway:defaultSchema}} followed by
+   * a dot is dropped with it, so a table it qualifies is named as the unqualified tables of the
+   * same schema are; elsewhere it becomes the configured default schema. Placeholders without a
+   * value, or whose value spans lines, are left as written.
    */
   String flyway(String script) {
     if (flywayPlaceholders == null || !script.contains(flywayPrefix)) {
@@ -166,10 +171,12 @@ record Settings(
       int end = close + flywaySuffix.length();
       String value = name.contains("\n") ? null : placeholder(name);
       out.append(script, i, open);
-      if (value != null) {
-        out.append(value);
-      } else if (name.equals(DEFAULT_SCHEMA) && script.startsWith(".", end)) {
+      if (name.equals(DEFAULT_SCHEMA) && script.startsWith(".", end)) {
+        // Unqualified names land in the default schema too, so a qualified one is written the same
+        // way, keeping one name per table (the schema of unqualified names is #468).
         end++;
+      } else if (value != null && !value.contains("\n")) {
+        out.append(value);
       } else {
         out.append(script, open, end);
       }
@@ -244,6 +251,33 @@ record Settings(
   /** Whether a file is one of the script locations: on the classpath at that path. */
   boolean isScriptLocation(String path) {
     return scriptLocations.stream().anyMatch(l -> path.endsWith("src/main/resources/" + l));
+  }
+
+  /**
+   * Whether a value as written names a secret in a placeholder, such as {@code
+   * ${DB_PASSWORD:changeme}}, whose default may then stand in for the secret.
+   */
+  private static boolean namesSecret(String written) {
+    Matcher m = WRITTEN_PLACEHOLDER.matcher(written);
+    while (m.find()) {
+      if (ConfigExtractor.isSecret(m.group(1).strip())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** A list setting, written as one comma-separated value or as a YAML list, joined by commas. */
+  private static String list(Map<String, ConfigValue> byKey, String key) {
+    String value = value(byKey, key);
+    if (value != null) {
+      return value;
+    }
+    List<String> items = new ArrayList<>();
+    for (int i = 0; value(byKey, key + "[" + i + "]") != null; i++) {
+      items.add(value(byKey, key + "[" + i + "]"));
+    }
+    return items.isEmpty() ? null : String.join(",", items);
   }
 
   private static String value(Map<String, ConfigValue> byKey, String key) {
