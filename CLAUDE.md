@@ -34,10 +34,23 @@ changes them. This file covers only how you work.
 - Each chat works on one issue at a time and does the work itself: design, code, tests, PR,
   merge and cleanup.
 - Subagents get only low-impact work: read-only searches across many files, mechanical chores
-  with no judgment (a rename, a doc or config tweak, cleanup), and the review in step 5. Use
-  the cheapest model that fits: `haiku` for chores, `sonnet` for searches and reviews of small
-  diffs, `opus` for reviews of large or tricky diffs. Never use `fable`. If a subagent's result
+  with no judgment (a rename, a doc or config tweak, cleanup), research (below), and the review
+  in step 5. Use the cheapest model that fits: `haiku` for chores, `sonnet` for searches,
+  research and reviews of small diffs, `opus` for hard research questions and reviews of large
+  or tricky diffs. Never use `fable`. If a subagent's result
   is wrong, retry one level up or do it yourself.
+- Research comes before building where others have solved the problem before:
+  - When: once at the start of each milestone, on its outcome, as the milestone's first issue;
+    and before an issue that introduces a new pattern (its "Research" line says so), as that
+    issue's first step. Routine fixes skip it.
+  - What: a note `docs/research/<topic>.md` answers one question: what authorities, tools and
+    papers say, with sources; evidence from the test sets where it matters; the options and
+    their trade-offs; a recommendation; and what it changes in the bar or the design.
+  - Who: a read-only research subagent with web search returns the note's text; the chat writes
+    it, judges it and decides. The rule it leads to goes into `docs/quality-bar.md`,
+    `docs/design.md` or an ADR, in the same PR as the note, and links to the note; the note keeps
+    the sources, options and trade-offs. Only a finding that changes direction (scope, goals, what the report is
+    for) goes to the user, as one question with a recommendation.
 - Steps for an issue:
   1. Pick an issue no other chat has taken (see Concurrent chats). Create its worktree first,
      before anything else: always a git worktree, never the main checkout, one per issue, on a
@@ -110,11 +123,12 @@ Every piece of information lives in exactly one place. Link to it; never copy it
 
 | What | Where |
 | --- | --- |
-| The quality standard the output must meet, and the evidence behind it | `docs/quality-bar.md` |
+| The quality standard the output must meet, each rule with its key source or a link to its research note | `docs/quality-bar.md` |
 | What to build to meet it | `docs/design.md` |
 | How to work | This file |
 | Tasks, status, progress | GitHub issues (written to `.github/ISSUE_TEMPLATE/`) and milestones |
 | Decisions made while building | `docs/adr/NNNN-title.md` |
+| Research behind a rule of the bar or the design: sources, options, trade-offs, test-set evidence | `docs/research/<topic>.md` |
 | Document templates and specifications | `report-specs/` (one folder per document: template, schema, sample data) |
 | Build and test commands | The Commands section below |
 
