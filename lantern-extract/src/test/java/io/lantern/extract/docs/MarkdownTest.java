@@ -66,7 +66,13 @@ class MarkdownTest {
             ```
 
             ```java
-            var box = "┌";
+            var box = "┌─";
+            ```
+
+            ```
+            orders
+            ├── api
+            └── service
             ```
             """);
 
@@ -75,7 +81,8 @@ class MarkdownTest {
             new Block(Kind.DIAGRAM, 0, "flowchart LR\n  a --> b", 1, 4, "mermaid"),
             new Block(Kind.DIAGRAM, 0, "  ┌───┐\n  │ a │\n  └───┘", 6, 10, Markdown.DRAWN),
             new Block(Kind.DIAGRAM, 0, "+-----+\n|  b  |\n+-----+", 12, 16, Markdown.DRAWN),
-            new Block(Kind.CODE, 0, "", 18, 20));
+            new Block(Kind.CODE, 0, "", 18, 20),
+            new Block(Kind.CODE, 0, "", 22, 26));
   }
 
   @Test

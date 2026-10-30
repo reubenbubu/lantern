@@ -67,8 +67,11 @@ final class Markdown {
   private static final Set<String> PLAIN_LANGUAGES =
       Set.of("", "text", "txt", "plain", "plaintext", "ascii", "none");
 
-  /** Box-drawing characters, or an ASCII box's corner and edge. */
-  private static final Pattern DRAWING = Pattern.compile("[\\u2500-\\u257F]|\\+-{3,}\\+");
+  /**
+   * A box's top-left corner and top edge, drawn with box characters or in ASCII; a directory tree's
+   * {@code ├──} and {@code └──} are not boxes.
+   */
+  private static final Pattern DRAWING = Pattern.compile("[┌╔╭][─═]|\\+-{3,}\\+");
 
   /**
    * A value of the YAML front matter.

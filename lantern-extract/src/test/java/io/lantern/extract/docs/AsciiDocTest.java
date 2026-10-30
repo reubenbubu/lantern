@@ -81,6 +81,58 @@ class AsciiDocTest {
   }
 
   @Test
+  void theHeaderAfterTheTitleIsNotText() {
+    Markdown doc =
+        AsciiDoc.parse(
+            """
+            = Payments
+            Jane Doe <jane@example.com>
+            v1.0, 2024-06-01
+            :status: Accepted
+
+            Payments charges cards.
+            """);
+
+    assertThat(doc.frontMatter).containsEntry("status", new Field("Accepted", 4));
+    assertThat(doc.blocks)
+        .containsExactly(
+            new Block(Kind.HEADING, 1, "Payments", 1, 1),
+            new Block(Kind.PARAGRAPH, 0, "Payments charges cards.", 6, 6));
+  }
+
+  @Test
+  void tablesWithDeclaredColumnsLongerDelimitersAndNoHeader() {
+    Markdown doc =
+        AsciiDoc.parse(
+            """
+            [cols="1,2", options="header"]
+            |=====
+            |Name
+            |Description
+
+            |orders
+            |Handles orders
+            |=====
+
+            [%noheader]
+            |===
+            |a |b
+
+            |c |d
+            |===
+
+            After the tables.
+            """);
+
+    assertThat(doc.blocks)
+        .containsExactly(
+            new Block(Kind.TABLE_ROW, 0, "Name: orders; Description: Handles orders", 6, 7),
+            new Block(Kind.TABLE_ROW, 0, "a | b", 12, 12),
+            new Block(Kind.TABLE_ROW, 0, "c | d", 14, 14),
+            new Block(Kind.PARAGRAPH, 0, "After the tables.", 17, 17));
+  }
+
+  @Test
   void tables() {
     Markdown doc =
         AsciiDoc.parse(

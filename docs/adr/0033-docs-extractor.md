@@ -95,8 +95,9 @@ development sets' references cite such documents, which had no facts. Extractor 
   - anything in a hidden folder (`.github`) or a decision record folder, whose other pages index
     its records;
   - files about the project's process rather than its architecture: contributing, changelog,
-    changes, history, release notes, code of conduct, security, license, notice, to-do, authors,
-    maintainers, support and governance;
+    changes, history, release notes, code of conduct, license, notice, to-do, authors,
+    maintainers, support and governance, and the upper-case `SECURITY` policy (a `security.md`
+    page in a docs folder is a document);
   - any name containing `template`.
 - **AsciiDoc.** READMEs (`README.adoc`, `README.asciidoc`), documents and decision records in
   AsciiDoc are read into the same blocks as Markdown by a small line-based reader:
@@ -107,21 +108,29 @@ development sets' references cite such documents, which had no facts. Extractor 
   - listing, literal, passthrough and comment blocks.
 
   Attribute entries (`:status: Accepted`) stand in for front matter, so a decision record's
-  status and date are read as in MADR 3. Includes are not followed.
-- **Diagrams.** A fenced (Markdown) or delimited (AsciiDoc) block is a diagram, and becomes a
-  claim holding its source as written, when either:
+  status and date are read as in MADR 3. The author and revision lines under the document title
+  are not text. A table's columns come from its `cols` attribute, else its first line, and
+  `%noheader` turns the implicit header row off. Includes are not followed.
+- **Diagrams.** A fenced (Markdown) or delimited (AsciiDoc) block is a diagram when either:
   - its language is a diagram language: `mermaid`, `plantuml` (`puml`, `c4plantuml`),
     `graphviz` (`dot`) or `ditaa`;
-  - it names no language, or plain text, and draws with box characters (U+2500 to U+257F) or an
-    ASCII box corner (`+---+`).
+  - it names no language, or plain text, and draws a box: a top-left box corner and edge
+    (`┌─`, `╔═`, `╭─`) or an ASCII box edge (`+---+`). A directory tree's `├──` is not a box.
 
-  The claim's attribute `diagram` gives the language, or `text` for a drawing. Other code blocks
-  stay out.
+  A diagram becomes its own attribute fact, `diagram`, holding its source as written, with the
+  attributes `section` and `language` (`text` for a drawing), at a claim's confidence. It is not a
+  `claim`, so README diagrams stay out of everything that reads a README's claims as prose. Other
+  code blocks stay out.
 - **Consumers.** The summarizer, the Explorer's "start here" link, the system's purpose prompt and
-  the README claim checks (ADR 0043) use README claims only, as before. The purpose prompt's
-  choice of README is now limited to the `readme` type, so that a root `ARCHITECTURE.md` is not
-  taken for it. Document claims are stored with the other facts; how documents use them is the
-  composer's and the roles' concern, not this extractor's.
+  the README claim checks (ADR 0043) use README `claim` facts only, as before; diagrams and
+  document claims do not reach them. The purpose prompt's choice of README is now limited to the
+  `readme` type, so that a root `ARCHITECTURE.md` is not taken for it. Where a repository keeps
+  both `README.adoc` and `README.md` at the same depth, the first by name, `README.adoc`, is the
+  one those consumers pick. Document claims and diagrams are stored with the other facts; how
+  documents use them is the composer's and the roles' concern, not this extractor's.
+- **Generated docs.** A folder OpenAPI Generator wrote into (one holding `.openapi-generator/` or
+  `.openapi-generator-ignore`) has no documents: its `docs` hold a page per generated model and
+  API.
 - **Kept as is.** The decision record formats above already cover Nygard, adr-tools, MADR 2 to 4
   and log4brains' folders. Statuses stay as written: `Superceded by …`, adr-tools' spelling, is
   kept, and a missing status stays missing. Claims are not filtered by section.

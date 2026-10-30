@@ -135,5 +135,21 @@ class DocsExtractorTest {
     assertThat(DocsExtractor.isDocument(".github/docs/notes.md")).isFalse();
     assertThat(DocsExtractor.isDocument("HELP.md")).isFalse();
     assertThat(DocsExtractor.isDocument("docs/diagram.png")).isFalse();
+    assertThat(DocsExtractor.isDocument("docs/release_notes.md")).isFalse();
+    assertThat(DocsExtractor.isDocument("docs/SECURITY.md")).isFalse();
+    // A security architecture page is a document; only the policy file is left out.
+    assertThat(DocsExtractor.isDocument("docs/architecture/security.md")).isTrue();
+  }
+
+  @Test
+  void openApiGeneratorDocsAreNotTheProjects() {
+    assertThat(
+            DocsExtractor.generatedRoots(
+                List.of(
+                    "client/.openapi-generator/VERSION",
+                    "client/docs/Order.md",
+                    ".openapi-generator-ignore",
+                    "docs/overview.md")))
+        .containsExactly("client/", "");
   }
 }

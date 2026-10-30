@@ -70,7 +70,7 @@ The full text of the ADR adoption study (Buchgeher et al. 2023) was not reachabl
   - Process files (contributing, changelog, license, code of conduct, security, to-do and the like), templates, hidden folders and decision record folders are left out.
   - Code facts still decide what exists. A document claim never makes a container.
 - **AsciiDoc** READMEs, documents and decision records are read into the same blocks as Markdown. Attribute entries (`:status:`) stand in for front matter.
-- **Diagrams.** A fenced or delimited block in a diagram language (Mermaid, PlantUML, Graphviz, ditaa), or a plain one drawn with box characters, is a claim holding the diagram's source. Authors often draw their containers and ports this way instead of writing prose.
+- **Diagrams.** A fenced or delimited block in a diagram language (Mermaid, PlantUML, Graphviz, ditaa), or a plain one drawn as boxes, is a `diagram` fact holding its source, kept apart from prose claims. Authors often draw their containers and ports this way instead of writing prose.
 - **Kept as is:**
   - The decision record formats ADR 0033 already reads cover Nygard, adr-tools, MADR 2–4 and log4brains folders.
   - Status is kept as written, so `Superceded by …` survives, and a missing status stays missing.

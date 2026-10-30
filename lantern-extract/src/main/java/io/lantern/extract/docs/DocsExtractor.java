@@ -72,6 +72,9 @@ public final class DocsExtractor {
   /** Attribute: one paragraph, list item, table row, quote or diagram of a README or document. */
   public static final String CLAIM = "claim";
 
+  /** Attribute: a diagram in a README or document, its source as written. */
+  public static final String DIAGRAM = "diagram";
+
   /** Attribute: a decision record's title. */
   public static final String TITLE = "title";
 
@@ -114,9 +117,13 @@ public final class DocsExtractor {
   /** Files about the project's process, not its architecture. */
   private static final Pattern NOT_ARCHITECTURE =
       Pattern.compile(
-          "(?i)(contributing|changelog|changes|history|releases?|release-notes|code[_-]of[_-]conduct"
-              + "|security|licen[cs]e|notice|todo|authors|maintainers|support|governance)\\..*"
-              + "|.*template.*");
+          "(?i)(contributing|changelog|changes|history|releases?|release[_-]notes"
+              + "|code[_-]of[_-]conduct|licen[cs]e|notice|todo|authors|maintainers|support"
+              + "|governance)\\..*|.*template.*|(?-i:SECURITY)\\..*");
+
+  /** A file of OpenAPI Generator's metadata folder, and the folder it generated into. */
+  private static final Pattern GENERATOR_MARKER =
+      Pattern.compile("^((?:.*/)?)\\.openapi-generator(?:-ignore$|/)");
 
   /** Folders whose Markdown and AsciiDoc files are documents of the project. */
   private static final Set<String> DOCUMENT_DIRECTORIES =
@@ -192,13 +199,19 @@ public final class DocsExtractor {
     Set<String> known = ConfigExtractor.normalizedKeys(secretKeys);
     Facts facts = new Facts(Validity.from(snapshot));
     for (RepoBuild repo : repos) {
-      for (String path : GitFiles.list(repo, "")) {
+      List<String> paths = GitFiles.list(repo, "");
+      List<String> generated = generatedRoots(paths);
+      for (String path : paths) {
         if (ignored(path)) {
           continue;
         }
         boolean decision = isDecision(path);
         boolean readme = !decision && isReadme(path);
-        boolean document = !decision && !readme && isDocument(path);
+        boolean document =
+            !decision
+                && !readme
+                && isDocument(path)
+                && generated.stream().noneMatch(path::startsWith);
         if (!decision && !readme && !document) {
           continue;
         }
@@ -218,6 +231,20 @@ public final class DocsExtractor {
       }
     }
     return facts.result();
+  }
+
+  /**
+   * The folders, each with a trailing {@code /} or empty for the repository's root, that OpenAPI
+   * Generator wrote a client or server into: their {@code docs} hold a page per generated model and
+   * API, not the project's documentation.
+   */
+  static List<String> generatedRoots(List<String> paths) {
+    return paths.stream()
+        .map(p -> GENERATOR_MARKER.matcher(p))
+        .filter(Matcher::find)
+        .map(m -> m.group(1))
+        .distinct()
+        .toList();
   }
 
   /** Whether the path is under a directory no documentation of the repository's own is in. */
@@ -373,11 +400,11 @@ public final class DocsExtractor {
         attributes.put("section", section);
       }
       if (b.language() != null) {
-        attributes.put("diagram", b.language());
+        attributes.put("language", b.language());
       }
       facts.put(
           id,
-          CLAIM,
+          b.kind() == Kind.DIAGRAM ? DIAGRAM : CLAIM,
           FactObject.string(maskSecrets(b.text(), known)),
           attributes,
           source.evidence(b.start(), b.end()),

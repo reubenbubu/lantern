@@ -51,11 +51,11 @@ readme:orders:README.md claim Orders never calls another service synchronously. 
 readme:orders:README.md claim See [the decisions](docs/adr/). {"section":"Building"} @orders:README.md#45-45 0.5
 readme:orders:README.md claim `orders-api`: the REST API {"section":"Modules"} @orders:README.md#13-13 0.5
 readme:orders:README.md claim `orders-service`: the deployable application, packaging `orders-api` {"section":"Modules"} @orders:README.md#14-15 0.5
-readme:orders:README.md claim flowchart LR
-  orders --> rabbitmq[(RabbitMQ)] {"diagram":"mermaid","section":"Architecture"} @orders:README.md#29-32 0.5
-readme:orders:README.md claim ┌──────────┐     ┌────────────┐
+readme:orders:README.md diagram flowchart LR
+  orders --> rabbitmq[(RabbitMQ)] {"language":"mermaid","section":"Architecture"} @orders:README.md#29-32 0.5
+readme:orders:README.md diagram ┌──────────┐     ┌────────────┐
 │  orders  │────▶│ PostgreSQL │
-└──────────┘     └────────────┘ {"diagram":"text","section":"Architecture"} @orders:README.md#23-27 0.5
+└──────────┘     └────────────┘ {"language":"text","section":"Architecture"} @orders:README.md#23-27 0.5
 readme:orders:docs/user%20guide/README.md claim Customers see their orders under /my-orders. @orders:docs/user guide/README.md#1-1 0.5
 readme:orders:orders-service/README.md claim Runs on port 8080. {"section":"orders-service"} @orders:orders-service/README.md#3-3 0.5
 readme:orders:orders-service/README.md claim Secrets: `GITHUB_TOKEN=******` is never committed. {"section":"orders-service"} @orders:orders-service/README.md#5-5 0.5
@@ -64,5 +64,5 @@ readme:orders:payments/README.adoc claim Payments charges the customer's card th
 readme:orders:payments/README.adoc claim Provider: Stripe, called over HTTPS {"section":"Modules"} @orders:payments/README.adoc#37-37 0.5
 readme:orders:payments/README.adoc claim `payments-api`: the REST API {"section":"Modules"} @orders:payments/README.adoc#10-10 0.5
 readme:orders:payments/README.adoc claim `payments-service`: the deployable {"section":"Modules"} @orders:payments/README.adoc#11-11 0.5
-readme:orders:payments/README.adoc claim flowchart LR
-  payments --> provider[Payment provider] {"diagram":"mermaid","section":"Modules"} @orders:payments/README.adoc#22-25 0.5
+readme:orders:payments/README.adoc diagram flowchart LR
+  payments --> provider[Payment provider] {"language":"mermaid","section":"Modules"} @orders:payments/README.adoc#22-25 0.5

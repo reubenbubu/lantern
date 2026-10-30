@@ -20,12 +20,25 @@
   {
     "name": "claim",
     "kind": "attribute",
-    "description": "Something the subject document says, one paragraph, list item, table row, quote or diagram in its Markdown or AsciiDoc as written. A documented claim, not checked against the code.",
+    "description": "Something the subject document says, one paragraph, list item, table row or quote in its Markdown or AsciiDoc as written. A documented claim, not checked against the code.",
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "section": { "type": "string", "description": "The heading the claim is under, if any." },
-        "diagram": { "type": "string", "description": "For a diagram, its language, such as mermaid or plantuml, or text for one drawn with box characters; the claim is its source as written." }
+        "section": { "type": "string", "description": "The heading the claim is under, if any." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "diagram",
+    "kind": "attribute",
+    "description": "A diagram the subject document draws: the source of a code block in a diagram language, or of a plain one drawn as boxes, as written. A documented claim, not checked against the code.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "section": { "type": "string", "description": "The heading the diagram is under, if any." },
+        "language": { "type": "string", "description": "The diagram's language, such as mermaid or plantuml, or text for one drawn with box characters." }
       },
       "additionalProperties": false
     },

@@ -34,6 +34,10 @@ final class AsciiDoc {
       Pattern.compile("^[ \\t]*(?:\\*{1,5}|-|\\.{1,5}|\\d{1,9}\\.)[ \\t]+(.*)$");
   private static final Pattern DESCRIPTION =
       Pattern.compile("^(\\S.*?)(?::{2,4}|;;)(?:[ \\t]+(.*))?$");
+  private static final Pattern HEADER_OPTION =
+      Pattern.compile("(?<![A-Za-z])(%header|options\\s*=\\s*\"?[^\"\\]]*(?<!no)header)");
+  private static final Pattern COLS = Pattern.compile("cols\\s*=\\s*\"([^\"]*)\"");
+  private static final Pattern REPEAT = Pattern.compile("(\\d+)\\*.*");
   private static final Pattern TABLE = Pattern.compile("^[|!]===+[ \\t]*$");
 
   private AsciiDoc() {}
@@ -101,6 +105,9 @@ final class AsciiDoc {
           blocks.add(new Block(Kind.HEADING, m.group(1).length(), text.strip(), i + 1, i + 1));
           pending = "";
           i++;
+          if (m.group(1).equals("=") && blocks.size() == 1) {
+            i = header(i);
+          }
           continue;
         }
         if (open == null && (m = BLOCK_ATTRIBUTES.matcher(stripped)).matches()) {
@@ -132,7 +139,7 @@ final class AsciiDoc {
         }
         if (TABLE.matcher(stripped).matches()) {
           flush(i);
-          i = table(i, stripped.substring(0, 4));
+          i = table(i, stripped);
           pending = "";
           continue;
         }
@@ -148,6 +155,7 @@ final class AsciiDoc {
         if ((m = ITEM.matcher(line)).matches()) {
           flush(i);
           start(Kind.LIST_ITEM, i, m.group(1));
+          pending = "";
           i++;
           continue;
         }
@@ -211,6 +219,37 @@ final class AsciiDoc {
       return end + 1;
     }
 
+    /**
+     * Skips the document header's author and revision lines after the document title on line i - 1,
+     * up to the first blank line; attribute entries and comments there are read as usual. Returns
+     * the index of the first line not skipped.
+     */
+    private int header(int i) {
+      int j = i;
+      while (j < lines.size() && !lines.get(j).isBlank()) {
+        String line = lines.get(j);
+        if (ATTRIBUTE.matcher(line).matches() || line.strip().startsWith("//")) {
+          return j;
+        }
+        j++;
+      }
+      return j;
+    }
+
+    /** The column count a {@code cols} attribute gives, such as 2 for "1,3" or 3 for "3*", or 0. */
+    private static int columns(String attributes) {
+      Matcher m = COLS.matcher(attributes);
+      if (!m.find()) {
+        return 0;
+      }
+      String cols = m.group(1).strip();
+      Matcher repeat = REPEAT.matcher(cols);
+      if (repeat.matches()) {
+        return Integer.parseInt(repeat.group(1));
+      }
+      return cols.isEmpty() ? 0 : cols.split("[,;]").length;
+    }
+
     /** Skips a comment block; returns the index after it. */
     private int comment(int i, String delimiter) {
       int j = i + 1;
@@ -230,17 +269,19 @@ final class AsciiDoc {
      * {@code %header} or {@code options="header"}); returns the index after the closing delimiter.
      */
     private int table(int i, String delimiter) {
-      boolean header = pending.contains("header");
+      boolean header = HEADER_OPTION.matcher(pending).find();
+      boolean noHeader = pending.contains("noheader");
       String separator = delimiter.substring(0, 1);
       List<String> cells = new ArrayList<>();
       List<Integer> cellLines = new ArrayList<>();
+      int declared = columns(pending);
       int columns = 0;
       int firstLine = -1;
       int j = i + 1;
       for (; j < lines.size() && !lines.get(j).strip().equals(delimiter); j++) {
         String text = lines.get(j).strip();
         if (text.isEmpty()) {
-          if (j - 1 == firstLine && cells.size() == columns) {
+          if (!noHeader && j - 1 == firstLine && cells.size() == columns) {
             header = true;
           }
           continue;
@@ -255,7 +296,7 @@ final class AsciiDoc {
         }
         if (firstLine < 0) {
           firstLine = j;
-          columns = parts.size();
+          columns = declared > 0 ? declared : parts.size();
         }
         for (String part : parts) {
           cells.add(part);
