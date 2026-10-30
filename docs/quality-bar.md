@@ -38,7 +38,10 @@ related functionality encapsulated behind a well-defined interface" inside one c
 modules, packages, namespaces and folders are packaging units that "may" map to components but
 typically do not** ([c4model.com component](https://c4model.com/abstractions/component)). For
 libraries and SDKs, C4 says you are "better off using something like UML"
-([c4model.com FAQ](https://c4model.com/faq)).
+([c4model.com FAQ](https://c4model.com/faq)). A cache server reached over the network, such as
+Redis, is a data store; an in-process cache (Caffeine, Spring's simple map cache, an embedded
+Hazelcast member) is part of the container that holds it, never a box of its own
+([research](research/extractor-redis.md)).
 
 The notation rules are just as direct. Every element needs an explicit type and "a short
 description, to provide an 'at a glance' view of key responsibilities". Every container and
