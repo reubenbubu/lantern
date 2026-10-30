@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: jdbc:mysql://ledger-db:3306/ledger
+  liquibase:
+    contexts: prod, eu
+    parameters:
+      entry.suffix: _v2

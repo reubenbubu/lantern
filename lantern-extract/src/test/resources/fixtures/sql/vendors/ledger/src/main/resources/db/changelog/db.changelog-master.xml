@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <property name="entry.suffix" value="_v1"/>
+  <property name="uuid.type" value="uuid" dbms="postgresql"/>
+  <property name="uuid.type" value="char(36)" dbms="mysql,mariadb"/>
+
+  <changeSet id="1" author="test">
+    <createTable tableName="entry${entry.suffix}">
+      <column name="id" type="${uuid.type}">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="amount" type="DECIMAL(12,2)"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="2" author="test" dbms="postgresql">
+    <createTable tableName="pg_only">
+      <column name="id" type="BIGINT"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="3" author="test" dbms="!h2">
+    <createTable tableName="not_h2">
+      <column name="id" type="BIGINT"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="4" author="test" context="test">
+    <createTable tableName="test_only">
+      <column name="id" type="BIGINT"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="5" author="test" context="prod and !test">
+    <createTable tableName="prod_table">
+      <column name="id" type="BIGINT"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="6" author="test">
+    <sql dbms="postgresql">CREATE TABLE pg_sql (id BIGINT)</sql>
+    <sql dbms="mysql">CREATE TABLE mysql_sql (id BIGINT)</sql>
+  </changeSet>
+
+  <changeSet id="7" author="test">
+    <sqlFile path="extra.sql" relativeToChangelogFile="true"/>
+  </changeSet>
+
+  <include file="formatted.sql" relativeToChangelogFile="true"/>
+  <include file="postgres-only.xml" relativeToChangelogFile="true" dbms="postgresql"/>
+  <include file="test-data.xml" relativeToChangelogFile="true" context="test"/>
+</databaseChangeLog>

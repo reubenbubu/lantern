@@ -6,21 +6,31 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Applies Liquibase changelogs to a {@link SchemaModel}: XML, YAML and JSON changelogs and
  * formatted SQL ones, following {@code include} and {@code includeAll}. The changes that shape
  * tables, columns and keys are applied; the rest (data, indexes, views, sequences) are skipped.
- * Every change set is applied whatever its {@code dbms}, {@code context} or {@code labels}, and
- * rollbacks are not, since the schema is what the migrations build on a fresh database.
+ * Rollbacks are not applied, since the schema is what the migrations build on a fresh database.
+ *
+ * <p>As Liquibase runs them on the module's database: a change set, change, include or property
+ * whose {@code dbms} leaves the database out is skipped, and so is one whose {@code context} the
+ * application's contexts do not match, when the config sets them (without contexts Liquibase runs
+ * every change set). {@code ${...}} properties are replaced, each by its first value: the config's
+ * {@code spring.liquibase.parameters}, then the changelogs' {@code property} elements in the order
+ * they are read. Labels are not filtered, since Spring Boot sets none by default.
  */
 final class Liquibase {
 
@@ -30,10 +40,22 @@ final class Liquibase {
   private static final List<String> EXTENSIONS = List.of(".xml", ".yaml", ".yml", ".json", ".sql");
   private static final String RESOURCES = "src/main/resources/";
 
+  /** A formatted SQL changelog's {@code --changeset} or {@code --property} line. */
+  private static final Pattern FORMATTED_LINE =
+      Pattern.compile("(?i)^\\s*--\\s*(changeset|property)\\b(.*)$");
+
+  /** An attribute of such a line: {@code key:value} or {@code key:"value with spaces"}. */
+  private static final Pattern FORMATTED_ATTRIBUTE =
+      Pattern.compile("([A-Za-z]+):(?:\"([^\"]*)\"|(\\S+))");
+
   private final SortedSet<String> files;
   private final Function<String, RepoFiles.Content> reader;
   private final ExecutorService executor;
   private final double confidence;
+  private final Settings settings;
+
+  /** The properties defined so far, each with its first value. */
+  private final Map<String, String> properties = new LinkedHashMap<>();
 
   /** The files read, changelogs and the SQL files they include, so they are not read again. */
   private final Set<String> used = new LinkedHashSet<>();
@@ -43,16 +65,20 @@ final class Liquibase {
    * @param reader reads a file of the repository, or returns null
    * @param executor runs the SQL parser
    * @param confidence the confidence of facts drawn from changelogs
+   * @param settings the module's database, contexts and parameters
    */
   Liquibase(
       SortedSet<String> files,
       Function<String, RepoFiles.Content> reader,
       ExecutorService executor,
-      double confidence) {
+      double confidence,
+      Settings settings) {
     this.files = files;
     this.reader = reader;
     this.executor = executor;
     this.confidence = confidence;
+    this.settings = settings;
+    properties.putAll(settings.parameters());
   }
 
   /** Whether a file is a changelog: its root is {@code databaseChangeLog}, or formatted SQL. */
@@ -110,26 +136,34 @@ final class Liquibase {
     if (path.toLowerCase(Locale.ROOT).endsWith(".sql")) {
       SqlScript.apply(
           model,
-          new String(content.bytes(), StandardCharsets.UTF_8),
+          formattedSql(new String(content.bytes(), StandardCharsets.UTF_8)),
           new Where(path, content.hash(), 1, 1, confidence),
           false,
           executor);
       return;
     }
     ChangelogNode root = ChangelogNode.read(path, content.bytes());
-    if (root == null) {
+    if (root == null || !runs(root)) {
       return;
     }
     stack.push(path);
     for (ChangelogNode node : root.children()) {
+      if (!runs(node)) {
+        continue;
+      }
       switch (node.name()) {
+        case "property" -> define(node.attribute("name"), node.attribute("value"));
         case "changeSet" -> {
           for (ChangelogNode change : node.children()) {
-            change(model, path, content.hash(), change);
+            ChangelogNode expanded = change.expand(v -> Settings.expand(v, properties));
+            if (runs(expanded)) {
+              change(model, path, content.hash(), expanded);
+            }
           }
         }
         case "include", "includeAll" -> {
-          for (String included : resolveInclude(path, node)) {
+          for (String included :
+              resolveInclude(path, node.expand(v -> Settings.expand(v, properties)))) {
             if (!stack.contains(included)) {
               apply(model, included, stack);
             }
@@ -139,6 +173,155 @@ final class Liquibase {
       }
     }
     stack.pop();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Databases, contexts and properties
+
+  /** Whether an element runs on the module's database with the application's contexts. */
+  private boolean runs(ChangelogNode node) {
+    String context = node.attribute("contextFilter");
+    if (context == null) {
+      context = node.attribute("context");
+    }
+    if (context == null) {
+      context = node.attribute("contexts");
+    }
+    return Vendors.dbms(node.attribute("dbms"), settings.technology()) && contexts(context);
+  }
+
+  /**
+   * Whether a context expression matches the application's contexts: names joined by {@code ,} or
+   * {@code or}, {@code and}, negated by {@code !} or {@code not}, grouped in parentheses. Without
+   * an expression it matches; without contexts set it matches unless it names a mandatory context,
+   * one marked {@code @}.
+   */
+  boolean contexts(String expression) {
+    if (expression == null || expression.isBlank()) {
+      return true;
+    }
+    if (settings.contexts().isEmpty()) {
+      return !expression.contains("@");
+    }
+    return new ContextExpression(expression, settings.contexts()).matches();
+  }
+
+  /** Defines a property unless it has a value already: Liquibase keeps the first. */
+  private void define(String name, String value) {
+    if (name != null && value != null) {
+      properties.putIfAbsent(name, value);
+    }
+  }
+
+  /**
+   * A formatted SQL changelog with its properties replaced and the lines of the change sets that do
+   * not run blanked, so the rest keep their line numbers.
+   */
+  private String formattedSql(String text) {
+    String[] lines = text.split("\n", -1);
+    for (String line : lines) {
+      Matcher m = FORMATTED_LINE.matcher(line);
+      if (m.matches() && m.group(1).equalsIgnoreCase("property")) {
+        Map<String, String> attributes = formattedAttributes(m.group(2));
+        if (Vendors.dbms(attributes.get("dbms"), settings.technology())
+            && contexts(context(attributes))) {
+          define(attributes.get("name"), attributes.get("value"));
+        }
+      }
+    }
+    StringBuilder out = new StringBuilder();
+    boolean running = true;
+    for (int i = 0; i < lines.length; i++) {
+      Matcher m = FORMATTED_LINE.matcher(lines[i]);
+      if (m.matches() && m.group(1).equalsIgnoreCase("changeset")) {
+        Map<String, String> attributes = formattedAttributes(m.group(2));
+        running =
+            Vendors.dbms(attributes.get("dbms"), settings.technology())
+                && contexts(context(attributes));
+      }
+      if (running) {
+        out.append(lines[i]);
+      }
+      if (i + 1 < lines.length) {
+        out.append('\n');
+      }
+    }
+    return Settings.expand(out.toString(), properties);
+  }
+
+  private static Map<String, String> formattedAttributes(String text) {
+    Map<String, String> attributes = new LinkedHashMap<>();
+    Matcher m = FORMATTED_ATTRIBUTE.matcher(text);
+    while (m.find()) {
+      attributes.putIfAbsent(
+          m.group(1).toLowerCase(Locale.ROOT), m.group(2) != null ? m.group(2) : m.group(3));
+    }
+    return attributes;
+  }
+
+  private static String context(Map<String, String> attributes) {
+    String context = attributes.get("contextfilter");
+    return context != null ? context : attributes.get("context");
+  }
+
+  /** A context expression read by recursive descent. */
+  private static final class ContextExpression {
+    private final List<String> tokens = new ArrayList<>();
+    private final List<String> active;
+    private int at;
+
+    ContextExpression(String expression, List<String> active) {
+      Matcher m = Pattern.compile("[(),!]|[^\\s(),!]+").matcher(expression);
+      while (m.find()) {
+        tokens.add(m.group().toLowerCase(Locale.ROOT));
+      }
+      this.active = active;
+    }
+
+    boolean matches() {
+      return or();
+    }
+
+    private boolean or() {
+      boolean value = and();
+      while (at < tokens.size() && (tokens.get(at).equals(",") || tokens.get(at).equals("or"))) {
+        at++;
+        value |= and();
+      }
+      return value;
+    }
+
+    private boolean and() {
+      boolean value = not();
+      while (at < tokens.size() && tokens.get(at).equals("and")) {
+        at++;
+        value &= not();
+      }
+      return value;
+    }
+
+    private boolean not() {
+      if (at < tokens.size() && (tokens.get(at).equals("!") || tokens.get(at).equals("not"))) {
+        at++;
+        return !not();
+      }
+      if (at < tokens.size() && tokens.get(at).equals("(")) {
+        at++;
+        boolean value = or();
+        if (at < tokens.size() && tokens.get(at).equals(")")) {
+          at++;
+        }
+        return value;
+      }
+      if (at >= tokens.size()) {
+        return true;
+      }
+      String name = tokens.get(at++);
+      if (name.startsWith("@")) {
+        name = name.substring(1);
+      }
+      return active.contains(name);
+    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -330,7 +513,7 @@ final class Liquibase {
           used.add(found);
           SqlScript.apply(
               model,
-              new String(content.bytes(), StandardCharsets.UTF_8),
+              Settings.expand(new String(content.bytes(), StandardCharsets.UTF_8), properties),
               new Where(found, content.hash(), 1, 1, confidence),
               false,
               executor);

@@ -71,6 +71,52 @@ class SqlScriptTest {
   }
 
   @Test
+  void splitsAsEachDatabasesClientDoes() {
+    List<SqlScript.Part> parts =
+        SqlScript.split(
+            """
+            # MySQL comment; not a statement
+            CREATE TABLE a (id INT);
+            DELIMITER $$
+            CREATE TRIGGER t BEFORE UPDATE ON a FOR EACH ROW BEGIN SET NEW.id = 1; END$$
+            delimiter ;
+            CREATE TABLE b (id INT)
+            GO
+            CREATE TABLE c (id INT)
+            /
+            SELECT a # b FROM c;
+            """);
+
+    assertThat(parts)
+        .extracting(SqlScript.Part::sql)
+        .containsExactly(
+            "CREATE TABLE a (id INT)",
+            "CREATE TRIGGER t BEFORE UPDATE ON a FOR EACH ROW BEGIN SET NEW.id = 1; END",
+            "CREATE TABLE b (id INT)",
+            "CREATE TABLE c (id INT)",
+            "SELECT a # b FROM c");
+    assertThat(parts)
+        .extracting(p -> p.startLine() + "-" + p.endLine())
+        .containsExactly("2-2", "4-4", "6-6", "8-8", "10-10");
+  }
+
+  @Test
+  void aColumnNamedDelimiterIsNotTheClientsCommand() {
+    assertThat(
+            schema(
+                """
+                CREATE TABLE csv_format (
+                  id INT,
+                  delimiter VARCHAR(1),
+                  quote CHAR(1)
+                );
+                CREATE TABLE b (id INT);
+                """))
+        .containsExactlyInAnyOrder(
+            "b(id int)", "csv_format(id int, delimiter varchar(1), quote char(1))");
+  }
+
+  @Test
   void mysqlTablesWithBackticksAndTableKeys() {
     assertThat(
             schema(

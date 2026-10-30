@@ -1,0 +1,3 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://billing-db:5432/billing

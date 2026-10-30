@@ -64,6 +64,18 @@ record ChangelogNode(
     return value == null || value.isBlank() ? null : value.strip();
   }
 
+  /** This node and those below it with every attribute rewritten by a function. */
+  ChangelogNode expand(java.util.function.UnaryOperator<String> function) {
+    Map<String, String> expanded = new LinkedHashMap<>();
+    attributes.forEach((k, v) -> expanded.put(k, function.apply(v)));
+    return new ChangelogNode(
+        name,
+        expanded,
+        children.stream().map(c -> c.expand(function)).toList(),
+        startLine,
+        endLine);
+  }
+
   boolean flag(String name) {
     return "true".equalsIgnoreCase(attribute(name));
   }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog">
+  <changeSet id="1" author="test" dbms="none">
+    <createTable tableName="never">
+      <column name="id" type="BIGINT"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="2" author="test" dbms="all">
+    <createTable tableName="always">
+      <column name="id" type="BIGINT"/>
+    </createTable>
+  </changeSet>
+</databaseChangeLog>

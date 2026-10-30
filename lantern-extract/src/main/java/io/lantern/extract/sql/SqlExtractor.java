@@ -11,6 +11,8 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
+import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.config.ModuleConfig;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.sql.SchemaModel.Where;
 import java.io.IOException;
@@ -45,6 +47,11 @@ import tools.jackson.databind.node.ObjectNode;
  * keys. It reads Flyway migrations, Liquibase changelogs (XML, YAML, JSON and formatted SQL) and
  * other {@code .sql} files with JSqlParser. See {@code docs/adr/0034-sql-extractor.md}.
  *
+ * <p>The module's config says which database the migrations run on ({@link Settings}): where files
+ * are kept per database, only that database's copy is read ({@link Vendors}), and Flyway's
+ * placeholders and Liquibase's properties, databases and contexts are applied as the tools apply
+ * them. Where the config names the scripts Spring runs, other scripts are not read.
+ *
  * <p>Each Maven module with migrations has one schema, {@code schema:<groupId>:<artifactId>}, which
  * the module contains. Its tables are {@code table:<schema key>:<table>} and their columns {@code
  * column:<schema key>:<table>#<column>}, with names as the database folds them: unquoted names in
@@ -56,7 +63,7 @@ public final class SqlExtractor {
   public static final String NAME = "sql";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "sql-extractor";
@@ -207,9 +214,19 @@ public final class SqlExtractor {
       byModule.computeIfAbsent(moduleDirectory(path, modules), d -> new ArrayList<>()).add(path);
     }
     SortedSet<String> all = new TreeSet<>(paths);
+    Map<String, ModuleConfig> configs = new HashMap<>();
+    if (!byModule.isEmpty()) {
+      for (ModuleConfig config : ConfigExtractor.read(repo)) {
+        if (config.application() == null) {
+          configs.putIfAbsent(config.directory(), config);
+        }
+      }
+    }
     for (Map.Entry<String, List<String>> group : byModule.entrySet()) {
       EntityId module = modules.get(group.getKey());
-      Migrations migrations = classify(group.getValue(), reader);
+      Settings settings = Settings.of(configs.get(group.getKey()));
+      Migrations migrations =
+          classify(Vendors.select(group.getValue(), settings.technology()), reader);
       SchemaModel model = new SchemaModel();
       Map<String, String> kinds = new LinkedHashMap<>();
       for (String path : migrations.flyway()) {
@@ -218,13 +235,13 @@ public final class SqlExtractor {
           kinds.put(path, FLYWAY);
           SqlScript.apply(
               model,
-              new String(content.bytes(), StandardCharsets.UTF_8),
+              settings.flyway(new String(content.bytes(), StandardCharsets.UTF_8)),
               new Where(path, content.hash(), 1, 1, MIGRATION_CONFIDENCE),
               false,
               executor);
         }
       }
-      Liquibase liquibase = new Liquibase(all, reader, executor, MIGRATION_CONFIDENCE);
+      Liquibase liquibase = new Liquibase(all, reader, executor, MIGRATION_CONFIDENCE, settings);
       for (String root : Liquibase.roots(new TreeSet<>(migrations.changelogs()), liquibase)) {
         liquibase.apply(model, root);
       }
@@ -233,7 +250,8 @@ public final class SqlExtractor {
       }
       for (String path : migrations.scripts()) {
         RepoFiles.Content content = reader.apply(path);
-        if (content != null && !liquibase.used().contains(path)) {
+        boolean run = settings.scriptLocations().isEmpty() || settings.isScriptLocation(path);
+        if (content != null && run && !liquibase.used().contains(path)) {
           kinds.put(path, SQL);
           SqlScript.apply(
               model,

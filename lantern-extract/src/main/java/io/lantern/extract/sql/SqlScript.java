@@ -45,6 +45,16 @@ final class SqlScript {
       Pattern.compile("(?i)\\bDROP\\s+FOREIGN\\s+KEY\\b");
   private static final Pattern DOLLAR_TAG = Pattern.compile("\\$[A-Za-z_]*\\$");
 
+  /** The MySQL client's command that changes the delimiter, alone on its line. */
+  private static final Pattern DELIMITER = Pattern.compile("(?i)\\s*DELIMITER\\s+(\\S+)\\s*");
+
+  /**
+   * A line that ends a statement in the tools that run scripts: SQL Server's {@code GO} and
+   * SQL*Plus's {@code /}.
+   */
+  private static final Pattern SEPARATOR_LINE =
+      Pattern.compile("(?i)\\s*(?:GO(?:\\s+\\d+)?|/)\\s*");
+
   private static final System.Logger LOG = System.getLogger(SqlScript.class.getName());
 
   private SqlScript() {}
@@ -56,10 +66,15 @@ final class SqlScript {
    * Splits a script into statements at semicolons outside quotes, quoted identifiers, dollar quotes
    * and comments. Comments before a statement are left out of it; a statement's lines run from its
    * first character to its last.
+   *
+   * <p>Scripts written for a database's own client are read as that client reads them: MySQL's
+   * {@code DELIMITER} lines change the delimiter, a line of {@code GO} (SQL Server) or {@code /}
+   * (Oracle) ends a statement, and a {@code #} that starts a line starts a comment (MySQL).
    */
   static List<Part> split(String script) {
     List<Part> parts = new ArrayList<>();
     StringBuilder current = new StringBuilder();
+    String delimiter = ";";
     int line = 1;
     int startLine = 0;
     int endLine = 0;
@@ -67,6 +82,30 @@ final class SqlScript {
     int n = script.length();
     while (i < n) {
       char c = script.charAt(i);
+      if (i == 0 || script.charAt(i - 1) == '\n') {
+        int end = script.indexOf('\n', i);
+        end = end < 0 ? n : end;
+        String text = script.substring(i, end);
+        Matcher delimiterLine = DELIMITER.matcher(text);
+        boolean separator = SEPARATOR_LINE.matcher(text).matches();
+        // DELIMITER is the client's command, so only between statements; a column of that name is
+        // not.
+        boolean command = delimiterLine.matches() && startLine == 0;
+        if (command || separator) {
+          if (command) {
+            delimiter = delimiterLine.group(1);
+          }
+          add(parts, current, startLine, endLine);
+          current.setLength(0);
+          startLine = 0;
+          i = end;
+          continue;
+        }
+        if (text.stripLeading().startsWith("#")) {
+          i = end;
+          continue;
+        }
+      }
       if (c == '-' && i + 1 < n && script.charAt(i + 1) == '-') {
         int end = script.indexOf('\n', i);
         i = end < 0 ? n : end;
@@ -80,11 +119,11 @@ final class SqlScript {
         current.append(' ');
         continue;
       }
-      if (c == ';') {
+      if (script.startsWith(delimiter, i)) {
         add(parts, current, startLine, endLine);
         current.setLength(0);
         startLine = 0;
-        i++;
+        i += delimiter.length();
         continue;
       }
       if (c == '\n') {

@@ -43,6 +43,13 @@ class SqlExtractorTest {
   }
 
   @Test
+  void eachModuleReadAsItsDatabaseAndToolsRunIt() throws IOException {
+    Repo repo = Fixtures.repo("sql/vendors", temp.resolve("vendors"), "vendors");
+
+    Fixtures.assertGolden("sql/vendors.txt", extract(List.of(repo)));
+  }
+
+  @Test
   void repositoryWithoutModulesHasOneSchemaNamedAfterIt() throws IOException {
     Repo repo =
         Fixtures.repo(

@@ -1,4 +1,4 @@
-package io.lantern.extract.persistence;
+package io.lantern.extract.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
