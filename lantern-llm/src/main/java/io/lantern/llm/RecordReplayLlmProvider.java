@@ -70,21 +70,18 @@ public final class RecordReplayLlmProvider implements LlmProvider {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
-    return complete(model, request, false, () -> recordFrom.complete(model, request));
+    return complete(model, request, Thinking.DEFAULT, () -> recordFrom.complete(model, request));
   }
 
   @Override
   public LlmResponse complete(ModelConfig model, LlmRequest request) {
     return complete(
-        model.model(),
-        request,
-        model.thinking().disabled(),
-        () -> recordFrom.complete(model, request));
+        model.model(), request, model.thinking(), () -> recordFrom.complete(model, request));
   }
 
   private LlmResponse complete(
-      String model, LlmRequest request, boolean thinkingDisabled, Supplier<LlmResponse> record) {
-    ObjectNode key = key(model, request, thinkingDisabled);
+      String model, LlmRequest request, Thinking thinking, Supplier<LlmResponse> record) {
+    ObjectNode key = key(model, request, thinking);
     Path file = directory.resolve(hash(key) + ".json");
     if (Files.isRegularFile(file)) {
       return read(file);
@@ -103,7 +100,7 @@ public final class RecordReplayLlmProvider implements LlmProvider {
   }
 
   /** What identifies a request: everything sent to the model, in a fixed order. */
-  private ObjectNode key(String model, LlmRequest request, boolean thinkingDisabled) {
+  private ObjectNode key(String model, LlmRequest request, Thinking thinking) {
     ObjectNode key = COMPACT.createObjectNode();
     key.put("provider", name);
     key.put("model", model);
@@ -136,9 +133,13 @@ public final class RecordReplayLlmProvider implements LlmProvider {
       }
     }
     key.put("maxOutputTokens", request.maxOutputTokens());
-    if (thinkingDisabled) {
+    if (thinking.disabled()) {
       // Only when set, so that recordings made before this setting existed keep their names.
       key.put("thinkingDisabled", true);
+      // Likewise only for an off switch other than the one that existed first.
+      if (thinking.offSwitch() != Thinking.OffSwitch.DISABLED) {
+        key.put("thinkingOffSwitch", thinking.offSwitch().name());
+      }
     }
     if (!request.tools().isEmpty()) {
       ArrayNode tools = key.putArray("tools");

@@ -127,6 +127,15 @@ class RecordReplayLlmProviderTest {
                 .complete(plain.withThinking(new Thinking(true, 0)), request))
         .extracting(LlmResponse::text)
         .isEqualTo("An order.");
+
+    // Another off switch sends another request, so it is recorded apart.
+    recorder.complete(
+        plain.withThinking(new Thinking(true, 0, Thinking.OffSwitch.BETWEEN_TOOLS)), request);
+    assertThat(real.sent()).hasSize(3);
+    // An off switch that is not used sends nothing more, so it keeps the plain recording.
+    recorder.complete(
+        plain.withThinking(new Thinking(false, 0, Thinking.OffSwitch.BETWEEN_TOOLS)), request);
+    assertThat(real.sent()).hasSize(3);
   }
 
   /**
