@@ -84,7 +84,7 @@ snapshots would pick it up (ADR 0005, 0019).
   the same snapshot, which is already trusted no further than any build.
 - POMs are given as written, so a module whose version is a CI-friendly property (`${revision}`)
   that the flatten plugin would replace gives a POM Maven cannot use; a classifier other than none
-  (as a dropped test set used, `all`) and packaging such as `war` used as a dependency type are not given. These can
+  (such as `all`, which a dropped test set used) and packaging such as `war` used as a dependency type are not given. These can
   be added when a test set needs them.
 - The build order reads POMs as written, so a dependency added only by a parent POM outside the
   snapshot is not seen, and such a repository may be built before the one it needs.
