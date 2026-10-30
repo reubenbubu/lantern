@@ -1,4 +1,4 @@
-package io.lantern.extract.persistence;
+package io.lantern.extract.sql;
 
 import io.lantern.extract.config.UrlCredentials;
 import java.util.ArrayList;
@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  * @param server the host and port as written, such as {@code shop-db:5432}, or null
  * @param database the database, service or schema name the URL names, or null
  */
-record JdbcUrl(String url, String technology, String server, String database) {
+public record JdbcUrl(String url, String technology, String server, String database) {
 
   /** Database technologies by JDBC subprotocol. */
   private static final Map<String, String> TECHNOLOGIES =
@@ -78,7 +78,7 @@ record JdbcUrl(String url, String technology, String server, String database) {
    * @param driver the driver class configured with it, or null
    * @return the URL without credentials; its URL is null if a credential might be left in it
    */
-  static JdbcUrl of(String value, String driver) {
+  public static JdbcUrl of(String value, String driver) {
     String url = UrlCredentials.withoutCredentials(value.strip());
     String technology = technology(url);
     if (technology == null && driver != null) {

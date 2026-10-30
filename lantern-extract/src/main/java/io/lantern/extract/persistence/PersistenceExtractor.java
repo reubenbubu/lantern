@@ -23,6 +23,7 @@ import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.Supertype;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.sql.JdbcUrl;
 import io.lantern.extract.sql.SqlExtractor;
 import java.io.IOException;
 import java.io.InputStream;

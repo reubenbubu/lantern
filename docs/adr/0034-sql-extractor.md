@@ -89,3 +89,45 @@ modelled, and what happens with SQL the parser cannot read.
 - **Not covered yet:** Flyway Java migrations and placeholders, Liquibase property substitution and
   preconditions, `CREATE TABLE ... LIKE` and `AS SELECT` columns, check constraints, indexes, views,
   and statement delimiters other than `;` (`GO`, `/`).
+
+## Amendment (#386): the module's database, placeholders and client scripts
+
+Research: `docs/research/extractor-sql.md`. A module that keeps a copy of its migrations per
+database had every copy replayed into one schema; Flyway placeholders and Liquibase properties
+were parsed as written, so a statement using one was lost or named a table `${prefix}orders`;
+Liquibase change sets for another database or a test context were applied; and scripts written
+for MySQL's, SQL Server's or Oracle's client were split wrongly. The extractor's version becomes 3.
+
+- **The module's settings** come from its Spring Boot config (the Config extractor's reading), in
+  its `prod` or `production` profile where it has one, since the schema described is the deployed
+  one, else in the default view. The database is that of `spring.flyway.url`,
+  `spring.liquibase.url`, then the datasource URL (with its driver class), else
+  `spring.sql.init.platform`. The JDBC URL reader moves from the Persistence extractor's package to
+  this one's, so both use it.
+- **One copy per database.** A file in a folder below `src/main` named after a database
+  (`db/migration/postgresql/`, `db/mysql/`) or named `schema-<database>.sql` or
+  `data-<database>.sql` is written for that database. When the module's database is known and at
+  least one file is written for it, files written for other databases are not read. Otherwise
+  every file is read, as before. Where `spring.sql.init.schema-locations` names plain classpath
+  files, the other `.sql` scripts of the module are not read either.
+- **Flyway placeholders** (`spring.flyway.placeholders.*`, with the configured prefix and suffix,
+  unless `placeholder-replacement` is off) are replaced before parsing, a name matched ignoring
+  case as a fallback. `${flyway:defaultSchema}` becomes `spring.flyway.default-schema` or the first
+  of `spring.flyway.schemas`; without either it is dropped with its dot, so the name means the
+  connection's default schema. Other placeholders without a value, and those whose key names a
+  secret, are left as written.
+- **Liquibase** skips a change set, change, include, root changelog or property whose `dbms` leaves
+  out the module's database (a list, `!` to exclude, `all`, `none`); without a known database only
+  `none` is skipped. Context expressions (`,`, `or`, `and`, `!`, `not`, parentheses) are matched
+  against the profile's `spring.liquibase.contexts`; without contexts every change set runs except
+  one naming a mandatory (`@`) context, as Liquibase does. Formatted SQL changelogs get the same
+  rules from their `--changeset` and `--property` lines. `${...}` properties are replaced in
+  changes, includes, formatted SQL and `sqlFile` scripts, each by its first value:
+  `spring.liquibase.parameters.*`, then `property` definitions in the order they are read; every
+  property is treated as global. Labels are not filtered, since Spring Boot sets none by default.
+- **Client scripts.** A line `DELIMITER <text>` changes the statement delimiter (MySQL); a line of
+  `GO` (SQL Server) or `/` (Oracle) ends a statement; a line starting with `#` is a comment (MySQL).
+- **Not covered yet** (each in the `Later` milestone): the default schema of unqualified names
+  (#468), Java migrations and Liquibase `customChange` (#469), the entity model as the schema when
+  a module has no migrations (#470), replay on a real database (#471), migration locations and
+  changelogs set in code (#472), and Liquibase properties files and `global="false"`.

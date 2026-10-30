@@ -1,0 +1,1 @@
+CREATE TABLE h2_account (id INT PRIMARY KEY);

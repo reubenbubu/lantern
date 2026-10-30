@@ -1,0 +1,122 @@
+column:com.example:billing:bill_note#body data-type text @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+column:com.example:billing:bill_note#body nullable true @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+column:com.example:billing:bill_note#body position 2 @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+column:com.example:billing:bill_note#id data-type bigint @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+column:com.example:billing:bill_note#id nullable false @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+column:com.example:billing:bill_note#id position 1 @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+column:com.example:billing:billing.bill_invoice#id data-type bigserial @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+column:com.example:billing:billing.bill_invoice#id nullable false @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+column:com.example:billing:billing.bill_invoice#id position 1 @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+column:com.example:billing:billing.bill_invoice#total data-type numeric(12, 2) @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+column:com.example:billing:billing.bill_invoice#total nullable false @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+column:com.example:billing:billing.bill_invoice#total position 2 @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+column:com.example:clinic:owners#id data-type integer @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+column:com.example:clinic:owners#id nullable false @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+column:com.example:clinic:owners#id position 1 @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+column:com.example:clinic:owners#name data-type varchar(30) @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+column:com.example:clinic:owners#name nullable true @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+column:com.example:clinic:owners#name position 2 @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+column:com.example:ledger:audit_log#id data-type bigint @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+column:com.example:ledger:audit_log#id nullable false @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+column:com.example:ledger:audit_log#id position 1 @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+column:com.example:ledger:audit_log#payload data-type json @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+column:com.example:ledger:audit_log#payload nullable true @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+column:com.example:ledger:audit_log#payload position 2 @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+column:com.example:ledger:entry_v2#amount data-type decimal(12,2) @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#16-16 1.0
+column:com.example:ledger:entry_v2#amount nullable true @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#16-16 1.0
+column:com.example:ledger:entry_v2#amount position 2 @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#16-16 1.0
+column:com.example:ledger:entry_v2#id data-type char(36) @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#13-15 1.0
+column:com.example:ledger:entry_v2#id nullable false @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#13-15 1.0
+column:com.example:ledger:entry_v2#id position 1 @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#13-15 1.0
+column:com.example:ledger:mysql_sql#id data-type bigint @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#46-46 1.0
+column:com.example:ledger:mysql_sql#id nullable true @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#46-46 1.0
+column:com.example:ledger:mysql_sql#id position 1 @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#46-46 1.0
+column:com.example:ledger:not_h2#id data-type bigint @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#28-28 1.0
+column:com.example:ledger:not_h2#id nullable true @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#28-28 1.0
+column:com.example:ledger:not_h2#id position 1 @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#28-28 1.0
+column:com.example:ledger:prod_table#id data-type bigint @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#40-40 1.0
+column:com.example:ledger:prod_table#id nullable true @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#40-40 1.0
+column:com.example:ledger:prod_table#id position 1 @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#40-40 1.0
+column:com.example:ledger:regional#id data-type bigint @vendors:ledger/src/main/resources/db/changelog/formatted.sql#15-15 1.0
+column:com.example:ledger:regional#id nullable true @vendors:ledger/src/main/resources/db/changelog/formatted.sql#15-15 1.0
+column:com.example:ledger:regional#id position 1 @vendors:ledger/src/main/resources/db/changelog/formatted.sql#15-15 1.0
+column:com.example:legacy:account#balance data-type decimal(10, 2) @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+column:com.example:legacy:account#balance nullable true @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+column:com.example:legacy:account#balance position 2 @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+column:com.example:legacy:account#id data-type int @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+column:com.example:legacy:account#id nullable false @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+column:com.example:legacy:account#id position 1 @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+column:com.example:legacy:transfer#account_id data-type int @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+column:com.example:legacy:transfer#account_id nullable true @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+column:com.example:legacy:transfer#account_id position 2 @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+column:com.example:legacy:transfer#id data-type int @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+column:com.example:legacy:transfer#id nullable false @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+column:com.example:legacy:transfer#id position 1 @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+column:com.example:reports:report#id data-type int @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+column:com.example:reports:report#id nullable false @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+column:com.example:reports:report#id position 1 @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+column:com.example:reports:report#title data-type nvarchar(100) @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+column:com.example:reports:report#title nullable true @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+column:com.example:reports:report#title position 2 @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+column:com.example:reports:report_run#id data-type int @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+column:com.example:reports:report_run#id nullable false @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+column:com.example:reports:report_run#id position 1 @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+column:com.example:reports:report_run#report_id data-type int @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+column:com.example:reports:report_run#report_id nullable true @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+column:com.example:reports:report_run#report_id position 2 @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+module:com.example:billing CONTAINS schema:com.example:billing @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql 1.0
+module:com.example:clinic CONTAINS schema:com.example:clinic @vendors:clinic/src/main/resources/db/h2/schema.sql 0.8
+module:com.example:ledger CONTAINS schema:com.example:ledger @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml 1.0
+module:com.example:legacy CONTAINS schema:com.example:legacy @vendors:legacy/src/main/resources/schema-mysql.sql 0.8
+module:com.example:reports CONTAINS schema:com.example:reports @vendors:reports/src/main/resources/db/reports.sql 0.8
+schema:com.example:billing CONTAINS table:com.example:billing:bill_note @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+schema:com.example:billing CONTAINS table:com.example:billing:billing.bill_invoice @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+schema:com.example:billing kind flyway @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql 1.0
+schema:com.example:clinic CONTAINS table:com.example:clinic:owners @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+schema:com.example:clinic kind sql @vendors:clinic/src/main/resources/db/h2/schema.sql 0.8
+schema:com.example:ledger CONTAINS table:com.example:ledger:audit_log @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+schema:com.example:ledger CONTAINS table:com.example:ledger:entry_v2 @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#12-17 1.0
+schema:com.example:ledger CONTAINS table:com.example:ledger:mysql_sql @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#46-46 1.0
+schema:com.example:ledger CONTAINS table:com.example:ledger:not_h2 @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#27-29 1.0
+schema:com.example:ledger CONTAINS table:com.example:ledger:prod_table @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#39-41 1.0
+schema:com.example:ledger CONTAINS table:com.example:ledger:regional @vendors:ledger/src/main/resources/db/changelog/formatted.sql#15-15 1.0
+schema:com.example:ledger kind liquibase @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml 1.0
+schema:com.example:legacy CONTAINS table:com.example:legacy:account @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+schema:com.example:legacy CONTAINS table:com.example:legacy:transfer @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+schema:com.example:legacy kind sql @vendors:legacy/src/main/resources/schema-mysql.sql 0.8
+schema:com.example:reports CONTAINS table:com.example:reports:report @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+schema:com.example:reports CONTAINS table:com.example:reports:report_run @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+schema:com.example:reports kind sql @vendors:reports/src/main/resources/db/reports.sql 0.8
+table:com.example:billing:bill_note CONTAINS column:com.example:billing:bill_note#body @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+table:com.example:billing:bill_note CONTAINS column:com.example:billing:bill_note#id @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+table:com.example:billing:bill_note PRIMARY_KEY column:com.example:billing:bill_note#id {"columns":["id"]} @vendors:billing/src/main/resources/db/migration/V2__notes.sql#1-4 1.0
+table:com.example:billing:billing.bill_invoice CONTAINS column:com.example:billing:billing.bill_invoice#id @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+table:com.example:billing:billing.bill_invoice CONTAINS column:com.example:billing:billing.bill_invoice#total @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+table:com.example:billing:billing.bill_invoice PRIMARY_KEY column:com.example:billing:billing.bill_invoice#id {"columns":["id"]} @vendors:billing/src/main/resources/db/migration/postgresql/V1__invoices.sql#1-4 1.0
+table:com.example:clinic:owners CONTAINS column:com.example:clinic:owners#id @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+table:com.example:clinic:owners CONTAINS column:com.example:clinic:owners#name @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+table:com.example:clinic:owners PRIMARY_KEY column:com.example:clinic:owners#id {"columns":["id"]} @vendors:clinic/src/main/resources/db/h2/schema.sql#1-1 0.8
+table:com.example:ledger:audit_log CONTAINS column:com.example:ledger:audit_log#id @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+table:com.example:ledger:audit_log CONTAINS column:com.example:ledger:audit_log#payload @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+table:com.example:ledger:audit_log PRIMARY_KEY column:com.example:ledger:audit_log#id {"columns":["id"]} @vendors:ledger/src/main/resources/db/changelog/formatted.sql#6-6 1.0
+table:com.example:ledger:entry_v2 CONTAINS column:com.example:ledger:entry_v2#amount @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#16-16 1.0
+table:com.example:ledger:entry_v2 CONTAINS column:com.example:ledger:entry_v2#id @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#13-15 1.0
+table:com.example:ledger:entry_v2 PRIMARY_KEY column:com.example:ledger:entry_v2#id {"columns":["id"]} @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#13-15 1.0
+table:com.example:ledger:mysql_sql CONTAINS column:com.example:ledger:mysql_sql#id @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#46-46 1.0
+table:com.example:ledger:not_h2 CONTAINS column:com.example:ledger:not_h2#id @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#28-28 1.0
+table:com.example:ledger:prod_table CONTAINS column:com.example:ledger:prod_table#id @vendors:ledger/src/main/resources/db/changelog/db.changelog-master.xml#40-40 1.0
+table:com.example:ledger:regional CONTAINS column:com.example:ledger:regional#id @vendors:ledger/src/main/resources/db/changelog/formatted.sql#15-15 1.0
+table:com.example:legacy:account CONTAINS column:com.example:legacy:account#balance @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+table:com.example:legacy:account CONTAINS column:com.example:legacy:account#id @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+table:com.example:legacy:account PRIMARY_KEY column:com.example:legacy:account#id {"columns":["id"]} @vendors:legacy/src/main/resources/schema-mysql.sql#2-5 0.8
+table:com.example:legacy:transfer CONTAINS column:com.example:legacy:transfer#account_id @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+table:com.example:legacy:transfer CONTAINS column:com.example:legacy:transfer#id @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+table:com.example:legacy:transfer PRIMARY_KEY column:com.example:legacy:transfer#id {"columns":["id"]} @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+table:com.example:legacy:transfer REFERENCES table:com.example:legacy:account {"columns":["account_id"],"referencedColumns":["id"]} @vendors:legacy/src/main/resources/schema-mysql.sql#18-21 0.8
+table:com.example:reports:report CONTAINS column:com.example:reports:report#id @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+table:com.example:reports:report CONTAINS column:com.example:reports:report#title @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+table:com.example:reports:report PRIMARY_KEY column:com.example:reports:report#id {"columns":["id"]} @vendors:reports/src/main/resources/db/reports.sql#1-4 0.8
+table:com.example:reports:report_run CONTAINS column:com.example:reports:report_run#id @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+table:com.example:reports:report_run CONTAINS column:com.example:reports:report_run#report_id @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+table:com.example:reports:report_run PRIMARY_KEY column:com.example:reports:report_run#id {"columns":["id"]} @vendors:reports/src/main/resources/db/reports.sql#7-10 0.8
+table:com.example:reports:report_run REFERENCES table:com.example:reports:report {"columns":["report_id"],"name":"report_run_report_fk","referencedColumns":["id"]} @vendors:reports/src/main/resources/db/reports.sql#13-13 0.8
