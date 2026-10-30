@@ -323,6 +323,34 @@ class DeployableUnitsTest {
   }
 
   @Test
+  void aTestScopedStarterOrWebClientInAServletUnitIsNotAFramework() {
+    module("r", "service:g:site", "jar");
+    dependency(
+        "r",
+        "g:site",
+        "artifact:org.springframework.boot:spring-boot-starter-web",
+        "{\"scope\":\"compile\"}",
+        10);
+    dependency(
+        "r",
+        "g:site",
+        "artifact:org.springframework.boot:spring-boot-starter-webflux",
+        "{\"scope\":\"compile\"}",
+        11);
+    dependency(
+        "r",
+        "g:site",
+        "artifact:org.springframework.boot:spring-boot-starter-websocket",
+        "{\"scope\":\"test\"}",
+        12);
+    javaRelease("r", "g:site", "21");
+    bootMain("r", "g:site", "g.site.Application");
+
+    assertThat(derive())
+        .anyMatch(f -> f.startsWith("service:g:site technology Spring Boot / Java 21 "));
+  }
+
+  @Test
   void aMonolithBundlesEveryLibraryOnItsRuntimeClasspathOnce() {
     module("r", "service:g:app", "jar");
     module("r", "library:g:model", "jar");

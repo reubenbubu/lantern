@@ -437,6 +437,15 @@ public final class DeployableUnits implements LinkStep {
      * version its dependency states, if any, in the table's order; WebFlux is left out when the
      * gateway, which is built on it, is there.
      */
+    private boolean hasArtifact(Index index, String artifactPrefix) {
+      return modules().stream()
+          .flatMap(m -> index.deps.getOrDefault(m, List.of()).stream())
+          .anyMatch(
+              d ->
+                  d.object().value().equals("artifact:" + SPRING_BOOT_GROUP + artifactPrefix)
+                      && PACKAGED_SCOPES.contains(text(d, "scope")));
+    }
+
     private List<String> frameworks(Index index) {
       Map<String, String> found = new LinkedHashMap<>();
       for (Framework framework : FRAMEWORKS) {
@@ -445,7 +454,8 @@ public final class DeployableUnits implements LinkStep {
         }
         for (EntityId m : modules()) {
           for (Fact dep : index.deps.getOrDefault(m, List.of())) {
-            if (dep.object().value().startsWith("artifact:" + framework.artifactPrefix())) {
+            if (dep.object().value().startsWith("artifact:" + framework.artifactPrefix())
+                && PACKAGED_SCOPES.contains(text(dep, "scope"))) {
               // Spring Boot's own starters are at Spring Boot's version, already named.
               String version =
                   framework.artifactPrefix().startsWith(SPRING_BOOT_GROUP)
@@ -460,7 +470,10 @@ public final class DeployableUnits implements LinkStep {
           }
         }
       }
-      if (found.containsKey("Spring Cloud Gateway")) {
+      if (found.containsKey("Spring Cloud Gateway")
+          || hasArtifact(index, "spring-boot-starter-web")) {
+        // The gateway is built on WebFlux; WebClient alone in a servlet application is not
+        // reactive.
         found.remove("WebFlux");
       }
       List<String> result = new ArrayList<>();
