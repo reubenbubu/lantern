@@ -1,6 +1,6 @@
 ---
-name: Task
-about: A piece of work on Lantern, written so a person can follow it and an agent can start from it
+name: Fix
+about: Something Lantern does wrong today, written so a person can follow it and an agent can start from it
 ---
 
 <!--
