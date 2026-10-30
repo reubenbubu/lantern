@@ -415,7 +415,10 @@ final class FrontendLinker {
       facts.add(target.fact().id());
     }
     Unit unit = index.units.get(target.to());
-    if (from.predicate().equals(FrontendExtractor.CALL) && unit != null && reached.path() != null) {
+    if (from.predicate().equals(FrontendExtractor.CALL)
+        && unit != null
+        && reached.path() != null
+        && !reached.path().isEmpty()) {
       boolean socket = reached.protocol().equals(FrontendExtractor.WEBSOCKET);
       Entry entry = entry(unit, method, reached.path(), socket, view);
       if (entry != null) {

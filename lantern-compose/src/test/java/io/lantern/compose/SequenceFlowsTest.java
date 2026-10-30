@@ -693,6 +693,54 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aFlowOfTheShapeOfOneShownIsNotShownAgain() {
+    // ship's status endpoint reads its database, as the nightly job writes it: the same lifelines,
+    // but one starts with a request and the other on a schedule, so both are shown.
+    relate("ship", STATUS, "READS_TABLE", "table:x:ship:parcel", "{}", 4);
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .contains("GET /status on ship", "Nightly.run on its schedule in ship");
+
+    // A second endpoint with the same lifelines in the same order is the same picture.
+    String track = "method:x.ship.Status#track()";
+    relate("ship", "type:x.ship.Status", "CONTAINS", track, "{}", 0);
+    attribute("ship", track, "endpoint", "GET /track", "{}", 0);
+    relate("ship", track, "READS_TABLE", "table:x:ship:parcel", "{}", 5);
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .contains("GET /status on ship")
+        .doesNotContain("GET /track on ship");
+  }
+
+  @Test
+  void aFrontendNoPersonUsesStartsTheFlowItself() {
+    attribute(
+        "front",
+        UI,
+        "frontend-app",
+        "angular",
+        "{\"name\": \"ui\", \"directory\": \"ui\", \"technology\": \"Angular 19.2\"}",
+        0);
+    relate(
+        "front",
+        UI,
+        "CALLS_HTTP",
+        FRONT,
+        "{\"httpMethod\": \"POST\", \"path\": \"/orders\", \"protocol\": \"JSON/HTTP\","
+            + " \"reaches\": \""
+            + PLACE
+            + "\", \"reachesUnit\": \""
+            + FRONT
+            + "\", \"reachesEndpoint\": \"POST /orders\"}",
+        3);
+
+    assertThat(steps(diagram(flows(system(facts)).sections().getFirst()).steps()))
+        .startsWith(
+            "note []: Starts when ui sends POST /orders to front (Api.place).",
+            "frontend:front/ui > service:x:front: Calls Api.place [POST /orders] (Over JSON/HTTP.)");
+  }
+
+  @Test
   void aWebSocketEndpointNoFrontendOpensStartsNoFlow() {
     attribute(
         "ship",

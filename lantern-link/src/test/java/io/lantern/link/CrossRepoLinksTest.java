@@ -1926,7 +1926,7 @@ class CrossRepoLinksTest {
     config("shop", "bff", "application.yml", "server.port", "8090", null);
     frontend("shop", "web-ui");
     frontendProxy("frontend:shop/web-ui", "/bff/", "http://bff:8090/bff/", "nginx");
-    frontendCall("frontend:shop/web-ui", "GET", "/bff/login", null, 7);
+    frontendCall("frontend:shop/web-ui", "GET", "/bff/login", "\"navigation\":true", 7);
 
     List<String> links =
         derive(CrossRepoLinks.CALLS_HTTP).stream().filter(l -> l.startsWith("frontend:")).toList();
@@ -1956,7 +1956,8 @@ class CrossRepoLinksTest {
                 + "\"matchedBy\":\"port\",\"path\":\"/elsewhere\",\"protocol\":\"JSON/HTTP\","
                 + "\"url\":\"http://localhost:8080/elsewhere\"} 0.63",
             "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
-                + "\"matchedBy\":\"host\",\"path\":\"/bff/login\",\"protocol\":\"JSON/HTTP\","
+                + "\"matchedBy\":\"host\",\"navigation\":true,\"path\":\"/bff/login\","
+                + "\"protocol\":\"JSON/HTTP\","
                 + "\"proxy\":\"/bff/\",\"reaches\":\"method:b.BffController#login()\","
                 + "\"reachesEndpoint\":\"GET /bff/login\",\"reachesUnit\":\"service:g:bff\","
                 + "\"url\":\"http://bff:8090/bff/login\"} 0.9");

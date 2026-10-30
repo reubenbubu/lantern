@@ -186,7 +186,9 @@ public final class FrontendExtractor {
    * location.replace(url)}.
    */
   private static final Pattern NAVIGATION =
-      Pattern.compile("\\blocation\\s*\\.\\s*(?:href\\s*=(?!=)|assign\\s*\\(|replace\\s*\\()");
+      Pattern.compile(
+          "(?:\\b(?:window|document|\\$window)\\s*\\.\\s*|(?<![\\w$.]))location\\s*\\.\\s*"
+              + "(?:href\\s*=(?!=)|assign\\s*\\(|replace\\s*\\()");
 
   private static final Pattern FETCH_METHOD =
       Pattern.compile("\\bmethod\\s*:\\s*['\"`]([A-Za-z]+)['\"`]");
@@ -886,7 +888,15 @@ public final class FrontendExtractor {
       }
       m = NAVIGATION.matcher(text);
       while (m.find()) {
-        sites.add(new Site(m.start(), "GET", argument(text, m.end()), HTTP, true));
+        String expression = argument(text, m.end());
+        if (text.charAt(m.end() - 1) == '=') {
+          // An assignment may end at its line, without a semicolon.
+          int newline = expression.indexOf('\n');
+          if (newline >= 0) {
+            expression = expression.substring(0, newline).trim();
+          }
+        }
+        sites.add(new Site(m.start(), "GET", expression, HTTP, true));
       }
       sites.sort(Comparator.comparingInt(Site::offset));
       int added = 0;

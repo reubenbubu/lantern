@@ -467,7 +467,8 @@ final class SequenceFlows {
     List<Fact> plainFacts = List.copyOf(facts);
     String plain = socket ? "Relays the socket" : "Routes to " + methodName(entry.method);
     StringBuilder routeInfo =
-        new StringBuilder("Route ").append(attribute(start.link, "throughRoute"));
+        new StringBuilder("Route ")
+            .append(RepoSections.attribute(start.link, "throughRoute", "of " + nameOf(start.via)));
     if (route != null && attribute(route, "url") != null) {
       routeInfo.append(" to ").append(attribute(route, "url"));
     }
@@ -1300,10 +1301,14 @@ final class SequenceFlows {
       // with its lifelines in the same order, is of its shape: the same picture with other
       // labels, so it is shown once (ADR 0070).
       boolean sameShape = kept.stream().anyMatch(k -> shape(k).equals(shape(trace)));
-      if (!held.isEmpty()) {
+      // A containing flow takes the place of the flows it holds, unless another kept flow, not one
+      // it holds, already has its shape.
+      boolean shapeElsewhere =
+          kept.stream().anyMatch(k -> !held.contains(k) && shape(k).equals(shape(trace)));
+      if (!held.isEmpty() && !shapeElsewhere) {
         kept.set(kept.indexOf(held.getFirst()), trace);
         kept.removeAll(held.subList(1, held.size()));
-      } else if (!sameShape && kept.size() < MAX_FLOWS) {
+      } else if (held.isEmpty() && !sameShape && kept.size() < MAX_FLOWS) {
         kept.add(trace);
       }
     }
@@ -1315,7 +1320,10 @@ final class SequenceFlows {
     return List.of(trace.entry.fact.predicate(), List.copyOf(trace.participants));
   }
 
-  /** The path segments of a request that signs a person in, as ADR 0074 reads them. */
+  /**
+   * The path segments of a request that signs a person in, as ADR 0074 reads them: the same words
+   * as {@code PeopleLinker.SIGN_IN} in lantern-link, which this module does not depend on.
+   */
   private static final Set<String> SIGN_IN =
       Set.of("sign-in", "signin", "sign_in", "login", "log-in", "authenticate");
 

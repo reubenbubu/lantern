@@ -124,14 +124,14 @@ project-4's sign-in and real-time notification, project-1's web sign-in.
   comes first in the frontend's code: a message from the person who uses the frontend ("Uses the
   screens", in a web browser), then from the frontend to the unit or gateway it calls ("Calls
   <Handler.method>", "Navigates the browser to ..." for a navigation, "Opens a socket" for a
-  socket), with the request as the browser sends it (`POST /api/auth/sign-in`) as its code, and,
+  socket), with the request as it reaches the unit or gateway (`POST /api/auth/sign-in`, after the path a proxy of the frontend's server rewrites) as its code, and,
   through a gateway, from the gateway to the unit ("Routes to <Handler.method>", or the route
   link's intent phrase; "Relays the socket"), with the endpoint as the unit serves it. The person
   is the frontend's only one with screens on it (ADR 0074, ADR 0083), else the one with most
   screens on it, by ID among equals; with none, the flow starts at the frontend. The participants
   start with the person, the frontend and the gateway. The flow's opening note and trigger say so
   ("Starts when Organization member, in crm-frontend, sends POST /api/auth/sign-in, which
-  api-gateway routes to auth-service"; trigger "POST /api/auth/sign-in from crm-frontend"); of a
+  api-gateway routes to auth-service"; trigger "POST /api/auth/sign-in from crm-frontend (AuthController.signIn)"); of a
   handler with several endpoints, the one the call reaches names the flow.
 - **A socket the frontend opens starts a flow** at the WebSocket endpoint it reaches (ADR 0080),
   titled "WebSocket connection to /ws-notifications on notification-service": after the browser's
@@ -140,7 +140,7 @@ project-4's sign-in and real-time notification, project-1's web sign-in.
   client sends passes it. A WebSocket endpoint no frontend opens starts no flow.
 - **Choosing (ADR 0070's business weight).** A browser start adds the containers it touches, so
   such flows rank higher. Then, ahead of the ranked rest, come the best ranked flow a person signs
-  in through (a request whose path has a sign-in segment as ADR 0074 reads them: `sign-in`,
+  in through (a request whose path has a segment that ADR 0074 reads as signing in: `sign-in`,
   `login`, `authenticate`...) and the best ranked flow that opens a socket from the browser: how
   people get in, and how the system pushes to them. A candidate of the same shape as a flow already
   shown (started the same way, by a request, a message, a schedule or a job, with the same
@@ -155,7 +155,8 @@ project-4's sign-in and real-time notification, project-1's web sign-in.
 
 A frontend's call is not tied to the screen that makes it, so the person is the frontend's main
 one, not the one whose screen calls; the gateway's own filters (authentication, permission caches)
-are not traced into the flow; a unit's call to a gateway still stops at the gateway (project-1's BFF
+are not traced into the flow; a request the gateway answers itself through a `forward:` or
+`no://op` route may be taken as reaching a lower route's unit; a unit's call to a gateway still stops at the gateway (project-1's BFF
 to its gateway); and an entry point that both a frontend and another flow reach is shown only as
 part of that flow. On project-4 the password-reset flow still ranks below the seven shown (#272
 chooses by business weight).
