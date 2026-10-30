@@ -30,6 +30,8 @@ public interface RestClient {
   interface Spec {
     Spec uri(String uri, Object... variables);
 
+    Spec uri(java.net.URI uri);
+
     Spec body(Object body);
 
     Spec retrieve();

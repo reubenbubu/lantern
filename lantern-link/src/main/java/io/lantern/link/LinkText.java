@@ -163,7 +163,7 @@ final class LinkText {
       int colon = text.indexOf("://");
       String scheme = text.substring(0, colon).toLowerCase(Locale.ROOT);
       String rest = text.substring(colon + 3);
-      int slash = indexOfAny(rest, "/?#");
+      int slash = authorityEnd(rest);
       String authority = slash < 0 ? rest : rest.substring(0, slash);
       String path = slash < 0 ? "" : stripQuery(rest.substring(slash));
       authority = authority.substring(authority.lastIndexOf('@') + 1);
@@ -190,18 +190,44 @@ final class LinkText {
     return new Url(null, null, null, rest.startsWith("/") ? stripQuery(rest) : null);
   }
 
-  private static int indexOfAny(String text, String chars) {
-    for (int i = 0; i < text.length(); i++) {
-      if (chars.indexOf(text.charAt(i)) >= 0) {
+  /**
+   * Where the authority after a scheme ends: at a slash, query or fragment outside braces, or at an
+   * expression ({@code {path}}, not a {@code ${...}} placeholder) that follows the host, as in a
+   * URL concatenated from a base and a path ({@code http://localhost:8888{path}}); -1 if it runs to
+   * the end.
+   */
+  private static int authorityEnd(String rest) {
+    int depth = 0;
+    for (int i = 0; i < rest.length(); i++) {
+      char c = rest.charAt(i);
+      if (c == '{') {
+        if (depth == 0 && i > 0 && rest.charAt(i - 1) != '$') {
+          return i;
+        }
+        depth++;
+      } else if (c == '}') {
+        depth = Math.max(0, depth - 1);
+      } else if (depth == 0 && "/?#".indexOf(c) >= 0) {
         return i;
       }
     }
     return -1;
   }
 
+  /** A path without its query and fragment; a {@code ?} or {@code #} in braces is kept. */
   private static String stripQuery(String path) {
-    int cut = indexOfAny(path, "?#");
-    return cut < 0 ? path : path.substring(0, cut);
+    int depth = 0;
+    for (int i = 0; i < path.length(); i++) {
+      char c = path.charAt(i);
+      if (c == '{') {
+        depth++;
+      } else if (c == '}') {
+        depth = Math.max(0, depth - 1);
+      } else if (depth == 0 && (c == '?' || c == '#')) {
+        return path.substring(0, i);
+      }
+    }
+    return path;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -251,12 +277,29 @@ final class LinkText {
     return segment.contains("{") || segment.contains("${");
   }
 
+  /** A path's segments, split at slashes outside braces, so an expression stays one segment. */
   private static List<String> segments(String path) {
     List<String> segments = new ArrayList<>();
-    for (String s : path.split("/")) {
-      if (!s.isEmpty()) {
-        segments.add(s);
+    StringBuilder segment = new StringBuilder();
+    int depth = 0;
+    for (int i = 0; i < path.length(); i++) {
+      char c = path.charAt(i);
+      if (c == '{') {
+        depth++;
+      } else if (c == '}') {
+        depth = Math.max(0, depth - 1);
       }
+      if (c == '/' && depth == 0) {
+        if (!segment.isEmpty()) {
+          segments.add(segment.toString());
+        }
+        segment.setLength(0);
+      } else {
+        segment.append(c);
+      }
+    }
+    if (!segment.isEmpty()) {
+      segments.add(segment.toString());
     }
     return segments;
   }

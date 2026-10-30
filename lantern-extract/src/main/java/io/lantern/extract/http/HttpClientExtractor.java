@@ -23,6 +23,7 @@ import io.lantern.extract.java.ModuleStructure.Assignment;
 import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
+import io.lantern.extract.java.ModuleStructure.OwnCall;
 import io.lantern.extract.java.ModuleStructure.Supertype;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
 import io.lantern.extract.spring.SpringExtractor;
@@ -36,6 +37,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -71,7 +73,7 @@ public final class HttpClientExtractor {
   public static final String NAME = "http-client";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "5";
+  public static final String VERSION = "6";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
@@ -370,6 +372,15 @@ public final class HttpClientExtractor {
 
     private JavaAnalysis.Module module;
     private CodeConfig.View config;
+
+    /** The calls of each module's methods by their own type's code, by module, made when needed. */
+    private final Map<JavaAnalysis.Module, Map<EntityId, List<OwnCall>>> ownCalls =
+        new IdentityHashMap<>();
+
+    /** The code whose parameters a request's URL is read for, and whether one was not followed. */
+    private EntityId openIn;
+
+    private boolean openParam;
 
     Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
       this.configs = new CodeConfig(secretKeys);
@@ -1302,14 +1313,42 @@ public final class HttpClientExtractor {
 
     private void imperative(Invocation invocation) {
       Scope scope = new Scope(module, invocation.caller());
-      Chain chain = chain(invocation.expression(), scope, 0);
+      Sent sent = sent(invocation.expression(), scope);
+      if (sent == null) {
+        return;
+      }
+      for (Sent followed : followed(sent, invocation.expression(), scope, 0, new HashSet<>())) {
+        call(
+            new Call(
+                invocation.caller(),
+                followed.request().method(),
+                followed.request().url(),
+                null,
+                followed.kind(),
+                null,
+                null,
+                invocation.where(),
+                module),
+            followed.view());
+      }
+    }
+
+    /**
+     * A request a chain sends, read in some code: the client kind, the request, the config its
+     * placeholders resolve in, and whether its URL holds a parameter of that code not followed.
+     */
+    private record Sent(String kind, Request request, CodeConfig.View view, boolean openParam) {}
+
+    /** The request a chain sends, read in the code given, or null if it sends none. */
+    private Sent sent(Expression.Invoke expression, Scope scope) {
+      Chain chain = chain(expression, scope, 0);
       String kind = chain.rootType() == null ? null : KINDS.get(chain.rootType());
       if (kind == null) {
-        return;
+        return null;
       }
       Found bean =
           kind.equals(REST_TEMPLATE) || kind.equals(REST_CLIENT) || kind.equals(WEB_CLIENT)
-              ? injectedClientBase(chain, invocation.expression(), scope, 0)
+              ? injectedClientBase(chain, expression, scope, 0)
               : null;
       Text injected = bean == null ? null : bean.base();
       // The bean's placeholders resolve in its own module's config, unless the call sets its base.
@@ -1317,28 +1356,94 @@ public final class HttpClientExtractor {
           bean != null && bean.module() != module && baseOf(chain) == null
               ? configs.forModule(bean.module().repo(), bean.module().directory())
               : config;
-      Request request =
-          switch (kind) {
-            case REST_TEMPLATE -> restTemplate(chain.links(), injected);
-            case REST_CLIENT, WEB_CLIENT -> fluent(chain.links(), injected);
-            case JAKARTA_CLIENT -> jakarta(chain.links());
-            default -> built(kind, chain.rootType(), chain.links());
-          };
-      if (request == null) {
-        return;
+      EntityId outer = openIn;
+      boolean outerOpen = openParam;
+      openIn = scope.in();
+      openParam = false;
+      try {
+        Request request =
+            switch (kind) {
+              case REST_TEMPLATE -> restTemplate(chain.links(), injected);
+              case REST_CLIENT, WEB_CLIENT -> fluent(chain.links(), injected);
+              case JAKARTA_CLIENT -> jakarta(chain.links());
+              default -> built(kind, chain.rootType(), chain.links());
+            };
+        return request == null ? null : new Sent(kind, request, view, openParam);
+      } finally {
+        openIn = outer;
+        openParam = outerOpen;
       }
-      call(
-          new Call(
-              invocation.caller(),
-              request.method(),
-              request.url(),
-              null,
-              kind,
-              null,
-              null,
-              invocation.where(),
-              module),
-          view);
+    }
+
+    /** How many calls deep a URL passed as an argument is followed back to where it is made. */
+    private static final int MAX_ARGUMENT_HOPS = 3;
+
+    /** The most call sites a request is read at, so a much-called helper does not multiply. */
+    private static final int MAX_ARGUMENT_SITES = 16;
+
+    /**
+     * A request whose URL holds a parameter of the method sending it, read again at each call of
+     * that method by its own type's code, with the arguments given there (a URL built in one method
+     * and sent by another, #307), up to {@value #MAX_ARGUMENT_HOPS} calls back; the request as read
+     * where no call is found, or where reading it at a call gives no request.
+     */
+    private List<Sent> followed(
+        Sent sent, Expression.Invoke expression, Scope scope, int depth, Set<EntityId> seen) {
+      List<OwnCall> sites = ownCallers(scope.module()).getOrDefault(scope.in(), List.of());
+      if (!sent.openParam()
+          || depth >= MAX_ARGUMENT_HOPS
+          || sites.isEmpty()
+          || sites.size() > MAX_ARGUMENT_SITES
+          || !seen.add(scope.in())) {
+        return List.of(sent);
+      }
+      List<Sent> all = new ArrayList<>();
+      for (OwnCall site : sites) {
+        Expression.Invoke given = (Expression.Invoke) substitute(expression, site.arguments());
+        Scope at = new Scope(scope.module(), site.caller());
+        Sent there = sent(given, at);
+        if (there == null) {
+          all.add(sent);
+          continue;
+        }
+        all.addAll(followed(there, given, at, depth + 1, seen));
+      }
+      seen.remove(scope.in());
+      return all.stream().distinct().limit(MAX_ARGUMENT_SITES).toList();
+    }
+
+    /** The calls of each method by its own type's code in a module, by the method called. */
+    private Map<EntityId, List<OwnCall>> ownCallers(JavaAnalysis.Module m) {
+      return ownCalls.computeIfAbsent(
+          m,
+          k -> {
+            Map<EntityId, List<OwnCall>> byCallee = new HashMap<>();
+            for (OwnCall c : k.structure().ownCalls()) {
+              byCallee.computeIfAbsent(c.callee(), x -> new ArrayList<>()).add(c);
+            }
+            return byCallee;
+          });
+    }
+
+    /** An expression with the parameters of its code replaced by the arguments of a call. */
+    private static Expression substitute(Expression e, List<Expression> arguments) {
+      return switch (e) {
+        case Expression.Param p ->
+            p.index() < arguments.size()
+                ? arguments.get(p.index())
+                : new Expression.Unknown("arg" + p.index());
+        case Expression.Concat c ->
+            new Expression.Concat(c.parts().stream().map(x -> substitute(x, arguments)).toList());
+        case Expression.Invoke i ->
+            new Expression.Invoke(
+                i.receiver() == null ? null : substitute(i.receiver(), arguments),
+                i.method(),
+                i.arguments().stream().map(x -> substitute(x, arguments)).toList(),
+                i.parameterTypes());
+        case Expression.Lambda l ->
+            new Expression.Lambda(l.source(), substitute(l.body(), arguments), l.start(), l.end());
+        default -> e;
+      };
     }
 
     /** An HTTP request a chain sends: the HTTP method, if known, and the URL as written. */
@@ -1674,6 +1779,9 @@ public final class HttpClientExtractor {
         String value = parameter == null ? null : value(parameter.annotations());
         if (value != null) {
           return value;
+        }
+        if (scope.in().equals(openIn)) {
+          openParam = true;
         }
       }
       if (e instanceof Expression.FieldRef f) {
@@ -2054,8 +2162,9 @@ public final class HttpClientExtractor {
   static Split split(String url) {
     Matcher m = ABSOLUTE.matcher(url);
     if (m.find()) {
-      String path = url.substring(m.end());
-      return new Split(m.group(), path.isEmpty() ? "/" : path, true);
+      int end = m.end(1) + authorityLength(url.substring(m.end(1)));
+      String path = url.substring(end);
+      return new Split(url.substring(0, end), path.isEmpty() ? "/" : path, true);
     }
     int end = -1;
     if (url.startsWith("${") || url.startsWith("{")) {
@@ -2075,6 +2184,29 @@ public final class HttpClientExtractor {
       return new Split(url.substring(0, end), path.isEmpty() ? null : path, false);
     }
     return new Split(null, url.isEmpty() ? "/" : url, false);
+  }
+
+  /**
+   * The length of the authority at the start of the text after a scheme: up to a slash outside
+   * braces, or to an expression ({@code {path}}, not a {@code ${...}} placeholder) that follows the
+   * host, as in a URL concatenated from a base and a path ({@code http://localhost:8888{path}}).
+   */
+  private static int authorityLength(String rest) {
+    int depth = 0;
+    for (int i = 0; i < rest.length(); i++) {
+      char c = rest.charAt(i);
+      if (c == '{') {
+        if (depth == 0 && i > 0 && rest.charAt(i - 1) != '$') {
+          return i;
+        }
+        depth++;
+      } else if (c == '}') {
+        depth = Math.max(0, depth - 1);
+      } else if (depth == 0 && c == '/') {
+        return i;
+      }
+    }
+    return rest.length();
   }
 
   // ---------------------------------------------------------------------------------------------

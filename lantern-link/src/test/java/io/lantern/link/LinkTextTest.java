@@ -57,6 +57,21 @@ class LinkTextTest {
     assertThat(LinkText.parse("${TAX_SERVICE_URL}/v2/quotes").path()).isEqualTo("/v2/quotes");
     assertThat(LinkText.parse("{url}").path()).isNull();
     assertThat(LinkText.parse("http://${HOST}/x").host()).isNull();
+    // An expression concatenated onto the host is the path, even with slashes and a ? inside it.
+    LinkText.Url concatenated =
+        LinkText.parse(
+            "http://127.0.0.1:8888{uri.substring(uri.indexOf(\"/api\") + 4)}{q ? x : y}");
+    assertThat(concatenated.host()).isEqualTo("127.0.0.1");
+    assertThat(concatenated.port()).isEqualTo("8888");
+    assertThat(concatenated.path())
+        .isEqualTo("{uri.substring(uri.indexOf(\"/api\") + 4)}{q ? x : y}");
+    assertThat(LinkText.parse("http://host:${PORT}/x").host()).isNull();
+  }
+
+  @Test
+  void anExpressionInAPathIsOneSegment() {
+    assertThat(LinkText.pathMatch("/{a.indexOf(\"/api\")}/x", "/{id}/x")).isEqualTo(1);
+    assertThat(LinkText.pathMatch("{a.indexOf(\"/api\")}", "/{id}")).isEqualTo(0);
   }
 
   @Test

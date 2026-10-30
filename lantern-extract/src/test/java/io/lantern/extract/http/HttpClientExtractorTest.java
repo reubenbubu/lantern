@@ -98,6 +98,17 @@ class HttpClientExtractorTest {
     assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#quote(")))
         .singleElement(InstanceOfAssertFactories.STRING)
         .contains("\"expressions\":[\"region()\"]");
+    // A URL passed as an argument is followed to each call of the method by its own type's code,
+    // through another method and a lambda: a call per place it is made, none left as {target}.
+    assertThat(rendered.lines().filter(l -> l.contains("ProxyClient#exchange(")))
+        .hasSize(2)
+        .noneMatch(l -> l.contains("{target}"))
+        .anyMatch(l -> l.contains("\"baseUrl\":\"http://proxy:8080\",") && l.contains("{path}"))
+        .anyMatch(l -> l.contains("GET http://proxy:8080/{service}/public"));
+    // A method its own type never calls keeps its parameter.
+    assertThat(rendered.lines().filter(l -> l.contains("ProxyClient#direct(")))
+        .singleElement(InstanceOfAssertFactories.STRING)
+        .contains("GET {target}");
     assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#remove(")))
         .singleElement(InstanceOfAssertFactories.STRING)
         .contains("https://admin.example.com/quotes/{symbol}")

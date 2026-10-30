@@ -122,7 +122,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Deployment | Dockerfiles, compose files, Helm charts, kustomize and Kubernetes manifests | Images and the units they run, container instances per environment, published ports, environment variables that set config, infrastructure the system runs with (databases, brokers, gateways, identity providers) and their versions |
 | Frontend | A frontend's package manifest (Angular, React, Vue), in its own repository or a folder of another, its environment files, Dockerfile, nginx and development-server proxies, the HTTP calls, sockets and browser navigations in its code | A frontend container with its technology, the URLs it calls from the browser and the path prefixes its server passes on |
 
-**Following values.** Paths, queue, exchange and topic names and routing keys are rarely literals where they are used. Extractors resolve `${...}` placeholders against config per profile, fold constants, and follow a value one hop from a `@Value` field or constructor argument into the template or client call that uses it. A value that can't be resolved keeps its placeholder key, which still says what it is.
+**Following values.** Paths, queue, exchange and topic names and routing keys are rarely literals where they are used. Extractors resolve `${...}` placeholders against config per profile, fold constants, and follow a value one hop from a `@Value` field or constructor argument into the template or client call that uses it. A URL that reaches the call as a parameter of the method making it is followed back to where the method's own class calls it, up to three calls. A value that can't be resolved keeps its placeholder key, which still says what it is.
 
 Later: OpenAPI and AsyncAPI specs, Terraform.
 
@@ -256,7 +256,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | Link | Matched by |
 | --- | --- |
 | Library dependency | Maven coordinates of internal artifacts |
-| HTTP call | Client name (Feign `name`) against the target's `spring.application.name`, else resolved client URL or property key against service base URLs; then the path against the target's endpoints |
+| HTTP call | Client name (Feign `name`) against the target's `spring.application.name`, else resolved client URL or property key against service base URLs, or for this machine its port against the target's `server.port`; then the path against the target's endpoints |
 | Frontend call | A path of the page's origin through the proxy of the frontend's nginx or development server; then the URL's host against unit and deployment container names, or for this machine or a private address its port against the port a deployment container publishes, else the unit's `server.port`; then the endpoint it reaches, the unit's own or, through the gateway route that takes it, the routed unit's |
 | Gateway route | A load-balanced URI's name (`lb://orders`) against `spring.application.name`, else the URI's host as for an HTTP call, or for this machine its port against the target's `server.port`; endpoints of a routed unit that no route reaches are recorded for the findings |
 | Messaging | Topic, exchange or queue names and routing keys, produced vs. consumed, with AMQP topic wildcards (`order.*`) matched as the broker matches them |

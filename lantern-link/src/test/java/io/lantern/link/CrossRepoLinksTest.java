@@ -531,6 +531,32 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aCallToThisMachineLinksByItsPortWhenOneOtherUnitListensThere() {
+    unit("a", "bff", "bff");
+    type("a", "bff", "b.Proxy");
+    call(
+        "a",
+        "b.Proxy#send()",
+        "http://127.0.0.1:8888{path}",
+        "{\"client\":\"rest-client\",\"expressions\":[\"path\"],\"path\":\"{path}\","
+            + "\"url\":\"http://127.0.0.1:8888{path}\",\"baseUrl\":\"http://127.0.0.1:8888\"}",
+        5);
+    unit("g", "gateway", "gateway");
+    config("g", "gateway", "application.properties", "server.port", "8888", null);
+    // Serves a one-segment path, so the path alone would have taken it.
+    unit("p", "profile", "profile");
+    type("p", "profile", "p.ProfileController");
+    endpoint("p", "p.ProfileController", "all()", "GET", "/profiles");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:bff CALLS_HTTP service:g:gateway")
+        .contains("\"matchedBy\":\"port\"")
+        .endsWith(" 0.64");
+  }
+
+  @Test
   void aUrlFromAnUnresolvedPlaceholderIsLeftForTheResolverWithTheUnitsServingItsPath() {
     unit("a", "orders", "orders");
     type("a", "orders", "o.TaxClient");

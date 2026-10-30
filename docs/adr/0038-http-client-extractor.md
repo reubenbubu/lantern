@@ -1,6 +1,6 @@
 # 0038: HTTP client extractor
 
-Status: accepted (#128, part of #92; extended by #145, #149 and #258), pending the user's review (#24)
+Status: accepted (#128, part of #92; extended by #145, #149 and #258; amended (#307)), pending the user's review (#24)
 
 ## Context
 
@@ -170,10 +170,39 @@ without what must not be.
   implementing a configurer) (both when parsed),
   a bean picked by `@Qualifier` or `@Primary` for a proxy factory or adapter (these pick only the
   only bean, or the one named as the parameter or field), a builder changed by separate statements
-  (`builder.uri(uri); builder.GET();`), a URL built across methods or from several fields' values, a
+  (`builder.uri(uri); builder.GET();`), a URL built across methods other than as an argument of a
+  method of the same type (see the amendment for #307) or from several fields' values, a
   `RestTemplate` bean's `rootUri` set in another class, and Kotlin.
 - **project-0.** `Project0HttpIT` checks the cases HTTP-1 to HTTP-5, VAL-1, VAL-2, VAL-5 and the
   extractor side of EXT-1, with the repositories built in the sandbox and read through javac, and
   parsed without builds, and checks both give the same facts. It runs when `lantern.test.project0`
   is set, with the same command as `Project0BuildIT` (see Commands in `CLAUDE.md`) but `-pl
   lantern-extract` and `-Dit.test=Project0HttpIT`.
+
+## Amendment (#307): a URL passed as an argument
+
+project-1's BFF builds `URI.create(gatewayUrl + path)` in its two proxy endpoints and passes it,
+through a private method and a lambda given to a circuit breaker, to the private method that calls
+`restClient.method(...).uri(targetUri)`. Read where it is sent, the URL was `{targetUri}`: no host,
+so the BFF reached nothing.
+
+- **Both analyzers record own calls** (`ModuleStructure.OwnCall`), without changing the Java
+  extractor's facts: each call of a method that the caller's own named type declares, written
+  without a receiver or on `this`, with its arguments as `Expression`s in the caller's code (a call
+  in a lambda or an anonymous class counts for the member around it, as other calls do). Calls
+  without arguments are not kept. javac resolves the method; parsing takes the only method of that
+  name with as many parameters (none variable), else what the call resolves to.
+- **Following an argument.** When an imperative client's or a request object's URL holds a
+  parameter of the method sending it that is not followed otherwise (not a `@Value` parameter),
+  the chain is read again at each own call of that method, its parameters replaced by the
+  arguments given there, in the caller's code; and so on, up to three calls back, while the URL
+  still holds a parameter of the code it is read in. A method called from more than 16 places is
+  not followed, and a call where the chain then sends nothing keeps the request as first read.
+  Each distinct request gives an `http-call` on the method sending it, evidenced by its chain, as
+  before: project-1's BFF now calls `${bff.gateway.url}{...}` from both proxy endpoints. A method
+  its own type never calls keeps the parameter (`{target}`).
+- **A URL concatenated from a base and an expression** (`http://127.0.0.1:8888{path}`) has its
+  authority end where the expression starts, unless it is a `${...}` placeholder, so `baseUrl` is
+  the host and port and `path` the expressions; a slash or `?` inside an expression's source no
+  longer splits it.
+- The extractor's version becomes 6.
