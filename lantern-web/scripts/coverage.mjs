@@ -136,7 +136,34 @@ export function checkMap(items, map) {
   return errors;
 }
 
-/** What is wrong with the map's citations in the set's checkout: missing files or lines. */
+/** The services of a compose file: each one's first and last line, under the `services:` key. */
+export function composeServices(text) {
+  const lines = text.split('\n');
+  const top = lines.findIndex((line) => /^services:\s*$/.test(line));
+  if (top < 0) return [];
+  const services = [];
+  let indent = null;
+  for (let i = top + 1; i < lines.length; i++) {
+    const line = lines[i];
+    // A blank line or a comment belongs to the service above it.
+    if (line.trim() === '' || line.trimStart().startsWith('#')) {
+      if (services.length > 0 && i < lines.length - 1) services.at(-1).end = i + 1;
+      continue;
+    }
+    if (!line.startsWith(' ')) break;
+    const depth = line.length - line.trimStart().length;
+    indent ??= depth;
+    if (depth === indent && line.trimEnd().endsWith(':')) services.push({ start: i + 1, end: i + 1 });
+    else if (services.length > 0) services.at(-1).end = i + 1;
+  }
+  return services;
+}
+
+/**
+ * What is wrong with the map's citations in the set's checkout: missing files or lines, and a
+ * compose citation that is not inside one service from its first line (ADR 0089), since a range
+ * across services is met by any of their facts.
+ */
 export function checkCitations(map, checkoutDir) {
   const errors = [];
   for (const [key, entry] of Object.entries(map?.items ?? {})) {
@@ -148,8 +175,15 @@ export function checkCitations(map, checkoutDir) {
         errors.push(`${key}: ${need.at}: no such file`);
         continue;
       }
-      const lines = readFileSync(file, 'utf8').split('\n').length;
+      const text = readFileSync(file, 'utf8');
+      const lines = text.replace(/\n$/, '').split('\n').length;
       if (at.end !== null && at.end > lines) errors.push(`${key}: ${need.at}: the file has ${lines} lines`);
+      if (at.start !== null && /compose[^/]*\.ya?ml$/.test(at.path)) {
+        const service = composeServices(text).find((s) => s.start <= at.start && at.start <= s.end);
+        if (!service || service.start !== at.start || at.end > service.end) {
+          errors.push(`${key}: ${need.at}: not one compose service from its first line`);
+        }
+      }
     }
   }
   return errors;

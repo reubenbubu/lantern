@@ -10,6 +10,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -25,7 +27,7 @@ final class ExtractedFacts {
   private ExtractedFacts() {}
 
   /**
-   * Writes the facts, in the order given.
+   * Writes the facts, in the order given, each once: two extractors can find the same fact.
    *
    * @param directory the snapshot's documents directory, created if missing
    * @param facts the extractors' facts
@@ -38,9 +40,12 @@ final class ExtractedFacts {
       try (Writer out =
           new OutputStreamWriter(
               new GZIPOutputStream(Files.newOutputStream(file)), StandardCharsets.UTF_8)) {
+        Set<String> written = new HashSet<>();
         for (Fact fact : facts) {
-          out.write(FactJson.toJson(fact).toString());
-          out.write('\n');
+          if (written.add(fact.id())) {
+            out.write(FactJson.toJson(fact).toString());
+            out.write('\n');
+          }
         }
       }
       return file;

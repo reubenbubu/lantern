@@ -15,7 +15,7 @@ it needs a measure of extraction alone, taken before and after. The research is 
 - **The facts of a run.** `analyze` writes the facts the extractors found, before linking, as
   `extracted.jsonl.gz` next to its documents and `run.json`. The file is gzipped JSON lines, one
   fact a line in the core envelope's JSON. It holds the facts of the repositories the run names,
-  as stored. Nothing reads it back into Lantern. It is a record of the run, like `run.json`.
+  each once. Nothing reads it back into Lantern. It is a record of the run, like `run.json`.
 - **The coverage map.** Each set has a `testsets/<set>/coverage.json`, beside its pins:
   - **What it maps.** Every item of the set's reference: the elements the scorecard matches
     (containers, data stores, queues, external systems, people), the components, and the lines of
@@ -43,6 +43,12 @@ it needs a measure of extraction alone, taken before and after. The research is 
   a thing no extractor finds.
 - **The match.** A need is met when a fact of its area has evidence in the cited file whose lines
   overlap the cited ones. A fact or citation without lines covers its whole file.
+  - **Not the fact's content.** The match checks the area and the lines, not that the fact names
+    the item. A compose service's fact meets every need cited in that service. Backed means the
+    area records something there, not that it records this item correctly; that is what the
+    extractor reviews and the scorecards judge.
+  - **Compose citations.** A compose citation lies inside one service from its first line, which
+    `coverage.mjs check` enforces, so another service's fact cannot meet it.
   - **An unmet need** lists the areas of the facts on its lines. Another area there means a rule
     is missing. No fact there means an extractor, or a file type, is missing.
   - **An item’s status.** An item is backed when all its needs are met, partly backed when some

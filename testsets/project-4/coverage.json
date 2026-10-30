@@ -33,7 +33,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.dev.yml:8-17"
+          "at": "Deployment:docker-compose.dev.yml:12-17"
         }
       ]
     },
@@ -49,7 +49,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-120"
+          "at": "Deployment:docker-compose.local.yml:87-120"
         }
       ]
     },
@@ -65,7 +65,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.dev.yml:8-84"
+          "at": "Deployment:docker-compose.dev.yml:73-84"
         }
       ]
     },
@@ -81,7 +81,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-159"
+          "at": "Deployment:docker-compose.local.yml:122-159"
         }
       ]
     },
@@ -97,7 +97,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-191"
+          "at": "Deployment:docker-compose.local.yml:161-191"
         }
       ]
     },
@@ -113,7 +113,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-221"
+          "at": "Deployment:docker-compose.local.yml:193-221"
         }
       ]
     },
@@ -129,7 +129,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-249"
+          "at": "Deployment:docker-compose.local.yml:223-249"
         }
       ]
     },
@@ -141,7 +141,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-51"
+          "at": "Deployment:docker-compose.local.yml:34-51"
         }
       ]
     },
@@ -153,7 +153,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-32"
+          "at": "Deployment:docker-compose.local.yml:15-32"
         }
       ]
     },
@@ -165,7 +165,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-70"
+          "at": "Deployment:docker-compose.local.yml:53-70"
         }
       ]
     },
@@ -181,7 +181,7 @@
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:10-279"
+          "at": "Deployment:docker-compose.local.yml:264-280"
         }
       ]
     },

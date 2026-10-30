@@ -38,13 +38,16 @@ class ExtractedFactsTest {
   }
 
   @Test
-  void writesOneFactALineInTheEnvelopesJsonGzipped() throws IOException {
+  void writesEachFactOnceALineInTheEnvelopesJsonGzipped() throws IOException {
     List<Fact> facts =
         List.of(
             fact("messaging", "service:orders", "src/main/java/Orders.java", 12, 14),
             fact("config", "service:billing", "src/main/resources/application.yml", 3, 3));
 
-    Path file = ExtractedFacts.write(directory.resolve("shop/3"), facts);
+    // The same fact twice is written once.
+    Path file =
+        ExtractedFacts.write(
+            directory.resolve("shop/3"), List.of(facts.get(0), facts.get(1), facts.get(0)));
 
     assertThat(file.getFileName().toString()).isEqualTo("extracted.jsonl.gz");
     String text;

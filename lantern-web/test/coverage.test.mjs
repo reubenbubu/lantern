@@ -2,12 +2,21 @@
 // which reference items are backed by a fact of their area on their cited lines, and what the map
 // check finds wrong.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { test } from 'vitest';
-import { checkMap, coverage, coverageItems, coverageMarkdown, parseAt, readFacts } from '../scripts/coverage.mjs';
+import {
+  checkCitations,
+  checkMap,
+  composeServices,
+  coverage,
+  coverageItems,
+  coverageMarkdown,
+  parseAt,
+  readFacts,
+} from '../scripts/coverage.mjs';
 
 /** A reference with a service, its database, a person, a component and two container lines. */
 const reference = {
@@ -154,6 +163,30 @@ test('the facts are read from gzipped JSON lines', () => {
     const facts = [fact('maven', 'pom.xml', 1, 2), fact('config', 'a.yml', 3, 3)];
     writeFileSync(file, gzipSync(`${facts.map((f) => JSON.stringify(f)).join('\n')}\n`));
     assert.deepEqual(readFacts(file), facts);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the citation check finds missing files, lines past the end and ranges across compose services', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'coverage-'));
+  try {
+    mkdirSync(join(dir, 'shop'));
+    writeFileSync(join(dir, 'shop', 'a.yml'), 'one\ntwo\n');
+    const compose = 'networks:\n  net:\n\nservices:\n    db:\n        image: pg\n\n    app:\n        image: app\n        environment:\n            DB: db\n';
+    writeFileSync(join(dir, 'shop', 'compose.yaml'), compose);
+    assert.deepEqual(composeServices(compose), [
+      { start: 5, end: 7 },
+      { start: 8, end: 11 },
+    ]);
+    const at = (...cites) => ({ items: { x: { needs: cites.map((c) => ({ area: 'deployment', at: c })) } } });
+    assert.deepEqual(checkCitations(at('shop:a.yml:2', 'shop:compose.yaml:8-11', 'shop:compose.yaml:5-7', 'shop:compose.yaml'), dir), []);
+    assert.deepEqual(checkCitations(at('shop:a.yml:3', 'shop:b.yml:1', 'shop:compose.yaml:2-9', 'shop:compose.yaml:10'), dir), [
+      'x: shop:a.yml:3: the file has 2 lines',
+      'x: shop:b.yml:1: no such file',
+      'x: shop:compose.yaml:2-9: not one compose service from its first line',
+      'x: shop:compose.yaml:10: not one compose service from its first line',
+    ]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
