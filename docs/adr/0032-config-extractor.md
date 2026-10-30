@@ -1,6 +1,6 @@
 # 0032: Config extractor
 
-Status: accepted (#126, part of #92), amended (#137, #143, #335, #338, #340, #333, #348)
+Status: accepted (#126, part of #92), amended (#137, #143, #335, #338, #340, #333, #348, #384)
 
 ## Context
 
@@ -26,8 +26,9 @@ what the facts look like and how a secret written in a config file is handled.
   files named `application`, `application-<profile>`, `bootstrap` or `bootstrap-<profile>` with
   extension `properties`, `yml` or `yaml`, directly in `src/main/resources` or
   `src/main/resources/config`, read from git at the commit. Test resources, other names
-  (`@PropertySource` files), `spring.config.import`ed files and config servers are not read; an
-  import or config server URL is still recorded as a value.
+  (`@PropertySource` files) and `spring.config.import`ed files are not read; an import or config
+  server URL is still recorded as a value. A config server's repository is read since #384
+  (amendment below).
 - **Precedence**, lowest first, as Spring Boot (and Spring Cloud for bootstrap) applies it:
   bootstrap before application config; within each, files without a profile before profile files;
   `src/main/resources` before `src/main/resources/config`; `yaml`, `yml`, then `properties`; and
@@ -210,3 +211,44 @@ what the facts look like and how a secret written in a config file is handled.
   keys of the `jwt-secret-key` facts given to `GraphTools.Graph` for `read_file` (ADR 0081), which
   also masks `key=value` and `key: value` lines and XML under them in non-code files.
   `scrub(source)` alone masks by name only. Prompt text is unchanged.
+
+## Amendment: a Spring Cloud Config repository (#384)
+
+project-3 keeps its services' datasources, Eureka URL and actuator settings in a Spring Cloud
+Config repository with no Maven module, which the extractor did not read. The research is in
+`docs/research/extractor-config.md`.
+
+- **Which repository.** A repository of the snapshot with no Maven module is read as a config
+  repository when a module of the snapshot sets up a config server (a key under
+  `spring.cloud.config.server.`, in any profile). Finding it through the server's git URI or a
+  compose volume is not needed: project-3's server names a URI other than its clone, and the
+  native backend reaches it through a mount.
+- **Which files.** The files at its top named `application`, or exactly one of the names the
+  snapshot's modules give themselves (`spring.application.name`, and each name of
+  `spring.cloud.config.name`), each optionally followed by `-<profile>`, with extension
+  `properties`, `yml` or `yaml`. A file is a profile file when its name is a known name, the
+  longest that fits, followed by `-`. Names match exactly, never as substrings: Code2DFD's
+  substring match gives false matches. Other files (`docker-compose.yml`, a README) are not read.
+- **Facts.** Each file set an application gets is read as a module's files are, with the same
+  precedence, profile views, placeholder resolution and masking. The subject is the repository
+  (`repo:<name>`), not a module. The `config-value` fact records `source: config-repository` and
+  `application`, which is the name the file is named after, or `application` for the files every
+  application gets.
+  - Placeholders resolve within that file set only. A placeholder the client would fill, such as
+    `${spring.application.name}` in the shared file, stays unresolved.
+  - No linker reads these facts yet, since config is looked up per module.
+- **`{cipher}` values** are masked wherever they are found. The server decrypts them; the
+  repository holds only ciphertext.
+- **Not covered:**
+  - `{application}` folders (`search-paths`) and repositories chosen by pattern
+  - the label: the pinned commit stands in for the branch a server serves
+  - Vault, JDBC, Consul, AWS and Azure stores, whose values are not in any repository
+  - environment variables a deployment sets
+- **For linking (#321).** A unit's effective config layers, lowest first:
+  - its code defaults
+  - its own files
+  - the deployment's environment variables
+  - the config repository's shared `application` files
+  - the files of each of its config names, each with its profile files on top
+
+  Config-server values outrank the unit's own files, and in bootstrap mode its environment too.

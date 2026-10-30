@@ -44,14 +44,31 @@ public final class ModuleConfig {
   private final RepoBuild repo;
   private final String directory;
   private final EntityId module;
+  private final String application;
   private final List<Document> documents;
   private final SortedSet<String> profiles;
   private final Map<String, SortedMap<String, ConfigValue>> views = new LinkedHashMap<>();
 
   ModuleConfig(RepoBuild repo, String directory, EntityId module, List<Document> documents) {
+    this(repo, directory, module, null, documents);
+  }
+
+  /**
+   * The config a config repository serves one application.
+   *
+   * @param application the application the files are named after, {@code application} for the files
+   *     every application gets, or null for a module's own config
+   */
+  ModuleConfig(
+      RepoBuild repo,
+      String directory,
+      EntityId module,
+      String application,
+      List<Document> documents) {
     this.repo = Objects.requireNonNull(repo, "repo");
     this.directory = Objects.requireNonNull(directory, "directory");
     this.module = Objects.requireNonNull(module, "module");
+    this.application = application;
     this.documents = List.copyOf(documents);
     SortedSet<String> named = new TreeSet<>();
     for (Document d : documents) {
@@ -82,9 +99,20 @@ public final class ModuleConfig {
     return directory;
   }
 
-  /** The module's entity ID, {@code module:<groupId>:<artifactId>}. */
+  /**
+   * The module's entity ID, {@code module:<groupId>:<artifactId>}, or for a config repository's
+   * files, the repository's, {@code repo:<name>}.
+   */
   public EntityId module() {
     return module;
+  }
+
+  /**
+   * The application a config repository's files serve ({@code application} for those every
+   * application gets), or null for a module's own config.
+   */
+  public String application() {
+    return application;
   }
 
   /**

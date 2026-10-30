@@ -494,4 +494,108 @@ class ConfigExtractorTest {
 
     assertThat(extract(repo)).hasSize(3).allMatch(l -> !l.contains("x.y"));
   }
+
+  /** A config server, a client, and a config repository without Maven modules. */
+  private List<RepoBuild> configServerSystem(boolean withServer) throws IOException {
+    Repo server =
+        Fixtures.repo(
+            temp.resolve("server"),
+            "server",
+            Map.of(
+                "pom.xml",
+                POM.replace("<artifactId>app", "<artifactId>server"),
+                RESOURCES + "application.yml",
+                withServer
+                    ? """
+                    spring:
+                      cloud:
+                        config:
+                          server:
+                            native:
+                              search-locations: file:///config/
+                    """
+                    : "server:\n  port: 8888\n"));
+    Repo orders =
+        Fixtures.repo(
+            temp.resolve("orders"),
+            "orders",
+            Map.of(
+                "pom.xml",
+                POM.replace("<artifactId>app", "<artifactId>orders"),
+                RESOURCES + "application.yml",
+                "spring:\n  application:\n    name: orders-service\n"));
+    Repo repository =
+        Fixtures.repo(
+            temp.resolve("config-repo"),
+            "config-repo",
+            Map.of(
+                "application.yml",
+                """
+                eureka:
+                  client:
+                    service-url:
+                      defaultZone: http://discovery:8761/eureka/
+                """,
+                "orders-service.yml",
+                """
+                spring:
+                  datasource:
+                    url: jdbc:postgresql://${DB_HOST:orders-db}:5432/orders
+                    password: '{cipher}AQBx7b1e'
+                """,
+                "orders-service-dev.yml",
+                "spring:\n  datasource:\n    url: jdbc:postgresql://localhost:5432/orders\n",
+                "docker-compose.yml",
+                "services:\n  db:\n    image: postgres\n",
+                "billing.yml",
+                "billing:\n  url: http://billing\n",
+                "README.md",
+                "# Config\n"));
+    return List.of(
+        new RepoBuild(server, Fixtures.head(server), null),
+        new RepoBuild(orders, Fixtures.head(orders), null),
+        new RepoBuild(repository, Fixtures.head(repository), null));
+  }
+
+  @Test
+  void aConfigRepositoryServesItsFilesToTheApplicationsTheyAreNamedAfter() throws IOException {
+    List<RepoBuild> repos = configServerSystem(true);
+    List<Fact> facts = new ConfigExtractor().extract(repos, 1);
+    Fixtures.checkEnvelope(
+        facts,
+        repos.stream().map(RepoBuild::repo).toList(),
+        1,
+        ConfigExtractor.NAME,
+        ConfigExtractor.VERSION);
+
+    assertThat(
+            Fixtures.render(facts).lines().filter(l -> l.startsWith("repo:config-repo ")).toList())
+        .containsExactlyInAnyOrder(
+            "repo:config-repo config-value http://discovery:8761/eureka/"
+                + " {\"application\":\"application\","
+                + "\"key\":\"eureka.client.service-url.defaultZone\","
+                + "\"source\":\"config-repository\"}"
+                + " @config-repo:application.yml#4-4 1.0",
+            "repo:config-repo config-value jdbc:postgresql://orders-db:5432/orders"
+                + " {\"application\":\"orders-service\",\"key\":\"spring.datasource.url\","
+                + "\"source\":\"config-repository\","
+                + "\"written\":\"jdbc:postgresql://${DB_HOST:orders-db}:5432/orders\"}"
+                + " @config-repo:orders-service.yml#3-3 1.0",
+            "repo:config-repo config-value ******"
+                + " {\"application\":\"orders-service\",\"key\":\"spring.datasource.password\","
+                + "\"masked\":true,\"source\":\"config-repository\"}"
+                + " @config-repo:orders-service.yml#4-4 1.0",
+            "repo:config-repo config-value jdbc:postgresql://localhost:5432/orders"
+                + " {\"application\":\"orders-service\",\"key\":\"spring.datasource.url\","
+                + "\"profile\":\"dev\",\"source\":\"config-repository\"}"
+                + " @config-repo:orders-service-dev.yml#3-3 1.0");
+    assertThat(Fixtures.render(facts)).doesNotContain("AQBx7b1e").doesNotContain("billing");
+  }
+
+  @Test
+  void withoutAConfigServerARepositoryWithoutModulesIsNotReadAsOne() throws IOException {
+    List<Fact> facts = new ConfigExtractor().extract(configServerSystem(false), 1);
+
+    assertThat(facts).noneMatch(f -> f.subject().toString().startsWith("repo:"));
+  }
 }

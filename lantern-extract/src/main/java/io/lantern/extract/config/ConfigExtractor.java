@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
@@ -41,7 +43,7 @@ public final class ConfigExtractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "5";
+  public static final String VERSION = "6";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
@@ -51,6 +53,21 @@ public final class ConfigExtractor {
 
   /** The {@link #SOURCE} of a default a library's {@code EnvironmentPostProcessor} adds. */
   public static final String ENVIRONMENT_POST_PROCESSOR = "environment-post-processor";
+
+  /** The {@link #SOURCE} of a value a Spring Cloud Config repository serves. */
+  public static final String CONFIG_REPOSITORY = "config-repository";
+
+  /**
+   * Attribute on a {@code config-value} fact from a config repository: the application its file is
+   * named after, {@code application} for the files every application gets.
+   */
+  public static final String APPLICATION = "application";
+
+  /** The prefix of a value Spring Cloud Config Server decrypts before serving it. */
+  private static final String CIPHER = "{cipher}";
+
+  /** The prefix of the keys that set up a Spring Cloud Config Server. */
+  private static final String CONFIG_SERVER_KEYS = "spring.cloud.config.server.";
 
   /** Attribute: a config value of the subject module. */
   public static final String CONFIG_VALUE = "config-value";
@@ -167,8 +184,18 @@ public final class ConfigExtractor {
     Set<String> known = normalizedKeys(secretKeys);
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> facts = new LinkedHashMap<>();
+    Map<RepoBuild, List<ModuleConfig>> modules = new LinkedHashMap<>();
     for (RepoBuild repo : repos) {
-      for (ModuleConfig config : read(repo)) {
+      modules.put(repo, read(repo));
+    }
+    Set<String> names = applicationNames(modules.values());
+    boolean configServer = hasConfigServer(modules.values());
+    for (RepoBuild repo : repos) {
+      List<ModuleConfig> configs = new ArrayList<>(modules.get(repo));
+      if (configServer) {
+        configs.addAll(ConfigReader.readRepository(repo, names));
+      }
+      for (ModuleConfig config : configs) {
         SortedMap<String, ConfigValue> defaults = config.values(null);
         for (ConfigValue value : defaults.values()) {
           add(facts, config, value, null, validity, known, false);
@@ -199,6 +226,53 @@ public final class ConfigExtractor {
         .toList();
   }
 
+  /**
+   * The names the modules give their applications, in any profile: {@code spring.application.name}
+   * and each of {@code spring.cloud.config.name}'s, those that resolve.
+   */
+  private static Set<String> applicationNames(Collection<List<ModuleConfig>> modules) {
+    Set<String> names = new TreeSet<>();
+    for (List<ModuleConfig> configs : modules) {
+      for (ModuleConfig config : configs) {
+        List<String> profiles = new ArrayList<>();
+        profiles.add(null);
+        profiles.addAll(config.profiles());
+        for (String profile : profiles) {
+          SortedMap<String, ConfigValue> values = config.values(profile);
+          for (String key : List.of("spring.application.name", "spring.cloud.config.name")) {
+            ConfigValue value = values.get(key);
+            if (value != null && value.unresolved().isEmpty()) {
+              for (String name : value.value().split(",")) {
+                if (!name.isBlank()) {
+                  names.add(name.strip());
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return names;
+  }
+
+  /** Whether a module sets up a Spring Cloud Config Server, in any profile. */
+  private static boolean hasConfigServer(Collection<List<ModuleConfig>> modules) {
+    for (List<ModuleConfig> configs : modules) {
+      for (ModuleConfig config : configs) {
+        List<String> profiles = new ArrayList<>();
+        profiles.add(null);
+        profiles.addAll(config.profiles());
+        for (String profile : profiles) {
+          if (config.values(profile).keySet().stream()
+              .anyMatch(k -> k.startsWith(CONFIG_SERVER_KEYS))) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   private static void add(
       Map<String, Fact> facts,
       ModuleConfig config,
@@ -212,6 +286,10 @@ public final class ConfigExtractor {
     if (fromCode) {
       attributes.put(SOURCE, ENVIRONMENT_POST_PROCESSOR);
     }
+    if (config.application() != null) {
+      attributes.put(SOURCE, CONFIG_REPOSITORY);
+      attributes.put(APPLICATION, config.application());
+    }
     if (profile != null) {
       attributes.put("profile", profile);
     }
@@ -224,7 +302,10 @@ public final class ConfigExtractor {
             ? UrlCredentials.withoutCredentials(value.value(), nothingResolves)
             : UrlCredentials.withoutCredentials(
                 config.resolve(profile, written).value(), nothingResolves);
-    if (exposesSecret(value, known) || mayHoldCredential(object) || mayHoldCredential(written)) {
+    if (exposesSecret(value, known)
+        || mayHoldCredential(object)
+        || mayHoldCredential(written)
+        || written.startsWith(CIPHER)) {
       object = MASK;
       attributes.put("masked", true);
     } else {
