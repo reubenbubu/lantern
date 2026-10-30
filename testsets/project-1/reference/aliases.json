@@ -1,0 +1,7 @@
+{
+  "elements": {},
+  "eitherKind": {
+    "keycloak": ["external"]
+  },
+  "triggers": {}
+}

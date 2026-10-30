@@ -47,7 +47,10 @@ measurement, the assessment of snapshot-4's project-4 report, was counted by han
 - **The alias table** is `testsets/<set>/reference/aliases.json`, optional: `elements` maps a
   report's name for an element to the reference's id, `triggers` maps a trigger to the reference's
   spelling of it; it rewrites only the report's triggers, so lists show the reference's. An
-  alias to an id the reference lacks is an error. Aliases are for names that
+  alias to an id the reference lacks is an error. `eitherKind` maps a reference id to the other
+  kinds an element may also be matched in (project-1's Keycloak: container or external, as its
+  `verification.md` accepts); a matched element counts in the reference element's kind, so it is
+  neither missing nor extra, and its lines match. Aliases are for names that
   mean the same thing, never to make a wrong item count.
 - **Precision is over the whole report**, so a wrong item counts wherever it is, and every extra
   item is listed. For a report that also holds another system (as before #253), the precision of

@@ -232,6 +232,16 @@ function matchElements(report, reference, aliases) {
   for (const [id, element] of Object.entries(reference.elements)) {
     byName.set(`${element.kind}:${normalizeName(element.name)}`, id);
     byName.set(`${element.kind}:${normalizeName(id)}`, id);
+    // A reference element the alias table allows in other kinds too matches by name there as well.
+    for (const kind of aliases.eitherKind?.[id] ?? []) {
+      byName.set(`${kind}:${normalizeName(element.name)}`, id);
+      byName.set(`${kind}:${normalizeName(id)}`, id);
+    }
+  }
+  for (const id of Object.keys(aliases.eitherKind ?? {})) {
+    if (!reference.elements[id]) {
+      throw new Error(`aliases.json lists eitherKind for unknown reference element ${id}`);
+    }
   }
   const elementAliases = new Map(
     Object.entries(aliases.elements ?? {}).map(([name, id]) => [normalizeName(name), id]),
@@ -244,7 +254,8 @@ function matchElements(report, reference, aliases) {
       if (!reference.elements[aliased]) {
         throw new Error(`aliases.json maps "${element.name}" to unknown reference element ${aliased}`);
       }
-      if (reference.elements[aliased].kind === element.kind) matched.set(id, aliased);
+      const kinds = [reference.elements[aliased].kind, ...(aliases.eitherKind?.[aliased] ?? [])];
+      if (kinds.includes(element.kind)) matched.set(id, aliased);
       continue;
     }
     const ref = byName.get(`${element.kind}:${name}`);
@@ -488,6 +499,7 @@ function selfReportedGaps(data) {
  * @param report the report's data for the C4 report spec
  * @param reference the reference's data for the same spec
  * @param aliases the set's alias table: { elements: { "<report name>": "<reference id>" },
+ *     eitherKind: { "<reference id>": ["<other kind it may also be matched in>"] },
  *     triggers: { "<trigger>": "<trigger written the reference's way>" } }
  */
 export function score(report, reference, aliases = {}) {
@@ -499,7 +511,10 @@ export function score(report, reference, aliases = {}) {
   const result = { elements: {} };
   for (const [name, kind] of ELEMENT_CATEGORIES) {
     const refIds = Object.keys(reference.elements).filter((id) => reference.elements[id].kind === kind);
-    const all = Object.keys(report.elements).filter((id) => report.elements[id].kind === kind);
+    // A report element that matches a reference element counts in the reference element's kind.
+    const kindOf = (id) =>
+      matched.has(id) ? reference.elements[matched.get(id)].kind : report.elements[id].kind;
+    const all = Object.keys(report.elements).filter((id) => kindOf(id) === kind);
     // The first report element that matches a reference element counts; later ones are extra.
     const first = new Map();
     const extra = [];
