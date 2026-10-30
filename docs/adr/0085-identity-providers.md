@@ -22,7 +22,8 @@ config key, a linker and a relationship.
     `signWith`, `setSigningKey`, `verifyWith`; Nimbus's `MACSigner` and `MACVerifier`; Spring
     Security's `withSecretKey`; java-jwt's `Algorithm.HMAC256/384/512`) from a secret in config,
     followed from a `@Value` field or parameter through the calls made on it and one hop from a
-    field a constructor sets. The fact names the config keys (`keys`), the library, the call and
+    field a constructor sets, but not through what builds a key pair's key (`KeyFactory`, key
+    specs, Nimbus JWKs) or from a field of another type than `String`, `byte[]` or `char[]`. The fact names the config keys (`keys`), the library, the call and
     what the type's code does with JWTs (`uses`: sign, verify). The secret's value is never
     recorded, and a secret written in the code is not recorded at all.
   - `identity-admin-client`: the method builds Keycloak's admin client (`KeycloakBuilder.serverUrl`,
@@ -48,7 +49,8 @@ config key, a linker and a relationship.
 - **Where a provider's URL leads**, in order: for this machine, the one unit whose `server.port`
   is the URL's port (project-2's `localhost:8081` is auth-service), else a container of an identity
   provider's image (ADR 0082's role `identity`) that publishes that port (project-1's
-  `localhost:8080` is the compose Keycloak), else, for 8080, the one unit that sets no port;
+  `localhost:8080` is the compose Keycloak), else, for 8080, the one unit that sets no port when the URL's path reaches one of its
+  endpoints (8080 is also Keycloak's own port);
   otherwise the unit whose `spring.application.name` is the host, else an identity provider
   container answering the host, else a host with a domain as `external-system:<host>`. A URL
   whose host is a placeholder is filled in from the environment of each container that runs the

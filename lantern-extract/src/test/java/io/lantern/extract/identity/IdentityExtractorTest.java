@@ -83,6 +83,33 @@ class IdentityExtractorTest {
                   }
                 }
                 """,
+                "src/main/java/com/example/RsaVerifier.java",
+                """
+                package com.example;
+
+                import io.jsonwebtoken.Claims;
+                import io.jsonwebtoken.Jwts;
+                import java.security.KeyFactory;
+                import java.security.spec.X509EncodedKeySpec;
+                import java.util.Base64;
+                import org.springframework.beans.factory.annotation.Value;
+
+                public class RsaVerifier {
+                  @Value("${jwt.public-key}")
+                  private String publicKey;
+
+                  public Claims claims(String token) throws Exception {
+                    return Jwts.parser()
+                        .verifyWith(
+                            KeyFactory.getInstance("RSA")
+                                .generatePublic(
+                                    new X509EncodedKeySpec(Base64.getDecoder().decode(publicKey))))
+                        .build()
+                        .parseSignedClaims(token)
+                        .getPayload();
+                  }
+                }
+                """,
                 "src/main/java/com/example/HardCoded.java",
                 """
                 package com.example;

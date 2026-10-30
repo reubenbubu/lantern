@@ -9,6 +9,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.RepoBuild;
+import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -100,6 +101,27 @@ public final class IdentityExtractor {
   private static final Set<String> JJWT_SIGN = Set.of("signWith", "compact");
   private static final Set<String> JJWT_VERIFY =
       Set.of("verifyWith", "setSigningKey", "parseSignedClaims", "parseClaimsJws");
+
+  /**
+   * What makes a public or private key of a key pair, not a shared secret: a value that passes
+   * through these types or methods is not followed.
+   */
+  private static final Set<String> KEY_PAIR_TYPES =
+      Set.of(
+          "java.security.KeyFactory",
+          "java.security.spec.X509EncodedKeySpec",
+          "java.security.spec.PKCS8EncodedKeySpec",
+          "java.security.spec.RSAPublicKeySpec",
+          "java.security.spec.RSAPrivateKeySpec",
+          "com.nimbusds.jose.jwk.RSAKey",
+          "com.nimbusds.jose.jwk.ECKey",
+          "com.nimbusds.jose.jwk.JWK");
+
+  private static final Set<String> KEY_PAIR_METHODS =
+      Set.of("generatePublic", "generatePrivate", "toRSAPublicKey", "toRSAPrivateKey");
+
+  /** The field types a shared secret is held in. */
+  private static final Set<String> SECRET_TYPES = Set.of("java.lang.String", "byte[]", "char[]");
 
   private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}:]+)");
 
@@ -336,6 +358,9 @@ public final class IdentityExtractor {
       switch (e) {
         case Expression.FieldRef f -> {
           Member field = members.get(fieldId(f));
+          if (field != null && field.type() != null && !SECRET_TYPES.contains(field.type())) {
+            return keys;
+          }
           String value = field == null ? null : value(field.annotations());
           if (value != null) {
             keys.addAll(placeholders(value));
@@ -353,6 +378,11 @@ public final class IdentityExtractor {
           }
         }
         case Expression.Invoke call -> {
+          if (KEY_PAIR_METHODS.contains(call.method())
+              || (call.receiver() instanceof Expression.TypeRef t
+                  && KEY_PAIR_TYPES.contains(t.binaryName()))) {
+            return keys;
+          }
           if (call.receiver() != null) {
             keys.addAll(keys(call.receiver(), in, depth));
           }
@@ -400,7 +430,7 @@ public final class IdentityExtractor {
       if (!t.startsWith("http://") && !t.startsWith("https://") && !t.startsWith("${")) {
         return null;
       }
-      return t.replaceFirst("^(https?://)[^/@]*@", "$1");
+      return UrlCredentials.withoutCredentials(t);
     }
 
     private String parameterValue(EntityId method, int index) {

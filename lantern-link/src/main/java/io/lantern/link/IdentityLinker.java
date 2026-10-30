@@ -8,6 +8,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.link.Deployments.Container;
@@ -355,7 +356,9 @@ final class IdentityLinker {
           }
         }
         if (unset.size() == 1) {
-          return unit(unit, unset.getFirst(), "port", BY_DEFAULT_PORT, null, url, view);
+          // Only when the URL's path reaches one of its endpoints: 8080 is also Keycloak's port.
+          Reached reached = unit(unit, unset.getFirst(), "port", BY_DEFAULT_PORT, null, url, view);
+          return reached != null && reached.path() != null ? reached : null;
         }
       }
       return null;
@@ -468,6 +471,7 @@ final class IdentityLinker {
     if (reached.url() != null) {
       url = reached.url();
     }
+    url = UrlCredentials.withoutCredentials(url);
     Url parsed = LinkText.parse(url);
     ObjectNode attributes = FactJson.newObject();
     attributes.put("purpose", use.purpose());
@@ -562,7 +566,7 @@ final class IdentityLinker {
         out.add(
             view,
             new Found(
-                SHARED_SECRET + "|" + s.unit().id() + "|" + s.fact().subject() + "|" + s.origin(),
+                SHARED_SECRET + "|" + s.unit().id() + "|" + s.fact().subject(),
                 s.unit().id(),
                 SHARED_SECRET,
                 FactObject.string(String.join(", ", LinkIndex.texts(s.fact(), "keys"))),
@@ -638,7 +642,7 @@ final class IdentityLinker {
   }
 
   /**
-   * A key as an environment variable sets it, so {@code AUTH_TOKEN_SIGNING_KEY} and {@code
+   * A key as an environment variable sets it, so {@code AUTH_TOKEN_SIGNINGKEY} and {@code
    * auth.token.signing-key} are one: lower case, {@code _} as {@code .}, without dashes.
    */
   private static String environmental(String key) {

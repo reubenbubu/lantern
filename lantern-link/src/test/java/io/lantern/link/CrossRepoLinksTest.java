@@ -2622,4 +2622,24 @@ class CrossRepoLinksTest {
             "service:g:one shared-secret jwt.secret 0.7",
             "service:g:two shared-secret jwt.secret 0.7");
   }
+
+  @Test
+  void theSameSecretValueInConfigIsSharedWithoutTheValueInAnyFact() {
+    unit("c", "one", "one");
+    type("c", "one", "c.one.Jwt");
+    config("c", "one", "application.properties", "jwt.key", "same-value-0123", null);
+    jwtSecret("c", "c.one.Jwt#key()", "jwt.key", "\"sign\"");
+    unit("c", "two", "two");
+    type("c", "two", "c.two.Jwt");
+    config("c", "two", "application.properties", "tokens.hmac", "same-value-0123", null);
+    jwtSecret("c", "c.two.Jwt#key()", "tokens.hmac", "\"verify\"");
+
+    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:one shared-secret jwt.key", "service:g:two shared-secret tokens.hmac");
+    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+        .allMatch(l -> l.contains("\"basis\":\"value\""));
+    assertThat(linked()).noneMatch(f -> f.toString().contains("same-value-0123"));
+  }
 }

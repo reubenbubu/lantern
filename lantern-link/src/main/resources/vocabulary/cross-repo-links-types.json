@@ -991,7 +991,7 @@
         },
         "link": {
           "type": "string",
-          "description": "The finding's stable ID: the first 16 hex digits of the SHA-256 of the unit, the code and where the secret comes from, and its profile."
+          "description": "The finding's stable ID: the first 16 hex digits of the SHA-256 of the unit, the code that makes the key and its profile."
         },
         "facts": {
           "type": "array",
