@@ -49,9 +49,9 @@
       "properties": {
         "kind": { "type": "string", "enum": ["message", "subscribe"], "description": "message for @MessageMapping, subscribe for @SubscribeMapping." },
         "annotation": { "type": "string", "description": "The binary name of the annotation written." },
-        "sendTo": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendTo on the method (or its class), where the return value is sent; for a @MessageMapping method that returns a value and has neither @SendTo nor @SendToUser, /topic joined with the destination it handles, Spring's default." },
-        "sendToUser": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendToUser on the method (or its class), where the return value is sent to the sending user." },
-        "defaultSendTo": { "type": "boolean", "description": "Whether sendTo is Spring's default rather than written." },
+        "sendTo": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendTo on the method (or its class), where the return value is sent: Spring picks one of the method's or class's @SendToUser and @SendTo, preferring one that names destinations, so this and sendToUser are not both present. Without destinations, or for a @MessageMapping method that returns a value and has neither annotation where a STOMP broker is configured, /topic joined with the destination it handles, Spring's default." },
+        "sendToUser": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendToUser on the method (or its class), where the return value is sent to the sending user; without destinations, /queue joined with the destination it handles." },
+        "defaultSendTo": { "type": "boolean", "description": "Whether the destination in sendTo or sendToUser is Spring's default rather than written." },
         "repliesToSubscriber": { "type": "boolean", "description": "For a @SubscribeMapping method that returns a value and has neither @SendTo nor @SendToUser: the value goes back to the subscribing client only, not through the broker." }
       },
       "required": ["kind", "annotation"],

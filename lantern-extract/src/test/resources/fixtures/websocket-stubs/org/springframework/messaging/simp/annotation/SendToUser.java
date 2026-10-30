@@ -6,4 +6,6 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface SendToUser {
   String[] value() default {};
+
+  boolean broadcast() default true;
 }

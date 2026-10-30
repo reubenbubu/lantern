@@ -12,4 +12,7 @@ public interface StompWebSocketEndpointRegistration {
 
   StompWebSocketEndpointRegistration setHandshakeHandler(
       org.springframework.web.socket.server.HandshakeHandler handler);
+
+  StompWebSocketEndpointRegistration setInterceptors(
+      org.springframework.web.socket.server.HandshakeInterceptor... interceptors);
 }

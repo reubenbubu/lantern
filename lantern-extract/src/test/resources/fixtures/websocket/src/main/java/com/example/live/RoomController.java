@@ -2,6 +2,7 @@ package com.example.live;
 
 import org.springframework.messaging.core.MessageSendingOperations;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
 
@@ -19,6 +20,20 @@ public class RoomController {
   @MessageMapping("/rooms/join")
   public String join(String room) {
     messages.convertAndSend("/topic/rooms/joined", room);
+    return room;
+  }
+
+  /** A bare @SendToUser yields to the class's, which names a destination. */
+  @MessageMapping("/rooms/ack")
+  @SendToUser(broadcast = false)
+  public String ack(String room) {
+    return room;
+  }
+
+  /** The method's @SendTo, which names a destination, wins over the class's @SendToUser. */
+  @MessageMapping("/rooms/announce")
+  @SendTo("/topic/rooms")
+  public String announce(String room) {
     return room;
   }
 

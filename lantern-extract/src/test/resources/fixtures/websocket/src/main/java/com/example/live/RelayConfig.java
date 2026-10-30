@@ -18,6 +18,10 @@ public class RelayConfig implements WebSocketMessageBrokerConfigurer {
         .addEndpoint("/ws-relay")
         .addInterceptors(new TokenHandshakeInterceptor())
         .setHandshakeHandler(new UserHandshakeHandler());
+    registry
+        .addEndpoint("/ws-relay-sockjs")
+        .withSockJS()
+        .setInterceptors(new TokenHandshakeInterceptor());
   }
 
   @Override
@@ -27,6 +31,7 @@ public class RelayConfig implements WebSocketMessageBrokerConfigurer {
         .setRelayHost(relayHost)
         .setRelayPort(61613)
         .setVirtualHost("/live")
-        .setUserDestinationBroadcast("/topic/unresolved-user");
+        .setUserDestinationBroadcast("/topic/unresolved-user")
+        .setUserRegistryBroadcast("/topic/user-registry");
   }
 }

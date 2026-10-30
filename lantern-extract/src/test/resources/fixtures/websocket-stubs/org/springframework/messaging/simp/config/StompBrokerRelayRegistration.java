@@ -16,4 +16,8 @@ public class StompBrokerRelayRegistration {
   public StompBrokerRelayRegistration setUserDestinationBroadcast(String destination) {
     return this;
   }
+
+  public StompBrokerRelayRegistration setUserRegistryBroadcast(String destination) {
+    return this;
+  }
 }

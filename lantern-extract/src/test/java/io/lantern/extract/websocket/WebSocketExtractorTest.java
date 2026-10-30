@@ -223,12 +223,83 @@ class WebSocketExtractorTest {
                 l.contains(" stomp-mapping /rooms/ping ")
                     && !l.contains("sendToUser")
                     && !l.contains("sendTo"))
+        // A bare @SendToUser: the user's /queue and the destination, never /topic.
+        .anyMatch(
+            l ->
+                l.contains(" stomp-mapping /echo/me ")
+                    && l.contains("\"sendToUser\":[\"/queue/echo/me\"]")
+                    && l.contains("\"defaultSendTo\":true")
+                    && !l.contains("\"sendTo\""))
+        // Spring picks one annotation, preferring one that names destinations: the class's
+        // @SendToUser over the method's bare one, the method's @SendTo over the class's.
+        .anyMatch(
+            l ->
+                l.contains(" stomp-mapping /rooms/ack ")
+                    && l.contains("\"sendToUser\":[\"/queue/rooms\"]")
+                    && !l.contains("defaultSendTo"))
+        .anyMatch(
+            l ->
+                l.contains(" stomp-mapping /rooms/announce ")
+                    && l.contains("\"sendTo\":[\"/topic/rooms\"]")
+                    && !l.contains("sendToUser"))
+        // ExecutorChannelInterceptor, SimpMessageHeaderAccessor and getNativeHeader.
+        .anyMatch(
+            l ->
+                l.startsWith("type:com.example.live.PresenceInterceptor stomp-channel-interceptor ")
+                    && l.contains("\"headers\":[\"X-Tenant\"]"))
+        .anyMatch(
+            l ->
+                l.contains(" stomp-prefix /exchange ")
+                    && l.contains("\"userRegistryBroadcast\":\"/topic/user-registry\""))
+        // Handshake interceptors on the SockJS service.
+        .anyMatch(
+            l ->
+                l.contains(" websocket-endpoint /ws-relay-sockjs ")
+                    && l.contains(
+                        "\"handshakeInterceptors\":[\"com.example.live.TokenHandshakeInterceptor\"]"))
         // A template injected as the generic MessageSendingOperations sends too.
         .anyMatch(
             l ->
                 l.startsWith(LIVE + "RoomController#join(")
                     && l.contains(" stomp-send /topic/rooms/joined ")
                     && l.contains("org.springframework.messaging.core.MessageSendingOperations"));
+  }
+
+  @Test
+  void noDefaultReplyWithoutAStompBroker() throws IOException {
+    // RSocket controllers use @MessageMapping too; without a STOMP broker or endpoint configured,
+    // no reply is assumed.
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("rsocket"),
+            "rsocket",
+            java.util.Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>rsocket</artifactId><version>1</version></project>",
+                "src/main/java/com/example/rs/Orders.java",
+                """
+                package com.example.rs;
+
+                import org.springframework.messaging.handler.annotation.MessageMapping;
+                import org.springframework.stereotype.Controller;
+
+                @Controller
+                public class Orders {
+                  @MessageMapping("orders.get")
+                  public String get(String id) {
+                    return id;
+                  }
+                }
+                """));
+    List<String> facts =
+        Fixtures.render(extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null))))
+            .lines()
+            .toList();
+
+    assertThat(facts)
+        .anyMatch(l -> l.contains(" stomp-mapping orders.get "))
+        .noneMatch(l -> l.contains("defaultSendTo") || l.contains("sendTo"));
   }
 
   @Test

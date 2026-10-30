@@ -113,6 +113,11 @@ public final class WebSocketExtractor {
       List.of(
           "org.springframework.messaging.simp.stomp.StompHeaderAccessor",
           "org.springframework.messaging.simp.SimpMessageHeaderAccessor");
+  // An argument typed as one of these interfaces says nothing of what it does.
+  private static final String HANDSHAKE_INTERCEPTOR =
+      "org.springframework.web.socket.server.HandshakeInterceptor";
+  private static final String HANDSHAKE_HANDLER =
+      "org.springframework.web.socket.server.HandshakeHandler";
   private static final String VALUE = "org.springframework.beans.factory.annotation.Value";
   private static final Map<String, String> RELAY_SETTINGS =
       Map.of(
@@ -254,6 +259,9 @@ public final class WebSocketExtractor {
     final Map<EntityId, Member> members = new HashMap<>();
     final Map<EntityId, List<Assignment>> assignments = new HashMap<>();
 
+    /** Whether the code configures a STOMP broker or endpoint anywhere. */
+    final boolean stompBroker;
+
     Run(JavaAnalysis code, Validity validity) {
       this.code = code;
       this.validity = validity;
@@ -267,6 +275,11 @@ public final class WebSocketExtractor {
           assignments.computeIfAbsent(a.field(), k -> new ArrayList<>()).add(a);
         }
       }
+      stompBroker =
+          code.modules().stream()
+              .flatMap(m -> m.structure().invocations().stream())
+              .anyMatch(
+                  i -> i.rootType().equals(BROKER_REGISTRY) || i.rootType().equals(STOMP_REGISTRY));
     }
 
     void module(JavaAnalysis.Module module) {
@@ -320,11 +333,13 @@ public final class WebSocketExtractor {
           case "addInterceptors", "setInterceptors" ->
               call.arguments().stream()
                   .map(a -> typeOf(module, a))
-                  .filter(Objects::nonNull)
+                  .filter(t -> t != null && !t.equals(HANDSHAKE_INTERCEPTOR))
                   .forEach(handshakeInterceptors::add);
-          case "setHandshakeHandler" ->
-              handshakeHandler =
-                  call.arguments().isEmpty() ? null : typeOf(module, call.arguments().getFirst());
+          case "setHandshakeHandler" -> {
+            String type =
+                call.arguments().isEmpty() ? null : typeOf(module, call.arguments().getFirst());
+            handshakeHandler = HANDSHAKE_HANDLER.equals(type) ? null : type;
+          }
           default -> {}
         }
       }
@@ -560,14 +575,12 @@ public final class WebSocketExtractor {
     private void mappings(JavaAnalysis.Module module, TypeDecl type) {
       List<Annotation> onClass = mappingPath(type.annotations(), MESSAGE_MAPPING);
       String prefix = onClass == null ? "" : first(onClass, "value").orElse("");
-      List<String> classSendTo = values(type.annotations(), SEND_TO);
-      List<String> classSendToUser = values(type.annotations(), SEND_TO_USER);
       for (Member m : type.members()) {
         if (m.id().type().equals(ModuleStructure.METHOD) && methodName(m.id()) != null) {
           for (String mapping : List.of(MESSAGE_MAPPING, SUBSCRIBE_MAPPING)) {
             List<Annotation> path = mappingPath(m.annotations(), mapping);
             if (path != null) {
-              mapping(module, m, path, mapping, prefix, classSendTo, classSendToUser);
+              mapping(module, m, path, mapping, prefix, type.annotations());
             }
           }
         }
@@ -596,44 +609,42 @@ public final class WebSocketExtractor {
         List<Annotation> path,
         String mapping,
         String prefix,
-        List<String> classSendTo,
-        List<String> classSendToUser) {
+        List<Annotation> classAnnotations) {
       Annotation written = path.getFirst();
       Annotation found = path.getLast();
       List<String> destinations = found.values("value");
       if (destinations.isEmpty()) {
         destinations = List.of("");
       }
-      List<String> sendTo = values(method.annotations(), SEND_TO);
-      List<String> sendToUser = values(method.annotations(), SEND_TO_USER);
       boolean returns = method.returns() != null && !method.returns().equals("void");
-      // A class's @SendTo and @SendToUser apply to the methods that return a value and have
-      // neither.
-      if (returns && sendTo.isEmpty() && sendToUser.isEmpty()) {
-        sendTo = classSendTo;
-        sendToUser = classSendToUser;
-      }
+      Annotation reply = returns ? reply(method.annotations(), classAnnotations) : null;
       for (String destination : destinations) {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("kind", mapping.equals(MESSAGE_MAPPING) ? "message" : "subscribe");
         attributes.put("annotation", written.type());
-        if (returns && sendTo.isEmpty() && sendToUser.isEmpty()) {
+        String handled = join(prefix, destination);
+        if (reply != null) {
+          // Without destinations, @SendTo sends to /topic and the destination handled, and
+          // @SendToUser to the user's /queue and the destination handled.
+          boolean toUser = reply.type().equals(SEND_TO_USER);
+          List<String> targets = destinations(reply);
+          ArrayNode array = attributes.putArray(toUser ? "sendToUser" : "sendTo");
+          if (targets.isEmpty()) {
+            array.add(join(toUser ? "/queue" : "/topic", handled));
+            attributes.put("defaultSendTo", true);
+          } else {
+            targets.forEach(array::add);
+          }
+        } else if (returns && stompBroker) {
           // Without either, a @MessageMapping method's return value goes to the broker at /topic
           // and the destination it handles; a @SubscribeMapping method's goes to the subscriber.
+          // Only where a STOMP broker is configured: RSocket controllers use @MessageMapping too.
           if (mapping.equals(MESSAGE_MAPPING)) {
-            attributes.putArray("sendTo").add(join("/topic", join(prefix, destination)));
+            attributes.putArray("sendTo").add(join("/topic", handled));
             attributes.put("defaultSendTo", true);
           } else {
             attributes.put("repliesToSubscriber", true);
           }
-        }
-        if (!sendTo.isEmpty()) {
-          ArrayNode array = attributes.putArray("sendTo");
-          sendTo.forEach(array::add);
-        }
-        if (!sendToUser.isEmpty()) {
-          ArrayNode array = attributes.putArray("sendToUser");
-          sendToUser.forEach(array::add);
         }
         fact(
             module,
@@ -645,14 +656,30 @@ public final class WebSocketExtractor {
       }
     }
 
-    private static List<String> values(List<Annotation> annotations, String type) {
-      for (Annotation a : annotations) {
-        if (a.type().equals(type)) {
-          List<String> values = a.values("value");
-          return values.isEmpty() ? a.values("destinations") : values;
+    /**
+     * The annotation that decides where a method's return value goes, as Spring chooses it: the
+     * method's {@code @SendToUser}, then its {@code @SendTo}, then the class's, preferring one that
+     * names destinations; null when there is none.
+     */
+    private static Annotation reply(List<Annotation> onMethod, List<Annotation> onClass) {
+      List<Annotation> candidates = new ArrayList<>();
+      for (List<Annotation> annotations : List.of(onMethod, onClass)) {
+        for (String type : List.of(SEND_TO_USER, SEND_TO)) {
+          annotations.stream()
+              .filter(a -> a.type().equals(type))
+              .findFirst()
+              .ifPresent(candidates::add);
         }
       }
-      return List.of();
+      return candidates.stream()
+          .filter(a -> !destinations(a).isEmpty())
+          .findFirst()
+          .orElse(candidates.isEmpty() ? null : candidates.getFirst());
+    }
+
+    private static List<String> destinations(Annotation a) {
+      List<String> values = a.values("value");
+      return values.isEmpty() ? a.values("destinations") : values;
     }
 
     private static Optional<String> first(List<Annotation> path, String element) {

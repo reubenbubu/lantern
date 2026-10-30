@@ -93,17 +93,25 @@ Research: [`docs/research/extractor-websocket.md`](../research/extractor-websock
   from. Logins and passcodes are never recorded.
 - **Handshakes** on `websocket-endpoint`: `handshakeInterceptors` (the types given to
   `addInterceptors`, or `setInterceptors` on its SockJS service) and `handshakeHandler`
-  (`setHandshakeHandler`).
-- **Replies.** A `@MessageMapping` method that returns a value and has neither `@SendTo` nor
-  `@SendToUser` gets Spring's default, `sendTo` `/topic` joined with the destination it handles,
-  with `defaultSendTo`; a `@SubscribeMapping` one gets `repliesToSubscriber`. A class's `@SendTo`
-  and `@SendToUser` apply to its methods that return a value and have neither; a method that
-  returns nothing gets neither.
+  (`setHandshakeHandler`); an argument typed only as the `HandshakeInterceptor` or
+  `HandshakeHandler` interface is left out.
+- **Replies**, only for a method that returns a value. Spring picks one annotation: of the
+  method's `@SendToUser`, the method's `@SendTo`, the class's `@SendToUser` and the class's
+  `@SendTo`, the first that names destinations, else the first present. Its destinations are
+  `sendToUser` or `sendTo`; without destinations they are Spring's default, `/queue` (for
+  `@SendToUser`) or `/topic` joined with the destination handled, with `defaultSendTo`. With
+  neither annotation, where the code configures a STOMP broker or endpoint (RSocket controllers use
+  `@MessageMapping` too), a `@MessageMapping` method gets `sendTo` `/topic` joined with the
+  destination, with `defaultSendTo`, and a `@SubscribeMapping` one gets `repliesToSubscriber`.
 - **`MessageSendingOperations`** is a sending type too, as an injected template often is;
   `org.springframework.messaging.core.MessageSendingOperations` joins the tracked APIs.
 - **Still not covered**, each a later issue: Spring Security's message rules and the STOMP commands
   an interceptor checks or rejects (#441); Server-Sent Events (#442); Jakarta
   `@ServerEndpoint`, WebFlux handler mappings, Socket.IO and Spring Integration endpoints
   (#443); registrations split over statements, conditions on the configuration,
-  `@MessageExceptionHandler` replies and session lifecycle listeners (#444); anonymous and
-  inner interceptor classes; and how documents show the new facts (#445).
+  `@MessageExceptionHandler` replies and session lifecycle listeners (#444); anonymous and local
+  interceptor classes, and a header accessor used without a variable
+  (`MessageHeaderAccessor.getAccessor(...).getDestination()`); a relay host or port from a
+  placeholder, kept as written rather than resolved against the configuration, or from a `@Value`
+  constructor parameter; RSocket controllers, still read as `stomp-mapping`; and how documents show
+  the new facts (#445), which resolves the relay's placeholders to name its broker.
