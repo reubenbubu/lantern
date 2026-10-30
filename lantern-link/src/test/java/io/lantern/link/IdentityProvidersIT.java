@@ -109,7 +109,7 @@ class IdentityProvidersIT {
     facts.addAll(new JavaExtractor().extract(code, 1));
     facts.addAll(new ConfigExtractor().extract(repos, 1));
     facts.addAll(new SpringExtractor().extract(code, 1));
-    facts.addAll(new IdentityExtractor().extract(code, 1));
+    facts.addAll(new IdentityExtractor().extract(code, repos, 1));
     facts.addAll(new DeploymentExtractor().extract(repos, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<String> lines = new ArrayList<>();

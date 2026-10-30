@@ -104,6 +104,12 @@ Spring microservice projects and searched them for authentication code.
 Security OAuth and `HttpSecurity` lines. CodeQL's Java queries flag JWTs parsed without a
 signature check, disabled CSRF and Basic auth over HTTP.
 <https://codeql.github.com/codeql-query-help/java/java-missing-jwt-signature-check/>
+Code2DFD's paper (Schneider and Scandariato, "Automatic Extraction of Security-Rich Dataflow
+Diagrams for Microservice Applications written in Java", Journal of Systems and Software; arXiv
+2304.12769) finds annotations such as `@EnableAuthorizationServer` by direct keyword search and
+follows identifiers such as a password encoder by iterative search. It names authentication and
+authorization as the hardest to detect, because they "require detailed configurations at numerous
+places in the code". <https://arxiv.org/html/2304.12769>
 
 ## Evidence from the test sets
 
@@ -137,7 +143,9 @@ signers and the realm clients' flows and redirect URIs. Ranked by how common the
 4. **Secrets reached through helpers and `SecretKeySpec`** (JHipster) (#406).
 5. **The in-system authorization server, the new DSLs and other stacks.**
    `oauth2AuthorizationServer`, `oneTimeTokenLogin` and `webAuthn` are cheap and done here.
-   `RegisteredClient`, `TokenRelay` (#390), Sa-Token, Firebase and the other stacks' config keys
+   `RegisteredClient`, `TokenRelay` (#390;
+   <https://docs.spring.io/spring-cloud-gateway/reference/spring-cloud-gateway-server-webflux/gatewayfilter-factories/tokenrelay-factory.html>),
+   Sa-Token, Firebase and the other stacks' config keys
    go to #406.
 6. **More realm client fields:** `enabled`, `protocol`, `bearerOnly`, `rootUrl`, `baseUrl` and
    `webOrigins`.
@@ -186,6 +194,7 @@ Cloud Gateway TokenRelay page; Keycloak's import/export guide, adapter deprecati
 `ClientRepresentation` source; jjwt's changelog; the Okta starter README; Microsoft's Entra
 configuration reference; the MicroProfile JWT 2.1 specification; Firebase's token verification
 page; the Sa-Token README; the spring-security-oauth README; CodeQL's Java query help; Code2DFD's
-source; nine open-source projects. Not read, or only in part: Spring Security 6.4's "What's New"
+source; the first part of Code2DFD's paper (its method); nine open-source projects. Not read, or only in part: Spring Security 6.4's "What's New"
 (missing), the end of Keycloak's upgrade guide, Quarkus's and Micronaut's full references, and
-the Auth0, Cognito, Shiro and pac4j docs. None of these carries weight in the recommendation.
+the Auth0, Cognito, Shiro and pac4j docs, and the second part of Code2DFD's paper, including
+its precision and recall per kind of item. None of these carries weight in the recommendation.

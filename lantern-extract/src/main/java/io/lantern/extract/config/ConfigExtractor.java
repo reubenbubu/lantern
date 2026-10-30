@@ -135,15 +135,17 @@ public final class ConfigExtractor {
   }
 
   /**
-   * The config keys that the code uses as a JWT's HMAC secret: the keys of the {@code
-   * jwt-secret-key} facts (ADR 0085), for {@link #extract(List, long, Set)}.
+   * The config keys that the code uses as a JWT's HMAC secret or signing key: the keys of the
+   * {@code jwt-secret-key} and {@code jwt-key-pair} facts (ADR 0085), for {@link #extract(List,
+   * long, Set)}.
    *
    * @param identityFacts the identity extractor's facts; others are ignored
    */
   public static Set<String> jwtSecretKeys(List<Fact> identityFacts) {
     Set<String> keys = new java.util.TreeSet<>();
     for (Fact fact : identityFacts) {
-      if (fact.predicate().equals("jwt-secret-key") && fact.attributes().has("keys")) {
+      if ((fact.predicate().equals("jwt-secret-key") || fact.predicate().equals("jwt-key-pair"))
+          && fact.attributes().has("keys")) {
         fact.attributes().get("keys").forEach(k -> keys.add(k.stringValue()));
       }
     }

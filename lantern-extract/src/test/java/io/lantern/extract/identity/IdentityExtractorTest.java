@@ -561,4 +561,213 @@ class IdentityExtractorTest {
                 .start())
         .isEqualTo(5);
   }
+
+  @Test
+  void everyDecoderSignInCallAndKeyPairOfTheTablesIsReadAndDisabledSignInIsNot()
+      throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("patterns"),
+            "patterns",
+            Map.of(
+                "pom.xml",
+                POM,
+                "src/main/java/com/example/Decoders.java",
+                """
+                package com.example;
+
+                import java.security.interfaces.RSAPublicKey;
+                import org.springframework.security.oauth2.jwt.JwtDecoder;
+                import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+                import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
+                import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
+                import org.springframework.security.oauth2.jwt.ReactiveJwtDecoders;
+
+                public class Decoders {
+                  JwtDecoder publicKey(RSAPublicKey key) {
+                    return NimbusJwtDecoder.withPublicKey(key).build();
+                  }
+
+                  JwtDecoder issuer() {
+                    return NimbusJwtDecoder.withIssuerLocation("https://sso.example.com").build();
+                  }
+
+                  ReactiveJwtDecoder reactiveJwks() {
+                    return NimbusReactiveJwtDecoder.withJwkSetUri("https://sso.example.com/jwks")
+                        .build();
+                  }
+
+                  ReactiveJwtDecoder reactiveOidc() {
+                    return ReactiveJwtDecoders.fromOidcIssuerLocation("https://oidc.example.com");
+                  }
+                }
+                """,
+                "src/main/java/com/example/Chains.java",
+                """
+                package com.example;
+
+                import static org.springframework.security.config.Customizer.withDefaults;
+
+                import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+                import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+                import org.springframework.security.config.web.server.ServerHttpSecurity;
+
+                public class Chains {
+                  void enabled(HttpSecurity http) throws Exception {
+                    http.oauth2Client(withDefaults())
+                        .httpBasic(withDefaults())
+                        .saml2Login(withDefaults())
+                        .x509(withDefaults());
+                  }
+
+                  void disabled(HttpSecurity http) throws Exception {
+                    http.httpBasic(AbstractHttpConfigurer::disable)
+                        .formLogin(form -> form.disable());
+                  }
+
+                  void olderDsl(HttpSecurity http) throws Exception {
+                    http.httpBasic().disable().formLogin();
+                  }
+
+                  void reactive(ServerHttpSecurity http) {
+                    http.httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
+                        .formLogin(ServerHttpSecurity.FormLoginSpec::disable);
+                  }
+                }
+                """,
+                "src/main/java/com/example/ClientConfig.java",
+                """
+                package com.example;
+
+                import org.springframework.security.oauth2.config.annotation.web.configuration.EnableOAuth2Client;
+
+                @EnableOAuth2Client
+                public class ClientConfig {}
+                """,
+                "src/main/java/com/example/EcSigner.java",
+                """
+                package com.example;
+
+                import com.nimbusds.jose.crypto.ECDSASigner;
+                import com.nimbusds.jose.crypto.ECDSAVerifier;
+                import org.springframework.beans.factory.annotation.Value;
+
+                public class EcSigner {
+                  @Value("${session.private-key}")
+                  private String privateKey;
+
+                  @Value("${session.public-key}")
+                  private String publicKey;
+
+                  void init() throws Exception {
+                    new ECDSASigner(Keys.privateKey(privateKey));
+                    new ECDSAVerifier(Keys.publicKey(publicKey));
+                  }
+                }
+                """,
+                "src/main/resources/application.properties",
+                "session.private-key=literal-private-key-0123456789\n"
+                    + "session.public-key=literal-public-key-0123456789\n"));
+    List<RepoBuild> inputs = List.of(new RepoBuild(repo, Fixtures.head(repo), null));
+    List<Fact> facts = new IdentityExtractor().extract(inputs, SNAPSHOT);
+
+    assertThat(facts)
+        .extracting(
+            f ->
+                f.subject().toString().replaceAll("\\(.*", "")
+                    + " "
+                    + f.predicate()
+                    + " "
+                    + f.object().value()
+                    + " "
+                    + f.attributes().path("call").stringValue()
+                    + " "
+                    + f.attributes().path("url").asString(""))
+        .containsExactlyInAnyOrder(
+            "method:com.example.Decoders#publicKey jwt-decoder public-key"
+                + " NimbusJwtDecoder.withPublicKey ",
+            "method:com.example.Decoders#issuer jwt-decoder issuer"
+                + " NimbusJwtDecoder.withIssuerLocation https://sso.example.com",
+            "method:com.example.Decoders#reactiveJwks jwt-decoder jwk-set-uri"
+                + " NimbusReactiveJwtDecoder.withJwkSetUri https://sso.example.com/jwks",
+            "method:com.example.Decoders#reactiveOidc jwt-decoder issuer"
+                + " ReactiveJwtDecoders.fromOidcIssuerLocation https://oidc.example.com",
+            "method:com.example.Chains#enabled http-security oauth2-client oauth2Client ",
+            "method:com.example.Chains#enabled http-security http-basic httpBasic ",
+            "method:com.example.Chains#enabled http-security saml2-login saml2Login ",
+            "method:com.example.Chains#enabled http-security x509 x509 ",
+            // In the older DSL, only the call that disable() follows is turned off.
+            "method:com.example.Chains#olderDsl http-security form-login formLogin ",
+            "type:com.example.ClientConfig http-security oauth2-client @EnableOAuth2Client ",
+            "method:com.example.EcSigner#init jwt-key-pair EC new ECDSASigner ",
+            "method:com.example.EcSigner#init jwt-key-pair EC new ECDSAVerifier ");
+    assertThat(
+            facts.stream()
+                .filter(f -> f.predicate().equals(IdentityExtractor.JWT_KEY_PAIR))
+                .map(
+                    f -> f.attributes().get("use").stringValue() + " " + f.attributes().get("keys"))
+                .toList())
+        .containsExactlyInAnyOrder(
+            "sign [\"session.private-key\"]", "verify [\"session.public-key\"]");
+    // The config keys a key pair comes from are masked like an HMAC secret's.
+    List<Fact> config =
+        new ConfigExtractor().extract(inputs, SNAPSHOT, ConfigExtractor.jwtSecretKeys(facts));
+    assertThat(config).isNotEmpty().noneMatch(f -> f.toString().contains("literal-"));
+  }
+
+  @Test
+  void realmClientsRecordEveryFlowAndSwitchAndOnlyRealmExportsAreRead() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("flows"),
+            "flows",
+            Map.of(
+                "realm/shop-realm.json",
+                """
+                {
+                  "realm" : "shop",
+                  "clients" : [ {
+                    "clientId" : "legacy-spa",
+                    "publicClient" : true,
+                    "standardFlowEnabled" : false,
+                    "implicitFlowEnabled" : true,
+                    "directAccessGrantsEnabled" : true,
+                    "baseUrl" : "/app/",
+                    "redirectUris" : [ "https://app:pw@web.example.com/*" ],
+                    "webOrigins" : [ "https://user:pw@web.example.com", "+" ]
+                  }, {
+                    "clientId" : "api",
+                    "bearerOnly" : true,
+                    "enabled" : false,
+                    "protocol" : "saml"
+                  } ]
+                }
+                """,
+                "config/client-realm-list.json",
+                "{\"clients\": [ { \"clientId\": \"not-a-realm\" } ]}\n"));
+    List<RepoBuild> inputs = List.of(new RepoBuild(repo, Fixtures.head(repo), null));
+    List<Fact> facts = new IdentityExtractor().extract(inputs, SNAPSHOT);
+
+    assertThat(facts)
+        .extracting(f -> f.object().value())
+        .containsExactlyInAnyOrder("legacy-spa", "api");
+    Fact spa =
+        facts.stream()
+            .filter(f -> f.object().value().equals("legacy-spa"))
+            .findFirst()
+            .orElseThrow();
+    Fact api =
+        facts.stream().filter(f -> f.object().value().equals("api")).findFirst().orElseThrow();
+    assertThat(spa.attributes().get("flows").toString()).isEqualTo("[\"implicit\",\"password\"]");
+    assertThat(spa.attributes().get("baseUrl").stringValue()).isEqualTo("/app/");
+    assertThat(spa.attributes().get("redirectUris").toString())
+        .isEqualTo("[\"https://web.example.com/*\"]");
+    assertThat(spa.attributes().get("webOrigins").toString())
+        .isEqualTo("[\"https://web.example.com\",\"+\"]");
+    assertThat(spa.attributes().has("bearerOnly")).isFalse();
+    assertThat(api.attributes().get("bearerOnly").booleanValue()).isTrue();
+    assertThat(api.attributes().get("enabled").booleanValue()).isFalse();
+    assertThat(api.attributes().get("protocol").stringValue()).isEqualTo("saml");
+    assertThat(facts).noneMatch(f -> f.toString().contains(":pw@"));
+  }
 }

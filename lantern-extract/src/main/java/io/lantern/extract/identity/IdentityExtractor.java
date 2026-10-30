@@ -276,18 +276,6 @@ public final class IdentityExtractor {
     return reader.read();
   }
 
-  /**
-   * Extracts the facts of a snapshot's code already read by {@link JavaExtractor#analyze}.
-   *
-   * @param code the code of the snapshot's repositories
-   * @param snapshot the snapshot number the facts hold from
-   * @return the facts, without duplicates, ordered by subject, predicate and ID
-   */
-  public List<Fact> extract(JavaAnalysis code, long snapshot) {
-    Objects.requireNonNull(code, "code");
-    return new Reader(code, Validity.from(snapshot)).read();
-  }
-
   /** A call that takes an HMAC secret: the library and how the call reads. */
   private record SecretCall(String library, String call, Expression.Invoke invoke) {}
 
@@ -422,15 +410,34 @@ public final class IdentityExtractor {
       if (dsl == null) {
         return;
       }
-      for (Expression.Invoke call : i.expression().chain()) {
+      List<Expression.Invoke> chain = i.expression().chain();
+      for (int n = 0; n < chain.size(); n++) {
+        Expression.Invoke call = chain.get(n);
         String feature = SIGN_IN_CALLS.get(call.method());
-        if (feature != null) {
+        boolean disabled =
+            n + 1 < chain.size() && chain.get(n + 1).method().equals("disable")
+                || call.arguments().stream().anyMatch(Reader::disables);
+        if (feature != null && !disabled) {
           ObjectNode attributes = FactJson.newObject();
           attributes.put("via", dsl);
           attributes.put("call", call.method());
           add(module, i, HTTP_SECURITY, feature, attributes);
         }
       }
+    }
+
+    /**
+     * Whether a sign-in call's argument turns it off: {@code AbstractHttpConfigurer::disable},
+     * {@code HttpBasicSpec::disable} or a lambda that calls {@code disable()}.
+     */
+    private static boolean disables(Expression argument) {
+      String source =
+          switch (argument) {
+            case Expression.Lambda lambda -> lambda.source();
+            case Expression.Unknown unknown -> unknown.source();
+            default -> "";
+          };
+      return source.endsWith("::disable") || source.matches(".*\\.disable\\(\\s*\\).*");
     }
 
     private void legacyOAuth(JavaAnalysis.Module module, TypeDecl type) {
@@ -502,7 +509,10 @@ public final class IdentityExtractor {
       } catch (RuntimeException e) {
         return;
       }
-      if (!realm.isObject() || !realm.path("clients").isArray()) {
+      // A realm export names its realm; other JSON with a clients array is not one.
+      if (!realm.isObject()
+          || !realm.path("realm").isString()
+          || !realm.path("clients").isArray()) {
         return;
       }
       String[] lines = text.split("\n", -1);
@@ -521,9 +531,7 @@ public final class IdentityExtractor {
         }
         ObjectNode attributes = FactJson.newObject();
         attributes.put("product", "Keycloak");
-        if (realm.path("realm").isString()) {
-          attributes.put("realm", realm.path("realm").asString());
-        }
+        attributes.put("realm", realm.path("realm").asString());
         attributes.put("public", client.path("publicClient").asBoolean(false));
         attributes.put("enabled", client.path("enabled").asBoolean(true));
         attributes.put("protocol", client.path("protocol").asString("openid-connect"));
@@ -565,7 +573,9 @@ public final class IdentityExtractor {
                   }
                 });
         ArrayNode origins = attributes.putArray("webOrigins");
-        client.path("webOrigins").forEach(o -> origins.add(o.asString("")));
+        client
+            .path("webOrigins")
+            .forEach(o -> origins.add(UrlCredentials.withoutCredentials(o.asString(""))));
         Evidence evidence =
             new Evidence(
                 repo.repo().name(),
