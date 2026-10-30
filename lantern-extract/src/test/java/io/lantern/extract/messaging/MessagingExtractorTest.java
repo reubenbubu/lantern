@@ -233,6 +233,98 @@ class MessagingExtractorTest {
   }
 
   @Test
+  void declaredQueuesExchangesAndTopics() throws IOException {
+    Repo repo = fixture();
+    List<String> facts =
+        Fixtures.render(extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null))))
+            .lines()
+            .toList();
+    String declarations = "method:com.example.events.DeclarationsConfig#";
+    String rabbit = "method:com.example.events.RabbitConfig#";
+
+    assertThat(facts)
+        // Inside a Declarables: a non-durable queue with where its dead letters go, a queue made
+        // non-durable by its constructor, an exchange.
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "retries() message-destination orders.retry ")
+                    && l.contains("\"destinationKind\":\"queue\"")
+                    && l.contains("\"durable\":false")
+                    && l.contains("\"deadLetterExchange\":\"shop.dlx\"")
+                    && l.contains("\"deadLetterRoutingKey\":\"orders.dead\""))
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "retries() message-destination orders.parked ")
+                    && l.contains("\"durable\":false"))
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "retries() message-destination shop.dlx ")
+                    && l.contains("\"destinationKind\":\"exchange\"")
+                    && l.contains("\"exchangeType\":\"direct\""))
+        // The dead-letter exchange as a queue argument: the default exchange.
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "audit() message-destination audit ")
+                    && l.contains("\"deadLetterExchange\":\"\"")
+                    && l.contains("\"durable\":true"))
+        // Kafka topics: TopicBuilder and NewTopic.
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "ordersTopic() message-destination orders.created ")
+                    && l.contains("\"broker\":\"kafka\"")
+                    && l.contains("\"destinationKind\":\"topic\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    declarations + "paymentsTopic() message-destination payments.settled "))
+        // Dead letters in an arguments Map, of the constructor and of withArguments, the latter
+        // followed from a @Value parameter.
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "held() message-destination orders.held ")
+                    && l.contains("\"deadLetterExchange\":\"shop.dlx\"")
+                    && l.contains("\"deadLetterRoutingKey\":\"held\"")
+                    && l.contains("\"durable\":true"))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        declarations
+                            + "paymentsHeld(java.lang.String) message-destination payments.held ")
+                    && l.contains("\"deadLetterExchange\":\"payments.refunds\""))
+        // A custom exchange's durable is its third argument, true when absent.
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "delayed() message-destination delayed ")
+                    && l.contains("\"exchangeType\":\"x-delayed-message\"")
+                    && l.contains("\"durable\":true"))
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "delayed() message-destination delayed.temp ")
+                    && l.contains("\"durable\":false"))
+        .anyMatch(
+            l ->
+                l.startsWith(declarations + "auditEvents() message-destination audit.events ")
+                    && l.contains("\"durable\":false"))
+        // A field initializer: on the type.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "type:com.example.events.DeclarationsConfig message-destination audit.parked "))
+        // Declarations bound elsewhere are declarations too, with placeholders resolved.
+        .anyMatch(
+            l ->
+                l.startsWith(rabbit + "ordersExchange() message-destination shop.orders ")
+                    && l.contains("\"exchangeType\":\"topic\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        rabbit
+                            + "refundsQueue(java.lang.String) message-destination"
+                            + " payments.refunds ")
+                    && l.contains("\"written\":\"${events.rabbit.refunds-queue}\""));
+  }
+
+  @Test
   void compiledGivesTheSameFactsAsParsed() throws IOException {
     Repo repo = fixture();
     String commit = Fixtures.head(repo);

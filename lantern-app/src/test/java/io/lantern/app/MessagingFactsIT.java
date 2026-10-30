@@ -107,8 +107,13 @@ class MessagingFactsIT {
 
     assertThat(extracted)
         .extracting(Fact::predicate)
+        // The queue and exchange created in the binding are declarations too.
         .containsExactlyInAnyOrder(
-            MessagingExtractor.SEND, MessagingExtractor.LISTENER, MessagingExtractor.BINDING);
+            MessagingExtractor.SEND,
+            MessagingExtractor.LISTENER,
+            MessagingExtractor.BINDING,
+            MessagingExtractor.DESTINATION,
+            MessagingExtractor.DESTINATION);
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();

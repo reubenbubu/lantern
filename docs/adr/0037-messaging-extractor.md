@@ -95,3 +95,38 @@ which APIs count.
   javac, and parsed without builds, and checks both give the same facts. It runs when
   `lantern.test.project0` is set, with the same command as `Project0BuildIT` (see Commands in
   `CLAUDE.md`) but `-pl lantern-extract` and `-Dit.test=Project0MessagingIT`.
+
+## Amendment (#388): declared queues, exchanges and topics
+
+Research: [`docs/research/extractor-messaging.md`](../research/extractor-messaging.md).
+`messaging` version 5:
+
+- **`message-destination`**, a new attribute type: every RabbitMQ queue and exchange and every
+  Kafka topic the code declares, on the method that declares it (or the type, for a field
+  initializer) and at the chain, whether or not anything binds, sends to or listens on it. This
+  lifts the "queues and topics declared but neither bound, sent to nor listened on" exclusion
+  above. The object is the name, followed and resolved per view as a binding's queue is. Read
+  from the same creations as a binding's declaration (`new Queue`, `QueueBuilder.durable` and
+  `nonDurable`, `new TopicExchange` and the other exchange classes, `new CustomExchange`,
+  `ExchangeBuilder`'s factories), and from Kafka's `TopicBuilder.name(...)` and `new NewTopic`
+  (`org.springframework.kafka.config.TopicBuilder` and `org.apache.kafka.clients.admin.NewTopic`
+  join the tracked APIs). A creation inside another call's arguments, such as a `Declarables`
+  or a binding, is a chain of its own and gives its own fact.
+- **Attributes:** `broker` (`rabbitmq`, `kafka`), `destinationKind` (`queue`, `exchange`,
+  `topic`), `exchangeType` when known, and for RabbitMQ `durable` when the declaration tells (a
+  `QueueBuilder` factory, `ExchangeBuilder`'s `durable(...)`, a constructor's literal `durable`
+  argument, the second, or the third for `CustomExchange`; durable when the constructor has no
+  such argument, and for `ExchangeBuilder` without `durable(...)`, as Spring's are). A queue's
+  dead-letter routing: `deadLetterExchange` and `deadLetterRoutingKey`, from the builder's
+  methods, or the `x-dead-letter-exchange` and `x-dead-letter-routing-key` arguments given to
+  `withArgument` or written as `Map.of(...)` for `withArguments` or the queue constructor's
+  arguments, followed and resolved like the name.
+- **Still not covered**, each a later issue: values behind `@ConfigurationProperties` accessors
+  and helper methods (#447); template defaults and the JMS queue or topic from the container
+  factory (#448); Kafka retry and dead-letter topics, Kafka Streams, plain consumers,
+  `topicPartitions` and the group from config (#449); Spring Integration adapters, request and
+  reply templates, `AmqpAdmin` and XML declarations, exchange-to-exchange bindings and
+  programmatic containers (#450); Spring Modulith, outbox and CDC, the cloud brokers and Pulsar
+  (#451); queue arguments other than `Map.of(...)` written in place (a map built over statements
+  or held in a field), and dead-letter routing set by a broker policy, which code does not show;
+  and how documents show declared destinations and dead-letter routes (#452).

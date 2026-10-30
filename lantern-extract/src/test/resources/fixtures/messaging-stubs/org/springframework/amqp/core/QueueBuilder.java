@@ -6,6 +6,22 @@ public final class QueueBuilder {
     return new QueueBuilder();
   }
 
+  public static QueueBuilder nonDurable(String name) {
+    return new QueueBuilder();
+  }
+
+  public QueueBuilder deadLetterExchange(String exchange) {
+    return this;
+  }
+
+  public QueueBuilder deadLetterRoutingKey(String key) {
+    return this;
+  }
+
+  public QueueBuilder withArguments(java.util.Map<String, Object> arguments) {
+    return this;
+  }
+
   public QueueBuilder withArgument(String key, Object value) {
     return this;
   }
