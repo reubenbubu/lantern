@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,6 +25,7 @@ final class Markdown {
     TABLE_ROW,
     QUOTE,
     CODE,
+    DIAGRAM,
     HTML
   }
 
@@ -33,11 +35,40 @@ final class Markdown {
    * @param kind the kind
    * @param level the heading level (1 to 6), or 0 for other blocks
    * @param text the text, its lines stripped and joined with single spaces; a list item's marker, a
-   *     quote's {@code >} and a heading's {@code #}s are left out; empty for code
+   *     quote's {@code >} and a heading's {@code #}s are left out; empty for code; a diagram's
+   *     lines as written, joined with line feeds
+   * @param language a diagram's language, such as {@code mermaid}, or {@value #DRAWN} for one drawn
+   *     with box characters; null for other blocks
    * @param start the first line, counting from 1
    * @param end the last line
    */
-  record Block(Kind kind, int level, String text, int start, int end) {}
+  record Block(Kind kind, int level, String text, int start, int end, String language) {
+
+    Block(Kind kind, int level, String text, int start, int end) {
+      this(kind, level, text, start, end, null);
+    }
+  }
+
+  /** The language of a diagram drawn with box characters rather than written in a language. */
+  static final String DRAWN = "text";
+
+  /** Code block languages that are diagrams, by the name a fence's info string gives them. */
+  private static final Map<String, String> DIAGRAM_LANGUAGES =
+      Map.of(
+          "mermaid", "mermaid",
+          "plantuml", "plantuml",
+          "puml", "plantuml",
+          "c4plantuml", "plantuml",
+          "ditaa", "ditaa",
+          "graphviz", "graphviz",
+          "dot", "graphviz");
+
+  /** Languages of a code block that may hold a drawing: none, or plain text. */
+  private static final Set<String> PLAIN_LANGUAGES =
+      Set.of("", "text", "txt", "plain", "plaintext", "ascii", "none");
+
+  /** Box-drawing characters, or an ASCII box's corner and edge. */
+  private static final Pattern DRAWING = Pattern.compile("[\\u2500-\\u257F]|\\+-{3,}\\+");
 
   /**
    * A value of the YAML front matter.
@@ -73,7 +104,7 @@ final class Markdown {
   /** Per line (index = line - 1), whether it is part of an HTML comment or the front matter. */
   private final boolean[] skipped;
 
-  private Markdown(
+  Markdown(
       List<String> lines, Map<String, Field> frontMatter, List<Block> blocks, boolean[] skipped) {
     this.lines = lines;
     this.frontMatter = frontMatter;
@@ -131,7 +162,7 @@ final class Markdown {
         Matcher m;
         if ((m = FENCE.matcher(line)).matches()) {
           flush(i);
-          i = fence(i, m.group(1));
+          i = fence(i, m.group(1), line.strip().substring(m.group(1).length()));
           continue;
         }
         if (stripped.isEmpty()) {
@@ -280,8 +311,11 @@ final class Markdown {
       return j;
     }
 
-    /** Skips a fenced code block starting on line i and returns the index of the line after it. */
-    private int fence(int i, String marker) {
+    /**
+     * Reads a fenced code block starting on line i, as a diagram or as code, and returns the index
+     * of the line after it.
+     */
+    private int fence(int i, String marker, String info) {
       Pattern close =
           Pattern.compile(
               "^ {0,3}"
@@ -294,7 +328,7 @@ final class Markdown {
         j++;
       }
       int end = Math.min(j, lines.size() - 1);
-      blocks.add(new Block(Kind.CODE, 0, "", i + 1, end + 1));
+      blocks.add(codeBlock(lines.subList(i + 1, j), info, i + 1, end + 1));
       return end + 1;
     }
 
@@ -352,6 +386,32 @@ final class Markdown {
         openText.clear();
       }
     }
+  }
+
+  /**
+   * A delimited block's lines as a diagram, when its language is one or it is drawn with box
+   * characters, else as code.
+   *
+   * @param content the lines between the delimiters
+   * @param language the language the block names, or empty
+   */
+  static Block codeBlock(List<String> content, String language, int start, int end) {
+    String name = language.strip().split("[\\s,{]", 2)[0].toLowerCase(Locale.ROOT);
+    String diagram = DIAGRAM_LANGUAGES.get(name);
+    if (diagram == null
+        && PLAIN_LANGUAGES.contains(name)
+        && content.stream().anyMatch(l -> DRAWING.matcher(l).find())) {
+      diagram = DRAWN;
+    }
+    if (diagram == null) {
+      return new Block(Kind.CODE, 0, "", start, end);
+    }
+    // Leading blank lines go, but not the first line's indentation, which a drawing needs.
+    String text =
+        String.join("\n", content.stream().map(String::stripTrailing).toList())
+            .replaceFirst("^(?:[ \\t]*\\n)+", "")
+            .stripTrailing();
+    return new Block(Kind.DIAGRAM, 0, text, start, end, diagram);
   }
 
   private static String unquote(String value) {

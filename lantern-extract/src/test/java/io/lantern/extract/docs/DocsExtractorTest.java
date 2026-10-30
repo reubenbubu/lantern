@@ -111,5 +111,29 @@ class DocsExtractorTest {
     assertThat(DocsExtractor.isReadme("README")).isTrue();
     assertThat(DocsExtractor.isReadme("README.txt")).isFalse();
     assertThat(DocsExtractor.isReadme("docs/decisions/README.md")).isFalse();
+    assertThat(DocsExtractor.isReadme("payments/README.adoc")).isTrue();
+    assertThat(DocsExtractor.isDecision("docs/decisions/0007-x.adoc")).isTrue();
+  }
+
+  @Test
+  void choosesDocuments() {
+    assertThat(DocsExtractor.isDocument("docs/architecture/system-context.md")).isTrue();
+    assertThat(DocsExtractor.isDocument("docs/dual_session_strategy.md")).isTrue();
+    assertThat(DocsExtractor.isDocument("orders/doc/overview.adoc")).isTrue();
+    assertThat(DocsExtractor.isDocument("src/docs/asciidoc/index.adoc")).isTrue();
+    assertThat(DocsExtractor.isDocument("ARCHITECTURE.md")).isTrue();
+    assertThat(DocsExtractor.isDocument("orders/architecture.adoc")).isTrue();
+    // A decision folder's index, its records and a docs folder's README are not documents.
+    assertThat(DocsExtractor.isDocument("docs/adr/README.md")).isFalse();
+    assertThat(DocsExtractor.isDocument("docs/adr/0001-x.md")).isFalse();
+    assertThat(DocsExtractor.isDocument("docs/README.md")).isFalse();
+    // Process files, templates, hidden folders and files outside a docs folder are not.
+    assertThat(DocsExtractor.isDocument("docs/CHANGELOG.md")).isFalse();
+    assertThat(DocsExtractor.isDocument("docs/CONTRIBUTING.md")).isFalse();
+    assertThat(DocsExtractor.isDocument("docs/TODO.md")).isFalse();
+    assertThat(DocsExtractor.isDocument("docs/issue-template.md")).isFalse();
+    assertThat(DocsExtractor.isDocument(".github/docs/notes.md")).isFalse();
+    assertThat(DocsExtractor.isDocument("HELP.md")).isFalse();
+    assertThat(DocsExtractor.isDocument("docs/diagram.png")).isFalse();
   }
 }

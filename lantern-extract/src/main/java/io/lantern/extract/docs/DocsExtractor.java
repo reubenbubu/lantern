@@ -38,12 +38,14 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Reads the Markdown documentation of repositories: READMEs as low-trust documented claims, and
+ * Reads the Markdown and AsciiDoc documentation of repositories: READMEs and other documents (in a
+ * {@code docs} folder, or an {@code ARCHITECTURE} file) as low-trust documented claims, and
  * architecture decision records (ADRs) as observed decisions with their title, number, status,
  * date, context, outcome and consequences. See {@code docs/adr/0033-docs-extractor.md}.
  *
- * <p>Entity IDs: {@code readme:<repo>:<path>} and {@code decision:<repo>:<path>}, the path being
- * the file's in the repository, with whitespace and {@code %} percent-encoded.
+ * <p>Entity IDs: {@code readme:<repo>:<path>}, {@code document:<repo>:<path>} and {@code
+ * decision:<repo>:<path>}, the path being the file's in the repository, with whitespace and {@code
+ * %} percent-encoded.
  *
  * <p>Facts have origin kind {@code readme}: what the documents say, not what the code does.
  */
@@ -53,7 +55,7 @@ public final class DocsExtractor {
   public static final String NAME = "docs";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "docs-extractor";
@@ -61,10 +63,13 @@ public final class DocsExtractor {
   /** Entity type of a README file. */
   public static final String README = "readme";
 
+  /** Entity type of a document that is neither a README nor a decision record. */
+  public static final String DOCUMENT = "document";
+
   /** Entity type of a decision record. */
   public static final String DECISION = "decision";
 
-  /** Attribute: one paragraph, list item or table row of a README. */
+  /** Attribute: one paragraph, list item, table row, quote or diagram of a README or document. */
   public static final String CLAIM = "claim";
 
   /** Attribute: a decision record's title. */
@@ -100,8 +105,23 @@ public final class DocsExtractor {
   private static final String RESOURCE = "/vocabulary/docs-types.json";
   private static final Origin ORIGIN = new Origin(Origin.Kind.README, NAME, VERSION);
 
-  private static final Pattern MARKDOWN = Pattern.compile("(?i).+\\.(md|markdown)");
-  private static final Pattern README_NAME = Pattern.compile("(?i)readme(\\.(md|markdown))?");
+  private static final Pattern DOC_FILE = Pattern.compile("(?i).+\\.(md|markdown|adoc|asciidoc)");
+  private static final Pattern ASCIIDOC = Pattern.compile("(?i).+\\.(adoc|asciidoc)");
+  private static final Pattern README_NAME =
+      Pattern.compile("(?i)readme(\\.(md|markdown|adoc|asciidoc))?");
+  private static final Pattern ARCHITECTURE_NAME = Pattern.compile("(?i)architecture\\..*");
+
+  /** Files about the project's process, not its architecture. */
+  private static final Pattern NOT_ARCHITECTURE =
+      Pattern.compile(
+          "(?i)(contributing|changelog|changes|history|releases?|release-notes|code[_-]of[_-]conduct"
+              + "|security|licen[cs]e|notice|todo|authors|maintainers|support|governance)\\..*"
+              + "|.*template.*");
+
+  /** Folders whose Markdown and AsciiDoc files are documents of the project. */
+  private static final Set<String> DOCUMENT_DIRECTORIES =
+      Set.of("doc", "docs", "documentation", "architecture");
+
   private static final Pattern ADR_NAME = Pattern.compile("(?i)adr[-_ ]?\\d+.*");
   private static final Pattern NOT_A_RECORD =
       Pattern.compile("(?i)(readme|index|toc|summary|_sidebar)\\..*|.*template.*");
@@ -178,19 +198,22 @@ public final class DocsExtractor {
         }
         boolean decision = isDecision(path);
         boolean readme = !decision && isReadme(path);
-        if (!decision && !readme) {
+        boolean document = !decision && !readme && isDocument(path);
+        if (!decision && !readme && !document) {
           continue;
         }
         byte[] content = GitFiles.read(repo, path, MAX_FILE_BYTES);
         if (content == null) {
           continue;
         }
-        Markdown doc = Markdown.parse(decode(content));
+        String text = decode(content);
+        Markdown doc =
+            ASCIIDOC.matcher(name(path)).matches() ? AsciiDoc.parse(text) : Markdown.parse(text);
         Source source = new Source(repo, path, sha256(content));
         if (decision) {
           decision(source, doc, facts);
         } else {
-          readme(source, doc, facts, known);
+          claims(source.id(readme ? README : DOCUMENT), source, doc, facts, known);
         }
       }
     }
@@ -215,7 +238,7 @@ public final class DocsExtractor {
    */
   static boolean isDecision(String path) {
     String name = name(path);
-    if (!MARKDOWN.matcher(name).matches() || NOT_A_RECORD.matcher(name).matches()) {
+    if (!DOC_FILE.matcher(name).matches() || NOT_A_RECORD.matcher(name).matches()) {
       return false;
     }
     if (ADR_NAME.matcher(name).matches()) {
@@ -240,6 +263,31 @@ public final class DocsExtractor {
       }
     }
     return true;
+  }
+
+  /**
+   * Whether the path is a document: a Markdown or AsciiDoc file named {@code ARCHITECTURE}, or in a
+   * folder named like {@code docs} outside hidden and decision record folders, that is not a
+   * README, a decision record or about the project's process (contributing, changelog, license and
+   * the like).
+   */
+  static boolean isDocument(String path) {
+    String name = name(path);
+    if (!DOC_FILE.matcher(name).matches()
+        || NOT_ARCHITECTURE.matcher(name).matches()
+        || isReadme(path)
+        || isDecision(path)) {
+      return false;
+    }
+    List<String> dirs = directories(path);
+    // Hidden folders hold tooling, and a decision folder's other pages index its records.
+    if (dirs.stream()
+        .anyMatch(
+            d -> d.startsWith(".") || DECISION_DIRECTORIES.contains(d.toLowerCase(Locale.ROOT)))) {
+      return false;
+    }
+    return ARCHITECTURE_NAME.matcher(name).matches()
+        || dirs.stream().anyMatch(d -> DOCUMENT_DIRECTORIES.contains(d.toLowerCase(Locale.ROOT)));
   }
 
   private static String name(String path) {
@@ -300,8 +348,8 @@ public final class DocsExtractor {
         DECISION_CONFIDENCE);
   }
 
-  private static void readme(Source source, Markdown doc, Facts facts, Set<String> known) {
-    EntityId id = source.id(README);
+  private static void claims(
+      EntityId id, Source source, Markdown doc, Facts facts, Set<String> known) {
     String section = null;
     for (Block b : doc.blocks) {
       if (b.kind() == Kind.HEADING) {
@@ -311,7 +359,8 @@ public final class DocsExtractor {
       if (b.kind() != Kind.PARAGRAPH
           && b.kind() != Kind.LIST_ITEM
           && b.kind() != Kind.TABLE_ROW
-          && b.kind() != Kind.QUOTE) {
+          && b.kind() != Kind.QUOTE
+          && b.kind() != Kind.DIAGRAM) {
         continue;
       }
       // Leave out lines made only of badges and links, and rows with no words.
@@ -322,6 +371,9 @@ public final class DocsExtractor {
       ObjectNode attributes = FactJson.newObject();
       if (section != null) {
         attributes.put("section", section);
+      }
+      if (b.language() != null) {
+        attributes.put("diagram", b.language());
       }
       facts.put(
           id,

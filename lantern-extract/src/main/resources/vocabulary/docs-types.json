@@ -6,6 +6,12 @@
     "attributeSchema": { "additionalProperties": false }
   },
   {
+    "name": "document",
+    "kind": "entity",
+    "description": "A Markdown or AsciiDoc document in a repository that is neither a README nor a decision record: one in a doc, docs, documentation or architecture folder, or named ARCHITECTURE. Read as low-trust documented claims. Its key is the repository's name, ':' and the file's path in the repository, such as orders:docs/architecture/overview.md.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
     "name": "decision",
     "kind": "entity",
     "description": "An architecture decision record (ADR) in a repository. Its key is the repository's name, ':' and the file's path in the repository, such as orders:docs/adr/0001-use-kafka.md.",
@@ -14,11 +20,12 @@
   {
     "name": "claim",
     "kind": "attribute",
-    "description": "Something the subject document says, one paragraph, list item or table row in its Markdown as written. A documented claim, not checked against the code.",
+    "description": "Something the subject document says, one paragraph, list item, table row, quote or diagram in its Markdown or AsciiDoc as written. A documented claim, not checked against the code.",
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "section": { "type": "string", "description": "The heading the claim is under, if any." }
+        "section": { "type": "string", "description": "The heading the claim is under, if any." },
+        "diagram": { "type": "string", "description": "For a diagram, its language, such as mermaid or plantuml, or text for one drawn with box characters; the claim is its source as written." }
       },
       "additionalProperties": false
     },

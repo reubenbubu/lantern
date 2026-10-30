@@ -127,6 +127,7 @@ public final class Describer {
 
   private static final String METHOD = "method";
   private static final String CLAIM = "claim";
+  private static final String README = "readme";
   private static final String KIND = "kind";
   private static final String TABLE = "table";
   private static final Set<String> ENTRY_POINTS =
@@ -627,7 +628,11 @@ public final class Describer {
   private static List<Fact> readmeClaims(String repo, Knowledge knowledge) {
     List<Fact> claims =
         knowledge.withPredicate(CLAIM).stream()
-            .filter(f -> f.evidence().repo().equals(repo) && f.evidence().path() != null)
+            .filter(
+                f ->
+                    f.subject().type().equals(README)
+                        && f.evidence().repo().equals(repo)
+                        && f.evidence().path() != null)
             .toList();
     Optional<String> readme =
         claims.stream()

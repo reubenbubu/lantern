@@ -44,6 +44,41 @@ class MarkdownTest {
   }
 
   @Test
+  void diagramsAreKeptAsWritten() {
+    Markdown doc =
+        Markdown.parse(
+            """
+            ```mermaid
+            flowchart LR
+              a --> b
+            ```
+
+            ```
+              ┌───┐
+              │ a │
+              └───┘
+            ```
+
+            ```text
+            +-----+
+            |  b  |
+            +-----+
+            ```
+
+            ```java
+            var box = "┌";
+            ```
+            """);
+
+    assertThat(doc.blocks)
+        .containsExactly(
+            new Block(Kind.DIAGRAM, 0, "flowchart LR\n  a --> b", 1, 4, "mermaid"),
+            new Block(Kind.DIAGRAM, 0, "  ┌───┐\n  │ a │\n  └───┘", 6, 10, Markdown.DRAWN),
+            new Block(Kind.DIAGRAM, 0, "+-----+\n|  b  |\n+-----+", 12, 16, Markdown.DRAWN),
+            new Block(Kind.CODE, 0, "", 18, 20));
+  }
+
+  @Test
   void codeAndCommentsAreNotText() {
     Markdown doc =
         Markdown.parse(

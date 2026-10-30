@@ -1,0 +1,37 @@
+= Payments
+:toc:
+// a comment, not a claim
+
+Payments charges the customer's card
+through the payment provider.
+
+== Modules
+
+* `payments-api`: the REST API
+* `payments-service`: the deployable
+
+[%header,cols="1,1"]
+|===
+|Module |Database
+
+|`payments-service`
+|PostgreSQL
+|===
+
+[source,mermaid]
+----
+flowchart LR
+  payments --> provider[Payment provider]
+----
+
+.Building
+[source,bash]
+----
+./mvnw verify
+----
+
+////
+A comment block.
+////
+
+Provider:: Stripe, called over HTTPS
