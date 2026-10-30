@@ -74,6 +74,22 @@ for (const set of sets) {
     }
   });
 
+  test(`${set}: the alias table names only reference elements and known kinds`, () => {
+    const file = `${dir}aliases.json`;
+    if (!existsSync(file)) return;
+    const aliases = JSON.parse(readFileSync(file, 'utf8'));
+    const kinds = new Set(['container', 'database', 'queue', 'external', 'person']);
+    for (const id of Object.values(aliases.elements ?? {})) {
+      assert.ok(data.elements[id], `aliases.json maps to unknown reference element ${id}`);
+    }
+    for (const [id, other] of Object.entries(aliases.eitherKind ?? {})) {
+      assert.ok(kinds.has(data.elements[id]?.kind), `eitherKind: ${id} is not a reference element of a scored kind`);
+      for (const kind of other) {
+        assert.ok(kinds.has(kind) && kind !== data.elements[id].kind, `eitherKind: ${id} lists ${kind}`);
+      }
+    }
+  });
+
   test(`${set}: the reference has its verification notes`, () => {
     assert.ok(existsSync(`${dir}verification.md`));
   });
