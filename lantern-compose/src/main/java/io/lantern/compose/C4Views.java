@@ -68,6 +68,10 @@ final class C4Views {
   static final String USES = "USES";
   static final String DEPLOYMENT_CONTAINER = "deployment-container";
   static final String DEPLOYED_IN = "deployed-in";
+  static final String FRONTEND = "frontend";
+  static final String FRONTEND_APP = "frontend-app";
+  static final String ROUTE = "route";
+  private static final String PERSON_EVIDENCE = "person-evidence";
 
   /** The kinds of container that are not deployable units: data stores and destinations. */
   static final Set<String> DESTINATIONS = Set.of(DATABASE, TOPIC, QUEUE, EXCHANGE, EXTERNAL_SYSTEM);
@@ -112,6 +116,10 @@ final class C4Views {
   private final Assembler assembler;
   private final EntityId system;
   private final SortedSet<EntityId> units;
+
+  /** The frontends in scope: those of the scope's repositories (ADR 0083). */
+  private final SortedSet<EntityId> frontends;
+
   private final Set<String> repos;
   private final List<Link> links;
 
@@ -134,6 +142,12 @@ final class C4Views {
     this.system = system;
     this.units = units;
     this.repos = repos;
+    this.frontends = new TreeSet<>(Knowledge.BY_ID);
+    for (Fact app : knowledge.withPredicate(FRONTEND_APP)) {
+      if (repos.isEmpty() || repos.contains(app.evidence().repo())) {
+        frontends.add(app.subject());
+      }
+    }
     this.alternatives = alternatives();
     this.links = containerLinks();
     links.removeIf(link -> alternatives.containsKey(link.facts.getFirst()));
@@ -168,8 +182,7 @@ final class C4Views {
   SortedSet<EntityId> destinations() {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
     for (Link link : links) {
-      if (!link.from.type().equals(BuiltInTypes.SERVICE)
-          && !link.to.type().equals(BuiltInTypes.SERVICE)) {
+      if (!runsCode(link.from) && !runsCode(link.to)) {
         continue;
       }
       for (EntityId end : List.of(link.from, link.to)) {
@@ -200,6 +213,34 @@ final class C4Views {
       }
     }
     return result;
+  }
+
+  /** Whether an element is a container that runs code: a deployable unit or a frontend. */
+  private static boolean runsCode(EntityId element) {
+    return element.type().equals(BuiltInTypes.SERVICE) || element.type().equals(FRONTEND);
+  }
+
+  /** Every frontend of the knowledge (ADR 0083). */
+  static SortedSet<EntityId> frontends(Knowledge knowledge) {
+    SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
+    knowledge.withPredicate(FRONTEND_APP).forEach(f -> result.add(f.subject()));
+    return result;
+  }
+
+  /** The frontends in scope. */
+  SortedSet<EntityId> frontends() {
+    return frontends;
+  }
+
+  /** A frontend's {@code frontend-app} fact, if it has one. */
+  Optional<Fact> frontendApp(EntityId frontend) {
+    return frontendApp(knowledge, frontend);
+  }
+
+  static Optional<Fact> frontendApp(Knowledge knowledge, EntityId frontend) {
+    return knowledge.attributes(frontend).stream()
+        .filter(f -> f.predicate().equals(FRONTEND_APP))
+        .findFirst();
   }
 
   // The deployable units and their names.
@@ -248,6 +289,7 @@ final class C4Views {
         .filter(
             f ->
                 f.predicate().equals(DEPLOYABLE_UNIT)
+                    || f.predicate().equals(FRONTEND_APP)
                     || f.predicate().equals(TECHNOLOGY)
                     || (f.predicate().equals(APPLICATION_NAME) && !f.attributes().has("profile")))
         .toList();
@@ -259,6 +301,7 @@ final class C4Views {
     String broker = entity.key().substring(0, Math.max(entity.key().indexOf(':'), 0));
     return switch (entity.type()) {
       case BuiltInTypes.SERVICE, DATABASE -> technology.orElse(null);
+      case FRONTEND -> frontendApp(entity).map(f -> attribute(f, TECHNOLOGY)).orElse(null);
       case TOPIC -> brokerName(broker) + " topic";
       case QUEUE -> brokerName(broker) + " queue";
       case EXCHANGE -> brokerName(broker) + " exchange";
@@ -529,6 +572,24 @@ final class C4Views {
                 access.facts));
       }
     }
+    for (EntityId frontend : frontends(knowledge)) {
+      for (Fact fact : knowledge.relations(frontend, CALLS_HTTP)) {
+        String proxy = attribute(fact, "proxy");
+        boolean passed = attribute(fact, "httpMethod") == null && attribute(fact, "path") == null;
+        boolean socket = "WebSocket".equals(attribute(fact, "protocol"));
+        result.add(
+            link(
+                frontend,
+                CALLS_HTTP,
+                Knowledge.object(fact),
+                passed ? "Passes requests on to" : socket ? "Opens a socket to" : "Calls",
+                passed ? "Passes on" : socket ? "Opens" : "Calls",
+                passed ? proxy : socket ? attribute(fact, "path") : endpoint(fact),
+                protocol(fact),
+                fact));
+      }
+    }
+    result.addAll(peopleLinks());
     for (Fact route : knowledge.withPredicate(ROUTES_TO)) {
       if (Knowledge.isEntity(route) && !folded.contains(Knowledge.object(route))) {
         result.add(
@@ -544,6 +605,70 @@ final class C4Views {
       }
     }
     return result;
+  }
+
+  /**
+   * The lines from people to the frontends that have screens for them (ADR 0074, ADR 0083): from
+   * the frontends their {@code person-basis} names and the routes it cites, each to the frontend
+   * whose folder holds the route's file.
+   */
+  private List<Link> peopleLinks() {
+    List<Link> result = new ArrayList<>();
+    for (Map.Entry<EntityId, Fact> person : people().entrySet()) {
+      Fact basis = person.getValue();
+      List<String> named = strings(basis, "frontends");
+      Map<EntityId, List<Fact>> screens = new java.util.TreeMap<>(Knowledge.BY_ID);
+      for (Fact route : cited(basis)) {
+        if (!route.predicate().equals(PERSON_EVIDENCE)
+            || !route.object().value().equals(ROUTE)
+            || !named.contains(route.evidence().repo())) {
+          continue;
+        }
+        EntityId frontend = frontendOf(route);
+        if (frontend != null) {
+          screens.computeIfAbsent(frontend, f -> new ArrayList<>()).add(route);
+        }
+      }
+      screens.forEach(
+          (frontend, routes) -> {
+            for (Fact route : routes) {
+              List<Fact> facts = new ArrayList<>(List.of(basis, route));
+              frontendApp(frontend).ifPresent(facts::add);
+              result.add(
+                  new Link(
+                      person.getKey(),
+                      USES,
+                      frontend,
+                      "Uses the screens of",
+                      "Uses the screens",
+                      attribute(route, "path"),
+                      "Web browser",
+                      null,
+                      null,
+                      facts));
+            }
+          });
+    }
+    return result;
+  }
+
+  /** The frontend whose folder holds a fact's file, the deepest one; null if none does. */
+  private EntityId frontendOf(Fact fact) {
+    EntityId found = null;
+    int depth = -1;
+    for (EntityId frontend : frontends(knowledge)) {
+      Fact app = frontendApp(frontend).orElse(null);
+      if (app == null || !app.evidence().repo().equals(fact.evidence().repo())) {
+        continue;
+      }
+      String directory = RepoSections.attribute(app, "directory", "");
+      if ((directory.isEmpty() || fact.evidence().path().startsWith(directory + "/"))
+          && directory.length() > depth) {
+        found = frontend;
+        depth = directory.length();
+      }
+    }
+    return found;
   }
 
   private static Link link(
@@ -812,7 +937,8 @@ final class C4Views {
     nodes.put(system, node(system, null, null, List.of()));
     Edges edges = new Edges();
     for (Link link : links) {
-      if (units.contains(link.from) && link.to.type().equals(EXTERNAL_SYSTEM)) {
+      if ((units.contains(link.from) || frontends.contains(link.from))
+          && link.to.type().equals(EXTERNAL_SYSTEM)) {
         nodes.computeIfAbsent(link.to, e -> node(e, null, null, List.of()));
         EdgeBuilder edge = edges.get(system, link.relationship, link.to);
         edge.add(link.plain, link.prefix, link.detail, null, link.profile);
@@ -923,6 +1049,11 @@ final class C4Views {
     }
     List<Metrics.Item> items = new ArrayList<>();
     items.add(metric("Deployable units", units.size(), unitFacts));
+    if (!frontends.isEmpty()) {
+      List<Fact> apps = new ArrayList<>();
+      frontends.forEach(f -> frontendApp(f).ifPresent(apps::add));
+      items.add(metric("Frontends", frontends.size(), apps));
+    }
     items.add(metric("Databases", used.get(DATABASE)));
     items.add(metric("Topics, queues and exchanges", used.get(QUEUE)));
     items.add(metric("External systems", used.get(EXTERNAL_SYSTEM)));
@@ -954,7 +1085,11 @@ final class C4Views {
    * @param subsections receives one subsection per unit when the diagram is split
    */
   void containers(String section, List<Block> blocks, List<Section> subsections) {
-    if (units.isEmpty()) {
+    // The frontends first: the pages run from the entry inward.
+    SortedSet<EntityId> shown = new TreeSet<>(FRONTENDS_FIRST);
+    shown.addAll(units);
+    shown.addAll(frontends);
+    if (shown.isEmpty()) {
       // A note: what the code does not show cites no fact (Quality bar, ADR 0046).
       blocks.add(
           new Callout(
@@ -965,11 +1100,11 @@ final class C4Views {
               List.of(TextRun.of("No deployable unit was found in the code.")),
               List.of()));
     } else {
-      Diagram whole = containerDiagram(assembler.id(section, "diagram"), units, "Containers");
-      if (whole.nodes().size() - 1 <= MAX_ELEMENTS || units.size() == 1) {
+      Diagram whole = containerDiagram(assembler.id(section, "diagram"), shown, "Containers");
+      if (whole.nodes().size() - 1 <= MAX_ELEMENTS || shown.size() == 1) {
         blocks.add(whole);
       } else {
-        for (EntityId unit : units) {
+        for (EntityId unit : shown) {
           String id = assembler.id(section, unit.toString());
           Diagram around =
               containerDiagram(
@@ -1107,14 +1242,23 @@ final class C4Views {
         List.of());
   }
 
-  /** Adds a container, store or external system to a container diagram's nodes. */
+  /** Frontends before the other containers, then by ID. */
+  private static final Comparator<EntityId> FRONTENDS_FIRST =
+      Comparator.comparing((EntityId e) -> !e.type().equals(FRONTEND))
+          .thenComparing(Knowledge.BY_ID);
+
+  /** Adds a container, store, external system or person to a container diagram's nodes. */
   private void container(Map<EntityId, Diagram.Node> nodes, EntityId entity) {
     if (nodes.containsKey(entity)) {
       return;
     }
     // Inside the system's boundary where the diagram draws it.
     EntityId parent =
-        entity.type().equals(EXTERNAL_SYSTEM) || !nodes.containsKey(system) ? null : system;
+        entity.type().equals(EXTERNAL_SYSTEM)
+                || entity.type().equals(PERSON)
+                || !nodes.containsKey(system)
+            ? null
+            : system;
     nodes.put(entity, node(entity, technology(entity), parent, containerFacts(entity)));
   }
 

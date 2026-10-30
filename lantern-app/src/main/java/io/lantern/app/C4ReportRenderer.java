@@ -590,6 +590,9 @@ public final class C4ReportRenderer {
       if (type.equals("repo")) {
         return "Repository";
       }
+      if (type.equals("frontend")) {
+        return "Single-Page App";
+      }
       String words = type.replace('-', ' ');
       return words.substring(0, 1).toUpperCase(Locale.ROOT) + words.substring(1);
     }

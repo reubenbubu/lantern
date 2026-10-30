@@ -1,0 +1,19 @@
+{
+  "projects": {
+    "web": {
+      "architect": {
+        "build": {
+          "defaultConfiguration": "production",
+          "configurations": {
+            "production": {
+              "fileReplacements": [
+                {"replace": "src/environments/environment.ts", "with": "src/environments/environment.prod.ts"}
+              ]
+            }
+          }
+        },
+        "serve": {"options": {"proxyConfig": "proxy.conf.json"}}
+      }
+    }
+  }
+}

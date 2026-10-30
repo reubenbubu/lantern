@@ -120,7 +120,7 @@
     "name": "CALLS_HTTP",
     "kind": "relationship",
     "parent": "CALLS",
-    "description": "The subject unit calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched, and one per gateway route that sends requests to it (route set).",
+    "description": "The subject unit or frontend calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched, one per gateway route that sends requests to it (route set), and for a frontend one per URL its code calls from the browser and one per proxy of its server that no call goes through.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -178,6 +178,10 @@
           },
           "description": "For a WebSocket gateway route that reaches more than one WebSocket endpoint of its target, their paths."
         },
+        "proxy": {
+          "type": "string",
+          "description": "For a frontend's link, the path prefix of the proxy it goes through: the nginx that serves the frontend, or its development server."
+        },
         "route": {
           "type": "string",
           "description": "The id of the gateway route the link is, for a link from a Spring Cloud Gateway route."
@@ -198,7 +202,7 @@
         },
         "matchedBy": {
           "type": "string",
-          "description": "How the target was found: service-name (a Feign client's name, or a gateway route's lb:// name, against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone), port (a gateway route to this machine, by its port against the unit's server.port), external (a host with a domain that names no unit) or llm (picked by the LLM resolver among the candidates of a link static matching left open)."
+          "description": "How the target was found: service-name (a Feign client's name, or a gateway route's lb:// name, against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone), port (a gateway route or a frontend's call to this machine, by its port against the unit's server.port), published-port (a frontend's call to this machine or a private address, by the port a deployment container that runs the unit publishes), container-host (a frontend's URL host against the names of a deployment container that runs the unit), external (a host with a domain that names no unit) or llm (picked by the LLM resolver among the candidates of a link static matching left open)."
         },
         "exceptProfiles": {
           "type": "array",
@@ -759,7 +763,7 @@
   {
     "name": "display-name",
     "kind": "attribute",
-    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the one a deployment names, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words.",
+    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the one a deployment names, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words; a frontend takes the name of the compose service that builds it from its folder.",
     "attributeSchema": {
       "type": "object",
       "properties": {},
@@ -882,7 +886,7 @@
   {
     "name": "deployed-in",
     "kind": "attribute",
-    "description": "A container a deployment descriptor runs the subject in (a deployable unit, or a data store on a database or Redis container); the value names the environment, such as Docker Compose (local). The linker ties a container to a unit by name, and to a data store through the unit's datasource or Redis connection.",
+    "description": "A container a deployment descriptor runs the subject in (a deployable unit, a frontend built from its folder, or a data store on a database or Redis container); the value names the environment, such as Docker Compose (local). The linker ties a container to a unit by name, and to a data store through the unit's datasource or Redis connection.",
     "attributeSchema": {
       "type": "object",
       "properties": {

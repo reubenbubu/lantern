@@ -23,6 +23,7 @@ import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaAnalysis;
@@ -330,6 +331,7 @@ public final class AnalysisRun {
       found.addAll(new RedisExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new DeploymentExtractor().extract(repoBuilds, snapshot.number()));
+      found.addAll(new FrontendExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new GatewayExtractor().extract(code, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       // The resolver's tools read files of every repository of the snapshot at its commit there,

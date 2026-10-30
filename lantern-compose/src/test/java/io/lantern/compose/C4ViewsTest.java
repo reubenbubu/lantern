@@ -17,7 +17,12 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TemplateRef;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
+import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.ObjectNode;
 
 /** The C4 context, container and component views (docs/design.md, Diagrams; ADR 0044). */
 class C4ViewsTest {
@@ -194,6 +200,71 @@ class C4ViewsTest {
                         "context"),
                     Diagram.class)))
         .noneMatch(n -> n.startsWith("person:"));
+  }
+
+  @Test
+  void aFrontendIsAContainerWithItsTechnologyItsCallsAndThePeopleWithScreensInIt() {
+    TestFacts withFrontend = TestFacts.runtime();
+    withFrontend.attribute(
+        "shop",
+        "frontend:shop/web",
+        "frontend-app",
+        "angular",
+        "{\"name\":\"web\",\"directory\":\"web\",\"framework\":\"Angular\","
+            + "\"version\":\"19.2\",\"server\":\"nginx\","
+            + "\"technology\":\"Angular 19.2 · nginx\"}");
+    withFrontend.relate(
+        "shop",
+        "frontend:shop/web",
+        "CALLS_HTTP",
+        "service:com.example:app",
+        "{\"httpMethod\":\"GET\",\"path\":\"/orders\",\"protocol\":\"JSON/HTTP\","
+            + "\"url\":\"http://shop-app:8080/orders\",\"matchedBy\":\"host\"}");
+    Fact route =
+        Fact.create(
+            EntityId.parse("repo:shop"),
+            "person-evidence",
+            FactObject.string("route"),
+            (ObjectNode) FactJson.parse("{\"path\":\"/registration\",\"framework\":\"angular\"}"),
+            new Origin(Origin.Kind.STATIC, "people", "2"),
+            new Evidence("shop", TestFacts.COMMIT, "web/src/app/app.routes.ts", null, null),
+            0.8,
+            Validity.from(1));
+    withFrontend.add(route);
+    withFrontend.attribute(
+        "shop",
+        "person:user",
+        "person-basis",
+        "account",
+        "{\"basis\":\"account\",\"description\":\"The code lets people sign up or in.\","
+            + "\"cites\":[\""
+            + route.id()
+            + "\"],\"repos\":[\"shop\"],\"frontends\":[\"shop\"]}");
+    withFrontend.attribute("shop", "person:user", "display-name", "User");
+
+    Document document = system(withFrontend.list());
+    Diagram diagram = block(section(document, "containers"), Diagram.class);
+
+    assertThat(nodes(diagram))
+        .contains(
+            "frontend:shop/web \"web\" [Angular 19.2 · nginx] in system:snapshot",
+            "person:user \"User\"");
+    assertThat(edges(diagram))
+        .contains(
+            "frontend:shop/web -> service:com.example:app: Calls GET /orders [JSON/HTTP]",
+            "person:user -> frontend:shop/web: Uses the screens /registration [Web browser]");
+    DocumentEntity frontend =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("frontend:shop/web"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(frontend.description()))
+        .isEqualTo(
+            "A single-page app built with Angular 19.2, served by nginx; it calls shop-app from"
+                + " the browser.");
+    assertThat(block(section(document, "context"), Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains("Frontends 1");
   }
 
   @Test

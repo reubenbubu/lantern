@@ -141,7 +141,9 @@ final class Assembler {
         // it, by its responsibility sentence (ADR 0056).
         || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)
         // A person is described by what the code shows of them (ADR 0074).
-        || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)) {
+        || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)
+        // A frontend by what its manifest and Dockerfile say (ADR 0083).
+        || (id.type().equals(C4Views.FRONTEND) && responsibility(id) == null)) {
       undescribed.add(id);
     }
     return id;
@@ -204,6 +206,14 @@ final class Assembler {
       case C4Views.EXTERNAL_SYSTEM -> MailProviders.name(key).orElse(key);
       case C4Views.DECISION -> knowledge.attribute(id, "title").orElse(key);
       case C4Views.PERSON -> knowledge.attribute(id, "display-name").orElse(key);
+      case C4Views.FRONTEND ->
+          knowledge
+              .attribute(id, "display-name")
+              .or(
+                  () ->
+                      C4Views.frontendApp(knowledge, id)
+                          .map(f -> RepoSections.attribute(f, "name", key)))
+              .orElse(key);
       case BuiltInTypes.MODULE, BuiltInTypes.LIBRARY, BuiltInTypes.PACKAGE, "artifact" ->
           key.substring(key.lastIndexOf(':') + 1);
       case BuiltInTypes.TYPE -> key.substring(key.lastIndexOf('.') + 1).replace('$', '.');
@@ -238,6 +248,10 @@ final class Assembler {
         }
         yield wholes.isEmpty() ? null : wholes.first();
       }
+      case C4Views.FRONTEND ->
+          C4Views.frontendApp(knowledge, id)
+              .map(f -> repoOf(new TreeSet<>(Set.of(f.evidence().repo()))))
+              .orElse(null);
       default -> {
         SortedSet<EntityId> wholes = knowledge.wholes(id);
         yield wholes.isEmpty() ? null : wholes.first();
@@ -525,17 +539,54 @@ final class Assembler {
       List<Inline> description =
           entity.id().type().equals(C4Views.PERSON) && personBasis(entity.id()) != null
               ? person(entity.id()).content()
-              : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
-                  ? purpose().content()
-                  : responsibility != null
-                      ? responsibility(entity.id(), responsibility).content()
-                      : summarizedDescription(entity.id()).content();
+              : entity.id().type().equals(C4Views.FRONTEND) && responsibility == null
+                  ? frontend(entity.id()).content()
+                  : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+                      ? purpose().content()
+                      : responsibility != null
+                          ? responsibility(entity.id(), responsibility).content()
+                          : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
               entity.id(), entity.name(), entity.parent(), description, entity.facts()));
     }
     return List.copyOf(entities.values());
+  }
+
+  /**
+   * The description of a frontend without a responsibility sentence: what its manifest and
+   * Dockerfile say, citing its {@code frontend-app} fact, and what it calls.
+   */
+  private Text frontend(EntityId id) {
+    Fact app = C4Views.frontendApp(knowledge, id).orElse(null);
+    if (app == null) {
+      return new Text(List.of(), List.of());
+    }
+    StringBuilder text = new StringBuilder("A single-page app built with ");
+    text.append(RepoSections.attribute(app, "framework", "a framework"));
+    String version = RepoSections.attribute(app, "version", null);
+    if (version != null) {
+      text.append(' ').append(version);
+    }
+    String server = RepoSections.attribute(app, "server", null);
+    if (server != null) {
+      text.append(", served by ").append(server);
+    }
+    List<Fact> cited = new ArrayList<>(List.of(app));
+    SortedSet<String> called = new TreeSet<>();
+    for (Fact call : knowledge.relations(id, C4Views.CALLS_HTTP)) {
+      called.add(name(Knowledge.object(call)));
+      if (cited.size() < 6) {
+        cited.add(call);
+      }
+    }
+    if (!called.isEmpty()) {
+      text.append("; it calls ").append(String.join(", ", called)).append(" from the browser");
+    }
+    text.append('.');
+    List<String> ids = facts(cited);
+    return new Text(List.of(TextRun.of(text.toString()), new Citation(ids)), ids);
   }
 
   /** The fact saying what a person rests on, or {@code null}. */

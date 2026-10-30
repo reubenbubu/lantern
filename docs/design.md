@@ -119,7 +119,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Tests | Test sources, parsed without compiling or running them | Test classes per module, how many tests each declares, and which are architecture tests (ArchUnit and similar) |
 | README and ADR | Markdown READMEs and architecture decision records in the repo | Low-trust "documented claims", checked against code; observed decisions with title, status, date and rationale |
 | Deployment | Dockerfiles, compose files, Helm charts, kustomize and Kubernetes manifests | Images and the units they run, container instances per environment, published ports, environment variables that set config, infrastructure the system runs with (databases, brokers, gateways, identity providers) and their versions |
-| Frontend | A frontend repository's package manifest, framework config and environment files, and the HTTP calls in its code | A frontend container with its technology, and the API base URLs and paths it calls |
+| Frontend | A frontend's package manifest (Angular, React, Vue), in its own repository or a folder of another, its environment files, Dockerfile, nginx and development-server proxies, and the HTTP calls and sockets in its code | A frontend container with its technology, the URLs it calls from the browser and the path prefixes its server passes on |
 
 **Following values.** Paths, queue, exchange and topic names and routing keys are rarely literals where they are used. Extractors resolve `${...}` placeholders against config per profile, fold constants, and follow a value one hop from a `@Value` field or constructor argument into the template or client call that uses it. A value that can't be resolved keeps its placeholder key, which still says what it is.
 
@@ -151,6 +151,8 @@ Which listeners, templates and bindings the Messaging extractor reads, how it fo
 
 What the WebSocket extractor reads of Spring's WebSocket and STOMP code, which facts it makes, how a push to subscribers shows in sequence diagrams and what a gateway route to a WebSocket endpoint needs of it is in ADR 0080.
 Which routes and filters the Spring Cloud Gateway extractor reads, and how lambdas in the code are read for it, is in ADR 0077.
+
+Which manifests, environment files, proxies and calls the Frontend extractor reads, and how it evaluates a URL without parsing the code, is in ADR 0083.
 
 Which HTTP clients the HTTP client extractor reads, how it follows a URL one hop through the code, what facts it makes of calls and of the code that enables or injects a client, and what a recorded URL leaves out is in ADR 0038.
 
@@ -252,6 +254,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | --- | --- |
 | Library dependency | Maven coordinates of internal artifacts |
 | HTTP call | Client name (Feign `name`) against the target's `spring.application.name`, else resolved client URL or property key against service base URLs; then the path against the target's endpoints |
+| Frontend call | A path of the page's origin through the proxy of the frontend's nginx or development server; then the URL's host against unit and deployment container names, or for this machine or a private address its port against the port a deployment container publishes, else the unit's `server.port` |
 | Gateway route | A load-balanced URI's name (`lb://orders`) against `spring.application.name`, else the URI's host as for an HTTP call, or for this machine its port against the target's `server.port`; endpoints of a routed unit that no route reaches are recorded for the findings |
 | Messaging | Topic, exchange or queue names and routing keys, produced vs. consumed, with AMQP topic wildcards (`order.*`) matched as the broker matches them |
 | Shared database | Datasource URLs and table names; Redis servers (`spring.data.redis.*`), one data store per server |
@@ -262,7 +265,7 @@ A datasource whose server or database is a placeholder is a database of its unit
 
 Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; its tools to query the graph and read files are in ADR 0081, the questions queue comes with #170.
 
-How gateway routes become links, and which endpoints count as reached by none, is in ADR 0077. What the links look like (one relationship per call, send, datasource or setting between units and the topics, queues, exchanges, databases, brokers, external systems and infrastructure they reach, each with the facts on both ends, its protocol, its profile and a stable link ID), how profiles are applied, and how a library's code takes the config of each unit that bundles it are in ADR 0042.
+How gateway routes become links, and which endpoints count as reached by none, is in ADR 0077. How a frontend's calls and proxies become links, and how people are drawn to the frontends with their screens, is in ADR 0083. What the links look like (one relationship per call, send, datasource or setting between units and the topics, queues, exchanges, databases, brokers, external systems and infrastructure they reach, each with the facts on both ends, its protocol, its profile and a stable link ID), how profiles are applied, and how a library's code takes the config of each unit that bundles it are in ADR 0042.
 
 **Scope modes**
 
