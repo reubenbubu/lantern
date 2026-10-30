@@ -94,7 +94,7 @@ but that caching was never asked for: `cache_control` is sent only for a request
 pass `false`). The prefixes themselves are fit to cache: tools render first, then the system
 prompt, and both are constants of their role (the resolver's prompt has two forms, with and
 without tools, and its tool list is fixed for a conversation and a run), with nothing per call
-such as a time or an ID. The summarizer's system prompt is some 700 tokens, above the 512-token
+such as a time or an ID. The summarizer's system prompt is roughly 700 to 800 tokens, above the 512-token
 minimum of the newest models though below the 1,024 of some older ones; a prefix under a model's
 minimum is not cached and costs nothing extra.
 
@@ -108,7 +108,12 @@ minimum is not cached and costs nothing extra.
 - **The budget reserves the system prompt at the cache-write price** on such a model, as it did
   for a request that asked.
 - **Record/replay keys are unchanged**: the request's own flag is what they hold, so existing
-  recordings keep their names.
+  recordings keep their names. A recording therefore does not say whether caching was applied:
+  one made on a model with `prompt-caching` holds the cache split it was answered with, and
+  replayed for a model without the capability, whose cache prices default to zero, those tokens
+  cost nothing. Recordings are test fixtures, so this is accepted.
+- **The fake answers as the provider does**: on a model with `prompt-caching` it reports the
+  system prompt as a cache write.
 - **Tests** check the request shape: two calls of one role send byte-identical tools and system
   prompt with one breakpoint after them, and a model without the capability marks nothing.
   Whether a real model then reads from the cache is shown only by a real run's

@@ -32,6 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -55,6 +56,7 @@ class AnthropicProviderTest {
   private volatile String responseBody;
   private volatile Map<String, String> responseHeaders = Map.of();
   private final AtomicInteger requests = new AtomicInteger();
+  private final List<String> bodies = new CopyOnWriteArrayList<>();
 
   @BeforeEach
   void startStub() throws IOException {
@@ -189,9 +191,6 @@ class AnthropicProviderTest {
     assertThat(response.usage().total()).isEqualTo(1 + 5 + 1234 + 66);
   }
 
-  /** The request bodies the stub received, in order. */
-  private final List<String> bodies = new java.util.concurrent.CopyOnWriteArrayList<>();
-
   /** Two calls of one role, as a summarizer makes them: one system prompt, other user turns. */
   private List<JsonNode> twoCallsOfOneRole(ModelConfig model, List<LlmTool> tools) {
     responseBody = LOCAL_SERVER_ANSWER;
@@ -250,7 +249,7 @@ class AnthropicProviderTest {
     assertThat(sent.get(1).get("messages")).isNotEqualTo(sent.get(0).get("messages"));
   }
 
-  /** The {@code system} array of a request body as sent. */
+  /** The {@code system} array of a request body as sent; its text holds no {@code ]}. */
   private static String systemBytes(String body) {
     int start = body.indexOf("\"system\":");
     int end = body.indexOf(']', start);

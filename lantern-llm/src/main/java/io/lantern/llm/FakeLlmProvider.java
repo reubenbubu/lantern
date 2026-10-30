@@ -142,17 +142,19 @@ public final class FakeLlmProvider implements LlmProvider {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
-    return complete(model, request, thinks.tokens());
+    return complete(model, request, thinks.tokens(), request.cacheSystem());
   }
 
   @Override
   public LlmResponse complete(ModelConfig model, LlmRequest request) {
     Thinks current = thinks;
     boolean disabled = current.canBeDisabled() && model.thinking().disabled();
-    return complete(model.model(), request, disabled ? 0 : current.tokens());
+    return complete(
+        model.model(), request, disabled ? 0 : current.tokens(), model.cachesSystem(request));
   }
 
-  private LlmResponse complete(String model, LlmRequest request, int thinking) {
+  private LlmResponse complete(
+      String model, LlmRequest request, int thinking, boolean cachesSystem) {
     RuntimeException failed = null;
     synchronized (this) {
       sent.add(new Sent(model, request));
@@ -162,13 +164,14 @@ public final class FakeLlmProvider implements LlmProvider {
     }
     maxInFlight.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
     try {
-      return answer(request, failed, thinking);
+      return answer(request, failed, thinking, cachesSystem);
     } finally {
       inFlight.decrementAndGet();
     }
   }
 
-  private LlmResponse answer(LlmRequest request, RuntimeException failed, int thinking) {
+  private LlmResponse answer(
+      LlmRequest request, RuntimeException failed, int thinking, boolean cachesSystem) {
     if (!latency.isZero()) {
       try {
         Thread.sleep(latency);
@@ -206,7 +209,7 @@ public final class FakeLlmProvider implements LlmProvider {
     }
     long input = request.estimatedInputTokens();
     TokenUsage usage =
-        request.cacheSystem()
+        cachesSystem
             ? new TokenUsage(
                 input - Tokens.estimate(request.system()),
                 output,
