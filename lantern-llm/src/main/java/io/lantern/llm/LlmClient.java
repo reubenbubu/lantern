@@ -393,7 +393,8 @@ public final class LlmClient {
   private List<BudgetGuard.Reservation> reserve(ModelConfig model, LlmRequest request) {
     long input = request.estimatedInputTokens();
     // With caching, the system prompt may be written to the cache; the rest is normal input.
-    long cached = request.cacheSystem() ? Math.min(input, Tokens.estimate(request.system())) : 0;
+    long cached =
+        model.cachesSystem(request) ? Math.min(input, Tokens.estimate(request.system())) : 0;
     TokenUsage worstCase = new TokenUsage(input - cached, request.maxOutputTokens(), cached, 0);
     BigDecimal cost = model.pricing().cost(worstCase);
     List<BudgetGuard.Reservation> reservations = new ArrayList<>();
