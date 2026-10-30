@@ -54,6 +54,15 @@ services:
     environment:
       JAVA_OPTS: -Xmx256m -Dapp.password=topsecret
 
+  reports:
+    image: example/reports:1.0
+    env_file:
+      - path: ./app/reports.env
+        required: false
+    environment:
+      SPRING_APPLICATION_JSON: '{"reports":{"datasource":{"password":"jsonsecret"},"format":"csv"}}'
+      JDK_JAVA_OPTIONS: -Dreports.format=pdf
+
 volumes:
   db-data:
 

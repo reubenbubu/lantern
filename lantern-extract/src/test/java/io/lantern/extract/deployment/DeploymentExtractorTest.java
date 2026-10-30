@@ -39,7 +39,14 @@ class DeploymentExtractorTest {
     // command line.
     assertThat(Fixtures.render(facts))
         .doesNotContain(
-            "secret\"", "hunter2", "user:pw", "\"9\"", "topsecret", "patched", "abc123");
+            "secret\"",
+            "hunter2",
+            "user:pw",
+            "\"9\"",
+            "topsecret",
+            "patched",
+            "abc123",
+            "jsonsecret");
   }
 
   @Test

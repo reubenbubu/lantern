@@ -43,8 +43,8 @@ test sets.
 
 ### Dockerfile
 
-- Only the **last stage** is the runtime image; `ENV`, `EXPOSE`, `ENTRYPOINT` and `CMD` count from
-  the final `FROM` on. `ENV` has a `key=value` form and a legacy `key value` form. [Dockerfile
+- Only the **last stage** is the runtime image; it has the `ENV`, `EXPOSE`, `ENTRYPOINT` and `CMD`
+  set from its `FROM` on, plus those of the earlier stage it is built `FROM`, if any. `ENV` has a `key=value` form and a legacy `key value` form. [Dockerfile
   reference]
 - **ENTRYPOINT and CMD**: exec form (JSON) runs no shell, so `$JAVA_OPTS` stays literal; shell form
   runs under `/bin/sh -c`. An exec-form `ENTRYPOINT` takes `CMD` as arguments, and setting
@@ -130,8 +130,9 @@ Take options 1 and 3 now, in the Deployment extractor; the rest goes to issues i
 
 - project-3's `mediahub-infra/docker-compose.yml` sets `SPRING_PROFILES_ACTIVE=native` on its
   config server: now an active profile of that container.
-- project-4's kustomize `base/ingress.yml` routes `www.aappaa.com/` to `gateway-service`, and its
-  Helm chart has the same template: now a route fact each.
+- project-4's kustomize `base/ingress.yml` routes `www.aappaa.com/` to `gateway-service`: now a
+  route fact. Its Helm chart's Ingress renders `cors-allow-origin: *` unquoted, which is not valid
+  YAML (Helm would reject it too), so it gives none.
 - No development set uses `env_file`, HTTPRoute, a Java command line with `-D` or `--` settings, or
   Jib; the fixture covers them.
 

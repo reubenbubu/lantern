@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -108,6 +109,10 @@ public final class DeploymentExtractor {
   private static final Pattern YAML = Pattern.compile("(?i).*\\.ya?ml");
   private static final Pattern SEPARATOR = Pattern.compile("^---(\\s.*)?$");
 
+  /** The java launcher's options that take the next word as their value. */
+  private static final Set<String> OPTION_WITH_VALUE =
+      Set.of("-cp", "-classpath", "--class-path", "-p", "--module-path", "--add-modules");
+
   /** Environment variable names whose values are secrets, so never recorded. */
   private static final Pattern SECRET_NAME =
       Pattern.compile(
@@ -117,13 +122,14 @@ public final class DeploymentExtractor {
   private static final Pattern URL_USER = Pattern.compile("(?i)(://)[^/@\\s]+@");
 
   /**
-   * A value that writes a secret out: {@code password=x}, {@code -Dapp.secret=x}, {@code key: x}.
+   * A value that writes a secret out: {@code password=x}, {@code -Dapp.secret=x}, {@code key: x},
+   * {@code "password":"x"}.
    */
   private static final Pattern SECRET_VALUE =
       Pattern.compile(
           "(?i)(pass(word|wd)?|pwd|secret|token|credential|api[_-]?key|access[_-]?key"
               + "|private[_-]?key)"
-              + "[\\w.-]*\\s*[=:]");
+              + "[\\w.-]*[\"']?\\s*[=:]");
 
   private static final Pattern CREATE_DATABASE =
       Pattern.compile(
@@ -227,6 +233,28 @@ public final class DeploymentExtractor {
     int line;
   }
 
+  /** A Dockerfile build stage: what a later {@code FROM <stage>} inherits. */
+  private static final class Stage {
+    String from;
+    final Found settings = new Found();
+    final Set<String> exposes = new LinkedHashSet<>();
+    List<String> entrypoint = List.of();
+    boolean shellEntrypoint;
+    List<String> cmd = List.of();
+
+    Stage copy() {
+      Stage copy = new Stage();
+      copy.from = from;
+      copy.settings.env.putAll(settings.env);
+      copy.settings.masked.addAll(settings.masked);
+      copy.exposes.addAll(exposes);
+      copy.entrypoint = entrypoint;
+      copy.shellEntrypoint = shellEntrypoint;
+      copy.cmd = cmd;
+      return copy;
+    }
+  }
+
   private static final class Run {
 
     private final RepoBuild repo;
@@ -286,13 +314,12 @@ public final class DeploymentExtractor {
         return;
       }
       Map<String, String> args = new TreeMap<>();
-      Map<String, String> stages = new TreeMap<>();
+      Map<String, Stage> stages = new TreeMap<>();
       String from = null;
       int fromLine = 0;
-      Set<String> exposes = new LinkedHashSet<>();
-      Found settings = new Found();
-      List<String> entrypoint = List.of();
-      List<String> cmd = List.of();
+      Stage stage = new Stage();
+      // Whether this stage sets its own CMD, which an ENTRYPOINT after it keeps.
+      boolean cmdHere = false;
       List<String> lines = joined(file.lines());
       for (int n = 0; n < lines.size(); n++) {
         String line = lines.get(n).strip();
@@ -310,32 +337,40 @@ public final class DeploymentExtractor {
           }
           if (i < words.length) {
             from = substitute(words[i], args);
-            // FROM <stage> builds on an earlier stage: its base image is that stage's.
-            from = stages.getOrDefault(from.toLowerCase(Locale.ROOT), from);
+            // FROM <stage> builds on an earlier stage: its base image, environment, ports and
+            // command are that stage's.
+            Stage parent = stages.get(from.toLowerCase(Locale.ROOT));
+            stage = parent == null ? new Stage() : parent.copy();
+            if (parent == null) {
+              stage.from = from;
+            }
+            from = stage.from;
             if (i + 2 < words.length && words[i + 1].equalsIgnoreCase("AS")) {
-              stages.put(words[i + 2].toLowerCase(Locale.ROOT), from);
+              stages.put(words[i + 2].toLowerCase(Locale.ROOT), stage);
             }
             fromLine = n + 1;
-            exposes.clear();
-            settings = new Found();
-            entrypoint = List.of();
-            cmd = List.of();
+            cmdHere = false;
           }
         } else if (upper.startsWith("EXPOSE ")) {
           for (String port : line.substring(7).strip().split("\\s+")) {
             if (!port.isBlank()) {
-              exposes.add(substitute(port, args));
+              stage.exposes.add(substitute(port, args));
             }
           }
         } else if (upper.startsWith("ENV ")) {
           for (Map.Entry<String, String> e : dockerEnv(line.substring(4).strip()).entrySet()) {
-            putEnv(settings, e.getKey(), substitute(e.getValue(), args));
+            putEnv(stage.settings, e.getKey(), substitute(e.getValue(), args));
           }
         } else if (upper.startsWith("ENTRYPOINT ")) {
-          entrypoint = commandWords(line.substring(11).strip());
-          cmd = List.of(); // an ENTRYPOINT resets the CMD inherited from the base image
+          String text = line.substring(11).strip();
+          stage.entrypoint = commandWords(text);
+          stage.shellEntrypoint = !text.startsWith("[");
+          if (!cmdHere) {
+            stage.cmd = List.of(); // an ENTRYPOINT resets the CMD inherited from the base image
+          }
         } else if (upper.startsWith("CMD ")) {
-          cmd = commandWords(line.substring(4).strip());
+          stage.cmd = commandWords(line.substring(4).strip());
+          cmdHere = true;
         }
       }
       if (from == null) {
@@ -347,12 +382,16 @@ public final class DeploymentExtractor {
       if (image != null) {
         attributes.put("technology", image.technology());
       }
-      if (!exposes.isEmpty()) {
+      if (!stage.exposes.isEmpty()) {
         ArrayNode array = attributes.putArray("exposes");
-        exposes.forEach(array::add);
+        stage.exposes.forEach(array::add);
       }
-      settings.command.addAll(entrypoint);
-      settings.command.addAll(cmd);
+      Found settings = stage.settings;
+      settings.command.addAll(stage.entrypoint);
+      // A shell-form ENTRYPOINT ignores CMD; an exec-form one takes it as its arguments.
+      if (stage.entrypoint.isEmpty() || !stage.shellEntrypoint) {
+        settings.command.addAll(stage.cmd);
+      }
       settings(settings, attributes);
       add(DOCKERFILE, path, attributes, file, fromLine);
     }
@@ -474,39 +513,62 @@ public final class DeploymentExtractor {
      */
     private void settings(Found c, ObjectNode attributes) {
       List<String> words = new ArrayList<>();
-      // A shell's -c script, or a variable holding options, is a command line of its own.
-      c.command.forEach(w -> words.addAll(w.contains(" ") ? shellWords(w) : List.of(w)));
-      boolean runsJava =
-          words.stream().anyMatch(w -> w.equals("java") || w.endsWith("/java") || w.equals("-jar"));
-      // Arguments alone go to the image's own entrypoint, which for an application image (not a
-      // known product's) is its java command.
-      boolean appArguments =
-          !words.isEmpty()
-              && words.getFirst().startsWith("-")
-              && (c.image == null || Image.of(c.image) == null);
-      boolean readsCommand = runsJava || appArguments;
+      // A shell's -c script is a command line of its own.
+      for (int i = 0; i < c.command.size(); i++) {
+        String w = c.command.get(i);
+        boolean script = i > 0 && c.command.get(i - 1).equals("-c");
+        words.addAll(script ? shellWords(w) : List.of(w));
+      }
+      boolean product = c.image != null && Image.of(c.image) != null;
+      // The JVM's options run from the java word to the main class or -jar's file; the
+      // application's arguments come after.
+      int java = -1;
+      for (int i = 0; i < words.size() && java < 0; i++) {
+        if (words.get(i).equals("java") || words.get(i).endsWith("/java")) {
+          java = i;
+        }
+      }
+      List<String> jvmOptions = new ArrayList<>();
+      List<String> arguments = new ArrayList<>();
+      if (java >= 0) {
+        int i = java + 1;
+        // A variable such as $JAVA_OPTS holds options too.
+        while (i < words.size() && (words.get(i).startsWith("-") || words.get(i).startsWith("$"))) {
+          String w = words.get(i++);
+          if (w.equals("-jar")) {
+            break;
+          }
+          if (OPTION_WITH_VALUE.contains(w)) {
+            i++;
+          } else {
+            jvmOptions.add(w);
+          }
+        }
+        // Skip the jar or main class.
+        arguments.addAll(words.subList(Math.min(i + 1, words.size()), words.size()));
+      } else if (!words.isEmpty() && words.getFirst().startsWith("-") && !product) {
+        // Arguments alone go to the image's own entrypoint, which for an application image (not
+        // a known product's) is its java command.
+        arguments.addAll(words);
+      }
       // Lowest first, as Spring orders its sources: system properties from the JVM's option
       // variables and the command line, then SPRING_APPLICATION_JSON, then command-line arguments.
       // JAVA_OPTS is no JVM variable: it counts only where the command expands it.
       boolean expandsJavaOpts = c.command.stream().anyMatch(w -> w.contains("JAVA_OPTS"));
       for (String variable : JAVA_OPTIONS) {
-        String options = c.env.get(variable);
+        String options = product ? null : c.env.get(variable);
         if (options != null && (!variable.equals("JAVA_OPTS") || expandsJavaOpts)) {
           shellWords(options).stream()
               .filter(w -> w.startsWith("-D"))
               .forEach(w -> commandProperty(c, w));
         }
       }
-      if (readsCommand) {
-        words.stream().filter(w -> w.startsWith("-D")).forEach(w -> commandProperty(c, w));
-      }
+      jvmOptions.stream().filter(w -> w.startsWith("-D")).forEach(w -> commandProperty(c, w));
       String json = c.env.get("SPRING_APPLICATION_JSON");
       if (json != null && Yaml.load(json) instanceof Map<?, ?> tree) {
         applicationJson(c, "", tree);
       }
-      if (readsCommand) {
-        words.stream().filter(w -> w.startsWith("--")).forEach(w -> commandProperty(c, w));
-      }
+      arguments.stream().filter(w -> w.startsWith("--")).forEach(w -> commandProperty(c, w));
       if (!c.env.isEmpty()) {
         ObjectNode env = attributes.putObject("env");
         c.env.forEach(env::put);
@@ -1193,7 +1255,7 @@ public final class DeploymentExtractor {
 
     /**
      * The routes of an Ingress: each rule's host (or {@code *}) and path, the Service and port it
-     * sends to, and the path rewrite the nginx or Traefik controller's annotation sets.
+     * sends to, and the path rewrite the nginx controller's annotation sets.
      */
     private void ingress(Doc doc, String platform, String environment) {
       Map<String, Object> metadata = Yaml.map(doc.map().get("metadata"));
@@ -1209,7 +1271,11 @@ public final class DeploymentExtractor {
         rewrite = Yaml.string(annotations.get("nginx.ingress.kubernetes.io/rewrite-target"));
       }
       String className = Yaml.string(spec.get("ingressClassName"));
+      // The default backend: spec.defaultBackend, or spec.backend before networking.k8s.io/v1.
       Map<String, Object> defaultBackend = Yaml.map(spec.get("defaultBackend"));
+      if (defaultBackend == null) {
+        defaultBackend = Yaml.map(spec.get("backend"));
+      }
       if (defaultBackend != null) {
         route(
             doc,
@@ -1320,13 +1386,18 @@ public final class DeploymentExtractor {
         List<String[]> paths = new ArrayList<>();
         for (Object m : Yaml.list(rule.get("matches"))) {
           Map<String, Object> match = Yaml.map(m);
-          Map<String, Object> path = match == null ? null : Yaml.map(match.get("path"));
-          if (path != null) {
-            paths.add(
-                new String[] {
-                  Objects.requireNonNullElse(Yaml.string(path.get("value")), "/"),
-                  Objects.requireNonNullElse(Yaml.string(path.get("type")), "PathPrefix")
-                });
+          if (match == null) {
+            continue;
+          }
+          // A match without a path matches every path, as PathPrefix /.
+          Map<String, Object> path = Yaml.map(match.get("path"));
+          String value = path == null ? null : Yaml.string(path.get("value"));
+          String type = path == null ? null : Yaml.string(path.get("type"));
+          String[] entry = {
+            Objects.requireNonNullElse(value, "/"), Objects.requireNonNullElse(type, "PathPrefix")
+          };
+          if (paths.stream().noneMatch(p -> Arrays.equals(p, entry))) {
+            paths.add(entry);
           }
         }
         if (paths.isEmpty()) {
