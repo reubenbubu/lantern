@@ -582,9 +582,17 @@
       } ],
       "edges" : [ ],
       "facts" : [ ]
-    }, {
+    } ],
+    "sections" : [ ]
+  }, {
+    "id" : "decisions",
+    "title" : "Decisions and unknowns",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "repo:greeting-lib",
+    "facts" : [ ],
+    "blocks" : [ {
       "kind" : "callout",
-      "id" : "containers.decisions",
+      "id" : "decisions.decisions",
       "variant" : "note",
       "title" : "Decisions",
       "content" : [ {

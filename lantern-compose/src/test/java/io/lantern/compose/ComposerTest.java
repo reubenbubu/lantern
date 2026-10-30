@@ -83,6 +83,7 @@ class ComposerTest {
             "overview",
             "start_here",
             "containers",
+            "decisions",
             "context",
             "components",
             "sequences",
@@ -379,7 +380,7 @@ class ComposerTest {
     assertThat(document.entities())
         .extracting(e -> e.id().toString())
         .containsExactly("repo:empty", "system:snapshot");
-    assertThat(document.sections()).hasSize(13);
+    assertThat(document.sections()).hasSize(14);
   }
 
   @Test

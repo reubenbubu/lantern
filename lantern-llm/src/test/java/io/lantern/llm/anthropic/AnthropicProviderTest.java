@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.anthropic.core.http.Headers;
 import com.sun.net.httpserver.HttpServer;
+import io.lantern.llm.Capability;
 import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
@@ -13,10 +14,13 @@ import io.lantern.llm.LlmResponse;
 import io.lantern.llm.LlmTool;
 import io.lantern.llm.LlmToolCall;
 import io.lantern.llm.LlmToolResult;
+import io.lantern.llm.ModelConfig;
+import io.lantern.llm.Pricing;
 import io.lantern.llm.Role;
 import io.lantern.llm.TokenUsage;
 import io.lantern.llm.TransientLlmException;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -27,6 +31,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -50,6 +56,7 @@ class AnthropicProviderTest {
   private volatile String responseBody;
   private volatile Map<String, String> responseHeaders = Map.of();
   private final AtomicInteger requests = new AtomicInteger();
+  private final List<String> bodies = new CopyOnWriteArrayList<>();
 
   @BeforeEach
   void startStub() throws IOException {
@@ -122,6 +129,142 @@ class AnthropicProviderTest {
     assertThat(sent.at("/messages/0/content").asString()).isEqualTo("class Order {}");
     assertThat(sent.at("/messages/1/role").asString()).isEqualTo("assistant");
     assertThat(sent.at("/messages/2/content").asString()).isEqualTo("No.");
+  }
+
+  /**
+   * A local Anthropic-compatible server (llama.cpp style) reports the whole prompt as cache writes
+   * and one input token, although no caching was asked for (#298).
+   */
+  private static final String LOCAL_SERVER_ANSWER =
+      """
+      {"id": "msg_local", "type": "message", "role": "assistant", "model": "local-model",
+       "content": [{"type": "text", "text": "An order aggregate."}],
+       "stop_reason": "end_turn", "stop_sequence": null,
+       "usage": {"input_tokens": 1, "output_tokens": 5,
+                 "cache_creation_input_tokens": 1234, "cache_read_input_tokens": 66}}
+      """;
+
+  @Test
+  void aModelWithoutPromptCachingCountsTheCacheTokensItIsSentAsInput() {
+    responseBody = LOCAL_SERVER_ANSWER;
+    ModelConfig model =
+        new ModelConfig(
+            AnthropicProvider.NAME,
+            "local-model",
+            Set.of(),
+            100_000,
+            new Pricing(
+                new BigDecimal("1"), new BigDecimal("2"), BigDecimal.ZERO, BigDecimal.ZERO));
+
+    LlmResponse response;
+    try (AnthropicProvider provider = provider()) {
+      response =
+          provider.complete(
+              model, LlmRequest.of(Role.SUMMARIZE, "summarize", "You summarize.", "class O", 50));
+    }
+
+    assertThat(response.usage()).isEqualTo(new TokenUsage(1 + 1234 + 66, 5, 0, 0));
+    // So the call costs the whole prompt at the input price, not nothing at the unset cache prices.
+    assertThat(model.pricing().cost(response.usage()))
+        .isEqualByComparingTo(new BigDecimal("0.001311"));
+  }
+
+  @Test
+  void aModelWithPromptCachingKeepsTheSplitTheServerReports() {
+    responseBody = LOCAL_SERVER_ANSWER;
+    ModelConfig model =
+        new ModelConfig(
+            AnthropicProvider.NAME,
+            "local-model",
+            Set.of(Capability.PROMPT_CACHING),
+            100_000,
+            Pricing.FREE);
+
+    LlmResponse response;
+    try (AnthropicProvider provider = provider()) {
+      response =
+          provider.complete(
+              model, LlmRequest.of(Role.SUMMARIZE, "summarize", "You summarize.", "class O", 50));
+    }
+
+    assertThat(response.usage()).isEqualTo(new TokenUsage(1, 5, 1234, 66));
+    assertThat(response.usage().total()).isEqualTo(1 + 5 + 1234 + 66);
+  }
+
+  /** Two calls of one role, as a summarizer makes them: one system prompt, other user turns. */
+  private List<JsonNode> twoCallsOfOneRole(ModelConfig model, List<LlmTool> tools) {
+    responseBody = LOCAL_SERVER_ANSWER;
+    String system = "You summarize Java code. ".repeat(200);
+    try (AnthropicProvider provider = provider()) {
+      for (String code : List.of("class Order {}", "class Invoice { int total; }")) {
+        provider.complete(
+            model,
+            new LlmRequest(
+                Role.SUMMARIZE,
+                "summarize",
+                system,
+                List.of(LlmMessage.user(code)),
+                300,
+                false,
+                tools));
+        bodies.add(requestBody.get());
+      }
+    }
+    return bodies.stream().map(JSON::readTree).toList();
+  }
+
+  @Test
+  void aModelWithPromptCachingSendsAByteStablePrefixWithOneBreakpointAfterTheSystemPrompt() {
+    ModelConfig model =
+        new ModelConfig(
+            AnthropicProvider.NAME,
+            "caching-model",
+            Set.of(Capability.PROMPT_CACHING, Capability.TOOL_USE),
+            100_000,
+            Pricing.FREE);
+    tools.jackson.databind.node.ObjectNode schema = JSON.createObjectNode().put("type", "object");
+    schema.putObject("properties").putObject("entity").put("type", "string");
+    schema.putArray("required").add("entity");
+    List<LlmTool> tools = List.of(new LlmTool("facts_about", "Facts about an entity.", schema));
+
+    // The request does not ask for caching; the model's capability decides (#303).
+    List<JsonNode> sent = twoCallsOfOneRole(model, tools);
+
+    for (JsonNode body : sent) {
+      assertThat(body.at("/system/0/cache_control/type").asString()).isEqualTo("ephemeral");
+      // One breakpoint only, at the end of the system prompt.
+      assertThat(body.findValues("cache_control")).hasSize(1);
+    }
+    // Tools, then the system prompt, render before the breakpoint: byte for byte the same.
+    assertThat(JSON.writeValueAsString(sent.get(1).get("tools")))
+        .isEqualTo(JSON.writeValueAsString(sent.get(0).get("tools")));
+    assertThat(JSON.writeValueAsString(sent.get(1).get("system")))
+        .isEqualTo(JSON.writeValueAsString(sent.get(0).get("system")));
+    // As are the other fields that would invalidate the cache: model and thinking.
+    assertThat(sent.get(1).get("model")).isEqualTo(sent.get(0).get("model"));
+    assertThat(sent.get(1).has("thinking")).isEqualTo(sent.get(0).has("thinking"));
+    // The wire bytes of the system prompt are the same too, not only the parsed values.
+    assertThat(systemBytes(bodies.get(1))).isEqualTo(systemBytes(bodies.get(0)));
+    // What differs comes after the breakpoint.
+    assertThat(sent.get(1).get("messages")).isNotEqualTo(sent.get(0).get("messages"));
+  }
+
+  /** The {@code system} array of a request body as sent; its text holds no {@code ]}. */
+  private static String systemBytes(String body) {
+    int start = body.indexOf("\"system\":");
+    int end = body.indexOf(']', start);
+    assertThat(start).isNotNegative();
+    return body.substring(start, end + 1);
+  }
+
+  @Test
+  void aModelWithoutPromptCachingMarksNothing() {
+    ModelConfig model =
+        new ModelConfig(AnthropicProvider.NAME, "plain-model", Set.of(), 100_000, Pricing.FREE);
+
+    for (JsonNode body : twoCallsOfOneRole(model, List.of())) {
+      assertThat(body.findValues("cache_control")).isEmpty();
+    }
   }
 
   @Test

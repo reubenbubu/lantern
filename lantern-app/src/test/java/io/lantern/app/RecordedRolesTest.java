@@ -13,7 +13,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** The roles whose calls go through recordings ({@code lantern.llm.recordings}, ADR 0082). */
+/** The roles whose calls go through recordings ({@code lantern.llm.recordings}, ADR 0084). */
 class RecordedRolesTest {
 
   @TempDir Path recordings;

@@ -2,8 +2,6 @@ package io.lantern.extract.messaging;
 
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
-import io.lantern.extract.config.CodeConfig.CodeValue;
-import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
 import io.lantern.sandbox.BuildModule;
 import java.lang.System.Logger.Level;
@@ -156,7 +154,7 @@ final class StreamConfig {
       v = values.get("spring.cloud.stream.function.bindings[" + binding + "]");
     }
     boolean exposes =
-        v == null || CodeValue.of(v.value(), v.written(), v.unresolved(), v.used()).masked();
+        v == null || config.value(v.value(), v.written(), v.unresolved(), v.used()).masked();
     return exposes || v.value().isBlank() ? binding : v.value().trim();
   }
 
@@ -280,7 +278,7 @@ final class StreamConfig {
   }
 
   /** A property's value as a plain setting: null if not set or recording it exposes a secret. */
-  static String plain(ConfigValue v) {
+  String plain(ConfigValue v) {
     return v == null || exposesSecret(v) ? null : v.value();
   }
 
@@ -290,7 +288,7 @@ final class StreamConfig {
     if (v == null) {
       v = values.get(prefix + camel(kebab));
     }
-    return v == null || ConfigExtractor.isSecret(v.key()) ? null : v;
+    return v == null || config.isSecret(v.key()) ? null : v;
   }
 
   /** The first of the keys set, as a plain setting. */
@@ -305,9 +303,9 @@ final class StreamConfig {
     return null;
   }
 
-  private static boolean exposesSecret(ConfigValue v) {
-    return ConfigExtractor.isSecret(v.key())
-        || CodeValue.of(v.value(), v.written(), v.unresolved(), v.used()).masked();
+  private boolean exposesSecret(ConfigValue v) {
+    return config.isSecret(v.key())
+        || config.value(v.value(), v.written(), v.unresolved(), v.used()).masked();
   }
 
   private static String camel(String kebab) {

@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orders-service
+    spec:
+      containers:
+        - name: orders
+          image: example/orders:1.0.0
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: orders-config
+          env:
+            - name: ORDERS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: orders-secrets
+                  key: password
+            - name: JAVA_OPTS
+              value: "-Xmx512m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-svc
+spec:
+  selector:
+    app.kubernetes.io/name: orders-service
+  ports:
+    - port: 80
+      targetPort: 8080

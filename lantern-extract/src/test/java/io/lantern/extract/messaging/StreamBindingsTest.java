@@ -393,6 +393,51 @@ class StreamBindingsTest {
   }
 
   @Test
+  void aDestinationAKnownSecretKeyWasSubstitutedIntoStaysAsWritten() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("jwt"),
+            "orders",
+            Map.of(
+                "pom.xml",
+                POM,
+                "src/main/resources/application.properties",
+                """
+                spring.cloud.stream.binders.k.type=kafka
+                spring.cloud.function.definition=orders
+                jwt.key=literal-test-value-0123456789abcdef
+                spring.cloud.stream.bindings.orders-in-0.destination=tenant-${jwt.key}
+                """,
+                "src/main/java/com/example/orders/Functions.java",
+                """
+                package com.example.orders;
+
+                import java.util.function.Consumer;
+                import org.springframework.context.annotation.Bean;
+                import org.springframework.context.annotation.Configuration;
+
+                @Configuration
+                public class Functions {
+                  @Bean
+                  public Consumer<String> orders() {
+                    return order -> {};
+                  }
+                }
+                """));
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+
+    // Without the code's keys the name alone does not show jwt.key is a secret.
+    assertThat(Fixtures.render(new MessagingExtractor().extract(code, SNAPSHOT)))
+        .contains("literal-test-value");
+    List<Fact> masked =
+        new MessagingExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key"));
+    assertThat(Fixtures.render(masked))
+        .doesNotContain("literal-test-value")
+        .contains("tenant-${jwt.key}");
+  }
+
+  @Test
   void theBinderIsToldFromThePomsWithoutABuild() throws IOException {
     Repo repo =
         Fixtures.repo(

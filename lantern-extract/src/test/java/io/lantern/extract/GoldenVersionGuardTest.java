@@ -2,7 +2,9 @@ package io.lantern.extract;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
@@ -44,7 +46,10 @@ class GoldenVersionGuardTest {
   /** The extractor of each folder in {@code src/test/resources/golden}: its name and version. */
   private static final Map<String, String[]> EXTRACTORS =
       Map.ofEntries(
+          Map.entry(
+              "deployment", new String[] {DeploymentExtractor.NAME, DeploymentExtractor.VERSION}),
           Map.entry("docs", new String[] {DocsExtractor.NAME, DocsExtractor.VERSION}),
+          Map.entry("frontend", new String[] {FrontendExtractor.NAME, FrontendExtractor.VERSION}),
           Map.entry("gateway", new String[] {GatewayExtractor.NAME, GatewayExtractor.VERSION}),
           Map.entry("http", new String[] {HttpClientExtractor.NAME, HttpClientExtractor.VERSION}),
           Map.entry("java", new String[] {JavaExtractor.NAME, JavaExtractor.VERSION}),

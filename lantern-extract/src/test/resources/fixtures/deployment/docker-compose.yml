@@ -1,0 +1,57 @@
+x-common: &common
+  SPRING_PROFILES_ACTIVE: docker
+
+services:
+  orders:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: orders-app
+    environment:
+      <<: *common
+      ORDERS_DB_HOST: db
+      ORDERS_DB_NAME: ${ORDERS_DB:-orders}
+      ORDERS_DB_PASSWORD: ${DB_PASSWORD}
+      PAYMENTS_URL: http://user:pw@payments:8080
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+
+  db:
+    image: postgres:16.4-alpine
+    environment:
+      - POSTGRES_DB=orders
+      - POSTGRES_USER=orders
+      - POSTGRES_PASSWORD=secret
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - db-data:/var/lib/postgresql/data
+    networks:
+      backend:
+        aliases:
+          - orders-db
+
+  cache:
+    image: redis:${REDIS_VERSION:-7.2}-alpine
+    ports:
+      - target: 6379
+        published: 6379
+
+  broker:
+    image: rabbitmq:3.13-management
+    profiles: [messaging]
+    ports:
+      - 15672:15672
+      - 8025:25
+    environment:
+      JAVA_OPTS: -Xmx256m -Dapp.password=topsecret
+
+volumes:
+  db-data:
+
+networks:
+  backend:

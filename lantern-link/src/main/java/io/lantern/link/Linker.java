@@ -69,7 +69,7 @@ public final class Linker {
 
   /**
    * The linker of this version of Lantern with the LLM resolver, then the Investigate role, which
-   * proposes what the steps before it missed, as its last steps (ADR 0045, ADR 0082).
+   * proposes what the steps before it missed, as its last steps (ADR 0045, ADR 0084).
    */
   public static Linker standard(
       FactRepository store, LinkResolver resolver, Investigator investigator) {

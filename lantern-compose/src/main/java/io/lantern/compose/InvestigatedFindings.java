@@ -17,7 +17,7 @@ import java.util.Set;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The risks the Investigate role found (ADR 0082), for the documents of a scope: those that concern
+ * The risks the Investigate role found (ADR 0084), for the documents of a scope: those that concern
  * one of its deployable units, most serious first. Every one is marked {@value #FOUND_BY_LLM},
  * emphasized, and shows the file:line ranges Lantern verified, so a reader can tell it from what
  * static analysis found. The Executive Brief shows them as risk callouts among its own; the other
@@ -25,7 +25,7 @@ import tools.jackson.databind.JsonNode;
  */
 final class InvestigatedFindings {
 
-  /** What opens everything the Investigate role found, in every template (ADR 0082). */
+  /** What opens everything the Investigate role found, in every template (ADR 0084). */
   static final String FOUND_BY_LLM = "Found by the LLM:";
 
   /** The investigator's risk facts (lantern-link's {@code Investigator.RISK}). */

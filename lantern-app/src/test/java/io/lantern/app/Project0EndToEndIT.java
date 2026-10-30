@@ -438,8 +438,11 @@ class Project0EndToEndIT {
             "components-service-com-acme-shop-payments",
             "components-service-com-acme-shop-storefront-app",
             "sequences-storefront-ordercontroller-place",
+            "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
-            "sequences-storefront-ordercontroller-order");
+            // The decision records and unknowns are a documentation page (ADR 0086).
+            "decisions");
+    assertThat(data.get("pages").get(8).get("level").asString()).isEqualTo("documentation");
     JsonNode containers = data.get("pages").get(1).get("sections").get(0);
     assertThat(containers.get("relationships").toString())
         // HTTP-1: Feign by client name, with the endpoint and protocol.
@@ -467,8 +470,8 @@ class Project0EndToEndIT {
     // FLOW-1: placing an order, stitched across every unit through HTTP-1, HTTP-2, HTTP-4,
     // MSG-2, MSG-4, HTTP-3 and MSG-1, the tax call (HTTP-5) a note, the audit send (SPR-4) in a
     // frame of its profile, and the calls to the catalog and shop databases through Spring Data's
-    // inherited methods (#176). ProductController.find runs once per flow, so the stock check
-    // does not repeat its findById.
+    // inherited methods (#176). The stock check runs ProductController.find again, as the code
+    // does, and storefront's reads and writes of its order are one step (#272).
     assertThat(steps(data.get("pages").get(5)))
         .containsExactly(
             "note all: Starts when storefront receives POST /api/orders"
@@ -504,27 +507,29 @@ class Project0EndToEndIT {
                 + " Delivers to PaymentCompletedListener.paymentCompleted [Kafka]",
             "fulfilment > catalog-service: Calls ProductController.stock"
                 + " [GET /api/products/{id}/stock]",
+            "catalog-service > database-catalog-db-5432-catalog:"
+                + " Calls ProductRepository.findById [JDBC]",
             "fulfilment >> queue-jms-shipments-dispatched: Sends a message [JMS]",
             "note fulfilment, queue-jms-shipments-dispatched: fulfilment does not wait:"
                 + " storefront takes the message later.",
             "queue-jms-shipments-dispatched >> storefront-app:"
                 + " Delivers to ShipmentListener.dispatched [JMS]",
-            "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.findById [JDBC]",
-            "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.save [JDBC]");
-    // FLOW-2: the nightly settlement (ENTRY-1) reads and writes the shared shop database (DB-2),
-    // one of its tables storefront's (DB-5).
+            "storefront-app > database-shop-db-5432-shop:"
+                + " Calls OrderRepository.findById, OrderRepository.save [JDBC]");
+    // Looking up an order reads it through Spring Data's inherited findById (#176). A request
+    // comes before a schedule (ADR 0047, amendment for #272).
     assertThat(steps(data.get("pages").get(6)))
-        .containsExactly(
-            "note all: Starts when the schedule cron 0 0 2 * * * fires in payments"
-                + " (SettlementJob.settle).",
-            "payments > database-shop-db-5432-shop: Reads orders, payment [JDBC]",
-            "payments > database-shop-db-5432-shop: Writes payment [JDBC]");
-    // Looking up an order reads it through Spring Data's inherited findById (#176).
-    assertThat(steps(data.get("pages").get(7)))
         .containsExactly(
             "note all: Starts when storefront receives GET /api/orders/{id}"
                 + " (OrderController.order).",
             "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.findById [JDBC]");
+    // FLOW-2: the nightly settlement (ENTRY-1) reads and writes the shared shop database (DB-2),
+    // one of its tables storefront's (DB-5), in one step.
+    assertThat(steps(data.get("pages").get(7)))
+        .containsExactly(
+            "note all: Starts when the schedule cron 0 0 2 * * * fires in payments"
+                + " (SettlementJob.settle).",
+            "payments > database-shop-db-5432-shop: Reads orders, payment; writes payment [JDBC]");
   }
 
   /** The steps of a sequence page, one line each, units by their artifact ID. */

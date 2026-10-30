@@ -92,6 +92,13 @@ public record Wordings(
    * @param walkthrough two to four sentences of what the flow does
    * @param preconditions what must hold before it starts
    * @param postconditions what has changed when it ends
+   * @param title the scenario the flow is, a few words without citation markers
    */
-  public record Flow(String walkthrough, String preconditions, String postconditions) {}
+  public record Flow(
+      String walkthrough, String preconditions, String postconditions, String title) {
+
+    public Flow(String walkthrough, String preconditions, String postconditions) {
+      this(walkthrough, preconditions, postconditions, null);
+    }
+  }
 }

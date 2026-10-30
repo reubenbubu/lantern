@@ -14,7 +14,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * The Investigate role's verified proposals are kept in the database (ADR 0082), saved even when
+ * The Investigate role's verified proposals are kept in the database (ADR 0084), saved even when
  * the transaction the investigator runs in rolls back. The database is shared with other tests, so
  * each test uses keys of its own.
  */

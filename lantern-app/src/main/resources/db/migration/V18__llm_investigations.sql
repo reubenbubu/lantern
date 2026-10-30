@@ -1,5 +1,5 @@
 -- Cached proposals of the Investigate role that passed Lantern's checks (see docs/design.md, LLM
--- integration, and docs/adr/0082-investigate-role.md). One row per prompt: a deployable unit or the
+-- integration, and docs/adr/0084-investigate-role.md). One row per prompt: a deployable unit or the
 -- system as a whole, keyed by a hash of the prompt version, provider, model and prompt, so a changed
 -- input gives a new key and the old row is simply no longer used.
 CREATE TABLE llm_investigations (

@@ -1,0 +1,5 @@
+services:
+  orders:
+    image: example/orders:1.4.0
+    environment:
+      - ORDERS_DB_HOST=prod-db.internal

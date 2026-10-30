@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), pending the user's review (#24)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), amended (#272), pending the user's review (#24)
 
 ## Context
 
@@ -125,7 +125,8 @@ its path is known, and what is matched when.
 - **Not covered:** profile combinations (`@Profile("a & b")` never matches one active profile, so
   such code links nowhere), env vars and deploy-time overrides, JPA entities as table access
   (only SQL in code), a Feign client's placeholder name, a request's port compared with the
-  target's `server.port` (ADR 0077 compares it for gateway routes, which it links), Kubernetes or compose service names that differ
+  target's `server.port` (ADR 0077 compares it for gateway routes, which it links; the amendment
+  for #307 for calls to this machine), Kubernetes or compose service names that differ
   from `spring.application.name` and the artifact ID, and Spring Cloud Stream specifics beyond
   the shared fact shapes (#139).
 - **project-0.** `Project0LinksIT` checks HTTP-1 to HTTP-7, EXT-1, MSG-1 to MSG-5, SPR-4, DB-5
@@ -151,3 +152,48 @@ senders where only main-service calls the service.
   the library, say), or only one unit runs it, every unit running it sends, as before. Listeners
   and bindings are unchanged.
 - The step's version becomes 6.
+
+## Amendment (#266): what the deployments fill in
+
+A unit's own database, whose server or database is a placeholder no config resolves, keeps its key
+and is still never shared, but where a deployment runs the unit its environment fills the
+placeholders: the database takes its `display-name` from the database the server container
+creates and its `technology` version from that container's image, and the link lists the
+`deployments` (ADR 0082). Containers that run a unit or a data store are `deployed-in` facts on
+it, a new attribute type with source `cross-repo-links`.
+
+## Amendment (#267): frontends call units
+
+A `CALLS_HTTP` link's subject may be a frontend (`frontend:<repo>[/<folder>]`): one link per URL
+its code calls from the browser, and one per nginx proxy that no call goes through. Such a link
+names the `proxy` prefix it went through, and `matchedBy` gains `published-port` (this machine or
+a private address, by the port a compose container that runs the unit publishes) and
+`container-host` (the host is a name of a deployment container that runs the unit). A frontend
+built by a compose service from its folder gets `deployed-in` and that service's name as its
+`display-name`. The step's version becomes 10. The rules are in ADR 0083.
+
+## Amendment (#307): a call to this machine by its port
+
+Once the HTTP client extractor follows a URL passed as an argument (ADR 0038, amendment for #307),
+project-1's BFF calls `http://127.0.0.1:8888{...}`, its gateway's default URL: a path that is all
+expressions, which several units' endpoints match.
+
+- **A call to this machine** (`localhost`, `127.0.0.1`, `[::1]`) with a port goes to the one other
+  unit whose `server.port` in the view is that port (8080 when it sets none), as gateway routes
+  are matched (ADR 0077): `matchedBy: port`, factor 0.8, the `server.port` fact among the link's
+  `facts`; then the path against its endpoints as for any target. A unit that sets no port is taken
+  only when one of its endpoints serves the path, since other servers on this machine (an identity
+  provider, say) listen on 8080 too. Only when no single unit listens
+  there is the call linked by its path alone, as before.
+- **Expressions in a URL** stay whole: the authority ends where an expression (`{...}`, not a
+  `${...}` placeholder) starts, and a path's segments are split at slashes outside braces, so an
+  expression is one segment whatever its source holds.
+- The step's version becomes 14.
+
+## Amendment (#272): a send to the unit's own listener
+
+A send that reaches a listener of the sending unit is now a `SENDS_MESSAGES_TO` link from the unit
+to itself, like any other, so the sequence flows draw the delivery (ADR 0047, amendment for #272).
+Before, such sends were left out. The Executive Brief's dependents and dependencies already leave
+out links inside the repository's units. The step's version becomes 15.
+

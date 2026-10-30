@@ -2,7 +2,7 @@
   {
     "name": "investigated-risk",
     "kind": "attribute",
-    "description": "A risk the Investigate role found (ADR 0082): the LLM proposed it, citing file:line ranges, and Lantern verified that each range exists at the snapshot's commit and holds the identifiers it names. The subject is the first deployable unit it concerns; the value is its title. Documents mark it as found by the LLM. The evidence is its first citation.",
+    "description": "A risk the Investigate role found (ADR 0084): the LLM proposed it, citing file:line ranges, and Lantern verified that each range exists at the snapshot's commit and holds the identifiers it names. The subject is the first deployable unit it concerns; the value is its title. Documents mark it as found by the LLM. The evidence is its first citation.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -25,7 +25,7 @@
     "name": "INVESTIGATED_CONNECTION",
     "kind": "relationship",
     "parent": "DEPENDS_ON",
-    "description": "A connection the Investigate role found (ADR 0082) from a deployable unit to another unit, an external system or a data store that no other fact links it to: the LLM proposed it, citing file:line ranges, and Lantern verified that each range exists at the snapshot's commit and holds the identifiers it names. Documents draw it marked as found by the LLM. The evidence is its first citation.",
+    "description": "A connection the Investigate role found (ADR 0084) from a deployable unit to another unit, an external system or a data store that no other fact links it to: the LLM proposed it, citing file:line ranges, and Lantern verified that each range exists at the snapshot's commit and holds the identifiers it names. Documents draw it marked as found by the LLM. The evidence is its first citation.",
     "attributeSchema": {
       "type": "object",
       "properties": {

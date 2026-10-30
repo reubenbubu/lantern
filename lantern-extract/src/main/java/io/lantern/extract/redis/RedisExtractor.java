@@ -45,13 +45,13 @@ import tools.jackson.databind.node.ObjectNode;
  * Turns the use of Redis into facts: what code does with Redis templates and operations (the keys
  * it names, when the code writes them out), Spring Data Redis hashes ({@code @RedisHash}), Spring
  * Session, Redis lock registries, caches, publish and subscribe and the gateway's {@code
- * RedisRateLimiter}; the same uses that only config or a dependency shows; and the Redis images a
- * repository's compose files run, for the technology of the data store. Which Redis server a unit
+ * RedisRateLimiter}; and the same uses that only config or a dependency shows. The product and
+ * version Redis runs as come from the deployment extractor's containers. Which Redis server a unit
  * connects to is in its config ({@code spring.data.redis.*}), which the config extractor already
  * records; matching them is the linker's. See {@code docs/adr/0073-redis-data-store.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}), with the
- * same confidence, and config, POMs and compose files from git at the commit.
+ * same confidence, and config and POMs from git at the commit.
  */
 public final class RedisExtractor {
 
@@ -59,16 +59,13 @@ public final class RedisExtractor {
   public static final String NAME = "redis";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "redis-extractor";
 
   /** Attribute: the subject uses Redis; its value is the kind of use. */
   public static final String REDIS_USE = "redis-use";
-
-  /** Attribute: the subject module's repository runs a Redis image in a compose file. */
-  public static final String REDIS_IMAGE = "redis-image";
 
   /** The kinds of use, as the value of {@link #REDIS_USE}. */
   public static final String TEMPLATE = "template";
@@ -196,12 +193,6 @@ public final class RedisExtractor {
 
   private static final long MAX_BYTES = 4L * 1024 * 1024;
 
-  private static final Pattern COMPOSE_FILE =
-      Pattern.compile("(?i)(.*/)?(docker-)?compose([._-][^/]*)?\\.ya?ml");
-  private static final Pattern IMAGE_LINE =
-      Pattern.compile("^(\\s*)-?\\s*image:\\s*[\"']?([^\\s\"'#]+)");
-  private static final Pattern KEY_LINE = Pattern.compile("^(\\s*)([A-Za-z0-9_.-]+):\\s*(#.*)?$");
-  private static final Pattern VARIABLE = Pattern.compile("\\$\\{[^:}]*:?-([^}]*)}");
   private static final Pattern DEPENDENCY = Pattern.compile("(?s)<dependency>(.*?)</dependency>");
   private static final Pattern ARTIFACT =
       Pattern.compile("<artifactId>\\s*([^<\\s]+)\\s*</artifactId>");
@@ -245,8 +236,8 @@ public final class RedisExtractor {
 
   /**
    * Extracts the facts of a snapshot's code already read by {@link
-   * io.lantern.extract.java.JavaExtractor#analyze}, and of the config, POMs and compose files of
-   * the repositories it is in.
+   * io.lantern.extract.java.JavaExtractor#analyze}, and of the config and POMs of the repositories
+   * it is in.
    *
    * @param code the code of the snapshot's repositories
    * @param snapshot the snapshot number the facts hold from
@@ -260,9 +251,8 @@ public final class RedisExtractor {
   }
 
   /**
-   * Extracts the facts of a snapshot's code already read, and of the config, POMs and compose files
-   * of all the given repositories, those without code too: the compose files of a deployment
-   * repository name the images of the system's data stores.
+   * Extracts the facts of a snapshot's code already read, and of the config and POMs of all the
+   * given repositories, those without code too.
    *
    * @param code the code of the snapshot's repositories
    * @param repos the repositories of the snapshot; those of the code are read whether listed or not
@@ -284,7 +274,6 @@ public final class RedisExtractor {
       for (ModuleConfig config : ConfigExtractor.read(repo)) {
         run.config(config);
       }
-      run.compose(repo);
     }
     return run.facts.values().stream()
         .sorted(
@@ -565,75 +554,6 @@ public final class RedisExtractor {
     }
 
     // -------------------------------------------------------------------------------------------
-    // Compose
-
-    /** The Redis images the repository's compose files run, as facts of the repository. */
-    void compose(RepoBuild repo) {
-      EntityId module = new EntityId("repo", repo.repo().name());
-      for (String path : GitFiles.list(repo, "")) {
-        if (!COMPOSE_FILE.matcher(path).matches() || path.contains("src/test/")) {
-          continue;
-        }
-        byte[] bytes = GitFiles.read(repo, path, MAX_BYTES);
-        if (bytes == null) {
-          continue;
-        }
-        String hash = sha256(bytes);
-        String[] lines = new String(bytes, StandardCharsets.UTF_8).split("\n", -1);
-        int serviceIndent = Integer.MAX_VALUE;
-        for (String line : lines) {
-          Matcher key = KEY_LINE.matcher(line);
-          if (key.matches() && !key.group(1).isEmpty()) {
-            serviceIndent = Math.min(serviceIndent, key.group(1).length());
-          }
-        }
-        for (int n = 0; n < lines.length; n++) {
-          Matcher image = IMAGE_LINE.matcher(lines[n]);
-          if (!image.find()) {
-            continue;
-          }
-          String reference = resolveVariables(image.group(2));
-          Image parsed = Image.of(reference);
-          if (parsed == null) {
-            continue;
-          }
-          String service = null;
-          for (int back = n - 1; back >= 0 && service == null; back--) {
-            Matcher key = KEY_LINE.matcher(lines[back]);
-            if (key.matches() && key.group(1).length() == serviceIndent) {
-              service = key.group(2);
-            }
-          }
-          ObjectNode attributes = FactJson.newObject();
-          attributes.put("technology", parsed.technology());
-          if (service != null) {
-            attributes.put("service", service);
-          }
-          facts.putIfAbsent(
-              "image|" + module + "|" + path + "|" + n,
-              Fact.create(
-                  module,
-                  REDIS_IMAGE,
-                  FactObject.string(reference),
-                  attributes,
-                  ORIGIN,
-                  new Evidence(
-                      repo.repo().name(),
-                      repo.commit(),
-                      path,
-                      new Evidence.LineRange(n + 1, n + 1),
-                      hash),
-                  1.0,
-                  validity));
-        }
-      }
-    }
-
-    private static String resolveVariables(String reference) {
-      return VARIABLE.matcher(reference).replaceAll("$1");
-    }
-
-    // -------------------------------------------------------------------------------------------
 
     private void add(
         EntityId subject,
@@ -652,42 +572,6 @@ public final class RedisExtractor {
               confidence,
               validity);
       facts.putIfAbsent(fact.id(), fact);
-    }
-  }
-
-  /**
-   * A Redis (or compatible) image reference.
-   *
-   * @param technology the product with its version, such as {@code Redis 8.4.0}
-   */
-  record Image(String technology) {
-
-    private static final Pattern VERSION = Pattern.compile("^v?(\\d+(?:\\.\\d+){0,2})");
-
-    /** The image a reference names if it is Redis, Valkey or Redis Stack, else null. */
-    static Image of(String reference) {
-      String ref = reference;
-      int digest = ref.indexOf('@');
-      if (digest >= 0) {
-        ref = ref.substring(0, digest);
-      }
-      int slash = ref.lastIndexOf('/');
-      String last = slash < 0 ? ref : ref.substring(slash + 1);
-      int colon = last.indexOf(':');
-      String name = (colon < 0 ? last : last.substring(0, colon)).toLowerCase(Locale.ROOT);
-      String tag = colon < 0 ? "" : last.substring(colon + 1);
-      String product =
-          switch (name) {
-            case "redis", "redis-server" -> "Redis";
-            case "valkey" -> "Valkey";
-            case "redis-stack", "redis-stack-server" -> "Redis Stack";
-            default -> null;
-          };
-      if (product == null) {
-        return null;
-      }
-      Matcher version = VERSION.matcher(tag);
-      return new Image(version.find() ? product + " " + version.group(1) : product);
     }
   }
 

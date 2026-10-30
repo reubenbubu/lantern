@@ -1,0 +1,128 @@
+[
+  {
+    "name": "frontend",
+    "kind": "entity",
+    "parent": "container",
+    "description": "A frontend: a single-page app that runs in the browser, built from a package manifest (package.json) that depends on Angular, React or Vue. Its key is the repository's name, with the folder of the manifest after a slash when it is not at the top of the repository, such as shop/web-ui. A container of the diagrams, one per frontend.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "frontend-app",
+    "kind": "attribute",
+    "description": "The subject is a frontend built with the framework the value names (angular, react or vue), read from its package manifest, with how it is built and served.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name documents show: the manifest's name without an npm scope, else the folder's or repository's name."
+        },
+        "directory": {
+          "type": "string",
+          "description": "The folder of the manifest in the repository; empty at its top."
+        },
+        "package": {
+          "type": "string",
+          "description": "The manifest's name as written."
+        },
+        "framework": {
+          "type": "string",
+          "description": "The framework's name: Angular, React or Vue."
+        },
+        "version": {
+          "type": "string",
+          "description": "The framework's major and minor version from the range the manifest asks for, such as 19.2 for ^19.2.0."
+        },
+        "libraries": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Libraries Lantern knows among its dependencies (UI kits, build tools, HTTP and WebSocket clients), by name, such as PrimeNG or STOMP.js."
+        },
+        "image": {
+          "type": "string",
+          "description": "The base image of the last stage of the Dockerfile in its folder, the one that serves it."
+        },
+        "server": {
+          "type": "string",
+          "description": "The product that image is, such as nginx."
+        },
+        "ports": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The ports that Dockerfile exposes."
+        },
+        "technology": {
+          "type": "string",
+          "description": "Its technology as a diagram shows it: the framework and version, the build tool, and the server, such as Angular 19.2 · nginx."
+        }
+      },
+      "required": ["name", "directory", "framework", "technology"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "frontend-call",
+    "kind": "attribute",
+    "description": "The subject frontend's code calls a URL from the browser: an HTTP request (Angular's HttpClient, fetch, axios) or a WebSocket it opens (WebSocket, SockJS, a STOMP client's brokerURL). The value is the method and URL, or WebSocket and the URL, as the default build resolves it.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "httpMethod": {
+          "type": "string",
+          "description": "The HTTP method; absent for a WebSocket."
+        },
+        "url": {
+          "type": "string",
+          "description": "The URL with constants and the default build's environment values filled in: absolute, or a path the page's own origin serves. What stays unknown is written {name}; a query is left out."
+        },
+        "alternates": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The other URLs the call has with the values of the other environment files, when they differ."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "HTTP or WebSocket."
+        },
+        "navigation": {
+          "type": "boolean",
+          "description": "True when the code navigates the browser to the URL (window.location.href, location.assign or replace), leaving the app for a page the server answers, rather than requesting it from the page."
+        },
+        "written": {
+          "type": "string",
+          "description": "The URL's expression as the code writes it."
+        },
+        "unresolved": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Environment values the URL needs that no environment file sets."
+        }
+      },
+      "required": ["url", "protocol"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "frontend-proxy",
+    "kind": "attribute",
+    "description": "Requests from the subject frontend's page to a path prefix (the value, such as /api/) are passed on to another server: by the nginx that serves it (proxy_pass), or by its development server (an Angular proxy config, Vite's server.proxy, a package manifest's proxy).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "The URL requests are passed to, as written."
+        },
+        "source": {
+          "type": "string",
+          "enum": ["nginx", "dev-server"],
+          "description": "What passes them on: the nginx that serves the frontend, or the development server."
+        }
+      },
+      "required": ["target", "source"],
+      "additionalProperties": false
+    }
+  }
+]

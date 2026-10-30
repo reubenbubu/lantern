@@ -25,7 +25,7 @@ First pass, then an independent second pass (verification) on 2026-10-29; what t
 ## Contents
 
 - Elements: 3 people (web user, new visitor, administrator), 1 system, 1 external system (mobile app), 7 containers (angular-ui, bff, gateway, profile-service, order-service, keycloak-admin-service, Keycloak), 4 data stores (Redis, profile_db, order_db, Keycloak's database), 0 queues, 25 components.
-- Pages: context (with decisions, risks and unknowns at its end, as in project-4, stopgap until #249), 2 container pages (requests and data; identity and tokens), 5 component pages, 6 sequence pages.
+- Pages: context, 2 container pages (requests and data; identity and tokens), 5 component pages, 6 sequence pages, and 4 documentation pages (decisions, risks and unknowns; deployment; glossary; sources, #249).
 - Relationships: 5 context, 25 container (15 + 10), 50 component; sequences have 91 steps in all.
 - 11 observed decisions, 15 risks (2 High, 5 Medium, 8 Low), 5 unknowns.
 

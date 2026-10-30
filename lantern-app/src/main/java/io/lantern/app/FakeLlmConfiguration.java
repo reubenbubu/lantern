@@ -1,6 +1,7 @@
 package io.lantern.app;
 
 import io.lantern.llm.FakeLlmProvider;
+import io.lantern.llm.LlmRequest;
 import io.lantern.llm.Role;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,8 +18,9 @@ import org.springframework.context.annotation.Profile;
  *
  * <p>It never calls out. A summary cites the first part's summary and the first fact it is given;
  * it words nothing when asked for responsibilities, intent phrases or narration, so documents keep
- * their static labels; it answers "unknown" to a link left open, so such links stay open; and it
- * proposes nothing when asked to investigate (ADR 0082).
+ * their static labels, except a flow's title, a placeholder in place of the scenario a model would
+ * name; it answers "unknown" to a link left open, so such links stay open; and it proposes nothing
+ * when asked to investigate (ADR 0084).
  *
  * <p>Every text it words is wrapped in {@code {{ }}} with a hint of what a real model would write
  * there, such as {@code {{placeholder: summary of class Order}}}, so a reader of a document made
@@ -40,6 +42,10 @@ class FakeLlmConfiguration {
     return new FakeLlmProvider()
         .answering(
             request -> {
+              if (request.role() == Role.COMPOSE && flow(request)) {
+                // A flow's title is a heading: marked as the fake's, so the reader ignores it.
+                return "{\"title\": {\"text\": \"" + FLOW_TITLE + "\", \"cites\": [\"F1\"]}}";
+              }
               if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
                 return "{}";
               }
@@ -61,6 +67,17 @@ class FakeLlmConfiguration {
               }
               return String.join(" ", sentences);
             });
+  }
+
+  /** The title the fake gives a flow, where a model words the scenario the flow is. */
+  static final String FLOW_TITLE = "{{placeholder: scenario title}}";
+
+  /** Whether the request asks to word a sequence flow (ADR 0058), which cites its facts. */
+  private static boolean flow(LlmRequest request) {
+    String prompt = request.messages().getFirst().text();
+    return prompt.startsWith("The flow \"")
+        && prompt.contains("\nIts steps, in order:\n")
+        && prompt.contains("[F1]");
   }
 
   /** What the summary prompt says is summarized, such as "class Order in package a.b". */

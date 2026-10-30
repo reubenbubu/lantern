@@ -21,9 +21,12 @@ import io.lantern.core.snapshot.Snapshot;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
+import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
@@ -207,7 +210,7 @@ public final class AnalysisRun {
    * @param linksAsked how many links static matching left open the LLM was asked about (ADR 0045)
    * @param linksReused how many of their answers came from the cache
    * @param investigationsAsked how many units, and the system, the Investigate role asked the LLM
-   *     about (ADR 0082)
+   *     about (ADR 0084)
    * @param investigationsReused how many of its investigations came from the cache
    * @param summariesGenerated how many summaries the LLM wrote
    * @param summariesReused how many summaries came from the cache
@@ -326,22 +329,29 @@ public final class AnalysisRun {
       // messaging, WebSocket, mail, Redis, people and gateway extractors.
       JavaAnalysis code = JavaExtractor.analyze(repoBuilds);
       found.addAll(new JavaExtractor().extract(code, snapshot.number()));
-      found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number()));
+      // A config key the code uses as a JWT secret is masked whatever it is called (#335), so the
+      // identity extractor runs before the config extractor.
+      List<Fact> identity = new IdentityExtractor().extract(code, snapshot.number());
+      Set<String> secretKeys = ConfigExtractor.jwtSecretKeys(identity);
+      found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
+      found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
       found.addAll(new SqlExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new TestExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new SpringExtractor().extract(code, snapshot.number()));
-      found.addAll(new PersistenceExtractor().extract(code, snapshot.number()));
-      found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
-      found.addAll(new MessagingExtractor().extract(code, snapshot.number()));
+      found.addAll(new SpringExtractor().extract(code, snapshot.number(), secretKeys));
+      found.addAll(new PersistenceExtractor().extract(code, snapshot.number(), secretKeys));
+      found.addAll(new HttpClientExtractor().extract(code, snapshot.number(), secretKeys));
+      found.addAll(new MessagingExtractor().extract(code, snapshot.number(), secretKeys));
       found.addAll(new WebSocketExtractor().extract(code, snapshot.number()));
       found.addAll(new MailExtractor().extract(code, snapshot.number()));
+      found.addAll(identity);
       found.addAll(new RedisExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));
-      found.addAll(new GatewayExtractor().extract(code, snapshot.number()));
+      found.addAll(new DeploymentExtractor().extract(repoBuilds, snapshot.number()));
+      found.addAll(new FrontendExtractor().extract(repoBuilds, snapshot.number()));
+      found.addAll(new GatewayExtractor().extract(code, snapshot.number(), secretKeys));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       // The resolver's and the investigator's tools read files of every repository of the
-      // snapshot at its commit there, carried forward ones included (ADR 0081, ADR 0082).
+      // snapshot at its commit there, carried forward ones included (ADR 0081, ADR 0084).
       GitSourceFiles snapshotSources =
           new GitSourceFiles(
               name ->
@@ -367,7 +377,8 @@ public final class AnalysisRun {
 
       // Prompts show source excerpts read from git at the commits the facts were observed in.
       GitSourceFiles sources =
-          new GitSourceFiles(name -> Optional.ofNullable(registered.get(name)).map(Repo::path));
+          new GitSourceFiles(name -> Optional.ofNullable(registered.get(name)).map(Repo::path))
+              .withSecretKeys(secretKeys);
       Summarizer.Result summarized =
           new Summarizer(client, summaries, sources).summarize(SummaryTree.fromFacts(extracted));
       LOG.info(
@@ -391,10 +402,11 @@ public final class AnalysisRun {
       // (ADR 0069).
       GitSourceFiles allSources =
           new GitSourceFiles(
-              name ->
-                  Optional.ofNullable(registered.get(name))
-                      .or(() -> registry.find(name))
-                      .map(Repo::path));
+                  name ->
+                      Optional.ofNullable(registered.get(name))
+                          .or(() -> registry.find(name))
+                          .map(Repo::path))
+              .withSecretKeys(secretKeys);
       Describer.Result described =
           new Describer(client, wordings, allSources).describe(systemFacts, extracted);
 
@@ -739,7 +751,7 @@ public final class AnalysisRun {
           // the static steps leave open, with cached answers reused (ADR 0045).
           LinkResolver resolver = new LinkResolver(client, resolutions, files);
           // Then the Investigate role proposes what the steps before it missed, each proposal
-          // verified against the files it cites (ADR 0082).
+          // verified against the files it cites (ADR 0084).
           Investigator investigator = new Investigator(client, investigations, files, commits);
           Linker linker = Linker.standard(facts, resolver, investigator);
           // Each origin kind is recorded on its own, so a static analysis closes only the facts of

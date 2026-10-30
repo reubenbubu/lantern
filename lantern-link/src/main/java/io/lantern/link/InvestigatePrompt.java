@@ -18,7 +18,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The prompt of the Investigate role (ADR 0082) and the reading of its answers. A prompt asks about
+ * The prompt of the Investigate role (ADR 0084) and the reading of its answers. A prompt asks about
  * one deployable unit, or about the system as a whole, and shows the facts about it as the
  * resolver's prompt writes them (subject, predicate, object, attributes, {@code repo:path}, no fact
  * IDs or lines), in a fixed order, so the same facts give the same prompt and cache key. The model

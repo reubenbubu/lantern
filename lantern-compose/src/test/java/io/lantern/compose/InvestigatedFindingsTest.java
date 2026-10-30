@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * What the LLM investigator found (ADR 0082) in every template: the Architecture Explorer's and the
+ * What the LLM investigator found (ADR 0084) in every template: the Architecture Explorer's and the
  * C4 report's table of risks and findings, the Executive Brief's risk callouts, and the container
  * diagrams' lines and elements, each marked as found by the LLM.
  */

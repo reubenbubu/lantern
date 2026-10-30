@@ -12,8 +12,11 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.deployment.DeploymentExtractor;
+import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
+import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
 import io.lantern.extract.maven.MavenExtractor;
@@ -253,14 +256,31 @@ class CrossRepoLinksTest {
         1.0);
   }
 
-  /** A Redis image a repository's compose file runs. */
+  /** A container a repository's compose file runs, with the product and version of its image. */
   private void redisImage(String repo, String module, String image, String technology) {
+    String product = technology.replaceFirst(" [0-9.]+$", "");
+    String version = technology.substring(product.length()).strip();
+    container(
+        repo,
+        "redis",
+        "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+            + "\"image\":\""
+            + image
+            + "\",\"product\":\""
+            + product
+            + "\""
+            + (version.isEmpty() ? "" : ",\"version\":\"" + version + "\"")
+            + ",\"hosts\":[\"redis\"]}");
+  }
+
+  /** A container a deployment descriptor of a repository runs (ADR 0082). */
+  private void container(String repo, String name, String attributes) {
     add(
-        RedisExtractor.NAME,
-        "repository:" + repo,
-        RedisExtractor.REDIS_IMAGE,
-        FactObject.string(image),
-        "{\"technology\":\"" + technology + "\",\"service\":\"redis\"}",
+        DeploymentExtractor.NAME,
+        "repo:" + repo,
+        DeploymentExtractor.DEPLOYMENT_CONTAINER,
+        FactObject.string(name),
+        attributes,
         repo + ":compose.yaml#5",
         1.0);
   }
@@ -279,6 +299,7 @@ class CrossRepoLinksTest {
             f -> {
               ObjectNode attributes = f.attributes();
               attributes.remove("facts");
+              attributes.remove("fact");
               attributes.remove("link");
               return f.subject()
                   + " "
@@ -507,6 +528,50 @@ class CrossRepoLinksTest {
         .contains("\"matchedBy\":\"path\"")
         .contains("\"profile\":\"local\"")
         .endsWith(" 0.6");
+  }
+
+  @Test
+  void aCallToThisMachineLinksByItsPortWhenOneOtherUnitListensThere() {
+    unit("a", "bff", "bff");
+    type("a", "bff", "b.Proxy");
+    call(
+        "a",
+        "b.Proxy#send()",
+        "http://127.0.0.1:8888{path}",
+        "{\"client\":\"rest-client\",\"expressions\":[\"path\"],\"path\":\"{path}\","
+            + "\"url\":\"http://127.0.0.1:8888{path}\",\"baseUrl\":\"http://127.0.0.1:8888\"}",
+        5);
+    unit("g", "gateway", "gateway");
+    config("g", "gateway", "application.properties", "server.port", "8888", null);
+    // Serves a one-segment path, so the path alone would have taken it.
+    unit("p", "profile", "profile");
+    type("p", "profile", "p.ProfileController");
+    endpoint("p", "p.ProfileController", "all()", "GET", "/profiles");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:bff CALLS_HTTP service:g:gateway")
+        .contains("\"matchedBy\":\"port\"")
+        .endsWith(" 0.64");
+  }
+
+  @Test
+  void aUnitOnTheDefaultPortIsTakenOnlyWhereItServesThePath() {
+    unit("a", "bff", "bff");
+    type("a", "bff", "b.Login");
+    call(
+        "a",
+        "b.Login#token()",
+        "POST http://localhost:8080/realms/app/token",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"POST\",\"path\":\"/realms/app/token\","
+            + "\"url\":\"http://localhost:8080/realms/app/token\","
+            + "\"baseUrl\":\"http://localhost:8080\"}",
+        5);
+    config("a", "bff", "application.properties", "server.port", "8081", null);
+    unit("o", "orders", "orders");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP)).isEmpty();
   }
 
   @Test
@@ -1076,6 +1141,35 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aSendToTheUnitsOwnListenerIsLinked() {
+    // A unit that hands work to itself through the broker: the flows draw the delivery (ADR 0047,
+    // amendment for #272).
+    unit("m", "main", "main");
+    type("m", "main", "m.Organizations");
+    messaging(
+        "m",
+        "m.Organizations#create()",
+        MessagingExtractor.SEND,
+        "org.created",
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        20);
+    messaging(
+        "m",
+        "m.Organizations#defaults()",
+        MessagingExtractor.LISTENER,
+        "org.created",
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        30);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
+        .containsExactly(
+            "service:g:main SENDS_MESSAGES_TO service:g:main"
+                + " {\"destination\":\"topic:kafka:org.created\",\"protocol\":\"Kafka\","
+                + "\"source\":\"method:m.Organizations#create()\","
+                + "\"target\":\"method:m.Organizations#defaults()\"} 1.0");
+  }
+
+  @Test
   void codeGatedByAProfileLinksOnlyUnderThatProfile() {
     unit("s", "shop", "shop");
     type("s", "shop", "s.AuditTrail");
@@ -1263,6 +1357,158 @@ class CrossRepoLinksTest {
                 + " reports database (app.reporting.url) 1.0",
             "database:g:main/postgresql:orders display-name orders 1.0",
             "database:g:embedded/postgresql:cache display-name cache 1.0");
+  }
+
+  /** Two units whose datasources leave host, port and database to the environment. */
+  private void unitsWithPlaceholderDatasources() {
+    for (String name : List.of("auth", "main")) {
+      unit(name, name + "-service", name + "-service");
+      config(name, name + "-service", "application.properties", "x.y", "z", null);
+      datasource(
+          name,
+          name + "-service",
+          "application.properties",
+          "jdbc:postgresql://${"
+              + name
+              + ".db.host}:${"
+              + name
+              + ".db.port}/${"
+              + name
+              + ".db.name}",
+          "\"server\":\"${"
+              + name
+              + ".db.host}:${"
+              + name
+              + ".db.port}\","
+              + "\"database\":\"${"
+              + name
+              + ".db.name}\","
+              + "\"unresolved\":[\""
+              + name
+              + ".db.host\",\""
+              + name
+              + ".db.port\",\""
+              + name
+              + ".db.name\"]");
+    }
+  }
+
+  @Test
+  void aDatasourceTheEnvironmentFillsIsNamedAfterTheDatabaseItsServerCreates() {
+    unitsWithPlaceholderDatasources();
+    // Kubernetes: one PostgreSQL whose init script creates both units' databases; the units' host
+    // and port come from a ConfigMap, their database names from a Secret Lantern does not read.
+    container(
+        "deploy",
+        "postgres",
+        "{\"platform\":\"kubernetes\",\"environment\":\"dev\",\"kind\":\"StatefulSet\","
+            + "\"image\":\"postgres:17.5\",\"product\":\"PostgreSQL\",\"version\":\"17.5\","
+            + "\"hosts\":[\"postgres\",\"postgres-service\"],"
+            + "\"databases\":[\"auth_db\",\"main_db\"]}");
+    for (String name : List.of("auth", "main")) {
+      String upper = name.toUpperCase(java.util.Locale.ROOT);
+      container(
+          "deploy",
+          name + "service",
+          "{\"platform\":\"kubernetes\",\"environment\":\"dev\",\"kind\":\"Deployment\","
+              + "\"image\":\"acme/"
+              + name
+              + "-service:1\",\"hosts\":[\""
+              + name
+              + "service\"],\"env\":{\""
+              + upper
+              + "_DB_HOST\":\"postgres-service\",\""
+              + upper
+              + "_DB_PORT\":\"5432\"},\"masked\":[\""
+              + upper
+              + "_DB_NAME\"]}");
+    }
+
+    assertThat(derive("display-name"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth-service/postgresql:g:auth-service display-name auth_db 1.0",
+            "database:g:main-service/postgresql:g:main-service display-name main_db 1.0");
+    assertThat(derive(DeployableUnits.TECHNOLOGY))
+        .filteredOn(l -> l.startsWith("database:"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth-service/postgresql:g:auth-service technology PostgreSQL 17.5 1.0",
+            "database:g:main-service/postgresql:g:main-service technology PostgreSQL 17.5 1.0");
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .anySatisfy(
+            l ->
+                assertThat(l)
+                    .startsWith("service:g:auth-service USES_DATABASE")
+                    .contains(
+                        "\"deployments\":[{\"address\":\"postgres-service:5432\","
+                            + "\"container\":\"authservice\",\"database\":\"auth_db\","
+                            + "\"environment\":\"Kubernetes (dev)\",\"server\":\"postgres\"}]")
+                    .contains("\"inferred\":")
+                    .endsWith(" 0.8"));
+    assertThat(derive(Deployments.DEPLOYED_IN))
+        .containsExactlyInAnyOrder(
+            "service:g:auth-service deployed-in Kubernetes (dev) {\"container\":\"authservice\","
+                + "\"environment\":\"dev\",\"platform\":\"kubernetes\"} 1.0",
+            "service:g:main-service deployed-in Kubernetes (dev) {\"container\":\"mainservice\","
+                + "\"environment\":\"dev\",\"platform\":\"kubernetes\"} 1.0",
+            "database:g:auth-service/postgresql:g:auth-service deployed-in Kubernetes (dev)"
+                + " {\"container\":\"postgres\",\"environment\":\"dev\","
+                + "\"platform\":\"kubernetes\"} 1.0",
+            "database:g:main-service/postgresql:g:main-service deployed-in Kubernetes (dev)"
+                + " {\"container\":\"postgres\",\"environment\":\"dev\","
+                + "\"platform\":\"kubernetes\"} 1.0");
+  }
+
+  @Test
+  void aComposeVariableTiesAUnitsDatabaseToTheContainerThatCreatesIt() {
+    unitsWithPlaceholderDatasources();
+    // Compose: each unit's database is the container whose POSTGRES_DB is the same variable; the
+    // variables are set in an .env file that is not committed, so only the image is known.
+    for (String name : List.of("auth", "main")) {
+      String upper = name.toUpperCase(java.util.Locale.ROOT);
+      container(
+          "deploy",
+          name + "-db",
+          "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+              + "\"image\":\"postgres:16\",\"product\":\"PostgreSQL\",\"version\":\"16\","
+              + "\"hosts\":[\""
+              + name
+              + "-db\"],\"env\":{\"POSTGRES_DB\":\"${"
+              + upper
+              + "_DB_NAME}\"}}");
+      container(
+          "deploy",
+          name + "-service",
+          "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+              + "\"hosts\":[\""
+              + name
+              + "-service\"],\"env\":{\""
+              + upper
+              + "_DB_HOST\":\"${"
+              + upper
+              + "_DB_HOST}\",\""
+              + upper
+              + "_DB_NAME\":\"${"
+              + upper
+              + "_DB_NAME}\"}}");
+    }
+
+    // Each stays its own database, named by the unit, with the version of its container.
+    assertThat(derive("display-name"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth-service/postgresql:g:auth-service display-name auth-service database"
+                + " 1.0",
+            "database:g:main-service/postgresql:g:main-service display-name main-service database"
+                + " 1.0");
+    assertThat(derive(DeployableUnits.TECHNOLOGY))
+        .filteredOn(l -> l.startsWith("database:"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth-service/postgresql:g:auth-service technology PostgreSQL 16 1.0",
+            "database:g:main-service/postgresql:g:main-service technology PostgreSQL 16 1.0");
+    assertThat(derive(Deployments.DEPLOYED_IN))
+        .filteredOn(l -> l.startsWith("database:g:auth-service"))
+        .singleElement()
+        .asString()
+        .contains("{\"container\":\"auth-db\"");
   }
 
   @Test
@@ -1617,6 +1863,220 @@ class CrossRepoLinksTest {
         "t",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         4);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Frontends
+
+  private void frontend(String repo, String directory) {
+    add(
+        FrontendExtractor.NAME,
+        "frontend:" + repo + (directory.isEmpty() ? "" : "/" + directory),
+        FrontendExtractor.APP,
+        FactObject.string("angular"),
+        "{\"name\":\"web\",\"directory\":\""
+            + directory
+            + "\",\"framework\":\"Angular\",\"technology\":\"Angular 19.2\"}",
+        repo + ":" + (directory.isEmpty() ? "" : directory + "/") + "package.json#4",
+        1.0);
+  }
+
+  private void frontendCall(String frontend, String method, String url, String more, int line) {
+    add(
+        FrontendExtractor.NAME,
+        frontend,
+        FrontendExtractor.CALL,
+        FactObject.string((method == null ? "WebSocket" : method) + " " + url),
+        "{"
+            + (method == null ? "" : "\"httpMethod\":\"" + method + "\",")
+            + "\"url\":\""
+            + url
+            + "\",\"protocol\":\""
+            + (method == null ? "WebSocket" : "HTTP")
+            + "\""
+            + (more == null ? "" : "," + more)
+            + "}",
+        frontend.substring(frontend.indexOf(':') + 1).split("/")[0] + ":src/app/api.ts#" + line,
+        0.9);
+  }
+
+  private void frontendProxy(String frontend, String prefix, String target, String source) {
+    add(
+        FrontendExtractor.NAME,
+        frontend,
+        FrontendExtractor.PROXY,
+        FactObject.string(prefix),
+        "{\"target\":\"" + target + "\",\"source\":\"" + source + "\"}",
+        frontend.substring(frontend.indexOf(':') + 1).split("/")[0] + ":nginx.conf#9",
+        0.9);
+  }
+
+  @Test
+  void aFrontendsCallsToThisMachineReachTheUnitWhoseContainerPublishesThePort() {
+    unit("gw", "api-gateway", "api-gateway");
+    unit("auth", "auth-service", "auth-service");
+    // Both listen on 8080 inside their containers; only the gateway is published on it.
+    container(
+        "deploy",
+        "api-gateway",
+        "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+            + "\"image\":\"acme/api-gateway:1\",\"hosts\":[\"api-gateway\"],"
+            + "\"ports\":[\"8080:8080\"]}");
+    container(
+        "deploy",
+        "auth-service",
+        "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+            + "\"image\":\"acme/auth-service:1\",\"hosts\":[\"auth-service\"]}");
+    frontend("web", "");
+    frontendCall(
+        "frontend:web",
+        "POST",
+        "http://192.168.1.20:8080/api/auth/sign-in",
+        "\"alternates\":[\"http://localhost:8080/api/auth/sign-in\"]",
+        3);
+    frontendCall("frontend:web", null, "http://localhost:8080/ws-notifications", null, 5);
+    frontendCall("frontend:web", "GET", "https://maps.example.com/tiles/{z}", null, 7);
+    frontendCall("frontend:web", "GET", "http://localhost:9999/nothing", null, 9);
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactlyInAnyOrder(
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
+                + "\"matchedBy\":\"published-port\",\"path\":\"/api/auth/sign-in\","
+                + "\"protocol\":\"JSON/HTTP\",\"url\":\"http://192.168.1.20:8080/api/auth/sign-in\"}"
+                + " 0.72",
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"matchedBy\":\"published-port\","
+                + "\"path\":\"/ws-notifications\",\"protocol\":\"WebSocket\","
+                + "\"url\":\"http://localhost:8080/ws-notifications\"} 0.72",
+            "frontend:web CALLS_HTTP external-system:maps.example.com {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"external\",\"path\":\"/tiles/{z}\",\"protocol\":\"HTTPS\","
+                + "\"url\":\"https://maps.example.com/tiles/{z}\"} 0.9");
+  }
+
+  @Test
+  void aFrontendsCallNamesTheEndpointItReachesDirectlyOrThroughAGatewayRoute() {
+    unit("gw", "api-gateway", "api-gateway");
+    type("gw", "api-gateway", "gw.Routes");
+    type("gw", "api-gateway", "gw.CompositeController");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "auth",
+        "{\"definedIn\":\"java\",\"uri\":\"lb://auth-service\"," + "\"paths\":[\"/api/auth/**\"]}");
+    // A more specific route wins over a broader one of the same order.
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "all",
+        "{\"definedIn\":\"java\",\"uri\":\"lb://main-service\",\"paths\":[\"/api/**\"]}");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "notify",
+        "{\"definedIn\":\"java\",\"uri\":\"lb:ws://notification-service\","
+            + "\"paths\":[\"/socket/**\"],\"filters\":[\"StripPrefix=1\"]}");
+    // The gateway's own endpoint answers before any route.
+    endpoint("gw", "gw.CompositeController", "tasks()", "POST", "/api/composite/tasks");
+    unit("a", "auth-service", "auth-service");
+    type("a", "auth-service", "a.AuthController");
+    endpoint("a", "a.AuthController", "signIn()", "POST", "/api/auth/sign-in");
+    unit("m", "main-service", "main-service");
+    unit("n", "notification-service", "notification-service");
+    type("n", "notification-service", "n.WsConfig");
+    webSocketEndpoint("n", "n.WsConfig#stomp()", "/ws-notifications");
+    config("gw", "api-gateway", "application.yml", "server.port", "8080", null);
+    config("a", "auth-service", "application.yml", "server.port", "8081", null);
+    config("m", "main-service", "application.yml", "server.port", "8082", null);
+    config("n", "notification-service", "application.yml", "server.port", "8083", null);
+    frontend("web", "");
+    frontendCall("frontend:web", "POST", "http://localhost:8080/api/auth/sign-in", null, 3);
+    frontendCall("frontend:web", "POST", "http://localhost:8080/api/composite/tasks", null, 4);
+    frontendCall("frontend:web", null, "http://localhost:8080/socket/ws-notifications", null, 5);
+    // A path no route and no endpoint takes names nothing.
+    frontendCall("frontend:web", "GET", "http://localhost:8080/elsewhere", null, 6);
+    unit("shop", "bff", "bff");
+    type("shop", "bff", "b.BffController");
+    endpoint("shop", "b.BffController", "login()", "GET", "/bff/login");
+    config("shop", "bff", "application.yml", "server.port", "8090", null);
+    frontend("shop", "web-ui");
+    frontendProxy("frontend:shop/web-ui", "/bff/", "http://bff:8090/bff/", "nginx");
+    frontendCall("frontend:shop/web-ui", "GET", "/bff/login", "\"navigation\":true", 7);
+
+    List<String> links =
+        derive(CrossRepoLinks.CALLS_HTTP).stream().filter(l -> l.startsWith("frontend:")).toList();
+    assertThat(links)
+        .containsExactlyInAnyOrder(
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
+                + "\"matchedBy\":\"port\",\"path\":\"/api/auth/sign-in\","
+                + "\"protocol\":\"JSON/HTTP\",\"reaches\":\"method:a.AuthController#signIn()\","
+                + "\"reachesEndpoint\":\"POST /api/auth/sign-in\","
+                + "\"reachesUnit\":\"service:g:auth-service\",\"throughRoute\":\"auth\","
+                + "\"url\":\"http://localhost:8080/api/auth/sign-in\"} 0.63",
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
+                + "\"matchedBy\":\"port\",\"path\":\"/api/composite/tasks\","
+                + "\"protocol\":\"JSON/HTTP\","
+                + "\"reaches\":\"method:gw.CompositeController#tasks()\","
+                + "\"reachesEndpoint\":\"POST /api/composite/tasks\","
+                + "\"reachesUnit\":\"service:g:api-gateway\","
+                + "\"url\":\"http://localhost:8080/api/composite/tasks\"} 0.63",
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"matchedBy\":\"port\","
+                + "\"path\":\"/socket/ws-notifications\",\"protocol\":\"WebSocket\","
+                + "\"reaches\":\"method:n.WsConfig#stomp()\","
+                + "\"reachesEndpoint\":\"/ws-notifications\","
+                + "\"reachesUnit\":\"service:g:notification-service\","
+                + "\"throughRoute\":\"notify\","
+                + "\"url\":\"http://localhost:8080/socket/ws-notifications\"} 0.63",
+            "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"port\",\"path\":\"/elsewhere\",\"protocol\":\"JSON/HTTP\","
+                + "\"url\":\"http://localhost:8080/elsewhere\"} 0.63",
+            "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"host\",\"navigation\":true,\"path\":\"/bff/login\","
+                + "\"protocol\":\"JSON/HTTP\","
+                + "\"proxy\":\"/bff/\",\"reaches\":\"method:b.BffController#login()\","
+                + "\"reachesEndpoint\":\"GET /bff/login\",\"reachesUnit\":\"service:g:bff\","
+                + "\"url\":\"http://bff:8090/bff/login\"} 0.9");
+  }
+
+  @Test
+  void aFrontendsOwnPathsGoWhereItsNginxPassesThemAndItsComposeServiceNamesIt() {
+    unit("shop", "bff", "bff");
+    config("shop", "bff", "application.yml", "server.port", "8081", null);
+    unit("shop", "files", "files");
+    frontend("shop", "web-ui");
+    String web = "frontend:shop/web-ui";
+    frontendProxy(web, "/bff/", "http://bff:8081/bff/", "nginx");
+    frontendProxy(web, "/bff", "http://localhost:8081", "dev-server");
+    frontendProxy(web, "/media/", "http://files:8080", "nginx");
+    frontendCall(web, "GET", "/bff/api/orders", null, 3);
+    // A path no proxy takes is the page's own.
+    frontendCall(web, "GET", "/assets/logo.svg", null, 4);
+    add(
+        DeploymentExtractor.NAME,
+        "repo:shop",
+        DeploymentExtractor.DEPLOYMENT_CONTAINER,
+        FactObject.string("shop-web"),
+        "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+            + "\"build\":\"./web-ui\",\"hosts\":[\"shop-web\"],\"ports\":[\"4200:80\"]}",
+        "shop:compose.yaml#40",
+        1.0);
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactlyInAnyOrder(
+            "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"host\",\"path\":\"/bff/api/orders\",\"protocol\":\"JSON/HTTP\","
+                + "\"proxy\":\"/bff/\",\"url\":\"http://bff:8081/bff/api/orders\"} 0.9",
+            "frontend:shop/web-ui CALLS_HTTP service:g:files {\"matchedBy\":\"host\","
+                + "\"protocol\":\"JSON/HTTP\",\"proxy\":\"/media/\",\"url\":\"http://files:8080\"}"
+                + " 0.9");
+    assertThat(derive(Deployments.DEPLOYED_IN))
+        .containsExactly(
+            "frontend:shop/web-ui deployed-in Docker Compose (default)"
+                + " {\"container\":\"shop-web\",\"environment\":\"default\",\"platform\":\"compose\"}"
+                + " 1.0");
+    assertThat(derive(DataLinker.DISPLAY_NAME))
+        .containsExactly("frontend:shop/web-ui display-name shop-web 1.0");
+    assertThat(FrontendLinker.folder("deploy/compose.yaml", "../web-ui Dockerfile.prod"))
+        .isEqualTo("web-ui");
+    assertThat(FrontendLinker.folder("compose.yaml", "../elsewhere")).isNull();
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -2030,5 +2490,313 @@ class CrossRepoLinksTest {
         "\"unresolved\":[\"SMTP_HOST\"]");
 
     assertThat(derive(CrossRepoLinks.SENDS_MAIL)).isEmpty();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Identity providers and shared secrets
+
+  private static final String KEYCLOAK =
+      "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+          + "\"image\":\"quay.io/keycloak/keycloak:26.7.4\",\"product\":\"Keycloak\","
+          + "\"version\":\"26.7.4\",\"role\":\"identity\",\"hosts\":[\"keycloak\"],"
+          + "\"ports\":[\"8080:8080\"]}";
+
+  private void jwtSecret(String repo, String method, String keys, String uses) {
+    add(
+        IdentityExtractor.NAME,
+        "method:" + method,
+        IdentityExtractor.JWT_SECRET_KEY,
+        FactObject.string(keys.split(",")[0]),
+        "{\"library\":\"jjwt\",\"call\":\"Keys.hmacShaKeyFor\",\"keys\":[\""
+            + keys.replace(",", "\",\"")
+            + "\"],\"uses\":["
+            + uses
+            + "]}",
+        repo
+            + ":src/main/java/"
+            + method.substring(0, method.indexOf('#')).replace('.', '/')
+            + ".java#30",
+        1.0);
+  }
+
+  @Test
+  void anIssuerOnThisMachineIsTheKeycloakAComposeFilePublishesThere() {
+    unit("s", "gateway", "gateway");
+    config(
+        "s",
+        "gateway",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "http://localhost:8080/realms/shop",
+        "\"written\":\"${ISSUER:http://localhost:8080/realms/shop}\"");
+    unit("s", "bff", "bff");
+    config("s", "bff", "application.properties", "server.port", "8081", null);
+    config(
+        "s",
+        "bff",
+        "application.properties",
+        "spring.security.oauth2.client.provider.keycloak.issuer-uri",
+        "http://localhost:8080/realms/shop",
+        null);
+    config(
+        "s",
+        "bff",
+        "application.properties",
+        "spring.security.oauth2.client.registration.keycloak.client-id",
+        "bff",
+        null);
+    config(
+        "s",
+        "bff",
+        "application.properties",
+        "spring.security.oauth2.client.registration.internal.provider",
+        "keycloak",
+        null);
+    config(
+        "s",
+        "bff",
+        "application.properties",
+        "spring.security.oauth2.client.registration.internal.authorization-grant-type",
+        "client_credentials",
+        null);
+    container("s", "keycloak", KEYCLOAK);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .containsExactlyInAnyOrder(
+            "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+                + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
+                + "\"matchedBy\":\"published-port\",\"protocol\":\"OAuth2 over HTTP\","
+                + "\"purpose\":\"gets-tokens\",\"url\":\"http://localhost:8080/realms/shop\"}"
+                + " 0.8",
+            "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+                + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
+                + "\"matchedBy\":\"published-port\",\"protocol\":\"OIDC over HTTP\","
+                + "\"purpose\":\"signs-in-users\","
+                + "\"url\":\"http://localhost:8080/realms/shop\"} 0.8",
+            "service:g:gateway USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+                + "\"spring.security.oauth2.resourceserver.jwt.issuer-uri\","
+                + "\"matchedBy\":\"published-port\",\"protocol\":\"OIDC over HTTP\","
+                + "\"purpose\":\"validates-tokens\","
+                + "\"url\":\"http://localhost:8080/realms/shop\"} 0.8");
+    assertThat(derive())
+        .contains(
+            "external-system:keycloak display-name Keycloak 1.0",
+            "external-system:keycloak deployed-in Docker Compose (default)"
+                + " {\"container\":\"keycloak\",\"environment\":\"default\","
+                + "\"platform\":\"compose\"} 1.0");
+  }
+
+  @Test
+  void anIssuerTheEnvironmentNamesIsTheKeycloakContainerAnsweringItsHost() {
+    unit("s", "orders", "orders");
+    config(
+        "s",
+        "orders",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
+        "${ISSUER}/protocol/openid-connect/certs",
+        "\"written\":\"${ISSUER}/protocol/openid-connect/certs\",\"unresolved\":[\"ISSUER\"]");
+    container(
+        "s",
+        "orders",
+        "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+            + "\"build\":\".\",\"hosts\":[\"orders\"],"
+            + "\"env\":{\"ISSUER\":\"http://keycloak:8080/realms/shop\"}}");
+    container("s", "keycloak", KEYCLOAK);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:orders USES_IDENTITY_PROVIDER external-system:keycloak")
+        .contains("\"matchedBy\":\"container\",\"protocol\":\"JWKS over HTTP\"")
+        .contains(
+            "\"purpose\":\"validates-tokens\","
+                + "\"url\":\"http://keycloak:8080/realms/shop/protocol/openid-connect/certs\"");
+  }
+
+  @Test
+  void aJwkSetOfAnotherUnitLinksToItsEndpointAndOneOfItsOwnIsNoLine() {
+    unit("p", "auth", "auth");
+    config("p", "auth", "application.yml", "server.port", "8081", null);
+    type("p", "auth", "p.JwkSetController");
+    endpoint("p", "p.JwkSetController", "jwks()", "GET", "/api/auth/.well-known/jwks.json");
+    config(
+        "p",
+        "auth",
+        "application.yml",
+        "platform.security.jwt.jwk-set-uri",
+        "http://localhost:8081/api/auth/.well-known/jwks.json",
+        null);
+    unit("p", "events", "events");
+    config(
+        "p",
+        "events",
+        "application.yml",
+        "platform.security.jwt.jwk-set-uri",
+        "http://localhost:8081/api/auth/.well-known/jwks.json",
+        null);
+    // An issuer that is not a URL names no provider.
+    config("p", "events", "application.yml", "platform.security.jwt.issuer", "urn:p:auth", null);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .containsExactly(
+            "service:g:events USES_IDENTITY_PROVIDER service:g:auth {\"key\":"
+                + "\"platform.security.jwt.jwk-set-uri\",\"matchedBy\":\"port\","
+                + "\"protocol\":\"JWKS over HTTP\",\"purpose\":\"validates-tokens\","
+                + "\"target\":\"method:p.JwkSetController#jwks()\","
+                + "\"url\":\"http://localhost:8081/api/auth/.well-known/jwks.json\"} 0.8");
+  }
+
+  @Test
+  void anIssuerWithADomainAndAProviderKnownByNameAreExternalSystems() {
+    unit("w", "web", "web");
+    config(
+        "w",
+        "web",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "https://login.example.com/realms/w",
+        null);
+    config(
+        "w",
+        "web",
+        "application.properties",
+        "spring.security.oauth2.client.registration.google.client-id",
+        "web-client",
+        null);
+    // A local issuer with nothing behind it names nothing.
+    unit("w", "other", "other");
+    config(
+        "w",
+        "other",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "http://localhost:9999/realms/w",
+        null);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:web USES_IDENTITY_PROVIDER external-system:accounts.google.com",
+            "service:g:web USES_IDENTITY_PROVIDER external-system:login.example.com");
+  }
+
+  @Test
+  void aKeycloakAdminClientManagesUsersAtTheUrlItsConfigGives() {
+    unit("a", "admin", "admin");
+    type("a", "admin", "a.KeycloakConfig");
+    config(
+        "a",
+        "admin",
+        "application.properties",
+        "keycloak.admin.server-url",
+        "https://sso.example.com",
+        null);
+    add(
+        IdentityExtractor.NAME,
+        "method:a.KeycloakConfig#keycloak()",
+        IdentityExtractor.IDENTITY_ADMIN_CLIENT,
+        FactObject.string("${keycloak.admin.server-url}"),
+        "{\"product\":\"Keycloak\",\"url\":\"${keycloak.admin.server-url}\"}",
+        "a:src/main/java/a/KeycloakConfig.java#27",
+        1.0);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .containsExactly(
+            "service:g:admin USES_IDENTITY_PROVIDER external-system:sso.example.com"
+                + " {\"matchedBy\":\"external\",\"protocol\":\"Keycloak Admin REST over HTTPS\","
+                + "\"purpose\":\"manages-users\","
+                + "\"source\":\"method:a.KeycloakConfig#keycloak()\","
+                + "\"url\":\"https://sso.example.com\"} 1.0");
+  }
+
+  @Test
+  void unitsWhoseJwtSecretComesFromTheSamePlaceholderShareIt() {
+    unit("c", "auth", "auth");
+    type("c", "auth", "c.auth.JwtService");
+    config(
+        "c",
+        "auth",
+        "application.properties",
+        "app.token.signing.key",
+        "${auth.token.signing.key}",
+        "\"unresolved\":[\"auth.token.signing.key\"]");
+    jwtSecret("c", "c.auth.JwtService#key()", "app.token.signing.key", "\"sign\",\"verify\"");
+    unit("c", "gateway", "gateway");
+    type("c", "gateway", "c.gateway.JwtService");
+    config(
+        "c",
+        "gateway",
+        "application.properties",
+        "app.token.signing.key",
+        "${AUTH_TOKEN_SIGNING_KEY}",
+        "\"unresolved\":[\"AUTH_TOKEN_SIGNING_KEY\"]");
+    jwtSecret("c", "c.gateway.JwtService#key()", "app.token.signing.key", "\"verify\"");
+    // Another unit with its own secret, written in its config, shares nothing.
+    unit("c", "files", "files");
+    type("c", "files", "c.files.Tokens");
+    config("c", "files", "application.properties", "files.jwt.key", "abc", null);
+    jwtSecret("c", "c.files.Tokens#key()", "files.jwt.key", "\"verify\"");
+
+    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+        .containsExactly(
+            "service:g:auth shared-secret app.token.signing.key {\"algorithm\":\"HMAC\","
+                + "\"basis\":\"placeholder\",\"library\":\"jjwt\","
+                + "\"placeholders\":[\"auth.token.signing.key\"],"
+                + "\"source\":\"method:c.auth.JwtService#key()\","
+                + "\"uses\":[\"sign\",\"verify\"],\"with\":[\"service:g:gateway\"]} 0.9",
+            "service:g:gateway shared-secret app.token.signing.key {\"algorithm\":\"HMAC\","
+                + "\"basis\":\"placeholder\",\"library\":\"jjwt\","
+                + "\"placeholders\":[\"auth.token.signing.key\"],"
+                + "\"source\":\"method:c.gateway.JwtService#key()\","
+                + "\"uses\":[\"verify\"],\"with\":[\"service:g:auth\"]} 0.9");
+    assertThat(derive()).noneMatch(l -> l.contains("abc"));
+  }
+
+  @Test
+  void maskedSecretsUnderTheSameKeyAreSharedByKeyAndDifferentValuesAreNot() {
+    unit("c", "one", "one");
+    type("c", "one", "c.one.Jwt");
+    config("c", "one", "application.properties", "jwt.secret", "******", "\"masked\":true");
+    jwtSecret("c", "c.one.Jwt#key()", "jwt.secret", "\"sign\"");
+    unit("c", "two", "two");
+    type("c", "two", "c.two.Jwt");
+    config("c", "two", "application.properties", "jwt.secret", "******", "\"masked\":true");
+    jwtSecret("c", "c.two.Jwt#key()", "jwt.secret", "\"verify\"");
+    unit("c", "three", "three");
+    type("c", "three", "c.three.Jwt");
+    config("c", "three", "application.properties", "jwt.key", "first", null);
+    jwtSecret("c", "c.three.Jwt#key()", "jwt.key", "\"verify\"");
+    unit("c", "four", "four");
+    type("c", "four", "c.four.Jwt");
+    config("c", "four", "application.properties", "jwt.key", "second", null);
+    jwtSecret("c", "c.four.Jwt#key()", "jwt.key", "\"verify\"");
+
+    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+        .extracting(
+            l -> l.substring(0, l.indexOf(" {")) + " " + l.substring(l.lastIndexOf(' ') + 1))
+        .containsExactly(
+            "service:g:one shared-secret jwt.secret 0.7",
+            "service:g:two shared-secret jwt.secret 0.7");
+  }
+
+  @Test
+  void theSameSecretValueInConfigIsSharedWithoutTheValueInAnyFact() {
+    unit("c", "one", "one");
+    type("c", "one", "c.one.Jwt");
+    config("c", "one", "application.properties", "jwt.key", "same-value-0123", null);
+    jwtSecret("c", "c.one.Jwt#key()", "jwt.key", "\"sign\"");
+    unit("c", "two", "two");
+    type("c", "two", "c.two.Jwt");
+    config("c", "two", "application.properties", "tokens.hmac", "same-value-0123", null);
+    jwtSecret("c", "c.two.Jwt#key()", "tokens.hmac", "\"verify\"");
+
+    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:one shared-secret jwt.key", "service:g:two shared-secret tokens.hmac");
+    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+        .allMatch(l -> l.contains("\"basis\":\"value\""));
+    assertThat(linked()).noneMatch(f -> f.toString().contains("same-value-0123"));
   }
 }

@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * A provider whose calls of some roles go through recordings ({@link RecordReplayLlmProvider}) and
- * whose other calls go to the provider itself (ADR 0082, {@code lantern.llm.recordings}). So a run
+ * whose other calls go to the provider itself (ADR 0084, {@code lantern.llm.recordings}). So a run
  * can replay the recorded answers of one role, such as Investigate on a test set, while the other
  * roles are served as usual.
  */

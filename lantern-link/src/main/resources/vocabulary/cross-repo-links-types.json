@@ -47,7 +47,7 @@
     "name": "external-system",
     "kind": "entity",
     "parent": "system",
-    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host has a domain and names no unit, or from the mail server a unit's config names (spring.mail.host). Its key is the host, such as sandbox.paygate.example.com or smtp.gmail.com; the hosts the same call reaches under other profiles are separate systems, named by the call's alternates.",
+    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host has a domain and names no unit, from the mail server a unit's config names (spring.mail.host), or from the identity provider a unit's config or code names (ADR 0085). Its key is the host, such as sandbox.paygate.example.com or smtp.gmail.com, or for an identity provider a deployment runs, its product (keycloak); the hosts the same call reaches under other profiles are separate systems, named by the call's alternates.",
     "attributeSchema": {
       "additionalProperties": false
     }
@@ -120,7 +120,7 @@
     "name": "CALLS_HTTP",
     "kind": "relationship",
     "parent": "CALLS",
-    "description": "The subject unit calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched, and one per gateway route that sends requests to it (route set).",
+    "description": "The subject unit or frontend calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched, one per gateway route that sends requests to it (route set), and for a frontend one per URL its code calls from the browser and one per proxy of its server that no call goes through.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -178,6 +178,30 @@
           },
           "description": "For a WebSocket gateway route that reaches more than one WebSocket endpoint of its target, their paths."
         },
+        "proxy": {
+          "type": "string",
+          "description": "For a frontend's link, the path prefix of the proxy it goes through: the nginx that serves the frontend, or its development server."
+        },
+        "navigation": {
+          "type": "boolean",
+          "description": "For a frontend's link, true when its code navigates the browser to the URL rather than requesting it from the page."
+        },
+        "reaches": {
+          "type": "string",
+          "description": "For a frontend's call, the method that handles it: the endpoint's handler, or the method that registers the WebSocket endpoint, of the unit in reachesUnit (ADR 0047, amendment for #331)."
+        },
+        "reachesUnit": {
+          "type": "string",
+          "description": "For a frontend's call that reaches an endpoint, the unit that serves it: the linked unit itself, or the unit the gateway route in throughRoute sends it to."
+        },
+        "reachesEndpoint": {
+          "type": "string",
+          "description": "For a frontend's call that reaches an endpoint, the endpoint as that unit serves it, such as POST /api/auth/sign-in, or the WebSocket endpoint's path."
+        },
+        "throughRoute": {
+          "type": "string",
+          "description": "For a frontend's call to a gateway, the id of the gateway route that sends it on to reachesUnit."
+        },
         "route": {
           "type": "string",
           "description": "The id of the gateway route the link is, for a link from a Spring Cloud Gateway route."
@@ -198,7 +222,7 @@
         },
         "matchedBy": {
           "type": "string",
-          "description": "How the target was found: service-name (a Feign client's name, or a gateway route's lb:// name, against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone), port (a gateway route to this machine, by its port against the unit's server.port), external (a host with a domain that names no unit) or llm (picked by the LLM resolver among the candidates of a link static matching left open)."
+          "description": "How the target was found: service-name (a Feign client's name, or a gateway route's lb:// name, against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone), port (a gateway route or a frontend's call to this machine, by its port against the unit's server.port), published-port (a frontend's call to this machine or a private address, by the port a deployment container that runs the unit publishes), container-host (a frontend's URL host against the names of a deployment container that runs the unit), external (a host with a domain that names no unit) or llm (picked by the LLM resolver among the candidates of a link static matching left open)."
         },
         "exceptProfiles": {
           "type": "array",
@@ -512,7 +536,7 @@
         },
         "inferred": {
           "type": "string",
-          "description": "Why the link rests on an inference: the Redis host or port is a placeholder no config resolves, so units that write the same placeholders are taken to share one server."
+          "description": "Why the link rests on an inference: the Redis host or port is a placeholder no config resolves, so units that write the same placeholders are taken to share one server; or the database's name is left to the environment, and of the databases its server creates in a deployment the one whose name shares a word with the unit or the placeholder is taken."
         },
         "uses": {
           "type": "array",
@@ -534,6 +558,13 @@
             "type": "string"
           },
           "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+        },
+        "deployments": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Where the deployments put a datasource whose server or database is a placeholder no config resolves: for each environment that runs the unit, its environment, the container that runs the unit, the container the database is on, the server as the environment writes it (address) and the database's name, when known."
         }
       },
       "additionalProperties": false
@@ -650,6 +681,68 @@
     }
   },
   {
+    "name": "USES_IDENTITY_PROVIDER",
+    "kind": "relationship",
+    "parent": "CALLS",
+    "description": "The subject unit uses the object as its identity provider: another unit of the snapshot (an auth service whose JWK set it fetches), or an external system (an issuer on a host with a domain, or one a deployment runs from an identity provider's image, such as Keycloak in compose). Found from spring.security.oauth2.* (resource server issuer-uri and jwk-set-uri, client providers and registrations), keys ending like them (jwk-set-uri, issuer-uri), keycloak.auth-server-url and Keycloak's admin client (ADR 0085). One fact per unit, provider and purpose.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string",
+          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, what the subject does with the provider and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts the link comes from: the config values that name the provider, the admin client, and what the provider was found by (a unit's name or port, a deployment container), in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "What the unit does with the provider: validates-tokens (checks the tokens it is sent with the provider's keys), signs-in-users (an OAuth2 or OIDC login), gets-tokens (client credentials or another grant) or manages-users (an admin client)."
+        },
+        "protocol": {
+          "type": "string",
+          "description": "OIDC, JWKS, OAuth2 or the admin API (Keycloak Admin REST), over HTTP or HTTPS."
+        },
+        "url": {
+          "type": "string",
+          "description": "The provider's URL as the unit's config gives it in the view."
+        },
+        "key": {
+          "type": "string",
+          "description": "The config key that names the URL, when it is config."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the method that builds the admin client, for manages-users."
+        },
+        "target": {
+          "type": "string",
+          "description": "The entity ID of the endpoint of the target unit the URL's path reaches, such as its JWK set's handler."
+        },
+        "matchedBy": {
+          "type": "string",
+          "description": "How the provider was found: host (a unit's spring.application.name), port (a unit's server.port, for this machine), container (a deployment container of an identity provider's image answering the host), published-port (one publishing the port of this machine), provider-name (a provider Spring Security knows by name, such as google) or external (a host with a domain)."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "USES_BROKER",
     "kind": "relationship",
     "parent": "DEPENDS_ON",
@@ -752,7 +845,7 @@
   {
     "name": "display-name",
     "kind": "attribute",
-    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words.",
+    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the one a deployment names, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words; a frontend takes the name of the compose service that builds it from its folder; an identity provider a deployment runs is named by its product (Keycloak).",
     "attributeSchema": {
       "type": "object",
       "properties": {},
@@ -867,6 +960,108 @@
       "required": [
         "target",
         "endpoint"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "shared-secret",
+    "kind": "attribute",
+    "description": "The subject unit signs or checks JWTs with an HMAC secret that other units have too (with), for the findings page: their secrets come from the same placeholder nothing resolves (the environment fills one value in for all), the same config value, or, when the value is masked or unset, the same config key. The value is the config keys the unit reads the secret from; the secret's value is never recorded (ADR 0085).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "description": "HMAC."
+        },
+        "basis": {
+          "type": "string",
+          "description": "Why the secret is taken to be the same: placeholder, value or key (the weakest, confidence 0.7 of the fact's)."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the method that makes the key (its jwt-secret-key fact)."
+        },
+        "library": {
+          "type": "string",
+          "description": "The JWT library the method uses."
+        },
+        "with": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The entity IDs of the other units with the same secret."
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "What the unit's code does with JWTs: sign, verify or both."
+        },
+        "placeholders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "For basis placeholder: the placeholders, as relaxed binding reads them (auth.token.signing.key for AUTH_TOKEN_SIGNING_KEY)."
+        },
+        "link": {
+          "type": "string",
+          "description": "The finding's stable ID: the first 16 hex digits of the SHA-256 of the unit, the code that makes the key and its profile."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts it comes from: the jwt-secret-key facts of every unit with the secret and the unit's config values, in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "deployed-in",
+    "kind": "attribute",
+    "description": "A container a deployment descriptor runs the subject in (a deployable unit, a frontend built from its folder, a data store on a database or Redis container, or an external identity provider on its container); the value names the environment, such as Docker Compose (local). The linker ties a container to a unit by name, and to a data store through the unit's datasource or Redis connection.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "container": {
+          "type": "string",
+          "description": "The container's name, the value of its deployment-container fact."
+        },
+        "platform": {
+          "type": "string",
+          "description": "compose, kubernetes or helm."
+        },
+        "environment": {
+          "type": "string",
+          "description": "The environment within its platform, as the deployment-container fact names it."
+        },
+        "fact": {
+          "type": "string",
+          "description": "The ID of the deployment-container fact."
+        }
+      },
+      "required": [
+        "container",
+        "fact"
       ],
       "additionalProperties": false
     },

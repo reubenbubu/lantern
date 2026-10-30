@@ -70,9 +70,10 @@ class DescriberTest {
   /**
    * Words each unit, its components and relationships from what its prompt shows: the shop app's
    * components and its send, the worker's call, each citing the first fact; and the database and
-   * the topic, citing their uses, leaving the external system out; and each flow's walkthrough and
-   * post-conditions, citing its entry point and send, leaving its pre-conditions out; and the
-   * system's purpose, citing its README's first claim where it shows one, else the first fact.
+   * the topic, citing their uses, leaving the external system out; and each flow's title,
+   * walkthrough and post-conditions, citing its entry point and send, leaving its pre-conditions
+   * out; and the system's purpose, citing its README's first claim where it shows one, else the
+   * first fact.
    */
   private static String answer(LlmRequest request) {
     String prompt = request.messages().getFirst().text();
@@ -83,7 +84,8 @@ class DescriberTest {
     }
     if (prompt.startsWith("The flow")) {
       return """
-          {"walkthrough": {"text": "Lists the orders and announces them for background work.",
+          {"title": {"text": "Shop lists its orders.", "cites": ["F1"]},
+           "walkthrough": {"text": "Lists the orders and announces them for background work.",
                            "cites": ["F1", "F%1$s"]},
            "postconditions": {"text": "The orders are announced.", "cites": ["F%1$s"]}}"""
           .formatted(ref(prompt, "PUBLISHES"));
@@ -367,7 +369,11 @@ class DescriberTest {
   }
 
   private static Section flowSection(Document document, String title) {
-    return all(document.sections()).filter(s -> s.title().equals(title)).findFirst().orElseThrow();
+    // A flow's title names its scenario, then its trigger in brackets.
+    return all(document.sections())
+        .filter(s -> s.title().equals(title) || s.title().endsWith(" (" + title + ")"))
+        .findFirst()
+        .orElseThrow();
   }
 
   private static Table.Row overview(Section flow) {
@@ -436,6 +442,8 @@ class DescriberTest {
     Document document = system(wordings);
 
     Section flow = flowSection(document, LIST_FLOW);
+    // The model's title names the scenario, before the trigger (ADR 0047, amendment for #272).
+    assertThat(flow.title()).isEqualTo("Shop lists its orders (" + LIST_FLOW + ")");
     Paragraph prose = (Paragraph) flow.blocks().getFirst();
     String endpoint = facts.find(LIST.toString(), "endpoint").id();
     String send = facts.find(APP.toString(), "PUBLISHES").id();
@@ -881,6 +889,37 @@ class DescriberTest {
     assertThat(send.label()).isEqualTo("Announces orders");
     assertThat(send.facts()).doesNotContain("e".repeat(64));
     assertThat(deployable).isNotNull();
+  }
+
+  @Test
+  void leftOutCitationsLeaveNoLeadingTrailingOrDoubledSpace() {
+    String bad = "[fact:" + "f".repeat(64) + "]";
+    String good = "[fact:" + facts.find(APP.toString(), "deployable-unit").id() + "]";
+    Wordings wordings =
+        new Wordings(
+            Map.of(
+                APP, "Takes orders " + bad + " " + good + " " + bad + ".",
+                WORKER,
+                    bad + " Stores orders " + bad + " and ships them " + bad + " " + good + " "),
+            Map.of());
+
+    Document document = system(wordings);
+
+    for (EntityId id : List.of(APP, WORKER)) {
+      DocumentEntity entity =
+          document.entities().stream().filter(e -> e.id().equals(id)).findFirst().orElseThrow();
+      String description = text(entity.description());
+      assertThat(description).isNotEmpty().isEqualTo(description.strip());
+      assertThat(description).doesNotContain("  ").doesNotContain(" .");
+    }
+    DocumentEntity appEntity =
+        document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
+    assertThat(text(appEntity.description())).contains("Takes orders").doesNotContain("orders .");
+    DocumentEntity worker =
+        document.entities().stream().filter(e -> e.id().equals(WORKER)).findFirst().orElseThrow();
+    assertThat(text(worker.description()))
+        .endsWith("Stores orders and ships them")
+        .doesNotStartWith(" ");
   }
 
   @Test

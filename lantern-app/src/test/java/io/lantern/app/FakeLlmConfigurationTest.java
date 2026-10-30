@@ -31,6 +31,13 @@ class FakeLlmConfigurationTest {
             "{{placeholder: description of class Order in package a.b from its facts}}. [F1]");
     assertThat(answer(Role.INFER_INTENT, "[F1]")).isEqualTo("{}");
     assertThat(answer(Role.COMPOSE, "[F1]")).isEqualTo("{}");
+    assertThat(
+            answer(
+                Role.COMPOSE,
+                "The flow \"POST /orders on shop\".\nIt starts when shop receives POST /orders.\n"
+                    + "[F1] endpoint\n\nIts steps, in order:\n- shop to db\n"))
+        .isEqualTo(
+            "{\"title\": {\"text\": \"{{placeholder: scenario title}}\", \"cites\": [\"F1\"]}}");
     assertThat(answer(Role.RESOLVE, "[C1]")).contains("\"target\": \"unknown\"");
   }
 }

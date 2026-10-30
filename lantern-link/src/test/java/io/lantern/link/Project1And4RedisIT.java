@@ -8,6 +8,7 @@ import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
@@ -65,6 +66,7 @@ class Project1And4RedisIT {
     facts.addAll(new SpringExtractor().extract(code, 1));
     facts.addAll(new PersistenceExtractor().extract(code, 1));
     facts.addAll(new RedisExtractor().extract(code, repos, 1));
+    facts.addAll(new DeploymentExtractor().extract(repos, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     facts.addAll(new CrossRepoLinks().derive(facts, 1));
     List<String> lines = new ArrayList<>();

@@ -427,4 +427,71 @@ class ConfigExtractorTest {
             "module:g:svc config-value 1 {\"key\":\"a\"}"
                 + " @multi:svc/src/main/resources/application.yml#1-1 1.0");
   }
+
+  private static final String PROCESSOR =
+      """
+      package lib;
+
+      import java.util.Map;
+      import org.springframework.boot.env.EnvironmentPostProcessor;
+
+      public class Defaults implements EnvironmentPostProcessor {
+        static final String ISSUER = "spring.security.oauth2.resourceserver.jwt.issuer-uri";
+
+        public void postProcessEnvironment(Object environment, Object application) {
+          Map.of(
+              ISSUER, "${ISSUER_URI:http://localhost:8080/realms/r}",
+              "client.api-key", "${KEY:abc123}",
+              "client." + "name", "lib");
+          Map<String, Object> map = new java.util.HashMap<>();
+          map.put("computed", name());
+          map.put("not a key", "x");
+        }
+      }
+      """;
+
+  @Test
+  void literalDefaultsOfAnEnvironmentPostProcessorAreFactsWithTheirSource() throws IOException {
+    Repo repo =
+        repo(
+            Map.of(
+                "src/main/java/lib/Defaults.java",
+                PROCESSOR,
+                RESOURCES + "META-INF/spring.factories",
+                "org.springframework.boot.env.EnvironmentPostProcessor=\\\n  lib.Defaults\n"));
+
+    List<String> lines = extract(repo);
+
+    assertThat(lines)
+        .containsExactly(
+            "module:g:app config-value ****** {\"key\":\"client.api-key\",\"masked\":true,"
+                + "\"source\":\"environment-post-processor\"}"
+                + " @app:src/main/java/lib/Defaults.java#12-12 1.0",
+            "module:g:app config-value http://localhost:8080/realms/r {\"key\":"
+                + "\"spring.security.oauth2.resourceserver.jwt.issuer-uri\","
+                + "\"source\":\"environment-post-processor\","
+                + "\"written\":\"${ISSUER_URI:http://localhost:8080/realms/r}\"}"
+                + " @app:src/main/java/lib/Defaults.java#11-11 1.0",
+            "module:g:app config-value lib {\"key\":\"client.name\","
+                + "\"source\":\"environment-post-processor\"}"
+                + " @app:src/main/java/lib/Defaults.java#13-13 1.0");
+  }
+
+  @Test
+  void importsFilesAndClassesThatAreNotPostProcessorsAreHandled() throws IOException {
+    Repo repo =
+        repo(
+            Map.of(
+                "src/main/java/lib/Defaults.java",
+                PROCESSOR,
+                "src/main/java/lib/Other.java",
+                "package lib; public class Other { void f(java.util.Map<String,String> m)"
+                    + " { m.put(\"x.y\", \"z\"); } }",
+                RESOURCES
+                    + "META-INF/spring/org.springframework.boot.autoconfigure."
+                    + "AutoConfiguration.imports",
+                "# comment\nlib.Other\nlib.Defaults\n"));
+
+    assertThat(extract(repo)).hasSize(3).allMatch(l -> !l.contains("x.y"));
+  }
 }

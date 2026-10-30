@@ -12,6 +12,7 @@ import io.lantern.core.document.DocumentJson;
 import io.lantern.core.document.DocumentSource;
 import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
+import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
@@ -123,11 +124,21 @@ class C4ReportRendererTest {
             "{\"from\":\"service-com-example-app\",\"to\":\"external-system-pay-example-com\","
                 + "\"label\":\"Calls POST /charges (only with the Spring profile prod)\","
                 + "\"technology\":\"HTTPS\"}");
-    // Each kind has its own catalogue; decision records become a decisions section.
+    // Each kind has its own catalogue; decision records become a decisions section, on a
+    // documentation page of its own: C4 pages hold only C4 content (ADR 0086).
     assertThat(data.get("pages").get(1).get("sections").findValuesAsString("title"))
-        .contains("Containers", "Data Stores and Queues", "External Systems", "Decisions");
+        .contains("Containers", "Data Stores and Queues", "External Systems")
+        .doesNotContain("Decisions");
+    JsonNode decisions =
+        data.get("pages")
+            .valueStream()
+            .filter(p -> p.get("id").asString().equals("decisions"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(decisions.get("level").asString()).isEqualTo("documentation");
+    assertThat(decisions.get("title").asString()).isEqualTo("Decisions and unknowns");
     JsonNode decision =
-        data.get("pages").get(1).findValues("items").stream()
+        decisions.findValues("items").stream()
             .filter(items -> items.get(0).has("status"))
             .findFirst()
             .orElseThrow()
@@ -136,6 +147,98 @@ class C4ReportRendererTest {
         .isEqualTo(
             "{\"id\":\"ADR 1\",\"title\":\"Use Kafka\",\"body\":\"Orders go to Kafka.\\n\\n"
                 + "**Rationale:** Not recorded.\",\"status\":\"Accepted\"}");
+  }
+
+  @Test
+  void documentationIsOnDocumentationPagesAndNoC4PageHoldsIt() throws IOException {
+    Document document =
+        DocumentJson.read(Files.readString(COMPOSED.resolve("greeting-service.json")));
+
+    JsonNode pages = C4ReportRenderer.toJson(document).data().get("pages");
+
+    // The Explorer's decisions, risks and findings, catalog, change guidance, dependencies, structure
+    // and glossary are each a documentation page, after the C4 and sequence pages (ADR 0086).
+    assertThat(
+            pages
+                .valueStream()
+                .filter(p -> p.get("level").asString().equals("documentation"))
+                .map(p -> p.get("title").asString()))
+        .containsExactly(
+            "Decisions and unknowns",
+            "Risks and findings",
+            "Catalog",
+            "Change guidance",
+            "Dependencies",
+            "Modules and packages",
+            "Glossary");
+    for (JsonNode page : pages) {
+      if (page.get("level").asString().equals("documentation")) {
+        assertThat(page.get("sections").findValuesAsString("type"))
+            .doesNotContain("diagram", "sequence", "steps");
+      } else {
+        assertThat(page.get("sections").findValuesAsString("type")).doesNotContain("decisions");
+        assertThat(page.get("sections").findValuesAsString("title"))
+            .noneMatch(t -> t.matches("(?i).*(decision|deployment|glossary|catalog|risk).*"));
+      }
+    }
+  }
+
+  @Test
+  void aSectionWithoutADiagramAfterTheFirstPageIsADocumentationPage() {
+    EntityId system = EntityId.parse("repo:shop");
+    Diagram context =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Table risks =
+        new Table(
+            "risks.table",
+            "Risks",
+            List.of(new Table.Column("Impact"), new Table.Column("Finding")),
+            List.of(
+                new Table.Row(
+                    null,
+                    List.of(List.of(TextRun.of("High")), List.of(TextRun.of("A risk"))),
+                    List.of())),
+            List.of());
+    Document document =
+        document(
+            List.of(entity(system)),
+            section(
+                "intro",
+                null,
+                List.of(new Paragraph("intro.text", List.of(TextRun.of("Hello.")), List.of())),
+                List.of()),
+            section("context", system, List.of(context), List.of()),
+            section("risks", system, List.of(risks), List.of()));
+
+    JsonNode pages = C4ReportRenderer.toJson(document).data().get("pages");
+
+    // The introduction before the first page stays on the index; the risks become a
+    // documentation page, about no element, while the context page stays about the system.
+    assertThat(
+            pages.valueStream().map(p -> p.get("id").asString() + ":" + p.get("level").asString()))
+        .containsExactly("context:context", "risks:documentation");
+    assertThat(pages.get(1).has("element")).isFalse();
+    assertThat(pages.get(1).get("sections").get(0).get("type").asString()).isEqualTo("table");
+    assertThat(pages.get(0).get("element").asString()).isEqualTo("repo-shop");
+  }
+
+  @Test
+  void marksWhatOnlyTheLlmFoundAsFoundByTheLlm() throws IOException {
+    Document document = DocumentJson.read(Files.readString(MODEL_FIXTURE));
+
+    JsonNode data = C4ReportRenderer.toJson(document).data();
+
+    // The line and the table row whose only fact the resolver (an LLM) proposed are marked; the
+    // elements, which static facts also name, are not.
+    assertThat(data.findValues("relationships").getFirst().get(0).get("llm").asBoolean()).isTrue();
+    assertThat(data.findValues("llmRows").getFirst().toString()).isEqualTo("[0]");
+    assertThat(data.get("elements").valueStream()).noneMatch(e -> e.has("llm"));
   }
 
   @Test

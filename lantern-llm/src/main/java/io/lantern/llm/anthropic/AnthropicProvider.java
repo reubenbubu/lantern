@@ -19,12 +19,14 @@ import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.TextBlock;
 import com.anthropic.models.messages.TextBlockParam;
 import com.anthropic.models.messages.ThinkingBlockParam;
+import com.anthropic.models.messages.ThinkingConfigBetweenTools;
 import com.anthropic.models.messages.ThinkingConfigDisabled;
 import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.anthropic.models.messages.ToolUseBlockParam;
 import com.anthropic.models.messages.Usage;
+import io.lantern.llm.Capability;
 import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmProvider;
@@ -35,6 +37,7 @@ import io.lantern.llm.LlmTool;
 import io.lantern.llm.LlmToolCall;
 import io.lantern.llm.LlmToolResult;
 import io.lantern.llm.ModelConfig;
+import io.lantern.llm.Thinking;
 import io.lantern.llm.TokenUsage;
 import io.lantern.llm.TransientLlmException;
 import java.time.Duration;
@@ -56,8 +59,14 @@ import tools.jackson.databind.json.JsonMapper;
  * TransientLlmException} with the wait the API asked for, so {@link io.lantern.llm.LlmClient}
  * retries them; a provider made by {@link #create} leaves retrying to it and does not retry itself.
  *
- * <p>For a model whose {@link io.lantern.llm.Thinking#disabled()} is set, it sends {@code thinking:
- * {type: "disabled"}}. Thinking blocks in an answer are left out of its text.
+ * <p>For a model whose {@link Thinking#disabled()} is set, it turns thinking off the way the
+ * model's {@linkplain Thinking#offSwitch() off switch} says: {@code thinking: {type: "disabled"}}
+ * or {@code thinking: {type: "between_tools"}} (ADR 0022). Thinking blocks in an answer are left
+ * out of its text.
+ *
+ * <p>For a model with {@linkplain Capability#PROMPT_CACHING prompt caching}, the system prompt is
+ * marked for caching ({@link ModelConfig#cachesSystem}). For a model without it, any cache write
+ * and cache read tokens the server reports are counted as input tokens (ADR 0008).
  *
  * <p>A request's tools are sent as custom tools with their input schemas; an assistant turn's tool
  * calls as {@code tool_use} blocks after its text, and a user turn's tool results as {@code
@@ -120,12 +129,25 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
-    return send(params(model, request, false));
+    return send(params(model, request, Thinking.DEFAULT, request.cacheSystem()));
   }
 
   @Override
   public LlmResponse complete(ModelConfig model, LlmRequest request) {
-    return send(params(model.model(), request, model.thinking().disabled()));
+    LlmResponse response =
+        send(params(model.model(), request, model.thinking(), model.cachesSystem(request)));
+    if (model.supports(Capability.PROMPT_CACHING)) {
+      return response;
+    }
+    // Lantern asks such a model for no caching, so cache tokens are a server's own split of the
+    // prompt, such as a local server that reports it all as cache writes (#298); they are input,
+    // at the input price, since the model has no cache prices.
+    return new LlmResponse(
+        response.text(),
+        response.stopReason(),
+        response.usage().cacheAsInput(),
+        response.toolCalls(),
+        response.thinking());
   }
 
   private LlmResponse send(MessageCreateParams params) {
@@ -195,15 +217,23 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     return a.compareTo(b) <= 0 ? a : b;
   }
 
-  static MessageCreateParams params(String model, LlmRequest request, boolean thinkingDisabled) {
+  static MessageCreateParams params(
+      String model, LlmRequest request, Thinking thinking, boolean cacheSystem) {
     MessageCreateParams.Builder params =
         MessageCreateParams.builder().model(model).maxTokens(request.maxOutputTokens());
-    if (thinkingDisabled) {
-      params.thinking(ThinkingConfigDisabled.builder().build());
+    if (thinking.disabled()) {
+      switch (thinking.offSwitch()) {
+        case DISABLED -> params.thinking(ThinkingConfigDisabled.builder().build());
+        case BETWEEN_TOOLS -> params.thinking(ThinkingConfigBetweenTools.builder().build());
+        // Thinking refuses to be disabled without an off switch, so this cannot happen.
+        case NONE -> throw new IllegalStateException("Model " + model + " has no off switch");
+      }
     }
     if (request.system() != null) {
       TextBlockParam.Builder system = TextBlockParam.builder().text(request.system());
-      if (request.cacheSystem()) {
+      // The one breakpoint, at the end of the system prompt: tools and system prompt render first
+      // and are the same for every call of a role, while the turns after it differ (#303).
+      if (cacheSystem) {
         system.cacheControl(CacheControlEphemeral.builder().build());
       }
       params.systemOfTextBlockParams(List.of(system.build()));

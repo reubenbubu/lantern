@@ -74,7 +74,7 @@ final class RepoRisks {
    *
    * @param currency the risks technology currency found, which come first among those of the same
    *     severity
-   * @param investigated the risks the LLM investigator found (ADR 0082), which come last among
+   * @param investigated the risks the LLM investigator found (ADR 0084), which come last among
    *     those of the same severity
    */
   List<Block> callouts(String section, List<Callout> currency, List<Callout> investigated) {

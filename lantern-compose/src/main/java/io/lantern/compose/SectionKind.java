@@ -25,9 +25,19 @@ public enum SectionKind {
   CONTEXT("System context", EnumSet.of(Level.L0, Level.L1)),
   /**
    * C4 containers: the deployable units in scope, the stores and queues they use and their
-   * neighbours; then links not resolved and decision records.
+   * neighbours.
    */
   CONTAINERS("Containers", EnumSet.of(Level.L1, Level.L2)),
+  /**
+   * The environments the deployment descriptors define and the containers each runs, as a table
+   * (ADR 0082). Left out when there are none.
+   */
+  DEPLOYMENT("Deployment", EnumSet.of(Level.L1, Level.L2)),
+  /**
+   * The scope's decision records, then what is not known: the links Lantern could not resolve and
+   * the README claims the code contradicts.
+   */
+  DECISIONS("Decisions and unknowns", EnumSet.of(Level.L1, Level.L2)),
   /** C4 components: inside each deployable unit in scope, its components by role. */
   COMPONENTS("Components", EnumSet.of(Level.L2, Level.L3)),
   /**
@@ -51,7 +61,7 @@ public enum SectionKind {
   RISKS("Risks", EnumSet.of(Level.L0, Level.L1)),
   /**
    * Risks and findings: for now the risks the LLM investigator found and Lantern verified, most
-   * serious first, each marked as found by the LLM (ADR 0082); the findings page (#273) adds the
+   * serious first, each marked as found by the LLM (ADR 0084); the findings page (#273) adds the
    * static checks, decisions and unknowns.
    */
   FINDINGS("Risks and findings", EnumSet.of(Level.L0, Level.L1)),

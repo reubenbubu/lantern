@@ -17,7 +17,12 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TemplateRef;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
+import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.ObjectNode;
 
 /** The C4 context, container and component views (docs/design.md, Diagrams; ADR 0044). */
 class C4ViewsTest {
@@ -197,6 +203,71 @@ class C4ViewsTest {
   }
 
   @Test
+  void aFrontendIsAContainerWithItsTechnologyItsCallsAndThePeopleWithScreensInIt() {
+    TestFacts withFrontend = TestFacts.runtime();
+    withFrontend.attribute(
+        "shop",
+        "frontend:shop/web",
+        "frontend-app",
+        "angular",
+        "{\"name\":\"web\",\"directory\":\"web\",\"framework\":\"Angular\","
+            + "\"version\":\"19.2\",\"server\":\"nginx\","
+            + "\"technology\":\"Angular 19.2 · nginx\"}");
+    withFrontend.relate(
+        "shop",
+        "frontend:shop/web",
+        "CALLS_HTTP",
+        "service:com.example:app",
+        "{\"httpMethod\":\"GET\",\"path\":\"/orders\",\"protocol\":\"JSON/HTTP\","
+            + "\"url\":\"http://shop-app:8080/orders\",\"matchedBy\":\"host\"}");
+    Fact route =
+        Fact.create(
+            EntityId.parse("repo:shop"),
+            "person-evidence",
+            FactObject.string("route"),
+            (ObjectNode) FactJson.parse("{\"path\":\"/registration\",\"framework\":\"angular\"}"),
+            new Origin(Origin.Kind.STATIC, "people", "2"),
+            new Evidence("shop", TestFacts.COMMIT, "web/src/app/app.routes.ts", null, null),
+            0.8,
+            Validity.from(1));
+    withFrontend.add(route);
+    withFrontend.attribute(
+        "shop",
+        "person:user",
+        "person-basis",
+        "account",
+        "{\"basis\":\"account\",\"description\":\"The code lets people sign up or in.\","
+            + "\"cites\":[\""
+            + route.id()
+            + "\"],\"repos\":[\"shop\"],\"frontends\":[\"shop\"]}");
+    withFrontend.attribute("shop", "person:user", "display-name", "User");
+
+    Document document = system(withFrontend.list());
+    Diagram diagram = block(section(document, "containers"), Diagram.class);
+
+    assertThat(nodes(diagram))
+        .contains(
+            "frontend:shop/web \"web\" [Angular 19.2 · nginx] in system:snapshot",
+            "person:user \"User\"");
+    assertThat(edges(diagram))
+        .contains(
+            "frontend:shop/web -> service:com.example:app: Calls GET /orders [JSON/HTTP]",
+            "person:user -> frontend:shop/web: Uses the screens /registration [Web browser]");
+    DocumentEntity frontend =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("frontend:shop/web"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(frontend.description()))
+        .isEqualTo(
+            "A single-page app built with Angular 19.2, served by nginx; it calls shop-app from"
+                + " the browser.");
+    assertThat(block(section(document, "context"), Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains("Frontends 1");
+  }
+
+  @Test
   void containersAreTheUnitsWithTheirStoresQueuesAndNeighboursInsideTheSystem() {
     Diagram diagram = block(section(repo(facts.list()), "containers"), Diagram.class);
 
@@ -237,8 +308,15 @@ class C4ViewsTest {
   }
 
   @Test
-  void unresolvedLinksAndDecisionRecordsFollowTheDiagram() {
-    Section containers = section(repo(facts.list()), "containers");
+  void decisionRecordsAndUnresolvedLinksAreASectionOfTheirOwn() {
+    Document document = repo(facts.list());
+    // C4 pages hold only C4 content (ADR 0086): the containers section keeps only its diagram.
+    assertThat(section(document, "containers").blocks())
+        .noneMatch(b -> b instanceof Table || b instanceof Callout);
+    Section containers = section(document, "decisions");
+    assertThat(containers.title()).isEqualTo("Decisions and unknowns");
+    // Without deployment descriptors there is no deployment section.
+    assertThat(document.sections()).noneMatch(s -> s.id().equals("deployment"));
 
     Callout unresolved = block(containers, Callout.class);
     assertThat(unresolved.variant()).isEqualTo(Callout.Variant.WARNING);
@@ -259,6 +337,67 @@ class C4ViewsTest {
                   .containsExactly(
                       "ADR 1", "Use Kafka", "Accepted", "Orders go to Kafka.", "Not recorded.");
             });
+  }
+
+  @Test
+  void aDeploymentTableListsEachEnvironmentsContainersAndWhatRunsInThem() {
+    facts
+        .attribute(
+            "shop",
+            "repo:shop",
+            "deployment-container",
+            "shop-db",
+            "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+                + "\"image\":\"postgres:16.4\",\"product\":\"PostgreSQL\",\"version\":\"16.4\","
+                + "\"ports\":[\"5432:5432\"]}")
+        .attribute(
+            "shop",
+            "repo:shop",
+            "deployment-container",
+            "shop-app",
+            "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+                + "\"build\":\"./app\"}");
+    Fact db = facts.list().get(facts.list().size() - 2);
+    Fact app = facts.list().getLast();
+    facts
+        .attribute(
+            "shop",
+            "database:db:5432/shop",
+            "deployed-in",
+            "Docker Compose (local)",
+            "{\"container\":\"shop-db\",\"fact\":\"" + db.id() + "\"}")
+        .attribute(
+            "shop",
+            "service:com.example:app",
+            "deployed-in",
+            "Docker Compose (local)",
+            "{\"container\":\"shop-app\",\"fact\":\"" + app.id() + "\"}");
+
+    Document document = repo(facts.list());
+    assertThat(section(document, "containers").blocks()).noneMatch(b -> b instanceof Table);
+    Section containers = section(document, "deployment");
+
+    Table deployment =
+        containers.blocks().stream()
+            .filter(b -> b instanceof Table t && "Deployment".equals(t.title()))
+            .map(Table.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertThat(deployment.columns())
+        .extracting(Table.Column::label)
+        .containsExactly("Environment", "Container", "Image", "Technology", "Runs", "Ports");
+    assertThat(deployment.rows())
+        .extracting(row -> row.cells().stream().map(C4ViewsTest::text).toList())
+        .containsExactly(
+            List.of("Docker Compose (local)", "shop-app", "built from ./app", "", "shop-app", ""),
+            List.of(
+                "Docker Compose (local)",
+                "shop-db",
+                "postgres:16.4",
+                "PostgreSQL 16.4",
+                "shop on db",
+                "5432:5432"));
+    assertThat(deployment.rows().getLast().facts()).contains(db.id());
   }
 
   @Test
@@ -576,6 +715,34 @@ class C4ViewsTest {
     assertThat(block(section(repo(more.list()), "context"), Metrics.class).items())
         .extracting(i -> i.label() + " " + i.value())
         .contains("Databases 1");
+  }
+
+  @Test
+  void anIdentityProviderIsAnExternalSystemWithALinePerPurpose() {
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "USES_IDENTITY_PROVIDER",
+            "external-system:keycloak",
+            "{\"purpose\": \"validates-tokens\", \"protocol\": \"OIDC over HTTP\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "USES_IDENTITY_PROVIDER",
+            "external-system:keycloak",
+            "{\"purpose\": \"gets-tokens\", \"protocol\": \"OAuth2 over HTTP\"}")
+        .attribute("shop", "external-system:keycloak", "display-name", "Keycloak", "{}");
+
+    Diagram containers = block(section(repo(more.list()), "containers"), Diagram.class);
+
+    assertThat(nodes(containers)).contains("external-system:keycloak \"Keycloak\"");
+    assertThat(edges(containers))
+        .contains(
+            "service:com.example:app -> external-system:keycloak: Gets tokens from and validates"
+                + " tokens with the keys of [OAuth2 over HTTP, OIDC over HTTP]");
+    assertThat(nodes(block(section(repo(more.list()), "context"), Diagram.class)))
+        .contains("external-system:keycloak \"Keycloak\"");
   }
 
   @Test

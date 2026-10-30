@@ -137,3 +137,76 @@ what the facts look like and how a secret written in a config file is handled.
   that lost an option carries `masked: true`; a value without one is recorded byte for byte. The
   config extractor's version becomes 3; the HTTP client and persistence extractors, which clean
   their URLs with `UrlCredentials`, become version 2.
+
+## Amendment: keys the code uses as a JWT secret (#335)
+
+- **A key that a `jwt-secret-key` fact names is a secret too.** The key rule above leaves out keys
+  ending in plain `key`, so `jwt.key=<secret>` was recorded as a plain value. The identity
+  extractor (ADR 0085) names the config keys the code makes an HMAC key from. The app now runs it
+  before the config extractor and passes those keys to `ConfigExtractor.extract(repos, snapshot,
+  secretKeys)` (`ConfigExtractor.jwtSecretKeys` reads them from the facts). A value under such a
+  key, or one a value of such a key was substituted into, is recorded as `******` with `masked:
+  true`, as a secret's, unless it is only placeholders nothing resolves. Keys compare without list
+  indexes, `-`, `_` and case, as Spring's relaxed binding does. `extract(repos, snapshot)` alone
+  masks by key name only. The config extractor's version becomes 4.
+
+## Amendment: the other readers of config (#338)
+
+- **The known JWT secret keys reach every extractor that records a config value.** The docs
+  extractor (a README line such as `jwt.key: <value>`), the persistence extractor (datasource URLs,
+  and the values substituted into them) and the Spring Cloud Stream settings of the messaging
+  extractor take the same keys as `ConfigExtractor.extract(repos, snapshot, secretKeys)`, through
+  an `extract` overload with a `secretKeys` argument, and judge a key with
+  `ConfigExtractor.isSecret(key, ConfigExtractor.normalizedKeys(secretKeys))`. Without the keys
+  they mask by key name only, as before. The docs extractor becomes version 2, the persistence
+  extractor 3 and the messaging extractor 4.
+
+## Amendment: the Spring, HTTP client and gateway extractors (#340)
+
+- **The extractors that substitute config into code values take the known JWT secret keys too.**
+  The Spring, HTTP client and gateway extractors take the keys through an `extract(code, snapshot,
+  secretKeys)` overload, as the extractors of #338 do; `CodeConfig` is built with them and judges
+  both a key (`isSecret`) and a resolved value (`value`) by name or by the known keys. A value
+  substituted from such a key into an annotation value, a URL or a route is kept as written and
+  marked masked. Without the keys they mask by key name only. The Spring extractor becomes version
+  4, the HTTP client extractor 5 and the gateway extractor 2. The Redis extractor records config
+  keys, never values, and the other extractors read no config.
+
+## Amendment: defaults a library adds in code (#333)
+
+- **An `EnvironmentPostProcessor`'s literal keys and values are config defaults.** A library such
+  as project-1's `common-security` gives every service that bundles it its resource-server issuer
+  from a post-processor, not from a file. The extractor now reads the classes listed under
+  `org.springframework.boot.env.EnvironmentPostProcessor` in a module's `META-INF/spring.factories`,
+  and those listed in a `META-INF/spring/*.imports` file that implement `EnvironmentPostProcessor`,
+  from the module's `src/main/java`. In such a class it takes every pair of string literals (a
+  literal, a concatenation of literals, a text block, or a `static final String` constant of the
+  class) written with `Map.of`, `Map.entry`, `singletonMap`, `put`, `putIfAbsent` or
+  `setProperty`, whose key looks like a property key. Computed keys or values are not read.
+- **Facts.** The same `config-value` fact for the module, default view only, with the attribute
+  `source: environment-post-processor` and the Java file and the line of the key as evidence.
+  Placeholders resolve against the defaults themselves (`${KEYCLOAK_ISSUER_URI:http://...}` takes
+  its default). The module's own `read` (for `${...}` in code, ADR 0035) does not see them, so the
+  rule "a library uses the config of the one module of its repository that has config" is
+  unchanged.
+- **Secrets are masked as any value.** A key that names a secret, or one of the known JWT secret
+  keys, or a value a secret was substituted into, is recorded as `******`, masked, whatever the
+  literal holds.
+- **For a unit that bundles the library** (ADR 0039), the linker treats these facts as the lowest
+  precedence, below the unit's `application` and `bootstrap` files: a key the unit's own files set
+  wins, and each bundled library adds its own defaults (the nearest first). They feed the
+  identity-provider links of ADR 0085, so a service gets its "Validates tokens" line from a
+  bundled library's issuer. The config extractor becomes version 5 and the cross-repository link
+  step 13.
+
+## Amendment: source shown to the model (#348)
+
+- **`SourceSecrets.scrub(source, secretKeys)` also masks values under the known JWT secret
+  keys.** A placeholder default (`${jwt.key:x}`) and a literal following such a key
+  (`put("jwt.key", "x")`) are masked as if the key's name said secret, comparing keys as
+  `ConfigExtractor.isSecret(key, ConfigExtractor.normalizedKeys(secretKeys))` does. Every path that
+  puts file content in front of a model passes the snapshot's keys: `SourceFiles.secretKeys()`
+  (set with `GitSourceFiles.withSecretKeys`) for the summarizer's and describer's excerpts, and the
+  keys of the `jwt-secret-key` facts given to `GraphTools.Graph` for `read_file` (ADR 0081), which
+  also masks `key=value` and `key: value` lines and XML under them in non-code files.
+  `scrub(source)` alone masks by name only. Prompt text is unchanged.

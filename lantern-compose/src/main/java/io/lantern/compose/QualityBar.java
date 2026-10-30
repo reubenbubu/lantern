@@ -134,6 +134,7 @@ final class QualityBar {
   private static final Set<String> CONTAINER_TYPES =
       Set.of(
           BuiltInTypes.SERVICE,
+          C4Views.FRONTEND,
           C4Views.DATABASE,
           C4Views.TOPIC,
           C4Views.QUEUE,

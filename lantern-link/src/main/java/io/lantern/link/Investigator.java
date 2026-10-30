@@ -51,7 +51,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The Investigate role of the design (ADR 0082): the LLM finds what static analysis misses. For
+ * The Investigate role of the design (ADR 0084): the LLM finds what static analysis misses. For
  * each deployable unit, and once for the system as a whole, it shows the model the facts about it
  * and lets it read the repositories' files and query the graph with {@link GraphTools}; the model
  * proposes risks and connections, each citing file:line ranges. {@link ProposalCheck} verifies
@@ -281,8 +281,8 @@ public final class Investigator implements LinkStep {
     subjects.add(InvestigatePrompt.system(unitLines, repos, systemFacts(facts, index)));
 
     Known known = new Known(facts, index);
-    ProposalCheck check = new ProposalCheck(files, repos);
     GraphTools.Graph graph = new GraphTools.Graph(facts, files);
+    ProposalCheck check = new ProposalCheck(files, repos, graph.secretKeys());
     String system = InvestigatePrompt.SYSTEM;
     List<Outcome> outcomes = new ArrayList<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {

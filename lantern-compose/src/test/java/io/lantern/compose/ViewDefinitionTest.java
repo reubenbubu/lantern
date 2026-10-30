@@ -37,6 +37,8 @@ class ViewDefinitionTest {
             SectionKind.OVERVIEW,
             SectionKind.START_HERE,
             SectionKind.CONTAINERS,
+            SectionKind.DEPLOYMENT,
+            SectionKind.DECISIONS,
             SectionKind.CONTEXT,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
@@ -59,12 +61,26 @@ class ViewDefinitionTest {
             SectionKind.QUALITY_EVIDENCE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
+            SectionKind.DEPLOYMENT,
+            SectionKind.DECISIONS,
             SectionKind.GLOSSARY);
     assertThat(brief.audience()).isEqualTo("leadership");
     ViewDefinition system = ViewDefinition.c4System("system:c4", "System", TEMPLATE);
     assertThat(ViewDefinitionJson.write(system)).contains("\"scope\":{\"kind\":\"system\"}");
     assertThat(ViewDefinitionJson.read(ViewDefinitionJson.write(system))).isEqualTo(system);
     assertThat(system.scope().repo()).isNull();
+    // The documentation pages follow the C4 sections (ADR 0086).
+    assertThat(system.sections())
+        .containsExactly(
+            SectionKind.OVERVIEW,
+            SectionKind.START_HERE,
+            SectionKind.CONTEXT,
+            SectionKind.CONTAINERS,
+            SectionKind.COMPONENTS,
+            SectionKind.SEQUENCES,
+            SectionKind.FINDINGS,
+            SectionKind.DECISIONS,
+            SectionKind.DEPLOYMENT);
     assertThat(system.audience()).isEqualTo("architects and new engineers");
     assertThat(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE).audience())
         .isEqualTo("architects and new engineers");

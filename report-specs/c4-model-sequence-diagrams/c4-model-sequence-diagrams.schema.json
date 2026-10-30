@@ -3,7 +3,7 @@
   "$id": "https://example.com/schemas/architecture-document.schema.json",
   "title": "Architecture Document",
   "description": "Content model for the C4 architecture template. The whole document — elements, pages, diagrams and their layout rules — is one object embedded in the HTML as <script type=\"application/json\" id=\"arc-data\">.",
-  "$comment": "Cross-reference rules JSON Schema cannot express are checked by the page on load and reported in the browser console: every element id used anywhere must exist in `elements`; page ids are unique; section ids are unique within their page; a `parent` must be of a compatible kind (container → system; database/queue → system or container; component → container); a diagram's boundary must be the parent of at least one element in that diagram; sequence steps may only use declared participants; `steps.of` must name a sequence section on the same page.",
+  "$comment": "Cross-reference rules JSON Schema cannot express are checked by the page on load and reported in the browser console: every element id used anywhere must exist in `elements`; page ids are unique; section ids are unique within their page; a `parent` must be of a compatible kind (container → system; database/queue → system or container; component → container); a diagram's boundary must be the parent of at least one element in that diagram; sequence steps may only use declared participants; `steps.of` must name a sequence section on the same page; a documentation page holds no diagram, sequence or steps section; `llmRows` may only name rows the table has.",
   "type": "object",
   "required": ["document", "elements", "pages"],
   "additionalProperties": false,
@@ -18,7 +18,7 @@
     },
     "pages": {
       "type": "array",
-      "description": "Pages in reading order. The sidebar groups them by level; a level with one page shows as a single link, several pages as a collapsible group. Levels with no pages are hidden.",
+      "description": "Pages in reading order. The sidebar groups them by level; a level with one page shows as a single link, several pages as a collapsible group. Levels with no pages are hidden. Sequence pages, then documentation pages, follow the C4 levels as groups of their own.",
       "items": { "$ref": "#/$defs/page" }
     }
   },
@@ -32,6 +32,10 @@
     "markdown": {
       "type": "string",
       "description": "Markdown-lite: **bold**, *italic*, `code`, [text](https://… | #/page/section | mailto:…). Blank lines separate paragraphs; lines starting with \"- \" form a list (block fields only)."
+    },
+    "llm": {
+      "type": "boolean",
+      "description": "true: found by the LLM (an analysis that read the code), not by static analysis. Shown with an LLM badge wherever it appears."
     },
     "date": {
       "type": "string",
@@ -90,6 +94,7 @@
         "tag": { "type": "string", "description": "Overrides the type label on the element, e.g. \"Web App\", \"Worker\", \"Mobile App\"." },
         "technology": { "type": "string", "examples": ["Spring Boot 4 · J21", "PostgreSQL 17"] },
         "description": { "type": "string", "description": "Plain text in diagrams (wrapped and truncated to fit); Markdown-lite in tables." },
+        "llm": { "$ref": "#/$defs/llm" },
         "properties": {
           "type": "object",
           "description": "Free-form facts shown in catalogue tables via columns like \"properties.owner\". A key named criticality, priority or severity renders as a coloured badge (High / Medium / Low).",
@@ -105,8 +110,8 @@
       "properties": {
         "id": { "$ref": "#/$defs/id", "description": "Used in URLs: #/<page id>/<section id>." },
         "level": {
-          "enum": ["context", "containers", "components", "sequence"],
-          "description": "C4 level the page belongs to (L1, L2, L3) or a sequence page."
+          "enum": ["context", "containers", "components", "sequence", "documentation"],
+          "description": "C4 level the page belongs to (L1, L2, L3), a sequence page, or a documentation page: architecture documentation at no C4 level (decisions, risks, unknowns, glossary, catalog, deployment, sources), shown without a diagram."
         },
         "title": { "type": "string" },
         "summary": { "$ref": "#/$defs/markdown", "description": "Lead paragraph under the page title." },
@@ -226,7 +231,8 @@
         "from": { "$ref": "#/$defs/id" },
         "to": { "$ref": "#/$defs/id" },
         "label": { "type": "string", "description": "What happens, e.g. \"Reads/writes\"." },
-        "technology": { "type": "string", "description": "How, e.g. \"JDBC\" or \"Kafka · order.placed\"." }
+        "technology": { "type": "string", "description": "How, e.g. \"JDBC\" or \"Kafka · order.placed\"." },
+        "llm": { "$ref": "#/$defs/llm" }
       }
     },
     "layout": {
@@ -417,7 +423,13 @@
       "properties": {
         "type": { "const": "table" }, "id": true, "title": true, "eyebrow": true,
         "columns": { "type": "array", "items": { "type": "string" } },
-        "rows": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/markdown" } } }
+        "rows": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/markdown" } } },
+        "llmRows": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "uniqueItems": true,
+          "description": "Rows found by the LLM (0-based indices into rows), e.g. risks it found; each shows the LLM badge in its first cell."
+        }
       },
       "unevaluatedProperties": false
     }

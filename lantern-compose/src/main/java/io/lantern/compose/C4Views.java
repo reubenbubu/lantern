@@ -14,6 +14,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -41,7 +42,7 @@ import tools.jackson.databind.JsonNode;
  * under. People are drawn only when the code shows them (ADR 0074): the linker infers them from
  * roles, memberships, invitations and sign-in, and they are marked inferred; otherwise a note says
  * who uses the system is unknown. A connection the LLM investigator found and Lantern verified is
- * drawn as a line of its own, labelled as found by the LLM (ADR 0082).
+ * drawn as a line of its own, labelled as found by the LLM (ADR 0084).
  */
 final class C4Views {
 
@@ -51,6 +52,7 @@ final class C4Views {
   static final String BUNDLES = "BUNDLES";
   static final String CALLS_HTTP = "CALLS_HTTP";
   static final String SENDS_MAIL = "SENDS_MAIL";
+  static final String USES_IDENTITY_PROVIDER = "USES_IDENTITY_PROVIDER";
   static final String PUBLISHES = "PUBLISHES";
   static final String CONSUMES = "CONSUMES";
   static final String ROUTES_TO = "ROUTES_TO";
@@ -66,6 +68,12 @@ final class C4Views {
   static final String PERSON = "person";
   static final String PERSON_BASIS = "person-basis";
   static final String USES = "USES";
+  static final String DEPLOYMENT_CONTAINER = "deployment-container";
+  static final String DEPLOYED_IN = "deployed-in";
+  static final String FRONTEND = "frontend";
+  static final String FRONTEND_APP = "frontend-app";
+  static final String ROUTE = "route";
+  private static final String PERSON_EVIDENCE = "person-evidence";
 
   /** The kinds of container that are not deployable units: data stores and destinations. */
   static final Set<String> DESTINATIONS = Set.of(DATABASE, TOPIC, QUEUE, EXCHANGE, EXTERNAL_SYSTEM);
@@ -110,6 +118,10 @@ final class C4Views {
   private final Assembler assembler;
   private final EntityId system;
   private final SortedSet<EntityId> units;
+
+  /** The frontends in scope: those of the scope's repositories (ADR 0083). */
+  private final SortedSet<EntityId> frontends;
+
   private final Set<String> repos;
   private final List<Link> links;
 
@@ -132,6 +144,12 @@ final class C4Views {
     this.system = system;
     this.units = units;
     this.repos = repos;
+    this.frontends = new TreeSet<>(Knowledge.BY_ID);
+    for (Fact app : knowledge.withPredicate(FRONTEND_APP)) {
+      if (repos.isEmpty() || repos.contains(app.evidence().repo())) {
+        frontends.add(app.subject());
+      }
+    }
     this.alternatives = alternatives();
     this.links = containerLinks();
     links.removeIf(link -> alternatives.containsKey(link.facts.getFirst()));
@@ -166,8 +184,7 @@ final class C4Views {
   SortedSet<EntityId> destinations() {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
     for (Link link : links) {
-      if (!link.from.type().equals(BuiltInTypes.SERVICE)
-          && !link.to.type().equals(BuiltInTypes.SERVICE)) {
+      if (!runsCode(link.from) && !runsCode(link.to)) {
         continue;
       }
       for (EntityId end : List.of(link.from, link.to)) {
@@ -198,6 +215,34 @@ final class C4Views {
       }
     }
     return result;
+  }
+
+  /** Whether an element is a container that runs code: a deployable unit or a frontend. */
+  private static boolean runsCode(EntityId element) {
+    return element.type().equals(BuiltInTypes.SERVICE) || element.type().equals(FRONTEND);
+  }
+
+  /** Every frontend of the knowledge (ADR 0083). */
+  static SortedSet<EntityId> frontends(Knowledge knowledge) {
+    SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
+    knowledge.withPredicate(FRONTEND_APP).forEach(f -> result.add(f.subject()));
+    return result;
+  }
+
+  /** The frontends in scope. */
+  SortedSet<EntityId> frontends() {
+    return frontends;
+  }
+
+  /** A frontend's {@code frontend-app} fact, if it has one. */
+  Optional<Fact> frontendApp(EntityId frontend) {
+    return frontendApp(knowledge, frontend);
+  }
+
+  static Optional<Fact> frontendApp(Knowledge knowledge, EntityId frontend) {
+    return knowledge.attributes(frontend).stream()
+        .filter(f -> f.predicate().equals(FRONTEND_APP))
+        .findFirst();
   }
 
   // The deployable units and their names.
@@ -246,6 +291,7 @@ final class C4Views {
         .filter(
             f ->
                 f.predicate().equals(DEPLOYABLE_UNIT)
+                    || f.predicate().equals(FRONTEND_APP)
                     || f.predicate().equals(TECHNOLOGY)
                     || (f.predicate().equals(APPLICATION_NAME) && !f.attributes().has("profile")))
         .toList();
@@ -257,6 +303,7 @@ final class C4Views {
     String broker = entity.key().substring(0, Math.max(entity.key().indexOf(':'), 0));
     return switch (entity.type()) {
       case BuiltInTypes.SERVICE, DATABASE -> technology.orElse(null);
+      case FRONTEND -> frontendApp(entity).map(f -> attribute(f, TECHNOLOGY)).orElse(null);
       case TOPIC -> brokerName(broker) + " topic";
       case QUEUE -> brokerName(broker) + " queue";
       case EXCHANGE -> brokerName(broker) + " exchange";
@@ -313,7 +360,14 @@ final class C4Views {
 
   /** The relationships whose profile-only links may replace a default link of their unit. */
   private static final List<String> REPLACEABLE =
-      List.of(CALLS_HTTP, SENDS_MAIL, PUBLISHES, CONSUMES, USES_DATABASE, ACCESSES_DATA_OF);
+      List.of(
+          CALLS_HTTP,
+          SENDS_MAIL,
+          USES_IDENTITY_PROVIDER,
+          PUBLISHES,
+          CONSUMES,
+          USES_DATABASE,
+          ACCESSES_DATA_OF);
 
   /**
    * The profile-only links that stand in for a default link of the same unit, relationship and code
@@ -380,6 +434,7 @@ final class C4Views {
           switch (profiled.predicate()) {
             case CALLS_HTTP -> "calls";
             case SENDS_MAIL -> "sends mail through";
+            case USES_IDENTITY_PROVIDER -> "uses as its identity provider";
             case PUBLISHES -> "sends to";
             case CONSUMES -> "listens on";
             case USES_DATABASE -> "connects to";
@@ -443,6 +498,19 @@ final class C4Views {
                 Knowledge.object(fact),
                 "Sends mail through",
                 "Sends mail",
+                null,
+                protocol(fact),
+                fact));
+      }
+      for (Fact fact : knowledge.relations(unit, USES_IDENTITY_PROVIDER)) {
+        String[] words = identityWords(attribute(fact, "purpose"));
+        result.add(
+            link(
+                unit,
+                USES_IDENTITY_PROVIDER,
+                Knowledge.object(fact),
+                words[0],
+                words[1],
                 null,
                 protocol(fact),
                 fact));
@@ -527,7 +595,26 @@ final class C4Views {
                 access.facts));
       }
     }
-    // What the LLM investigator found, marked as such on every line that draws it (ADR 0082).
+    for (EntityId frontend : frontends(knowledge)) {
+      for (Fact fact : knowledge.relations(frontend, CALLS_HTTP)) {
+        String proxy = attribute(fact, "proxy");
+        boolean socket = "WebSocket".equals(attribute(fact, "protocol"));
+        boolean passed =
+            !socket && attribute(fact, "httpMethod") == null && attribute(fact, "path") == null;
+        result.add(
+            link(
+                frontend,
+                CALLS_HTTP,
+                Knowledge.object(fact),
+                passed ? "Passes requests on to" : socket ? "Opens a socket to" : "Calls",
+                passed ? "Passes on" : socket ? "Opens" : "Calls",
+                passed ? proxy : socket ? attribute(fact, "path") : endpoint(fact),
+                protocol(fact),
+                fact));
+      }
+    }
+    result.addAll(peopleLinks());
+    // What the LLM investigator found, marked as such on every line that draws it (ADR 0084).
     for (EntityId unit : units(knowledge)) {
       for (Fact fact : knowledge.relations(unit, InvestigatedFindings.CONNECTION)) {
         result.add(
@@ -557,6 +644,112 @@ final class C4Views {
       }
     }
     return result;
+  }
+
+  /**
+   * How a line to an identity provider reads, by what the unit does with it (ADR 0085): its label
+   * and the words two such lines are joined by.
+   */
+  private static String[] identityWords(String purpose) {
+    return switch (purpose == null ? "" : purpose) {
+      case "validates-tokens" ->
+          new String[] {"Validates tokens with the keys of", "Validates tokens"};
+      case "signs-in-users" -> new String[] {"Signs users in through", "Signs users in"};
+      case "gets-tokens" -> new String[] {"Gets tokens from", "Gets tokens"};
+      case "manages-users" -> new String[] {"Manages users through", "Manages users"};
+      default -> new String[] {"Uses as its identity provider", "Uses"};
+    };
+  }
+
+  /**
+   * The lines from people to the frontends that have screens for them (ADR 0074, ADR 0083): from
+   * the frontends their {@code person-basis} names and the routes it cites, each to the frontend
+   * whose folder holds the route's file.
+   */
+  private List<Link> peopleLinks() {
+    List<Link> result = new ArrayList<>();
+    for (Map.Entry<EntityId, Fact> person : people().entrySet()) {
+      Fact basis = person.getValue();
+      screens(basis)
+          .forEach(
+              (frontend, routes) -> {
+                for (Fact route : routes) {
+                  List<Fact> facts = new ArrayList<>(List.of(basis, route));
+                  frontendApp(frontend).ifPresent(facts::add);
+                  result.add(
+                      new Link(
+                          person.getKey(),
+                          USES,
+                          frontend,
+                          "Uses the screens of",
+                          "Uses the screens",
+                          attribute(route, "path"),
+                          "Web browser",
+                          null,
+                          null,
+                          facts));
+                }
+              });
+    }
+    return result;
+  }
+
+  /**
+   * The screens a person has, by frontend: the {@code route} evidence its {@code person-basis}
+   * cites, among the repositories it names as {@code frontends}, each under the frontend whose
+   * folder holds the route's file.
+   */
+  private Map<EntityId, List<Fact>> screens(Fact basis) {
+    List<String> named = strings(basis, "frontends");
+    Map<EntityId, List<Fact>> screens = new TreeMap<>(Knowledge.BY_ID);
+    for (Fact route : cited(basis)) {
+      if (!route.predicate().equals(PERSON_EVIDENCE)
+          || !route.object().value().equals(ROUTE)
+          || !named.contains(route.evidence().repo())) {
+        continue;
+      }
+      EntityId frontend = frontendOf(route);
+      if (frontend != null) {
+        screens.computeIfAbsent(frontend, f -> new ArrayList<>()).add(route);
+      }
+    }
+    return screens;
+  }
+
+  /**
+   * The people who have screens on a frontend, each with its {@code person-basis} fact and the
+   * routes of those screens, by person ID.
+   */
+  SortedMap<EntityId, List<Fact>> screensOn(EntityId frontend) {
+    SortedMap<EntityId, List<Fact>> result = new TreeMap<>(Knowledge.BY_ID);
+    for (Map.Entry<EntityId, Fact> person : people().entrySet()) {
+      List<Fact> routes = screens(person.getValue()).get(frontend);
+      if (routes != null) {
+        List<Fact> facts = new ArrayList<>(List.of(person.getValue()));
+        facts.addAll(routes);
+        result.put(person.getKey(), facts);
+      }
+    }
+    return result;
+  }
+
+  /** The frontend whose folder holds a fact's file, the deepest one; null if none does. */
+  private EntityId frontendOf(Fact fact) {
+    EntityId found = null;
+    int depth = -1;
+    for (EntityId frontend : frontends(knowledge)) {
+      Fact app = frontendApp(frontend).orElse(null);
+      if (app == null || !app.evidence().repo().equals(fact.evidence().repo())) {
+        continue;
+      }
+      String directory = RepoSections.attribute(app, "directory", "");
+      if ((directory.isEmpty() || fact.evidence().path().startsWith(directory + "/"))
+          && directory.length() > depth) {
+        found = frontend;
+        depth = directory.length();
+      }
+    }
+    return found;
   }
 
   private static Link link(
@@ -825,7 +1018,8 @@ final class C4Views {
     nodes.put(system, node(system, null, null, List.of()));
     Edges edges = new Edges();
     for (Link link : links) {
-      if (units.contains(link.from) && link.to.type().equals(EXTERNAL_SYSTEM)) {
+      if ((units.contains(link.from) || frontends.contains(link.from))
+          && link.to.type().equals(EXTERNAL_SYSTEM)) {
         nodes.computeIfAbsent(link.to, e -> node(e, null, null, List.of()));
         EdgeBuilder edge = edges.get(system, link.relationship, link.to);
         edge.add(link.plain, link.prefix, link.detail, null, link.profile);
@@ -929,13 +1123,18 @@ final class C4Views {
               case EXTERNAL_SYSTEM -> EXTERNAL_SYSTEM;
               default -> null;
             };
-        if (kind != null && units.contains(other)) {
+        if (kind != null && (units.contains(other) || frontends.contains(other))) {
           used.get(kind).computeIfAbsent(end, e -> new ArrayList<>()).addAll(link.facts);
         }
       }
     }
     List<Metrics.Item> items = new ArrayList<>();
     items.add(metric("Deployable units", units.size(), unitFacts));
+    if (!frontends.isEmpty()) {
+      List<Fact> apps = new ArrayList<>();
+      frontends.forEach(f -> frontendApp(f).ifPresent(apps::add));
+      items.add(metric("Frontends", frontends.size(), apps));
+    }
     items.add(metric("Databases", used.get(DATABASE)));
     items.add(metric("Topics, queues and exchanges", used.get(QUEUE)));
     items.add(metric("External systems", used.get(EXTERNAL_SYSTEM)));
@@ -959,15 +1158,20 @@ final class C4Views {
 
   /**
    * The container diagram of the scope's units and their direct neighbours, inside the system; one
-   * per unit when that would show more than {@link #MAX_ELEMENTS} elements. Then the links Lantern
-   * could not resolve and the scope's decision records.
+   * per unit when that would show more than {@link #MAX_ELEMENTS} elements. What is not at a C4
+   * level, the deployment table, the decision records and the links not resolved, is in sections of
+   * its own (ADR 0086).
    *
    * @param section the containers section's ID
    * @param blocks receives the blocks of the section itself
    * @param subsections receives one subsection per unit when the diagram is split
    */
   void containers(String section, List<Block> blocks, List<Section> subsections) {
-    if (units.isEmpty()) {
+    // The frontends first: the pages run from the entry inward.
+    SortedSet<EntityId> shown = new TreeSet<>(FRONTENDS_FIRST);
+    shown.addAll(units);
+    shown.addAll(frontends);
+    if (shown.isEmpty()) {
       // A note: what the code does not show cites no fact (Quality bar, ADR 0046).
       blocks.add(
           new Callout(
@@ -978,11 +1182,11 @@ final class C4Views {
               List.of(TextRun.of("No deployable unit was found in the code.")),
               List.of()));
     } else {
-      Diagram whole = containerDiagram(assembler.id(section, "diagram"), units, "Containers");
-      if (whole.nodes().size() - 1 <= MAX_ELEMENTS || units.size() == 1) {
+      Diagram whole = containerDiagram(assembler.id(section, "diagram"), shown, "Containers");
+      if (whole.nodes().size() - 1 <= MAX_ELEMENTS || shown.size() == 1) {
         blocks.add(whole);
       } else {
-        for (EntityId unit : units) {
+        for (EntityId unit : shown) {
           String id = assembler.id(section, unit.toString());
           Diagram around =
               containerDiagram(
@@ -1002,8 +1206,90 @@ final class C4Views {
       }
     }
     alternativesNote(assembler.id(section, "profiles"), units, false).ifPresent(blocks::add);
-    unresolved(section).ifPresent(blocks::add);
-    decisions(section).ifPresent(blocks::add);
+  }
+
+  /**
+   * The environments the scope's deployment descriptors define and the containers each runs (ADR
+   * 0082): one row per container, with its image, the product and version the image is, the units
+   * and data stores the linker found running in it, and its ports. Absent when there are none.
+   */
+  Optional<Table> deployment(String section) {
+    Map<String, SortedSet<EntityId>> running = new TreeMap<>();
+    Map<String, List<Fact>> runningFacts = new TreeMap<>();
+    for (Fact fact : knowledge.withPredicate(DEPLOYED_IN)) {
+      String container = attribute(fact, "fact");
+      if (container != null) {
+        running.computeIfAbsent(container, c -> new TreeSet<>(Knowledge.BY_ID)).add(fact.subject());
+        runningFacts.computeIfAbsent(container, c -> new ArrayList<>()).add(fact);
+      }
+    }
+    List<Fact> containers = new ArrayList<>();
+    for (Fact fact : knowledge.withPredicate(DEPLOYMENT_CONTAINER)) {
+      if (repos.isEmpty() || repos.contains(fact.evidence().repo())) {
+        containers.add(fact);
+      }
+    }
+    if (containers.isEmpty()) {
+      return Optional.empty();
+    }
+    containers.sort(
+        Comparator.comparing(C4Views::environment)
+            .thenComparing(f -> f.object().value())
+            .thenComparing(Fact::id));
+    List<Table.Row> rows = new ArrayList<>();
+    for (Fact fact : containers) {
+      String image = attribute(fact, "image");
+      String build = attribute(fact, "build");
+      String product = attribute(fact, "product");
+      String version = attribute(fact, "version");
+      List<String> runs = new ArrayList<>();
+      for (EntityId entity : running.getOrDefault(fact.id(), new TreeSet<>())) {
+        runs.add(assembler.name(entity));
+      }
+      List<String> ports = strings(fact, "ports");
+      List<Fact> cited = new ArrayList<>(List.of(fact));
+      cited.addAll(runningFacts.getOrDefault(fact.id(), List.of()));
+      rows.add(
+          new Table.Row(
+              null,
+              List.of(
+                  cell(environment(fact)),
+                  cell(fact.object().value()),
+                  cell(image != null ? image : build == null ? null : "built from " + build),
+                  cell(
+                      product == null ? null : version == null ? product : product + " " + version),
+                  cell(String.join(", ", runs)),
+                  cell(String.join(", ", ports))),
+              assembler.facts(cited)));
+    }
+    return Optional.of(
+        new Table(
+            assembler.id(section, "deployment"),
+            "Deployment",
+            List.of(
+                new Table.Column("Environment"),
+                new Table.Column("Container"),
+                new Table.Column("Image"),
+                new Table.Column("Technology"),
+                new Table.Column("Runs"),
+                new Table.Column("Ports")),
+            rows,
+            List.of()));
+  }
+
+  /** A container's environment as documents name it, such as "Docker Compose (local)". */
+  private static String environment(Fact container) {
+    // As the linker names it on deployed-in facts; the composer does not depend on the extractor.
+    String platform = attribute(container, "platform");
+    String environment = attribute(container, "environment");
+    String name =
+        switch (platform == null ? "" : platform) {
+          case "compose" -> "Docker Compose";
+          case "kubernetes" -> "Kubernetes";
+          case "helm" -> "Helm";
+          default -> platform;
+        };
+    return environment == null ? name : name + " (" + environment + ")";
   }
 
   private Diagram containerDiagram(String id, SortedSet<EntityId> shown, String title) {
@@ -1035,19 +1321,28 @@ final class C4Views {
         List.of());
   }
 
-  /** Adds a container, store or external system to a container diagram's nodes. */
+  /** Frontends before the other containers, then by ID. */
+  private static final Comparator<EntityId> FRONTENDS_FIRST =
+      Comparator.comparing((EntityId e) -> !e.type().equals(FRONTEND))
+          .thenComparing(Knowledge.BY_ID);
+
+  /** Adds a container, store, external system or person to a container diagram's nodes. */
   private void container(Map<EntityId, Diagram.Node> nodes, EntityId entity) {
     if (nodes.containsKey(entity)) {
       return;
     }
     // Inside the system's boundary where the diagram draws it.
     EntityId parent =
-        entity.type().equals(EXTERNAL_SYSTEM) || !nodes.containsKey(system) ? null : system;
+        entity.type().equals(EXTERNAL_SYSTEM)
+                || entity.type().equals(PERSON)
+                || !nodes.containsKey(system)
+            ? null
+            : system;
     nodes.put(entity, node(entity, technology(entity), parent, containerFacts(entity)));
   }
 
   /** The calls, sends and datasources of the scope's units that Lantern could not link. */
-  private Optional<Callout> unresolved(String section) {
+  Optional<Callout> unresolved(String section) {
     List<Inline> content = new ArrayList<>();
     List<Fact> facts = new ArrayList<>();
     for (EntityId unit : units) {
@@ -1092,7 +1387,7 @@ final class C4Views {
    * quoted from its context section or marked as not recorded; a note when there are none, since
    * then why the system is built as it is is not known (Quality bar, Architecture Explorer).
    */
-  private Optional<Block> decisions(String section) {
+  Optional<Block> decisions(String section) {
     SortedSet<EntityId> decisions = new TreeSet<>(Knowledge.BY_ID);
     for (Fact fact : knowledge.withPredicate("title")) {
       EntityId subject = fact.subject();

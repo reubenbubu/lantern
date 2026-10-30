@@ -3,7 +3,7 @@ package io.lantern.link;
 import java.util.Objects;
 
 /**
- * The Investigate role's verified proposals for one prompt, cached by the prompt's hash (ADR 0082).
+ * The Investigate role's verified proposals for one prompt, cached by the prompt's hash (ADR 0084).
  *
  * @param key the cache key: the SHA-256 of the prompt version, provider, model and prompt
  * @param scope what was investigated: a unit's ID, or {@code system}

@@ -19,6 +19,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -63,6 +65,31 @@ class PersistenceExtractorTest {
     // No credential from the config reaches a fact.
     assertThat(Fixtures.render(facts))
         .doesNotContain("s3cret", "hunter2", "tiger", "scott", "user=sa", "shop@");
+  }
+
+  @Test
+  void aDatasourceUrlAKnownSecretKeyWasSubstitutedIntoIsMasked() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("jwt"),
+            "shop",
+            Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>shop</artifactId><version>1</version></project>\n",
+                "src/main/java/com/example/Shop.java",
+                "package com.example;\n\npublic class Shop {}\n",
+                "src/main/resources/application.properties",
+                "jwt.key=literal-test-value-0123456789abcdef\n"
+                    + "spring.datasource.url=jdbc:postgresql://db:5432/${jwt.key}\n"));
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+
+    assertThat(Fixtures.render(new PersistenceExtractor().extract(code, SNAPSHOT)))
+        .contains("literal-test-value");
+    String masked =
+        Fixtures.render(new PersistenceExtractor().extract(code, SNAPSHOT, Set.of("jwt.key")));
+    assertThat(masked).doesNotContain("literal-test-value").contains("\"masked\":true");
   }
 
   @Test

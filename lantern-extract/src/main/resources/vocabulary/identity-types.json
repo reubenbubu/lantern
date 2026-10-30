@@ -1,0 +1,34 @@
+[
+  {
+    "name": "jwt-secret-key",
+    "kind": "attribute",
+    "description": "The subject method makes an HMAC key for signing or checking JWTs from a secret in config: jjwt's Keys.hmacShaKeyFor, signWith, setSigningKey or verifyWith, Nimbus's MACSigner or MACVerifier, Spring Security's withSecretKey or java-jwt's Algorithm.HMAC256. The value is the first config key the secret comes from; the secret's value is never recorded (ADR 0085).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "library": { "type": "string", "description": "The JWT library: jjwt, nimbus-jose-jwt, spring-security or java-jwt." },
+        "call": { "type": "string", "description": "The call that takes the secret, such as Keys.hmacShaKeyFor." },
+        "keys": { "type": "array", "items": { "type": "string" }, "description": "The config keys of the @Value placeholders the secret comes from, such as app.token.signing.key." },
+        "uses": { "type": "array", "items": { "type": "string" }, "description": "What the code of the method's type does with JWTs: sign, verify or both. Absent when it does neither where the extractor sees it." }
+      },
+      "required": ["library", "call", "keys"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "identity-admin-client",
+    "kind": "attribute",
+    "description": "The subject method builds an identity provider's admin client, Keycloak's (KeycloakBuilder.serverUrl, Keycloak.getInstance). The value is the server's URL as written: a @Value text with its placeholders, which the linker resolves through the unit's config, or a literal URL without credentials (ADR 0085).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "product": { "type": "string", "description": "The identity provider, such as Keycloak." },
+        "url": { "type": "string", "description": "The server's URL as written." }
+      },
+      "required": ["product", "url"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

@@ -29,7 +29,7 @@ Options:
   --tier TIER=MODEL         The same for a tier (high-volume, reasoning). Repeatable.
   --set PROPERTY=VALUE      Set any other app property for the runs, such as
                             lantern.llm.recordings.directory to answer a role from
-                            recordings (docs/adr/0082-investigate-role.md). Repeatable.
+                            recordings (docs/adr/0084-investigate-role.md). Repeatable.
   --label NAME              Names this run's folder of scorecards. Default: the date and
                             time, e.g. 20261029-1830.
   --compare-with LABEL      Also write each set's scorecard side by side with the one of

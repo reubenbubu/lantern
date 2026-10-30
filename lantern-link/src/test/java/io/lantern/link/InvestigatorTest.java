@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The Investigate role (ADR 0082), with a fake model and recorded answers; never a real one. Two
+ * The Investigate role (ADR 0084), with a fake model and recorded answers; never a real one. Two
  * units, orders and billing, and the files a model reads and cites: orders publishes inside a
  * transaction, billing trusts a header, and orders calls a rates API no fact links it to.
  */

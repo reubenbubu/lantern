@@ -182,6 +182,29 @@ test('elements match by kind and name or alias; precision counts the whole repor
   });
 });
 
+test('an element the alias table allows in either kind matches in both, and counts as the reference kind', () => {
+  const eitherKind = { eitherKind: { orders: ['external'] } };
+  const asExternal = {
+    ...report,
+    elements: { ...report.elements, o: { ...report.elements.o, kind: 'external' } },
+  };
+  const strict = score(asExternal, reference, aliases);
+  assert.deepEqual(strict.elements.containers.missing, ['order-service']);
+  assert.deepEqual(strict.elements.external.extra, ['orders']);
+
+  const s = score(asExternal, reference, { ...aliases, ...eitherKind });
+  assert.equal(s.elements.containers.matched, 2);
+  assert.deepEqual(s.elements.containers.missing, []);
+  assert.equal(s.elements.containers.report, 3, 'api-gateway and billing; orders counts as a container');
+  assert.deepEqual(s.elements.external, { reference: 0, report: 0, matched: 0, recall: null, precision: null, missing: [], extra: [] });
+  assert.ok(s.connections.matched >= 1, 'its lines match');
+
+  // By name alone, without an element alias.
+  const byName = score(asExternal, reference, { eitherKind: { orders: ['external'] } });
+  assert.equal(byName.elements.containers.matched, 2);
+  assert.throws(() => score(report, reference, { eitherKind: { nope: ['external'] } }), /unknown reference element/);
+});
+
 test('connections match by their ends and direction, once per pair', () => {
   const s = score(report, reference, aliases);
   const c = s.connections;

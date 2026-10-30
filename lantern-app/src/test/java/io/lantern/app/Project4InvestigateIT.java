@@ -37,7 +37,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The Investigate role on the real test set project-4 (APA-CRM, #269, ADR 0082), with recorded
+ * The Investigate role on the real test set project-4 (APA-CRM, #269, ADR 0084), with recorded
  * answers: the whole pipeline runs on its eight repositories at their pins with a fake model for
  * every other role, and the Investigate role's calls are answered from the recordings in {@code
  * testsets/project-4/recordings} ({@code lantern.llm.recordings}, mode replay). Checks that the
@@ -48,7 +48,7 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>The recordings are hand-written: a scripted model ({@link #scripted()}) reads the code with
  * the tools and proposes these items. {@code -Dlantern.test.rerecord=true} rewrites them from it,
- * never from a real model; a real recording is made with the scoring harness (ADR 0082). Runs only
+ * never from a real model; a real recording is made with the scoring harness (ADR 0084). Runs only
  * when {@code lantern.test.project4} names the folder {@code testsets/project-4/setup.sh} set
  * project-4 up in. Writes the system's report, a repository's three documents and the facts to
  * {@code target/project-4-investigate}, to look at.

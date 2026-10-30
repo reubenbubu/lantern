@@ -1,0 +1,7 @@
+image:
+  repository: example/orders
+  tag: ""
+db:
+  host: shop-db
+  name: ""
+replicas: 1

@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Verifies an Investigate proposal's citations mechanically (ADR 0082; docs/design.md, Grounding):
+ * Verifies an Investigate proposal's citations mechanically (ADR 0084; docs/design.md, Grounding):
  * each cited range must be in a repository of the snapshot, in a file that can be read at the
  * snapshot's commit, within the file's lines and at most {@link #MAX_LINES} long; every name the
  * proposal gives must appear, as the code writes it, in the lines it cites; and every range must
@@ -33,15 +33,18 @@ final class ProposalCheck {
 
   private final GraphTools.RepoFiles files;
   private final Set<String> repos;
+  private final Set<String> secretKeys;
   private final Map<String, Optional<File>> read = new ConcurrentHashMap<>();
 
   /**
    * @param files the snapshot's files
    * @param repos the snapshot's repositories
+   * @param secretKeys the config keys whose values the tools mask in files (#348)
    */
-  ProposalCheck(GraphTools.RepoFiles files, Set<String> repos) {
+  ProposalCheck(GraphTools.RepoFiles files, Set<String> repos, Set<String> secretKeys) {
     this.files = Objects.requireNonNull(files, "files");
     this.repos = Set.copyOf(repos);
+    this.secretKeys = Set.copyOf(secretKeys);
   }
 
   /** Why the proposal fails the check, or null if every citation holds. */
@@ -93,7 +96,7 @@ final class ProposalCheck {
               .read(cite.repo(), cite.path())
               .flatMap(
                   content -> {
-                    String text = GraphTools.masked(cite.path(), content);
+                    String text = GraphTools.masked(cite.path(), content, secretKeys);
                     return text == null
                         ? Optional.empty()
                         : Optional.of(new File(text.lines().toList(), sha256(content)));

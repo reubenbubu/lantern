@@ -1,0 +1,3 @@
+services:
+  ignored:
+    image: postgres:9

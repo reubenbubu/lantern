@@ -15,7 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests that need no Docker, on the {@code redis} fixture: golden facts with the code parsed
- * without a classpath (degraded mode), and the pieces that read keys and images.
+ * without a classpath (degraded mode), and the piece that reads keys.
  */
 class RedisExtractorTest {
 
@@ -57,16 +57,5 @@ class RedisExtractorTest {
                     "formatted",
                     List.of(id, id))))
         .isEqualTo("org:*:user:*:permissions");
-  }
-
-  @Test
-  void imagesNameTheirProductAndVersion() {
-    assertThat(RedisExtractor.Image.of("redis:8.4.0-alpine").technology()).isEqualTo("Redis 8.4.0");
-    assertThat(RedisExtractor.Image.of("docker.io/bitnami/redis:7").technology())
-        .isEqualTo("Redis 7");
-    assertThat(RedisExtractor.Image.of("valkey/valkey:7.2").technology()).isEqualTo("Valkey 7.2");
-    assertThat(RedisExtractor.Image.of("redis:alpine").technology()).isEqualTo("Redis");
-    assertThat(RedisExtractor.Image.of("postgres:16")).isNull();
-    assertThat(RedisExtractor.Image.of("redis@sha256:abc")).isNotNull();
   }
 }

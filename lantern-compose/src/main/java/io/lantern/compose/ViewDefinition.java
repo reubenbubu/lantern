@@ -71,9 +71,9 @@ public record ViewDefinition(
   /**
    * A view of one repository with the sections of the Architecture Explorer, in the order the
    * Quality bar asks: the overview as its orientation, where to start reading, the containers (the
-   * first diagram), context, components, main flows, the risks and findings (ADR 0082), the
-   * catalog, change guidance, the dependencies and structure (ADR 0048), then the glossary (ADR
-   * 0063).
+   * first diagram) with their deployment, decisions and unknowns, context, components, main flows,
+   * the risks and findings (ADR 0084), the catalog, change guidance, the dependencies and structure
+   * (ADR 0048), then the glossary (ADR 0063).
    */
   public static ViewDefinition perRepo(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -86,6 +86,8 @@ public record ViewDefinition(
             SectionKind.OVERVIEW,
             SectionKind.START_HERE,
             SectionKind.CONTAINERS,
+            SectionKind.DEPLOYMENT,
+            SectionKind.DECISIONS,
             SectionKind.CONTEXT,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
@@ -100,7 +102,8 @@ public record ViewDefinition(
   /**
    * A view of one repository for a C4 report: overview, where to start reading, context,
    * containers, components and main flows, the sections whose diagrams the C4 report spec draws
-   * (ADR 0031), the first two in its introduction; then the risks and findings (ADR 0082).
+   * (ADR 0031), the first two in its introduction; then the risks and findings (ADR 0084), the
+   * decisions and unknowns and the deployment, its documentation pages (ADR 0086).
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -116,12 +119,15 @@ public record ViewDefinition(
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
-            SectionKind.FINDINGS));
+            SectionKind.FINDINGS,
+            SectionKind.DECISIONS,
+            SectionKind.DEPLOYMENT));
   }
 
   /**
    * A view of the whole system for a C4 report: overview, where to start reading, context,
-   * containers, components and main flows (ADR 0031), then the risks and findings (ADR 0082).
+   * containers, components and main flows (ADR 0031), then the risks and findings (ADR 0084), the
+   * decisions and unknowns and the deployment (ADR 0086).
    */
   public static ViewDefinition c4System(String id, String title, TemplateRef template) {
     return new ViewDefinition(
@@ -137,13 +143,16 @@ public record ViewDefinition(
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
-            SectionKind.FINDINGS));
+            SectionKind.FINDINGS,
+            SectionKind.DECISIONS,
+            SectionKind.DEPLOYMENT));
   }
 
   /**
    * A view of one repository with the sections of the Executive Brief: overview, headline numbers,
    * risks, blast radius, technology currency, quality evidence, and the context and container
-   * diagrams (ADR 0015, ADR 0052, ADR 0062), then the glossary (ADR 0063).
+   * diagrams (ADR 0015, ADR 0052, ADR 0062) with the deployment, decisions and unknowns, then the
+   * glossary (ADR 0063).
    */
   public static ViewDefinition executiveBrief(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -161,6 +170,8 @@ public record ViewDefinition(
             SectionKind.QUALITY_EVIDENCE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
+            SectionKind.DEPLOYMENT,
+            SectionKind.DECISIONS,
             SectionKind.GLOSSARY));
   }
 }

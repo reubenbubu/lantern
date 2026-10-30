@@ -142,7 +142,9 @@ final class Assembler {
         || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)
         // A person is described by what the code shows of them (ADR 0074).
         || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)
-        // An element only the LLM investigator found, by the connections it found (ADR 0082).
+        // A frontend by what its manifest and Dockerfile say (ADR 0083).
+        || (id.type().equals(C4Views.FRONTEND) && responsibility(id) == null)
+        // An element only the LLM investigator found, by the connections it found (ADR 0084).
         || (C4Views.DESTINATIONS.contains(id.type())
             && responsibility(id) == null
             && foundOnlyByTheInvestigator(id))) {
@@ -205,9 +207,22 @@ final class Assembler {
         yield key.substring(slash + 1) + " on " + host;
       }
       case C4Views.TOPIC, C4Views.QUEUE, C4Views.EXCHANGE -> key.substring(key.indexOf(':') + 1);
-      case C4Views.EXTERNAL_SYSTEM -> MailProviders.name(key).orElse(key);
+      case C4Views.EXTERNAL_SYSTEM ->
+          knowledge
+              .attribute(id, "display-name")
+              .or(() -> MailProviders.name(key))
+              .or(() -> IdentityProviders.name(key))
+              .orElse(key);
       case C4Views.DECISION -> knowledge.attribute(id, "title").orElse(key);
       case C4Views.PERSON -> knowledge.attribute(id, "display-name").orElse(key);
+      case C4Views.FRONTEND ->
+          knowledge
+              .attribute(id, "display-name")
+              .or(
+                  () ->
+                      C4Views.frontendApp(knowledge, id)
+                          .map(f -> RepoSections.attribute(f, "name", key)))
+              .orElse(key);
       case BuiltInTypes.MODULE, BuiltInTypes.LIBRARY, BuiltInTypes.PACKAGE, "artifact" ->
           key.substring(key.lastIndexOf(':') + 1);
       case BuiltInTypes.TYPE -> key.substring(key.lastIndexOf('.') + 1).replace('$', '.');
@@ -242,6 +257,10 @@ final class Assembler {
         }
         yield wholes.isEmpty() ? null : wholes.first();
       }
+      case C4Views.FRONTEND ->
+          C4Views.frontendApp(knowledge, id)
+              .map(f -> repoOf(new TreeSet<>(Set.of(f.evidence().repo()))))
+              .orElse(null);
       default -> {
         SortedSet<EntityId> wholes = knowledge.wholes(id);
         yield wholes.isEmpty() ? null : wholes.first();
@@ -373,13 +392,41 @@ final class Assembler {
     Matcher matcher = MARKER.matcher(text);
     StringBuilder kept = new StringBuilder();
     boolean cites = false;
+    int last = 0;
     while (matcher.find()) {
       boolean known = !matcher.group(1).equals("fact") || knowledge.fact(matcher.group(2)) != null;
       cites |= known;
-      matcher.appendReplacement(kept, known ? Matcher.quoteReplacement(matcher.group()) : "");
+      kept.append(text, last, matcher.start());
+      last = matcher.end();
+      if (known) {
+        kept.append(matcher.group());
+      } else {
+        dropped(kept, text, last);
+      }
     }
-    matcher.appendTail(kept);
-    return cites ? kept.toString() : null;
+    kept.append(text, last, text.length());
+    return cites ? kept.toString().strip() : null;
+  }
+
+  /**
+   * Called when a marker was left out after {@code kept}: removes the space before it when what
+   * follows is the end, a space or punctuation, or when nothing precedes it, so that no leading,
+   * trailing or doubled space remains.
+   */
+  private static void dropped(StringBuilder kept, String text, int next) {
+    boolean atEnd = next >= text.length();
+    boolean spaceAfter = !atEnd && Character.isWhitespace(text.charAt(next));
+    boolean punctuationAfter =
+        !atEnd
+            && !Character.isLetterOrDigit(text.charAt(next))
+            && "[({\"`".indexOf(text.charAt(next)) < 0;
+    if (atEnd || spaceAfter || punctuationAfter || kept.toString().isBlank()) {
+      int end = kept.length();
+      while (end > 0 && Character.isWhitespace(kept.charAt(end - 1))) {
+        end--;
+      }
+      kept.setLength(end);
+    }
   }
 
   /**
@@ -529,15 +576,17 @@ final class Assembler {
       List<Inline> description =
           entity.id().type().equals(C4Views.PERSON) && personBasis(entity.id()) != null
               ? person(entity.id()).content()
-              : responsibility == null
-                      && C4Views.DESTINATIONS.contains(entity.id().type())
-                      && foundOnlyByTheInvestigator(entity.id())
-                  ? investigated(entity.id()).content()
-                  : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
-                      ? purpose().content()
-                      : responsibility != null
-                          ? responsibility(entity.id(), responsibility).content()
-                          : summarizedDescription(entity.id()).content();
+              : entity.id().type().equals(C4Views.FRONTEND) && responsibility == null
+                  ? frontend(entity.id()).content()
+                  : responsibility == null
+                          && C4Views.DESTINATIONS.contains(entity.id().type())
+                          && foundOnlyByTheInvestigator(entity.id())
+                      ? investigated(entity.id()).content()
+                      : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+                          ? purpose().content()
+                          : responsibility != null
+                              ? responsibility(entity.id(), responsibility).content()
+                              : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
@@ -546,7 +595,7 @@ final class Assembler {
     return List.copyOf(entities.values());
   }
 
-  /** The connections the LLM investigator found to an entity (ADR 0082). */
+  /** The connections the LLM investigator found to an entity (ADR 0084). */
   private List<Fact> investigatedTo(EntityId id) {
     return knowledge.pointingTo(id).stream()
         .filter(f -> f.predicate().equals(InvestigatedFindings.CONNECTION))
@@ -564,7 +613,7 @@ final class Assembler {
   /**
    * The description of an element only the LLM investigator found: what its units do with it, as
    * the connections it found say, opened with {@value InvestigatedFindings#FOUND_BY_LLM},
-   * emphasized, and citing those connections (ADR 0082).
+   * emphasized, and citing those connections (ADR 0084).
    */
   private Text investigated(EntityId id) {
     List<Fact> found = investigatedTo(id);
@@ -582,6 +631,41 @@ final class Assembler {
     return opened(
         InvestigatedFindings.FOUND_BY_LLM,
         new Text(List.of(TextRun.of(text.toString()), new Citation(ids)), ids));
+  }
+
+  /**
+   * The description of a frontend without a responsibility sentence: what its manifest and
+   * Dockerfile say, citing its {@code frontend-app} fact, and what it calls.
+   */
+  private Text frontend(EntityId id) {
+    Fact app = C4Views.frontendApp(knowledge, id).orElse(null);
+    if (app == null) {
+      return new Text(List.of(), List.of());
+    }
+    StringBuilder text = new StringBuilder("A single-page app built with ");
+    text.append(RepoSections.attribute(app, "framework", "a framework"));
+    String version = RepoSections.attribute(app, "version", null);
+    if (version != null) {
+      text.append(' ').append(version);
+    }
+    String server = RepoSections.attribute(app, "server", null);
+    if (server != null) {
+      text.append(", served by ").append(server);
+    }
+    List<Fact> cited = new ArrayList<>(List.of(app));
+    SortedSet<String> called = new TreeSet<>();
+    for (Fact call : knowledge.relations(id, C4Views.CALLS_HTTP)) {
+      called.add(name(Knowledge.object(call)));
+      if (cited.size() < 6) {
+        cited.add(call);
+      }
+    }
+    if (!called.isEmpty()) {
+      text.append("; it calls ").append(String.join(", ", called)).append(" from the browser");
+    }
+    text.append('.');
+    List<String> ids = facts(cited);
+    return new Text(List.of(TextRun.of(text.toString()), new Citation(ids)), ids);
   }
 
   /** The fact saying what a person rests on, or {@code null}. */

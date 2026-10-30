@@ -36,6 +36,7 @@ import io.lantern.extract.java.ModuleStructure.Call;
 import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
+import io.lantern.extract.java.ModuleStructure.OwnCall;
 import io.lantern.extract.java.ModuleStructure.Parameter;
 import io.lantern.extract.java.ModuleStructure.SourceFile;
 import io.lantern.extract.java.ModuleStructure.Supertype;
@@ -652,6 +653,9 @@ final class JavacAnalyzer {
       /** Field initializers and assignments to fields: the field, the value and the whole. */
       private final List<TreePath[]> fieldValues = new ArrayList<>();
 
+      /** Calls written without a receiver or on {@code this}, read as own calls if they are. */
+      private final List<TreePath> ownCalls = new ArrayList<>();
+
       /** Local variables declared in blocks, by element. */
       private final Map<Element, TreePath> locals = new HashMap<>();
 
@@ -669,6 +673,13 @@ final class JavacAnalyzer {
       public Void visitMethodInvocation(MethodInvocationTree node, Void unused) {
         if (!isReceiver(getCurrentPath())) {
           chains.add(getCurrentPath());
+        }
+        if (!node.getArguments().isEmpty()
+            && (node.getMethodSelect() instanceof IdentifierTree
+                || node.getMethodSelect() instanceof MemberSelectTree select
+                    && select.getExpression() instanceof IdentifierTree self
+                    && self.getName().contentEquals("this"))) {
+          ownCalls.add(getCurrentPath());
         }
         if (!isImplicitSuperCall(node)) {
           // The line of the method's name, which in a chain of calls is not the chain's first.
@@ -779,6 +790,9 @@ final class JavacAnalyzer {
                     rootType));
           }
         }
+        for (TreePath path : ownCalls) {
+          ownCall(path);
+        }
         for (TreePath[] value : fieldValues) {
           VariableElement field = (VariableElement) trees.getElement(value[0]);
           if (!(field.getEnclosingElement() instanceof TypeElement declaring)
@@ -798,6 +812,33 @@ final class JavacAnalyzer {
                     id, in, expression(value[1], in, 0), location(value[2], file, null)));
           }
         }
+      }
+
+      /** A call of a method its caller's own type declares, with its arguments. */
+      private void ownCall(TreePath path) {
+        if (!(trees.getElement(path) instanceof ExecutableElement callee)
+            || callee.getKind() != ElementKind.METHOD
+            || !(callee.getEnclosingElement() instanceof TypeElement declaring)
+            || !isNamed(declaring)) {
+          return;
+        }
+        EntityId caller = owner(path);
+        EntityId target = methodId(callee);
+        String type = binaryName(declaring);
+        if (caller == null
+            || target == null
+            || !(caller.type().equals(BuiltInTypes.TYPE)
+                ? caller.key().equals(type)
+                : caller.key().startsWith(type + "#"))) {
+          return;
+        }
+        MethodInvocationTree call = (MethodInvocationTree) path.getLeaf();
+        structure.ownCalls.add(
+            new OwnCall(
+                caller,
+                target,
+                arguments(path, call.getArguments(), caller, 0),
+                lines(unit, file, positions.getStartPosition(unit, call), end(unit, call), null)));
       }
 
       /** Whether code of the member is the type's initializer or one of its constructors. */

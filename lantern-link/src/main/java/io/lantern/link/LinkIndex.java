@@ -352,28 +352,26 @@ final class LinkIndex {
    * winning; in each, the view's profile file before the default one. Null if none sets it.
    */
   Fact config(Unit unit, String view, String predicate, String key) {
-    for (String family : List.of("application", "bootstrap")) {
-      EntityId provider = provider(unit, family);
-      if (provider == null) {
-        continue;
-      }
-      Fact fallback = null;
-      for (Fact f : config.getOrDefault(provider, List.of())) {
-        if (!f.predicate().equals(predicate)
-            || !key.equals(text(f, "key"))
-            || !family.equals(DeployableUnits.configFamily(f))) {
-          continue;
+    for (String family : FAMILIES) {
+      for (EntityId provider : providers(unit, family)) {
+        Fact fallback = null;
+        for (Fact f : config.getOrDefault(provider, List.of())) {
+          if (!f.predicate().equals(predicate)
+              || !key.equals(text(f, "key"))
+              || !family.equals(DeployableUnits.configFamily(f))) {
+            continue;
+          }
+          String profile = text(f, "profile");
+          if (view != null && view.equals(profile)) {
+            return f;
+          }
+          if (profile == null && fallback == null) {
+            fallback = f;
+          }
         }
-        String profile = text(f, "profile");
-        if (view != null && view.equals(profile)) {
-          return f;
+        if (fallback != null) {
+          return fallback;
         }
-        if (profile == null && fallback == null) {
-          fallback = f;
-        }
-      }
-      if (fallback != null) {
-        return fallback;
       }
     }
     return null;
@@ -397,34 +395,48 @@ final class LinkIndex {
   /** The keys of a predicate's config facts that a unit's config files set, in any view; sorted. */
   Set<String> configKeys(Unit unit, String predicate) {
     Set<String> keys = new TreeSet<>();
-    for (String family : List.of("application", "bootstrap")) {
-      EntityId provider = provider(unit, family);
-      if (provider == null) {
-        continue;
-      }
-      for (Fact f : config.getOrDefault(provider, List.of())) {
-        String key = text(f, "key");
-        if (f.predicate().equals(predicate)
-            && key != null
-            && family.equals(DeployableUnits.configFamily(f))) {
-          keys.add(key);
+    for (String family : FAMILIES) {
+      for (EntityId provider : providers(unit, family)) {
+        for (Fact f : config.getOrDefault(provider, List.of())) {
+          String key = text(f, "key");
+          if (f.predicate().equals(predicate)
+              && key != null
+              && family.equals(DeployableUnits.configFamily(f))) {
+            keys.add(key);
+          }
         }
       }
     }
     return keys;
   }
 
-  /** The first of a unit's modules with config files of a family, or null. */
-  private EntityId provider(Unit unit, String family) {
+  /**
+   * The config families a unit sees, highest precedence first: the {@code application} and {@code
+   * bootstrap} files, then the defaults that libraries add in code (ADR 0032, amendment for #333).
+   */
+  private static final List<String> FAMILIES =
+      List.of("application", "bootstrap", DeployableUnits.DEFAULTS);
+
+  /**
+   * The modules whose config of a family a unit sees, in the order it wins: for the files, the
+   * first module with any (Spring Boot loads them from the first on the classpath); for the
+   * defaults, every module that adds some, since each bundled library adds its own.
+   */
+  private List<EntityId> providers(Unit unit, String family) {
+    List<EntityId> providers = new ArrayList<>();
     for (EntityId module : unit.modules()) {
       for (Fact f : config.getOrDefault(module, List.of())) {
         if (f.predicate().equals(ConfigExtractor.CONFIG_VALUE)
             && family.equals(DeployableUnits.configFamily(f))) {
-          return module;
+          providers.add(module);
+          break;
         }
       }
+      if (!providers.isEmpty() && !family.equals(DeployableUnits.DEFAULTS)) {
+        break;
+      }
     }
-    return null;
+    return providers;
   }
 
   /**

@@ -18,14 +18,17 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 /**
  * The main flows of a scope as sequence diagrams, by {@code docs/design.md} (Composition, Sequence
@@ -48,19 +51,30 @@ final class SequenceFlows {
   /** The most flows a scope shows (docs/design.md: three to seven). */
   static final int MAX_FLOWS = 7;
 
+  /** The fewest flows a scope shows; flows that reach only databases fill up to it. */
+  static final int MIN_FLOWS = 3;
+
   /** The most implementations a call is drawn into, as the operands of one frame. */
   static final int MAX_ALTERNATIVES = 4;
 
   /** The most messages one flow shows before the trace stops. */
   static final int MAX_MESSAGES = 40;
 
+  /** The most steps, notes included, one flow shows before the trace stops. */
+  static final int MAX_STEPS = 2 * MAX_MESSAGES;
+
   private static final String METHOD = "method";
+
+  /** The name of a constructor in a method's ID (ADR 0007). */
+  private static final String CONSTRUCTOR = "<init>(";
+
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
   private static final String SCHEDULED = "scheduled";
   private static final String STOMP_MAPPING = "stomp-mapping";
   private static final String STOMP_SEND = "stomp-send";
   private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
+  private static final String STOMP_INTERCEPTOR = "stomp-interceptor";
   private static final String BACKGROUND_JOB = "background-job";
   private static final String PROFILE_GATE = "profile-gate";
   private static final String SENDS_MESSAGES_TO = "SENDS_MESSAGES_TO";
@@ -86,6 +100,26 @@ final class SequenceFlows {
   private Map<String, List<Entry>> jobsByScheduler = Map.of();
 
   /**
+   * How a flow starts in the browser: a person using a frontend (when the frontend has screens for
+   * one), the frontend's call that reaches the entry point, and the gateway and route it goes
+   * through, if any (ADR 0047, amendment for #331).
+   *
+   * @param person null when no person has screens on the frontend
+   * @param via the gateway the call goes to, which routes it on; null when it reaches the unit
+   * @param route the gateway's route link to the unit; null when there is none or no gateway
+   */
+  private record Start(
+      EntityId person,
+      List<Fact> personFacts,
+      EntityId frontend,
+      Fact link,
+      EntityId via,
+      Fact route) {}
+
+  /** The browser starts of the entry points frontends' calls reach, by {@link Entry#key()}. */
+  private final Map<String, Start> starts = new HashMap<>();
+
+  /**
    * @param units the deployable units in scope; flows that start in or pass through one are shown
    */
   SequenceFlows(Knowledge knowledge, Assembler assembler, C4Views c4, Set<EntityId> units) {
@@ -103,6 +137,58 @@ final class SequenceFlows {
           linksBySource.computeIfAbsent(unit + " " + source, k -> new ArrayList<>()).add(fact);
         }
       }
+    }
+    for (EntityId frontend : C4Views.frontends(knowledge)) {
+      starts(frontend);
+    }
+  }
+
+  /**
+   * Records how the browser starts the flows of the entry points the frontend's calls reach, the
+   * first call in the code for each, with the person who uses the frontend: its only one, else the
+   * one with most screens on it, by ID among equals.
+   */
+  private void starts(EntityId frontend) {
+    EntityId person = null;
+    List<Fact> personFacts = List.of();
+    for (Map.Entry<EntityId, List<Fact>> e : c4.screensOn(frontend).entrySet()) {
+      if (person == null || e.getValue().size() > personFacts.size()) {
+        person = e.getKey();
+        personFacts = e.getValue();
+      }
+    }
+    List<Fact> calls =
+        knowledge.relations(frontend, C4Views.CALLS_HTTP).stream()
+            .filter(f -> !alternatives.contains(f) && attribute(f, "reaches") != null)
+            .sorted(
+                Comparator.comparing((Fact f) -> f.evidence().path())
+                    .thenComparingInt(SequenceFlows::line)
+                    .thenComparing(Fact::id))
+            .toList();
+    for (Fact call : calls) {
+      EntityId unit = parse(attribute(call, "reachesUnit"));
+      EntityId handler = parse(attribute(call, "reaches"));
+      if (unit == null || handler == null) {
+        continue;
+      }
+      EntityId to = Knowledge.object(call);
+      EntityId via = to.equals(unit) ? null : to;
+      Fact route = null;
+      if (via != null) {
+        String id = attribute(call, "throughRoute");
+        route =
+            knowledge.relations(via, C4Views.CALLS_HTTP).stream()
+                .filter(
+                    f ->
+                        !alternatives.contains(f)
+                            && Knowledge.object(f).equals(unit)
+                            && id != null
+                            && id.equals(attribute(f, "route")))
+                .findFirst()
+                .orElse(null);
+      }
+      starts.putIfAbsent(
+          unit + " " + handler, new Start(person, personFacts, frontend, call, via, route));
     }
   }
 
@@ -129,14 +215,24 @@ final class SequenceFlows {
       }
       for (EntityId type : code) {
         for (EntityId method : knowledge.parts(type, METHOD)) {
+          Start start = starts.get(unit + " " + method);
+          String reached = start == null ? null : attribute(start.link, "reachesEndpoint");
           knowledge.attributes(method).stream()
+              // Of a handler's endpoints, the one the browser's call reaches.
+              .sorted(
+                  Comparator.comparing(
+                      (Fact f) ->
+                          !(f.predicate().equals(ENDPOINT) && f.object().value().equals(reached))))
               .filter(
                   f ->
                       f.predicate().equals(ENDPOINT)
                           || f.predicate().equals(MESSAGE_LISTENER)
                           || f.predicate().equals(STOMP_MAPPING)
                           || f.predicate().equals(SCHEDULED)
-                          || f.predicate().equals(BACKGROUND_JOB))
+                          || f.predicate().equals(BACKGROUND_JOB)
+                          // A WebSocket endpoint starts a flow when a frontend opens it.
+                          || (f.predicate().equals(WEBSOCKET_ENDPOINT)
+                              && starts.containsKey(unit + " " + method)))
               .findFirst()
               .ifPresent(f -> result.add(new Entry(unit, method, f)));
         }
@@ -162,9 +258,36 @@ final class SequenceFlows {
   /** One flow being traced. */
   private final class Trace {
     final Entry entry;
+
+    /** How the browser starts the flow; null when it starts at its entry point. */
+    final Start start;
+
     List<Item> items = new ArrayList<>();
     final Set<EntityId> participants = new LinkedHashSet<>();
-    Set<String> visited = new HashSet<>();
+
+    /**
+     * The methods being traced, from the entry point or a delivery down: a call to one recurses.
+     */
+    final Set<String> stack = new HashSet<>();
+
+    /** Every method traced in the flow. */
+    final Set<String> traced = new HashSet<>();
+
+    /** The methods whose code was traced and added nothing, so tracing them again adds nothing. */
+    final Set<String> quiet = new HashSet<>();
+
+    /** The deliveries traced, by their link's ID: each is traced once. */
+    Set<String> delivered = new HashSet<>();
+
+    /** How many steps, notes and later deliveries the flow has had, to tell quiet code. */
+    int added;
+
+    /** How many recursive calls were cut, so code that reached one is not taken as quiet. */
+    int cut;
+
+    /** The data access the last step drew, which the next one to the same database joins. */
+    DataRun data;
+
     Deque<Later> later = new ArrayDeque<>();
     final Set<String> reached = new HashSet<>();
     final SortedSet<String> asyncThrough = new TreeSet<>();
@@ -183,11 +306,21 @@ final class SequenceFlows {
 
     Trace(Entry entry) {
       this.entry = entry;
+      this.start = starts.get(entry.key());
+      if (start != null) {
+        if (start.person != null) {
+          participants.add(start.person);
+        }
+        participants.add(start.frontend);
+        if (start.via != null) {
+          participants.add(start.via);
+        }
+      }
       participants.add(entry.unit);
     }
 
     boolean full() {
-      if (messages >= MAX_MESSAGES) {
+      if (messages >= MAX_MESSAGES || added >= MAX_STEPS) {
         truncated = true;
       }
       return truncated;
@@ -226,23 +359,9 @@ final class SequenceFlows {
         return;
       }
       messages++;
-      StringBuilder line =
-          new StringBuilder(nameOf(from))
-              .append(" to ")
-              .append(nameOf(to))
-              .append(" (")
-              .append(WordingPrompt.kind(to))
-              .append("), ")
-              .append(kind == SequenceDiagram.MessageKind.ASYNC ? "async" : "sync")
-              .append(": ")
-              .append(plain);
-      if (code != null) {
-        line.append(" [").append(code).append(']');
-      }
-      if (info != null) {
-        line.append(". ").append(info);
-      }
-      outline(line, profiles, plainFacts);
+      added++;
+      data = null;
+      outline(line(from, to, kind, plain, code, info), profiles, plainFacts);
       if (from != null) {
         participants.add(from);
       }
@@ -266,9 +385,11 @@ final class SequenceFlows {
     }
 
     void note(List<EntityId> over, String text, List<String> profiles, List<Fact> facts) {
-      if (truncated) {
+      if (full()) {
         return;
       }
+      added++;
+      data = null;
       participants.addAll(over);
       outline(new StringBuilder("Note: ").append(text), profiles, facts);
       items.add(
@@ -280,7 +401,34 @@ final class SequenceFlows {
               profiles));
     }
 
-    private void outline(StringBuilder line, List<String> profiles, List<Fact> facts) {
+    private StringBuilder line(
+        EntityId from,
+        EntityId to,
+        SequenceDiagram.MessageKind kind,
+        String plain,
+        String code,
+        String info) {
+      StringBuilder line =
+          new StringBuilder(nameOf(from))
+              .append(" to ")
+              .append(nameOf(to))
+              .append(" (")
+              .append(WordingPrompt.kind(to))
+              .append("), ")
+              .append(kind == SequenceDiagram.MessageKind.ASYNC ? "async" : "sync")
+              .append(": ")
+              .append(plain);
+      if (code != null) {
+        line.append(" [").append(code).append(']');
+      }
+      if (info != null) {
+        line.append(". ").append(info);
+      }
+      return line;
+    }
+
+    private WordingPrompt.FlowStep step(
+        StringBuilder line, List<String> profiles, List<Fact> facts) {
       if (!profiles.isEmpty()) {
         line.append(line.toString().endsWith(".") ? " " : ". ")
             .append("Only under the Spring profile")
@@ -288,7 +436,84 @@ final class SequenceFlows {
             .append(list(profiles))
             .append('.');
       }
-      outline.add(new WordingPrompt.FlowStep(depth, line.toString(), List.copyOf(facts)));
+      return new WordingPrompt.FlowStep(depth, line.toString(), List.copyOf(facts));
+    }
+
+    private void outline(StringBuilder line, List<String> profiles, List<Fact> facts) {
+      outline.add(step(line, profiles, facts));
+    }
+
+    /**
+     * Draws data access of the unit in the database: a message, or, when the step before is the
+     * unit's access to the same database under the same profiles, that message saying this too, so
+     * a run of reads and writes is one step (ADR 0047, amendment for #272).
+     *
+     * @param verb what the unit does, such as {@code Reads} or {@code Calls}
+     * @param what what it reads, writes or calls
+     */
+    void data(
+        EntityId unit,
+        EntityId database,
+        String verb,
+        List<String> what,
+        String code,
+        List<String> profiles,
+        String info,
+        List<Fact> facts) {
+      DataRun run = data;
+      boolean joins =
+          run != null
+              && !truncated
+              && run.items == items
+              && run.outline == outline
+              && run.unit.equals(unit)
+              && run.database.equals(database)
+              && run.profiles.equals(profiles)
+              && Objects.equals(run.code, code)
+              && items.size() == run.item + 1
+              && outline.size() == run.step + 1;
+      if (!joins) {
+        int before = messages;
+        message(
+            unit,
+            database,
+            DataRun.label(Map.of(verb, new LinkedHashSet<>(what))),
+            code,
+            null,
+            profiles,
+            info,
+            facts);
+        if (messages > before) {
+          DataRun started =
+              new DataRun(items, items.size() - 1, outline, outline.size() - 1, unit, database);
+          started.profiles = profiles;
+          started.code = code;
+          started.add(verb, what, info, facts);
+          data = started;
+        }
+        return;
+      }
+      run.add(verb, what, info, facts);
+      added++;
+      String label = DataRun.label(run.parts);
+      String joined = run.info.isEmpty() ? null : String.join(" ", run.info);
+      List<Fact> all = List.copyOf(run.facts);
+      items.set(
+          run.item,
+          new Item(
+              new SequenceDiagram.Message(
+                  unit,
+                  database,
+                  label,
+                  code,
+                  null,
+                  false,
+                  null,
+                  profiles,
+                  joined == null ? List.of() : List.of(TextRun.of(joined)),
+                  assembler.facts(all)),
+              profiles));
+      outline.set(run.step, step(line(unit, database, null, label, code, joined), profiles, all));
     }
 
     /** The units, stores, queues and external systems the flow touches. */
@@ -297,20 +522,225 @@ final class SequenceFlows {
     }
   }
 
+  /** A run of one unit's data access in one database, drawn as one message. */
+  private static final class DataRun {
+
+    /** The most tables or methods a label names for each verb before saying how many more. */
+    static final int NAMED = 4;
+
+    final List<Item> items;
+    final int item;
+    final List<WordingPrompt.FlowStep> outline;
+    final int step;
+    final EntityId unit;
+    final EntityId database;
+    List<String> profiles = List.of();
+    String code;
+    final Map<String, Set<String>> parts = new LinkedHashMap<>();
+    final Set<String> info = new LinkedHashSet<>();
+    final Set<Fact> facts = new LinkedHashSet<>();
+
+    DataRun(
+        List<Item> items,
+        int item,
+        List<WordingPrompt.FlowStep> outline,
+        int step,
+        EntityId unit,
+        EntityId database) {
+      this.items = items;
+      this.item = item;
+      this.outline = outline;
+      this.step = step;
+      this.unit = unit;
+      this.database = database;
+    }
+
+    void add(String verb, List<String> what, String text, List<Fact> more) {
+      parts.computeIfAbsent(verb, v -> new LinkedHashSet<>()).addAll(what);
+      if (text != null) {
+        info.add(text);
+      }
+      facts.addAll(more);
+    }
+
+    /** "Reads orders, payment; writes payment": each verb with what it names, in order. */
+    static String label(Map<String, Set<String>> parts) {
+      List<String> clauses = new ArrayList<>();
+      for (Map.Entry<String, Set<String>> part : parts.entrySet()) {
+        List<String> names = new ArrayList<>(part.getValue());
+        String shown =
+            names.size() <= NAMED
+                ? String.join(", ", names)
+                : String.join(", ", names.subList(0, NAMED))
+                    + " and "
+                    + (names.size() - NAMED)
+                    + " more";
+        String verb = clauses.isEmpty() ? part.getKey() : part.getKey().toLowerCase(Locale.ROOT);
+        clauses.add(verb + " " + shown);
+      }
+      return String.join("; ", clauses);
+    }
+  }
+
   private Trace trace(Entry entry) {
     Trace trace = new Trace(entry);
+    if (trace.start != null) {
+      browser(trace);
+    }
     sync(trace, entry.unit, entry.method, List.of());
+    if (entry.fact.predicate().equals(WEBSOCKET_ENDPOINT)) {
+      interceptors(trace, entry.unit);
+    }
     deliver(trace);
     if (trace.truncated) {
+      String after =
+          trace.messages >= MAX_MESSAGES ? MAX_MESSAGES + " messages" : MAX_STEPS + " steps";
+      // The closing note is drawn past the caps that stopped the trace.
+      int added = trace.added;
+      int messages = trace.messages;
       trace.truncated = false;
-      trace.note(
-          List.of(),
-          "The trace stops here, after " + MAX_MESSAGES + " messages.",
-          List.of(),
-          List.of());
+      trace.added = 0;
+      trace.messages = 0;
+      trace.note(List.of(), "The trace stops here, after " + after + ".", List.of(), List.of());
+      trace.added = added + 1;
+      trace.messages = messages;
       trace.truncated = true;
     }
     return trace;
+  }
+
+  /**
+   * The steps before the entry point when the browser starts the flow: the person using the
+   * frontend, the frontend's call, and the gateway routing it on, if it goes through one.
+   */
+  private void browser(Trace trace) {
+    Start start = trace.start;
+    Entry entry = trace.entry;
+    boolean socket = socket(start.link);
+    if (start.person != null) {
+      trace.message(
+          start.person,
+          start.frontend,
+          "Uses the screens",
+          null,
+          null,
+          List.of(),
+          "In a web browser.",
+          start.personFacts);
+    }
+    List<String> info = new ArrayList<>();
+    String protocol = attribute(start.link, "protocol");
+    if (protocol != null) {
+      info.add("Over " + protocol + ".");
+    }
+    String proxy = attribute(start.link, "proxy");
+    if (proxy != null) {
+      info.add("Through the proxy " + proxy + " of its server.");
+    }
+    trace.message(
+        start.frontend,
+        start.via == null ? entry.unit : start.via,
+        socket
+            ? "Opens a socket"
+            : ("true".equals(attribute(start.link, "navigation"))
+                    ? "Navigates the browser to "
+                    : "Calls ")
+                + methodName(entry.method),
+        request(start.link),
+        null,
+        List.of(),
+        info.isEmpty() ? null : String.join(" ", info),
+        withEnds(start.link));
+    if (start.via == null) {
+      return;
+    }
+    Fact route = start.route;
+    List<Fact> facts = route == null ? new ArrayList<>(List.of(start.link)) : withEnds(route);
+    List<Fact> plainFacts = List.copyOf(facts);
+    String plain = socket ? "Relays the socket" : "Routes to " + methodName(entry.method);
+    StringBuilder routeInfo =
+        new StringBuilder("Route ")
+            .append(RepoSections.attribute(start.link, "throughRoute", "of " + nameOf(start.via)));
+    if (route != null && attribute(route, "url") != null) {
+      routeInfo.append(" to ").append(attribute(route, "url"));
+    }
+    if (route != null && attribute(route, "protocol") != null) {
+      routeInfo.append(", over ").append(attribute(route, "protocol"));
+    }
+    routeInfo.append('.');
+    Assembler.Phrased phrase = route == null ? null : assembler.phrase(route);
+    if (phrase != null) {
+      facts.addAll(phrase.facts());
+    }
+    trace.message(
+        start.via,
+        entry.unit,
+        phrase != null ? phrase.text() : plain,
+        attribute(start.link, "reachesEndpoint"),
+        null,
+        route == null ? List.of() : profiles(route, List.of()),
+        routeInfo.toString(),
+        facts,
+        plain,
+        plainFacts);
+  }
+
+  private static boolean socket(Fact link) {
+    return "WebSocket".equals(attribute(link, "protocol"));
+  }
+
+  /** The request a frontend's call sends, as it reaches its target: method and path. */
+  private static String request(Fact link) {
+    String path = attribute(link, "path");
+    if (path == null) {
+      path = attribute(link, "url");
+    }
+    String method = attribute(link, "httpMethod");
+    return method == null || socket(link) ? path : method + " " + path;
+  }
+
+  /** The methods of an interceptor, in the order a channel calls them. */
+  private static final List<String> INTERCEPTS =
+      List.of(
+          "preSend",
+          "postSend",
+          "afterSendCompletion",
+          "preReceive",
+          "postReceive",
+          "afterReceiveCompletion");
+
+  /**
+   * After a client connects to a WebSocket endpoint, the interceptors of the unit's inbound STOMP
+   * channel (ADR 0080), which every frame the client sends passes through: each method they
+   * declare, in the order the channel calls them.
+   */
+  private void interceptors(Trace trace, EntityId unit) {
+    for (EntityId method : unitMethods(unit)) {
+      for (Fact fact : knowledge.attributes(method)) {
+        if (!fact.predicate().equals(STOMP_INTERCEPTOR)
+            || !"inbound".equals(attribute(fact, "channel"))) {
+          continue;
+        }
+        EntityId type = new EntityId(BuiltInTypes.TYPE, fact.object().value());
+        List<String> declared = C4Views.strings(fact, "intercepts");
+        for (String name : INTERCEPTS) {
+          if (!declared.contains(name)) {
+            continue;
+          }
+          for (EntityId body : knowledge.parts(type, METHOD)) {
+            if (!methodName(body).endsWith("." + name)) {
+              continue;
+            }
+            trace.note(
+                List.of(unit),
+                "Each STOMP frame the client sends passes " + methodName(body) + ".",
+                List.of(),
+                List.of(fact));
+            sync(trace, unit, body, List.of());
+          }
+        }
+      }
+    }
   }
 
   /** Traces the deliveries of the sends so far, after the steps of the code that sent them. */
@@ -319,7 +749,7 @@ final class SequenceFlows {
       Later later = trace.later.removeFirst();
       if (later.job != null) {
         Entry job = later.job;
-        if (trace.visited.contains(job.key())) {
+        if (trace.traced.contains(job.key()) || !trace.delivered.add(job.key())) {
           continue;
         }
         trace.note(
@@ -332,6 +762,10 @@ final class SequenceFlows {
         continue;
       }
       Fact link = later.link;
+      // A send the code makes again, or a listener sending on to itself, is delivered once.
+      if (!trace.delivered.add(link.id())) {
+        continue;
+      }
       EntityId receiver = Knowledge.object(link);
       EntityId handler = parse(attribute(link, "target"));
       String queue = attribute(link, "queue");
@@ -356,11 +790,34 @@ final class SequenceFlows {
   /** Something a method does, in the order of the code: a call, or a step out of its unit. */
   private record Event(int line, int order, String id, Runnable action) {}
 
-  /** Follows the method's code inside the unit, adding the steps that leave it. */
+  /**
+   * Follows the method's code inside the unit, adding the steps that leave it. A method is traced
+   * each time the code calls it, as the code makes the call each time, except from inside itself: a
+   * recursive call is not followed again.
+   */
   private void sync(Trace trace, EntityId unit, EntityId method, List<String> outer) {
-    if (trace.truncated || !trace.visited.add(unit + " " + method)) {
+    String key = unit + " " + method;
+    if (trace.truncated || trace.quiet.contains(key)) {
       return;
     }
+    if (!trace.stack.add(key)) {
+      trace.cut++;
+      return;
+    }
+    trace.traced.add(key);
+    int before = trace.added;
+    int cut = trace.cut;
+    try {
+      steps(trace, unit, method, outer);
+    } finally {
+      trace.stack.remove(key);
+    }
+    if (trace.added == before && trace.cut == cut) {
+      trace.quiet.add(key);
+    }
+  }
+
+  private void steps(Trace trace, EntityId unit, EntityId method, List<String> outer) {
     List<String> profiles = gate(method, outer);
     List<Event> events = new ArrayList<>();
     for (Fact call : knowledge.relations(method, BuiltInTypes.CALLS)) {
@@ -455,8 +912,8 @@ final class SequenceFlows {
     List<Item> outer = trace.items;
     List<WordingPrompt.FlowStep> outerOutline = trace.outline;
     Deque<Later> outerLater = trace.later;
-    Set<String> outerVisited = trace.visited;
-    Set<String> visited = new HashSet<>(outerVisited);
+    Set<String> outerDelivered = trace.delivered;
+    Set<String> delivered = new HashSet<>(outerDelivered);
     List<SequenceDiagram.Operand> operands = new ArrayList<>();
     List<WordingPrompt.FlowStep> alternatives = new ArrayList<>();
     boolean any = false;
@@ -465,10 +922,10 @@ final class SequenceFlows {
       trace.items = new ArrayList<>();
       trace.outline = new ArrayList<>();
       trace.later = new ArrayDeque<>();
-      trace.visited = new HashSet<>(outerVisited);
+      trace.delivered = new HashSet<>(outerDelivered);
       sync(trace, unit, bodies.get(i), profiles);
       deliver(trace);
-      visited.addAll(trace.visited);
+      delivered.addAll(trace.delivered);
       any |= !trace.items.isEmpty();
       operands.add(
           new SequenceDiagram.Operand("as " + names.get(i), frames(trace.items), List.of()));
@@ -480,7 +937,7 @@ final class SequenceFlows {
     trace.items = outer;
     trace.outline = outerOutline;
     trace.later = outerLater;
-    trace.visited = visited;
+    trace.delivered = delivered;
     if (any) {
       trace.outline.add(
           new WordingPrompt.FlowStep(
@@ -508,7 +965,8 @@ final class SequenceFlows {
     EntityId declared = declared(callee);
     EntityId owner = PackageDependencies.ownerType(knowledge, declared);
     int hash = declared.key().indexOf('#');
-    if (owner.equals(declared) || hash < 0) {
+    // A constructor runs for the class the code names, never for one below it.
+    if (owner.equals(declared) || hash < 0 || declared.key().startsWith(CONSTRUCTOR, hash + 1)) {
       return List.of(declared);
     }
     String signature = declared.key().substring(hash);
@@ -845,6 +1303,18 @@ final class SequenceFlows {
   /** The WebSocket endpoints registered by the unit's code. */
   private List<Fact> websocketEndpoints(EntityId unit) {
     List<Fact> result = new ArrayList<>();
+    for (EntityId method : unitMethods(unit)) {
+      for (Fact fact : knowledge.attributes(method)) {
+        if (fact.predicate().equals(WEBSOCKET_ENDPOINT)) {
+          result.add(fact);
+        }
+      }
+    }
+    return result;
+  }
+
+  /** The methods of the unit's code (its modules and the libraries it bundles), by type ID. */
+  private List<EntityId> unitMethods(EntityId unit) {
     SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
     for (EntityId module : C4Views.codeModules(knowledge, unit)) {
       code.addAll(knowledge.typesWithin(module));
@@ -852,14 +1322,9 @@ final class SequenceFlows {
         code.addAll(knowledge.typesWithin(pkg));
       }
     }
+    List<EntityId> result = new ArrayList<>();
     for (EntityId type : code) {
-      for (EntityId method : knowledge.parts(type, METHOD)) {
-        for (Fact fact : knowledge.attributes(method)) {
-          if (fact.predicate().equals(WEBSOCKET_ENDPOINT)) {
-            result.add(fact);
-          }
-        }
-      }
+      result.addAll(knowledge.parts(type, METHOD));
     }
     return result;
   }
@@ -920,12 +1385,12 @@ final class SequenceFlows {
           facts);
       return;
     }
-    trace.message(
+    trace.data(
         unit,
         database.entity,
-        verb + " " + String.join(", ", tables),
+        verb,
+        List.copyOf(tables),
         database.protocol,
-        null,
         profiles,
         info.isEmpty() ? null : String.join(" ", info),
         facts);
@@ -946,12 +1411,12 @@ final class SequenceFlows {
           facts);
       return;
     }
-    trace.message(
+    trace.data(
         unit,
         database.entity,
-        "Calls " + methodName(callee),
+        "Calls",
+        List.of(methodName(callee)),
         database.protocol,
-        null,
         profiles,
         null,
         facts);
@@ -1027,27 +1492,132 @@ final class SequenceFlows {
             .reversed()
             .thenComparing(t -> t.asyncThrough.isEmpty())
             .thenComparing(t -> t.entry.key()));
+    candidates.removeIf(t -> t.participants.stream().noneMatch(scope::contains));
+    List<Trace> first = new ArrayList<>();
+    // Business weight (ADR 0070): how a person signs in, and the socket a frontend opens for the
+    // system to push to it, come before the ranked rest, the best ranked of each.
+    for (Predicate<Trace> weighty : List.<Predicate<Trace>>of(this::signsIn, this::opensSocket)) {
+      candidates.stream()
+          .filter(t -> weighty.test(t) && !first.contains(t))
+          .findFirst()
+          .ifPresent(first::add);
+    }
     List<Trace> kept = new ArrayList<>();
+    for (Trace trace : first) {
+      candidates.remove(trace);
+      consider(kept, trace, true);
+    }
+    // Then the rest in rank order, what someone asks for before what a listener or a schedule
+    // starts; a flow that reaches nothing but databases shows nothing the container
+    // diagram does not, so it comes last and is shown only to reach the three a scope shows at
+    // least (ADR 0047, amendment for #272).
+    candidates.sort(
+        Comparator.comparing((Trace t) -> crud(t)).thenComparingInt(SequenceFlows::tier));
     for (Trace trace : candidates) {
-      String key = trace.entry.key();
-      boolean partOfKept = kept.stream().anyMatch(k -> k.reached.contains(key));
-      boolean inScope = trace.participants.stream().anyMatch(scope::contains);
-      if (partOfKept || !inScope) {
-        continue;
-      }
-      // A flow that holds flows already kept and touches as many takes the first one's place.
-      List<Trace> held =
-          kept.stream()
-              .filter(k -> trace.reached.contains(k.entry.key()) && trace.touches() >= k.touches())
-              .toList();
-      if (!held.isEmpty()) {
-        kept.set(kept.indexOf(held.getFirst()), trace);
-        kept.removeAll(held.subList(1, held.size()));
-      } else if (kept.size() < MAX_FLOWS) {
-        kept.add(trace);
-      }
+      consider(kept, trace, !crud(trace) || kept.size() < MIN_FLOWS);
     }
     return kept;
+  }
+
+  /**
+   * Whether the flow only reads or writes its unit's own data: it starts at its entry point, not in
+   * a browser, and reaches nothing but databases.
+   */
+  private boolean crud(Trace trace) {
+    return trace.start == null
+        && trace.pushes == 0
+        && trace.unresolved.isEmpty()
+        && trace.participants.stream()
+            .allMatch(p -> p.equals(trace.entry.unit) || p.type().equals(C4Views.DATABASE));
+  }
+
+  /**
+   * Shows the flow unless it is part of one shown or of the shape of one shown; a flow that holds
+   * flows shown and touches as many takes the first one's place.
+   *
+   * @param add whether the flow is added when it holds none shown
+   */
+  private void consider(List<Trace> kept, Trace trace, boolean add) {
+    String key = trace.entry.key();
+    if (kept.stream().anyMatch(k -> k.reached.contains(key))) {
+      return;
+    }
+    List<Trace> held =
+        kept.stream()
+            .filter(k -> trace.reached.contains(k.entry.key()) && trace.touches() >= k.touches())
+            .toList();
+    // A flow started the same way as one already kept (by a request, a message, a schedule...),
+    // with its lifelines in the same order, is of its shape: the same picture with other labels,
+    // so it is shown once (ADR 0070).
+    boolean sameShape = kept.stream().anyMatch(k -> shape(k).equals(shape(trace)));
+    // A containing flow takes the place of the flows it holds, unless another kept flow, not one
+    // it holds, already has its shape.
+    boolean shapeElsewhere =
+        kept.stream().anyMatch(k -> !held.contains(k) && shape(k).equals(shape(trace)));
+    if (!held.isEmpty() && !shapeElsewhere) {
+      kept.set(kept.indexOf(held.getFirst()), trace);
+      kept.removeAll(held.subList(1, held.size()));
+    } else if (held.isEmpty() && !sameShape && add && kept.size() < MAX_FLOWS) {
+      kept.add(trace);
+    }
+  }
+
+  /**
+   * How much the flow is a business scenario: 0 for what someone asks for (a request, a socket or a
+   * STOMP message from a client), 1 for a message a listener takes, 2 for a schedule or a job that
+   * runs apart from any request.
+   */
+  private static int tier(Trace trace) {
+    return switch (trace.entry.fact.predicate()) {
+      case ENDPOINT, WEBSOCKET_ENDPOINT, STOMP_MAPPING -> 0;
+      case MESSAGE_LISTENER -> 1;
+      default -> 2;
+    };
+  }
+
+  /** What makes two flows look the same: how they start and their lifelines, in order. */
+  private static List<Object> shape(Trace trace) {
+    return List.of(trace.entry.fact.predicate(), List.copyOf(trace.participants));
+  }
+
+  /**
+   * The path segments of a request that signs a person in, as ADR 0074 reads them: the same words
+   * as {@code PeopleLinker.SIGN_IN} in lantern-link, which this module does not depend on.
+   */
+  private static final Set<String> SIGN_IN =
+      Set.of("sign-in", "signin", "sign_in", "login", "log-in", "authenticate");
+
+  /**
+   * Whether the flow is a request that signs a person in: the request a frontend sends, when the
+   * flow starts in the browser with a person, else the endpoint's own request.
+   */
+  private boolean signsIn(Trace trace) {
+    String path;
+    if (trace.start != null) {
+      if (trace.start.person == null || socket(trace.start.link)) {
+        return false;
+      }
+      path = attribute(trace.start.link, "path");
+    } else if (trace.entry.fact.predicate().equals(ENDPOINT)) {
+      String request = trace.entry.fact.object().value();
+      path = request.substring(request.indexOf(' ') + 1);
+    } else {
+      return false;
+    }
+    if (path == null) {
+      return false;
+    }
+    for (String segment : path.toLowerCase(Locale.ROOT).split("[/?]")) {
+      if (SIGN_IN.contains(segment)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Whether the flow starts with a socket a frontend opens. */
+  private boolean opensSocket(Trace trace) {
+    return trace.start != null && socket(trace.start.link);
   }
 
   /**
@@ -1085,6 +1655,41 @@ final class SequenceFlows {
   /** A flow's title, its trigger as the overview names it, and the clause saying what starts it. */
   private record Heading(String title, String trigger, String starts) {}
 
+  private Heading heading(Trace trace) {
+    Heading heading = heading(trace.entry);
+    Start start = trace.start;
+    if (start == null) {
+      return heading;
+    }
+    Entry entry = trace.entry;
+    boolean socket = socket(start.link);
+    String request = request(start.link);
+    StringBuilder starts = new StringBuilder();
+    if (start.person != null) {
+      starts
+          .append(nameOf(start.person))
+          .append(", in ")
+          .append(nameOf(start.frontend))
+          .append(',');
+    } else {
+      starts.append(nameOf(start.frontend));
+    }
+    starts.append(socket ? " opens a socket to " : " sends ").append(request);
+    if (start.via != null) {
+      starts
+          .append(", which ")
+          .append(nameOf(start.via))
+          .append(socket ? " relays to " : " routes to ")
+          .append(nameOf(entry.unit));
+    } else {
+      starts.append(" to ").append(nameOf(entry.unit));
+    }
+    return new Heading(
+        heading.title(),
+        request + " from " + nameOf(start.frontend) + " (" + methodName(entry.method) + ")",
+        starts.toString());
+  }
+
   private Heading heading(Entry entry) {
     String handler = methodName(entry.method);
     String value = entry.fact.object().value();
@@ -1109,6 +1714,11 @@ final class SequenceFlows {
                 ? "a client subscribes to " + value + " on " + nameOf(entry.unit)
                 : "a client sends a STOMP message to " + value + " on " + nameOf(entry.unit));
       }
+      case WEBSOCKET_ENDPOINT ->
+          new Heading(
+              "WebSocket connection to " + value + " on " + nameOf(entry.unit),
+              "A WebSocket connection to " + value + " (" + handler + ")",
+              "a client connects to " + value + " on " + nameOf(entry.unit));
       default -> {
         String kind = attribute(entry.fact, "trigger");
         if (kind == null) {
@@ -1134,6 +1744,59 @@ final class SequenceFlows {
     };
   }
 
+  /** Words of a type's name that say what kind of class it is, not what it is about. */
+  private static final Set<String> ROLE_WORDS =
+      Set.of(
+          "api",
+          "consumer",
+          "controller",
+          "endpoint",
+          "endpoints",
+          "handler",
+          "impl",
+          "job",
+          "jobs",
+          "listener",
+          "resource",
+          "rest",
+          "scheduler",
+          "service",
+          "task",
+          "web");
+
+  /**
+   * The scenario a flow is, as the name of its entry point's method says it, such as "Create
+   * organization" for {@code createOrganization}; for a method of one word, such as {@code
+   * Status.get}, with the words of its type that do not say what kind of class it is ("Get
+   * status"). The LLM words a better one where it can (ADR 0047, amendment for #272).
+   */
+  static String scenario(Entry entry) {
+    String name = methodName(entry.method);
+    int dot = name.lastIndexOf('.');
+    List<String> words = words(name.substring(dot + 1));
+    if (words.size() == 1 && dot > 0) {
+      String type = name.substring(0, dot);
+      words.addAll(
+          words(type.substring(type.lastIndexOf('.') + 1)).stream()
+              .filter(w -> !ROLE_WORDS.contains(w))
+              .toList());
+    }
+    String text = String.join(" ", words);
+    return text.isEmpty() ? name : Character.toUpperCase(text.charAt(0)) + text.substring(1);
+  }
+
+  /** The words of a Java name in lower case: {@code sendHTTPRequest} as send, http, request. */
+  private static List<String> words(String name) {
+    List<String> result = new ArrayList<>();
+    for (String word :
+        name.replace('$', '_').split("_+|(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")) {
+      if (!word.isEmpty()) {
+        result.add(word.toLowerCase(Locale.ROOT));
+      }
+    }
+    return result;
+  }
+
   /**
    * The prompt asking the LLM to word the flow (ADR 0058): what starts it and its steps by the
    * facts behind them, without the LLM's intent phrases, so it rests on facts only and does not
@@ -1141,7 +1804,7 @@ final class SequenceFlows {
    */
   private WordingPrompt.Question question(Trace trace) {
     Entry entry = trace.entry;
-    Heading heading = heading(entry);
+    Heading heading = heading(trace);
     return WordingPrompt.flow(
         entry.method,
         heading.title(),
@@ -1159,11 +1822,13 @@ final class SequenceFlows {
     Entry entry = trace.entry;
     String handler = methodName(entry.method);
     String id = assembler.id(section, nameOf(entry.unit) + "." + handler);
-    Heading heading = heading(entry);
-    String title = heading.title();
+    Heading heading = heading(trace);
     String starts = heading.starts();
-    // The LLM's walkthrough and conditions, where it worded this flow as traced here (ADR 0058).
+    // The LLM's title, walkthrough and conditions, where it worded this flow as traced here (ADR
+    // 0058); else the scenario as the entry point's name says it.
     Wordings.Flow worded = assembler.flow(Wordings.flowKey(question(trace).user()));
+    String scenario = worded == null || worded.title() == null ? scenario(entry) : worded.title();
+    String title = scenario + " (" + heading.title() + ")";
     Assembler.Text walkthrough =
         worded == null ? null : assembler.worded(entry.method, worded.walkthrough());
     Assembler.Text preconditions =
@@ -1259,9 +1924,18 @@ final class SequenceFlows {
             .append(methodName(trace.entry.method))
             .append('.');
     List<String> others = new ArrayList<>();
-    trace.participants.stream()
-        .filter(p -> !p.equals(trace.entry.unit))
-        .forEach(p -> others.add(nameOf(p)));
+    // What starts it in the browser is named already.
+    Set<EntityId> named = new HashSet<>(List.of(trace.entry.unit));
+    if (trace.start != null) {
+      named.add(trace.start.frontend);
+      if (trace.start.person != null) {
+        named.add(trace.start.person);
+      }
+      if (trace.start.via != null) {
+        named.add(trace.start.via);
+      }
+    }
+    trace.participants.stream().filter(p -> !named.contains(p)).forEach(p -> others.add(nameOf(p)));
     if (!others.isEmpty()) {
       text.append(" It reaches ").append(list(others)).append('.');
     }

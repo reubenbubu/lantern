@@ -10,9 +10,12 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
+import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
 import io.lantern.extract.maven.MavenExtractor;
@@ -152,7 +155,10 @@ public final class Fixtures {
             MessagingExtractor.vocabulary(),
             WebSocketExtractor.vocabulary(),
             MailExtractor.vocabulary(),
+            IdentityExtractor.vocabulary(),
             RedisExtractor.vocabulary(),
+            DeploymentExtractor.vocabulary(),
+            FrontendExtractor.vocabulary(),
             PeopleExtractor.vocabulary(),
             GatewayExtractor.vocabulary(),
             TestExtractor.vocabulary())) {

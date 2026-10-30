@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Reads the files that facts were observed in, so prompts can show excerpts of the code. The
@@ -29,6 +30,15 @@ public interface SourceFiles {
   Optional<byte[]> read(String repo, String commit, String path);
 
   /**
+   * The config keys known to hold a secret, such as {@link
+   * io.lantern.extract.config.ConfigExtractor#jwtSecretKeys}, whose values {@link #shown} masks
+   * whatever the key is called (#348).
+   */
+  default Set<String> secretKeys() {
+    return Set.of();
+  }
+
+  /**
    * The text of the file of a fact's evidence as prompts show it (ADR 0024, ADR 0054): read at the
    * evidence's commit, only if its SHA-256 matches the evidence's content hash, with its secrets
    * masked or removed by {@link SourceSecrets}; empty if it has no path or hash, cannot be read or
@@ -42,7 +52,9 @@ public interface SourceFiles {
     }
     return read(evidence.repo(), evidence.commit(), evidence.path())
         .filter(content -> sha256(content).equals(evidence.contentHash()))
-        .map(content -> SourceSecrets.scrub(new String(content, StandardCharsets.UTF_8)));
+        .map(
+            content ->
+                SourceSecrets.scrub(new String(content, StandardCharsets.UTF_8), secretKeys()));
   }
 
   private static String sha256(byte[] bytes) {

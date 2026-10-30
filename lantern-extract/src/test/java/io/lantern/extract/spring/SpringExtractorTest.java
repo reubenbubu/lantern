@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.StandardJavaFileManager;
@@ -263,5 +264,43 @@ class SpringExtractorTest {
     assertThat(SpringExtractor.join("", "{id}")).isEqualTo("/{id}");
     assertThat(SpringExtractor.join("/api/", "/{id}")).isEqualTo("/api/{id}");
     assertThat(SpringExtractor.join("legacy", "lines")).isEqualTo("/legacy/lines");
+  }
+
+  @Test
+  void aValueSubstitutedFromAKnownSecretKeyIsMasked() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("jwt"),
+            "shop",
+            Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>shop</artifactId><version>1</version></project>\n",
+                "src/main/java/com/example/Api.java",
+                """
+                package com.example;
+
+                import org.springframework.web.bind.annotation.GetMapping;
+                import org.springframework.web.bind.annotation.RestController;
+
+                @RestController
+                public class Api {
+                  @GetMapping("/items/${jwt.key}")
+                  public String items() {
+                    return "";
+                  }
+                }
+                """,
+                "src/main/resources/application.properties",
+                "jwt.key=literal-test-value-0123456789abcdef\n"));
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+
+    // Without the code's keys the name alone does not show jwt.key is a secret.
+    assertThat(Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT)))
+        .contains("literal-test-value");
+    String masked =
+        Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key")));
+    assertThat(masked).doesNotContain("literal-test-value").contains("/items/${jwt.key}");
   }
 }

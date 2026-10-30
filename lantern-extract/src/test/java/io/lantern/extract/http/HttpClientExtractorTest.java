@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.StandardJavaFileManager;
@@ -97,6 +98,17 @@ class HttpClientExtractorTest {
     assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#quote(")))
         .singleElement(InstanceOfAssertFactories.STRING)
         .contains("\"expressions\":[\"region()\"]");
+    // A URL passed as an argument is followed to each call of the method by its own type's code,
+    // through another method and a lambda: a call per place it is made, none left as {target}.
+    assertThat(rendered.lines().filter(l -> l.contains("ProxyClient#exchange(")))
+        .hasSize(2)
+        .noneMatch(l -> l.contains("{target}"))
+        .anyMatch(l -> l.contains("\"baseUrl\":\"http://proxy:8080\",") && l.contains("{path}"))
+        .anyMatch(l -> l.contains("GET http://proxy:8080/{service}/public"));
+    // A method its own type never calls keeps its parameter.
+    assertThat(rendered.lines().filter(l -> l.contains("ProxyClient#direct(")))
+        .singleElement(InstanceOfAssertFactories.STRING)
+        .contains("GET {target}");
     assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#remove(")))
         .singleElement(InstanceOfAssertFactories.STRING)
         .contains("https://admin.example.com/quotes/{symbol}")
@@ -247,5 +259,42 @@ class HttpClientExtractorTest {
     assertThat(HttpClientExtractor.joinUrl("http://h/v1?key=k", "/x")).isEqualTo("http://h/v1/x");
     assertThat(HttpClientExtractor.joinUrl("http://h", "https://other/y"))
         .isEqualTo("https://other/y");
+  }
+
+  @Test
+  void aValueSubstitutedFromAKnownSecretKeyIsMasked() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("jwt"),
+            "shop",
+            Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>shop</artifactId><version>1</version></project>\n",
+                "src/main/java/com/example/Remote.java",
+                """
+                package com.example;
+
+                import org.springframework.cloud.openfeign.FeignClient;
+                import org.springframework.web.bind.annotation.GetMapping;
+
+                @FeignClient(name = "remote", url = "http://remote/${jwt.key}")
+                public interface Remote {
+                  @GetMapping("/things")
+                  String things();
+                }
+                """,
+                "src/main/resources/application.properties",
+                "jwt.key=literal-test-value-0123456789abcdef\n"));
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+
+    // Without the code's keys the name alone does not show jwt.key is a secret.
+    assertThat(Fixtures.render(new HttpClientExtractor().extract(code, SNAPSHOT)))
+        .contains("literal-test-value");
+    String masked =
+        Fixtures.render(
+            new HttpClientExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key")));
+    assertThat(masked).doesNotContain("literal-test-value").contains("${jwt.key}");
   }
 }

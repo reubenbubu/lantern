@@ -2,7 +2,7 @@
   "document" : {
     "id" : "shop",
     "title" : "shop",
-    "subtitle" : "*Purpose inferred from the code:* It builds on its parts. It is described by its facts.\n\n- shop-api, a library\n- shop-core, a library\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Containers**\nNo deployable unit was found in the code.\n\n**Decisions**\nNo decision records were found in shop, so the reasons for its design are not known.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener, STOMP handler, scheduled or background job) was found whose code reaches another container.\n\n**Catalog**\nNo deployable unit, component, entry point, topic, queue, table or configuration was found in the code.\n\n**Change guidance**\nThe code has no endpoint, listener, scheduled job, send, call to another service, schema or configuration to follow as an example.\n\nFor architects and senior engineers. Pinned to commit shop `785739c2c39a`, as of 1970-01-01.",
+    "subtitle" : "*Purpose inferred from the code:* It builds on its parts. It is described by its facts.\n\n- shop-api, a library\n- shop-core, a library\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Containers**\nNo deployable unit was found in the code.\n\n**Decisions**\nNo decision records were found in shop, so the reasons for its design are not known.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener, STOMP handler, scheduled or background job) was found whose code reaches another container.\n\nFor architects and senior engineers. Pinned to commit shop `785739c2c39a`, as of 1970-01-01.",
     "version" : "1",
     "updated" : "1970-01-01"
   },
@@ -53,16 +53,75 @@
       "body" : "The code names no people or user roles, so who uses greeting-lib, greeting-service, orders and shop is not known.",
       "tone" : "info"
     }, {
+      "type" : "list",
+      "id" : "quality-report",
+      "title" : "Quality gaps",
+      "items" : [ "**A \"start here\" list of the entry points and files to read first** (Start here): It lists nothing.", "**The container diagram first** ([System context of greeting-lib, greeting-service, orders and shop](#/context/context-diagram)): The first diagram is not the container diagram.", "**The main flows as sequence diagrams**: The document has no sequence diagram." ]
+    } ]
+  }, {
+    "id" : "findings",
+    "level" : "documentation",
+    "title" : "Risks and findings",
+    "sections" : [ {
       "type" : "callout",
       "id" : "findings-none",
       "body" : "**The LLM investigator found no risks**\nLantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify.",
-      "tone" : "info",
-      "title" : "Risks and findings"
+      "tone" : "info"
+    } ]
+  }, {
+    "id" : "catalog",
+    "level" : "documentation",
+    "title" : "Catalog",
+    "sections" : [ {
+      "type" : "callout",
+      "id" : "catalog-none",
+      "body" : "No deployable unit, component, entry point, topic, queue, table or configuration was found in the code.",
+      "tone" : "info"
     }, {
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A \"start here\" list of the entry points and files to read first** (Start here): It lists nothing.", "**The container diagram first** ([System context of greeting-lib, greeting-service, orders and shop](#/context/context-diagram)): The first diagram is not the container diagram.", "**The main flows as sequence diagrams**: The document has no sequence diagram.", "**A catalog of containers, components, endpoints, queues, tables and config** (Catalog): It lists nothing." ]
+      "items" : [ "**A catalog of containers, components, endpoints, queues, tables and config** ([Catalog](#/catalog)): It lists nothing." ]
+    } ]
+  }, {
+    "id" : "change-guidance",
+    "level" : "documentation",
+    "title" : "Change guidance",
+    "sections" : [ {
+      "type" : "callout",
+      "id" : "change-guidance-none",
+      "body" : "The code has no endpoint, listener, scheduled job, send, call to another service, schema or configuration to follow as an example.",
+      "tone" : "info"
+    } ]
+  }, {
+    "id" : "dependencies",
+    "level" : "documentation",
+    "title" : "Dependencies",
+    "sections" : [ {
+      "type" : "list",
+      "id" : "dependencies-tree",
+      "title" : "Maven dependencies",
+      "items" : [ "com.example.shop:shop-core", "  com.example.shop:shop-api:1.0.0" ]
+    } ]
+  }, {
+    "id" : "structure",
+    "level" : "documentation",
+    "title" : "Modules and packages",
+    "sections" : [ {
+      "type" : "list",
+      "id" : "structure-tree",
+      "title" : "Modules and packages",
+      "items" : [ "shop-parent", "  shop-api", "    com.example.shop.api", "  shop-core", "    com.example.shop.core" ]
+    } ]
+  }, {
+    "id" : "glossary",
+    "level" : "documentation",
+    "title" : "Glossary",
+    "sections" : [ {
+      "type" : "table",
+      "id" : "glossary-terms",
+      "columns" : [ "Term", "Meaning" ],
+      "rows" : [ [ "HTTP", "Hypertext Transfer Protocol, the request and response protocol of the web" ], [ "LLM", "Large language model, such as the one Lantern asks to word and investigate the code" ], [ "STOMP", "Simple Text Oriented Messaging Protocol" ] ]
     } ]
   } ]
 }
