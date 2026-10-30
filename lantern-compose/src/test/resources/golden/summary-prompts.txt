@@ -129,6 +129,76 @@ Technology:
 Summaries of the parts it contains:
 [S1] Maven module greeting-service (purpose inferred): It builds on its parts. It is described by its facts.
 
+##### summarize type type:com.example.orders.Account
+Summarize the type Account in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
+
+Facts:
+[F1] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#balance
+[F2] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#count
+[F3] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#currency
+[F4] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#id
+[F5] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#log
+[F6] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#owner
+[F7] type:com.example.orders.Account CONTAINS method:com.example.orders.Account#<init>(java.lang.String,java.lang.String)
+[F8] type:com.example.orders.Account CONTAINS method:com.example.orders.Account#open()
+[F9] type:com.example.orders.Account kind "class"
+
+Source files:
+[E1] src/main/java/com/example/orders/Account.java:
+```java
+package com.example.orders;
+
+import lombok.Data;
+import lombok.NonNull;
+import lombok.extern.java.Log;
+
+/** Lombok's required-args constructor (final and @NonNull fields) and a log field. */
+@Log
+@Data
+public class Account {
+
+  private static int count;
+  private final String id;
+  @NonNull private String owner;
+  private long balance;
+  private final String currency = "EUR";
+
+  public void open() {
+    log.info("opened " + id);
+  }
+}
+```
+
+##### summarize type type:com.example.orders.Ledger
+Summarize the type Ledger in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
+
+Facts:
+[F1] type:com.example.orders.Ledger CONTAINS field:com.example.orders.Ledger#name
+[F2] type:com.example.orders.Ledger CONTAINS field:com.example.orders.Ledger#size
+[F3] type:com.example.orders.Ledger CONTAINS method:com.example.orders.Ledger#<init>()
+[F4] type:com.example.orders.Ledger CONTAINS method:com.example.orders.Ledger#<init>(java.lang.String,int)
+[F5] type:com.example.orders.Ledger kind "class"
+
+Source files:
+[E1] src/main/java/com/example/orders/Ledger.java:
+```java
+package com.example.orders;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+/** Two Lombok constructors on one class. */
+@Getter
+@NoArgsConstructor
+@AllArgsConstructor
+public class Ledger {
+
+  private String name;
+  private int size;
+}
+```
+
 ##### summarize type type:com.example.orders.Order
 Summarize the type Order in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
 
@@ -136,7 +206,8 @@ Facts:
 [F1] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#customer
 [F2] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#id
 [F3] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#lines
-[F4] type:com.example.orders.Order kind "class"
+[F4] type:com.example.orders.Order CONTAINS method:com.example.orders.Order#<init>(java.lang.String,java.lang.String,java.util.List)
+[F5] type:com.example.orders.Order kind "class"
 
 Source files:
 [E1] src/main/java/com/example/orders/Order.java:
@@ -166,7 +237,8 @@ Facts:
 [F1] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#productId
 [F2] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#quantity
 [F3] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#unitPriceCents
-[F4] type:com.example.orders.OrderLine kind "class"
+[F4] type:com.example.orders.OrderLine CONTAINS method:com.example.orders.OrderLine#<init>(java.lang.String,int,long)
+[F5] type:com.example.orders.OrderLine kind "class"
 
 Source files:
 [E1] src/main/java/com/example/orders/OrderLine.java:
@@ -190,9 +262,10 @@ Summarize the type OrderService in package com.example.orders in 2 to 4 sentence
 
 Facts:
 [F1] type:com.example.orders.OrderService CONTAINS field:com.example.orders.OrderService#currency
-[F2] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#newOrder(java.lang.String,java.lang.String,java.lang.String,int)
-[F3] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#total(com.example.orders.Order)
-[F4] type:com.example.orders.OrderService kind "class"
+[F2] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#<init>(java.lang.String)
+[F3] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#newOrder(java.lang.String,java.lang.String,java.lang.String,int)
+[F4] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#total(com.example.orders.Order)
+[F5] type:com.example.orders.OrderService kind "class"
 
 Source files:
 [E1] src/main/java/com/example/orders/OrderService.java:
@@ -229,14 +302,18 @@ public class OrderService {
 Summarize the package com.example.orders in 3 to 5 sentences and at most 120 words, covering what the package is for and its main parts.
 
 Facts:
-[F1] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Order
-[F2] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderLine
-[F3] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderService
+[F1] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Account
+[F2] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Ledger
+[F3] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Order
+[F4] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderLine
+[F5] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderService
 
 Summaries of the parts it contains:
-[S1] type Order in package com.example.orders (purpose inferred): It is described by its facts.
-[S2] type OrderLine in package com.example.orders (purpose inferred): It is described by its facts.
-[S3] type OrderService in package com.example.orders (purpose inferred): It is described by its facts.
+[S1] type Account in package com.example.orders (purpose inferred): It is described by its facts.
+[S2] type Ledger in package com.example.orders (purpose inferred): It is described by its facts.
+[S3] type Order in package com.example.orders (purpose inferred): It is described by its facts.
+[S4] type OrderLine in package com.example.orders (purpose inferred): It is described by its facts.
+[S5] type OrderService in package com.example.orders (purpose inferred): It is described by its facts.
 
 ##### summarize module module:com.example.orders:orders
 Summarize the Maven module orders in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].
