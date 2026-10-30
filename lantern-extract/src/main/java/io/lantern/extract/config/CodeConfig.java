@@ -37,6 +37,17 @@ public final class CodeConfig {
     this.known = ConfigExtractor.normalizedKeys(secretKeys);
   }
 
+  /** Whether a key names a secret, by its name or because it is one of the known secret keys. */
+  public boolean isSecret(String key) {
+    return ConfigExtractor.isSecret(key, known);
+  }
+
+  /** A value read from config as it may be recorded: see {@link CodeValue}. */
+  public CodeValue value(
+      String value, String written, SortedSet<String> unresolved, SortedSet<String> used) {
+    return CodeValue.of(value, written, unresolved, used, known);
+  }
+
   /** Config for one module's code, or for none. */
   public final class View {
 

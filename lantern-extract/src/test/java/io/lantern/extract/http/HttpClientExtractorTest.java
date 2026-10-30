@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.StandardJavaFileManager;
@@ -247,5 +248,42 @@ class HttpClientExtractorTest {
     assertThat(HttpClientExtractor.joinUrl("http://h/v1?key=k", "/x")).isEqualTo("http://h/v1/x");
     assertThat(HttpClientExtractor.joinUrl("http://h", "https://other/y"))
         .isEqualTo("https://other/y");
+  }
+
+  @Test
+  void aValueSubstitutedFromAKnownSecretKeyIsMasked() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("jwt"),
+            "shop",
+            Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>shop</artifactId><version>1</version></project>\n",
+                "src/main/java/com/example/Remote.java",
+                """
+                package com.example;
+
+                import org.springframework.cloud.openfeign.FeignClient;
+                import org.springframework.web.bind.annotation.GetMapping;
+
+                @FeignClient(name = "remote", url = "http://remote/${jwt.key}")
+                public interface Remote {
+                  @GetMapping("/things")
+                  String things();
+                }
+                """,
+                "src/main/resources/application.properties",
+                "jwt.key=literal-test-value-0123456789abcdef\n"));
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+
+    // Without the code's keys the name alone does not show jwt.key is a secret.
+    assertThat(Fixtures.render(new HttpClientExtractor().extract(code, SNAPSHOT)))
+        .contains("literal-test-value");
+    String masked =
+        Fixtures.render(
+            new HttpClientExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key")));
+    assertThat(masked).doesNotContain("literal-test-value").contains("${jwt.key}");
   }
 }
