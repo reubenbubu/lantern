@@ -72,9 +72,11 @@ final class TrackedApis {
           "org.jobrunr.scheduling.",
           "org.quartz.",
           // WebSocket and STOMP (the WebSocket extractor): endpoint and handler registries, the
-          // broker's and client channel's registrations, and the Simp messaging templates.
+          // broker's and client channel's registrations, the Simp messaging templates and header
+          // accessors, and the generic sending operations a template may be injected as.
           "org.springframework.web.socket.config.annotation.",
-          "org.springframework.messaging.simp.");
+          "org.springframework.messaging.simp.",
+          "org.springframework.messaging.core.MessageSendingOperations");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";

@@ -53,7 +53,7 @@ public final class WebSocketExtractor {
   public static final String NAME = "websocket";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "websocket-extractor";
@@ -72,6 +72,9 @@ public final class WebSocketExtractor {
 
   /** Attribute: the method registers an interceptor on the STOMP client channel. */
   public static final String INTERCEPTOR = "stomp-interceptor";
+
+  /** Attribute: the subject class intercepts the messages of a STOMP client channel. */
+  public static final String CHANNEL_INTERCEPTOR = "stomp-channel-interceptor";
 
   /** Protocols of a WebSocket endpoint. */
   public static final String STOMP = "stomp";
@@ -99,7 +102,25 @@ public final class WebSocketExtractor {
   private static final List<String> SENDING_TYPES =
       List.of(
           "org.springframework.messaging.simp.SimpMessagingTemplate",
-          "org.springframework.messaging.simp.SimpMessageSendingOperations");
+          "org.springframework.messaging.simp.SimpMessageSendingOperations",
+          "org.springframework.messaging.core.MessageSendingOperations");
+  private static final List<String> INTERCEPTOR_TYPES =
+      List.of(
+          "org.springframework.messaging.support.ChannelInterceptor",
+          "org.springframework.messaging.support.ExecutorChannelInterceptor",
+          "org.springframework.messaging.support.ChannelInterceptorAdapter");
+  private static final List<String> HEADER_ACCESSORS =
+      List.of(
+          "org.springframework.messaging.simp.stomp.StompHeaderAccessor",
+          "org.springframework.messaging.simp.SimpMessageHeaderAccessor");
+  private static final String VALUE = "org.springframework.beans.factory.annotation.Value";
+  private static final Map<String, String> RELAY_SETTINGS =
+      Map.of(
+          "setRelayHost", "relayHost",
+          "setRelayPort", "relayPort",
+          "setVirtualHost", "virtualHost",
+          "setUserDestinationBroadcast", "userDestinationBroadcast",
+          "setUserRegistryBroadcast", "userRegistryBroadcast");
 
   private static final Pattern FORMAT =
       Pattern.compile("%(?:\\d+\\$)?[-#+ 0,(]*\\d*(?:\\.\\d+)?[a-zA-Z]");
@@ -180,7 +201,9 @@ public final class WebSocketExtractor {
     boolean sockjs;
     boolean plain;
     final SortedSet<String> origins = new TreeSet<>();
+    final SortedSet<String> handshakeInterceptors = new TreeSet<>();
     String handler;
+    String handshakeHandler;
 
     Endpoint(
         Run run,
@@ -209,6 +232,13 @@ public final class WebSocketExtractor {
       }
       if (handler != null) {
         attributes.put("handler", handler);
+      }
+      if (!handshakeInterceptors.isEmpty()) {
+        ArrayNode array = attributes.putArray("handshakeInterceptors");
+        handshakeInterceptors.forEach(array::add);
+      }
+      if (handshakeHandler != null) {
+        attributes.put("handshakeHandler", handshakeHandler);
       }
       run.fact(module, method, ENDPOINT, path, attributes, where);
     }
@@ -243,6 +273,9 @@ public final class WebSocketExtractor {
       for (TypeDecl type : module.structure().types()) {
         if (type.kind().equals(ModuleStructure.CLASS)) {
           mappings(module, type);
+          if (isInterceptor(type, 0)) {
+            interceptor(module, type);
+          }
         }
       }
       for (Invocation i : module.structure().invocations()) {
@@ -277,11 +310,21 @@ public final class WebSocketExtractor {
       }
       boolean sockjs = false;
       List<String> origins = new ArrayList<>();
+      List<String> handshakeInterceptors = new ArrayList<>();
+      String handshakeHandler = null;
       for (Expression.Invoke call : chain.subList(1, chain.size())) {
         switch (call.method()) {
           case "withSockJS" -> sockjs = true;
           case "setAllowedOrigins", "setAllowedOriginPatterns" ->
               call.arguments().forEach(a -> literal(a).ifPresent(origins::add));
+          case "addInterceptors", "setInterceptors" ->
+              call.arguments().stream()
+                  .map(a -> typeOf(module, a))
+                  .filter(Objects::nonNull)
+                  .forEach(handshakeInterceptors::add);
+          case "setHandshakeHandler" ->
+              handshakeHandler =
+                  call.arguments().isEmpty() ? null : typeOf(module, call.arguments().getFirst());
           default -> {}
         }
       }
@@ -303,8 +346,12 @@ public final class WebSocketExtractor {
           endpoint.plain = true;
         }
         endpoint.origins.addAll(origins);
+        endpoint.handshakeInterceptors.addAll(handshakeInterceptors);
         if (handler != null) {
           endpoint.handler = handler;
+        }
+        if (handshakeHandler != null) {
+          endpoint.handshakeHandler = handshakeHandler;
         }
       }
     }
@@ -316,7 +363,9 @@ public final class WebSocketExtractor {
       if (!i.rootType().equals(BROKER_REGISTRY)) {
         return;
       }
-      for (Expression.Invoke call : i.expression().chain()) {
+      List<Expression.Invoke> chain = i.expression().chain();
+      for (int c = 0; c < chain.size(); c++) {
+        Expression.Invoke call = chain.get(c);
         String kind =
             switch (call.method()) {
               case "enableSimpleBroker" -> "simple-broker";
@@ -328,12 +377,26 @@ public final class WebSocketExtractor {
         if (kind == null) {
           continue;
         }
+        // A relay's connection is set on the registration enableStompBrokerRelay returns.
+        ObjectNode relay = FactJson.newObject();
+        if (kind.equals("broker-relay")) {
+          for (Expression.Invoke setting : chain.subList(c + 1, chain.size())) {
+            String name = RELAY_SETTINGS.get(setting.method());
+            if (name != null && setting.arguments().size() == 1) {
+              String value = setting(setting.arguments().getFirst());
+              if (value != null) {
+                relay.put(name, value);
+              }
+            }
+          }
+        }
         for (Expression argument : call.arguments()) {
           literal(argument)
               .ifPresent(
                   prefix -> {
                     ObjectNode attributes = FactJson.newObject();
                     attributes.put("kind", kind);
+                    attributes.setAll(relay);
                     fact(module, i.caller(), PREFIX, prefix, attributes, i.where());
                   });
         }
@@ -368,21 +431,127 @@ public final class WebSocketExtractor {
           attributes.put("channel", channel);
           TypeDecl declared = code.type(type);
           if (declared != null) {
-            List<String> methods = new ArrayList<>();
-            for (Member m : declared.members()) {
-              String name = methodName(m.id());
-              if (name != null && INTERCEPTOR_METHODS.contains(name) && !methods.contains(name)) {
-                methods.add(name);
-              }
-            }
-            if (!methods.isEmpty()) {
-              ArrayNode array = attributes.putArray("intercepts");
-              methods.stream().sorted().forEach(array::add);
-            }
+            intercepts(declared, attributes);
           }
           fact(module, i.caller(), INTERCEPTOR, type, attributes, i.where());
         }
       }
+    }
+
+    /** The {@code ChannelInterceptor} methods a class declares, as {@code intercepts}. */
+    private static void intercepts(TypeDecl type, ObjectNode attributes) {
+      SortedSet<String> methods = new TreeSet<>();
+      for (Member m : type.members()) {
+        String name = methodName(m.id());
+        if (name != null && INTERCEPTOR_METHODS.contains(name)) {
+          methods.add(name);
+        }
+      }
+      if (!methods.isEmpty()) {
+        ArrayNode array = attributes.putArray("intercepts");
+        methods.forEach(array::add);
+      }
+    }
+
+    /** Whether a class implements {@code ChannelInterceptor}, directly or through its own types. */
+    private boolean isInterceptor(TypeDecl type, int depth) {
+      for (ModuleStructure.Supertype s : type.supertypes()) {
+        if (INTERCEPTOR_TYPES.contains(s.binaryName())) {
+          return true;
+        }
+        TypeDecl declared = code.type(s.binaryName());
+        if (declared != null && depth < 5 && isInterceptor(declared, depth + 1)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * A class that intercepts the messages of a client channel, at its declaration: the methods it
+     * declares, whether it reads a message's destination and sets its user, the native headers it
+     * reads, and the destinations (or destination patterns) its code names.
+     */
+    private void interceptor(JavaAnalysis.Module module, TypeDecl type) {
+      String owner = type.binaryName();
+      boolean readsDestination = false;
+      boolean setsUser = false;
+      SortedSet<String> headers = new TreeSet<>();
+      for (Invocation i : module.structure().invocations()) {
+        if (!HEADER_ACCESSORS.contains(i.rootType()) || !ownedBy(i.caller(), owner)) {
+          continue;
+        }
+        for (Expression.Invoke call : i.expression().chain()) {
+          switch (call.method()) {
+            case "getDestination" -> readsDestination = true;
+            case "setUser" -> setsUser = true;
+            case "getFirstNativeHeader", "getNativeHeader" -> {
+              if (!call.arguments().isEmpty()) {
+                literal(call.arguments().getFirst()).ifPresent(headers::add);
+              }
+            }
+            default -> {}
+          }
+        }
+      }
+      SortedSet<String> destinations = new TreeSet<>();
+      for (ModuleStructure.Call call : module.structure().calls()) {
+        if (ownedBy(call.caller(), owner)) {
+          for (String argument : call.arguments()) {
+            if (argument != null && argument.replaceFirst("^\\^", "").startsWith("/")) {
+              destinations.add(argument);
+            }
+          }
+        }
+      }
+      ObjectNode attributes = FactJson.newObject();
+      intercepts(type, attributes);
+      if (readsDestination) {
+        attributes.put("readsDestination", true);
+      }
+      if (setsUser) {
+        attributes.put("setsUser", true);
+      }
+      if (!headers.isEmpty()) {
+        ArrayNode array = attributes.putArray("headers");
+        headers.forEach(array::add);
+      }
+      if (!destinations.isEmpty()) {
+        ArrayNode array = attributes.putArray("destinations");
+        destinations.forEach(array::add);
+      }
+      fact(
+          module,
+          new EntityId("type", owner),
+          CHANNEL_INTERCEPTOR,
+          owner,
+          attributes,
+          declaration(type));
+    }
+
+    /**
+     * A type's declaration: its annotations and header, up to its first member other than a
+     * constructor (which javac may place on the header when it declares one implicitly).
+     */
+    private static Location declaration(TypeDecl type) {
+      Location where = type.where();
+      int end = where.end();
+      for (Member m : type.members()) {
+        boolean constructor = m.id().key().contains("#" + ModuleStructure.CONSTRUCTOR + "(");
+        if (!constructor
+            && m.where() != null
+            && m.where().file().equals(where.file())
+            && m.where().start() > where.start()) {
+          end = Math.min(end, m.where().start() - 1);
+        }
+      }
+      return new Location(where.file(), where.start(), Math.max(where.start(), end));
+    }
+
+    /** Whether code is the type's own: in one of its methods or outside methods. */
+    private static boolean ownedBy(EntityId caller, String owner) {
+      String key = caller.key();
+      return key.equals(owner) || key.startsWith(owner + "#");
     }
 
     // -------------------------------------------------------------------------------------------
@@ -392,12 +561,13 @@ public final class WebSocketExtractor {
       List<Annotation> onClass = mappingPath(type.annotations(), MESSAGE_MAPPING);
       String prefix = onClass == null ? "" : first(onClass, "value").orElse("");
       List<String> classSendTo = values(type.annotations(), SEND_TO);
+      List<String> classSendToUser = values(type.annotations(), SEND_TO_USER);
       for (Member m : type.members()) {
         if (m.id().type().equals(ModuleStructure.METHOD) && methodName(m.id()) != null) {
           for (String mapping : List.of(MESSAGE_MAPPING, SUBSCRIBE_MAPPING)) {
             List<Annotation> path = mappingPath(m.annotations(), mapping);
             if (path != null) {
-              mapping(module, m, path, mapping, prefix, classSendTo);
+              mapping(module, m, path, mapping, prefix, classSendTo, classSendToUser);
             }
           }
         }
@@ -426,7 +596,8 @@ public final class WebSocketExtractor {
         List<Annotation> path,
         String mapping,
         String prefix,
-        List<String> classSendTo) {
+        List<String> classSendTo,
+        List<String> classSendToUser) {
       Annotation written = path.getFirst();
       Annotation found = path.getLast();
       List<String> destinations = found.values("value");
@@ -434,14 +605,28 @@ public final class WebSocketExtractor {
         destinations = List.of("");
       }
       List<String> sendTo = values(method.annotations(), SEND_TO);
-      if (sendTo.isEmpty()) {
-        sendTo = classSendTo;
-      }
       List<String> sendToUser = values(method.annotations(), SEND_TO_USER);
+      boolean returns = method.returns() != null && !method.returns().equals("void");
+      // A class's @SendTo and @SendToUser apply to the methods that return a value and have
+      // neither.
+      if (returns && sendTo.isEmpty() && sendToUser.isEmpty()) {
+        sendTo = classSendTo;
+        sendToUser = classSendToUser;
+      }
       for (String destination : destinations) {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("kind", mapping.equals(MESSAGE_MAPPING) ? "message" : "subscribe");
         attributes.put("annotation", written.type());
+        if (returns && sendTo.isEmpty() && sendToUser.isEmpty()) {
+          // Without either, a @MessageMapping method's return value goes to the broker at /topic
+          // and the destination it handles; a @SubscribeMapping method's goes to the subscriber.
+          if (mapping.equals(MESSAGE_MAPPING)) {
+            attributes.putArray("sendTo").add(join("/topic", join(prefix, destination)));
+            attributes.put("defaultSendTo", true);
+          } else {
+            attributes.put("repliesToSubscriber", true);
+          }
+        }
         if (!sendTo.isEmpty()) {
           ArrayNode array = attributes.putArray("sendTo");
           sendTo.forEach(array::add);
@@ -618,6 +803,27 @@ public final class WebSocketExtractor {
 
     private static Optional<String> literal(Expression e) {
       return e instanceof Expression.Literal l ? Optional.of(l.value()) : Optional.empty();
+    }
+
+    /**
+     * A setting's value: a constant, or the placeholder of the {@code @Value} on the field it is
+     * read from, such as {@code ${relay.host}}; null otherwise.
+     */
+    private String setting(Expression e) {
+      if (e instanceof Expression.Literal l) {
+        return l.value();
+      }
+      if (e instanceof Expression.FieldRef f) {
+        Member field = members.get(new EntityId("field", f.owner() + "#" + f.name()));
+        if (field != null) {
+          for (Annotation a : field.annotations()) {
+            if (a.type().equals(VALUE) && !a.values("value").isEmpty()) {
+              return a.values("value").getFirst();
+            }
+          }
+        }
+      }
+      return null;
     }
 
     /** The binary name of the type an expression is: a field's, a new object's, a class literal. */

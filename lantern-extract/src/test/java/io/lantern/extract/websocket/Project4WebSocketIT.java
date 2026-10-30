@@ -56,6 +56,17 @@ class Project4WebSocketIT {
                         " stomp-interceptor com.crm.notification.notification_service.websocket"
                             + ".StompAuthChannelInterceptor ")
                     && l.contains("\"intercepts\":[\"preSend\"]"))
+        // The interceptor class itself, at its declaration, with what its code reads (the header's
+        // name is a library constant, folded only when the code is read through javac).
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "type:com.crm.notification.notification_service.websocket"
+                            + ".StompAuthChannelInterceptor stomp-channel-interceptor ")
+                    && l.contains("\"readsDestination\":true")
+                    && l.contains("\"setsUser\":true")
+                    && l.contains("/topic/organizations/")
+                    && l.contains("StompAuthChannelInterceptor.java#27-30 "))
         // The pushes: to one user, and to an organization's topic.
         .anyMatch(
             l ->

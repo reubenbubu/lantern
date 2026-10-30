@@ -11,7 +11,9 @@
         "sockjs": { "type": "boolean", "description": "Whether the path is also offered with SockJS fallbacks (withSockJS)." },
         "nativeWebSocket": { "type": "boolean", "description": "Whether the path accepts plain WebSocket connections (a registration without SockJS)." },
         "allowedOrigins": { "type": "array", "items": { "type": "string" }, "description": "The origins or origin patterns the registration allows, such as *. Absent when none is set." },
-        "handler": { "type": "string", "description": "For a raw WebSocket endpoint, the binary name of the handler's type, when it could be told." }
+        "handler": { "type": "string", "description": "For a raw WebSocket endpoint, the binary name of the handler's type, when it could be told." },
+        "handshakeInterceptors": { "type": "array", "items": { "type": "string" }, "description": "The binary names of the handshake interceptors added to the registration (addInterceptors, or setInterceptors on its SockJS service): code that may refuse the HTTP upgrade or copy request attributes into the session." },
+        "handshakeHandler": { "type": "string", "description": "The binary name of the handshake handler set on the registration (setHandshakeHandler), which often decides the connecting user." }
       },
       "required": ["path", "protocol"],
       "additionalProperties": false
@@ -25,7 +27,12 @@
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "kind": { "type": "string", "enum": ["simple-broker", "broker-relay", "application", "user"], "description": "simple-broker: destinations the in-memory broker serves to subscribers; broker-relay: destinations relayed to an external broker; application: destinations that reach @MessageMapping methods; user: the prefix of user destinations." }
+        "kind": { "type": "string", "enum": ["simple-broker", "broker-relay", "application", "user"], "description": "simple-broker: destinations the in-memory broker serves to subscribers; broker-relay: destinations relayed to an external broker; application: destinations that reach @MessageMapping methods; user: the prefix of user destinations." },
+        "relayHost": { "type": "string", "description": "For a broker relay, the host of the external STOMP broker (setRelayHost): a constant, or the placeholder of the @Value field it is read from, such as ${relay.host}." },
+        "relayPort": { "type": "string", "description": "For a broker relay, the broker's STOMP port (setRelayPort), as a constant or placeholder." },
+        "virtualHost": { "type": "string", "description": "For a broker relay, the virtual host on the broker (setVirtualHost)." },
+        "userDestinationBroadcast": { "type": "string", "description": "For a broker relay, the destination on which unresolved user messages are broadcast to the other instances of the application (setUserDestinationBroadcast); present when several instances share the broker." },
+        "userRegistryBroadcast": { "type": "string", "description": "For a broker relay, the destination on which the instances share their user registries (setUserRegistryBroadcast)." }
       },
       "required": ["kind"],
       "additionalProperties": false
@@ -42,8 +49,10 @@
       "properties": {
         "kind": { "type": "string", "enum": ["message", "subscribe"], "description": "message for @MessageMapping, subscribe for @SubscribeMapping." },
         "annotation": { "type": "string", "description": "The binary name of the annotation written." },
-        "sendTo": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendTo on the method (or its class), where the return value is sent." },
-        "sendToUser": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendToUser, where the return value is sent to the sending user." }
+        "sendTo": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendTo on the method (or its class), where the return value is sent; for a @MessageMapping method that returns a value and has neither @SendTo nor @SendToUser, /topic joined with the destination it handles, Spring's default." },
+        "sendToUser": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendToUser on the method (or its class), where the return value is sent to the sending user." },
+        "defaultSendTo": { "type": "boolean", "description": "Whether sendTo is Spring's default rather than written." },
+        "repliesToSubscriber": { "type": "boolean", "description": "For a @SubscribeMapping method that returns a value and has neither @SendTo nor @SendToUser: the value goes back to the subscribing client only, not through the broker." }
       },
       "required": ["kind", "annotation"],
       "additionalProperties": false
@@ -79,6 +88,23 @@
         "intercepts": { "type": "array", "items": { "type": "string" }, "description": "The ChannelInterceptor methods the interceptor's class declares, such as preSend. Absent when its class is not in the analyzed sources." }
       },
       "required": ["channel"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "stomp-channel-interceptor",
+    "kind": "attribute",
+    "description": "The subject class intercepts the messages of a STOMP client channel (it implements ChannelInterceptor, directly or through the application's own types), at its declaration; the object is its binary name. stomp-interceptor facts say on which channel it is registered. Inbound interceptors commonly authenticate CONNECT frames and check which destinations a client may subscribe or send to.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "intercepts": { "type": "array", "items": { "type": "string" }, "description": "The ChannelInterceptor methods the class declares, such as preSend." },
+        "readsDestination": { "type": "boolean", "description": "Whether its code reads a message's destination through a STOMP header accessor (getDestination), as a check of what a client may subscribe or send to does." },
+        "setsUser": { "type": "boolean", "description": "Whether its code sets the message's user (setUser), as authentication on CONNECT does." },
+        "headers": { "type": "array", "items": { "type": "string" }, "description": "The native STOMP headers its code reads, such as Authorization." },
+        "destinations": { "type": "array", "items": { "type": "string" }, "description": "The constant destinations or destination patterns its code names (a text starting with / or ^/), such as the topics it lets clients subscribe to." }
+      },
       "additionalProperties": false
     },
     "objectKind": "string"
