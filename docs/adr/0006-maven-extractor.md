@@ -1,6 +1,6 @@
 # 0006: Maven extractor
 
-Status: accepted (#8), amended (#100, #93, #265), amended by ADR 0064 (#226)
+Status: accepted (#8), amended (#100, #93, #265), amended by ADR 0064 (#226) and for #510
 
 ## Context
 
@@ -184,3 +184,11 @@ extractor's version becomes 5.
   (#485), test and sample modules (#486), the built artifact's manifest, and Dockerfiles or
   manifests that ship a module (the Deployment extractor's, #397).
 
+## Amendment (#510): a service or library cites the module's artifactId
+
+`<service or library> CONTAINS <module>` now cites the module's own `<artifactId>` element, the
+line that names the module, instead of the whole POM. What makes a module deployable is often
+inherited from its parent (Spring Boot's plugin, the packaging), so the whole file was its
+evidence, and the coverage report counts such a match as weak, since Maven cites lines in POMs
+elsewhere (ADR 0089, amendment for #411). The `deployable-by` and inherited `packaging` facts
+keep citing the file without lines. Extractor `maven` version 6.

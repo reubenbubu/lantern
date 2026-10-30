@@ -20,7 +20,7 @@
     "id" : "library:com.example.greeting:greeting-lib",
     "name" : "greeting-lib",
     "parent" : "repo:greeting-lib",
-    "facts" : [ "82f6be4ea433ce47894348c449f30140e0733c1d6f1afe3bbf57309fdebfce2c" ]
+    "facts" : [ "3f00305115b55b633618638546c4169220274f9d1155cece3780ebe82daab230" ]
   }, {
     "id" : "module:com.example.greeting:greeting-lib",
     "name" : "greeting-lib",
@@ -48,9 +48,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "82f6be4ea433ce47894348c449f30140e0733c1d6f1afe3bbf57309fdebfce2c" ]
+      "facts" : [ "3f00305115b55b633618638546c4169220274f9d1155cece3780ebe82daab230" ]
     } ],
-    "facts" : [ "2770a10315e8e37f35880998e8a21be070e987086e72580480d38ea00747f606", "4e9dd1f7263b9f4715a96ad50cd89b215a5001936bb0b772c028eaed31caab46", "80cf7ea87775a67f9cd51a59c3365aa4e2a92de574322f65486551411878115e" ]
+    "facts" : [ "207ce093b2f09e442bba9a7421b0f724da4d16394a8e2e57ad04b75d114511ca", "4cf2c0ba3994a541adee97af294660c0e793d801bec2584390c2b20d993a9b2a", "b6b980ca24dd287f05cd2c9c334f5368d0b425268cb33449533dc91b4e400e2d" ]
   }, {
     "id" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib",
     "name" : "com.example.greeting.lib",
@@ -107,7 +107,7 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "2770a10315e8e37f35880998e8a21be070e987086e72580480d38ea00747f606" ]
+      "facts" : [ "4cf2c0ba3994a541adee97af294660c0e793d801bec2584390c2b20d993a9b2a" ]
     } ],
     "facts" : [ ]
   }, {
@@ -141,9 +141,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "82f6be4ea433ce47894348c449f30140e0733c1d6f1afe3bbf57309fdebfce2c" ]
+      "facts" : [ "3f00305115b55b633618638546c4169220274f9d1155cece3780ebe82daab230" ]
     } ],
-    "facts" : [ "37204de3d14e0f3d43af4e62708518723dfa238fc91effa4252d11070fffe11b", "37458dfcf87bc7a2889e34a01cf90c2cac83b29dcbfcab19b5343dbc7b79c8b2", "75447aa3b11aaa28850f1a11056c7d9042f4d85362411f62fd6bc669883d7201", "b3bc37a8a37945294cca1743c9d02f211d83b0a54851471780da02cbd0946d11" ]
+    "facts" : [ "3394a2536acf61c3f8274eb701bc3ccc7eda5ce4d8c5dd79d719df0ae3f3d200", "37204de3d14e0f3d43af4e62708518723dfa238fc91effa4252d11070fffe11b", "a901c179e2262e097d03f7f7b9400a79c3f99bafb31204d03524b229a90781f2", "edb4903c87b036632b52fd5f56c2b45c0f86c19b8253d45a0bd15913acd4c981" ]
   }, {
     "id" : "system:snapshot",
     "name" : "greeting-lib, greeting-service, orders and shop",
@@ -192,28 +192,52 @@
       "from" : 1
     }
   }, {
-    "id" : "2770a10315e8e37f35880998e8a21be070e987086e72580480d38ea00747f606",
+    "id" : "207ce093b2f09e442bba9a7421b0f724da4d16394a8e2e57ad04b75d114511ca",
     "subject" : "module:com.example.greeting:greeting-lib",
-    "predicate" : "java-release",
+    "predicate" : "packaging",
     "object" : {
       "kind" : "string",
-      "value" : "21"
+      "value" : "jar"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "5"
+      "version" : "6"
     },
     "evidence" : {
       "repo" : "greeting-lib",
       "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
       "path" : "pom.xml",
-      "lines" : {
-        "start" : 16,
-        "end" : 16
-      },
       "contentHash" : "5d917e622545428c549b4069f68ac3dae07a0c594938dc321e34d657411264ac"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "3394a2536acf61c3f8274eb701bc3ccc7eda5ce4d8c5dd79d719df0ae3f3d200",
+    "subject" : "service:com.example.greeting:greeting-service",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "module:com.example.greeting:greeting-service"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "6"
+    },
+    "evidence" : {
+      "repo" : "greeting-service",
+      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 12,
+        "end" : 12
+      },
+      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -250,111 +274,7 @@
       "from" : 1
     }
   }, {
-    "id" : "37458dfcf87bc7a2889e34a01cf90c2cac83b29dcbfcab19b5343dbc7b79c8b2",
-    "subject" : "service:com.example.greeting:greeting-service",
-    "predicate" : "deployable-unit",
-    "object" : {
-      "kind" : "string",
-      "value" : "executable-jar"
-    },
-    "attributes" : {
-      "packaging" : "jar"
-    },
-    "origin" : {
-      "kind" : "static",
-      "name" : "deployable-units",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "greeting-service",
-      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
-      "path" : "pom.xml",
-      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "4e9dd1f7263b9f4715a96ad50cd89b215a5001936bb0b772c028eaed31caab46",
-    "subject" : "module:com.example.greeting:greeting-lib",
-    "predicate" : "version",
-    "object" : {
-      "kind" : "string",
-      "value" : "1.0.0"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "5"
-    },
-    "evidence" : {
-      "repo" : "greeting-lib",
-      "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
-      "path" : "pom.xml",
-      "lines" : {
-        "start" : 13,
-        "end" : 13
-      },
-      "contentHash" : "5d917e622545428c549b4069f68ac3dae07a0c594938dc321e34d657411264ac"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "75447aa3b11aaa28850f1a11056c7d9042f4d85362411f62fd6bc669883d7201",
-    "subject" : "service:com.example.greeting:greeting-service",
-    "predicate" : "application-name",
-    "object" : {
-      "kind" : "string",
-      "value" : "greeting-service"
-    },
-    "attributes" : {
-      "defaulted" : true
-    },
-    "origin" : {
-      "kind" : "static",
-      "name" : "deployable-units",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "greeting-service",
-      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
-      "path" : "pom.xml",
-      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
-    },
-    "confidence" : 0.35,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "80cf7ea87775a67f9cd51a59c3365aa4e2a92de574322f65486551411878115e",
-    "subject" : "module:com.example.greeting:greeting-lib",
-    "predicate" : "packaging",
-    "object" : {
-      "kind" : "string",
-      "value" : "jar"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "5"
-    },
-    "evidence" : {
-      "repo" : "greeting-lib",
-      "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
-      "path" : "pom.xml",
-      "contentHash" : "5d917e622545428c549b4069f68ac3dae07a0c594938dc321e34d657411264ac"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "82f6be4ea433ce47894348c449f30140e0733c1d6f1afe3bbf57309fdebfce2c",
+    "id" : "3f00305115b55b633618638546c4169220274f9d1155cece3780ebe82daab230",
     "subject" : "library:com.example.greeting:greeting-lib",
     "predicate" : "CONTAINS",
     "object" : {
@@ -365,12 +285,44 @@
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "5"
+      "version" : "6"
     },
     "evidence" : {
       "repo" : "greeting-lib",
       "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
       "path" : "pom.xml",
+      "lines" : {
+        "start" : 12,
+        "end" : 12
+      },
+      "contentHash" : "5d917e622545428c549b4069f68ac3dae07a0c594938dc321e34d657411264ac"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "4cf2c0ba3994a541adee97af294660c0e793d801bec2584390c2b20d993a9b2a",
+    "subject" : "module:com.example.greeting:greeting-lib",
+    "predicate" : "java-release",
+    "object" : {
+      "kind" : "string",
+      "value" : "21"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "6"
+    },
+    "evidence" : {
+      "repo" : "greeting-lib",
+      "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 16,
+        "end" : 16
+      },
       "contentHash" : "5d917e622545428c549b4069f68ac3dae07a0c594938dc321e34d657411264ac"
     },
     "confidence" : 0.7,
@@ -406,6 +358,36 @@
       "from" : 1
     }
   }, {
+    "id" : "a901c179e2262e097d03f7f7b9400a79c3f99bafb31204d03524b229a90781f2",
+    "subject" : "service:com.example.greeting:greeting-service",
+    "predicate" : "deployable-unit",
+    "object" : {
+      "kind" : "string",
+      "value" : "executable-jar"
+    },
+    "attributes" : {
+      "packaging" : "jar"
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "deployable-units",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "greeting-service",
+      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 12,
+        "end" : 12
+      },
+      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
     "id" : "a9d58aff36bbe05f07d008b4b3480e7ad2151587cf8a6c78ac22da96354cb397",
     "subject" : "type:com.example.greeting.lib.Greeter",
     "predicate" : "CONTAINS",
@@ -434,24 +416,28 @@
       "from" : 1
     }
   }, {
-    "id" : "b3bc37a8a37945294cca1743c9d02f211d83b0a54851471780da02cbd0946d11",
-    "subject" : "service:com.example.greeting:greeting-service",
-    "predicate" : "CONTAINS",
+    "id" : "b6b980ca24dd287f05cd2c9c334f5368d0b425268cb33449533dc91b4e400e2d",
+    "subject" : "module:com.example.greeting:greeting-lib",
+    "predicate" : "version",
     "object" : {
-      "kind" : "entity",
-      "value" : "module:com.example.greeting:greeting-service"
+      "kind" : "string",
+      "value" : "1.0.0"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "5"
+      "version" : "6"
     },
     "evidence" : {
-      "repo" : "greeting-service",
-      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
+      "repo" : "greeting-lib",
+      "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
       "path" : "pom.xml",
-      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
+      "lines" : {
+        "start" : 13,
+        "end" : 13
+      },
+      "contentHash" : "5d917e622545428c549b4069f68ac3dae07a0c594938dc321e34d657411264ac"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -482,6 +468,36 @@
       "contentHash" : "199401380654b52e36482f65db19afaeb798627c5ff663bbb77a3c4dbc3113d6"
     },
     "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "edb4903c87b036632b52fd5f56c2b45c0f86c19b8253d45a0bd15913acd4c981",
+    "subject" : "service:com.example.greeting:greeting-service",
+    "predicate" : "application-name",
+    "object" : {
+      "kind" : "string",
+      "value" : "greeting-service"
+    },
+    "attributes" : {
+      "defaulted" : true
+    },
+    "origin" : {
+      "kind" : "static",
+      "name" : "deployable-units",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "greeting-service",
+      "commit" : "87b8856deb4831fc7b75b8469d173c0b88dc3288",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 12,
+        "end" : 12
+      },
+      "contentHash" : "7be3afdae2c13a90a711b9fccde4dc9158cdf6fa2f95b9e73f4d381a9b44370a"
+    },
+    "confidence" : 0.35,
     "validity" : {
       "from" : 1
     }
@@ -517,9 +533,9 @@
         "text" : " It is described by its facts."
       }, {
         "kind" : "citation",
-        "facts" : [ "2770a10315e8e37f35880998e8a21be070e987086e72580480d38ea00747f606" ]
+        "facts" : [ "4cf2c0ba3994a541adee97af294660c0e793d801bec2584390c2b20d993a9b2a" ]
       } ],
-      "facts" : [ "2770a10315e8e37f35880998e8a21be070e987086e72580480d38ea00747f606" ]
+      "facts" : [ "4cf2c0ba3994a541adee97af294660c0e793d801bec2584390c2b20d993a9b2a" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",
@@ -536,7 +552,7 @@
           "kind" : "text",
           "text" : ", a library"
         } ],
-        "facts" : [ "80cf7ea87775a67f9cd51a59c3365aa4e2a92de574322f65486551411878115e", "82f6be4ea433ce47894348c449f30140e0733c1d6f1afe3bbf57309fdebfce2c" ]
+        "facts" : [ "207ce093b2f09e442bba9a7421b0f724da4d16394a8e2e57ad04b75d114511ca", "3f00305115b55b633618638546c4169220274f9d1155cece3780ebe82daab230" ]
       } ],
       "facts" : [ ]
     } ],
@@ -574,7 +590,7 @@
         "label" : "greeting-service",
         "technology" : "Java 21",
         "parent" : "system:snapshot",
-        "facts" : [ "37204de3d14e0f3d43af4e62708518723dfa238fc91effa4252d11070fffe11b", "37458dfcf87bc7a2889e34a01cf90c2cac83b29dcbfcab19b5343dbc7b79c8b2", "75447aa3b11aaa28850f1a11056c7d9042f4d85362411f62fd6bc669883d7201" ]
+        "facts" : [ "37204de3d14e0f3d43af4e62708518723dfa238fc91effa4252d11070fffe11b", "a901c179e2262e097d03f7f7b9400a79c3f99bafb31204d03524b229a90781f2", "edb4903c87b036632b52fd5f56c2b45c0f86c19b8253d45a0bd15913acd4c981" ]
       }, {
         "id" : "system:snapshot",
         "label" : "greeting-lib, greeting-service, orders and shop",
@@ -614,7 +630,7 @@
       "items" : [ {
         "label" : "Deployable units",
         "value" : 1,
-        "facts" : [ "37204de3d14e0f3d43af4e62708518723dfa238fc91effa4252d11070fffe11b", "37458dfcf87bc7a2889e34a01cf90c2cac83b29dcbfcab19b5343dbc7b79c8b2", "75447aa3b11aaa28850f1a11056c7d9042f4d85362411f62fd6bc669883d7201" ]
+        "facts" : [ "37204de3d14e0f3d43af4e62708518723dfa238fc91effa4252d11070fffe11b", "a901c179e2262e097d03f7f7b9400a79c3f99bafb31204d03524b229a90781f2", "edb4903c87b036632b52fd5f56c2b45c0f86c19b8253d45a0bd15913acd4c981" ]
       }, {
         "label" : "Databases",
         "value" : 0,
@@ -712,7 +728,7 @@
           "kind" : "text",
           "text" : "Java 21"
         } ], [ ] ],
-        "facts" : [ "37204de3d14e0f3d43af4e62708518723dfa238fc91effa4252d11070fffe11b", "37458dfcf87bc7a2889e34a01cf90c2cac83b29dcbfcab19b5343dbc7b79c8b2", "75447aa3b11aaa28850f1a11056c7d9042f4d85362411f62fd6bc669883d7201" ]
+        "facts" : [ "37204de3d14e0f3d43af4e62708518723dfa238fc91effa4252d11070fffe11b", "a901c179e2262e097d03f7f7b9400a79c3f99bafb31204d03524b229a90781f2", "edb4903c87b036632b52fd5f56c2b45c0f86c19b8253d45a0bd15913acd4c981" ]
       } ],
       "facts" : [ ]
     } ],
