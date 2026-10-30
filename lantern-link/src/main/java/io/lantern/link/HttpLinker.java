@@ -262,9 +262,13 @@ final class HttpLinker {
       List<Target> byPort = byPort(caller, call.url(), view);
       if (byPort.size() == 1) {
         Target target = byPort.getFirst();
-        linkUnit(
-            caller, call, view, target, path == null ? null : endpoint(target.unit(), call, view));
-        return;
+        Endpoint endpoint = path == null ? null : endpoint(target.unit(), call, view);
+        // A unit on the default port, setting none, is taken only where it serves the path: other
+        // servers on this machine (an identity provider, say) listen on 8080 too.
+        if (target.name() != null || endpoint != null) {
+          linkUnit(caller, call, view, target, endpoint);
+          return;
+        }
       }
     }
     if (targets.isEmpty()) {

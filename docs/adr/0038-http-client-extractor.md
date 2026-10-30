@@ -200,7 +200,10 @@ so the BFF reached nothing.
   not followed, and a call where the chain then sends nothing keeps the request as first read.
   Each distinct request gives an `http-call` on the method sending it, evidenced by its chain, as
   before: project-1's BFF now calls `${bff.gateway.url}{...}` from both proxy endpoints. A method
-  its own type never calls keeps the parameter (`{target}`).
+  its own type never calls keeps the parameter (`{target}`); one its own type calls is
+  recorded only with the URLs given there, though other classes may call it too. A method calling
+  itself is not a place its URL is made. Parsing does not take a call in a local or anonymous class
+  for one of the named type's methods when that class has a method of the same name.
 - **A URL concatenated from a base and an expression** (`http://127.0.0.1:8888{path}`) has its
   authority end where the expression starts, unless it is a `${...}` placeholder, so `baseUrl` is
   the host and port and `path` the expressions; a slash or `?` inside an expression's source no

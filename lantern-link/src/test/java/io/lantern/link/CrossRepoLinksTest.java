@@ -557,6 +557,24 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aUnitOnTheDefaultPortIsTakenOnlyWhereItServesThePath() {
+    unit("a", "bff", "bff");
+    type("a", "bff", "b.Login");
+    call(
+        "a",
+        "b.Login#token()",
+        "POST http://localhost:8080/realms/app/token",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"POST\",\"path\":\"/realms/app/token\","
+            + "\"url\":\"http://localhost:8080/realms/app/token\","
+            + "\"baseUrl\":\"http://localhost:8080\"}",
+        5);
+    config("a", "bff", "application.properties", "server.port", "8081", null);
+    unit("o", "orders", "orders");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP)).isEmpty();
+  }
+
+  @Test
   void aUrlFromAnUnresolvedPlaceholderIsLeftForTheResolverWithTheUnitsServingItsPath() {
     unit("a", "orders", "orders");
     type("a", "orders", "o.TaxClient");

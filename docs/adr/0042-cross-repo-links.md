@@ -181,7 +181,9 @@ expressions, which several units' endpoints match.
 - **A call to this machine** (`localhost`, `127.0.0.1`, `[::1]`) with a port goes to the one other
   unit whose `server.port` in the view is that port (8080 when it sets none), as gateway routes
   are matched (ADR 0077): `matchedBy: port`, factor 0.8, the `server.port` fact among the link's
-  `facts`; then the path against its endpoints as for any target. Only when no single unit listens
+  `facts`; then the path against its endpoints as for any target. A unit that sets no port is taken
+  only when one of its endpoints serves the path, since other servers on this machine (an identity
+  provider, say) listen on 8080 too. Only when no single unit listens
   there is the call linked by its path alone, as before.
 - **Expressions in a URL** stay whole: the authority ends where an expression (`{...}`, not a
   `${...}` placeholder) starts, and a path's segments are split at slashes outside braces, so an

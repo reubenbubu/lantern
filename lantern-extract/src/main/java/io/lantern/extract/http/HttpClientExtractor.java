@@ -1389,7 +1389,10 @@ public final class HttpClientExtractor {
      */
     private List<Sent> followed(
         Sent sent, Expression.Invoke expression, Scope scope, int depth, Set<EntityId> seen) {
-      List<OwnCall> sites = ownCallers(scope.module()).getOrDefault(scope.in(), List.of());
+      List<OwnCall> sites =
+          ownCallers(scope.module()).getOrDefault(scope.in(), List.of()).stream()
+              .filter(c -> !c.caller().equals(c.callee()))
+              .toList();
       if (!sent.openParam()
           || depth >= MAX_ARGUMENT_HOPS
           || sites.isEmpty()

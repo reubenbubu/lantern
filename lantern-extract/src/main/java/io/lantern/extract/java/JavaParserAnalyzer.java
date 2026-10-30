@@ -964,10 +964,26 @@ final class JavaParserAnalyzer {
         return;
       }
       EntityId caller = owner(call);
+      String name = call.getNameAsString();
+      int arity = call.getArguments().size();
       TypeDeclaration<?> type = null;
       for (Node n = call.getParentNode().orElse(null);
           n != null && type == null;
           n = n.getParentNode().orElse(null)) {
+        // A local or anonymous class with a method that may be the one called: javac would find
+        // that class's method, which is not an entity.
+        List<? extends BodyDeclaration<?>> local =
+            switch (n) {
+              case ObjectCreationExpr o when o.getAnonymousClassBody().isPresent() ->
+                  o.getAnonymousClassBody().get();
+              case TypeDeclaration<?> t when !binaryNames.containsKey(t) -> t.getMembers();
+              default -> List.of();
+            };
+        if (local.stream()
+            .anyMatch(
+                m -> m instanceof MethodDeclaration md && md.getNameAsString().equals(name))) {
+          return;
+        }
         if (n instanceof TypeDeclaration<?> t && binaryNames.containsKey(t)) {
           type = t;
         }
@@ -976,8 +992,6 @@ final class JavaParserAnalyzer {
         return;
       }
       String binary = binaryNames.get(type);
-      String name = call.getNameAsString();
-      int arity = call.getArguments().size();
       List<MethodDeclaration> candidates =
           type.getMethods().stream()
               .filter(m -> m.getNameAsString().equals(name))
