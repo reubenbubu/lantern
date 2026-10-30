@@ -6,4 +6,13 @@ public interface StompWebSocketEndpointRegistration {
   StompWebSocketEndpointRegistration setAllowedOriginPatterns(String... patterns);
 
   StompWebSocketEndpointRegistration withSockJS();
+
+  StompWebSocketEndpointRegistration addInterceptors(
+      org.springframework.web.socket.server.HandshakeInterceptor... interceptors);
+
+  StompWebSocketEndpointRegistration setHandshakeHandler(
+      org.springframework.web.socket.server.HandshakeHandler handler);
+
+  StompWebSocketEndpointRegistration setInterceptors(
+      org.springframework.web.socket.server.HandshakeInterceptor... interceptors);
 }

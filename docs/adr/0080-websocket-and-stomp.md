@@ -72,3 +72,46 @@ extractors) lists extractors; this adds one.
 - **Tests.** The `websocket` fixture, parsed (golden) and through javac with stand-ins; the same
   facts both ways. `Project4WebSocketIT` reads project-4's Notification-Service when
   `lantern.test.project4` names the folder `testsets/project-4/setup.sh` set up.
+
+## Amendment (#391): interceptor classes, the relay's broker, handshakes and default replies
+
+Research: [`docs/research/extractor-websocket.md`](../research/extractor-websocket.md).
+`websocket` version 2:
+
+- **`stomp-channel-interceptor`**, on every class that implements `ChannelInterceptor` (or
+  `ExecutorChannelInterceptor`, `ChannelInterceptorAdapter`), directly or through the
+  application's own types, whether registered or not, at its declaration (its annotations and
+  header, up to its first member other than a constructor). The object is its binary name. It
+  carries `intercepts` (as on `stomp-interceptor`), `readsDestination` and `setsUser` when its code
+  calls `getDestination` or `setUser` on a STOMP header accessor, `headers` (the constant names
+  given to `getFirstNativeHeader` and `getNativeHeader`), and `destinations` (the constants its
+  code passes to any call that start with `/` or `^/`, such as a pattern of the topics a client may
+  subscribe to). `stomp-interceptor` still says where it is registered.
+- **A broker relay's connection** on its `stomp-prefix` facts: `relayHost`, `relayPort`,
+  `virtualHost`, `userDestinationBroadcast` and `userRegistryBroadcast`, from the calls chained on
+  `enableStompBrokerRelay`, each a constant or the placeholder of the `@Value` field it is read
+  from. Logins and passcodes are never recorded.
+- **Handshakes** on `websocket-endpoint`: `handshakeInterceptors` (the types given to
+  `addInterceptors`, or `setInterceptors` on its SockJS service) and `handshakeHandler`
+  (`setHandshakeHandler`); an argument typed only as the `HandshakeInterceptor` or
+  `HandshakeHandler` interface is left out.
+- **Replies**, only for a method that returns a value. Spring picks one annotation: of the
+  method's `@SendToUser`, the method's `@SendTo`, the class's `@SendToUser` and the class's
+  `@SendTo`, the first that names destinations, else the first present. Its destinations are
+  `sendToUser` or `sendTo`; without destinations they are Spring's default, `/queue` (for
+  `@SendToUser`) or `/topic` joined with the destination handled, with `defaultSendTo`. With
+  neither annotation, where the code configures a STOMP broker or endpoint (RSocket controllers use
+  `@MessageMapping` too), a `@MessageMapping` method gets `sendTo` `/topic` joined with the
+  destination, with `defaultSendTo`, and a `@SubscribeMapping` one gets `repliesToSubscriber`.
+- **`MessageSendingOperations`** is a sending type too, as an injected template often is;
+  `org.springframework.messaging.core.MessageSendingOperations` joins the tracked APIs.
+- **Still not covered**, each a later issue: Spring Security's message rules and the STOMP commands
+  an interceptor checks or rejects (#441); Server-Sent Events (#442); Jakarta
+  `@ServerEndpoint`, WebFlux handler mappings, Socket.IO and Spring Integration endpoints
+  (#443); registrations split over statements, conditions on the configuration,
+  `@MessageExceptionHandler` replies and session lifecycle listeners (#444); anonymous and local
+  interceptor classes, and a header accessor used without a variable
+  (`MessageHeaderAccessor.getAccessor(...).getDestination()`); a relay host or port from a
+  placeholder, kept as written rather than resolved against the configuration, or from a `@Value`
+  constructor parameter; RSocket controllers, still read as `stomp-mapping`; and how documents show
+  the new facts (#445), which resolves the relay's placeholders to name its broker.

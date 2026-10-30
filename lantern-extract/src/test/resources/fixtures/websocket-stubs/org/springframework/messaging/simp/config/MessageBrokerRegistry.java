@@ -5,6 +5,10 @@ public class MessageBrokerRegistry {
     return this;
   }
 
+  public StompBrokerRelayRegistration enableStompBrokerRelay(String... prefixes) {
+    return new StompBrokerRelayRegistration();
+  }
+
   public MessageBrokerRegistry setApplicationDestinationPrefixes(String... prefixes) {
     return this;
   }
