@@ -32,6 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -55,6 +56,7 @@ class AnthropicProviderTest {
   private volatile String responseBody;
   private volatile Map<String, String> responseHeaders = Map.of();
   private final AtomicInteger requests = new AtomicInteger();
+  private final List<String> bodies = new CopyOnWriteArrayList<>();
 
   @BeforeEach
   void startStub() throws IOException {
@@ -187,6 +189,82 @@ class AnthropicProviderTest {
 
     assertThat(response.usage()).isEqualTo(new TokenUsage(1, 5, 1234, 66));
     assertThat(response.usage().total()).isEqualTo(1 + 5 + 1234 + 66);
+  }
+
+  /** Two calls of one role, as a summarizer makes them: one system prompt, other user turns. */
+  private List<JsonNode> twoCallsOfOneRole(ModelConfig model, List<LlmTool> tools) {
+    responseBody = LOCAL_SERVER_ANSWER;
+    String system = "You summarize Java code. ".repeat(200);
+    try (AnthropicProvider provider = provider()) {
+      for (String code : List.of("class Order {}", "class Invoice { int total; }")) {
+        provider.complete(
+            model,
+            new LlmRequest(
+                Role.SUMMARIZE,
+                "summarize",
+                system,
+                List.of(LlmMessage.user(code)),
+                300,
+                false,
+                tools));
+        bodies.add(requestBody.get());
+      }
+    }
+    return bodies.stream().map(JSON::readTree).toList();
+  }
+
+  @Test
+  void aModelWithPromptCachingSendsAByteStablePrefixWithOneBreakpointAfterTheSystemPrompt() {
+    ModelConfig model =
+        new ModelConfig(
+            AnthropicProvider.NAME,
+            "caching-model",
+            Set.of(Capability.PROMPT_CACHING, Capability.TOOL_USE),
+            100_000,
+            Pricing.FREE);
+    tools.jackson.databind.node.ObjectNode schema = JSON.createObjectNode().put("type", "object");
+    schema.putObject("properties").putObject("entity").put("type", "string");
+    schema.putArray("required").add("entity");
+    List<LlmTool> tools = List.of(new LlmTool("facts_about", "Facts about an entity.", schema));
+
+    // The request does not ask for caching; the model's capability decides (#303).
+    List<JsonNode> sent = twoCallsOfOneRole(model, tools);
+
+    for (JsonNode body : sent) {
+      assertThat(body.at("/system/0/cache_control/type").asString()).isEqualTo("ephemeral");
+      // One breakpoint only, at the end of the system prompt.
+      assertThat(body.findValues("cache_control")).hasSize(1);
+    }
+    // Tools, then the system prompt, render before the breakpoint: byte for byte the same.
+    assertThat(JSON.writeValueAsString(sent.get(1).get("tools")))
+        .isEqualTo(JSON.writeValueAsString(sent.get(0).get("tools")));
+    assertThat(JSON.writeValueAsString(sent.get(1).get("system")))
+        .isEqualTo(JSON.writeValueAsString(sent.get(0).get("system")));
+    // As are the other fields that would invalidate the cache: model and thinking.
+    assertThat(sent.get(1).get("model")).isEqualTo(sent.get(0).get("model"));
+    assertThat(sent.get(1).has("thinking")).isEqualTo(sent.get(0).has("thinking"));
+    // The wire bytes of the system prompt are the same too, not only the parsed values.
+    assertThat(systemBytes(bodies.get(1))).isEqualTo(systemBytes(bodies.get(0)));
+    // What differs comes after the breakpoint.
+    assertThat(sent.get(1).get("messages")).isNotEqualTo(sent.get(0).get("messages"));
+  }
+
+  /** The {@code system} array of a request body as sent; its text holds no {@code ]}. */
+  private static String systemBytes(String body) {
+    int start = body.indexOf("\"system\":");
+    int end = body.indexOf(']', start);
+    assertThat(start).isNotNegative();
+    return body.substring(start, end + 1);
+  }
+
+  @Test
+  void aModelWithoutPromptCachingMarksNothing() {
+    ModelConfig model =
+        new ModelConfig(AnthropicProvider.NAME, "plain-model", Set.of(), 100_000, Pricing.FREE);
+
+    for (JsonNode body : twoCallsOfOneRole(model, List.of())) {
+      assertThat(body.findValues("cache_control")).isEmpty();
+    }
   }
 
   @Test

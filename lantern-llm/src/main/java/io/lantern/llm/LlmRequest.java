@@ -14,7 +14,8 @@ import java.util.Set;
  * @param system the system prompt, or {@code null} for none
  * @param messages the conversation, starting and ending with a user turn
  * @param maxOutputTokens the most tokens the model may write
- * @param cacheSystem whether to cache the system prompt; needs {@link Capability#PROMPT_CACHING}
+ * @param cacheSystem whether to cache the system prompt; needs {@link Capability#PROMPT_CACHING}. A
+ *     model with that capability caches it whether set or not ({@link ModelConfig#cachesSystem})
  * @param tools the tools the model may call, each with a distinct name; any needs {@link
  *     Capability#TOOL_USE}
  */

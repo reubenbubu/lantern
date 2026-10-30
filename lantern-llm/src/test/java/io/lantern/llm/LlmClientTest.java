@@ -201,6 +201,33 @@ class LlmClientTest {
   }
 
   @Test
+  void aModelWithPromptCachingReservesItsSystemPromptAsACacheWriteUnasked() {
+    // Cache writes dearer than input, as on Anthropic: the system prompt is written to the cache
+    // on a model with prompt caching even when the request does not ask (#303).
+    Pricing dearCache =
+        new Pricing(BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.valueOf(10), BigDecimal.ZERO);
+    ModelConfig model =
+        new ModelConfig("fake", "m", Set.of(Capability.PROMPT_CACHING), 10_000, dearCache);
+    // System 100 tokens at $10, user 100 tokens at $1 per million: $0.0011.
+    BudgetGuard budget = new BudgetGuard("run", null, new BigDecimal("0.00109"));
+    LlmClient client =
+        new LlmClient(ModelSettings.single(model), List.of(fake), budget, log, clock);
+    LlmRequest unasked =
+        new LlmRequest(
+            Role.SUMMARIZE,
+            "unasked",
+            "s".repeat(400),
+            List.of(LlmMessage.user("u".repeat(400))),
+            1,
+            false);
+
+    assertThat(model.cachesSystem(unasked)).isTrue();
+    assertThatThrownBy(() -> client.call(unasked)).isInstanceOf(BudgetExceededException.class);
+    assertThat(new ModelConfig("fake", "m", Set.of(), 10_000, dearCache).cachesSystem(unasked))
+        .isFalse();
+  }
+
+  @Test
   void aFailedCallIsLoggedAndReleasesItsReservation() {
     BudgetGuard tight = new BudgetGuard("run", 200L, null);
     LlmClient client = new LlmClient(ModelSettings.single(small), List.of(fake), tight, log, clock);

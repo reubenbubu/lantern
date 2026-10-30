@@ -64,8 +64,9 @@ import tools.jackson.databind.json.JsonMapper;
  * or {@code thinking: {type: "between_tools"}} (ADR 0022). Thinking blocks in an answer are left
  * out of its text.
  *
- * <p>For a model without {@linkplain Capability#PROMPT_CACHING prompt caching}, any cache write and
- * cache read tokens the server reports are counted as input tokens (ADR 0008).
+ * <p>For a model with {@linkplain Capability#PROMPT_CACHING prompt caching}, the system prompt is
+ * marked for caching ({@link ModelConfig#cachesSystem}). For a model without it, any cache write
+ * and cache read tokens the server reports are counted as input tokens (ADR 0008).
  *
  * <p>A request's tools are sent as custom tools with their input schemas; an assistant turn's tool
  * calls as {@code tool_use} blocks after its text, and a user turn's tool results as {@code
@@ -128,12 +129,13 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
-    return send(params(model, request, Thinking.DEFAULT));
+    return send(params(model, request, Thinking.DEFAULT, request.cacheSystem()));
   }
 
   @Override
   public LlmResponse complete(ModelConfig model, LlmRequest request) {
-    LlmResponse response = send(params(model.model(), request, model.thinking()));
+    LlmResponse response =
+        send(params(model.model(), request, model.thinking(), model.cachesSystem(request)));
     if (model.supports(Capability.PROMPT_CACHING)) {
       return response;
     }
@@ -215,7 +217,8 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     return a.compareTo(b) <= 0 ? a : b;
   }
 
-  static MessageCreateParams params(String model, LlmRequest request, Thinking thinking) {
+  static MessageCreateParams params(
+      String model, LlmRequest request, Thinking thinking, boolean cacheSystem) {
     MessageCreateParams.Builder params =
         MessageCreateParams.builder().model(model).maxTokens(request.maxOutputTokens());
     if (thinking.disabled()) {
@@ -228,7 +231,9 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     }
     if (request.system() != null) {
       TextBlockParam.Builder system = TextBlockParam.builder().text(request.system());
-      if (request.cacheSystem()) {
+      // The one breakpoint, at the end of the system prompt: tools and system prompt render first
+      // and are the same for every call of a role, while the turns after it differ (#303).
+      if (cacheSystem) {
         system.cacheControl(CacheControlEphemeral.builder().build());
       }
       params.systemOfTextBlockParams(List.of(system.build()));

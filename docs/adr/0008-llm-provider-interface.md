@@ -1,6 +1,6 @@
 # 0008: LLM provider interface and test fake
 
-Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69), ADR 0081 (#169) and the amendment for #298, pending the user's review (#24)
+Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69), ADR 0081 (#169) and the amendments for #298 and #303, pending the user's review (#24)
 
 ## Context
 
@@ -85,3 +85,37 @@ prompt cost nothing against the budget.
 - **A model with `prompt-caching` keeps the split as reported**, with its cache prices, as before;
   totals already sum all four counts. Real Anthropic responses therefore do not change: without
   caching asked for they report no cache tokens, and with it the split is priced as configured.
+
+## Amendment (#303): the system prompt is cached on every model with prompt caching
+
+A real run of 228 calls reported no cache writes and no cache reads. The cause was not the prompts
+but that caching was never asked for: `cache_control` is sent only for a request whose
+`cacheSystem` is set, and no caller set it (the summarizer, the describer and the resolver all
+pass `false`). The prefixes themselves are fit to cache: tools render first, then the system
+prompt, and both are constants of their role (the resolver's prompt has two forms, with and
+without tools, and its tool list is fixed for a conversation and a run), with nothing per call
+such as a time or an ID. The summarizer's system prompt is roughly 700 to 800 tokens, above the 512-token
+minimum of the newest models though below the 1,024 of some older ones; a prefix under a model's
+minimum is not cached and costs nothing extra.
+
+- **A model with `prompt-caching` caches every request's system prompt**
+  (`ModelConfig.cachesSystem`), whether or not the request asks: the caller does not know the
+  model, and calls of one role share their system prompt, so the first call writes it and the
+  others within the cache's five minutes read it at a tenth of the input price. A request that
+  asks for caching on a model without the capability is still refused.
+- **One breakpoint, at the end of the system prompt.** It covers the tools and the system prompt,
+  which every call of a role shares; the turns after it differ from call to call.
+- **The budget reserves the system prompt at the cache-write price** on such a model, as it did
+  for a request that asked.
+- **Record/replay keys are unchanged**: the request's own flag is what they hold, so existing
+  recordings keep their names. A recording therefore does not say whether caching was applied:
+  one made on a model with `prompt-caching` holds the cache split it was answered with, and
+  replayed for a model without the capability, whose cache prices default to zero, those tokens
+  cost nothing. Recordings are test fixtures, so this is accepted.
+- **The fake answers as the provider does**: on a model with `prompt-caching` it reports the
+  system prompt as a cache write.
+- **Tests** check the request shape: two calls of one role send byte-identical tools and system
+  prompt with one breakpoint after them, and a model without the capability marks nothing.
+  Whether a real model then reads from the cache is shown only by a real run's
+  `cache_read_input_tokens`.
+

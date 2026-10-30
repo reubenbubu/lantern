@@ -82,6 +82,16 @@ public record ModelConfig(
     return Math.addExact(request.maxOutputTokens(), thinking.headroomTokens());
   }
 
+  /**
+   * Whether the request's system prompt is cached on this model: always when the model supports
+   * {@linkplain Capability#PROMPT_CACHING prompt caching} and the request has a system prompt, so
+   * that calls of one role, which share their system prompt, read it from the cache (#303).
+   */
+  public boolean cachesSystem(LlmRequest request) {
+    return request.system() != null
+        && (request.cacheSystem() || supports(Capability.PROMPT_CACHING));
+  }
+
   /** Whether the model supports the given feature. */
   public boolean supports(Capability capability) {
     return capabilities.contains(capability);
