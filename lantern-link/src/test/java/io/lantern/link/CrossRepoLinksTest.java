@@ -913,7 +913,8 @@ class CrossRepoLinksTest {
 
   @Test
   void aLibrarysSendStaysWithASingleUnitAndWithTheUnitWhoseOwnModuleDeclaresIt() {
-    // One unit runs the library: it sends, though nothing calls the method.
+    // One unit runs the library: it sends, though nothing calls the method. (With one unit the
+    // result is that unit either way; unitsCalling only skips the call search for it.)
     type("lib", "messaging-lib", "l.Messages");
     messaging(
         "lib",
