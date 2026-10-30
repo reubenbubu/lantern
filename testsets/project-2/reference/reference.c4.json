@@ -1126,34 +1126,6 @@
               "own data; local deliveries ADMIN"
             ]
           ]
-        },
-        {
-          "type": "table",
-          "id": "deployment",
-          "eyebrow": "Runtime",
-          "title": "Deployment",
-          "columns": [
-            "Descriptor",
-            "What runs",
-            "Notes"
-          ],
-          "rows": [
-            [
-              "`compose.yaml` (default)",
-              "PostgreSQL 17.6 (six databases), Redis 8.2.1, Kafka 4.0.0 (single KRaft node).",
-              "Infrastructure only, for running services from an IDE."
-            ],
-            [
-              "`compose.yaml --profile full-stack`",
-              "Adds the gateway, six services (one image per module from `docker/backend.Dockerfile`, Temurin 17 JRE) and the frontend (nginx), plus Jaeger, OTel collector, Loki, Prometheus, Grafana.",
-              "The only deployment descriptor. One replica of everything; service ports also published on the host."
-            ],
-            [
-              "`compose.yaml --profile observability`",
-              "Jaeger, OTel collector, Loki, Prometheus, Grafana.",
-              "Prometheus scrapes all seven Spring services; traces go through the collector to Jaeger."
-            ]
-          ]
         }
       ]
     },
@@ -3367,6 +3339,41 @@
             "Which payment, email, SMS and maps providers will be used, and how their credentials and keys will be managed.",
             "Whether a real web or mobile client is planned; the React app makes no API calls.",
             "Topic partitioning, retention and replication outside the local compose file."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-deployment",
+      "level": "documentation",
+      "title": "Deployment",
+      "sections": [
+        {
+          "type": "table",
+          "id": "deployment",
+          "eyebrow": "Runtime",
+          "title": "Deployment",
+          "columns": [
+            "Descriptor",
+            "What runs",
+            "Notes"
+          ],
+          "rows": [
+            [
+              "`compose.yaml` (default)",
+              "PostgreSQL 17.6 (six databases), Redis 8.2.1, Kafka 4.0.0 (single KRaft node).",
+              "Infrastructure only, for running services from an IDE."
+            ],
+            [
+              "`compose.yaml --profile full-stack`",
+              "Adds the gateway, six services (one image per module from `docker/backend.Dockerfile`, Temurin 17 JRE) and the frontend (nginx), plus Jaeger, OTel collector, Loki, Prometheus, Grafana.",
+              "The only deployment descriptor. One replica of everything; service ports also published on the host."
+            ],
+            [
+              "`compose.yaml --profile observability`",
+              "Jaeger, OTel collector, Loki, Prometheus, Grafana.",
+              "Prometheus scrapes all seven Spring services; traces go through the collector to Jaeger."
+            ]
           ]
         }
       ]

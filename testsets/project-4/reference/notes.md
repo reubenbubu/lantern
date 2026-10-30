@@ -56,7 +56,7 @@ read (`git -C crm-shared-lib show <tag>:<path>`).
   and Grafana are build or operations tooling and are left out (stated on the context page).
 - **Flows.** Six sequences: sign-in and an organization request, create an organization, invite a
   member, task reminder, real-time notification, password reset.
-- **Decisions, risks, unknowns**, the glossary and the sources are documentation pages after the sequence pages (lantern#249).
+- **Decisions, risks, unknowns**, the deployment table, the glossary and the sources are documentation pages after the sequence pages (lantern#249).
   There are no ADRs; decisions are observed in code, with rationale only where a README states one.
 - **Not built or run.** Everything comes from reading the code and descriptors. Claims that depend on
   runtime behaviour are worded "probably".

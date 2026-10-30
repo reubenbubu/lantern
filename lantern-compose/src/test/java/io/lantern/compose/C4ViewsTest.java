@@ -310,7 +310,7 @@ class C4ViewsTest {
   @Test
   void decisionRecordsAndUnresolvedLinksAreASectionOfTheirOwn() {
     Document document = repo(facts.list());
-    // C4 pages hold only C4 content (ADR 0070): the containers section keeps only its diagram.
+    // C4 pages hold only C4 content (ADR 0086): the containers section keeps only its diagram.
     assertThat(section(document, "containers").blocks())
         .noneMatch(b -> b instanceof Table || b instanceof Callout);
     Section containers = section(document, "decisions");

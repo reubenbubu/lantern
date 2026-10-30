@@ -749,34 +749,6 @@
               "label": "Owner"
             }
           ]
-        },
-        {
-          "type": "table",
-          "id": "deployment",
-          "eyebrow": "Runtime",
-          "title": "Deployments",
-          "columns": [
-            "Descriptor",
-            "What runs",
-            "Notes"
-          ],
-          "rows": [
-            [
-              "`mediahub-infra/docker-compose.yml`",
-              "discovery-server, config-server (native profile, config repository mounted at /config), api-gateway, the three services, and three PostgreSQL 15 containers on one bridge network. Published: 8080, 8761, 8888 and the databases on 54331, 54341, 54351.",
-              "Build contexts are folders the repository does not contain; the Dockerfiles copy a `target/app.jar` built by `make build`. No web app, Prometheus or Grafana."
-            ],
-            [
-              "GitHub Actions `ci-cd.yml` (user-, media-, subscription-service)",
-              "`mvn clean verify`, then, on main and develop, a separate job builds the image and pushes it to `ghcr.io/<repository>`.",
-              "That job checks out the code without building it, so the Dockerfile's `COPY target/app.jar` has nothing to copy and the push would fail (as read; not run). No workflow for the gateway, config server, registry or web app; no descriptor pulls the images."
-            ],
-            [
-              "`ng serve` (mediahub-frontend-ui)",
-              "The Angular dev server on port 4200, proxying `/api` to `http://localhost:8080`.",
-              "The only way the web app runs."
-            ]
-          ]
         }
       ]
     },
@@ -2506,6 +2478,41 @@
             "Which config backend runs outside compose (the GitHub clone is the default) and where the GitHub token comes from.",
             "Whether the GHCR images of user-, media- and subscription-service exist (the publish job looks unable to build them) and are deployed anywhere; no descriptor uses them.",
             "Whether payments are planned: the PENDING_PAYMENT status exists but nothing sets it."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-deployment",
+      "level": "documentation",
+      "title": "Deployment",
+      "sections": [
+        {
+          "type": "table",
+          "id": "deployment",
+          "eyebrow": "Runtime",
+          "title": "Deployments",
+          "columns": [
+            "Descriptor",
+            "What runs",
+            "Notes"
+          ],
+          "rows": [
+            [
+              "`mediahub-infra/docker-compose.yml`",
+              "discovery-server, config-server (native profile, config repository mounted at /config), api-gateway, the three services, and three PostgreSQL 15 containers on one bridge network. Published: 8080, 8761, 8888 and the databases on 54331, 54341, 54351.",
+              "Build contexts are folders the repository does not contain; the Dockerfiles copy a `target/app.jar` built by `make build`. No web app, Prometheus or Grafana."
+            ],
+            [
+              "GitHub Actions `ci-cd.yml` (user-, media-, subscription-service)",
+              "`mvn clean verify`, then, on main and develop, a separate job builds the image and pushes it to `ghcr.io/<repository>`.",
+              "That job checks out the code without building it, so the Dockerfile's `COPY target/app.jar` has nothing to copy and the push would fail (as read; not run). No workflow for the gateway, config server, registry or web app; no descriptor pulls the images."
+            ],
+            [
+              "`ng serve` (mediahub-frontend-ui)",
+              "The Angular dev server on port 4200, proxying `/api` to `http://localhost:8080`.",
+              "The only way the web app runs."
+            ]
           ]
         }
       ]

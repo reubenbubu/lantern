@@ -12,6 +12,7 @@ import io.lantern.core.document.DocumentJson;
 import io.lantern.core.document.DocumentSource;
 import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
+import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
@@ -124,7 +125,7 @@ class C4ReportRendererTest {
                 + "\"label\":\"Calls POST /charges (only with the Spring profile prod)\","
                 + "\"technology\":\"HTTPS\"}");
     // Each kind has its own catalogue; decision records become a decisions section, on a
-    // documentation page of its own: C4 pages hold only C4 content (ADR 0070).
+    // documentation page of its own: C4 pages hold only C4 content (ADR 0086).
     assertThat(data.get("pages").get(1).get("sections").findValuesAsString("title"))
         .contains("Containers", "Data Stores and Queues", "External Systems")
         .doesNotContain("Decisions");
@@ -156,7 +157,7 @@ class C4ReportRendererTest {
     JsonNode pages = C4ReportRenderer.toJson(document).data().get("pages");
 
     // The Explorer's decisions, catalog, change guidance, dependencies, structure and glossary are
-    // each a documentation page, after the C4 and sequence pages (ADR 0070).
+    // each a documentation page, after the C4 and sequence pages (ADR 0086).
     assertThat(
             pages
                 .valueStream()
@@ -179,6 +180,51 @@ class C4ReportRendererTest {
             .noneMatch(t -> t.matches("(?i).*(decision|deployment|glossary|catalog|risk).*"));
       }
     }
+  }
+
+  @Test
+  void aSectionWithoutADiagramAfterTheFirstPageIsADocumentationPage() {
+    EntityId system = EntityId.parse("repo:shop");
+    Diagram context =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Table risks =
+        new Table(
+            "risks.table",
+            "Risks",
+            List.of(new Table.Column("Impact"), new Table.Column("Finding")),
+            List.of(
+                new Table.Row(
+                    null,
+                    List.of(List.of(TextRun.of("High")), List.of(TextRun.of("A risk"))),
+                    List.of())),
+            List.of());
+    Document document =
+        document(
+            List.of(entity(system)),
+            section(
+                "intro",
+                null,
+                List.of(new Paragraph("intro.text", List.of(TextRun.of("Hello.")), List.of())),
+                List.of()),
+            section("context", system, List.of(context), List.of()),
+            section("risks", system, List.of(risks), List.of()));
+
+    JsonNode pages = C4ReportRenderer.toJson(document).data().get("pages");
+
+    // The introduction before the first page stays on the index; the risks become a
+    // documentation page, about no element, while the context page stays about the system.
+    assertThat(
+            pages.valueStream().map(p -> p.get("id").asString() + ":" + p.get("level").asString()))
+        .containsExactly("context:context", "risks:documentation");
+    assertThat(pages.get(1).has("element")).isFalse();
+    assertThat(pages.get(1).get("sections").get(0).get("type").asString()).isEqualTo("table");
+    assertThat(pages.get(0).get("element").asString()).isEqualTo("repo-shop");
   }
 
   @Test

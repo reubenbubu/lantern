@@ -1,6 +1,6 @@
 # 0031: Rendering into a report spec, starting with the C4 report
 
-Status: accepted (#112), amended by ADR 0044 (#95), ADR 0046 (#163), ADR 0048 (#97) ADR 0070 (#250) and ADR 0086 (#249), pending the user's review (#24)
+Status: accepted (#112), amended by ADR 0044 (#95), ADR 0046 (#163), ADR 0048 (#97), ADR 0070 (#250) and ADR 0086 (#249), pending the user's review (#24)
 
 ## Context
 

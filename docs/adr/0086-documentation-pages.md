@@ -28,7 +28,9 @@ asks every template to mark what the LLM found (design, Grounding), and the spec
   indices) on a table, for what the LLM found rather than static analysis. The template shows an
   "LLM" badge in tables and prefixes "LLM ·" to the element's type label and the line's label in
   diagrams. Lantern's renderer sets it where every fact cited is of origin `llm`: an element's
-  entity and diagram node facts, a line's facts, a table row's facts.
+  entity and diagram node facts, a line's facts, a table row's facts. That covers what Investigate
+  found and also a link the Resolve role picked among the code's candidates (ADR 0045: its facts are
+  of origin `llm`), which is equally the LLM's finding.
 - **Two new composer sections** take what is not at a C4 level out of the containers section:
   `deployment` ("Deployment", the table of ADR 0082, left out when there are no deployment
   containers) and `decisions` ("Decisions and unknowns": the decision records, then the links not
@@ -45,9 +47,10 @@ asks every template to mark what the LLM found (design, Grounding), and the spec
 - **The deployment table is a documentation page, not a C4 deployment page.** In C4 a deployment
   view is a diagram of nodes and container instances; Lantern has no deployment diagram kind yet,
   and a page at a C4 level without its diagram is what this decision removes. When a deployment
-  diagram is drawn, it gets a deployment level of its own.
+  diagram is drawn, it gets a deployment level of its own (#352).
 - **The references** of project-1 to project-4 move their sources, glossary and decisions, risks
-  and unknowns from the context page to three documentation pages (`testsets/documentation-pages.mjs`).
+  and unknowns from the context page, and their deployment table from the first container page, to
+  four documentation pages (`testsets/documentation-pages.mjs`).
   The scorer reads decisions, risks and glossary terms from any page, so their scores do not change.
 
 ## Consequences
@@ -60,7 +63,15 @@ asks every template to mark what the LLM found (design, Grounding), and the spec
 - The Explorer's own documentation sections (catalog, change guidance, dependencies, structure,
   glossary) would also be documentation pages if an Explorer view were rendered with this spec.
 
+- A view stored before this change (ADR 0047) lists `containers` without `decisions` or
+  `deployment`, so documents of it no longer show the decision records, unknowns or deployment
+  table until the view adds those sections. Lantern's default views are kept in code and have them.
+- Of what ADR 0070 lists, only the decisions, unknowns and deployment reach Lantern's C4 reports
+  today; the risks (#273, #269), glossary (#229) and catalog (#182) become documentation pages when
+  those issues add their sections to the C4 views after the main flows.
+
 ## Not verified
 
-No real run has produced an element, line or row whose facts all come from the LLM; the marker is
-checked on the document model fixture (a resolver fact) and the spec's sample data.
+The fake-model runs of the test sets produce no element, line or row whose facts all come from the
+LLM; the marker is checked on the document model fixture (a resolver fact) and the spec's sample
+data.

@@ -68,7 +68,7 @@ class ViewDefinitionTest {
     assertThat(ViewDefinitionJson.write(system)).contains("\"scope\":{\"kind\":\"system\"}");
     assertThat(ViewDefinitionJson.read(ViewDefinitionJson.write(system))).isEqualTo(system);
     assertThat(system.scope().repo()).isNull();
-    // The documentation pages follow the C4 sections (ADR 0070).
+    // The documentation pages follow the C4 sections (ADR 0086).
     assertThat(system.sections())
         .containsExactly(
             SectionKind.OVERVIEW,

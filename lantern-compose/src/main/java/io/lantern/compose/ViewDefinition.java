@@ -102,7 +102,7 @@ public record ViewDefinition(
    * A view of one repository for a C4 report: overview, where to start reading, context,
    * containers, components and main flows, the sections whose diagrams the C4 report spec draws
    * (ADR 0031), the first two in its introduction; then the decisions and unknowns and the
-   * deployment, its documentation pages (ADR 0070).
+   * deployment, its documentation pages (ADR 0086).
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -125,7 +125,7 @@ public record ViewDefinition(
   /**
    * A view of the whole system for a C4 report: overview, where to start reading, context,
    * containers, components and main flows (ADR 0031), then the decisions and unknowns and the
-   * deployment (ADR 0070).
+   * deployment (ADR 0086).
    */
   public static ViewDefinition c4System(String id, String title, TemplateRef template) {
     return new ViewDefinition(

@@ -1144,7 +1144,7 @@ final class C4Views {
    * The container diagram of the scope's units and their direct neighbours, inside the system; one
    * per unit when that would show more than {@link #MAX_ELEMENTS} elements. What is not at a C4
    * level, the deployment table, the decision records and the links not resolved, is in sections of
-   * its own (ADR 0070).
+   * its own (ADR 0086).
    *
    * @param section the containers section's ID
    * @param blocks receives the blocks of the section itself

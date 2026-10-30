@@ -788,34 +788,6 @@
        "label": "Owner"
       }
      ]
-    },
-    {
-     "type": "table",
-     "id": "deployment",
-     "eyebrow": "Runtime",
-     "title": "Deployments",
-     "columns": [
-      "Descriptor",
-      "What runs",
-      "Notes"
-     ],
-     "rows": [
-      [
-       "`compose.yaml` (default)",
-       "Infrastructure only: Redis 8, three PostgreSQL 18 (keycloak, profile_db, order_db), Keycloak 26.7.4, Zipkin, Prometheus, Loki, Grafana.",
-       "The Java services and the Angular dev server then run on the host, via `manage_services.sh start` and `npm start`."
-      ],
-      [
-       "`compose.yaml --profile apps`",
-       "Adds the five Java services, built from the shared `Dockerfile`, and angular-ui (nginx) on `sec-network`.",
-       "The browser must resolve `keycloak` to 127.0.0.1; every container also publishes its port on the host."
-      ],
-      [
-       "`.gitlab-ci.yml`",
-       "Builds and tests, scans with Trivy, and on the default branch or tags builds the images.",
-       "No registry push and no deployment job; no Kubernetes or other production descriptor exists."
-      ]
-     ]
     }
    ]
   },
@@ -2575,6 +2547,41 @@
       "Which email provider is meant for confirmation links and for Keycloak's password email.",
       "Owners and quality goals: not recorded.",
       "The order lifecycle: six statuses exist, but no endpoint or job changes an order's status."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "doc-deployment",
+   "level": "documentation",
+   "title": "Deployment",
+   "sections": [
+    {
+     "type": "table",
+     "id": "deployment",
+     "eyebrow": "Runtime",
+     "title": "Deployments",
+     "columns": [
+      "Descriptor",
+      "What runs",
+      "Notes"
+     ],
+     "rows": [
+      [
+       "`compose.yaml` (default)",
+       "Infrastructure only: Redis 8, three PostgreSQL 18 (keycloak, profile_db, order_db), Keycloak 26.7.4, Zipkin, Prometheus, Loki, Grafana.",
+       "The Java services and the Angular dev server then run on the host, via `manage_services.sh start` and `npm start`."
+      ],
+      [
+       "`compose.yaml --profile apps`",
+       "Adds the five Java services, built from the shared `Dockerfile`, and angular-ui (nginx) on `sec-network`.",
+       "The browser must resolve `keycloak` to 127.0.0.1; every container also publishes its port on the host."
+      ],
+      [
+       "`.gitlab-ci.yml`",
+       "Builds and tests, scans with Trivy, and on the default branch or tags builds the images.",
+       "No registry push and no deployment job; no Kubernetes or other production descriptor exists."
+      ]
      ]
     }
    ]

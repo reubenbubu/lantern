@@ -961,39 +961,6 @@
               "label": "Owner"
             }
           ]
-        },
-        {
-          "type": "table",
-          "id": "deployment",
-          "eyebrow": "Runtime",
-          "title": "Deployments",
-          "columns": [
-            "Descriptor",
-            "What runs",
-            "Notes"
-          ],
-          "rows": [
-            [
-              "`docker-compose.local.yml`",
-              "All backend containers built from source, three PostgreSQL 17.5 containers (one per schema), RabbitMQ 3, Redis 8.4.0; Prometheus and Grafana under the `observability` profile.",
-              "No frontend, although the README says there is one."
-            ],
-            [
-              "`docker-compose.dev.yml`",
-              "Pre-built `aappaa/*:develop` images, including the frontend on host port 82; three PostgreSQL containers, RabbitMQ 3, Redis 7.4.4.",
-              "The gateway gets no Redis settings or signing key and file-service no RabbitMQ settings, so both probably fail to start."
-            ],
-            [
-              "Helm chart `heml-chart`",
-              "The gateway and four services, one replica each, behind an nginx Ingress for `www.apa.local`.",
-              "PostgreSQL, RabbitMQ, Redis, Eureka and the frontend are expected to exist elsewhere; Eureka is switched off."
-            ],
-            [
-              "Kustomize (namespace `aappaa`)",
-              "The gateway and four services, plus **one** PostgreSQL StatefulSet holding auth_db, file_db and main_db, RabbitMQ 4 and Redis 8.4.0; Ingress for `www.aappaa.com`.",
-              "Eureka is off; discovery presumably uses Spring Cloud Kubernetes. No frontend."
-            ]
-          ]
         }
       ]
     },
@@ -3185,6 +3152,46 @@
             "Where the `aappaa/discovery-service` image is built: no workflow builds it.",
             "Whether main-service's 0.3.0 messages deserialize in the consumers on 0.2.x.",
             "The values of the `.env.*` files and secrets, which are not committed."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-deployment",
+      "level": "documentation",
+      "title": "Deployment",
+      "sections": [
+        {
+          "type": "table",
+          "id": "deployment",
+          "eyebrow": "Runtime",
+          "title": "Deployments",
+          "columns": [
+            "Descriptor",
+            "What runs",
+            "Notes"
+          ],
+          "rows": [
+            [
+              "`docker-compose.local.yml`",
+              "All backend containers built from source, three PostgreSQL 17.5 containers (one per schema), RabbitMQ 3, Redis 8.4.0; Prometheus and Grafana under the `observability` profile.",
+              "No frontend, although the README says there is one."
+            ],
+            [
+              "`docker-compose.dev.yml`",
+              "Pre-built `aappaa/*:develop` images, including the frontend on host port 82; three PostgreSQL containers, RabbitMQ 3, Redis 7.4.4.",
+              "The gateway gets no Redis settings or signing key and file-service no RabbitMQ settings, so both probably fail to start."
+            ],
+            [
+              "Helm chart `heml-chart`",
+              "The gateway and four services, one replica each, behind an nginx Ingress for `www.apa.local`.",
+              "PostgreSQL, RabbitMQ, Redis, Eureka and the frontend are expected to exist elsewhere; Eureka is switched off."
+            ],
+            [
+              "Kustomize (namespace `aappaa`)",
+              "The gateway and four services, plus **one** PostgreSQL StatefulSet holding auth_db, file_db and main_db, RabbitMQ 4 and Redis 8.4.0; Ingress for `www.aappaa.com`.",
+              "Eureka is off; discovery presumably uses Spring Cloud Kubernetes. No frontend."
+            ]
           ]
         }
       ]

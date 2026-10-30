@@ -52,7 +52,7 @@ import tools.jackson.databind.node.ObjectNode;
  *       page's sections, with the leading paragraphs as the page summary. A top-level section after
  *       the first page that holds no such diagram and is not a context, containers, components or
  *       main flows section becomes a documentation page the same way, such as the decisions, the
- *       deployment, the catalog and the glossary: C4 pages hold only C4 content (ADR 0070). Content
+ *       deployment, the catalog and the glossary: C4 pages hold only C4 content (ADR 0086). Content
  *       on no page, such as the sections before the first page, becomes the index's introduction
  *       where it is text or a list, each later section's title in bold before its first block, and
  *       is left out otherwise, except a quality report: each failure goes to the end of the page
@@ -252,7 +252,8 @@ public final class C4ReportRenderer {
       if (level != null) {
         target = new PagePlan(section, level, pageIds.id(section.id()));
         pages.add(target);
-        if (section.entity() != null) {
+        // A documentation page is about the whole document, so no entity's links point to it.
+        if (section.entity() != null && !level.equals("documentation")) {
           pageAbout.putIfAbsent(section.entity(), target.id);
         }
         first = false;
