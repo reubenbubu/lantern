@@ -104,6 +104,7 @@ final class MyBatisMappers {
   /** The statements of one mapper file; none if it is not one or cannot be read. */
   static List<Statement> parse(String path, byte[] content) {
     Handler handler = new Handler(path, sha256(content));
+    handler.lines = new String(content, StandardCharsets.UTF_8).split("\n", -1);
     try {
       SAXParserFactory factory = SAXParserFactory.newInstance();
       factory.setNamespaceAware(false);
@@ -147,9 +148,24 @@ final class MyBatisMappers {
 
     private final String path;
     private final String contentHash;
+    private String[] lines = new String[0];
     private Locator locator;
     private Node root;
     private final Deque<Node> open = new ArrayDeque<>();
+
+    /**
+     * The line a start tag opens on: the locator gives the line it ends on, so this goes back to
+     * the nearest line with {@code <name}.
+     */
+    private int opening(String name) {
+      int line = locator == null ? 0 : locator.getLineNumber();
+      for (int at = line; at > 0 && at <= lines.length; at--) {
+        if (lines[at - 1].contains("<" + name)) {
+          return at;
+        }
+      }
+      return line;
+    }
 
     private Handler(String path, String contentHash) {
       this.path = path;
@@ -163,7 +179,7 @@ final class MyBatisMappers {
 
     @Override
     public void startElement(String uri, String local, String name, Attributes attributes) {
-      Node node = new Node(name, attributes, locator == null ? 0 : locator.getLineNumber());
+      Node node = new Node(name, attributes, opening(name));
       if (open.isEmpty()) {
         root = node;
       } else {
@@ -253,16 +269,28 @@ final class MyBatisMappers {
           if (fragment == null || depth > 4) {
             return false;
           }
-          b.append(' ');
-          boolean ok = render(fragment.children, b, depth + 1);
-          b.append(' ');
-          return ok;
+          StringBuilder inner = new StringBuilder();
+          if (!render(fragment.children, inner, depth + 1)) {
+            return false;
+          }
+          // The include's properties fill the fragment's ${...} when the mapper is read.
+          String text = inner.toString();
+          for (Object child : n.children) {
+            if (child instanceof Node p
+                && p.name.equals("property")
+                && p.attribute("name") != null
+                && p.attribute("value") != null) {
+              text = text.replace("${" + p.attribute("name") + "}", p.attribute("value"));
+            }
+          }
+          b.append(' ').append(text).append(' ');
+          return true;
         }
         case "where" -> {
           return trimmed(n, "WHERE", null, "AND |OR ", null, b, depth);
         }
         case "set" -> {
-          return trimmed(n, "SET", null, null, ",", b, depth);
+          return trimmed(n, "SET", null, ",", ",", b, depth);
         }
         case "trim" -> {
           return trimmed(

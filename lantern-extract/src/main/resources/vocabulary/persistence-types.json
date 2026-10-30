@@ -86,7 +86,7 @@
         "key": { "type": "string", "description": "The config key it is read from: the URI's, else the host's or the database's, such as spring.data.mongodb.uri." },
         "profile": { "type": "string", "description": "The profile active instead of the default one. Absent for the default view; present only where the store differs from it." },
         "technology": { "type": "string", "enum": ["MongoDB", "Elasticsearch", "Cassandra", "Neo4j", "Couchbase"], "description": "The kind of store." },
-        "server": { "type": "string", "description": "The host and port (the first of several), such as mongo:27017." },
+        "server": { "type": "string", "description": "The host and port, the first when the store names several (a MongoDB replica set, a list of Elasticsearch URIs, Cassandra contact points), such as mongo:27017." },
         "database": { "type": "string", "description": "The database, keyspace or bucket, such as shop." },
         "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders that could not be resolved." },
         "masked": { "type": "boolean", "description": "Present and true when a secret was substituted into it, so it is recorded as written, without credentials." }

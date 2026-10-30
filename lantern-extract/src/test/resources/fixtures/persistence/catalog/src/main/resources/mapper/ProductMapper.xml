@@ -3,6 +3,8 @@
 <mapper namespace="com.example.shop.catalog.ProductMapper">
   <sql id="columns">p.id, p.name, c.title</sql>
 
+  <sql id="aliased">${alias}.id, ${alias}.name</sql>
+
   <select id="findByCategory" resultType="map">
     SELECT <include refid="columns"/>
     FROM product p JOIN category c ON c.id = p.category_id
@@ -33,4 +35,23 @@
       <otherwise>SELECT id, name FROM product_draft</otherwise>
     </choose>
   </insert>
+
+  <select
+      id="search"
+      resultType="map">
+    SELECT <include refid="com.example.shop.catalog.ProductMapper.aliased"><property name="alias" value="s"/></include>
+    FROM supplier s
+    <trim prefix="WHERE" prefixOverrides="AND |OR ">
+      <if test="name != null">AND s.name = #{name}</if>
+    </trim>
+  </select>
+
+  <update id="retitle">
+    UPDATE catalog_entry
+    <set>
+      <if test="false">, a = 1</if>
+      <if test="title != null">, title = #{title}</if>
+    </set>
+    WHERE id = #{id}
+  </update>
 </mapper>

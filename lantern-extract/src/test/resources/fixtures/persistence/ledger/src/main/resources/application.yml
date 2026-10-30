@@ -1,0 +1,35 @@
+spring:
+  jpa:
+    properties:
+      hibernate:
+        physical_naming_strategy: com.example.shop.ledger.PrefixedNaming
+  mongodb:
+    host: mongo1
+    port: 27018
+    database: ledger
+  elasticsearch:
+    uris:
+      - http://search1:9200
+      - http://search2:9200
+  cassandra:
+    contact-points:
+      - c1:9042
+      - c2:9042
+    port: 9042
+    keyspace-name: books
+  neo4j:
+    uri: bolt://neo:7687
+  data:
+    neo4j:
+      database: graph
+    couchbase:
+      bucket-name: alone
+---
+spring.config.activate.on-profile: replica
+spring.mongodb.uri: mongodb://app:pa,ss@m1:27017,m2:27017/shop?replicaSet=rs0
+---
+spring.config.activate.on-profile: secure
+spring.mongodb.uri: mongodb://app:${MONGO_PASSWORD}@m1:27017/ledger
+---
+spring.config.activate.on-profile: aws
+spring.mongodb.uri: mongodb://m1/ledger?authMechanism=MONGODB-AWS&authMechanismProperties=AWS_SESSION_TOKEN:t0ken

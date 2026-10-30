@@ -192,7 +192,7 @@ class PersistenceExtractorTest {
                             + "findByCategory(java.lang.String) READS_TABLE "
                             + table
                             + "category ")
-                    && l.contains("mapper/ProductMapper.xml#6-13 "))
+                    && l.contains("mapper/ProductMapper.xml#8-15 "))
         // <set> with a trailing comma, <foreach>, and <choose> taking its first <when>.
         .anyMatch(
             l ->
@@ -248,7 +248,53 @@ class PersistenceExtractorTest {
                 l.startsWith(
                         "module:com.example.shop:shop-catalog data-store cassandra://cass1:9042/events ")
                     && l.contains("\"database\":\"events\""))
-        .noneMatch(l -> l.contains("s3cret"));
+        .noneMatch(l -> l.contains("s3cret"))
+        // An overload runs the same statement; @Delete; <trim>, and a namespaced include whose
+        // property fills the fragment; <set> without its leading comma; a start tag over lines.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    mapper
+                        + "findByCategory(java.lang.String,int) READS_TABLE "
+                        + table
+                        + "product "))
+        .anyMatch(l -> l.startsWith(mapper + "untag(long) WRITES_TABLE " + table + "product_tag "))
+        .anyMatch(
+            l ->
+                l.startsWith(mapper + "search(java.lang.String) READS_TABLE " + table + "supplier ")
+                    && l.contains("mapper/ProductMapper.xml#39-47 "))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    mapper
+                        + "retitle(long,java.lang.String) WRITES_TABLE "
+                        + table
+                        + "catalog_entry "));
+    String ledger = "module:com.example.shop:shop-ledger data-store ";
+    assertThat(lines)
+        // Boot 4's MongoDB keys, made into a URI.
+        .anyMatch(l -> l.startsWith(ledger + "mongodb://mongo1:27018/ledger "))
+        // A replica set keeps its hosts, and a comma in a password does not split it.
+        .anyMatch(
+            l ->
+                l.startsWith(ledger + "mongodb://m1:27017,m2:27017/shop?replicaSet=rs0 ")
+                    && l.contains("\"server\":\"m1:27017\""))
+        .noneMatch(l -> l.contains("pa,ss") || l.contains("app:pa"))
+        // A token in the URI's options: masked.
+        .anyMatch(l -> l.startsWith(ledger + "****** ") && l.contains("\"profile\":\"aws\""))
+        .noneMatch(l -> l.contains("t0ken"))
+        // YAML lists: their first item; a contact point's own port is not doubled.
+        .anyMatch(l -> l.startsWith(ledger + "http://search1:9200 "))
+        .anyMatch(l -> l.startsWith(ledger + "cassandra://c1:9042/books "))
+        // Neo4j by its URI; Couchbase's bucket alone connects to nothing.
+        .anyMatch(
+            l -> l.startsWith(ledger + "bolt://neo:7687 ") && l.contains("\"database\":\"graph\""))
+        .noneMatch(l -> l.contains("Couchbase"))
+        // A naming strategy of the code's own: the name as written, the strategy named.
+        .anyMatch(
+            l ->
+                l.startsWith("type:com.example.shop.ledger.LedgerBook MAPS_TO ")
+                    && l.contains("\"namingStrategy\":\"com.example.shop.ledger.PrefixedNaming\""));
   }
 
   @Test

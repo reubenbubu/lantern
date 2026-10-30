@@ -118,10 +118,15 @@ extractor's version becomes 4.
   (`spring.data.mongodb.*` and Boot 4's `spring.mongodb.*`: `uri`, else `host`, `port` and
   `database`), Elasticsearch (`spring.elasticsearch.uris`, the first one, and older keys), Cassandra
   (`contact-points`, `port`, `keyspace-name`), Neo4j (`uri`, `database`) and Couchbase
-  (`connection-string`, bucket), read in any relaxed form. The value is the URI without credentials
-  (`UrlCredentials`), or one made of the host, port and database; `technology`, `server` and
-  `database` (MongoDB's from the URI's path unless a `database` key sets it) are attributes. A
-  store set only by a bean of the code's own is not read. Drawing these stores is the linker's
+  (`connection-string`, bucket), read in any relaxed form, a YAML list by its first item. The
+  value is the URI without credentials (`UrlCredentials`, before anything is split, as a password
+  may hold a comma; only a key that lists several URIs, such as Elasticsearch's, is split), or one
+  made of the host (with its own port, else the port key) and database; a MongoDB or Cassandra
+  database key alone connects to `localhost`, as Spring Boot does, a Neo4j or Couchbase one does
+  not. `technology`, `server` (the first host) and `database` (MongoDB's from the URI's path unless
+  a `database` key sets it, which Spring Boot prefers) are attributes. A URI that still looks like
+  it holds a credential (`password=`, a token in `authMechanismProperties`) is recorded as
+  `******`, masked. A store set only by a bean of the code's own is not read. Drawing these stores is the linker's
   (#466).
 - **Documents.** A MongoDB `@Document` maps to its collection (`collection` or `value`, else the
   simple class name with its first letter in lower case) and an Elasticsearch `@Document` to its
@@ -133,9 +138,11 @@ extractor's version becomes 4.
   `<script>` is not read. The statements of XML mappers (`<mapper namespace>` files anywhere in the
   repository's sources) are read from the method of the namespace's interface whose name is the
   statement's id (the interface when none), evidenced by the statement's lines, with `api`
-  `org.apache.ibatis.session.SqlSession`. A statement is read as it would run if every condition
-  held: `<include>` replaced by the mapper's `<sql>` fragment, `<where>` and `<set>` with their
-  keyword and without a leading `AND`/`OR` or trailing comma, `<trim>` with its prefix, suffix and
+  `org.apache.ibatis.session.SqlSession`, on every overload of that name, from the line its
+  start tag opens on. A statement is read as it would run if every condition
+  held: `<include>` replaced by the mapper's `<sql>` fragment (named with or without the
+  namespace) with the include's `<property>` values in its `${...}`, `<where>` and `<set>` with their
+  keyword and without a leading `AND`/`OR`, or a leading or trailing comma, `<trim>` with its prefix, suffix and
   overrides, `<foreach>` once between `open` and `close`, and `<choose>` by its first branch. A
   statement with `${...}`, or an include of a fragment not in the mapper, is not read.
 - **The configured naming.** When a module's config sets

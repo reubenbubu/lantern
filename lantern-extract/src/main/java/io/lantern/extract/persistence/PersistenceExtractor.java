@@ -43,6 +43,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
@@ -218,6 +219,10 @@ public final class PersistenceExtractor {
   /**
    * A kind of non-relational store and the config keys (in relaxed form: lower case, without dashes
    * or underscores) that connect a module to it, by Spring Boot's versions.
+   *
+   * @param uriList whether a URI key holds a list of URIs (rather than one URI with several hosts)
+   * @param databaseAlone whether a database key alone connects to a default server, as Spring
+   *     Boot's MongoDB and Cassandra auto-configuration does on localhost
    */
   private record StoreKind(
       String technology,
@@ -225,7 +230,9 @@ public final class PersistenceExtractor {
       List<String> uris,
       List<String> hosts,
       List<String> ports,
-      List<String> databases) {}
+      List<String> databases,
+      boolean uriList,
+      boolean databaseAlone) {}
 
   private static final List<StoreKind> STORES =
       List.of(
@@ -235,7 +242,9 @@ public final class PersistenceExtractor {
               List.of("spring.data.mongodb.uri", "spring.mongodb.uri"),
               List.of("spring.data.mongodb.host", "spring.mongodb.host"),
               List.of("spring.data.mongodb.port", "spring.mongodb.port"),
-              List.of("spring.data.mongodb.database", "spring.mongodb.database")),
+              List.of("spring.data.mongodb.database", "spring.mongodb.database"),
+              false,
+              true),
           new StoreKind(
               "Elasticsearch",
               "http",
@@ -246,28 +255,36 @@ public final class PersistenceExtractor {
                   "spring.data.elasticsearch.clusternodes"),
               List.of(),
               List.of(),
-              List.of()),
+              List.of(),
+              true,
+              false),
           new StoreKind(
               "Cassandra",
               "cassandra",
               List.of(),
               List.of("spring.cassandra.contactpoints", "spring.data.cassandra.contactpoints"),
               List.of("spring.cassandra.port", "spring.data.cassandra.port"),
-              List.of("spring.cassandra.keyspacename", "spring.data.cassandra.keyspacename")),
+              List.of("spring.cassandra.keyspacename", "spring.data.cassandra.keyspacename"),
+              false,
+              true),
           new StoreKind(
               "Neo4j",
               "bolt",
               List.of("spring.neo4j.uri", "spring.data.neo4j.uri"),
               List.of(),
               List.of(),
-              List.of("spring.data.neo4j.database")),
+              List.of("spring.data.neo4j.database"),
+              false,
+              false),
           new StoreKind(
               "Couchbase",
               "couchbase",
               List.of("spring.couchbase.connectionstring", "spring.couchbase.bootstraphosts"),
               List.of(),
               List.of(),
-              List.of("spring.data.couchbase.bucketname", "spring.couchbase.bucket.name")));
+              List.of("spring.data.couchbase.bucketname", "spring.couchbase.bucket.name"),
+              false,
+              false));
 
   /** The vocabulary types this extractor's facts use besides the built-in, Java and SQL ones. */
   public static List<VocabularyType> vocabulary() {
@@ -710,23 +727,21 @@ public final class PersistenceExtractor {
         if (m == null || !m.repo().equals(repo)) {
           continue;
         }
-        EntityId subject = null;
+        // MyBatis runs the statement for every method of that name.
+        List<EntityId> subjects = new ArrayList<>();
         for (TypeDecl type : m.structure().types()) {
           if (!type.binaryName().equals(st.namespace())) {
             continue;
           }
-          subject = typeId(type.binaryName());
           for (Member member : type.members()) {
-            String key = member.id().key();
             if (member.id().type().equals(ModuleStructure.METHOD)
-                && key.startsWith(type.binaryName() + "#" + st.id() + "(")) {
-              subject = member.id();
-              break;
+                && member.id().key().startsWith(type.binaryName() + "#" + st.id() + "(")) {
+              subjects.add(member.id());
             }
           }
-        }
-        if (subject == null) {
-          continue;
+          if (subjects.isEmpty()) {
+            subjects.add(typeId(type.binaryName()));
+          }
         }
         Evidence evidence =
             new Evidence(
@@ -735,24 +750,27 @@ public final class PersistenceExtractor {
                 st.path(),
                 st.start() > 0 ? new Evidence.LineRange(st.start(), st.end()) : null,
                 st.contentHash());
-        for (SqlAccess.Access a : SqlAccess.of(st.sql(), executor)) {
-          EntityId table = tableEntity(m, a.table());
-          if (table == null) {
-            continue;
+        List<SqlAccess.Access> accesses = SqlAccess.of(st.sql(), executor);
+        for (EntityId subject : subjects) {
+          for (SqlAccess.Access a : accesses) {
+            EntityId table = tableEntity(m, a.table());
+            if (table == null) {
+              continue;
+            }
+            ObjectNode attributes = FactJson.newObject();
+            attributes.put("statement", a.statement());
+            attributes.put("api", MYBATIS_SESSION);
+            add(
+                Fact.create(
+                    subject,
+                    a.write() ? WRITES_TABLE : READS_TABLE,
+                    FactObject.entity(table),
+                    attributes,
+                    ORIGIN,
+                    evidence,
+                    m.confidence(),
+                    validity));
           }
-          ObjectNode attributes = FactJson.newObject();
-          attributes.put("statement", a.statement());
-          attributes.put("api", MYBATIS_SESSION);
-          add(
-              Fact.create(
-                  subject,
-                  a.write() ? WRITES_TABLE : READS_TABLE,
-                  FactObject.entity(table),
-                  attributes,
-                  ORIGIN,
-                  evidence,
-                  m.confidence(),
-                  validity));
         }
       }
     }
@@ -794,7 +812,8 @@ public final class PersistenceExtractor {
         ConfigValue host = firstOf(relaxed, kind.hosts());
         ConfigValue port = firstOf(relaxed, kind.ports());
         ConfigValue database = firstOf(relaxed, kind.databases());
-        ConfigValue main = uri != null ? uri : host != null ? host : database;
+        ConfigValue main =
+            uri != null ? uri : host != null ? host : kind.databaseAlone() ? database : null;
         if (main == null || ConfigExtractor.isSecret(main.key(), known)) {
           continue;
         }
@@ -804,6 +823,8 @@ public final class PersistenceExtractor {
             masked = true;
           }
         }
+        boolean secret = masked;
+        Function<ConfigValue, String> text = v -> (secret ? v.written() : v.value()).strip();
         ObjectNode attributes = FactJson.newObject();
         attributes.put("key", main.key());
         attributes.put("technology", kind.technology());
@@ -811,27 +832,33 @@ public final class PersistenceExtractor {
         String name = null;
         String value;
         if (uri != null) {
-          String first = (masked ? uri.written() : uri.value()).split(",")[0].strip();
-          value = UrlCredentials.withoutCredentials(first);
+          // Credentials go first, as a password may hold a comma; then only a list of URIs is
+          // split, since one URI may name several hosts (a MongoDB replica set).
+          value = UrlCredentials.withoutCredentials(text.apply(uri));
+          if (kind.uriList()) {
+            value = value.split(",")[0].strip();
+          }
           String authority =
               value.contains("://") ? value.substring(value.indexOf("://") + 3) : value;
-          int slash = authority.indexOf('/');
-          String path = slash < 0 ? "" : authority.substring(slash + 1);
-          server = slash < 0 ? authority : authority.substring(0, slash);
-          int query = server.indexOf('?');
-          server = query < 0 ? server : server.substring(0, query);
-          if (kind.technology().equals("MongoDB") && !path.isEmpty()) {
-            int q = path.indexOf('?');
-            name = q < 0 ? path : path.substring(0, q);
+          int end = authority.length();
+          for (char c : new char[] {'/', '?'}) {
+            int at = authority.indexOf(c);
+            end = at < 0 ? end : Math.min(end, at);
+          }
+          String rest = authority.substring(end);
+          server = authority.substring(0, end).split(",")[0].strip();
+          if (kind.technology().equals("MongoDB") && rest.startsWith("/")) {
+            int q = rest.indexOf('?');
+            name = q < 0 ? rest.substring(1) : rest.substring(1, q);
           }
         } else {
-          server =
-              (host == null ? "localhost" : host.value().split(",")[0].strip())
-                  + (port == null ? "" : ":" + port.value().strip());
+          String first = host == null ? "localhost" : text.apply(host).split(",")[0].strip();
+          // A contact point may give its own port.
+          server = first + (port == null || first.contains(":") ? "" : ":" + text.apply(port));
           value = kind.scheme() + "://" + server;
         }
         if (database != null && !database.value().isBlank()) {
-          name = database.value().strip();
+          name = text.apply(database);
         }
         if (uri == null && name != null) {
           value = value + "/" + name;
@@ -841,6 +868,13 @@ public final class PersistenceExtractor {
         }
         if (name != null && !name.isBlank()) {
           attributes.put("database", name);
+        }
+        if (UrlCredentials.mayHoldCredential(value)
+            || value.toLowerCase(Locale.ROOT).contains("authmechanismproperties")) {
+          // A credential in a form not understood, such as a token in a MongoDB URI's options.
+          value = ConfigExtractor.MASK;
+          attributes.remove("server");
+          masked = true;
         }
         if (masked) {
           attributes.put("masked", true);
@@ -856,6 +890,10 @@ public final class PersistenceExtractor {
     private static ConfigValue firstOf(Map<String, ConfigValue> relaxed, List<String> keys) {
       for (String key : keys) {
         ConfigValue v = relaxed.get(key);
+        if (v == null) {
+          // A YAML list: its first item.
+          v = relaxed.get(key + "[0]");
+        }
         if (v != null && !v.value().isBlank()) {
           return v;
         }
