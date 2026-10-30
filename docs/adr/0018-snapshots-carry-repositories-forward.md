@@ -1,6 +1,6 @@
 # 0018: Snapshots carry repositories forward
 
-Status: accepted (#60), amended (#61), amended by ADR 0070 (#250) and ADR 0071 (#253), pending the user's review (#24)
+Status: accepted (#60), amended (#61), amended by ADR 0070 (#250) and ADR 0071 (#253), amended for #369
 
 ## Context
 
@@ -62,3 +62,5 @@ such a commit even though its facts were still those of the commit analyzed befo
 - **Existing rows count as analyzed.** Rows stored before the migration cannot be told apart, so
   they keep the behavior they had. A failed run's own snapshot still lists the commits it did not
   analyze; resuming or discarding such a snapshot is left to resumable jobs (#56).
+
+## Amendment (#369): "every other repository that an earlier snapshot analyzed" and "Removing a repository from the system is not supported yet" are replaced by ADR 0071: repositories are carried forward within one named system, and `remove` takes one out.

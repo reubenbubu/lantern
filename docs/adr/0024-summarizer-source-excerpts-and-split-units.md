@@ -1,6 +1,6 @@
 # 0024: Source files in type summaries, and units too large for one prompt
 
-Status: accepted (#43), amended by ADR 0055 (#190) and ADR 0057 (#197), pending the user's review (#24)
+Status: accepted (#43), amended by ADR 0055 (#190) and ADR 0057 (#197)
 
 ## Context
 
@@ -32,7 +32,7 @@ not say which excerpts to show, how to cite them, or how to summarize a unit tha
   3 by ADR 0025).
 - **Cost.** On the fixture projects the type prompts grow from 3,299 to 6,159 characters and all
   prompts from 10,119 to 12,979 (+28%). Not measured on OpenWMS: its main code is about 57,000
-  non-blank lines (design.md, Open questions), roughly 2.5 million characters or 600,000 tokens,
+  non-blank lines (ADR 0004, Amendment, Size), roughly 2.5 million characters or 600,000 tokens,
   so a full run sends roughly that much more input, more where member types repeat their file;
   about $2 at Sonnet's input price.
 - **Units too large for one prompt are split and merged**, as a safety net only; nothing is trimmed.

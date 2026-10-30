@@ -1,6 +1,6 @@
 # 0030: One Maven mirror for every sandbox download
 
-Status: accepted (#117), amended (#212), pending the user's review (#24)
+Status: accepted (#117), amended (#212, #225, #314)
 
 ## Context
 

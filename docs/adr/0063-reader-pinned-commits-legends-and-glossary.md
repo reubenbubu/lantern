@@ -1,6 +1,6 @@
 # 0063: Reader, pinned commits and date, legends and glossary
 
-Status: accepted (#178), amends ADR 0011, ADR 0046 and ADR 0048, pending the user's review (#24)
+Status: accepted (#178), amends ADR 0011, ADR 0046 and ADR 0048, amended by ADR 0087 (#229)
 
 Amended by ADR 0087 (#229): the C4 reports get a glossary and the spec's legend draws the dashed
 boundary and the async arrowhead; a glossary prefers what the repositories' documentation says an
@@ -8,7 +8,7 @@ acronym stands for, citing it.
 
 ## Context
 
-`docs/design.md` (Quality bar) asks every document to state its reader and pin its snapshot
+`docs/quality-bar.md` (Rubric) asks every document to state its reader and pin its snapshot
 (commits) and date, every diagram to have a legend for every shape, color, line style and arrowhead
 used, and acronyms to be explained in the glossary. ADR 0046 checks these, and every document of
 project-0 failed them: the default view definitions set no audience, the document model held the

@@ -1,6 +1,6 @@
 # 0081: Tool use: the model queries the graph and reads files
 
-Status: accepted (#169), amends ADRs 0008 and 0045, pending the user's review (#24)
+Status: accepted (#169), amends ADRs 0008 and 0045, amends ADR 0072 (`run.json`)
 
 ## Context
 

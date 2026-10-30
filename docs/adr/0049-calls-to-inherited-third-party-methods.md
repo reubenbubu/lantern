@@ -1,6 +1,6 @@
 # 0049: Calls to methods a type inherits from third-party code
 
-Status: accepted (#176), pending the user's review (#24)
+Status: accepted (#176)
 
 ## Context
 

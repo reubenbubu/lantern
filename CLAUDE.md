@@ -50,8 +50,9 @@ changes them. This file covers only how you work.
      fits the design and moves Lantern's output toward the quality bar. It only reads; it runs
      nothing that builds or starts containers. Fix what it finds.
   6. Squash-merge when CI, review and evidence pass. CI is local, not on GitHub: it means
-     `./mvnw verify` (see Commands), and it must pass on the branch before merging. Leave a
-     short summary on the issue and make sure it is closed.
+     `./mvnw verify` (see Commands), and it must pass on the branch before merging. A change
+     only to `docs/` or `CLAUDE.md` skips it: nothing in the build or the tests reads them.
+     Leave a short summary on the issue and make sure it is closed.
   7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
      containers, temp files or test data the task created. Leave the machine as you found it.
 - Concurrent chats: several chats may work at once, each on its own issue. They coordinate
@@ -119,7 +120,11 @@ Ask the user before:
 - anything outside this repository
 - force-pushing, rewriting history, or deleting branches you didn't create
 
-Everything else, decide yourself. Note non-obvious choices in the PR description.
+Everything else, decide yourself, concretely, by following `docs/quality-bar.md` and
+`docs/design.md`. Nothing waits for the user's review: an ADR records the decision and the part of
+the bar or design it follows, and is accepted as written. Only what the bar and design don't settle
+and is on the list above goes to the user, as one direction-level question with your
+recommendation. Note non-obvious choices in the PR description.
 
 ## Doing the work
 

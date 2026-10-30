@@ -1,6 +1,6 @@
 # 0014: Architecture Explorer template v1
 
-Status: accepted (#15), pending the user's review (#24)
+Status: accepted (#15)
 
 ## Context
 

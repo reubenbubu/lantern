@@ -1,6 +1,6 @@
 # 0085: Identity providers and shared JWT secrets
 
-Status: accepted (#261), pending the user's review (#24)
+Status: accepted (#261)
 
 ## Context
 

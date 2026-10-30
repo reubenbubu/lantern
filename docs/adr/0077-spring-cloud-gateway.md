@@ -1,6 +1,6 @@
 # 0077: Spring Cloud Gateway: routes, filters and lb:// links
 
-Status: accepted (#257), amends ADR 0042, amended below (#351), pending the user's review (#24)
+Status: accepted (#257), amends ADR 0042, amended below (#351), amended by ADR 0080 (#262)
 
 ## Context
 
@@ -108,7 +108,7 @@ builds and checks every route of their references as a line with its protocol, a
 
 ## Amendment: requests as the gateway receives them (#351)
 
-Status: accepted, pending the user's review (#24). A flow whose endpoint a gateway forwards to
+Status: accepted. A flow whose endpoint a gateway forwards to
 starts at the gateway (ADR 0047, amendment for #351), with the request a client sends, which the
 route's filters rewrite before the unit sees it.
 

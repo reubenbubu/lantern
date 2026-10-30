@@ -1,6 +1,6 @@
 # 0076: Mail as an external system
 
-Status: accepted (#260), pending the user's review (#24)
+Status: accepted (#260)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0073: Redis as a data store
 
-Status: accepted (#259), amended by ADR 0082 (#266), pending the user's review (#24)
+Status: accepted (#259), amended by ADR 0082 (#266)
 
 ## Context
 

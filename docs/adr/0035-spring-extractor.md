@@ -1,6 +1,6 @@
 # 0035: Spring / Jakarta extractor
 
-Status: accepted (#127, part of #92), pending the user's review (#24)
+Status: accepted (#127, part of #92), extended by ADR 0079 (#264)
 
 ## Context
 
@@ -90,7 +90,7 @@ code, what its facts look like and how it handles inherited mappings, libraries 
 
 ## Amendment: JobRunr and Quartz jobs (#263)
 
-Status: accepted, pending the user's review (#24). project-4 runs its task reminders as JobRunr
+Status: accepted. project-4 runs its task reminders as JobRunr
 jobs, so `@Scheduled` alone left its reminder flow without an entry point. With extractor VERSION 2,
 a new `entry-point` child `background-job` and optional attributes on `scheduled` mark them
 (vocabulary changes are additive, ADR 0002, so `scheduled`'s `trigger` values stay as they were).

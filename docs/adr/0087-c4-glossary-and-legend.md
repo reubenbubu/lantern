@@ -1,6 +1,6 @@
 # 0087: A glossary in the C4 report, and its legend's boundary and async arrowhead
 
-Status: accepted (#229), amends ADR 0063 and ADR 0086, pending the user's review (#24)
+Status: accepted (#229), amends ADR 0063 and ADR 0086
 
 ## Context
 

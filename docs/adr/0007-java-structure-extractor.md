@@ -1,6 +1,6 @@
 # 0007: Java structure extractor
 
-Status: accepted (#9), amended by ADR 0049 (#176), pending the user's review (#24)
+Status: accepted (#9), amended by ADR 0049 (#176)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0082: Deployment descriptors
 
-Status: accepted (#266), amends ADR 0042 and ADR 0073, amended by ADR 0086 (#249), pending the user's review (#24)
+Status: accepted (#266), amends ADR 0042 and ADR 0073, amended by ADR 0086 (#249)
 
 ## Context
 

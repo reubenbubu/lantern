@@ -1,6 +1,6 @@
 # 0033: Docs extractor: README claims and decision records
 
-Status: accepted (#114), pending the user's review (#24)
+Status: accepted (#114)
 
 ## Context
 

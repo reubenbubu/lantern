@@ -1,10 +1,10 @@
 # 0056: Responsibility sentences for data stores and destinations
 
-Status: accepted (#194), amends ADR 0050, amended by ADR 0065 (#216) and ADR 0067 (#200), pending the user's review (#24)
+Status: accepted (#194), amends ADR 0050, amended by ADR 0065 (#216) and ADR 0067 (#200)
 
 ## Context
 
-`docs/design.md` (Quality bar, every diagram) asks every element for a responsibility sentence.
+`docs/quality-bar.md` (Rubric, every diagram) asks every element for a responsibility sentence.
 ADR 0050 has the LLM word deployable units, components and links only, so the databases, topics,
 queues, exchanges and external systems of the context and container diagrams have no description:
 they have no summary either, since summaries are of code. Issue #194 asks the Describer to word

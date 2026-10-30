@@ -1,7 +1,7 @@
 # 0026: A quality bar, and diagrams of runtime units instead of build units
 
 Status: accepted (#86), views drawn by ADR 0044 (#95), amended by ADR 0070 (#250), which supersedes
-"The LLM words, it never invents", pending the user's review (#24)
+"The LLM words, it never invents", amended for #369
 
 ## Context
 
@@ -9,7 +9,7 @@ The user judged the phase 1 diagrams useless: boxes were Maven modules and Java 
 line was a build-time "depends on", and nothing said which part is responsible for what. The
 cause was the input, not the wording. Phase 1 had only Maven and Java structure facts, so the
 composer (ADR 0012) drew what it had. Research into what makes good C4 diagrams, sequence
-diagrams and architecture documents (`docs/research/architecture-documentation-quality-bar.md`)
+diagrams and architecture documents (then `docs/research/architecture-documentation-quality-bar.md`, now `docs/quality-bar.md`, #364)
 produced a rubric. The user asked for the design to change so Lantern can reach it, keeping the
 existing architecture (extractors, fact store with envelope, vocabulary and a C4 level per type,
 cross-repo linker, composer, renderer), and for the design to stop being shaped by the one test
@@ -17,10 +17,10 @@ set it had been checked on.
 
 ## Decisions
 
-- **Adopt the rubric as the design's Quality bar** (`docs/design.md`, Quality bar). Checks are
+- **Adopt the rubric as the design's Quality bar** (`docs/design.md`, Quality bar; since #364 the rubric is `docs/quality-bar.md`). Checks are
   yes or no, so a document can be shown to be right rather than plausible; the composer makes the
   ones it can on every document, and the rest are judged on the test sets each phase.
-  `docs/research/` becomes the place for research and evidence (`CLAUDE.md`, One source of truth).
+  `docs/research/` becomes the place for research and evidence (`CLAUDE.md`, One source of truth); #364 folded it into `docs/quality-bar.md`, the standard.
 - **C4 levels as c4model.com defines them** (design, Composition, Diagrams). Containers are
   runtime units, not modules or jars, because a reader needs to know what runs and who is
   responsible for what, and build structure answers neither. This replaces ADR 0012's C4 mapping
@@ -36,7 +36,7 @@ set it had been checked on.
   invented edges are the main failure of generated architecture docs.
 - **Extraction and linking gaps go into the existing tables** (design, Static analysis and
   extractors; Cross-repo linking), not new stages: the architecture already has the right places.
-- **Executive Brief additions** (design, Quality bar). Change-history measures need git history
+- **Executive Brief additions** (design, Checking the quality bar, Other documents). Change-history measures need git history
   beyond the snapshot and are left for later. Where end-of-life data comes from is an open
   question in the design.
 - **Phase reorder.** System view comes before the remaining Phase 1 fixes, because per-repo
@@ -58,3 +58,9 @@ set it had been checked on.
   package-as-component diagrams, has to be rebased on packages directly or replaced.
 - #49 and #53, about package-level component diagrams, no longer apply and are to be closed:
   components are now found by role, and diagrams are capped at 15 elements.
+
+## Amendment (#369): what #364 changed.
+
+- Diagrams are not capped at 15 elements: no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold.
+- Flows: candidates are still ranked deterministically, but the LLM keeps the architecturally meaningful ones, with no fixed number (`docs/design.md`, Sequence diagrams; ADR 0047, amendment for #369).
+- ADR 0070 also replaces this ADR's "judged on the test sets each phase" and "Test sets are generic, the design names none": the sets are named and scored against references.

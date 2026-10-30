@@ -1,7 +1,6 @@
 # 0067: Prompt inputs are data, not instructions
 
-Status: accepted (#200), amends ADRs 0025, 0045, 0050, 0056, 0058 and 0060, pending the user's
-review (#24)
+Status: accepted (#200), amends ADRs 0025, 0045, 0050, 0056, 0058 and 0060
 
 ## Context
 

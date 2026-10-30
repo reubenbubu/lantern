@@ -1,6 +1,6 @@
 # 0008: LLM provider interface and test fake
 
-Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69), ADR 0081 (#169) and the amendments for #298 and #303, pending the user's review (#24)
+Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69), ADR 0081 (#169) and the amendments for #298 and #303
 
 ## Context
 

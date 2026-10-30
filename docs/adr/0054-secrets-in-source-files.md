@@ -1,6 +1,6 @@
 # 0054: Secrets in the source files shown to the LLM
 
-Status: accepted (#189), pending the user's review (#24)
+Status: accepted (#189)
 
 ## Context
 

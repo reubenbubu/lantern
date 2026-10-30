@@ -1,6 +1,6 @@
 # 0022: Models that think by default
 
-Status: accepted (#69), amended for #301, pending the user's review (#24)
+Status: accepted (#69), amended for #301
 
 ## Context
 

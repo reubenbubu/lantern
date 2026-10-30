@@ -1,6 +1,6 @@
 # 0009: LLM configuration, stored call log and monthly budget
 
-Status: accepted (#37), amended by ADR 0021 (#44) and ADR 0022 (#69), pending the user's review (#24)
+Status: accepted (#37), amended by ADR 0021 (#44) and ADR 0022 (#69)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0053: Removing what killed builds leave
 
-Status: accepted (#174), amends ADR 0019, pending the user's review (#24)
+Status: accepted (#174), amends ADR 0019
 
 ## Context
 

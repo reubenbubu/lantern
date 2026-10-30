@@ -1,11 +1,11 @@
 # 0072: Scoring harness: a report against a reference, and the models of a run
 
-Status: accepted (#252), amended (#254) and by ADR 0081 (#169: conversations in `run.json`), pending the user's review (#24)
+Status: accepted (#252), amended (#254) and by ADR 0081 (#169: conversations in `run.json`), amended for #369
 
 ## Context
 
 ADR 0070 made Lantern measured against hand-made references of project-1 to project-4 (#251), and
-the design's Quality bar names the scoring: recall and precision of elements, connections, flows,
+the design (Checking the quality bar) names the scoring: recall and precision of elements, connections, flows,
 risks and decisions, the quality-bar checks, the missing and extra items by name, and the model of
 every role and the run's cost. The user also asked that every role's model be chosen per run
 without code changes, and that two scorecards from different models can be compared. The first
@@ -93,3 +93,5 @@ HTTP here.
 Since #254 a repository without a Maven build is analyzed without a build (ADR 0016, amendment for
 #254), so `score-testsets.sh` and `TestSetScoreIT` analyze every repository a set's pins name,
 project-3's and project-4's frontends and deployment repositories included.
+
+## Amendment (#369): the scorer's "at most 15 elements a diagram" check is the readability check: no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold.

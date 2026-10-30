@@ -1,6 +1,6 @@
 # 0071: One analysis covers one named system
 
-Status: accepted (#253), amends ADRs 0016, 0018 and 0044, pending the user's review (#24)
+Status: accepted (#253), amends ADRs 0016, 0018 and 0044
 
 ## Context
 

@@ -1,10 +1,10 @@
 # 0048: The Architecture Explorer's start-here list, catalog, change guidance and decisions
 
-Status: accepted (#97, composer part), amends ADR 0046's Explorer checks, amended by ADR 0050 (#181), ADR 0063 (#178) and ADR 0086 (#249), pending the user's review (#24)
+Status: accepted (#97, composer part), amends ADR 0046's Explorer checks, amended by ADR 0050 (#181), ADR 0063 (#178) and ADR 0086 (#249), amended for #369
 
 ## Context
 
-`docs/design.md` (Quality bar, Architecture Explorer row) asks the Explorer for an orientation of
+`docs/design.md` (Checking the quality bar, Other documents: Architecture Explorer row) asks the Explorer for an orientation of
 at most 300 words followed by a "start here" list of the entry points and files to read first, the
 container diagram first, the main flows as sequence diagrams, a catalog of containers, components,
 endpoints, queues, tables and config each linked to source, change guidance ("to add an endpoint,
@@ -79,3 +79,5 @@ relationship, worded only from extracted facts with unknowns stated once, which 
 changes and a new LLM role with citations and caching (#181). Until then
 element descriptions are summaries (ADR 0044) and line labels say what static facts say. Change
 guidance is a *(review)* check; whether these examples help a reader is judged on the test sets.
+
+## Amendment (#369): the Architecture Explorer and the Executive Brief are out of scope for now (`docs/design.md`, Non-goals; `docs/quality-bar.md`, Scope). What this ADR built stays; it gets no further work until the user brings the document back into scope.

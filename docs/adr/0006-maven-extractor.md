@@ -1,6 +1,6 @@
 # 0006: Maven extractor
 
-Status: accepted (#8), amended (#100, #93, #265), amended by ADR 0064 (#226), pending the user's review (#24)
+Status: accepted (#8), amended (#100, #93, #265), amended by ADR 0064 (#226)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0019: Sandbox: non-root builds and disk limit
 
-Status: accepted (#33), pending the user's review (#24)
+Status: accepted (#33), amended by ADR 0053 (#174)
 
 ## Context
 

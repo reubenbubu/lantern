@@ -1,6 +1,6 @@
 # 0061: Every summary sentence cites something
 
-Status: accepted (#77), amends ADRs 0010, 0025 and 0059, amended by ADR 0068 (#191), pending the user's review (#24)
+Status: accepted (#77), amends ADRs 0010, 0025 and 0059, amended by ADR 0068 (#191)
 
 ## Context
 

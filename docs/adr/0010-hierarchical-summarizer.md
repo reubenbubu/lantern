@@ -2,7 +2,7 @@
 
 Status: accepted (#11), amended by ADR 0021 (#44), below (#78, #76), by ADR 0055 (#190), by ADR
 0057 (#197), by ADR 0059 (#193), by ADR 0061 (#77), by ADR 0066 (#192), by ADR 0068 (#191) and by
-ADR 0070 (#250), pending the user's review (#24)
+ADR 0070 (#250)
 
 ## Context
 
@@ -68,8 +68,8 @@ found in the facts, how summaries are stored and cited, and what happens to unci
   per-level limits and a rendered prompt, and fails until the version is raised when they change.
 - **Length.** The prompt asks for at most 80 words for a type, 120 for a package, 150 for a module
   and 200 for a repository, with output limits of 400 to 1,000 tokens to leave room for
-  citations. Prompt caching is not requested: the system prompt is shorter than the providers'
-  minimum cacheable length. ADR 0025 adds sentence counts per level and lowers the repository
+  citations. The summarizer does not ask for prompt caching: the system prompt is shorter than the providers'
+  minimum cacheable length (since #303 a model with prompt caching caches it anyway, ADR 0008). ADR 0025 adds sentence counts per level and lowers the repository
   limit to 150 words and 800 output tokens.
 - **Children before parents**, through the `SUMMARIZE` role's model and the caller's budgets.
   Calls were one at a time in entity ID order; since #44 independent units run in parallel (ADR

@@ -1,6 +1,6 @@
 # 0017: Fact validity across snapshots
 
-Status: accepted (#23), pending the user's review (#24)
+Status: accepted (#23), amended by ADR 0018 (#60) and for #165
 
 ## Context
 

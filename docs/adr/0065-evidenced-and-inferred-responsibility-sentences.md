@@ -1,7 +1,7 @@
 # 0065: Evidenced and inferred responsibility sentences
 
 Status: accepted (#216), amends ADR 0050 and ADR 0056, amended by ADR 0066 (#192), ADR 0068 (#191)
-and ADR 0069 (#208), pending the user's review (#24)
+and ADR 0069 (#208)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0074: People inferred from the code
 
-Status: accepted (#268), amended for #365, pending the user's review (#24)
+Status: accepted (#268), amended for #365, amended by ADR 0083 (#267)
 
 ## Context
 
@@ -32,7 +32,7 @@ unknown users are marked unknown, not invented.
   entity per kind of person, with `display-name` and a `person-basis` fact (value: `role`, `member`,
   `invited` or `account`) that holds one sentence in the code's own words, the first facts it
   cites, the repositories whose files show it and the frontends that have screens for it:
-  - each distinct role is a person, unless it is for software: a Keycloak realm role that only
+  - *(replaced: since the amendment for #365 roles alone make no person)* each distinct role is a person, unless it is for software: a Keycloak realm role that only
     service accounts hold (`serviceAccountOnly`, read from the realm's users), or, without a
     realm role, one whose every check guards only actuator, management or internal endpoints. This
     is judged by how a role is used, never by its name;

@@ -1,6 +1,6 @@
 # 0051: README claims the code contradicts, shown in documents
 
-Status: accepted (#159), amends ADR 0043 and ADR 0046, pending the user's review (#24)
+Status: accepted (#159), amends ADR 0043 and ADR 0046
 
 ## Context
 

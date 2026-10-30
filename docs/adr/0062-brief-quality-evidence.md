@@ -1,10 +1,10 @@
 # 0062: Executive Brief quality evidence
 
-Status: accepted (#186), amends ADR 0046, amended by ADR 0064 (#226), pending the user's review (#24)
+Status: accepted (#186), amends ADR 0046, amended by ADR 0064 (#226), amended for #369
 
 ## Context
 
-`docs/design.md` (Quality bar) asks the Executive Brief for quality evidence: tests, architecture
+`docs/design.md` (Checking the quality bar, Other documents) asks the Executive Brief for quality evidence: tests, architecture
 tests and coverage where present, with quality goals marked unrecorded when absent. ADR 0046
 checks for a top-level section `quality_evidence`, which no section kind composed, so every brief
 failed that check. Of what this needs, the extractors record only each module's direct
@@ -49,3 +49,5 @@ records quality goals: annotations come in Phase 3.
 Test classes and architecture test classes in test sources, coverage plugins in the build and the
 reports they produce, all needing extractor work (#226, done in ADR 0064 except coverage reports,
 #232); quality goals from annotations (Phase 3).
+
+## Amendment (#369): the Architecture Explorer and the Executive Brief are out of scope for now (`docs/design.md`, Non-goals; `docs/quality-bar.md`, Scope). What this ADR built stays; it gets no further work until the user brings the document back into scope.

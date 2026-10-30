@@ -1,6 +1,6 @@
 # 0003: Repository registry, snapshots and the analysis lock
 
-Status: accepted (#5), pending the user's review (#24)
+Status: accepted (#5)
 
 ## Context
 

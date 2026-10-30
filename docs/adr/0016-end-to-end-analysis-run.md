@@ -1,6 +1,6 @@
 # 0016: End-to-end analysis run
 
-Status: accepted (#17), amended (#100, #58, #245, #254), amended by ADR 0031 (#112), ADR 0044 (#95) and ADR 0071 (#253), pending the user's review (#24)
+Status: accepted (#17), amended (#100, #58, #245, #254), amended by ADR 0031 (#112), ADR 0044 (#95) and ADR 0071 (#253), amended for #369
 
 ## Context
 
@@ -148,3 +148,5 @@ supported. The run logs a warning and lists it in `codeNotAnalyzed`, and `analyz
 of the line above, so a reader does not take its documents for an analysis of its code. Only the top `pom.xml` counts, as the sandbox builds from there: a repository with POMs
 only in subfolders still has no Maven build, and gets the warning. The sandbox itself is unchanged: asked to build a
 repository without a `pom.xml`, it still stores a failed build (ADR 0005).
+
+## Amendment (#369): steps 2 and 7's carrying forward is within one named system, and a repository can be removed from it (ADR 0071).

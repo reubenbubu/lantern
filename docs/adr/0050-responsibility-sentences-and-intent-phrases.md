@@ -2,11 +2,11 @@
 
 Status: accepted (#181), amends ADR 0044, ADR 0047 and ADR 0048, amended by ADR 0056 (#194),
 ADR 0058 (#195), ADR 0060 (#196), ADR 0065 (#216), ADR 0066 (#192), ADR 0067
-(#200), ADR 0068 (#191), ADR 0069 (#208) and ADR 0070 (#250), pending the user's review (#24)
+(#200), ADR 0068 (#191), ADR 0069 (#208) and ADR 0070 (#250), amended by ADR 0088 (#276), amended for #369
 
 ## Context
 
-`docs/design.md` (Quality bar, every diagram) asks every element for a responsibility sentence that
+`docs/quality-bar.md` (Rubric, every diagram) asks every element for a responsibility sentence that
 doesn't restate its name, and every line for an intent phrase, never just "uses" or "depends on".
 LLM integration, Grounding, says the LLM words these from what extraction found, citing it, and
 never invents elements or relationships; its Roles table gives responsibilities to Infer intent.
@@ -90,3 +90,5 @@ unit is roughly 1,800 characters of system prompt plus some 150 characters per f
 Responsibility sentences for databases, queues and external systems (ADR 0056); the glossary in the prompt
 (annotations, Phase 3); unknowns stated as such where the model leaves a unit out (the element then
 keeps its summary or has no description, as before).
+
+## Amendment (#369): labels that name two intents and count the rest are replaced by ADR 0088: a line says one thing, one intent phrase.
