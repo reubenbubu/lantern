@@ -195,6 +195,11 @@ public final class FrontendExtractor {
   private static final Pattern FROM =
       Pattern.compile("(?i)^\\s*FROM\\s+(?:--platform=\\S+\\s+)?(\\S+)(?:\\s+AS\\s+(\\S+))?");
   private static final Pattern EXPOSE = Pattern.compile("(?i)^\\s*EXPOSE\\s+(.+)$");
+
+  /** The configuration an Angular build in a Dockerfile names: {@code ng build -c development}. */
+  private static final Pattern BUILD_CONFIGURATION =
+      Pattern.compile("\\bbuild\\b[^\\n]*?(?:--configuration[= ]|-c )\\s*([A-Za-z0-9_-]+)");
+
   private static final Pattern VERSION_NUMBER = Pattern.compile("(\\d+)(?:\\.(\\d+))?");
 
   /** The vocabulary types this extractor's facts use. */
@@ -725,19 +730,30 @@ public final class FrontendExtractor {
 
     /**
      * The environment file the Angular build uses by default: the replacement of {@code
-     * environment.ts} in the default configuration of {@code angular.json}, else {@code
-     * environment.ts} itself, else the first.
+     * environment.ts} in the configuration the folder's Dockerfile builds ({@code --configuration
+     * x}), else in the default configuration of {@code angular.json}, else {@code environment.ts}
+     * itself, else the first.
      */
     private String angularDefault(String prefix, Set<String> files) {
       String base =
           files.stream().filter(p -> p.endsWith("/environment.ts")).findFirst().orElse(null);
       Source config =
           paths.contains(prefix + "angular.json") ? read(prefix + "angular.json") : null;
+      String built = null;
+      Source dockerfile =
+          paths.contains(prefix + "Dockerfile") ? read(prefix + "Dockerfile") : null;
+      if (dockerfile != null) {
+        Matcher m = BUILD_CONFIGURATION.matcher(dockerfile.text());
+        if (m.find()) {
+          built = m.group(1);
+        }
+      }
       if (config != null) {
         try {
           for (JsonNode project : FactJson.parse(config.text()).path("projects")) {
             JsonNode build = project.path("architect").path("build");
-            String configuration = build.path("defaultConfiguration").asString("production");
+            String configuration =
+                built != null ? built : build.path("defaultConfiguration").asString("");
             for (JsonNode replacement :
                 build.path("configurations").path(configuration).path("fileReplacements")) {
               String replace = replacement.path("replace").asString("");
@@ -762,6 +778,10 @@ public final class FrontendExtractor {
       for (String path : paths) {
         if (!path.startsWith(prefix)
             || !CODE_FILE.matcher(path).matches()
+            || path.endsWith(".min.js")
+            || path.contains("/assets/")
+            || path.contains("/public/")
+            || path.contains("/vendor/")
             || TEST_FILE.matcher(path).matches()
             || CONFIG_FILE.matcher(path).matches()) {
           continue;

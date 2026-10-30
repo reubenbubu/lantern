@@ -100,8 +100,14 @@ final class FrontendLinker {
           reachedTargets.add(reached.target().to());
           emit(frontend, call, reached, view);
         }
+        boolean nginx =
+            served.stream()
+                .anyMatch(p -> FrontendExtractor.NGINX.equals(LinkIndex.text(p, "source")));
         for (Fact proxy : served) {
-          if (used.contains(proxy.id())) {
+          // A development server's proxy says where the deployed page goes only when no nginx
+          // serves it.
+          if (used.contains(proxy.id())
+              || (nginx && !FrontendExtractor.NGINX.equals(LinkIndex.text(proxy, "source")))) {
             continue;
           }
           Reached reached = target(LinkIndex.text(proxy, "target"), view, proxy);
@@ -420,7 +426,7 @@ final class FrontendLinker {
 
   /**
    * Whether a compose container publishes the port on the host: {@code 8080:8080}, {@code
-   * 127.0.0.1:8080:80}, or {@code 8080} alone (published on the same port).
+   * 127.0.0.1:8080:80}; a container port alone is published on a random host port, so on none.
    */
   static boolean publishes(Fact container, String port) {
     if (!"compose".equals(LinkIndex.text(container, "platform"))) {
@@ -428,7 +434,10 @@ final class FrontendLinker {
     }
     for (String written : LinkIndex.texts(container, "ports")) {
       String[] parts = written.replaceAll("/(tcp|udp)$", "").split(":");
-      String published = parts.length == 1 ? parts[0] : parts[parts.length - 2];
+      if (parts.length == 1) {
+        continue;
+      }
+      String published = parts[parts.length - 2];
       if (published.equals(port)) {
         return true;
       }

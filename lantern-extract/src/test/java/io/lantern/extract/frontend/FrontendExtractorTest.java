@@ -66,6 +66,32 @@ class FrontendExtractorTest {
   }
 
   @Test
+  void brokenFilesAreSkippedWithoutFailing() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("broken"),
+            "broken",
+            Map.of(
+                "bad/package.json",
+                "{\"name\": \"bad\", \"dependencies\": {\"react\": ",
+                "app/package.json",
+                "{\"dependencies\": {\"react\": \"18\"}}\n",
+                "app/angular.json",
+                "{ not json",
+                "app/src/a.ts",
+                "fetch(`/api/${x(`\nconst ws = new WebSocket('ws://h:1'\nfetch(((("));
+
+    List<Fact> facts =
+        new FrontendExtractor()
+            .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT);
+
+    assertThat(Fixtures.render(facts))
+        // An unterminated template literal runs to the end of the file, so nothing after it counts.
+        .contains("frontend:broken/app frontend-app react")
+        .doesNotContain("frontend:broken/bad");
+  }
+
+  @Test
   void expressionsAreReadWithTheirStringsAndBrackets() {
     String code = "get(`${a}/x/${f(b, c)}`, { p: 1 }), rest";
     assertThat(FrontendExtractor.argument(code, 4)).isEqualTo("`${a}/x/${f(b, c)}`");

@@ -37,7 +37,8 @@ environment file, often `localhost` and a port that a compose file publishes.
     else is `{name}`, and the query is left out. A URL that is only an unknown value is not
     recorded. Comments are blanked out first, keeping offsets, so cited lines stay right.
   - **Environments.** Angular's `environments/environment*.ts` (simple `key: 'value'` entries),
-    the default build's being the file `angular.json`'s default configuration puts in place of
+    the default build's being the file that the configuration the folder's Dockerfile builds
+    (`ng build --configuration x`), else `angular.json`'s default configuration, puts in place of
     `environment.ts`; or the dotenv files of Vite and Create React App (`.env.production` over
     `.env` by default, the others over `.env`), read through `import.meta.env.X` and
     `process.env.X`. A call's URL is the default build's; the others' URLs, where they differ,
@@ -55,14 +56,16 @@ environment file, often `localhost` and a port that a compose file publishes.
   - the URL's host is a unit when it is the unit's `spring.application.name`, its artifact ID, or
     a name of a deployment container that runs it (ADR 0082); `localhost`, a loopback or
     private-network address is the unit whose compose container publishes that port on the host
-    (`8080:8080`), else the only unit whose `server.port` it is, since a browser reaches a
+    (`8080:8080`; a container port alone is published on a random one), else the only unit whose `server.port` it is, since a browser reaches a
     published port, not a container's own; a host with a domain that names no unit is an external
     system;
   - the default build's URL is tried first, then the alternates;
   - the link records the URL as it reaches the target, its path, `JSON/HTTP` or `WebSocket` (the
     external system's scheme for one), `matchedBy` (`host`, `artifact-id`, `container-host`,
     `published-port`, `port`, `external`) and the `proxy` it went through. A proxy no call goes
-    through, to a target no call reaches, is a link of its own: the server passes requests on.
+    through, to a target no call reaches, is a link of its own: the server passes requests on. A
+    development server's proxy counts only when no nginx serves the frontend, since it says
+    nothing about the deployed page.
   - A compose container whose build context is a frontend's folder runs it: a `deployed-in` fact
     on the frontend, and, when all such containers have one name, the frontend's `display-name`,
     since that is the name it runs under (the compose service `frontend` of
@@ -91,5 +94,8 @@ environment file, often `localhost` and a port that a compose file publishes.
 URLs built in other files (a base URL service, an interceptor that adds a prefix), constants
 over several lines, axios interceptors, `HttpClient` used through a wrapper, routers' lazy
 modules and SSR frameworks are not followed; a monorepo's workspace packages are folded into the
-outermost frontend. Kubernetes and Helm containers are not tied to frontends, only compose builds.
+outermost frontend. Kubernetes and Helm containers are not tied to frontends, only compose builds in the frontend's
+own repository (a deployment repository that builds `../frontend` is not followed). A call that
+links nothing is dropped, not listed among the links left open. Minified and vendored scripts
+(`*.min.js`, `assets/`, `public/`, `vendor/`) are not read.
 The flows of the sequence diagrams do not start in the browser yet.

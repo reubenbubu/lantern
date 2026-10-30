@@ -575,8 +575,9 @@ final class C4Views {
     for (EntityId frontend : frontends(knowledge)) {
       for (Fact fact : knowledge.relations(frontend, CALLS_HTTP)) {
         String proxy = attribute(fact, "proxy");
-        boolean passed = attribute(fact, "httpMethod") == null && attribute(fact, "path") == null;
         boolean socket = "WebSocket".equals(attribute(fact, "protocol"));
+        boolean passed =
+            !socket && attribute(fact, "httpMethod") == null && attribute(fact, "path") == null;
         result.add(
             link(
                 frontend,
@@ -1042,7 +1043,7 @@ final class C4Views {
               case EXTERNAL_SYSTEM -> EXTERNAL_SYSTEM;
               default -> null;
             };
-        if (kind != null && units.contains(other)) {
+        if (kind != null && (units.contains(other) || frontends.contains(other))) {
           used.get(kind).computeIfAbsent(end, e -> new ArrayList<>()).addAll(link.facts);
         }
       }
