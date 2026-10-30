@@ -16,6 +16,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1152,20 +1153,43 @@ final class C4Views {
   // Containers.
 
   /**
-   * The container diagram of the scope's units and their direct neighbours, inside the system; one
-   * per unit when that would show more than {@link #MAX_ELEMENTS} elements. What is not at a C4
-   * level, the deployment table, the decision records and the links not resolved, is in sections of
-   * its own (ADR 0086).
+   * A concern a container view is split by when the whole system's view would show more than {@link
+   * #MAX_ELEMENTS} elements (design, Quality bar): its title and the relationships its lines draw.
+   */
+  private record Concern(String title, Set<String> relationships) {
+
+    Concern and(Concern other) {
+      Set<String> both = new HashSet<>(relationships);
+      both.addAll(other.relationships);
+      return new Concern(title + " and " + other.title.toLowerCase(Locale.ROOT), both);
+    }
+  }
+
+  private static final Concern REQUESTS =
+      new Concern("Requests", Set.of(CALLS_HTTP, USES, SENDS_MAIL, USES_IDENTITY_PROVIDER));
+  private static final Concern DATA = new Concern("Data", Set.of(USES_DATABASE, ACCESSES_DATA_OF));
+  private static final Concern MESSAGING =
+      new Concern("Messaging", Set.of(PUBLISHES, CONSUMES, ROUTES_TO));
+
+  /**
+   * The container view of the whole system: one diagram of the scope's units and frontends and what
+   * they connect to, inside the system. Above {@link #MAX_ELEMENTS} elements it is split by
+   * concern, one page each, from the entry inward: requests and data, then messaging; a view still
+   * above splits requests from data, and one still above that is drawn per unit with its neighbours
+   * in that concern, from the entry inward, leaving out a unit whose view shows nothing a view
+   * before it does not. A per-unit view still above is drawn whole and fails "At most 15 elements"
+   * in the document's quality report (ADR 0046). What is not at a C4 level, the deployment table,
+   * the decision records and the links not resolved, is in sections of its own (ADR 0086).
    *
    * @param section the containers section's ID
    * @param blocks receives the blocks of the section itself
-   * @param subsections receives one subsection per unit when the diagram is split
+   * @param subsections receives one subsection per view when the diagram is split
    */
   void containers(String section, List<Block> blocks, List<Section> subsections) {
-    // The frontends first: the pages run from the entry inward.
-    SortedSet<EntityId> shown = new TreeSet<>(FRONTENDS_FIRST);
+    SortedSet<EntityId> shown = new TreeSet<>(entryFirst());
     shown.addAll(units);
     shown.addAll(frontends);
+    Optional<Callout> profiles = alternativesNote(assembler.id(section, "profiles"), units, false);
     if (shown.isEmpty()) {
       // A note: what the code does not show cites no fact (Quality bar, ADR 0046).
       blocks.add(
@@ -1176,31 +1200,129 @@ final class C4Views {
               null,
               List.of(TextRun.of("No deployable unit was found in the code.")),
               List.of()));
-    } else {
-      Diagram whole = containerDiagram(assembler.id(section, "diagram"), shown, "Containers");
-      if (whole.nodes().size() - 1 <= MAX_ELEMENTS || shown.size() == 1) {
-        blocks.add(whole);
-      } else {
-        for (EntityId unit : shown) {
-          String id = assembler.id(section, unit.toString());
-          Diagram around =
-              containerDiagram(
-                  assembler.id(id, "diagram"),
-                  only(unit),
-                  "Containers around " + assembler.name(unit));
-          subsections.add(
+      profiles.ifPresent(blocks::add);
+      return;
+    }
+    Diagram whole =
+        containerDiagram(assembler.id(section, "diagram"), shown, "Containers", null, true);
+    if (fits(whole) || shown.size() == 1) {
+      blocks.add(whole);
+      profiles.ifPresent(blocks::add);
+      return;
+    }
+    List<Diagram> drawn = new ArrayList<>();
+    split(section, shown, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
+    split(section, shown, MESSAGING, List.of(), false, drawn, subsections);
+    // The note goes with the first view, so it stays on a container page.
+    profiles.ifPresent(
+        note -> {
+          Section first = subsections.getFirst();
+          List<Block> with = new ArrayList<>(first.blocks());
+          with.add(note);
+          subsections.set(
+              0,
               new Section(
-                  id,
-                  assembler.name(unit),
-                  SectionKind.CONTAINERS.levels(),
-                  unit,
-                  List.of(),
-                  List.of(around),
-                  List.of()));
-        }
+                  first.id(),
+                  first.title(),
+                  first.levels(),
+                  first.entity(),
+                  first.facts(),
+                  with,
+                  first.sections()));
+        });
+  }
+
+  /**
+   * Adds the view of one concern as a subsection, or when it shows more than {@link #MAX_ELEMENTS}
+   * elements, those of its parts, else one per unit.
+   *
+   * @param everyContainer whether the view draws every container shown, with lines or not, so the
+   *     first view leaves none out
+   * @param drawn the views drawn so far, to leave out a per-unit view that repeats one
+   */
+  private void split(
+      String section,
+      SortedSet<EntityId> shown,
+      Concern concern,
+      List<Concern> parts,
+      boolean everyContainer,
+      List<Diagram> drawn,
+      List<Section> subsections) {
+    String id = assembler.id(section, slug(concern.title));
+    Diagram view =
+        containerDiagram(assembler.id(id, "diagram"), shown, "Containers", concern, everyContainer);
+    if (view.edges().isEmpty() && !everyContainer) {
+      return;
+    }
+    if (fits(view)) {
+      drawn.add(view);
+      subsections.add(subsection(id, concern.title, null, view));
+      return;
+    }
+    if (!parts.isEmpty()) {
+      boolean first = everyContainer;
+      for (Concern part : parts) {
+        split(section, shown, part, List.of(), first, drawn, subsections);
+        first = false;
+      }
+      return;
+    }
+    // Per unit, with only its neighbours in this concern.
+    Set<EntityId> lined = new HashSet<>();
+    for (Link link : links) {
+      if (concern.relationships.contains(link.relationship)) {
+        lined.add(link.from);
+        lined.add(link.to);
       }
     }
-    alternativesNote(assembler.id(section, "profiles"), units, false).ifPresent(blocks::add);
+    for (EntityId unit : shown) {
+      boolean alone =
+          everyContainer && links.stream().noneMatch(l -> l.from.equals(unit) || l.to.equals(unit));
+      if (!lined.contains(unit) && !alone) {
+        continue;
+      }
+      String unitId = assembler.id(id, unit.toString());
+      Diagram around =
+          containerDiagram(
+              assembler.id(unitId, "diagram"),
+              only(unit),
+              "Containers around " + assembler.name(unit),
+              concern,
+              true);
+      if (drawn.stream().anyMatch(d -> repeats(around, d))) {
+        continue;
+      }
+      drawn.add(around);
+      subsections.add(
+          subsection(unitId, concern.title + " around " + assembler.name(unit), unit, around));
+    }
+  }
+
+  private Section subsection(String id, String title, EntityId entity, Diagram diagram) {
+    return new Section(
+        id, title, SectionKind.CONTAINERS.levels(), entity, List.of(), List.of(diagram), List.of());
+  }
+
+  /**
+   * Whether a container diagram shows at most {@link #MAX_ELEMENTS} elements besides the system.
+   */
+  private static boolean fits(Diagram diagram) {
+    return diagram.nodes().size() - 1 <= MAX_ELEMENTS;
+  }
+
+  /** Whether a diagram shows nothing another does not: its elements and lines are among its. */
+  private static boolean repeats(Diagram diagram, Diagram other) {
+    Set<EntityId> nodes = new HashSet<>();
+    other.nodes().forEach(n -> nodes.add(n.id()));
+    Set<String> edges = new HashSet<>();
+    other.edges().forEach(e -> edges.add(e.from() + " " + e.relationship() + " " + e.to()));
+    return diagram.nodes().stream().allMatch(n -> nodes.contains(n.id()))
+        && diagram.edges().stream()
+            .allMatch(e -> edges.contains(e.from() + " " + e.relationship() + " " + e.to()));
+  }
+
+  private static String slug(String title) {
+    return title.toLowerCase(Locale.ROOT).replace(' ', '-');
   }
 
   /**
@@ -1287,13 +1409,24 @@ final class C4Views {
     return environment == null ? name : name + " (" + environment + ")";
   }
 
-  private Diagram containerDiagram(String id, SortedSet<EntityId> shown, String title) {
+  /**
+   * A container diagram of the shown containers and their neighbours.
+   *
+   * @param title what the diagram shows, before "of" and the system's name
+   * @param concern the concern whose lines it draws, or null for all of them
+   * @param everyContainer whether it draws every shown container, with lines or not
+   */
+  private Diagram containerDiagram(
+      String id, SortedSet<EntityId> shown, String title, Concern concern, boolean everyContainer) {
     Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
     nodes.put(system, node(system, null, null, List.of()));
-    shown.forEach(unit -> container(nodes, unit));
+    if (everyContainer) {
+      shown.forEach(unit -> container(nodes, unit));
+    }
     Edges edges = new Edges();
     for (Link link : links) {
-      if (shown.contains(link.from) || shown.contains(link.to)) {
+      if ((concern == null || concern.relationships.contains(link.relationship))
+          && (shown.contains(link.from) || shown.contains(link.to))) {
         container(nodes, link.from);
         container(nodes, link.to);
         edges.add(link);
@@ -1302,24 +1435,72 @@ final class C4Views {
     // Routes between exchanges and queues both drawn already.
     for (Link link : links) {
       if (link.relationship.equals(ROUTES_TO)
+          && (concern == null || concern.relationships.contains(ROUTES_TO))
           && nodes.containsKey(link.from)
           && nodes.containsKey(link.to)) {
         edges.add(link);
       }
     }
+    String scope = concern == null ? "" : ": " + concern.title.toLowerCase(Locale.ROOT);
     return new Diagram(
         id,
         Diagram.Kind.C4_CONTAINER,
-        title + " of " + assembler.name(system),
+        title + " of " + assembler.name(system) + scope,
         List.copyOf(nodes.values()),
         edges.build(assembler, true),
         List.of());
   }
 
-  /** Frontends before the other containers, then by ID. */
-  private static final Comparator<EntityId> FRONTENDS_FIRST =
-      Comparator.comparing((EntityId e) -> !e.type().equals(FRONTEND))
-          .thenComparing(Knowledge.BY_ID);
+  /**
+   * The order pages about containers run in, from the entry inward: frontends first, then units by
+   * how many HTTP calls away they are from a frontend or a gateway (a unit that routes requests),
+   * or when there are none, from the units nothing in the system calls; units none of those reach
+   * last; then by ID.
+   */
+  Comparator<EntityId> entryFirst() {
+    if (entryFirst == null) {
+      Map<EntityId, Integer> depth = new HashMap<>();
+      Deque<EntityId> queue = new ArrayDeque<>();
+      Set<EntityId> called = new HashSet<>();
+      List<EntityId> gateways = new ArrayList<>();
+      for (Link link : links) {
+        if (link.relationship.equals(CALLS_HTTP) && runsCode(link.to)) {
+          called.add(link.to);
+          if ("Routes".equals(link.prefix)) {
+            gateways.add(link.from);
+          }
+        }
+      }
+      List<EntityId> roots = new ArrayList<>(frontends(knowledge));
+      roots.addAll(gateways);
+      if (roots.isEmpty()) {
+        units(knowledge).stream().filter(u -> !called.contains(u)).forEach(roots::add);
+      }
+      for (EntityId root : roots) {
+        if (depth.putIfAbsent(root, 0) == null) {
+          queue.add(root);
+        }
+      }
+      while (!queue.isEmpty()) {
+        EntityId from = queue.poll();
+        for (Link link : links) {
+          if (link.relationship.equals(CALLS_HTTP)
+              && link.from.equals(from)
+              && runsCode(link.to)
+              && depth.putIfAbsent(link.to, depth.get(from) + 1) == null) {
+            queue.add(link.to);
+          }
+        }
+      }
+      entryFirst =
+          Comparator.comparing((EntityId e) -> !e.type().equals(FRONTEND))
+              .thenComparing(e -> depth.getOrDefault(e, Integer.MAX_VALUE))
+              .thenComparing(Knowledge.BY_ID);
+    }
+    return entryFirst;
+  }
+
+  private Comparator<EntityId> entryFirst;
 
   /** Adds a container, store, external system or person to a container diagram's nodes. */
   private void container(Map<EntityId, Diagram.Node> nodes, EntityId entity) {
@@ -1489,7 +1670,10 @@ final class C4Views {
    */
   List<Section> components(String section) {
     List<Section> result = new ArrayList<>();
-    for (EntityId unit : units) {
+    // From the entry inward, as the container pages.
+    SortedSet<EntityId> ordered = new TreeSet<>(entryFirst());
+    ordered.addAll(units);
+    for (EntityId unit : ordered) {
       List<Component> components = components(unit);
       if (components.size() < 2) {
         continue;

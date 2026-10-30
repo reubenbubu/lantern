@@ -677,7 +677,7 @@ class C4ViewsTest {
   }
 
   @Test
-  void aContainerDiagramOfMoreThanFifteenElementsIsSplitPerUnit() {
+  void aContainerDiagramOfMoreThanFifteenElementsIsSplitByConcernThenPerUnit() {
     TestFacts many = TestFacts.runtime();
     for (int i = 0; i < 16; i++) {
       many.relate(
@@ -692,12 +692,29 @@ class C4ViewsTest {
     Section containers = section(document, "containers");
 
     assertThat(containers.blocks()).noneMatch(Diagram.class::isInstance);
+    // The requests and data still fit; messaging is drawn per unit, from the entry inward: worker
+    // calls shop-app, which nothing calls.
     assertThat(containers.sections())
         .extracting(Section::title)
-        .containsExactly("shop-app", "worker");
+        .containsExactly(
+            "Requests and data", "Messaging around worker", "Messaging around shop-app");
+    Diagram requests = block(containers.sections().getFirst(), Diagram.class);
+    assertThat(requests.title()).isEqualTo("Containers of base and shop: requests and data");
+    assertThat(requests.edges())
+        .extracting(Diagram.Edge::relationship)
+        .doesNotContain("PUBLISHES", "CONSUMES");
+    assertThat(requests.nodes())
+        .extracting(n -> n.id().toString())
+        .contains("service:com.example:app", "service:com.example:worker");
     Diagram worker = block(containers.sections().get(1), Diagram.class);
-    assertThat(worker.title()).isEqualTo("Containers around worker of base and shop");
-    // shop-app's own neighbourhood still has more than 15 elements: a quality gap, not hidden.
+    assertThat(worker.title()).isEqualTo("Containers around worker of base and shop: messaging");
+    assertThat(worker.edges())
+        .extracting(Diagram.Edge::relationship)
+        .isNotEmpty()
+        .isSubsetOf("PUBLISHES", "CONSUMES", "ROUTES_TO");
+    // The profile note stays on a container page: the first view's.
+    assertThat(containers.blocks()).isEmpty();
+    // shop-app's own messaging still has more than 15 elements: a quality gap, not hidden.
     QualityReport gaps = block(document.sections().getLast(), QualityReport.class);
     assertThat(gaps.failures())
         .filteredOn(f -> f.check().equals("At most 15 elements"))
@@ -706,7 +723,42 @@ class C4ViewsTest {
             f ->
                 assertThat(f.target())
                     .isEqualTo(
-                        CrossReference.Target.block("containers.service:com.example:app.diagram")));
+                        CrossReference.Target.block(
+                            "containers.messaging.service:com.example:app.diagram")));
+  }
+
+  @Test
+  void aPerUnitViewThatShowsNothingNewIsLeftOut() {
+    TestFacts many = TestFacts.runtime();
+    String audit = "service:com.example:audit";
+    many.attribute("shop", audit, "deployable-unit", "spring-boot", "{}")
+        .attribute("shop", audit, "application-name", "audit", "{}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "CALLS_HTTP",
+            audit,
+            "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"POST /audit\"}");
+    for (int i = 0; i < 16; i++) {
+      many.relate(
+          "shop",
+          "service:com.example:app",
+          "CALLS_HTTP",
+          "external-system:x" + i + ".example.com",
+          "{\"protocol\": \"HTTPS\", \"httpMethod\": \"GET\", \"path\": \"/\"}");
+    }
+
+    Document document = system(many.list());
+    Section containers = section(document, "containers");
+
+    // Requests are drawn per unit, from the entry inward; audit's view, only shop-app's call to it,
+    // repeats what shop-app's shows, so it is left out. The data and messaging fit in a view each.
+    assertThat(containers.sections())
+        .extracting(Section::title)
+        .containsExactly("Requests around worker", "Requests around shop-app", "Data", "Messaging");
+    assertThat(block(containers.sections().get(1), Diagram.class).nodes())
+        .extracting(n -> n.id().toString())
+        .contains(audit);
   }
 
   @Test

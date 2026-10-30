@@ -1,7 +1,7 @@
 # 0044: Context, container and component views, and the system's C4 report
 
 Status: accepted (#95), amended by ADR 0046 (#163), ADR 0048 (#97), ADR 0049 (#176), ADR 0050
-(#181), ADR 0060 (#196), ADR 0070 (#250), #256, ADR 0071 (#253) and ADR 0086 (#249), pending the user's review
+(#181), ADR 0060 (#196), ADR 0070 (#250), #256, ADR 0071 (#253), ADR 0086 (#249) and #270, pending the user's review
 (#24)
 
 ## Context
@@ -42,10 +42,8 @@ currency and ranked risks were split off to #163 and #164.
   own module or a library they bundle. A RabbitMQ queue that an exchange routes to and no unit sends
   to directly is not a box: the line runs from the exchange to the consumer with the queue in its
   technology (`AMQP · payments.order-events`), the design's "via" label, so a broker never becomes
-  one box and the diagram stays small. A diagram of more than 15 elements is split into one per unit
-  with its neighbours, each its own subsection and so its own page. A diagram still above 15
-  elements (one unit with more neighbours, or a scope of one unit) is drawn whole and fails "At most
-  15 elements" in the document's quality report (ADR 0046). Service discovery, config
+  one box and the diagram stays small. A diagram of more than 15 elements is split by concern
+  (amendment for #270). Service discovery, config
   servers, tracing and brokers (`USES_INFRASTRUCTURE`, `USES_BROKER`) are left out, and
   `SENDS_MESSAGES_TO` is drawn through the topic or queue it goes through.
 - **Lines** are one per pair of elements and relationship, built from the link facts: the label
@@ -105,6 +103,34 @@ listed as not linked in the overview, the Brief's note, the sequence notes or th
 contradictions, which name the resolver's link instead. The line is drawn as before, its technology
 reading "resolved by the LLM, confidence 0.28" (the link's confidence), and so does the message
 in a sequence diagram, in its info.
+
+## Amendment (#270): one system container view, split by concern
+
+The container section no longer splits into one view per unit, which repeated lines on several
+pages, showed the whole system on none and sent an element's links to whichever page drew it first.
+
+- **One view of the whole system** while it shows at most 15 elements besides the system's
+  boundary. Above that it is split by concern, each view its own subsection and so its own page:
+  "Requests and data" (HTTP calls, people's screens, mail, identity providers, databases and the
+  tables of other units) with every container of the scope, then "Messaging" (sends, deliveries and
+  exchange routes) with the units that send or receive. A view still above 15 splits into
+  "Requests" (still with every container) and "Data"; a concern view still above that is drawn per
+  unit with its neighbours in that concern ("Messaging around notification-service"), leaving out a
+  unit with no line in it and a unit whose view shows only what a view before it shows, so no
+  diagram repeats another. A per-unit view still above 15 is drawn whole and fails "At most 15
+  elements" (ADR 0046). A concern with no line has no view.
+- **From the entry inward.** Per-unit container views and the component pages run frontends first,
+  then units by how many HTTP calls they are from a frontend or a gateway (a unit that routes
+  requests), or when there are none from the units nothing in the system calls, unreached units
+  last, then by ID.
+- **Element links.** Since an element is drawn on the page of its concern, the first catalogue that
+  lists it, where the template and the renderer link it, is that page; a unit with a component page
+  still zooms into it, and the system into the first container page, the whole system's view.
+- **Nothing is dropped.** The "Under other profiles" note goes on the first view's page; the
+  deployment table, decisions and unknowns are documentation pages of their own (ADR 0086), so the
+  split leaves none of them out. On project-1 to project-4 the container pages draw the same elements
+  and lines as before (project-2 and project-4: 18 elements, 33 and 28 lines), and the scores do
+  not change.
 
 ## Not in this issue
 
