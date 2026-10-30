@@ -1,6 +1,6 @@
 # 0083: Frontend containers
 
-Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, amended for #369
+Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, amended for #369, amended for #394
 
 ## Context
 
@@ -122,3 +122,49 @@ navigation of the browser, not a request from the page.
   endpoint's and the route's facts. A proxy's own link names none.
 
 ## Amendment (#369): "which then splits per container" in the Consequences is out of date: the container view is one system view split by concern (ADR 0044, #270), at the readability thresholds of ADR 0046's amendment for #369.
+
+## Amendment: every line that decides where the browser goes (#394)
+
+The review of the extractor (`docs/research/extractor-frontend.md`) found that the facts cited
+only a call's line, not the field or environment entry its URL comes from. It also found that
+interceptors, guards, Angular pages and services, and URLs the templates load were not read. The
+reference of project-3 cites all of them. The extractor (version 3) records four more facts, each
+on the frontend:
+
+- **`frontend-url`**: each constant or field of a call's file, and each environment entry, that
+  a recorded call's URL is built from, at the line that declares it.
+  - The value is the value as declared.
+  - `source` is `constant` or `environment`, and `defaultBuild` marks the entry of the build used
+    by default. Entries of the other builds are recorded too, so project-4's `environment.ts` and
+    the `environment.development.ts` its Dockerfile builds both have a fact.
+  - A constant whose own value is unknown is not recorded.
+- **`frontend-auth`**: an Angular HTTP interceptor (an `HttpInterceptorFn` constant or a class
+  implementing `HttpInterceptor`) or route guard (`CanActivateFn` and its kin, or a class
+  implementing one), from its declaration to the end of its body.
+  - An interceptor records the headers it sets, whether it sends a Bearer token, whether it sends
+    cookies (`withCredentials`), and where it reads its token.
+  - A guard records its kind, where it redirects, and the routes that use it.
+  - A guard is recorded as what the browser shows, never as access control: Angular warns
+    against relying on it.
+- **`frontend-component`**: an Angular `@Component` (value `component`) or `@Injectable`
+  (value `service`) class, from its decorator to the end of its class.
+  - It records its selector, the types it injects (through `inject()` or constructor
+    parameters), the methods it calls on them (`MediaService.getAll`), and for a component, the
+    route paths that show it.
+  - An interceptor or guard class is recorded only as `frontend-auth`.
+  - Other frameworks' components are not read.
+- **`frontend-resource`**: an absolute URL a template or style makes the browser load, without its
+  query.
+  - It covers the `src`, `href` and similar attributes of `img`, `script`, `link`, `iframe`, media
+    and similar tags, and CSS `url()`. A link a user follows (`a href`) is not a load.
+  - It records the host and the tag. `perItem` marks a URL joined to an expression, such as
+    project-3's Lorem Picsum images, as against a fixed font or CDN asset.
+
+No linker or view uses these facts yet. Drawing a frontend's pages and services, and the hosts
+it loads per item as external systems, changes this ADR's "a frontend has no components" and is
+#415. A TypeScript parser in place of text patterns is #416.
+
+Not covered: a base URL declared in another file; runtime config fetched at start (`config.json`,
+`env.js`); nginx `*.template` files filled from the environment; Next.js rewrites and Nuxt
+`runtimeConfig`; the `BASE_PATH` of generated OpenAPI clients; server-side templates (Thymeleaf,
+JSF, Vaadin). No development set has any of these.
