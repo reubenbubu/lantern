@@ -38,7 +38,7 @@ public final class CrossRepoLinks implements LinkStep {
   public static final String NAME = "cross-repo-links";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "15";
+  public static final String VERSION = "16";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -107,6 +107,12 @@ public final class CrossRepoLinks implements LinkStep {
    * Attribute: an endpoint of a unit a gateway routes to that none of the gateway's routes reach.
    */
   public static final String UNROUTED_ENDPOINT = "unrouted-endpoint";
+
+  /**
+   * Attribute: an endpoint of a unit a gateway routes to, with the request as the gateway receives
+   * it.
+   */
+  public static final String ROUTED_ENDPOINT = "routed-endpoint";
 
   /** Attribute: a call, send or datasource of a unit that static matching cannot place. */
   public static final String UNRESOLVED_LINK = "unresolved-link";

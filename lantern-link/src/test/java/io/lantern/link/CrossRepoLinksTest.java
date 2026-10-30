@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /** The rules for links between deployable units, on facts written for each case. */
@@ -799,6 +800,175 @@ class CrossRepoLinksTest {
                 + " {\"calledBy\":[\"service:g:reports\"],"
                 + "\"endpoint\":\"method:o.OrderController#internal(long)\","
                 + "\"target\":\"service:g:orders-service\"} 1.0");
+  }
+
+  @Test
+  void eachRoutedEndpointHasTheRequestAsTheGatewayReceivesIt() {
+    unit("gw", "edge", "edge");
+    config("gw", "edge", "application.yml", "eureka.client.enabled", "true", null);
+    config(
+        "gw",
+        "edge",
+        "application.yml",
+        "spring.cloud.gateway.discovery.locator.enabled",
+        "true",
+        null);
+    // StripPrefix, then PrefixPath.
+    route(
+        "gw",
+        "module:g:edge",
+        "profile",
+        "{\"definedIn\":\"config\",\"uri\":\"lb://profile\","
+            + "\"paths\":[\"/profile/**\"],\"filters\":[\"StripPrefix=1\",\"PrefixPath=/api\","
+            + "\"RequestRateLimiter(key-resolver=#{@userKeyResolver})\"]}");
+    // RewritePath, as config writes it; the request is kept only because forwarding it rewrites
+    // it back to the endpoint, so this also covers RewritePath on the way forward.
+    route(
+        "gw",
+        "module:g:edge",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"lb://orders\",\"paths\":[\"/shop/**\"],"
+            + "\"methods\":[\"POST\"],"
+            + "\"filters\":[\"RewritePath=/shop/?(?<segment>.*), /api/$\\\\{segment}\"]}");
+    unit("p", "profile-service", "profile");
+    type("p", "profile-service", "p.ProfileController");
+    endpoint("p", "p.ProfileController", "create()", "POST", "/api/profile/admin/users");
+    // Not behind /api: no route reaches it, so the discovery locator does.
+    endpoint("p", "p.ProfileController", "health()", "GET", "/status");
+    unit("o", "orders-service", "orders");
+    type("o", "orders-service", "o.OrderController");
+    endpoint("o", "o.OrderController", "place()", "POST", "/api/orders/{id}");
+    // The route takes only POST: the discovery locator takes the GET.
+    endpoint("o", "o.OrderController", "one()", "GET", "/api/orders/{id}");
+
+    assertThat(derive(CrossRepoLinks.ROUTED_ENDPOINT))
+        .containsExactlyInAnyOrder(
+            "service:g:edge routed-endpoint POST /profile/profile/admin/users"
+                + " {\"endpoint\":\"method:p.ProfileController#create()\","
+                + "\"route\":\"profile\",\"served\":\"POST /api/profile/admin/users\","
+                + "\"source\":\"module:g:edge\","
+                + "\"target\":\"service:g:profile-service\",\"url\":\"lb://profile\"} 1.0",
+            "service:g:edge routed-endpoint GET /PROFILE/status"
+                + " {\"discoveryLocator\":true,\"endpoint\":\"method:p.ProfileController#health()\","
+                + "\"served\":\"GET /status\",\"source\":\"module:g:edge\","
+                + "\"target\":\"service:g:profile-service\",\"url\":\"lb://PROFILE\"} 1.0",
+            "service:g:edge routed-endpoint POST /shop/orders/{id}"
+                + " {\"endpoint\":\"method:o.OrderController#place()\","
+                + "\"route\":\"orders\",\"served\":\"POST /api/orders/{id}\","
+                + "\"source\":\"module:g:edge\","
+                + "\"target\":\"service:g:orders-service\",\"url\":\"lb://orders\"} 1.0",
+            "service:g:edge routed-endpoint GET /ORDERS/api/orders/{id}"
+                + " {\"discoveryLocator\":true,\"endpoint\":\"method:o.OrderController#one()\","
+                + "\"served\":\"GET /api/orders/{id}\",\"source\":\"module:g:edge\","
+                + "\"target\":\"service:g:orders-service\",\"url\":\"lb://ORDERS\"} 1.0");
+  }
+
+  @Test
+  void theDiscoveryLocatorTakesLowerCaseServiceIdsWhenToldTo() {
+    unit("gw", "edge", "edge");
+    config("gw", "edge", "application.yml", "eureka.client.enabled", "true", null);
+    config(
+        "gw",
+        "edge",
+        "application.yml",
+        "spring.cloud.gateway.server.webflux.discovery.locator.enabled",
+        "true",
+        null);
+    config(
+        "gw",
+        "edge",
+        "application.yml",
+        "spring.cloud.gateway.server.webflux.discovery.locator.lower-case-service-id",
+        "true",
+        null);
+    unit("o", "orders-service", "Orders");
+    type("o", "orders-service", "o.OrderController");
+    endpoint("o", "o.OrderController", "one()", "GET", "/api/orders/{id}");
+
+    assertThat(derive(CrossRepoLinks.ROUTED_ENDPOINT))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly("service:g:edge routed-endpoint GET /orders/api/orders/{id}");
+  }
+
+  @Test
+  void aGatewayWithoutTheDiscoveryLocatorRecordsOnlyWhatItsRoutesReach() {
+    unit("gw", "edge", "edge");
+    route(
+        "gw",
+        "module:g:edge",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"lb://orders\",\"paths\":[\"/api/**\"]}");
+    unit("o", "orders-service", "orders");
+    type("o", "orders-service", "o.OrderController");
+    endpoint("o", "o.OrderController", "place()", "POST", "/api/orders");
+    endpoint("o", "o.OrderController", "internal()", "GET", "/internal/orders");
+
+    assertThat(derive(CrossRepoLinks.ROUTED_ENDPOINT))
+        .containsExactly(
+            "service:g:edge routed-endpoint POST /api/orders"
+                + " {\"endpoint\":\"method:o.OrderController#place()\","
+                + "\"route\":\"orders\",\"served\":\"POST /api/orders\","
+                + "\"source\":\"module:g:edge\","
+                + "\"target\":\"service:g:orders-service\",\"url\":\"lb://orders\"} 1.0");
+  }
+
+  private Fact routeWith(String paths, String... filters) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.putArray("paths").add(paths);
+    ArrayNode array = attributes.putArray("filters");
+    for (String filter : filters) {
+      array.add(filter);
+    }
+    return Fact.create(
+        EntityId.parse("module:g:edge"),
+        GatewayExtractor.ROUTE,
+        FactObject.string("r"),
+        attributes,
+        new Origin(Origin.Kind.STATIC, GatewayExtractor.NAME, "1"),
+        evidence("gw:src/main/resources/application.yml#3"),
+        1.0,
+        Validity.from(1));
+  }
+
+  @Test
+  void eachRewriteKindIsReversed() {
+    assertThat(RouteLinker.reverse(routeWith("/profile/**", "StripPrefix=1"), "/x/y"))
+        .isEqualTo("/profile/x/y");
+    assertThat(
+            RouteLinker.reverse(
+                routeWith("/profile/**", "StripPrefix=1", "PrefixPath=/api"), "/api/admin/users"))
+        .isEqualTo("/profile/admin/users");
+    // PrefixPath first, then StripPrefix: the stripped segment is the prefix.
+    assertThat(
+            RouteLinker.reverse(routeWith("/a/b/**", "PrefixPath=/api", "StripPrefix=2"), "/b/c"))
+        .isEqualTo("/a/b/c");
+    // A path PrefixPath could not have made.
+    assertThat(RouteLinker.reverse(routeWith("/**", "PrefixPath=/api"), "/internal/x")).isNull();
+    // A wildcard segment stripped cannot be told.
+    assertThat(RouteLinker.reverse(routeWith("/**", "StripPrefix=1"), "/x")).isNull();
+    assertThat(RouteLinker.reverse(routeWith("/*/**", "StripPrefix=1"), "/x")).isNull();
+    assertThat(RouteLinker.reverse(routeWith("/{service}/**", "StripPrefix=1"), "/x")).isNull();
+    assertThat(
+            RouteLinker.reverse(
+                routeWith("/red/**", "RewritePath=/red/?(?<segment>.*), /$\\{segment}"),
+                "/blue/{id}"))
+        .isEqualTo("/red/blue/{id}");
+    assertThat(
+            RouteLinker.reverse(
+                routeWith("/v1/**", "RewritePath(regexp=/v1/(.*), replacement=/api/$1)"),
+                "/api/orders"))
+        .isEqualTo("/v1/orders");
+    // A replacement the path does not fit, a regular expression with a class, and SetPath.
+    assertThat(
+            RouteLinker.reverse(
+                routeWith("/red/**", "RewritePath=/red/(?<s>.*), /api/${s}"), "/other"))
+        .isNull();
+    assertThat(RouteLinker.reverse(routeWith("/**", "RewritePath=/[a-z]+/(?<s>.*), /${s}"), "/x"))
+        .isNull();
+    assertThat(RouteLinker.reverse(routeWith("/{s}", "SetPath=/{s}"), "/x")).isNull();
+    // Without filters the request is the path, if a pattern takes it.
+    assertThat(RouteLinker.reverse(routeWith("/api/**"), "/api/x")).isEqualTo("/api/x");
+    assertThat(RouteLinker.reverse(routeWith("/api/**"), "/other")).isNull();
   }
 
   @Test

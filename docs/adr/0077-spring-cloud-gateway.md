@@ -1,6 +1,6 @@
 # 0077: Spring Cloud Gateway: routes, filters and lb:// links
 
-Status: accepted (#257), amends ADR 0042, pending the user's review (#24)
+Status: accepted (#257), amends ADR 0042, amended below (#351), pending the user's review (#24)
 
 ## Context
 
@@ -105,3 +105,47 @@ without a port matches no unit (`no-match`).
 builds and checks every route of their references as a line with its protocol, and project-4's
 `GET /api/organizations/{organizationId}/preview` as unrouted; its command is in Commands in
 `CLAUDE.md`.
+
+## Amendment: requests as the gateway receives them (#351)
+
+Status: accepted, pending the user's review (#24). A flow whose endpoint a gateway forwards to
+starts at the gateway (ADR 0047, amendment for #351), with the request a client sends, which the
+route's filters rewrite before the unit sees it.
+
+- **Routed endpoints** (`routed-endpoint`, an attribute of the gateway unit, `RouteLinker`,
+  `CrossRepoLinks` version 16). For each HTTP route linked to a unit, each endpoint of that unit
+  (behind its context and servlet paths) whose path the route's filters can be reversed to is
+  recorded with the request as the gateway receives it as its value (`POST
+  /profile/profile/admin/users`), the endpoint (`endpoint`, `target`), the request as the unit
+  serves it (`served`), the route (`route`, `url`, `source`) and the facts of the endpoint and the
+  route. The filters are reversed from the last: `PrefixPath` takes its prefix off, `StripPrefix`
+  puts back the segments it removed, read from the route's Path pattern at their place (a
+  wildcard or variable there cannot be told, so nothing is recorded), and `RewritePath` is read backwards: the
+  replacement gives each group's value, put in its place in the regular expression with its
+  literal characters, each optional character tried both ways; an expression with character
+  classes, alternatives or quantifiers outside groups, and `SetPath`, are not reversed. Other
+  filters are taken not to change the path. The request is kept only when the route takes it
+  (method and Path pattern), no earlier or narrower route does, and its filters turn it back into
+  the endpoint's path.
+- **RewritePath forwards a request** too: a frontend's call through a gateway (ADR 0083,
+  amendment for #331) now goes on through a `RewritePath` route, by its regular expression.
+  Endpoints are still not checked against such routes for `unrouted-endpoint`.
+- **The discovery locator.** When the gateway's config turns it on
+  (`spring.cloud.gateway.discovery.locator.enabled` or
+  `spring.cloud.gateway.server.webflux.discovery.locator.enabled`), each endpoint of another unit
+  with a `spring.application.name` that no route reaches is recorded too, with
+  `discoveryLocator`, as `/<service ID><path>` to `lb://<service ID>`. The service ID is the name
+  in upper case when the gateway's config has `eureka.` keys, as Eureka registers it, in lower
+  case under `lower-case-service-id: true`, else as written. A request a route takes first is not
+  recorded. No line is drawn for the locator: it routes to every registered service, which the
+  references do not draw.
+- **Checks.** `CrossRepoLinksTest` covers StripPrefix and PrefixPath in both orders, a wildcard
+  stripped, RewritePath in
+  shortcut and full form, SetPath and paths no filter could make, the discovery locator, a method
+  the route does not take, lower-case service IDs and a gateway without the locator.
+
+### Not covered
+
+`unrouted-endpoint` does not yet count what the discovery locator reaches, so an endpoint reached
+only through it, as project-3's watch history, is still listed as unrouted. Which services
+register with the discovery server is not checked: every other named unit is taken to.

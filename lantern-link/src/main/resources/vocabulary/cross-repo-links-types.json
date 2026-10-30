@@ -966,6 +966,73 @@
     "objectKind": "string"
   },
   {
+    "name": "routed-endpoint",
+    "kind": "attribute",
+    "description": "An endpoint of a unit the subject gateway routes requests to, with the request as the gateway receives it: the endpoint's path behind the target's context and servlet paths, through the route's StripPrefix, PrefixPath and RewritePath filters in reverse, or, when no route reaches it and the gateway's discovery locator is on, under the target's service ID. The value is the request, such as POST /profile/profile/admin/users. A flow that starts at the endpoint starts at the gateway with it (ADR 0047, amendment for #351).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "The entity ID of the unit that serves the endpoint."
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "The entity ID of the endpoint's handler method."
+        },
+        "served": {
+          "type": "string",
+          "description": "The request as the target serves it, such as POST /api/profile/admin/users."
+        },
+        "route": {
+          "type": "string",
+          "description": "The id of the route that forwards the request. Absent for the discovery locator."
+        },
+        "discoveryLocator": {
+          "type": "boolean",
+          "description": "True when the gateway's discovery locator forwards the request, not a route."
+        },
+        "url": {
+          "type": "string",
+          "description": "Where the gateway forwards the request: the route's URI, or lb:// and the service ID for the discovery locator."
+        },
+        "source": {
+          "type": "string",
+          "description": "The entity ID of the route's code or module, or of the module whose config turns the discovery locator on."
+        },
+        "link": {
+          "type": "string",
+          "description": "The fact's stable ID: the first 16 hex digits of the SHA-256 of the gateway, the endpoint, the request and its profile, so it stays the same across snapshots and commits."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the facts it comes from: the endpoint and the route, or the endpoint, the discovery locator's config and the target's name, in every view it holds in."
+        },
+        "profile": {
+          "type": "string",
+          "description": "The Spring profile under which alone it holds. Absent when it holds in the default view."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The profiles under which it does not hold. Absent when it holds under every profile."
+        }
+      },
+      "required": [
+        "target",
+        "endpoint",
+        "served"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
     "name": "shared-secret",
     "kind": "attribute",
     "description": "The subject unit signs or checks JWTs with an HMAC secret that other units have too (with), for the findings page: their secrets come from the same placeholder nothing resolves (the environment fills one value in for all), the same config value, or, when the value is masked or unset, the same config key. The value is the config keys the unit reads the secret from; the secret's value is never recorded (ADR 0085).",
