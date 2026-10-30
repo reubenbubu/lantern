@@ -14,10 +14,15 @@ changes them. This file covers only how you work.
 
 ## How work is organized
 
-- Tasks are GitHub issues in `reubenbubu/lantern`. Phases, or their parts (2A to 2E), are
-  milestones. Every issue is written to a template in `.github/ISSUE_TEMPLATE/`: `fix.md` for
-  what Lantern does wrong, `feature.md` for what it cannot do yet, chores and foundations (a
-  test drop excepted); every issue has a milestone, and `Later` holds what no phase has taken yet.
+- Tasks are GitHub issues in `reubenbubu/lantern`, grouped in milestones. A milestone delivers
+  one specific outcome of a phase (named like `2C.2 Flows that tell the story`), and its
+  description holds its own "Goal" and "Accepted when"; how many issues it has does not matter.
+  One milestone is in progress at a time, unless the user says otherwise; its issues come first.
+  `Housekeeping` (tooling, build and docs that change no output) and `Later` are standing
+  buckets with no test drop and never close; `Later` holds what no milestone has taken yet.
+- Every issue has a milestone and is written to a template in `.github/ISSUE_TEMPLATE/`:
+  `fix.md` for what Lantern does wrong, `feature.md` for what it cannot do yet, chores and
+  foundations (a test drop excepted).
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
   which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
   picks up an issue without one writes it first. A PR runs Lantern on those sets only; the
@@ -83,8 +88,9 @@ changes them. This file covers only how you work.
   - no fixed host ports; publish to a random host port (`-p 127.0.0.1::5432`) and read it back
     with `docker port`. The local database (Commands) is the exception: its port is fixed, so
     only one chat at a time may run it.
-- Each milestone ends with one test drop, which the user tests, tracked by an issue titled "Test
-  drop <milestone>" in that milestone and linked from its description. When the milestone's other
+- Each milestone (the standing buckets excepted) ends with one test drop, a short checklist for
+  its outcome, which the user tests, tracked by an issue titled "Test drop <milestone>" in that
+  milestone and linked from its description. When the milestone's other
   issues are merged, the chat that takes the test-drop issue writes the drop to
   `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's documents and the
   reference side by side, the scorecards (from 2D also the judge's verdicts), and a README with
