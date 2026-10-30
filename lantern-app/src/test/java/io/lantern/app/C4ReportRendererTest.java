@@ -156,8 +156,9 @@ class C4ReportRendererTest {
 
     JsonNode pages = C4ReportRenderer.toJson(document).data().get("pages");
 
-    // The Explorer's decisions, risks and findings, catalog, change guidance, dependencies, structure
-    // and glossary are each a documentation page, after the C4 and sequence pages (ADR 0086).
+    // The Explorer's decisions, risks and findings, catalog, change guidance, dependencies,
+    // structure and glossary are each a documentation page, after the C4 and sequence pages (ADR
+    // 0086).
     assertThat(
             pages
                 .valueStream()
