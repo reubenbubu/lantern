@@ -1,6 +1,6 @@
 # 0085: Identity providers and shared JWT secrets
 
-Status: accepted (#261)
+Status: accepted (#261), amended for #395
 
 ## Context
 
@@ -81,6 +81,54 @@ config key, a linker and a relationship.
   and keycloak-admin-service; project-2's six services that check tokens fetch auth-service's JWK
   set; project-4's gateway and auth-service record their shared HMAC secret.
 - `cross-repo-links` moves to version 11, the summary prompt to 15; `identity` starts at 1.
+
+## Amendment for #395: how tokens are checked, how callers sign in, who is registered
+
+The review of the extractor (`docs/research/extractor-identity.md`) found that #380's coverage
+report backed only 3 of 15 identity needs on project-1, project-2 and project-4. Research on the
+web added legacy Spring Security OAuth, Spring Security 7's new sign-in calls and more of
+Keycloak's client fields. The extractor (version 2) records four more facts. Each cites the line
+that states it, and none records a secret's or key's value:
+
+- `jwt-decoder`, on a method that builds Spring Security's JWT decoder: `NimbusJwtDecoder` or
+  `NimbusReactiveJwtDecoder` with `withJwkSetUri`, `withIssuerLocation` or `withPublicKey`, and
+  `JwtDecoders` or `ReactiveJwtDecoders` with `fromIssuerLocation` or `fromOidcIssuerLocation`.
+  - The value says where the keys come from: `jwk-set-uri`, `issuer` or `public-key`.
+  - When the URL can be followed, as `@Value` placeholders or a literal, the fact records it
+    (`url`) and its config keys (`keys`).
+  - A URL handed on from a properties class is not followed, but the decoder is still recorded.
+- `http-security`, on what sets up how callers sign in, show a token or get one. The value is one
+  of `oauth2-login`, `oauth2-resource-server`, `oauth2-client`, `oauth2-authorization-server`,
+  `form-login`, `http-basic`, `saml2-login`, `x509`, `one-time-token-login` or `webauthn`.
+  `via` names where it is set up:
+  - `HttpSecurity` or `ServerHttpSecurity`, for a method's DSL call. The two DSLs' packages are
+    tracked APIs.
+  - `annotation`, for a type with legacy Spring Security OAuth's `@EnableAuthorizationServer`,
+    `@EnableResourceServer`, `@EnableOAuth2Sso` or `@EnableOAuth2Client`. These are end of life
+    but common in older systems.
+- `jwt-key-pair`, on a method that signs or checks JWTs with a key pair's key: Nimbus's
+  `RSASSASigner`, `RSASSAVerifier`, `ECDSASigner` or `ECDSAVerifier`.
+  - The value is `RSA` or `EC`, and `use` is `sign` or `verify`.
+  - `keys` holds the config keys when the key can be followed the way an HMAC secret is.
+- `identity-client`, on the repository, for each client a Keycloak realm export
+  (`*realm*.json` with a `clients` array) registers, Keycloak's own clients left out.
+  - The value is the client ID.
+  - The fact records the realm, whether the client is enabled and public, its protocol, whether
+    it is bearer-only, its flows (`authorization-code` unless turned off, `implicit`, `password`,
+    `client-credentials`), its PKCE method, its root and base URLs, its redirect URIs and its web
+    origins, without credentials.
+  - Its secret is never read.
+
+The HMAC secrets of jjwt 0.9 to 0.11 (`setSigningKey(secret)`,
+`signWith(SignatureAlgorithm.HS512, secret)`) were already read, and a test now covers them.
+
+Left for later:
+- Using these facts in the linker (registered apps as external systems, token checks whose key
+  reads like neither, and a finding when a system has no authentication) is #407.
+- Patterns no development set has are #406: Spring Authorization Server's `RegisteredClient`,
+  secrets reached through helpers and `SecretKeySpec`, issuer resolvers, opaque-token
+  introspectors, Sa-Token, Firebase and other stacks' config keys.
+- Spring Cloud Gateway's `TokenRelay` belongs to the gateway extractor (#390).
 
 ## Not covered
 

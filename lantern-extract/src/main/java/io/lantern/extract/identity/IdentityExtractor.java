@@ -7,7 +7,9 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.java.Expression;
@@ -24,9 +26,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -51,7 +56,19 @@ import tools.jackson.databind.node.ObjectNode;
  *       withSecretKey}; java-jwt's {@code Algorithm.HMAC256}), naming the config keys the secret
  *       comes from, never its value;
  *   <li>{@code identity-admin-client} on a method that builds Keycloak's admin client ({@code
- *       KeycloakBuilder.serverUrl}, {@code Keycloak.getInstance}), with the server URL as written.
+ *       KeycloakBuilder.serverUrl}, {@code Keycloak.getInstance}), with the server URL as written;
+ *   <li>{@code jwt-decoder} on a method that builds Spring Security's JWT decoder from a JWK set
+ *       URI, an issuer or a public key, with the URL as written when it can be followed;
+ *   <li>{@code http-security} on a method that sets up how callers sign in or show a token with
+ *       Spring Security's DSL ({@code oauth2Login}, {@code oauth2ResourceServer}, {@code
+ *       oauth2Client}, {@code oauth2AuthorizationServer}, {@code formLogin}, {@code httpBasic},
+ *       {@code saml2Login}, {@code x509}, {@code oneTimeTokenLogin}, {@code webAuthn}), or on a
+ *       type annotated with legacy Spring Security OAuth's {@code @EnableAuthorizationServer},
+ *       {@code @EnableResourceServer}, {@code @EnableOAuth2Sso} or {@code @EnableOAuth2Client};
+ *   <li>{@code jwt-key-pair} on a method that signs or checks JWTs with an RSA or EC key (Nimbus's
+ *       {@code RSASSASigner}, {@code RSASSAVerifier}, {@code ECDSASigner}, {@code ECDSAVerifier});
+ *   <li>{@code identity-client} on a repository for each client a Keycloak realm export registers,
+ *       with its flows and redirect URIs, never its secret.
  * </ul>
  *
  * A value is followed into the call from a {@code @Value} field or parameter, through calls made on
@@ -64,7 +81,7 @@ public final class IdentityExtractor {
   public static final String NAME = "identity";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "identity-extractor";
@@ -74,6 +91,18 @@ public final class IdentityExtractor {
 
   /** Attribute: the method builds an identity provider's admin client. */
   public static final String IDENTITY_ADMIN_CLIENT = "identity-admin-client";
+
+  /** Attribute: the method builds a JWT decoder that checks tokens with a provider's keys. */
+  public static final String JWT_DECODER = "jwt-decoder";
+
+  /** Attribute: the method sets up how callers sign in or show a token. */
+  public static final String HTTP_SECURITY = "http-security";
+
+  /** Attribute: the method signs or checks JWTs with an RSA or EC key. */
+  public static final String JWT_KEY_PAIR = "jwt-key-pair";
+
+  /** Attribute: a client a Keycloak realm export in the repository registers. */
+  public static final String IDENTITY_CLIENT = "identity-client";
 
   private static final String RESOURCE = "/vocabulary/identity-types.json";
 
@@ -89,6 +118,83 @@ public final class IdentityExtractor {
       Set.of(
           "org.springframework.security.oauth2.jwt.NimbusJwtDecoder",
           "org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder");
+  private static final Set<String> DECODER_FACTORIES =
+      Set.of(
+          "org.springframework.security.oauth2.jwt.JwtDecoders",
+          "org.springframework.security.oauth2.jwt.ReactiveJwtDecoders");
+
+  /** How a decoder gets its keys, by the call that builds it. */
+  private static final Map<String, String> DECODER_CALLS =
+      Map.of(
+          "withJwkSetUri", "jwk-set-uri",
+          "withIssuerLocation", "issuer",
+          "fromIssuerLocation", "issuer",
+          "fromOidcIssuerLocation", "issuer",
+          "withPublicKey", "public-key");
+
+  /** Spring Security's configuration DSLs, servlet and reactive. */
+  private static final Map<String, String> SECURITY_DSLS =
+      Map.of(
+          "org.springframework.security.config.annotation.web.builders.HttpSecurity",
+          "HttpSecurity",
+          "org.springframework.security.config.web.server.ServerHttpSecurity",
+          "ServerHttpSecurity");
+
+  /** The DSL calls that say how callers sign in or show a token, and what the fact calls them. */
+  private static final Map<String, String> SIGN_IN_CALLS =
+      Map.of(
+          "oauth2Login", "oauth2-login",
+          "oauth2ResourceServer", "oauth2-resource-server",
+          "oauth2Client", "oauth2-client",
+          "formLogin", "form-login",
+          "httpBasic", "http-basic",
+          "saml2Login", "saml2-login",
+          "x509", "x509",
+          "oauth2AuthorizationServer", "oauth2-authorization-server",
+          "oneTimeTokenLogin", "one-time-token-login",
+          "webAuthn", "webauthn");
+
+  /**
+   * Legacy Spring Security OAuth's annotations (end of life, still common in older systems), and
+   * what the fact calls each.
+   */
+  private static final Map<String, String> LEGACY_OAUTH =
+      Map.of(
+          "org.springframework.security.oauth2.config.annotation.web.configuration"
+              + ".EnableAuthorizationServer",
+          "oauth2-authorization-server",
+          "org.springframework.security.oauth2.config.annotation.web.configuration"
+              + ".EnableResourceServer",
+          "oauth2-resource-server",
+          "org.springframework.boot.autoconfigure.security.oauth2.client.EnableOAuth2Sso",
+          "oauth2-login",
+          "org.springframework.security.oauth2.config.annotation.web.configuration"
+              + ".EnableOAuth2Client",
+          "oauth2-client");
+
+  /** Nimbus's signers and verifiers of a key pair, and the kind of key each takes. */
+  private static final Map<String, String> KEY_PAIR_CRYPTO =
+      Map.of(
+          "com.nimbusds.jose.crypto.RSASSASigner", "RSA",
+          "com.nimbusds.jose.crypto.RSASSAVerifier", "RSA",
+          "com.nimbusds.jose.crypto.ECDSASigner", "EC",
+          "com.nimbusds.jose.crypto.ECDSAVerifier", "EC");
+
+  /** Keycloak realm export files. */
+  private static final Pattern REALM_FILE = Pattern.compile("(?i)(.*/)?[^/]*realm[^/]*\\.json");
+
+  /** The clients every Keycloak realm has, which name no application. */
+  private static final Set<String> BUILT_IN_CLIENTS =
+      Set.of(
+          "account",
+          "account-console",
+          "admin-cli",
+          "broker",
+          "realm-management",
+          "security-admin-console");
+
+  private static final long MAX_BYTES = 2L * 1024 * 1024;
+
   private static final String AUTH0_ALGORITHM = "com.auth0.jwt.algorithms.Algorithm";
   private static final String AUTH0_JWT = "com.auth0.jwt.JWT";
   private static final String KEYCLOAK_BUILDER = "org.keycloak.admin.client.KeycloakBuilder";
@@ -150,7 +256,24 @@ public final class IdentityExtractor {
    * @return the facts, without duplicates, ordered by subject, predicate and ID
    */
   public List<Fact> extract(List<RepoBuild> repos, long snapshot) {
-    return extract(JavaExtractor.analyze(repos), snapshot);
+    return extract(JavaExtractor.analyze(repos), repos, snapshot);
+  }
+
+  /**
+   * Extracts the facts of a snapshot's code already read by {@link JavaExtractor#analyze} and of
+   * the Keycloak realm exports in its repositories, those without code too.
+   *
+   * @param code the code of the snapshot's repositories
+   * @param repos the repositories of the snapshot, each at its commit
+   * @param snapshot the snapshot number the facts hold from
+   * @return the facts, without duplicates, ordered by subject, predicate and ID
+   */
+  public List<Fact> extract(JavaAnalysis code, List<RepoBuild> repos, long snapshot) {
+    Objects.requireNonNull(code, "code");
+    Objects.requireNonNull(repos, "repos");
+    Reader reader = new Reader(code, Validity.from(snapshot));
+    repos.forEach(reader::realms);
+    return reader.read();
   }
 
   /**
@@ -199,6 +322,9 @@ public final class IdentityExtractor {
 
     List<Fact> read() {
       for (JavaAnalysis.Module module : code.modules()) {
+        for (TypeDecl type : module.structure().types()) {
+          legacyOAuth(module, type);
+        }
         for (Invocation i : module.structure().invocations()) {
           for (SecretCall call : secretCalls(i)) {
             Set<String> keys = new TreeSet<>();
@@ -210,6 +336,9 @@ public final class IdentityExtractor {
             }
           }
           adminClient(module, i);
+          decoder(module, i);
+          httpSecurity(module, i);
+          keyPair(module, i);
         }
       }
       return facts.values().stream()
@@ -259,13 +388,229 @@ public final class IdentityExtractor {
       add(module, i, IDENTITY_ADMIN_CLIENT, text, attributes);
     }
 
+    private void decoder(JavaAnalysis.Module module, Invocation i) {
+      String root = i.rootType();
+      if (!SPRING_DECODERS.contains(root) && !DECODER_FACTORIES.contains(root)) {
+        return;
+      }
+      for (Expression.Invoke call : i.expression().chain()) {
+        String kind = DECODER_CALLS.get(call.method());
+        if (kind == null) {
+          continue;
+        }
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("library", "spring-security");
+        attributes.put("call", root.substring(root.lastIndexOf('.') + 1) + "." + call.method());
+        if (!kind.equals("public-key") && call.arguments().size() == 1) {
+          Expression argument = call.arguments().getFirst();
+          String url = text(argument, i.caller(), 0);
+          if (url != null) {
+            attributes.put("url", url);
+          }
+          Set<String> keys = keys(argument, i.caller(), 0);
+          if (!keys.isEmpty()) {
+            ArrayNode keyArray = attributes.putArray("keys");
+            keys.forEach(keyArray::add);
+          }
+        }
+        add(module, i, JWT_DECODER, kind, attributes);
+      }
+    }
+
+    private void httpSecurity(JavaAnalysis.Module module, Invocation i) {
+      String dsl = SECURITY_DSLS.get(i.rootType());
+      if (dsl == null) {
+        return;
+      }
+      for (Expression.Invoke call : i.expression().chain()) {
+        String feature = SIGN_IN_CALLS.get(call.method());
+        if (feature != null) {
+          ObjectNode attributes = FactJson.newObject();
+          attributes.put("via", dsl);
+          attributes.put("call", call.method());
+          add(module, i, HTTP_SECURITY, feature, attributes);
+        }
+      }
+    }
+
+    private void legacyOAuth(JavaAnalysis.Module module, TypeDecl type) {
+      for (Map.Entry<String, String> legacy : LEGACY_OAUTH.entrySet()) {
+        List<Annotation> path = code.annotationPath(type.annotations(), legacy.getKey());
+        if (path == null) {
+          continue;
+        }
+        String name = legacy.getKey().substring(legacy.getKey().lastIndexOf('.') + 1);
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("via", "annotation");
+        attributes.put("call", "@" + name);
+        add(
+            module,
+            new EntityId(BuiltInTypes.TYPE, type.binaryName()),
+            path.getFirst().where(),
+            HTTP_SECURITY,
+            legacy.getValue(),
+            attributes);
+      }
+    }
+
+    private void keyPair(JavaAnalysis.Module module, Invocation i) {
+      String kind = KEY_PAIR_CRYPTO.get(i.rootType());
+      if (kind == null) {
+        return;
+      }
+      for (Expression.Invoke call : i.expression().chain()) {
+        if (!call.method().equals(ModuleStructure.CONSTRUCTOR)) {
+          continue;
+        }
+        String root = i.rootType();
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("library", "nimbus-jose-jwt");
+        attributes.put("call", "new " + root.substring(root.lastIndexOf('.') + 1));
+        attributes.put("use", root.endsWith("Signer") ? "sign" : "verify");
+        Set<String> keys = new TreeSet<>();
+        for (Expression argument : call.arguments()) {
+          keys.addAll(keys(argument, i.caller(), 0));
+        }
+        if (!keys.isEmpty()) {
+          ArrayNode keyArray = attributes.putArray("keys");
+          keys.forEach(keyArray::add);
+        }
+        add(module, i, JWT_KEY_PAIR, kind, attributes);
+      }
+    }
+
+    /** The clients of the Keycloak realm exports in a repository. */
+    void realms(RepoBuild repo) {
+      for (String path : GitFiles.list(repo, "")) {
+        if (!path.contains("node_modules/")
+            && !path.contains("src/test/")
+            && REALM_FILE.matcher(path).matches()) {
+          realm(repo, path);
+        }
+      }
+    }
+
+    private void realm(RepoBuild repo, String path) {
+      byte[] bytes = GitFiles.read(repo, path, MAX_BYTES);
+      if (bytes == null) {
+        return;
+      }
+      String text = new String(bytes, StandardCharsets.UTF_8);
+      JsonNode realm;
+      try {
+        realm = FactJson.parse(text);
+      } catch (RuntimeException e) {
+        return;
+      }
+      if (!realm.isObject() || !realm.path("clients").isArray()) {
+        return;
+      }
+      String[] lines = text.split("\n", -1);
+      EntityId subject = new EntityId("repo", repo.repo().name());
+      for (JsonNode client : realm.path("clients")) {
+        String id = client.path("clientId").asString("");
+        if (id.isBlank() || BUILT_IN_CLIENTS.contains(id)) {
+          continue;
+        }
+        int at = 0;
+        Pattern clientId = Pattern.compile("\"clientId\"\\s*:\\s*\"" + Pattern.quote(id) + "\"");
+        for (int n = 0; n < lines.length && at == 0; n++) {
+          if (clientId.matcher(lines[n]).find()) {
+            at = n + 1;
+          }
+        }
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("product", "Keycloak");
+        if (realm.path("realm").isString()) {
+          attributes.put("realm", realm.path("realm").asString());
+        }
+        attributes.put("public", client.path("publicClient").asBoolean(false));
+        attributes.put("enabled", client.path("enabled").asBoolean(true));
+        attributes.put("protocol", client.path("protocol").asString("openid-connect"));
+        if (client.path("bearerOnly").asBoolean(false)) {
+          attributes.put("bearerOnly", true);
+        }
+        for (String url : List.of("rootUrl", "baseUrl")) {
+          String value = UrlCredentials.withoutCredentials(client.path(url).asString(""));
+          if (!value.isBlank()) {
+            attributes.put(url, value);
+          }
+        }
+        ArrayNode flows = attributes.putArray("flows");
+        // Keycloak enables the authorization code flow unless the export turns it off.
+        if (client.path("standardFlowEnabled").asBoolean(true)) {
+          flows.add("authorization-code");
+        }
+        if (client.path("implicitFlowEnabled").asBoolean(false)) {
+          flows.add("implicit");
+        }
+        if (client.path("directAccessGrantsEnabled").asBoolean(false)) {
+          flows.add("password");
+        }
+        if (client.path("serviceAccountsEnabled").asBoolean(false)) {
+          flows.add("client-credentials");
+        }
+        String pkce = client.path("attributes").path("pkce.code.challenge.method").asString("");
+        if (!pkce.isBlank()) {
+          attributes.put("pkce", pkce);
+        }
+        ArrayNode redirects = attributes.putArray("redirectUris");
+        client
+            .path("redirectUris")
+            .forEach(
+                uri -> {
+                  String withoutCredentials = UrlCredentials.withoutCredentials(uri.asString(""));
+                  if (!withoutCredentials.isBlank()) {
+                    redirects.add(withoutCredentials);
+                  }
+                });
+        ArrayNode origins = attributes.putArray("webOrigins");
+        client.path("webOrigins").forEach(o -> origins.add(o.asString("")));
+        Evidence evidence =
+            new Evidence(
+                repo.repo().name(),
+                repo.commit(),
+                path,
+                at > 0 ? new Evidence.LineRange(at, at) : null,
+                sha256(bytes));
+        Fact fact =
+            Fact.create(
+                subject,
+                IDENTITY_CLIENT,
+                FactObject.string(id),
+                attributes,
+                ORIGIN,
+                evidence,
+                1.0,
+                validity);
+        facts.putIfAbsent(fact.id(), fact);
+      }
+    }
+
+    private static String sha256(byte[] bytes) {
+      try {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+      } catch (NoSuchAlgorithmException e) {
+        throw new IllegalStateException(e);
+      }
+    }
+
     private void add(
         JavaAnalysis.Module module,
         Invocation i,
         String predicate,
         String value,
         ObjectNode attributes) {
-      Location where = i.where();
+      add(module, i.caller(), i.where(), predicate, value, attributes);
+    }
+
+    private void add(
+        JavaAnalysis.Module module,
+        EntityId subject,
+        Location where,
+        String predicate,
+        String value,
+        ObjectNode attributes) {
       RepoBuild repo = module.repo();
       Evidence evidence =
           new Evidence(
@@ -276,7 +621,7 @@ public final class IdentityExtractor {
               where.file().contentHash());
       Fact fact =
           Fact.create(
-              i.caller(),
+              subject,
               predicate,
               FactObject.string(value),
               attributes,
@@ -333,9 +678,12 @@ public final class IdentityExtractor {
           } else if (JJWT_VERIFY.contains(method)) {
             uses.add("verify");
           }
-        } else if (root.equals(MAC_SIGNER)) {
+        } else if (root.equals(MAC_SIGNER)
+            || (KEY_PAIR_CRYPTO.containsKey(root) && root.endsWith("Signer"))) {
           uses.add("sign");
-        } else if (root.equals(MAC_VERIFIER) || SPRING_DECODERS.contains(root)) {
+        } else if (root.equals(MAC_VERIFIER)
+            || SPRING_DECODERS.contains(root)
+            || KEY_PAIR_CRYPTO.containsKey(root)) {
           uses.add("verify");
         } else if (root.equals(AUTH0_JWT)) {
           if (method.equals("create")) {

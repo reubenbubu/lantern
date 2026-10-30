@@ -321,7 +321,7 @@ public final class AnalysisRun {
       found.addAll(new JavaExtractor().extract(code, snapshot.number()));
       // A config key the code uses as a JWT secret is masked whatever it is called (#335), so the
       // identity extractor runs before the config extractor.
-      List<Fact> identity = new IdentityExtractor().extract(code, snapshot.number());
+      List<Fact> identity = new IdentityExtractor().extract(code, repoBuilds, snapshot.number());
       Set<String> secretKeys = ConfigExtractor.jwtSecretKeys(identity);
       found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
       found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
