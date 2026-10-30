@@ -494,4 +494,143 @@ class ConfigExtractorTest {
 
     assertThat(extract(repo)).hasSize(3).allMatch(l -> !l.contains("x.y"));
   }
+
+  /** A config server, a client, and a config repository without Maven modules. */
+  private List<RepoBuild> configServerSystem(boolean withServer) throws IOException {
+    Repo server =
+        Fixtures.repo(
+            temp.resolve("server"),
+            "server",
+            Map.of(
+                "pom.xml",
+                POM.replace("<artifactId>app", "<artifactId>server"),
+                RESOURCES + "application.yml",
+                withServer
+                    ? """
+                    spring:
+                      cloud:
+                        config:
+                          server:
+                            native:
+                              search-locations: file:///config/
+                    """
+                    : "server:\n  port: 8888\n"));
+    Repo orders =
+        Fixtures.repo(
+            temp.resolve("orders"),
+            "orders",
+            Map.of(
+                "pom.xml",
+                POM.replace("<artifactId>app", "<artifactId>orders"),
+                RESOURCES + "application.yml",
+                """
+                spring:
+                  application:
+                    name: orders-service
+                  cloud:
+                    config:
+                      name: ${CONFIG_NAMES:orders,orders-service}
+                """));
+    Repo repository =
+        Fixtures.repo(
+            temp.resolve("config-repo"),
+            "config-repo",
+            Map.of(
+                "application.yml",
+                """
+                eureka:
+                  client:
+                    service-url:
+                      defaultZone: http://discovery:8761/eureka/
+                """,
+                "orders-service.yml",
+                """
+                spring:
+                  datasource:
+                    url: jdbc:postgresql://${DB_HOST:orders-db}:5432/orders
+                    password: '{cipher}AQBx7b1e'
+                    username: ${ORDERS_USER:'{cipher}AQBx7b1f'}
+                app:
+                  hint: '{cipher}AQBx7b1g'
+                """,
+                "orders-service.properties",
+                "spring.datasource.url=jdbc:postgresql://orders-db:5432/orders_main\n",
+                "application-dev.yml",
+                "logging:\n  level:\n    root: DEBUG\n",
+                "orders-dev.yml",
+                "orders:\n  mode: dev\n",
+                "orders-service/orders-service.yml",
+                "nested:\n  read: false\n",
+                "orders-service-dev.yml",
+                "spring:\n  datasource:\n    url: jdbc:postgresql://localhost:5432/orders\n",
+                "docker-compose.yml",
+                "services:\n  db:\n    image: postgres\n",
+                "billing.yml",
+                "billing:\n  url: http://billing\n",
+                "README.md",
+                "# Config\n"));
+    return List.of(
+        new RepoBuild(server, Fixtures.head(server), null),
+        new RepoBuild(orders, Fixtures.head(orders), null),
+        new RepoBuild(repository, Fixtures.head(repository), null));
+  }
+
+  @Test
+  void aConfigRepositoryServesItsFilesToTheApplicationsTheyAreNamedAfter() throws IOException {
+    List<RepoBuild> repos = configServerSystem(true);
+    List<Fact> facts = new ConfigExtractor().extract(repos, 1);
+    Fixtures.checkEnvelope(
+        facts,
+        repos.stream().map(RepoBuild::repo).toList(),
+        1,
+        ConfigExtractor.NAME,
+        ConfigExtractor.VERSION);
+
+    List<String> lines =
+        Fixtures.render(facts).lines().filter(l -> l.startsWith("repo:config-repo ")).toList();
+    assertThat(lines)
+        .contains(
+            // The shared file every application gets.
+            "repo:config-repo config-value http://discovery:8761/eureka/"
+                + " {\"application\":\"application\","
+                + "\"key\":\"eureka.client.service-url.defaultZone\","
+                + "\"source\":\"config-repository\"}"
+                + " @config-repo:application.yml#4-4 1.0",
+            // Properties win over YAML for the same application.
+            "repo:config-repo config-value jdbc:postgresql://orders-db:5432/orders_main"
+                + " {\"application\":\"orders-service\",\"key\":\"spring.datasource.url\","
+                + "\"source\":\"config-repository\"}"
+                + " @config-repo:orders-service.properties#1-1 1.0",
+            // The longest known name the file starts with: orders-service, not orders.
+            "repo:config-repo config-value jdbc:postgresql://localhost:5432/orders"
+                + " {\"application\":\"orders-service\",\"key\":\"spring.datasource.url\","
+                + "\"profile\":\"dev\",\"source\":\"config-repository\"}"
+                + " @config-repo:orders-service-dev.yml#3-3 1.0",
+            // The shared file's profile.
+            "repo:config-repo config-value DEBUG"
+                + " {\"application\":\"application\",\"key\":\"logging.level.root\","
+                + "\"profile\":\"dev\",\"source\":\"config-repository\"}"
+                + " @config-repo:application-dev.yml#3-3 1.0",
+            // Each name of spring.cloud.config.name, its default resolved.
+            "repo:config-repo config-value dev"
+                + " {\"application\":\"orders\",\"key\":\"orders.mode\","
+                + "\"profile\":\"dev\",\"source\":\"config-repository\"}"
+                + " @config-repo:orders-dev.yml#2-2 1.0");
+    // Encrypted values are masked whatever the key, also when reached through a placeholder.
+    assertThat(lines)
+        .filteredOn(l -> l.contains("\"key\":\"app.hint\"") || l.contains("datasource.username"))
+        .hasSize(2)
+        .allMatch(l -> l.contains(" ****** ") && l.contains("\"masked\":true"));
+    assertThat(Fixtures.render(facts))
+        .doesNotContain("AQBx7b1")
+        .doesNotContain("billing")
+        .doesNotContain("nested.read");
+  }
+
+  @Test
+  void withoutAConfigServerARepositoryWithoutModulesIsNotReadAsOne() throws IOException {
+    List<Fact> facts = new ConfigExtractor().extract(configServerSystem(false), 1);
+
+    assertThat(facts).noneMatch(f -> f.subject().toString().startsWith("repo:"));
+  }
 }

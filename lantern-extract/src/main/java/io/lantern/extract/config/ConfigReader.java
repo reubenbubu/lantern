@@ -20,6 +20,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.boot.env.PropertiesPropertySourceLoader;
@@ -60,6 +62,8 @@ final class ConfigReader {
   private static final Pattern FILE =
       Pattern.compile("(bootstrap|application)(?:-([^/]+))?\\.(yaml|yml|properties)");
 
+  private static final String APPLICATION = "application";
+
   private static final String ON_PROFILE = "spring.config.activate.on-profile";
   private static final String ON_CLOUD_PLATFORM = "spring.config.activate.on-cloud-platform";
 
@@ -67,6 +71,76 @@ final class ConfigReader {
   private static final String LEGACY_PROFILES = "spring.profiles";
 
   private ConfigReader() {}
+
+  /** A config repository's file: a name, an optional profile and an extension, at its top. */
+  private static final Pattern REPOSITORY_FILE =
+      Pattern.compile("([^/]+?)\\.(yaml|yml|properties)");
+
+  /**
+   * The config a Spring Cloud Config repository serves, one config per application, ordered by
+   * application: the files at the top of a repository without Maven modules named {@code
+   * application} or exactly one of the given application names, each optionally followed by {@code
+   * -<profile>}. See {@code docs/adr/0032-config-extractor.md}, amendment for #384.
+   *
+   * @param repo the repository
+   * @param names the application names the snapshot's modules give themselves
+   */
+  static List<ModuleConfig> readRepository(RepoBuild repo, Set<String> names) {
+    if (!moduleIds(repo).isEmpty()) {
+      return List.of();
+    }
+    Set<String> applications = new TreeSet<>(names);
+    applications.add(APPLICATION);
+    // By application, then profile ("" for none), then extension: the file's path.
+    Map<String, Map<String, Map<String, String>>> files = new TreeMap<>();
+    for (String path : GitFiles.list(repo, "")) {
+      Matcher m = REPOSITORY_FILE.matcher(path);
+      if (!m.matches()) {
+        continue;
+      }
+      String base = m.group(1);
+      String application = null;
+      String profile = "";
+      if (applications.contains(base)) {
+        application = base;
+      } else {
+        // The longest name the file starts with, so "order-service-dev" is order-service's.
+        for (String name : applications) {
+          if (base.startsWith(name + "-")
+              && (application == null || name.length() > application.length())) {
+            application = name;
+          }
+        }
+        if (application != null) {
+          profile = base.substring(application.length() + 1);
+        }
+      }
+      if (application != null) {
+        files
+            .computeIfAbsent(application, a -> new TreeMap<>())
+            .computeIfAbsent(profile, p -> new HashMap<>())
+            .put(m.group(2), path);
+      }
+    }
+    List<ModuleConfig> result = new ArrayList<>();
+    EntityId subject = new EntityId("repo", repo.repo().name());
+    for (Map.Entry<String, Map<String, Map<String, String>>> application : files.entrySet()) {
+      List<Document> documents = new ArrayList<>();
+      for (Map.Entry<String, Map<String, String>> profile : application.getValue().entrySet()) {
+        for (String extension : EXTENSIONS) {
+          String path = profile.getValue().get(extension);
+          if (path != null) {
+            documents.addAll(
+                read(repo, path, extension, profile.getKey().isEmpty() ? null : profile.getKey()));
+          }
+        }
+      }
+      if (!documents.isEmpty()) {
+        result.add(new ModuleConfig(repo, "", subject, application.getKey(), documents));
+      }
+    }
+    return result;
+  }
 
   /** The config of each module of the repository that has any, ordered by directory. */
   static List<ModuleConfig> read(RepoBuild repo) {

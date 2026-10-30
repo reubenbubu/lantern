@@ -2,7 +2,7 @@
   {
     "name": "config-value",
     "kind": "attribute",
-    "description": "A config property of the subject module, from its application and bootstrap files, as Spring Boot sees it: by default, or with the attribute profile active. The value has its placeholders resolved; one that cannot be resolved, such as an environment variable no file sets, stays as ${KEY}.",
+    "description": "A config property of the subject module, from its application and bootstrap files (or of the subject config repository, for the application named in the attribute application), as Spring Boot sees it: by default, or with the attribute profile active. The value has its placeholders resolved; one that cannot be resolved, such as an environment variable no file sets, stays as ${KEY}.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -10,7 +10,8 @@
         "profile": { "type": "string", "description": "The profile active instead of the default one. Absent for the default view; present only where the value differs from it." },
         "written": { "type": "string", "description": "The value as written, when it differs from the resolved value." },
         "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders that could not be resolved." },
-        "source": { "type": "string", "enum": ["environment-post-processor"], "description": "Present when the value is a default a library adds in code, through an EnvironmentPostProcessor, not a value of a config file. It has the lowest precedence in a unit that bundles the library." },
+        "source": { "type": "string", "enum": ["environment-post-processor", "config-repository"], "description": "Present when the value is not one of the subject module's own config files: environment-post-processor for a default a library adds in code, through an EnvironmentPostProcessor, which has the lowest precedence in a unit that bundles the library; config-repository for a value a Spring Cloud Config repository serves, whose subject is the repository and which outranks the application's own files." },
+        "application": { "type": "string", "description": "For a config-repository value: the application its file is named after, or application for the files every application gets." },
         "masked": { "type": "boolean", "description": "Present and true when the key names a secret written in the file, so the value is not recorded." }
       },
       "required": ["key"],
