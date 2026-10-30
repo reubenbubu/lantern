@@ -199,6 +199,7 @@ final class JavaParserAnalyzer {
       structure.calls.addAll(one.calls);
       structure.invocations.addAll(one.invocations);
       structure.assignments.addAll(one.assignments);
+      structure.ownCalls.addAll(one.ownCalls);
     }
     return structure;
   }
@@ -254,6 +255,9 @@ final class JavaParserAnalyzer {
         if (creation.getAnonymousClassBody().isEmpty()) {
           chain(creation);
         }
+      }
+      for (MethodCallExpr call : unit.findAll(MethodCallExpr.class)) {
+        ownCall(call);
       }
       fieldValues();
     }
@@ -946,6 +950,72 @@ final class JavaParserAnalyzer {
         structure.invocations.add(
             new ModuleStructure.Invocation(caller, invoke, location(call), rootType));
       }
+    }
+
+    /**
+     * Records a call of a method its caller's own type declares, written without a receiver or on
+     * {@code this}, with its arguments: the only method of that name taking as many arguments, else
+     * the one the call resolves to.
+     */
+    private void ownCall(MethodCallExpr call) {
+      if (call.getArguments().isEmpty()
+          || call.getScope().isPresent()
+              && !(call.getScope().get() instanceof ThisExpr t && t.getTypeName().isEmpty())) {
+        return;
+      }
+      EntityId caller = owner(call);
+      String name = call.getNameAsString();
+      int arity = call.getArguments().size();
+      TypeDeclaration<?> type = null;
+      for (Node n = call.getParentNode().orElse(null);
+          n != null && type == null;
+          n = n.getParentNode().orElse(null)) {
+        // A local or anonymous class with a method that may be the one called: javac would find
+        // that class's method, which is not an entity.
+        List<? extends BodyDeclaration<?>> local =
+            switch (n) {
+              case ObjectCreationExpr o when o.getAnonymousClassBody().isPresent() ->
+                  o.getAnonymousClassBody().get();
+              case TypeDeclaration<?> t when !binaryNames.containsKey(t) -> t.getMembers();
+              default -> List.of();
+            };
+        if (local.stream()
+            .anyMatch(
+                m -> m instanceof MethodDeclaration md && md.getNameAsString().equals(name))) {
+          return;
+        }
+        if (n instanceof TypeDeclaration<?> t && binaryNames.containsKey(t)) {
+          type = t;
+        }
+      }
+      if (caller == null || type == null) {
+        return;
+      }
+      String binary = binaryNames.get(type);
+      List<MethodDeclaration> candidates =
+          type.getMethods().stream()
+              .filter(m -> m.getNameAsString().equals(name))
+              .filter(m -> m.getParameters().size() == arity)
+              .filter(m -> m.getParameters().stream().noneMatch(Parameter::isVarArgs))
+              .toList();
+      EntityId callee = candidates.size() == 1 ? callables.get(candidates.getFirst()) : null;
+      if (callee == null) {
+        try {
+          ResolvedMethodDeclaration method = call.resolve();
+          callee = binary.equals(binaryName(method.declaringType())) ? calleeId(method) : null;
+        } catch (RuntimeException | StackOverflowError e) {
+          // Not resolvable without the classpath the build would have given.
+        }
+      }
+      if (callee == null
+          || !(caller.type().equals(BuiltInTypes.TYPE)
+              ? caller.key().equals(binary)
+              : caller.key().startsWith(binary + "#"))) {
+        return;
+      }
+      structure.ownCalls.add(
+          new ModuleStructure.OwnCall(
+              caller, callee, arguments(call.getArguments(), caller, 0), location(call)));
     }
 
     private static boolean isReceiver(Node node) {

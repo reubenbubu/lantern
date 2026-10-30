@@ -27,7 +27,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Links HTTP calls to the units that serve them, or to external systems (ADR 0042): by a Feign
  * client's name against {@code spring.application.name}, else by the URL's host against unit names,
- * then the path against the target's endpoints; a call to this machine by its path alone.
+ * then the path against the target's endpoints; a call to this machine by its port against the
+ * units' {@code server.port} when one other unit listens there, else by its path alone.
  */
 final class HttpLinker {
 
@@ -36,7 +37,11 @@ final class HttpLinker {
 
   static final double BY_HOST = 0.9;
   static final double BY_ARTIFACT_ID = 0.8;
+  static final double BY_PORT = 0.8;
   static final double BY_PATH = 0.6;
+
+  /** The port a unit that sets none listens on, as Spring Boot's embedded server does. */
+  private static final String DEFAULT_PORT = "8080";
 
   /** Factor for a target found without an endpoint that matches the path. */
   static final double WITHOUT_ENDPOINT = 0.8;
@@ -252,6 +257,20 @@ final class HttpLinker {
       linkExternal(caller, call, view, call.url().host());
       return;
     }
+    if (targets.isEmpty() && call.url().local()) {
+      // A call to this machine goes to what listens on its port, when that is one other unit.
+      List<Target> byPort = byPort(caller, call.url(), view);
+      if (byPort.size() == 1) {
+        Target target = byPort.getFirst();
+        Endpoint endpoint = path == null ? null : endpoint(target.unit(), call, view);
+        // A unit on the default port, setting none, is taken only where it serves the path: other
+        // servers on this machine (an identity provider, say) listen on 8080 too.
+        if (target.name() != null || endpoint != null) {
+          linkUnit(caller, call, view, target, endpoint);
+          return;
+        }
+      }
+    }
     if (targets.isEmpty()) {
       // Only the path can tell: decided for a call to this machine when one unit serves it.
       List<Target> byPath = new ArrayList<>();
@@ -291,6 +310,28 @@ final class HttpLinker {
       linkUnit(
           caller, call, view, target, path == null ? null : endpoint(target.unit(), call, view));
     }
+  }
+
+  /** The other units listening on the URL's port in the view ({@value #DEFAULT_PORT} if unset). */
+  private List<Target> byPort(Unit caller, Url url, String view) {
+    List<Target> targets = new ArrayList<>();
+    if (url.port() == null) {
+      return targets;
+    }
+    for (Unit unit : index.units.values()) {
+      if (unit.equals(caller)) {
+        continue;
+      }
+      Fact port = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, "server.port");
+      if (port != null && LinkIndex.flag(port, "masked")) {
+        continue;
+      }
+      String value = port == null ? DEFAULT_PORT : port.object().value();
+      if (value.equals(url.port())) {
+        targets.add(new Target(unit, port, "port", BY_PORT));
+      }
+    }
+    return targets;
   }
 
   private void linkUnit(Unit caller, Call call, String view, Target target, Endpoint endpoint) {

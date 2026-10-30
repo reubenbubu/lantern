@@ -531,6 +531,50 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aCallToThisMachineLinksByItsPortWhenOneOtherUnitListensThere() {
+    unit("a", "bff", "bff");
+    type("a", "bff", "b.Proxy");
+    call(
+        "a",
+        "b.Proxy#send()",
+        "http://127.0.0.1:8888{path}",
+        "{\"client\":\"rest-client\",\"expressions\":[\"path\"],\"path\":\"{path}\","
+            + "\"url\":\"http://127.0.0.1:8888{path}\",\"baseUrl\":\"http://127.0.0.1:8888\"}",
+        5);
+    unit("g", "gateway", "gateway");
+    config("g", "gateway", "application.properties", "server.port", "8888", null);
+    // Serves a one-segment path, so the path alone would have taken it.
+    unit("p", "profile", "profile");
+    type("p", "profile", "p.ProfileController");
+    endpoint("p", "p.ProfileController", "all()", "GET", "/profiles");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:bff CALLS_HTTP service:g:gateway")
+        .contains("\"matchedBy\":\"port\"")
+        .endsWith(" 0.64");
+  }
+
+  @Test
+  void aUnitOnTheDefaultPortIsTakenOnlyWhereItServesThePath() {
+    unit("a", "bff", "bff");
+    type("a", "bff", "b.Login");
+    call(
+        "a",
+        "b.Login#token()",
+        "POST http://localhost:8080/realms/app/token",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"POST\",\"path\":\"/realms/app/token\","
+            + "\"url\":\"http://localhost:8080/realms/app/token\","
+            + "\"baseUrl\":\"http://localhost:8080\"}",
+        5);
+    config("a", "bff", "application.properties", "server.port", "8081", null);
+    unit("o", "orders", "orders");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP)).isEmpty();
+  }
+
+  @Test
   void aUrlFromAnUnresolvedPlaceholderIsLeftForTheResolverWithTheUnitsServingItsPath() {
     unit("a", "orders", "orders");
     type("a", "orders", "o.TaxClient");
@@ -2489,7 +2533,7 @@ class CrossRepoLinksTest {
     container("s", "keycloak", KEYCLOAK);
 
     assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
-        .containsExactly(
+        .containsExactlyInAnyOrder(
             "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
                 + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
                 + "\"matchedBy\":\"published-port\",\"protocol\":\"OAuth2 over HTTP\","

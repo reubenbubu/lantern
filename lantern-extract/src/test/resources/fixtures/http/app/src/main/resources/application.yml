@@ -16,6 +16,8 @@ clients:
     url: http://shipping:8080
   ledger:
     url: http://ledger:8080
+  proxy:
+    url: http://proxy:8080
   inventory:
     url: http://inventory-api:8080
   reviews:

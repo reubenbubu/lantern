@@ -271,10 +271,31 @@ public final class ModuleStructure {
    */
   public record Assignment(EntityId field, EntityId in, Expression value, Location where) {}
 
+  /**
+   * A call from a named type's code to one of that type's own methods, written without a receiver
+   * or on {@code this}, with its arguments as expressions, so that extractors can follow a value
+   * passed as an argument into the method that uses it (a URL built in one method and sent in
+   * another). Calls without arguments are not kept.
+   *
+   * @param caller the calling method or constructor, or the type for code outside methods; a {@link
+   *     Expression.Param} in an argument is that member's parameter
+   * @param callee the method called, as resolved, declared by the caller's type
+   * @param arguments the arguments, in order
+   * @param where the call
+   */
+  public record OwnCall(
+      EntityId caller, EntityId callee, List<Expression> arguments, Location where) {
+
+    public OwnCall {
+      arguments = List.copyOf(arguments);
+    }
+  }
+
   final List<TypeDecl> types = new ArrayList<>();
   final List<Call> calls = new ArrayList<>();
   final List<Invocation> invocations = new ArrayList<>();
   final List<Assignment> assignments = new ArrayList<>();
+  final List<OwnCall> ownCalls = new ArrayList<>();
 
   /**
    * The annotations on annotation types read from the classpath (meta-annotations), by the
@@ -300,6 +321,11 @@ public final class ModuleStructure {
   /** The values given to fields, in the order read. */
   public List<Assignment> assignments() {
     return Collections.unmodifiableList(assignments);
+  }
+
+  /** The calls of each type's own methods with their arguments, in the order read. */
+  public List<OwnCall> ownCalls() {
+    return Collections.unmodifiableList(ownCalls);
   }
 
   /** The meta-annotations of the annotation types read from the classpath, by binary name. */
