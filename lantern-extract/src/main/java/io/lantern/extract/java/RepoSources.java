@@ -120,7 +120,7 @@ final class RepoSources {
       for (String path : sources.get(directory)) {
         String hash = hashes.get(path);
         if (hash != null) {
-          files.add(new SourceFile(path, target.resolve(path), hash));
+          files.add(new SourceFile(path, target.resolve(path), hash, false));
         }
       }
       List<Path> generatedRoots = new ArrayList<>();
@@ -174,7 +174,7 @@ final class RepoSources {
         Path copy = copies.resolve(path);
         Files.createDirectories(copy.getParent());
         Files.write(copy, content);
-        files.add(new SourceFile(path, copy, sha256(content)));
+        files.add(new SourceFile(path, copy, sha256(content), true));
       }
     }
   }

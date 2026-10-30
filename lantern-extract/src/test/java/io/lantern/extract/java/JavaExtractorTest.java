@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.sandbox.BuildModule;
@@ -123,6 +124,143 @@ class JavaExtractorTest {
             "type:com.example.orders.OrderService CONTAINS"
                 + " method:com.example.orders.OrderService#<init>(java.lang.String)");
     assertThat(facts).allMatch(f -> f.confidence() == JavaExtractor.COMPILED_CONFIDENCE);
+  }
+
+  @Test
+  void parsingAddsLombokConstructorsAndLogFieldAsTheCompilerDeclaresThem()
+      throws IOException, URISyntaxException {
+    Repo repo = Fixtures.repo("lombok", temp.resolve("orders"), "orders");
+    Path lombok =
+        Path.of(lombok.Value.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+
+    Set<String> compiled =
+        lombokMembers(
+            extract(
+                List.of(built(repo, "com.example.orders", "orders", List.of(lombok.toString())))));
+    Set<String> parsed = lombokMembers(extract(List.of(unbuilt(repo))));
+
+    assertThat(compiled)
+        .contains(
+            "type:com.example.orders.Account CONTAINS"
+                + " method:com.example.orders.Account#<init>(java.lang.String,java.lang.String)",
+            "type:com.example.orders.Account CONTAINS field:com.example.orders.Account#log",
+            "type:com.example.orders.Ledger CONTAINS method:com.example.orders.Ledger#<init>()",
+            "type:com.example.orders.Ledger CONTAINS"
+                + " method:com.example.orders.Ledger#<init>(java.lang.String,int)");
+    assertThat(parsed).isEqualTo(compiled);
+  }
+
+  /**
+   * The constructors and log fields among the facts, of the types written in the sources: not of
+   * the builder classes Lombok adds, which parsing does not.
+   */
+  private static Set<String> lombokMembers(List<Fact> facts) {
+    return facts.stream()
+        .filter(f -> f.predicate().equals(BuiltInTypes.CONTAINS))
+        .filter(f -> !f.subject().key().endsWith("Builder"))
+        .filter(f -> f.object().value().contains("#<init>(") || f.object().value().endsWith("#log"))
+        .map(f -> f.subject() + " CONTAINS " + f.object().value())
+        .collect(Collectors.toCollection(java.util.TreeSet::new));
+  }
+
+  @Test
+  void typesOfGeneratedCodeSayWhatGeneratedThem() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("mapping"),
+            "mapping",
+            Map.of(
+                "pom.xml",
+                """
+                <project>
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>com.example</groupId>
+                  <artifactId>mapping</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """,
+                "src/main/java/com/example/mapping/CarMapper.java",
+                """
+                package com.example.mapping;
+
+                public interface CarMapper {
+                  String map(String car);
+                }
+                """,
+                "src/main/java/com/example/mapping/Checked.java",
+                """
+                package com.example.mapping;
+
+                import javax.annotation.processing.Generated;
+
+                @Generated("by hand, checked in")
+                public class Checked {
+                  public static class Inner {}
+                }
+                """));
+    String commit = Fixtures.head(repo);
+    Path directory = Files.createDirectories(temp.resolve("builds").resolve("mapping"));
+    Path generated =
+        Files.createDirectories(
+            directory.resolve("work/target/generated-sources/annotations/com/example/mapping"));
+    Files.writeString(
+        generated.resolve("CarMapperImpl.java"),
+        """
+        package com.example.mapping;
+
+        import javax.annotation.processing.Generated;
+
+        @Generated(value = "org.mapstruct.ap.MappingProcessor", date = "2026-10-30")
+        public class CarMapperImpl implements CarMapper {
+          @Override
+          public String map(String car) {
+            return car;
+          }
+        }
+        """);
+    Files.writeString(
+        generated.resolve("Plain.java"), "package com.example.mapping;\n\npublic class Plain {}\n");
+    BuildModule module =
+        new BuildModule(
+            "",
+            "com.example",
+            "mapping",
+            "jar",
+            "1.0.0",
+            List.of(),
+            List.of(),
+            null,
+            "work/target/generated-sources",
+            null);
+    BuildResult build =
+        new BuildResult(
+            "mapping",
+            commit,
+            BuildStatus.SUCCEEDED,
+            null,
+            21,
+            "test",
+            "test",
+            0,
+            Instant.EPOCH,
+            Duration.ZERO,
+            null,
+            List.of(module),
+            directory);
+
+    Set<String> generatedFacts =
+        // Not checked against the repository: generated files are not in it.
+        triples(new JavaExtractor().extract(List.of(new RepoBuild(repo, commit, build)), SNAPSHOT))
+            .stream()
+            .filter(t -> t.contains(" " + JavaExtractor.GENERATED + " "))
+            .collect(Collectors.toCollection(java.util.TreeSet::new));
+
+    assertThat(generatedFacts)
+        .containsExactly(
+            "type:com.example.mapping.CarMapperImpl generated org.mapstruct.ap.MappingProcessor",
+            "type:com.example.mapping.Checked generated by hand, checked in",
+            "type:com.example.mapping.Checked$Inner generated by hand, checked in",
+            "type:com.example.mapping.Plain generated build");
   }
 
   /** Code using most of what Java declares, with only the JDK on the classpath. */

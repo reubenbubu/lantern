@@ -19,5 +19,12 @@
     "description": "What sort of thing the subject is. For a Java type: class, interface, enum, record or annotation. For a schema: how it is migrated, flyway, liquibase or sql (other SQL files), one fact for each.",
     "attributeSchema": { "additionalProperties": false },
     "objectKind": "string"
+  },
+  {
+    "name": "generated",
+    "kind": "attribute",
+    "description": "The Java type is generated code, and by what: the generator its @Generated annotation names, such as org.mapstruct.ap.MappingProcessor, or build for a type in the build's generated sources that names none.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
   }
 ]
