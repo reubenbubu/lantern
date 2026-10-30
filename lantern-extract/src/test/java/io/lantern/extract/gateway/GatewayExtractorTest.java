@@ -75,6 +75,63 @@ class GatewayExtractorTest {
   }
 
   @Test
+  void zuulRoutesAndTheDiscoveryLocator() throws IOException {
+    List<String> lines = Fixtures.render(extract(unbuilt(fixture()))).lines().toList();
+    String legacy = "module:com.example.edge:legacy gateway-route ";
+    assertThat(lines)
+        // A service ID: load balanced, behind the global prefix, both prefixes stripped.
+        .anyMatch(
+            l ->
+                l.startsWith(legacy + "accounts ")
+                    && l.contains("\"framework\":\"zuul\"")
+                    && l.contains("\"uri\":\"lb://account-service\"")
+                    && l.contains("\"paths\":[\"/api/accounts/**\"]")
+                    && l.contains("\"filters\":[\"StripPrefix=2\"]"))
+        // A URL, keeping its own prefix (strip-prefix: false) but not the global one.
+        .anyMatch(
+            l ->
+                l.startsWith(legacy + "auth ")
+                    && !l.contains("profile")
+                    && l.contains("\"uri\":\"http://auth-service:5000\"")
+                    && l.contains("\"filters\":[\"StripPrefix=1\"]"))
+        .anyMatch(
+            l ->
+                l.startsWith(legacy + "auth ")
+                    && l.contains("\"profile\":\"local\"")
+                    && l.contains("\"uri\":\"http://localhost:5000\""))
+        // The shorthand form: the route's name is its service.
+        .anyMatch(
+            l ->
+                l.startsWith(legacy + "statistics ")
+                    && l.contains("\"uri\":\"lb://statistics\"")
+                    && l.contains("\"paths\":[\"/api/stats/v1/**\"]")
+                    && l.contains("\"filters\":[\"StripPrefix=3\"]"))
+        // No path: /<name>/**.
+        .anyMatch(
+            l ->
+                l.startsWith(legacy + "notifications ")
+                    && l.contains("\"uri\":\"lb://notification-service\"")
+                    && l.contains("\"paths\":[\"/api/notifications/**\"]"))
+        // The discovery locator under the server.webflux prefix, with its settings.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "module:com.example.edge:finder gateway-discovery-locator 'lb://'+serviceId ")
+                    && l.contains("\"lowerCaseServiceId\":true")
+                    && l.contains("\"includeExpression\":\"serviceId != 'finder'\"")
+                    && l.contains("finder/src/main/resources/application.yml#10-12 "))
+        // A profile that replaces its URL expression and filters.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "module:com.example.edge:finder gateway-discovery-locator 'http://'+serviceId ")
+                    && l.contains("\"filters\":[\"StripPrefix=1\"]")
+                    && l.contains("\"profile\":\"custom\""))
+        // A gateway without the locator has no such fact.
+        .noneMatch(l -> l.startsWith("module:com.example.edge:edge gateway-discovery-locator"));
+  }
+
+  @Test
   void compiledGivesTheSameFactsAsParsed() throws IOException {
     Repo repo = fixture();
     String commit = Fixtures.head(repo);

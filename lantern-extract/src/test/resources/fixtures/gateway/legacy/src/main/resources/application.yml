@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: legacy
+zuul:
+  prefix: /api
+  ignored-services: '*'
+  routes:
+    accounts:
+      path: /accounts/**
+      serviceId: account-service
+    auth:
+      path: /uaa/**
+      url: http://auth-service:5000
+      strip-prefix: false
+    statistics: /stats/v1/**
+    notifications:
+      service-id: notification-service
+---
+spring.config.activate.on-profile: local
+zuul.routes.auth.url: http://localhost:5000

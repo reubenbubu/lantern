@@ -2,11 +2,12 @@
   {
     "name": "gateway-route",
     "kind": "attribute",
-    "description": "A Spring Cloud Gateway route: requests matching its predicates go, through its filters, to its URI. The value is the route's id. The subject is the method that builds it with RouteLocatorBuilder, or the module whose config (spring.cloud.gateway.routes, or the server.webflux, server.webmvc or mvc forms) defines it. Placeholders in the URI are resolved against the config of the module; values are those of the default view unless profile is set.",
+    "description": "A Spring Cloud Gateway route: requests matching its predicates go, through its filters, to its URI. The value is the route's id. The subject is the method that builds it with RouteLocatorBuilder, or the module whose config (spring.cloud.gateway.routes, or the server.webflux, server.webmvc or mvc forms, or Netflix Zuul's zuul.routes) defines it. Placeholders in the URI are resolved against the config of the module; values are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "definedIn": { "type": "string", "enum": ["java", "config"], "description": "Where the route is defined: in code, with RouteLocatorBuilder, or in config." },
+        "framework": { "type": "string", "enum": ["zuul"], "description": "zuul for a route of Netflix Zuul's config (zuul.routes): its URI is its url, else lb:// and its serviceId or name; its path is behind zuul.prefix; the parts Zuul strips are a StripPrefix filter. Absent for Spring Cloud Gateway." },
         "uri": { "type": "string", "description": "The URI requests go to, such as lb://main-service, lb:ws://notification-service or http://localhost:8081; a placeholder nothing resolves is kept as written, an expression not followed is shown as its source in braces. Absent when masked." },
         "written": { "type": "string", "description": "The URI as written, when it differs from the resolved one (it had placeholders)." },
         "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders in the URI no config value resolved." },
@@ -35,6 +36,24 @@
         "implements": { "type": "string", "description": "The binary name of the library type the class implements or extends, directly or through classes of the code, such as org.springframework.cloud.gateway.filter.GlobalFilter." }
       },
       "required": ["implements"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "gateway-discovery-locator",
+    "kind": "attribute",
+    "description": "The subject module's config turns on Spring Cloud Gateway's discovery locator (spring.cloud.gateway.discovery.locator.enabled, or under server.webflux): the gateway routes /<service ID>/** to each service its discovery client knows, without that first segment, unless predicates or filters replace those defaults. The value is the URL expression, by default 'lb://'+serviceId. Values are those of the default view unless profile is set.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "lowerCaseServiceId": { "type": "boolean", "description": "Whether service IDs are put in lower case in paths (Eureka registers them in upper case); absent when not set, which means false." },
+        "includeExpression": { "type": "string", "description": "The SpEL expression that picks the services routed to; absent when not set, which means all." },
+        "routeIdPrefix": { "type": "string", "description": "The prefix of the ids of the routes it makes, when set." },
+        "predicates": { "type": "array", "items": { "type": "string" }, "description": "Predicates that replace the default Path one, in shortcut form, their arguments SpEL over serviceId." },
+        "filters": { "type": "array", "items": { "type": "string" }, "description": "Filters that replace the default RewritePath one, in shortcut form, their arguments SpEL over serviceId." },
+        "profile": { "type": "string", "description": "The profile active instead of the default one when it was read. Absent for the default view; present only where it differs from it." }
+      },
       "additionalProperties": false
     },
     "objectKind": "string"

@@ -149,3 +149,29 @@ route's filters rewrite before the unit sees it.
 `unrouted-endpoint` does not yet count what the discovery locator reaches, so an endpoint reached
 only through it, as project-3's watch history, is still listed as unrouted. Which services
 register with the discovery server is not checked: every other named unit is taken to.
+
+## Amendment (#390): Netflix Zuul routes and the discovery locator
+
+Research: `docs/research/extractor-gateway.md`. Netflix Zuul, still met in older systems, routes
+by `zuul.routes`, and nothing read it. The discovery locator was read only by the route linker,
+from two config keys, so no fact showed it or its settings. The gateway extractor's version
+becomes 3.
+
+- **Zuul routes** are `gateway-route` facts with `definedIn: config` and `framework: zuul`, on the
+  module whose config defines them, evidenced by the route's keys, per profile like the gateway's
+  routes. Each `zuul.routes.<name>`, in the shorthand form (its value is the path) or with
+  `path`, `url`, `serviceId` and `strip-prefix` (in any relaxed form): the path, or `/<name>/**`
+  without one, behind `zuul.prefix`; the URI is `url`, else `lb://` and `serviceId`, else `lb://`
+  and the name. What Zuul strips is a `StripPrefix` filter of as many segments: the path's whole
+  segments before its first wildcard unless the route's `strip-prefix` is false, and the global
+  prefix's unless `zuul.strip-prefix` is. The route linker draws them as it draws other routes.
+- **`gateway-discovery-locator`**, on the module whose config turns the locator on
+  (`spring.cloud.gateway.discovery.locator.enabled` or under `server.webflux`), valued with its URL
+  expression (`'lb://'+serviceId` by default), with `lowerCaseServiceId`, `includeExpression`,
+  `routeIdPrefix`, and `predicates` and `filters` that replace its defaults, in shortcut form;
+  recorded in the default view and with `profile` where one differs, evidenced by its keys. The
+  route linker still reads the locator from config (#459 moves it to the fact).
+- Still not read: Zuul's default routes for each discovered service and `ignored-services`
+  (#459); the WebMVC `RouterFunction` DSL, `routes-map` and `default-filters` (#458); routes in a
+  config server's repository (#461); nginx and Traefik (#460); Kubernetes Ingress and Gateway API
+  (#397).

@@ -25,6 +25,7 @@ import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.Supertype;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.spring.SpringExtractor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -41,6 +42,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
@@ -63,7 +65,7 @@ public final class GatewayExtractor {
   public static final String NAME = "gateway";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "gateway-extractor";
@@ -73,6 +75,12 @@ public final class GatewayExtractor {
 
   /** Attribute: the subject class is a filter requests pass through. */
   public static final String FILTER = "gateway-filter";
+
+  /** The name of the attribute type of a discovery locator turned on in config. */
+  public static final String LOCATOR = "gateway-discovery-locator";
+
+  /** The framework of a route read from Netflix Zuul's config. */
+  public static final String ZUUL = "zuul";
 
   /** Where a route is defined, as {@code definedIn} holds it. */
   public static final String JAVA = "java";
@@ -122,6 +130,18 @@ public final class GatewayExtractor {
       Pattern.compile(
           "^spring\\.cloud\\.gateway(?:\\.server\\.webflux|\\.server\\.webmvc|\\.mvc)?"
               + "\\.routes\\[(\\d+)]\\.(.+)$");
+
+  /** Discovery locator config, by the prefix Spring Cloud Gateway's versions read it under. */
+  private static final Pattern LOCATOR_KEY =
+      Pattern.compile(
+          "^spring\\.cloud\\.gateway(?:\\.server\\.webflux)?\\.discovery\\.locator\\.(.+)$");
+
+  /** A Zuul route: its name, and the property set, or none for the shorthand form. */
+  private static final Pattern ZUUL_ROUTE_KEY =
+      Pattern.compile("^zuul\\.routes\\.([^.\\[]+)(?:\\.(.+))?$");
+
+  /** The default URL of a route the discovery locator makes for a service. */
+  private static final String LOCATOR_URL = "'lb://'+serviceId";
 
   private static final Pattern LIST_ITEM = Pattern.compile("^(predicates|filters)\\[(\\d+)](.*)$");
 
@@ -187,6 +207,8 @@ public final class GatewayExtractor {
     for (RepoBuild repo : repos) {
       for (ModuleConfig config : ConfigExtractor.read(repo)) {
         run.configRoutes(config);
+        run.zuulRoutes(config);
+        run.locator(config);
       }
     }
     for (JavaAnalysis.Module module : code.modules()) {
@@ -216,11 +238,15 @@ public final class GatewayExtractor {
       List<String> predicates,
       List<String> filters,
       List<String> filterTypes,
-      String order) {
+      String order,
+      String framework) {
 
     ObjectNode attributes(String definedIn, String profile) {
       ObjectNode a = FactJson.newObject();
       a.put("definedIn", definedIn);
+      if (framework != null) {
+        a.put("framework", framework);
+      }
       if (uri != null) {
         if (!uri.masked()) {
           a.put("uri", uri.value());
@@ -405,7 +431,8 @@ public final class GatewayExtractor {
                 resolvedPredicates,
                 filters,
                 filterTypes,
-                order));
+                order,
+                null));
       }
       record(caller, views, JAVA, where, module.repo(), module.confidence());
     }
@@ -550,8 +577,237 @@ public final class GatewayExtractor {
       }
     }
 
+    /**
+     * Netflix Zuul's routes ({@code zuul.routes.<name>}): the path (shorthand value, or {@code
+     * path}, else {@code /<name>/**}) behind {@code zuul.prefix}, to {@code url}, else to the load
+     * balanced {@code serviceId}, else to the route's name. Zuul strips the path's literal start
+     * unless the route's {@code strip-prefix} is false, and the global prefix unless {@code
+     * zuul.strip-prefix} is; both are recorded as the {@code StripPrefix} filter with as many
+     * segments.
+     */
+    void zuulRoutes(ModuleConfig config) {
+      List<String> views = new ArrayList<>();
+      views.add(null);
+      views.addAll(config.profiles());
+      Map<String, Map<String, Route>> byId = new TreeMap<>();
+      Map<String, List<ConfigValue>> keysOf = new LinkedHashMap<>();
+      for (String view : views) {
+        SortedMap<String, ConfigValue> values = config.values(view);
+        Map<String, Map<String, ConfigValue>> routes = new TreeMap<>();
+        for (Map.Entry<String, ConfigValue> e : values.entrySet()) {
+          Matcher m = ZUUL_ROUTE_KEY.matcher(e.getKey());
+          if (m.matches()) {
+            String property = m.group(2) == null ? "path" : relaxed(m.group(2));
+            routes.computeIfAbsent(m.group(1), k -> new TreeMap<>()).put(property, e.getValue());
+          }
+        }
+        String prefix = zuulSetting(values, "prefix");
+        boolean stripGlobal = !"false".equalsIgnoreCase(zuulSetting(values, "stripprefix"));
+        for (Map.Entry<String, Map<String, ConfigValue>> e : routes.entrySet()) {
+          String name = e.getKey();
+          Map<String, ConfigValue> route = e.getValue();
+          ConfigValue pathValue = route.get("path");
+          String path =
+              pathValue == null ? "/" + name + "/**" : recorded(pathValue.key(), pathValue);
+          ConfigValue url = route.get("url");
+          ConfigValue serviceId = route.get("serviceid");
+          CodeValue uri;
+          if (url != null) {
+            uri = configs.value(url.value(), url.written(), url.unresolved(), url.used());
+          } else if (serviceId != null) {
+            uri =
+                configs.value(
+                    "lb://" + serviceId.value(),
+                    "lb://" + serviceId.written(),
+                    serviceId.unresolved(),
+                    serviceId.used());
+          } else {
+            uri = configs.value("lb://" + name, "lb://" + name, new TreeSet<>(), new TreeSet<>());
+          }
+          int strip = 0;
+          ConfigValue stripRoute = route.get("stripprefix");
+          if (stripRoute == null || !"false".equalsIgnoreCase(stripRoute.value().strip())) {
+            strip += literalSegments(path);
+          }
+          String full = path;
+          if (prefix != null && !prefix.isBlank()) {
+            full = SpringExtractor.join(prefix, path);
+            if (stripGlobal) {
+              strip += literalSegments(prefix);
+            }
+          }
+          List<String> filters = strip > 0 ? List.of("StripPrefix=" + strip) : List.of();
+          Route read =
+              new Route(
+                  name,
+                  uri,
+                  List.of(full),
+                  List.of(),
+                  List.of("Path=" + full),
+                  filters,
+                  List.of(),
+                  null,
+                  ZUUL);
+          byId.computeIfAbsent(name, k -> new LinkedHashMap<>())
+              .put(view == null ? "" : view, read);
+          if (view == null || !keysOf.containsKey(name)) {
+            keysOf.put(name, List.copyOf(route.values()));
+          }
+        }
+      }
+      for (Map.Entry<String, Map<String, Route>> route : byId.entrySet()) {
+        Evidence evidence = configEvidence(config, keysOf.get(route.getKey()));
+        if (evidence != null) {
+          record(config.module(), route.getValue(), CONFIG, evidence, 1.0);
+        }
+      }
+    }
+
+    /** A global Zuul setting ({@code zuul.<name>}, in any relaxed form), or null. */
+    private static String zuulSetting(SortedMap<String, ConfigValue> values, String name) {
+      for (Map.Entry<String, ConfigValue> e : values.entrySet()) {
+        if (e.getKey().startsWith("zuul.")
+            && e.getKey().indexOf('.', 5) < 0
+            && relaxed(e.getKey().substring(5)).equals(name)) {
+          return e.getValue().value().strip();
+        }
+      }
+      return null;
+    }
+
+    /**
+     * Spring Cloud Gateway's discovery locator, when config turns it on: a route to each service
+     * the discovery client knows. The value is its URL expression; the attributes are the settings
+     * that change which services it routes to and how: {@code lowerCaseServiceId}, {@code
+     * includeExpression}, {@code routeIdPrefix}, and predicates and filters that replace its
+     * default ones. Recorded in the default view, and with {@code profile} where one differs.
+     */
+    void locator(ModuleConfig config) {
+      List<String> views = new ArrayList<>();
+      views.add(null);
+      views.addAll(config.profiles());
+      ObjectNode standard = null;
+      for (String view : views) {
+        SortedMap<String, ConfigValue> settings = new TreeMap<>();
+        SortedMap<String, ConfigValue> lists = new TreeMap<>();
+        for (Map.Entry<String, ConfigValue> e : config.values(view).entrySet()) {
+          Matcher m = LOCATOR_KEY.matcher(e.getKey());
+          if (m.matches()) {
+            if (LIST_ITEM.matcher(m.group(1)).matches()) {
+              lists.put(m.group(1), e.getValue());
+            } else {
+              settings.put(relaxed(m.group(1)), e.getValue());
+            }
+          }
+        }
+        ConfigValue enabled = settings.get("enabled");
+        if (enabled == null || !"true".equalsIgnoreCase(enabled.value().strip())) {
+          continue;
+        }
+        ObjectNode attributes = FactJson.newObject();
+        ConfigValue lower = settings.get("lowercaseserviceid");
+        if (lower != null) {
+          attributes.put("lowerCaseServiceId", "true".equalsIgnoreCase(lower.value().strip()));
+        }
+        ConfigValue include = settings.get("includeexpression");
+        if (include != null) {
+          attributes.put("includeExpression", recorded(include.key(), include));
+        }
+        ConfigValue idPrefix = settings.get("routeidprefix");
+        if (idPrefix != null) {
+          attributes.put("routeIdPrefix", recorded(idPrefix.key(), idPrefix));
+        }
+        Shortcuts shortcuts = shortcuts(lists);
+        Route.array(attributes, "predicates", shortcuts.predicates());
+        Route.array(attributes, "filters", shortcuts.filters());
+        ConfigValue url = settings.get("urlexpression");
+        String value = url == null ? LOCATOR_URL : recorded(url.key(), url);
+        List<ConfigValue> keys = new ArrayList<>(settings.values());
+        keys.addAll(lists.values());
+        if (view == null) {
+          standard = attributes.deepCopy();
+          standard.put("value", value);
+          put(config.module(), LOCATOR, value, attributes, configEvidence(config, keys), 1.0);
+        } else {
+          ObjectNode compared = attributes.deepCopy();
+          compared.put("value", value);
+          if (!compared.equals(standard)) {
+            attributes.put("profile", view);
+            put(config.module(), LOCATOR, value, attributes, configEvidence(config, keys), 1.0);
+          }
+        }
+      }
+    }
+
+    /**
+     * The evidence of a group of config keys: the lines they span in the file of the first one that
+     * has a line, or the file alone; null when there are none.
+     */
+    private static Evidence configEvidence(ModuleConfig config, List<ConfigValue> keys) {
+      if (keys == null || keys.isEmpty()) {
+        return null;
+      }
+      ConfigValue.Where file =
+          keys.stream()
+              .map(ConfigValue::where)
+              .filter(w -> w.line() > 0)
+              .findFirst()
+              .orElse(keys.getFirst().where());
+      int start = Integer.MAX_VALUE;
+      int end = 0;
+      for (ConfigValue v : keys) {
+        if (v.where().path().equals(file.path()) && v.where().line() > 0) {
+          start = Math.min(start, v.where().line());
+          end = Math.max(end, v.where().line());
+        }
+      }
+      return new Evidence(
+          config.repo().repo().name(),
+          config.repo().commit(),
+          file.path(),
+          start <= end ? new Evidence.LineRange(start, end) : null,
+          file.contentHash());
+    }
+
     private Route configRoute(String id, SortedMap<String, ConfigValue> route, ConfigValue uri) {
       CodeValue value = configs.value(uri.value(), uri.written(), uri.unresolved(), uri.used());
+      Shortcuts lists = shortcuts(route);
+      List<String> paths = new ArrayList<>();
+      List<String> methods = new ArrayList<>();
+      for (String predicate : lists.predicates()) {
+        int eq = predicate.indexOf('=');
+        if (eq < 0) {
+          continue;
+        }
+        String name = predicate.substring(0, eq).strip();
+        List<String> values = split(predicate.substring(eq + 1));
+        if (name.equalsIgnoreCase("Path")) {
+          paths.addAll(values);
+        } else if (name.equalsIgnoreCase("Method")) {
+          values.forEach(v -> methods.add(v.toUpperCase(Locale.ROOT)));
+        }
+      }
+      ConfigValue order = route.get("order");
+      return new Route(
+          id,
+          value,
+          paths,
+          methods,
+          lists.predicates(),
+          lists.filters(),
+          List.of(),
+          order == null ? null : order.value(),
+          null);
+    }
+
+    /** A route's predicates and filters, each in config's shortcut form. */
+    private record Shortcuts(List<String> predicates, List<String> filters) {}
+
+    /**
+     * The predicates and filters of keys such as {@code predicates[0]} and {@code
+     * filters[1].args.regexp}, in the shortcut form or made into it from name and args.
+     */
+    private Shortcuts shortcuts(SortedMap<String, ConfigValue> route) {
       Map<Integer, String> predicates = new TreeMap<>();
       Map<Integer, String> filters = new TreeMap<>();
       // The full form: name and args, by list and index.
@@ -597,31 +853,7 @@ public final class GatewayExtractor {
             }
             (list.equals("predicates") ? predicates : filters).put(index, text);
           });
-      List<String> paths = new ArrayList<>();
-      List<String> methods = new ArrayList<>();
-      for (String predicate : predicates.values()) {
-        int eq = predicate.indexOf('=');
-        if (eq < 0) {
-          continue;
-        }
-        String name = predicate.substring(0, eq).strip();
-        List<String> values = split(predicate.substring(eq + 1));
-        if (name.equalsIgnoreCase("Path")) {
-          paths.addAll(values);
-        } else if (name.equalsIgnoreCase("Method")) {
-          values.forEach(v -> methods.add(v.toUpperCase(Locale.ROOT)));
-        }
-      }
-      ConfigValue order = route.get("order");
-      return new Route(
-          id,
-          value,
-          paths,
-          methods,
-          List.copyOf(predicates.values()),
-          List.copyOf(filters.values()),
-          List.of(),
-          order == null ? null : order.value());
+      return new Shortcuts(List.copyOf(predicates.values()), List.copyOf(filters.values()));
     }
 
     /** A config value as it may be recorded: without a secret substituted into it. */
@@ -864,6 +1096,25 @@ public final class GatewayExtractor {
     }
     m.appendTail(b);
     return b.toString();
+  }
+
+  /** A property name as relaxed binding compares it: lower case, without dashes or underscores. */
+  private static String relaxed(String name) {
+    return name.replace("-", "").replace("_", "").toLowerCase(Locale.ROOT);
+  }
+
+  /** The number of whole path segments before a pattern's first wildcard or variable. */
+  private static int literalSegments(String pattern) {
+    int count = 0;
+    for (String segment : pattern.split("/")) {
+      if (segment.contains("*") || segment.contains("{")) {
+        break;
+      }
+      if (!segment.isEmpty()) {
+        count++;
+      }
+    }
+    return count;
   }
 
   private static String simpleName(String binaryName) {

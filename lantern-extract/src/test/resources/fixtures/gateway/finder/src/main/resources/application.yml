@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: finder
+  cloud:
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+              include-expression: serviceId != 'finder'
+---
+spring.config.activate.on-profile: custom
+spring.cloud.gateway.server.webflux.discovery.locator.url-expression: "'http://'+serviceId"
+spring.cloud.gateway.server.webflux.discovery.locator.filters[0]: StripPrefix=1
