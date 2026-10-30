@@ -173,9 +173,11 @@ final class RepoSections {
                       cited.stream()
                           .map(
                               f ->
-                                  repo == null
-                                      ? f.evidence().repo() + "/" + f.evidence().path()
-                                      : f.evidence().path())
+                                  f.evidence().path() == null
+                                      ? f.evidence().repo()
+                                      : repo == null
+                                          ? f.evidence().repo() + "/" + f.evidence().path()
+                                          : f.evidence().path())
                           .distinct()
                           .toList());
               documented.put(

@@ -21,16 +21,20 @@ stayed unexplained even when its README spells it out. Role names the code check
   those facts: the acronym next to words whose initials spell it, as in `Backend for Frontend
   (BFF)`, `JWKS (JSON Web Key Set)` or `PKCE stands for Proof Key for Code Exchange`. A minor word
   ("for", "of") may give no letter; a camel-case word may give one per part (WebSocket: W, S).
-  The first text by fact ID wins; up to three facts with the same words are cited. Otherwise the
+  The first text by fact ID wins; up to three facts with the same words are cited. An acronym
+  with a digit (W3C), or of more than ten letters, is not looked for, since no initial spells a
+  digit. Otherwise the
   bundled table of standard terms explains it (ADR 0063), and an acronym neither explains stays
   unknown: named as code in a note, so the check still fails. No LLM call is made, so nothing is
   invented.
 - **A Source column** says where each meaning comes from: the file (in a system's report with its
   repository), or "Lantern's glossary". The report spec shows no citations, so this is how its
   reader sees the evidence. The Explorer's and the Brief's glossaries get the same column.
-- **Role names are code.** A person's description (ADR 0074) shows the role names the code checks
-  as code, so the Quality bar does not count `ADMIN` or `ATTENDEE`, constants in the code, as
-  acronyms.
+- **Role names and code spans are code.** A person's description (ADR 0074) shows the role names
+  the code checks as code, and the Quality bar does not count a role name of the document's facts
+  as an acronym anywhere in the document, so `ADMIN` or `ATTENDEE`, constants in the code, need no
+  glossary entry. The decision records' table shows their Markdown code spans (`` `PROCESSING` ``)
+  as code, which the check skips.
 - **The bundled table** gains the standard terms the test sets' documents use: CVV, JWKS, POM, QR,
   README, RESP, RSA, W3C and XA.
 - **The report spec's legend** (`report-specs/c4-model-sequence-diagrams`, a change to the user's

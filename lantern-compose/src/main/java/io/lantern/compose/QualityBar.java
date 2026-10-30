@@ -622,6 +622,13 @@ final class QualityBar {
    */
   static SortedSet<String> acronymsUsed(Document document) {
     SortedSet<String> used = new TreeSet<>();
+    // The roles the code checks, such as the enum constant ADMIN, are identifiers, not acronyms.
+    Set<String> roles = new HashSet<>();
+    for (Fact fact : document.facts()) {
+      if (fact.predicate().equals("person-evidence") && fact.object().value().equals("role")) {
+        roles.add(fact.attributes().path("name").asString(""));
+      }
+    }
     Consumer<String> scan = text -> acronyms(text, used);
     scan.accept(document.title());
     texts(document.sections().stream().filter(s -> !isGlossary(s)).toList(), scan);
@@ -630,6 +637,7 @@ final class QualityBar {
       scan.accept(entity.name());
       entity.description().forEach(inline -> inlineText(inline, scan));
     }
+    used.removeAll(roles);
     return used;
   }
 

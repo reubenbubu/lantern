@@ -2,6 +2,10 @@
 
 Status: accepted (#178), amends ADR 0011, ADR 0046 and ADR 0048, pending the user's review (#24)
 
+Amended by ADR 0087 (#229): the C4 reports get a glossary and the spec's legend draws the dashed
+boundary and the async arrowhead; a glossary prefers what the repositories' documentation says an
+acronym stands for, citing it.
+
 ## Context
 
 `docs/design.md` (Quality bar) asks every document to state its reader and pin its snapshot

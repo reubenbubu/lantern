@@ -158,6 +158,42 @@ class QualityBarTest {
   }
 
   @Test
+  void theRolesTheCodeChecksAreNotAcronyms() {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("name", "ADMIN");
+    Fact role =
+        TestFacts.fact(
+            "shop",
+            "type:com.example.AdminController",
+            "person-evidence",
+            FactObject.string("role"),
+            attributes,
+            Validity.from(1));
+    Document plain =
+        document(
+            "c4-model-sequence-diagrams",
+            "a",
+            section(
+                "s",
+                "S",
+                new Paragraph("p", List.of(TextRun.of("Only ADMIN deletes users.")), List.of())));
+    Document withRole =
+        new Document(
+            plain.id(),
+            plain.title(),
+            plain.audience(),
+            plain.template(),
+            plain.source(),
+            plain.entities(),
+            java.util.stream.Stream.concat(plain.facts().stream(), java.util.stream.Stream.of(role))
+                .toList(),
+            plain.sections());
+
+    assertThat(QualityBar.acronymsUsed(plain)).contains("ADMIN");
+    assertThat(QualityBar.acronymsUsed(withRole)).doesNotContain("ADMIN");
+  }
+
+  @Test
   void theReportSpecsLegendHasTheAsyncArrowhead() {
     SequenceDiagram flow =
         new SequenceDiagram(

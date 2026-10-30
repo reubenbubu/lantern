@@ -196,6 +196,9 @@ final class Glossary {
   /** The most facts a definition cites. */
   private static final int MAX_CITED = 3;
 
+  /** The longest acronym the documentation is searched for. */
+  private static final int MAX_LETTERS = 10;
+
   /** The most words an expansion has for each letter of its acronym, minor words included. */
   private static final int WORDS_PER_LETTER = 2;
 
@@ -278,7 +281,8 @@ final class Glossary {
 
   private static void put(
       SortedMap<String, Definition> result, String acronym, String meaning, String factId) {
-    if (meaning == null) {
+    // No initial spells a digit, so W3C is left to Lantern's table rather than half-matched.
+    if (meaning == null || acronym.chars().anyMatch(Character::isDigit)) {
       return;
     }
     Definition known = result.get(acronym);
@@ -322,28 +326,34 @@ final class Glossary {
       list.add(text.substring(w[0], w[1]));
     }
     String target = letters(acronym);
-    return !target.isEmpty() && spells(list, 0, target, 0);
+    return !target.isEmpty()
+        && target.length() <= MAX_LETTERS
+        && spells(list, 0, target, 0, new Boolean[list.size() + 1][target.length() + 1]);
   }
 
-  private static boolean spells(List<String> words, int i, String target, int j) {
+  private static boolean spells(
+      List<String> words, int i, String target, int j, Boolean[][] known) {
     if (i == words.size()) {
       return j == target.length();
     }
+    if (known[i][j] != null) {
+      return known[i][j];
+    }
+    boolean result = false;
     String word = words.get(i);
     boolean minor = MINOR_WORDS.contains(word.toLowerCase(Locale.ROOT));
-    if (minor && i > 0 && i < words.size() - 1 && spells(words, i + 1, target, j)) {
-      return true;
+    if (minor && i > 0 && i < words.size() - 1) {
+      result = spells(words, i + 1, target, j, known);
     }
     String initials = initials(word);
-    for (int k = 1; k <= initials.length() && j + k <= target.length(); k++) {
+    for (int k = 1; !result && k <= initials.length() && j + k <= target.length(); k++) {
       if (!target.startsWith(initials.substring(0, k), j)) {
         break;
       }
-      if (spells(words, i + 1, target, j + k)) {
-        return true;
-      }
+      result = spells(words, i + 1, target, j + k, known);
     }
-    return false;
+    known[i][j] = result;
+    return result;
   }
 
   /** A word's initial, then the capitals that start its later parts: JavaScript gives "js". */

@@ -100,6 +100,8 @@ class GlossaryTest {
         "f4", "Tokens use the WebSocket (WS) channel. Our ABC (see below) is not spelled out.");
     texts.put("f5", "It runs a backend for frontend (BFF) per client.");
     texts.put("f6", "Calls go over HTTP (the default) to the gateway (GW).");
+    texts.put("f7", "Standards of the World Wide Web Consortium (W3C) apply.");
+    texts.put("f8", "of ".repeat(40) + "Big (BOOOOOOOOOOOOOOOOOOOOOOOOOOOOX)");
 
     Map<String, Glossary.Definition> defined = Glossary.defined(texts);
 
