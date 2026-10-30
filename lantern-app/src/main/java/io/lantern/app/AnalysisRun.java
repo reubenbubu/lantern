@@ -26,6 +26,7 @@ import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
+import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
@@ -328,6 +329,7 @@ public final class AnalysisRun {
       found.addAll(new MessagingExtractor().extract(code, snapshot.number()));
       found.addAll(new WebSocketExtractor().extract(code, snapshot.number()));
       found.addAll(new MailExtractor().extract(code, snapshot.number()));
+      found.addAll(new IdentityExtractor().extract(code, snapshot.number()));
       found.addAll(new RedisExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new DeploymentExtractor().extract(repoBuilds, snapshot.number()));

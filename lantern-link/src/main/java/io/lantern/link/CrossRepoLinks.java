@@ -20,9 +20,9 @@ import tools.jackson.databind.JsonNode;
 /**
  * Links the deployable units of a snapshot at runtime, matching what one exposes with what another
  * uses: HTTP calls with endpoints, gateway routes with the units they send requests to, messages
- * sent with listeners, datasources with databases, and config with brokers and infrastructure; and
- * ties the containers deployment descriptors run to the units and data stores in them. See {@code
- * docs/adr/0042-cross-repo-links.md}.
+ * sent with listeners, datasources with databases, config with brokers, infrastructure and identity
+ * providers, and JWT secrets units share; and ties the containers deployment descriptors run to the
+ * units and data stores in them. See {@code docs/adr/0042-cross-repo-links.md}.
  *
  * <p>It runs after {@link DeployableUnits} and reads its facts with the extractors'. Each link is
  * found in every view (the default one and each profile the facts name, one profile active at a
@@ -38,7 +38,7 @@ public final class CrossRepoLinks implements LinkStep {
   public static final String NAME = "cross-repo-links";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "10";
+  public static final String VERSION = "11";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -69,6 +69,15 @@ public final class CrossRepoLinks implements LinkStep {
 
   /** Relationship: a unit sends mail through an external mail server. */
   public static final String SENDS_MAIL = "SENDS_MAIL";
+
+  /**
+   * Relationship: a unit uses an identity provider, another unit or an external system, to check
+   * tokens, sign users in, get tokens or manage users.
+   */
+  public static final String USES_IDENTITY_PROVIDER = "USES_IDENTITY_PROVIDER";
+
+  /** Attribute: a unit signs or checks JWTs with a secret another unit has too. */
+  public static final String SHARED_SECRET = IdentityLinker.SHARED_SECRET;
 
   /** Relationship: a unit sends messages to a topic, queue or exchange. */
   public static final String PUBLISHES = "PUBLISHES";
@@ -149,6 +158,7 @@ public final class CrossRepoLinks implements LinkStep {
     new DataLinker(index, found, deployments).link(ORIGIN, validity);
     new FrontendLinker(index, found, deployments).link(ORIGIN, validity);
     new MailLinker(index, found).link();
+    new IdentityLinker(index, found, deployments).link(ORIGIN, validity);
     new RedisLinker(index, found, deployments).link(ORIGIN, validity);
     new PeopleLinker(index, found).link(ORIGIN, validity);
     Map<String, Fact> derived = new LinkedHashMap<>();

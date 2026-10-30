@@ -51,6 +51,7 @@ final class C4Views {
   static final String BUNDLES = "BUNDLES";
   static final String CALLS_HTTP = "CALLS_HTTP";
   static final String SENDS_MAIL = "SENDS_MAIL";
+  static final String USES_IDENTITY_PROVIDER = "USES_IDENTITY_PROVIDER";
   static final String PUBLISHES = "PUBLISHES";
   static final String CONSUMES = "CONSUMES";
   static final String ROUTES_TO = "ROUTES_TO";
@@ -358,7 +359,14 @@ final class C4Views {
 
   /** The relationships whose profile-only links may replace a default link of their unit. */
   private static final List<String> REPLACEABLE =
-      List.of(CALLS_HTTP, SENDS_MAIL, PUBLISHES, CONSUMES, USES_DATABASE, ACCESSES_DATA_OF);
+      List.of(
+          CALLS_HTTP,
+          SENDS_MAIL,
+          USES_IDENTITY_PROVIDER,
+          PUBLISHES,
+          CONSUMES,
+          USES_DATABASE,
+          ACCESSES_DATA_OF);
 
   /**
    * The profile-only links that stand in for a default link of the same unit, relationship and code
@@ -425,6 +433,7 @@ final class C4Views {
           switch (profiled.predicate()) {
             case CALLS_HTTP -> "calls";
             case SENDS_MAIL -> "sends mail through";
+            case USES_IDENTITY_PROVIDER -> "uses as its identity provider";
             case PUBLISHES -> "sends to";
             case CONSUMES -> "listens on";
             case USES_DATABASE -> "connects to";
@@ -488,6 +497,19 @@ final class C4Views {
                 Knowledge.object(fact),
                 "Sends mail through",
                 "Sends mail",
+                null,
+                protocol(fact),
+                fact));
+      }
+      for (Fact fact : knowledge.relations(unit, USES_IDENTITY_PROVIDER)) {
+        String[] words = identityWords(attribute(fact, "purpose"));
+        result.add(
+            link(
+                unit,
+                USES_IDENTITY_PROVIDER,
+                Knowledge.object(fact),
+                words[0],
+                words[1],
                 null,
                 protocol(fact),
                 fact));
@@ -606,6 +628,21 @@ final class C4Views {
       }
     }
     return result;
+  }
+
+  /**
+   * How a line to an identity provider reads, by what the unit does with it (ADR 0085): its label
+   * and the words two such lines are joined by.
+   */
+  private static String[] identityWords(String purpose) {
+    return switch (purpose == null ? "" : purpose) {
+      case "validates-tokens" ->
+          new String[] {"Validates tokens with the keys of", "Validates tokens"};
+      case "signs-in-users" -> new String[] {"Signs users in through", "Signs users in"};
+      case "gets-tokens" -> new String[] {"Gets tokens from", "Gets tokens"};
+      case "manages-users" -> new String[] {"Manages users through", "Manages users"};
+      default -> new String[] {"Uses as its identity provider", "Uses"};
+    };
   }
 
   /**

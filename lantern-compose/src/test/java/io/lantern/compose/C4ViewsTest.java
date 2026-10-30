@@ -709,6 +709,34 @@ class C4ViewsTest {
   }
 
   @Test
+  void anIdentityProviderIsAnExternalSystemWithALinePerPurpose() {
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "USES_IDENTITY_PROVIDER",
+            "external-system:keycloak",
+            "{\"purpose\": \"validates-tokens\", \"protocol\": \"OIDC over HTTP\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "USES_IDENTITY_PROVIDER",
+            "external-system:keycloak",
+            "{\"purpose\": \"gets-tokens\", \"protocol\": \"OAuth2 over HTTP\"}")
+        .attribute("shop", "external-system:keycloak", "display-name", "Keycloak", "{}");
+
+    Diagram containers = block(section(repo(more.list()), "containers"), Diagram.class);
+
+    assertThat(nodes(containers)).contains("external-system:keycloak \"Keycloak\"");
+    assertThat(edges(containers))
+        .contains(
+            "service:com.example:app -> external-system:keycloak: Gets tokens from and validates"
+                + " tokens with the keys of [OAuth2 over HTTP, OIDC over HTTP]");
+    assertThat(nodes(block(section(repo(more.list()), "context"), Diagram.class)))
+        .contains("external-system:keycloak \"Keycloak\"");
+  }
+
+  @Test
   void aProfileOnlyMailHostIsANoteNotAnotherSystem() {
     TestFacts more = TestFacts.runtime();
     more.relate(

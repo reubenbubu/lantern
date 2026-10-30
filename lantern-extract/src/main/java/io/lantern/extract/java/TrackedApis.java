@@ -47,6 +47,13 @@ final class TrackedApis {
           "org.springframework.mail.",
           "jakarta.mail.",
           "javax.mail.",
+          // JWT libraries and Keycloak's admin client (the identity extractor): the secrets HMAC
+          // keys are made of, and the admin server's URL.
+          "io.jsonwebtoken.",
+          "com.nimbusds.jose.crypto.",
+          "org.springframework.security.oauth2.jwt.",
+          "com.auth0.jwt.",
+          "org.keycloak.admin.client.",
           // Redis templates and their operations (the Redis extractor): the keys they are given.
           "org.springframework.data.redis.core.",
           "org.springframework.data.redis.cache.",
