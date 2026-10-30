@@ -1,0 +1,625 @@
+{
+  "description": "project-3: what each reference item needs of extraction (docs/adr/0089-extraction-coverage.md).",
+  "items": {
+    "frontend": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:package.json"
+        }
+      ]
+    },
+    "gateway": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "mediahub-api-gateway:pom.xml:12-12"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-api-gateway:src/main/java/com/mediahub/api_gateway/ApiGatewayApplication.java:7-11"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:35-51"
+        }
+      ]
+    },
+    "discovery": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "mediahub-discovery-server:pom.xml:12-12"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-discovery-server:src/main/java/com/mediahub/discovery_server/DiscoveryServerApplication.java:7-10"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:2-14"
+        }
+      ]
+    },
+    "config": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "mediahub-config-server:pom.xml:12-12"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-config-server:src/main/java/com/mediahub/config_server/ConfigServerApplication.java:8-12"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:15-33"
+        }
+      ]
+    },
+    "user": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "mediahub-user-service:pom.xml:12-12"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/UserServiceApplication.java:8-11"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:103-121"
+        }
+      ]
+    },
+    "media": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "mediahub-media-service:pom.xml:12-12"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/MediaServiceApplication.java:8-11"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:122-140"
+        }
+      ]
+    },
+    "subscription": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "mediahub-subscription-service:pom.xml:12-12"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/SubscriptionServiceApplication.java:8-11"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:141-158"
+        }
+      ]
+    },
+    "user-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:user-service.yml:5-8"
+        },
+        {
+          "area": "persistence",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/domain/AppUser.java:8-15"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:52-68"
+        }
+      ]
+    },
+    "media-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:media-service.yml:5-8"
+        },
+        {
+          "area": "persistence",
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/domain/entity/Media.java:11-19"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:69-85"
+        }
+      ]
+    },
+    "subscription-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:subscription-service.yml:5-8"
+        },
+        {
+          "area": "persistence",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/domain/Subscription.java:10-17"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:86-102"
+        }
+      ]
+    },
+    "config-repo": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-server:src/main/resources/application.yaml:7-18"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:15-24"
+        }
+      ]
+    },
+    "picsum": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/features/catalog/catalog.ts:42-42"
+        }
+      ]
+    },
+    "viewer": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "mediahub-frontend-ui:src/app/app.routes.ts:13-23"
+        },
+        {
+          "area": "people",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/domain/Role.java:3-6"
+        }
+      ]
+    },
+    "operator": {
+      "linking": "No code names this person; it is inferred from the Makefile test target and Insomnia collection that call the gateway by hand."
+    },
+    "fe-auth": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/core/services/auth.service.ts:35-53"
+        }
+      ]
+    },
+    "fe-guard": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/core/guards/auth.guard.ts:5-15"
+        },
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/core/interceptors/jwt.interceptor.ts:3-16"
+        }
+      ]
+    },
+    "fe-catalog": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/services/media.ts:12-28"
+        }
+      ]
+    },
+    "fe-account": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/services/subscription.ts:12-28"
+        },
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/services/user.ts:11-27"
+        }
+      ]
+    },
+    "fe-home": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/features/home/home.ts:118-125"
+        }
+      ]
+    },
+    "gw-routes": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:12-24"
+        }
+      ]
+    },
+    "gw-locator": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:8-11"
+        }
+      ]
+    },
+    "gw-lb": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "mediahub-api-gateway:pom.xml:34-36"
+        },
+        {
+          "area": "config",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:26-31"
+        }
+      ]
+    },
+    "gw-actuator": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:api-gateway.yml:22-29"
+        },
+        {
+          "area": "config",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:35-39"
+        }
+      ]
+    },
+    "us-user-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/controller/UserController.java:17-20"
+        }
+      ]
+    },
+    "us-user-logic": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/UserServiceImpl.java:20-22"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/config/SecurityConfig.java:9-14"
+        }
+      ]
+    },
+    "us-history-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/controller/WatchHistoryController.java:10-13"
+        }
+      ]
+    },
+    "us-history-logic": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/WatchHistoryServiceImpl.java:11-13"
+        }
+      ]
+    },
+    "us-media-client": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/client/MediaServiceClient.java:7-11"
+        }
+      ]
+    },
+    "us-repos": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/UserRepository.java:11-12"
+        },
+        {
+          "area": "persistence",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/WatchHistoryRepository.java:8-9"
+        }
+      ]
+    },
+    "ms-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/controller/MediaController.java:20-23"
+        }
+      ]
+    },
+    "ms-logic": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/service/impl/MediaServiceImpl.java:20-23"
+        }
+      ]
+    },
+    "ms-repo": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/repository/MediaRepository.java:10-12"
+        }
+      ]
+    },
+    "ss-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/controller/SubscriptionController.java:14-17"
+        }
+      ]
+    },
+    "ss-logic": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:18-20"
+        }
+      ]
+    },
+    "ss-user-client": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/UserClient.java:8-13"
+        }
+      ]
+    },
+    "ss-webclient": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:86-94"
+        },
+        {
+          "area": "http-client",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/config/WebClientConfig.java:11-15"
+        }
+      ]
+    },
+    "ss-media-client": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/MediaClient.java:8-13"
+        }
+      ]
+    },
+    "ss-repo": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/repository/SubscriptionRepository.java:11-15"
+        }
+      ]
+    },
+    "viewer -> frontend": {
+      "linking": "A person using a web app is inferred from the UI and its routes; no code states the line."
+    },
+    "operator -> gateway": {
+      "linking": "No code states the operator; only the Makefile test target and the Insomnia collection call the gateway by hand."
+    },
+    "frontend -> gateway": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:proxy.conf.json"
+        },
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/services/media.ts:12-12"
+        }
+      ]
+    },
+    "frontend -> picsum": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "mediahub-frontend-ui:src/app/features/catalog/catalog.ts:42-42"
+        }
+      ]
+    },
+    "gateway -> user": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:13-16"
+        }
+      ]
+    },
+    "gateway -> media": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:17-20"
+        }
+      ]
+    },
+    "gateway -> subscription": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:21-24"
+        }
+      ]
+    },
+    "subscription -> user": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/UserClient.java:8-13"
+        }
+      ]
+    },
+    "subscription -> media": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:86-94"
+        },
+        {
+          "area": "http-client",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/MediaClient.java:8-13"
+        }
+      ]
+    },
+    "user -> media": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/client/MediaServiceClient.java:7-11"
+        }
+      ]
+    },
+    "user -> user-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:user-service.yml:5-8"
+        },
+        {
+          "area": "persistence",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/UserRepository.java:11-12"
+        }
+      ]
+    },
+    "media -> media-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:media-service.yml:5-8"
+        },
+        {
+          "area": "persistence",
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/repository/MediaRepository.java:10-12"
+        }
+      ]
+    },
+    "subscription -> subscription-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:subscription-service.yml:5-8"
+        },
+        {
+          "area": "persistence",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/repository/SubscriptionRepository.java:11-15"
+        }
+      ]
+    },
+    "config -> config-repo": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-server:src/main/resources/application.yaml:10-18"
+        }
+      ]
+    },
+    "gateway -> config": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:4-6"
+        },
+        {
+          "area": "deployment",
+          "at": "mediahub-infra:docker-compose.yml:35-42"
+        }
+      ]
+    },
+    "user -> config": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-user-service:src/main/resources/bootstrap.yaml:4-9"
+        }
+      ]
+    },
+    "media -> config": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-media-service:src/main/resources/application.yaml:4-9"
+        }
+      ]
+    },
+    "subscription -> config": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-subscription-service:src/main/resources/application.yaml:4-9"
+        }
+      ]
+    },
+    "config -> discovery": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-server:src/main/resources/application.yaml:24-27"
+        }
+      ]
+    },
+    "gateway -> discovery": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:26-31"
+        }
+      ]
+    },
+    "user -> discovery": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:application.yml:1-4"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/UserServiceApplication.java:9-9"
+        }
+      ]
+    },
+    "media -> discovery": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:application.yml:1-4"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/MediaServiceApplication.java:9-9"
+        }
+      ]
+    },
+    "subscription -> discovery": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "mediahub-config-repo:application.yml:1-4"
+        },
+        {
+          "area": "spring",
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/SubscriptionServiceApplication.java:9-9"
+        }
+      ]
+    },
+    "operator -> discovery": {
+      "linking": "No code states the operator; only the Insomnia collection opens the Eureka page by hand."
+    }
+  }
+}

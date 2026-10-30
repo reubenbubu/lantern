@@ -1,0 +1,742 @@
+{
+  "description": "project-1: what each reference item needs of extraction (docs/adr/0089-extraction-coverage.md).",
+  "items": {
+    "angular-ui": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/package.json"
+        },
+        {
+          "area": "frontend",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/nginx.conf:40-53"
+        }
+      ]
+    },
+    "bff": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Enterprise-Spring-Microservices-Template:bff/pom.xml:11-12"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/BffApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-406"
+        }
+      ]
+    },
+    "gateway": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/pom.xml:11-12"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/GatewayApplication.java:11-12"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-257"
+        }
+      ]
+    },
+    "profile": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/pom.xml:11-12"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/ProfileServiceApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-296"
+        }
+      ]
+    },
+    "order": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/pom.xml:11-12"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/OrderServiceApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-331"
+        }
+      ]
+    },
+    "kc-admin": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/pom.xml:11-12"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/AdminServiceApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:333-364"
+        }
+      ]
+    },
+    "keycloak": {
+      "needs": [
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-140"
+        }
+      ]
+    },
+    "redis": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:7-15"
+        },
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:104-107"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:24-39"
+        }
+      ]
+    },
+    "profile-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:8"
+        },
+        {
+          "area": "sql",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/db/migration/V1__init.sql:4-32"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:64-82"
+        }
+      ]
+    },
+    "order-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/application.properties:8"
+        },
+        {
+          "area": "sql",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/db/migration/V1__init.sql:4-15"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:84-102"
+        }
+      ]
+    },
+    "keycloak-db": {
+      "needs": [
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:41-62"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-111"
+        }
+      ]
+    },
+    "mobile-app": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak/realm-config/realm-export.json:125-159"
+        }
+      ]
+    },
+    "web-user": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:17-40"
+        }
+      ]
+    },
+    "visitor": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:9-16"
+        },
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/RegistrationController.java:54"
+        }
+      ]
+    },
+    "admin": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:23-24"
+        },
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:42-43"
+        }
+      ]
+    },
+    "bff-login": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:123-131"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/config/SecurityConfig.java:94-96"
+        }
+      ]
+    },
+    "bff-guard": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/config/SecurityConfig.java:46-49"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/CsrfCookieFilter.java:25-26"
+        }
+      ]
+    },
+    "bff-refresh": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/TokenRefreshFilter.java:50-52"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/RefreshLockService.java:26-29"
+        }
+      ]
+    },
+    "bff-proxy": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:293"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:337"
+        },
+        {
+          "area": "http-client",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:408-410"
+        }
+      ]
+    },
+    "bff-logout": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:230-231"
+        }
+      ]
+    },
+    "bff-session-jwt": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:39-41"
+        },
+        {
+          "area": "identity",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:45-46"
+        }
+      ]
+    },
+    "bff-session-store": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:15-17"
+        },
+        {
+          "area": "redis",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:24-41"
+        }
+      ]
+    },
+    "gw-security": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/config/SecurityConfig.java:10-12"
+        },
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:112-117"
+        }
+      ]
+    },
+    "gw-routes": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:15-66"
+        }
+      ]
+    },
+    "gw-ratelimit": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:20-23"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/config/RateLimiterConfig.java:20-21"
+        }
+      ]
+    },
+    "gw-breaker": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:24-26"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/controller/FallbackController.java:19-20"
+        }
+      ]
+    },
+    "ps-security": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41"
+        },
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerDefaultsEnvironmentPostProcessor.java:37-41"
+        }
+      ]
+    },
+    "ps-profile-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/ProfileController.java:22-25"
+        }
+      ]
+    },
+    "ps-registration": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/RegistrationController.java:37-40"
+        },
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/RegistrationService.java:61-64"
+        }
+      ]
+    },
+    "ps-admin-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:12-15"
+        }
+      ]
+    },
+    "ps-email": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/LoggingEmailService.java:15-18"
+        },
+        {
+          "area": "java",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/EmailService.java:7"
+        }
+      ]
+    },
+    "ps-kc-client": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:12-13"
+        },
+        {
+          "area": "http-client",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:47-54"
+        }
+      ]
+    },
+    "ps-repos": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/UserProfileEntityRepository.java:8"
+        },
+        {
+          "area": "persistence",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/PendingRegistrationEntityRepository.java:8"
+        }
+      ]
+    },
+    "os-security": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41"
+        }
+      ]
+    },
+    "os-orders-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/controller/OrdersController.java:23-26"
+        }
+      ]
+    },
+    "os-auditing": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/config/JpaAuditingConfig.java:23-25"
+        }
+      ]
+    },
+    "os-repo": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/repository/OrderRepository.java:8"
+        },
+        {
+          "area": "persistence",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/model/OrderEntity.java:14-16"
+        }
+      ]
+    },
+    "ka-security": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41"
+        },
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:100-101"
+        }
+      ]
+    },
+    "ka-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:31-35"
+        }
+      ]
+    },
+    "ka-client": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:10-11"
+        },
+        {
+          "area": "identity",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:25-33"
+        }
+      ]
+    },
+    "web-user -> angular-ui": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:17-40"
+        }
+      ]
+    },
+    "visitor -> angular-ui": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:9-16"
+        }
+      ]
+    },
+    "angular-ui -> bff": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/proxy.conf.json"
+        },
+        {
+          "area": "frontend",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/nginx.conf:40-53"
+        },
+        {
+          "area": "frontend",
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/environments/environment.ts"
+        }
+      ]
+    },
+    "bff -> redis": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:7-15"
+        },
+        {
+          "area": "redis",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:24-41"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-379"
+        }
+      ]
+    },
+    "bff -> gateway": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:45"
+        },
+        {
+          "area": "http-client",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:408-410"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-388"
+        }
+      ]
+    },
+    "mobile-app -> gateway": {
+      "linking": "The mobile app is not in the repository; its calls to the gateway are stated only in README prose, so no extractor has code to make a fact from."
+    },
+    "admin -> gateway": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:23-24"
+        },
+        {
+          "area": "gateway",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:43-44"
+        }
+      ]
+    },
+    "gateway -> redis": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:104-107"
+        },
+        {
+          "area": "gateway",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:20-23"
+        }
+      ]
+    },
+    "gateway -> profile": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:15-16"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-238"
+        }
+      ]
+    },
+    "gateway -> order": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:29-30"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-239"
+        }
+      ]
+    },
+    "gateway -> kc-admin": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:43-44"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-240"
+        }
+      ]
+    },
+    "profile -> kc-admin": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:23"
+        },
+        {
+          "area": "http-client",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:47-54"
+        },
+        {
+          "area": "http-client",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:83-87"
+        }
+      ]
+    },
+    "profile -> profile-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:8"
+        },
+        {
+          "area": "persistence",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/UserProfileEntityRepository.java:8"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-273"
+        }
+      ]
+    },
+    "order -> order-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/application.properties:8"
+        },
+        {
+          "area": "persistence",
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/repository/OrderRepository.java:8"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-312"
+        }
+      ]
+    },
+    "kc-admin -> keycloak": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/resources/application.properties:9"
+        },
+        {
+          "area": "identity",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:25-33"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:333-347"
+        }
+      ]
+    },
+    "web-user -> keycloak": {
+      "linking": "The browser reaches Keycloak only through the BFF's OAuth2 redirect and the realm client; no code states a person signing in at Keycloak, it follows from combining the BFF login redirect with the person."
+    },
+    "visitor -> keycloak": {
+      "linking": "The visitor sets a password on a Keycloak page after an email; no code states this edge, it follows from combining the registration flow with Keycloak's UPDATE_PASSWORD action."
+    },
+    "mobile-app -> keycloak": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Enterprise-Spring-Microservices-Template:keycloak/realm-config/realm-export.json:125-159"
+        }
+      ]
+    },
+    "bff -> keycloak": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:18"
+        },
+        {
+          "area": "http-client",
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/TokenRefreshFilter.java:213-218"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-378"
+        }
+      ]
+    },
+    "gateway -> keycloak": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:112"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-232"
+        }
+      ]
+    },
+    "profile -> keycloak": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:27-31"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-271"
+        }
+      ]
+    },
+    "order -> keycloak": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerDefaultsEnvironmentPostProcessor.java:37-41"
+        },
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-310"
+        }
+      ]
+    },
+    "keycloak -> keycloak-db": {
+      "needs": [
+        {
+          "area": "deployment",
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-111"
+        }
+      ]
+    }
+  }
+}

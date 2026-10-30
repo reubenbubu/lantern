@@ -1,0 +1,1100 @@
+{
+  "description": "project-2: what each reference item needs of extraction (docs/adr/0089-extraction-coverage.md).",
+  "items": {
+    "frontend": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "Event-Management-platform:frontend/package.json"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:405-409"
+        }
+      ]
+    },
+    "gateway": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Event-Management-platform:api-gateway/pom.xml:12-13"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/ApiGatewayApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:357-363"
+        }
+      ]
+    },
+    "auth": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Event-Management-platform:auth-service/pom.xml:5-6"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/AuthServiceApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:150-156"
+        }
+      ]
+    },
+    "event": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Event-Management-platform:event-service/pom.xml:12-13"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/EventServiceApplication.java:8-11"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:184-190"
+        }
+      ]
+    },
+    "venue": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Event-Management-platform:venue-service/pom.xml:12-13"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/VenueServiceApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:224-230"
+        }
+      ]
+    },
+    "attendee": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Event-Management-platform:attendee-service/pom.xml:5-6"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/AttendeeServiceApplication.java:7-9"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:251-257"
+        }
+      ]
+    },
+    "payment": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Event-Management-platform:payment-service/pom.xml:5-6"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/PaymentServiceApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:291-297"
+        }
+      ]
+    },
+    "notification": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Event-Management-platform:notification-service/pom.xml:5-6"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/NotificationServiceApplication.java:6-7"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:321-327"
+        }
+      ]
+    },
+    "redis": {
+      "needs": [
+        {
+          "area": "redis",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16"
+        },
+        {
+          "area": "redis",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:18-27"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:33-35"
+        }
+      ]
+    },
+    "auth-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:9"
+        },
+        {
+          "area": "sql",
+          "at": "Event-Management-platform:auth-service/src/main/resources/db/migration/V2__authentication_schema.sql:1"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:150-160"
+        }
+      ]
+    },
+    "event-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:9"
+        },
+        {
+          "area": "sql",
+          "at": "Event-Management-platform:event-service/src/main/resources/db/migration/V2__event_lifecycle_and_inventory.sql:1"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:184-194"
+        }
+      ]
+    },
+    "venue-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:9"
+        },
+        {
+          "area": "sql",
+          "at": "Event-Management-platform:venue-service/src/main/resources/db/migration/V2__venue_management.sql:1"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:224-234"
+        }
+      ]
+    },
+    "attendee-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:9"
+        },
+        {
+          "area": "sql",
+          "at": "Event-Management-platform:attendee-service/src/main/resources/db/migration/V2__attendee_booking_ticketing.sql:1"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:251-261"
+        }
+      ]
+    },
+    "payment-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:9"
+        },
+        {
+          "area": "sql",
+          "at": "Event-Management-platform:payment-service/src/main/resources/db/migration/V2__payments_refunds_and_outbox.sql:1"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:291-301"
+        }
+      ]
+    },
+    "notification-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:9"
+        },
+        {
+          "area": "sql",
+          "at": "Event-Management-platform:notification-service/src/main/resources/db/migration/V2__notification_delivery.sql:1"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:321-331"
+        }
+      ]
+    },
+    "t-event": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70"
+        },
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46"
+        }
+      ]
+    },
+    "t-attendee": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68"
+        },
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40"
+        }
+      ]
+    },
+    "t-payment": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65"
+        },
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45"
+        }
+      ]
+    },
+    "oauth-idp": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/AuthSecurityConfiguration.java:95-98"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:39-40"
+        }
+      ]
+    },
+    "p-attendee": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:29-30"
+        },
+        {
+          "area": "people",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:36-37"
+        }
+      ]
+    },
+    "p-organizer": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/TicketTypeController.java:24"
+        },
+        {
+          "area": "people",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:62-63"
+        },
+        {
+          "area": "people",
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/api/VenueController.java:26"
+        }
+      ]
+    },
+    "p-staff": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:24-25"
+        }
+      ]
+    },
+    "p-admin": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:97-98"
+        },
+        {
+          "area": "people",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventCategoryController.java:38"
+        },
+        {
+          "area": "people",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/api/NotificationController.java:45"
+        }
+      ]
+    },
+    "gw-edge": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/CorrelationIdWebFilter.java:11-12"
+        },
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/CorsOriginValidationWebFilter.java:14-15"
+        },
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/UntrustedIdentityHeadersFilter.java:11-12"
+        },
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewaySecurityHeadersFilter.java:11-12"
+        }
+      ]
+    },
+    "gw-rate-limit": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/AuthenticationRateLimitWebFilter.java:14-15"
+        },
+        {
+          "area": "redis",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16"
+        }
+      ]
+    },
+    "gw-security": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewaySecurityConfiguration.java:20-23"
+        },
+        {
+          "area": "identity",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayJwtConfiguration.java:28"
+        }
+      ]
+    },
+    "gw-routes": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:15-43"
+        }
+      ]
+    },
+    "au-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:24-26"
+        }
+      ]
+    },
+    "au-jwks": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/JwkSetController.java:11-13"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/JwtKeyConfiguration.java:39-40"
+        }
+      ]
+    },
+    "au-authn": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/user/AuthenticationService.java:33-34"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/session/JwtTokenService.java:17-18"
+        }
+      ]
+    },
+    "au-oauth": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/oauth/OAuth2LoginSuccessHandler.java:23-24"
+        }
+      ]
+    },
+    "au-audit": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/audit/SecurityAuditService.java:15-16"
+        },
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/audit/SecurityAuditEventRepository.java:8"
+        }
+      ]
+    },
+    "ev-public": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:21-22"
+        },
+        {
+          "area": "redis",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96"
+        }
+      ]
+    },
+    "ev-manage": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/EventManagementService.java:27-28"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:29-31"
+        }
+      ]
+    },
+    "ev-inventory": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryService.java:27-28"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/InventoryController.java:24-29"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryExpiryJob.java:25"
+        }
+      ]
+    },
+    "ev-venue-client": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:33-34"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:14-15"
+        }
+      ]
+    },
+    "ev-saga": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40"
+        }
+      ]
+    },
+    "ev-outbox": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70"
+        },
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxMessage.java:12-14"
+        }
+      ]
+    },
+    "ve-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/api/VenueController.java:24-28"
+        }
+      ]
+    },
+    "ve-availability": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/application/VenueAvailabilityService.java:20-21"
+        }
+      ]
+    },
+    "ve-location": {
+      "needs": [
+        {
+          "area": "java",
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/application/LocationEnrichmentPort.java:6"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/infrastructure/maps/LocalLocationEnrichmentAdapter.java:8-9"
+        }
+      ]
+    },
+    "at-booking": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:27-32"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/AttendeeProfileController.java:16-20"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingCoordinator.java:11-12"
+        }
+      ]
+    },
+    "at-event-client": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:30-31"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:16-17"
+        }
+      ]
+    },
+    "at-saga": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaService.java:32-33"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaRecoveryJob.java:3"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/TicketHoldExpiryJob.java:12-14"
+        }
+      ]
+    },
+    "at-consumers": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46"
+        },
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45"
+        }
+      ]
+    },
+    "at-scan": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:22-27"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/QrTokenService.java:21-22"
+        }
+      ]
+    },
+    "at-outbox": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68"
+        },
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxMessage.java:12-14"
+        }
+      ]
+    },
+    "pa-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/api/PaymentController.java:7-8"
+        }
+      ]
+    },
+    "pa-payments": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/PaymentApplicationService.java:6-7"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/PaymentReconciliationJob.java:5-6"
+        }
+      ]
+    },
+    "pa-refunds": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/RefundApplicationService.java:5-6"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/RefundStateService.java:6-7"
+        }
+      ]
+    },
+    "pa-provider": {
+      "needs": [
+        {
+          "area": "java",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/provider/PaymentProvider.java:5"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/provider/FakePaymentProvider.java:18-19"
+        }
+      ]
+    },
+    "pa-consumer": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/AttendeeLifecycleConsumer.java:56-58"
+        }
+      ]
+    },
+    "pa-outbox": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65"
+        },
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxMessage.java:12-14"
+        }
+      ]
+    },
+    "no-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/api/NotificationController.java:15-17"
+        }
+      ]
+    },
+    "no-planner": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationPlanner.java:26-27"
+        }
+      ]
+    },
+    "no-delivery": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationDeliveryJob.java:32-33"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationDeliveryJob.java:73"
+        }
+      ]
+    },
+    "no-local": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/provider/LocalEmailAdapter.java:13-15"
+        },
+        {
+          "area": "spring",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/provider/LocalSmsAdapter.java:13-15"
+        }
+      ]
+    },
+    "p-attendee -> gateway": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:29-30"
+        }
+      ]
+    },
+    "p-organizer -> gateway": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:62-63"
+        }
+      ]
+    },
+    "p-staff -> gateway": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:24-25"
+        }
+      ]
+    },
+    "p-admin -> gateway": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:97-98"
+        }
+      ]
+    },
+    "p-attendee -> frontend": {
+      "linking": "The frontend is a static landing page that makes no API calls; no code states that an attendee visits it, so the line comes from combining the person with the frontend container."
+    },
+    "frontend -> gateway": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "Event-Management-platform:frontend/nginx.conf:8-14"
+        },
+        {
+          "area": "frontend",
+          "at": "Event-Management-platform:frontend/vite.config.ts:10"
+        }
+      ]
+    },
+    "gateway -> redis": {
+      "needs": [
+        {
+          "area": "redis",
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:7-10"
+        }
+      ]
+    },
+    "gateway -> auth": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:16-23"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:357-367"
+        }
+      ]
+    },
+    "gateway -> event": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:24-27"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:357-381"
+        }
+      ]
+    },
+    "gateway -> venue": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:28-31"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:357-382"
+        }
+      ]
+    },
+    "gateway -> attendee": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:32-35"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:357-383"
+        }
+      ]
+    },
+    "gateway -> payment": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:36-39"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:357-384"
+        }
+      ]
+    },
+    "gateway -> notification": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:40-43"
+        },
+        {
+          "area": "deployment",
+          "at": "Event-Management-platform:compose.yaml:357-385"
+        }
+      ]
+    },
+    "event -> venue": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:33-34"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:38-40"
+        }
+      ]
+    },
+    "attendee -> event": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:30-31"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:36-38"
+        }
+      ]
+    },
+    "auth -> oauth-idp": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/AuthSecurityConfiguration.java:95-98"
+        }
+      ]
+    },
+    "auth -> auth-db": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:8-11"
+        }
+      ]
+    },
+    "event -> event-db": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:8-11"
+        }
+      ]
+    },
+    "venue -> venue-db": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:8-11"
+        }
+      ]
+    },
+    "attendee -> attendee-db": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:8-11"
+        }
+      ]
+    },
+    "payment -> payment-db": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:8-11"
+        }
+      ]
+    },
+    "notification -> notification-db": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:8-11"
+        }
+      ]
+    },
+    "event -> redis": {
+      "needs": [
+        {
+          "area": "redis",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:18-27"
+        }
+      ]
+    },
+    "event -> auth": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/config/EventSecurityConfiguration.java:90-93"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:37"
+        }
+      ]
+    },
+    "venue -> auth": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/config/VenueSecurityConfiguration.java:84-87"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:25"
+        }
+      ]
+    },
+    "attendee -> auth": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/config/AttendeeSecurityConfiguration.java:60-63"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:31"
+        }
+      ]
+    },
+    "payment -> auth": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/config/PaymentSecurityConfiguration.java:40-42"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:35"
+        }
+      ]
+    },
+    "notification -> auth": {
+      "needs": [
+        {
+          "area": "identity",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/config/NotificationSecurityConfiguration.java:54-57"
+        },
+        {
+          "area": "config",
+          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:31"
+        }
+      ]
+    },
+    "event -> t-event": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70"
+        }
+      ]
+    },
+    "attendee -> t-attendee": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68"
+        }
+      ]
+    },
+    "payment -> t-payment": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65"
+        }
+      ]
+    },
+    "t-event -> attendee": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46"
+        }
+      ]
+    },
+    "t-attendee -> event": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40"
+        }
+      ]
+    },
+    "t-attendee -> payment": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/AttendeeLifecycleConsumer.java:56-58"
+        }
+      ]
+    },
+    "t-payment -> attendee": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45"
+        }
+      ]
+    },
+    "t-event -> notification": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26"
+        }
+      ]
+    },
+    "t-attendee -> notification": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26"
+        }
+      ]
+    },
+    "t-payment -> notification": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26"
+        }
+      ]
+    }
+  }
+}
