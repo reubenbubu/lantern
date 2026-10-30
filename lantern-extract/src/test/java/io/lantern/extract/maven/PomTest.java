@@ -51,12 +51,12 @@ class PomTest {
                 + "</executions>"
                 + BOOT_PLUGIN_END);
 
-    assertThat(bound.deployable("jar", Map.of(), false)).isTrue();
-    assertThat(bare.deployable("jar", Map.of(), false)).isFalse();
-    assertThat(bare.deployable("jar", Map.of(), true)).isTrue();
-    assertThat(skipped.deployable("jar", Map.of(), true)).isFalse();
-    assertThat(pom("").deployable("war", Map.of(), false)).isTrue();
-    assertThat(pom("").deployable("jar", Map.of(), true)).isFalse();
+    assertThat(bound.deployedBy("jar", Map.of(), false)).isNotNull();
+    assertThat(bare.deployedBy("jar", Map.of(), false)).isNull();
+    assertThat(bare.deployedBy("jar", Map.of(), true)).isNotNull();
+    assertThat(skipped.deployedBy("jar", Map.of(), true)).isNull();
+    assertThat(pom("").deployedBy("war", Map.of(), false)).isNotNull();
+    assertThat(pom("").deployedBy("jar", Map.of(), true)).isNull();
   }
 
   @Test
@@ -68,10 +68,147 @@ class PomTest {
                 + BOOT_PLUGIN_END);
     Pom bare = pom(BOOT_PLUGIN_START + BOOT_PLUGIN_END);
 
-    assertThat(bySkip.deployable("jar", Map.of("no.boot", "true"), true)).isFalse();
-    assertThat(bySkip.deployable("jar", Map.of("no.boot", "false"), true)).isTrue();
-    assertThat(bare.deployable("jar", Map.of("spring-boot.repackage.skip", "true"), true))
-        .isFalse();
+    assertThat(bySkip.deployedBy("jar", Map.of("no.boot", "true"), true)).isNull();
+    assertThat(bySkip.deployedBy("jar", Map.of("no.boot", "false"), true)).isNotNull();
+    assertThat(bare.deployedBy("jar", Map.of("spring-boot.repackage.skip", "true"), true)).isNull();
+  }
+
+  private static String plugin(String groupId, String artifactId, String inside) {
+    return "<plugin><groupId>"
+        + groupId
+        + "</groupId><artifactId>"
+        + artifactId
+        + "</artifactId>"
+        + inside
+        + "</plugin>";
+  }
+
+  private static Pom plugins(String... plugins) throws IOException {
+    return pom("<build><plugins>" + String.join("", plugins) + "</plugins></build>");
+  }
+
+  private static String execution(String goal, String inside) {
+    return "<executions><execution><goals><goal>"
+        + goal
+        + "</goal></goals>"
+        + inside
+        + "</execution></executions>";
+  }
+
+  @Test
+  void otherWaysAModuleShips() throws IOException {
+    Map<String, String> none = Map.of();
+
+    assertThat(pom("").deployedBy("ear", none, false)).isEqualTo("ear");
+    assertThat(pom("").deployedBy("quarkus", none, false)).isEqualTo("quarkus");
+    assertThat(
+            plugins(plugin("io.quarkus.platform", "quarkus-maven-plugin", execution("build", "")))
+                .deployedBy("jar", none, false))
+        .isEqualTo("quarkus");
+    assertThat(
+            plugins(plugin("com.google.cloud.tools", "jib-maven-plugin", ""))
+                .deployedBy("jar", none, false))
+        .isEqualTo("jib");
+    assertThat(
+            plugins(plugin("org.eclipse.jkube", "kubernetes-maven-plugin", ""))
+                .deployedBy("jar", none, false))
+        .isEqualTo("jkube");
+    assertThat(
+            plugins(plugin("com.spotify", "dockerfile-maven-plugin", ""))
+                .deployedBy("jar", none, false))
+        .isEqualTo("docker");
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.springframework.boot",
+                        "spring-boot-maven-plugin",
+                        execution("build-image-no-fork", "")))
+                .deployedBy("jar", none, false))
+        .isEqualTo("spring-boot-build-image");
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.apache.maven.plugins",
+                        "maven-shade-plugin",
+                        execution(
+                            "shade",
+                            "<configuration><transformers><transformer implementation=\"x\">"
+                                + "<mainClass>com.example.Main</mainClass>"
+                                + "</transformer></transformers></configuration>")))
+                .deployedBy("jar", none, false))
+        .isEqualTo("shade");
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.apache.maven.plugins",
+                        "maven-assembly-plugin",
+                        execution(
+                            "single",
+                            "<configuration><archive><manifest><mainClass>com.example.Main"
+                                + "</mainClass></manifest></archive></configuration>")))
+                .deployedBy("jar", none, false))
+        .isEqualTo("assembly");
+  }
+
+  @Test
+  void whatDoesNotMakeAModuleShip() throws IOException {
+    Map<String, String> none = Map.of();
+
+    // Repackaging moved to phase none.
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.springframework.boot",
+                        "spring-boot-maven-plugin",
+                        execution("repackage", "<phase>none</phase>")))
+                .deployedBy("jar", none, false))
+        .isNull();
+    // Image plugins skipped by their property, as libraries of a parent declaring them do.
+    assertThat(
+            plugins(plugin("com.google.cloud.tools", "jib-maven-plugin", ""))
+                .deployedBy("jar", Map.of("jib.skip", "true"), false))
+        .isNull();
+    assertThat(
+            plugins(plugin("org.eclipse.jkube", "kubernetes-maven-plugin", ""))
+                .deployedBy("jar", Map.of("jkube.skip", "true"), false))
+        .isNull();
+    // Shade relocating dependencies, and an unresolved main class.
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.apache.maven.plugins", "maven-shade-plugin", execution("shade", "")))
+                .deployedBy("jar", none, false))
+        .isNull();
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.apache.maven.plugins",
+                        "maven-shade-plugin",
+                        execution(
+                            "shade",
+                            "<configuration><transformers><transformer>"
+                                + "<mainClass>${start-class}</mainClass>"
+                                + "</transformer></transformers></configuration>")))
+                .deployedBy("jar", none, false))
+        .isNull();
+    // A pom module never ships, whatever it declares.
+    assertThat(
+            plugins(plugin("com.google.cloud.tools", "jib-maven-plugin", ""))
+                .deployedBy("pom", none, false))
+        .isNull();
+  }
+
+  @Test
+  void anExecutableJarRanksAboveItsImage() throws IOException {
+    assertThat(
+            plugins(
+                    plugin("com.google.cloud.tools", "jib-maven-plugin", ""),
+                    plugin(
+                        "org.springframework.boot",
+                        "spring-boot-maven-plugin",
+                        execution("repackage", "")))
+                .deployedBy("jar", Map.of(), false))
+        .isEqualTo("spring-boot");
   }
 
   @Test

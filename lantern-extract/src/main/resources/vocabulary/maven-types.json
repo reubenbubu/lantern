@@ -48,7 +48,14 @@
   {
     "name": "java-release",
     "kind": "attribute",
-    "description": "The major Java release the subject module compiles for, such as 21, from maven.compiler.release, the compiler plugin's release or source, maven.compiler.source or java.version, in that order.",
+    "description": "The major Java release the subject module compiles for, such as 21, from the compiler plugin's release, maven.compiler.release, the plugin's source, maven.compiler.source or java.version, in that order.",
+    "attributeSchema": { "additionalProperties": false },
+    "objectKind": "string"
+  },
+  {
+    "name": "deployable-by",
+    "kind": "attribute",
+    "description": "What makes the subject module deployable: war or ear packaging, spring-boot (an executable jar repackaged by Spring Boot's plugin), quarkus, shade or assembly (a jar with a main class), or an image built by spring-boot-build-image, jib, jkube or docker.",
     "attributeSchema": { "additionalProperties": false },
     "objectKind": "string"
   },

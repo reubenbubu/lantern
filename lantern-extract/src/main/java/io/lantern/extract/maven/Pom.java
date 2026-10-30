@@ -130,41 +130,148 @@ record Pom(
     return packaging == null || packaging.isEmpty() ? "jar" : packaging;
   }
 
+  /** What makes a module deployable, as the {@code deployable-by} attribute names it. */
+  static final String WAR = "war";
+
+  static final String EAR = "ear";
+  static final String SPRING_BOOT = "spring-boot";
+  static final String SPRING_BOOT_IMAGE = "spring-boot-build-image";
+  static final String QUARKUS = "quarkus";
+  static final String JIB = "jib";
+  static final String JKUBE = "jkube";
+  static final String DOCKER = "docker";
+  static final String SHADE = "shade";
+  static final String ASSEMBLY = "assembly";
+
+  /** Image plugins, by key, with the user property that skips each. */
+  private static final Map<String, String[]> IMAGE_PLUGINS =
+      Map.of(
+          "com.google.cloud.tools:jib-maven-plugin", new String[] {JIB, "jib.skip"},
+          "org.eclipse.jkube:kubernetes-maven-plugin", new String[] {JKUBE, "jkube.skip"},
+          "org.eclipse.jkube:openshift-maven-plugin", new String[] {JKUBE, "jkube.skip"},
+          "com.spotify:dockerfile-maven-plugin", new String[] {DOCKER, "dockerfile.skip"},
+          "io.fabric8:docker-maven-plugin", new String[] {DOCKER, "docker.skip"});
+
   /**
-   * Whether the project's build makes something deployable: a war or ear, or an executable jar
-   * repackaged by Spring Boot's Maven plugin. A repackage skipped with {@code <skip>} or the {@code
-   * spring-boot.repackage.skip} property does not count.
+   * What makes the project's build deployable, or null for a library: a {@code war} or {@code ear};
+   * Quarkus ({@code quarkus} packaging, or its plugin's {@code build} goal); an executable jar
+   * repackaged by Spring Boot's Maven plugin; an image built by Spring Boot's {@code build-image}
+   * goal, Jib, Eclipse JKube or a Docker plugin; or a jar with a main class made by the shade or
+   * assembly plugin. A plugin or execution skipped with {@code <skip>}, its skip property or {@code
+   * <phase>none</phase>} does not count. Plugins under {@code pluginManagement} are not in {@code
+   * plugins}, so they never count.
    *
    * @param properties the project's resolved properties, for {@code ${...}} references
-   * @param bareBootPluginCounts whether a Spring Boot plugin declared without a {@code repackage}
-   *     goal counts. In an effective POM every execution is spelled out, so it does not; in a POM
-   *     as written the parent may bind the goal, so it does.
+   * @param barePluginCounts whether a Spring Boot or Quarkus plugin declared without its goal
+   *     counts. In an effective POM every execution is spelled out, so it does not; in a POM as
+   *     written the parent may bind the goal, so it does.
    */
-  boolean deployable(
-      String packaging, Map<String, String> properties, boolean bareBootPluginCounts) {
-    if (packaging.equals("war") || packaging.equals("ear")) {
-      return true;
+  String deployedBy(String packaging, Map<String, String> properties, boolean barePluginCounts) {
+    if (packaging.equals("pom")) {
+      return null;
     }
-    if ("true".equals(interpolate(properties.get("spring-boot.repackage.skip"), properties))) {
-      return false;
+    if (packaging.equals(WAR) || packaging.equals(EAR)) {
+      return packaging;
     }
+    if (packaging.equals(QUARKUS)) {
+      return QUARKUS;
+    }
+    String found = null;
     for (XmlElement plugin : plugins) {
-      if (!isBootPlugin(plugin) || skipped(plugin, properties)) {
-        continue;
+      String by = pluginDeploys(plugin, properties, barePluginCounts);
+      // An executable jar says more than an image of it.
+      if (by != null && (found == null || rank(by) < rank(found))) {
+        found = by;
       }
-      List<XmlElement> executions = plugin.list("executions", "execution");
-      if (executions.isEmpty() && bareBootPluginCounts) {
-        return true;
+    }
+    return found;
+  }
+
+  private static int rank(String by) {
+    return List.of(SPRING_BOOT, QUARKUS, SHADE, ASSEMBLY, SPRING_BOOT_IMAGE, JIB, JKUBE, DOCKER)
+        .indexOf(by);
+  }
+
+  /** What a plugin makes deployable, or null. */
+  private static String pluginDeploys(
+      XmlElement plugin, Map<String, String> properties, boolean barePluginCounts) {
+    if (skipped(plugin, properties)) {
+      return null;
+    }
+    String key = pluginKey(plugin);
+    List<XmlElement> executions =
+        plugin.list("executions", "execution").stream()
+            .filter(e -> !skipped(e, properties))
+            .filter(e -> !"none".equals(interpolate(e.text("phase"), properties)))
+            .toList();
+    if (isBootPlugin(plugin)) {
+      boolean repackage =
+          !"true".equals(interpolate(properties.get("spring-boot.repackage.skip"), properties))
+              && (executions.stream().anyMatch(e -> hasGoal(e, "repackage"))
+                  || barePluginCounts && plugin.list("executions", "execution").isEmpty());
+      if (repackage) {
+        return SPRING_BOOT;
       }
-      for (XmlElement execution : executions) {
-        boolean repackage =
-            execution.list("goals", "goal").stream().anyMatch(g -> g.text().equals("repackage"));
-        if (repackage && !skipped(execution, properties)) {
-          return true;
+      boolean image =
+          !"true".equals(interpolate(properties.get("spring-boot.build-image.skip"), properties))
+              && executions.stream()
+                  .anyMatch(e -> hasGoal(e, "build-image") || hasGoal(e, "build-image-no-fork"));
+      return image ? SPRING_BOOT_IMAGE : null;
+    }
+    if (plugin.text("artifactId") != null
+        && plugin.text("artifactId").equals("quarkus-maven-plugin")) {
+      boolean build =
+          executions.stream().anyMatch(e -> hasGoal(e, "build"))
+              || barePluginCounts && plugin.list("executions", "execution").isEmpty();
+      return build ? QUARKUS : null;
+    }
+    String[] image = IMAGE_PLUGINS.get(key);
+    if (image != null) {
+      return "true".equals(interpolate(properties.get(image[1]), properties)) ? null : image[0];
+    }
+    if (key.equals("org.apache.maven.plugins:maven-shade-plugin")) {
+      for (XmlElement e : executions) {
+        boolean mainClass =
+            hasGoal(e, "shade")
+                && e
+                    .child("configuration")
+                    .map(c -> c.list("transformers", "transformer"))
+                    .orElse(List.of())
+                    .stream()
+                    .anyMatch(t -> resolved(t.text("mainClass"), properties));
+        if (mainClass) {
+          return SHADE;
         }
       }
     }
-    return false;
+    if (key.equals("org.apache.maven.plugins:maven-assembly-plugin")) {
+      for (XmlElement e : executions) {
+        if (!hasGoal(e, "single")) {
+          continue;
+        }
+        String mainClass =
+            e.child("configuration")
+                .or(() -> plugin.child("configuration"))
+                .flatMap(c -> c.child("archive"))
+                .flatMap(a -> a.child("manifest"))
+                .map(m -> m.text("mainClass"))
+                .orElse(null);
+        if (resolved(mainClass, properties)) {
+          return ASSEMBLY;
+        }
+      }
+    }
+    return null;
+  }
+
+  private static boolean hasGoal(XmlElement execution, String goal) {
+    return execution.list("goals", "goal").stream().anyMatch(g -> g.text().equals(goal));
+  }
+
+  /** Whether a value is given and every reference in it resolves. */
+  private static boolean resolved(String value, Map<String, String> properties) {
+    String v = interpolate(value, properties);
+    return v != null && !v.isBlank() && !v.contains("${");
   }
 
   /** Whether the plugin element is Spring Boot's Maven plugin. */
