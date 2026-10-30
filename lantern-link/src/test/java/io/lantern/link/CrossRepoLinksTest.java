@@ -16,6 +16,7 @@ import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
+import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
 import io.lantern.extract.maven.MavenExtractor;
@@ -2332,5 +2333,293 @@ class CrossRepoLinksTest {
         "\"unresolved\":[\"SMTP_HOST\"]");
 
     assertThat(derive(CrossRepoLinks.SENDS_MAIL)).isEmpty();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Identity providers and shared secrets
+
+  private static final String KEYCLOAK =
+      "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+          + "\"image\":\"quay.io/keycloak/keycloak:26.7.4\",\"product\":\"Keycloak\","
+          + "\"version\":\"26.7.4\",\"role\":\"identity\",\"hosts\":[\"keycloak\"],"
+          + "\"ports\":[\"8080:8080\"]}";
+
+  private void jwtSecret(String repo, String method, String keys, String uses) {
+    add(
+        IdentityExtractor.NAME,
+        "method:" + method,
+        IdentityExtractor.JWT_SECRET_KEY,
+        FactObject.string(keys.split(",")[0]),
+        "{\"library\":\"jjwt\",\"call\":\"Keys.hmacShaKeyFor\",\"keys\":[\""
+            + keys.replace(",", "\",\"")
+            + "\"],\"uses\":["
+            + uses
+            + "]}",
+        repo
+            + ":src/main/java/"
+            + method.substring(0, method.indexOf('#')).replace('.', '/')
+            + ".java#30",
+        1.0);
+  }
+
+  @Test
+  void anIssuerOnThisMachineIsTheKeycloakAComposeFilePublishesThere() {
+    unit("s", "gateway", "gateway");
+    config(
+        "s",
+        "gateway",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "http://localhost:8080/realms/shop",
+        "\"written\":\"${ISSUER:http://localhost:8080/realms/shop}\"");
+    unit("s", "bff", "bff");
+    config("s", "bff", "application.properties", "server.port", "8081", null);
+    config(
+        "s",
+        "bff",
+        "application.properties",
+        "spring.security.oauth2.client.provider.keycloak.issuer-uri",
+        "http://localhost:8080/realms/shop",
+        null);
+    config(
+        "s",
+        "bff",
+        "application.properties",
+        "spring.security.oauth2.client.registration.keycloak.client-id",
+        "bff",
+        null);
+    config(
+        "s",
+        "bff",
+        "application.properties",
+        "spring.security.oauth2.client.registration.internal.provider",
+        "keycloak",
+        null);
+    config(
+        "s",
+        "bff",
+        "application.properties",
+        "spring.security.oauth2.client.registration.internal.authorization-grant-type",
+        "client_credentials",
+        null);
+    container("s", "keycloak", KEYCLOAK);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .containsExactly(
+            "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+                + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
+                + "\"matchedBy\":\"published-port\",\"protocol\":\"OAuth2 over HTTP\","
+                + "\"purpose\":\"gets-tokens\",\"url\":\"http://localhost:8080/realms/shop\"}"
+                + " 0.8",
+            "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+                + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
+                + "\"matchedBy\":\"published-port\",\"protocol\":\"OIDC over HTTP\","
+                + "\"purpose\":\"signs-in-users\","
+                + "\"url\":\"http://localhost:8080/realms/shop\"} 0.8",
+            "service:g:gateway USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+                + "\"spring.security.oauth2.resourceserver.jwt.issuer-uri\","
+                + "\"matchedBy\":\"published-port\",\"protocol\":\"OIDC over HTTP\","
+                + "\"purpose\":\"validates-tokens\","
+                + "\"url\":\"http://localhost:8080/realms/shop\"} 0.8");
+    assertThat(derive())
+        .contains(
+            "external-system:keycloak display-name Keycloak 1.0",
+            "external-system:keycloak deployed-in Docker Compose (default)"
+                + " {\"container\":\"keycloak\",\"environment\":\"default\","
+                + "\"platform\":\"compose\"} 1.0");
+  }
+
+  @Test
+  void anIssuerTheEnvironmentNamesIsTheKeycloakContainerAnsweringItsHost() {
+    unit("s", "orders", "orders");
+    config(
+        "s",
+        "orders",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
+        "${ISSUER}/protocol/openid-connect/certs",
+        "\"written\":\"${ISSUER}/protocol/openid-connect/certs\",\"unresolved\":[\"ISSUER\"]");
+    container(
+        "s",
+        "orders",
+        "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+            + "\"build\":\".\",\"hosts\":[\"orders\"],"
+            + "\"env\":{\"ISSUER\":\"http://keycloak:8080/realms/shop\"}}");
+    container("s", "keycloak", KEYCLOAK);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:orders USES_IDENTITY_PROVIDER external-system:keycloak")
+        .contains("\"matchedBy\":\"container\",\"protocol\":\"JWKS over HTTP\"")
+        .contains(
+            "\"purpose\":\"validates-tokens\","
+                + "\"url\":\"http://keycloak:8080/realms/shop/protocol/openid-connect/certs\"");
+  }
+
+  @Test
+  void aJwkSetOfAnotherUnitLinksToItsEndpointAndOneOfItsOwnIsNoLine() {
+    unit("p", "auth", "auth");
+    config("p", "auth", "application.yml", "server.port", "8081", null);
+    type("p", "auth", "p.JwkSetController");
+    endpoint("p", "p.JwkSetController", "jwks()", "GET", "/api/auth/.well-known/jwks.json");
+    config(
+        "p",
+        "auth",
+        "application.yml",
+        "platform.security.jwt.jwk-set-uri",
+        "http://localhost:8081/api/auth/.well-known/jwks.json",
+        null);
+    unit("p", "events", "events");
+    config(
+        "p",
+        "events",
+        "application.yml",
+        "platform.security.jwt.jwk-set-uri",
+        "http://localhost:8081/api/auth/.well-known/jwks.json",
+        null);
+    // An issuer that is not a URL names no provider.
+    config("p", "events", "application.yml", "platform.security.jwt.issuer", "urn:p:auth", null);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .containsExactly(
+            "service:g:events USES_IDENTITY_PROVIDER service:g:auth {\"key\":"
+                + "\"platform.security.jwt.jwk-set-uri\",\"matchedBy\":\"port\","
+                + "\"protocol\":\"JWKS over HTTP\",\"purpose\":\"validates-tokens\","
+                + "\"target\":\"method:p.JwkSetController#jwks()\","
+                + "\"url\":\"http://localhost:8081/api/auth/.well-known/jwks.json\"} 0.8");
+  }
+
+  @Test
+  void anIssuerWithADomainAndAProviderKnownByNameAreExternalSystems() {
+    unit("w", "web", "web");
+    config(
+        "w",
+        "web",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "https://login.example.com/realms/w",
+        null);
+    config(
+        "w",
+        "web",
+        "application.properties",
+        "spring.security.oauth2.client.registration.google.client-id",
+        "web-client",
+        null);
+    // A local issuer with nothing behind it names nothing.
+    unit("w", "other", "other");
+    config(
+        "w",
+        "other",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "http://localhost:9999/realms/w",
+        null);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:web USES_IDENTITY_PROVIDER external-system:accounts.google.com",
+            "service:g:web USES_IDENTITY_PROVIDER external-system:login.example.com");
+  }
+
+  @Test
+  void aKeycloakAdminClientManagesUsersAtTheUrlItsConfigGives() {
+    unit("a", "admin", "admin");
+    type("a", "admin", "a.KeycloakConfig");
+    config(
+        "a",
+        "admin",
+        "application.properties",
+        "keycloak.admin.server-url",
+        "https://sso.example.com",
+        null);
+    add(
+        IdentityExtractor.NAME,
+        "method:a.KeycloakConfig#keycloak()",
+        IdentityExtractor.IDENTITY_ADMIN_CLIENT,
+        FactObject.string("${keycloak.admin.server-url}"),
+        "{\"product\":\"Keycloak\",\"url\":\"${keycloak.admin.server-url}\"}",
+        "a:src/main/java/a/KeycloakConfig.java#27",
+        1.0);
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .containsExactly(
+            "service:g:admin USES_IDENTITY_PROVIDER external-system:sso.example.com"
+                + " {\"matchedBy\":\"external\",\"protocol\":\"Keycloak Admin REST over HTTPS\","
+                + "\"purpose\":\"manages-users\","
+                + "\"source\":\"method:a.KeycloakConfig#keycloak()\","
+                + "\"url\":\"https://sso.example.com\"} 1.0");
+  }
+
+  @Test
+  void unitsWhoseJwtSecretComesFromTheSamePlaceholderShareIt() {
+    unit("c", "auth", "auth");
+    type("c", "auth", "c.auth.JwtService");
+    config(
+        "c",
+        "auth",
+        "application.properties",
+        "app.token.signing.key",
+        "${auth.token.signing.key}",
+        "\"unresolved\":[\"auth.token.signing.key\"]");
+    jwtSecret("c", "c.auth.JwtService#key()", "app.token.signing.key", "\"sign\",\"verify\"");
+    unit("c", "gateway", "gateway");
+    type("c", "gateway", "c.gateway.JwtService");
+    config(
+        "c",
+        "gateway",
+        "application.properties",
+        "app.token.signing.key",
+        "${AUTH_TOKEN_SIGNING_KEY}",
+        "\"unresolved\":[\"AUTH_TOKEN_SIGNING_KEY\"]");
+    jwtSecret("c", "c.gateway.JwtService#key()", "app.token.signing.key", "\"verify\"");
+    // Another unit with its own secret, written in its config, shares nothing.
+    unit("c", "files", "files");
+    type("c", "files", "c.files.Tokens");
+    config("c", "files", "application.properties", "files.jwt.key", "abc", null);
+    jwtSecret("c", "c.files.Tokens#key()", "files.jwt.key", "\"verify\"");
+
+    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+        .containsExactly(
+            "service:g:auth shared-secret app.token.signing.key {\"algorithm\":\"HMAC\","
+                + "\"basis\":\"placeholder\",\"library\":\"jjwt\","
+                + "\"placeholders\":[\"auth.token.signing.key\"],"
+                + "\"source\":\"method:c.auth.JwtService#key()\","
+                + "\"uses\":[\"sign\",\"verify\"],\"with\":[\"service:g:gateway\"]} 0.9",
+            "service:g:gateway shared-secret app.token.signing.key {\"algorithm\":\"HMAC\","
+                + "\"basis\":\"placeholder\",\"library\":\"jjwt\","
+                + "\"placeholders\":[\"auth.token.signing.key\"],"
+                + "\"source\":\"method:c.gateway.JwtService#key()\","
+                + "\"uses\":[\"verify\"],\"with\":[\"service:g:auth\"]} 0.9");
+    assertThat(derive()).noneMatch(l -> l.contains("abc"));
+  }
+
+  @Test
+  void maskedSecretsUnderTheSameKeyAreSharedByKeyAndDifferentValuesAreNot() {
+    unit("c", "one", "one");
+    type("c", "one", "c.one.Jwt");
+    config("c", "one", "application.properties", "jwt.secret", "******", "\"masked\":true");
+    jwtSecret("c", "c.one.Jwt#key()", "jwt.secret", "\"sign\"");
+    unit("c", "two", "two");
+    type("c", "two", "c.two.Jwt");
+    config("c", "two", "application.properties", "jwt.secret", "******", "\"masked\":true");
+    jwtSecret("c", "c.two.Jwt#key()", "jwt.secret", "\"verify\"");
+    unit("c", "three", "three");
+    type("c", "three", "c.three.Jwt");
+    config("c", "three", "application.properties", "jwt.key", "first", null);
+    jwtSecret("c", "c.three.Jwt#key()", "jwt.key", "\"verify\"");
+    unit("c", "four", "four");
+    type("c", "four", "c.four.Jwt");
+    config("c", "four", "application.properties", "jwt.key", "second", null);
+    jwtSecret("c", "c.four.Jwt#key()", "jwt.key", "\"verify\"");
+
+    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+        .extracting(
+            l -> l.substring(0, l.indexOf(" {")) + " " + l.substring(l.lastIndexOf(' ') + 1))
+        .containsExactly(
+            "service:g:one shared-secret jwt.secret 0.7",
+            "service:g:two shared-secret jwt.secret 0.7");
   }
 }

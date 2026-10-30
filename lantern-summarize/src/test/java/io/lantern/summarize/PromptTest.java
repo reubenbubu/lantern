@@ -19,10 +19,10 @@ class PromptTest {
    * changed: raise {@link Prompt#VERSION} so cached summaries made with the old prompt are not
    * reused, then update both values here.
    */
-  private static final String VERSION = "14";
+  private static final String VERSION = "15";
 
   private static final String FINGERPRINT =
-      "4c63579ea10603f6e87a3412c8fbee1644755ef2c6daad9287bfc22a23f835a9";
+      "a6cf7c45ed54b9dc19b5c747defcdf66aa3a3ef4ad8317e2c4bdd8e7d6c4d631";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {

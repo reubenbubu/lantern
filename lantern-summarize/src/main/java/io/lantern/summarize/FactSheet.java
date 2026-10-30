@@ -44,6 +44,7 @@ final class FactSheet {
         List.of(
             "CALLS_HTTP",
             "SENDS_MAIL",
+            "USES_IDENTITY_PROVIDER",
             "SENDS_MESSAGES_TO",
             "PUBLISHES",
             "CONSUMES",

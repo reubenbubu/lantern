@@ -113,6 +113,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Spring Cloud Gateway | Routes built with `RouteLocatorBuilder` and routes in `spring.cloud.gateway` config; filter classes | Routes per profile with their predicates, filters and target URI (`lb://`, `lb:ws://`, a URL), and the global, gateway and web filters requests pass through, as entry points |
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
 | Redis | Redis templates and operations, `@RedisHash`, Spring Session, lock registries, the gateway's rate limiter and caches in code, config and POM dependencies | How each module uses Redis, with the keys the code writes out |
+| Identity | JWT libraries (jjwt, Nimbus, Spring Security, java-jwt) and Keycloak's admin client | HMAC keys for JWTs made from config, naming the config keys of their secret (never its value), and the server URL an admin client is built with |
 | People | Role checks (`@PreAuthorize`, `@Secured`, `@RolesAllowed`, `hasRole`), Keycloak realm roles, types about members and invitations, and the routes of Angular, React and Vue frontends | The evidence for who uses the system, each citing its line; the linker makes people of it |
 | Config | `.properties`, `.yml` (`application*` and `bootstrap*`), Spring profiles, env-var placeholders | Resolved and unresolved config values per profile, including `spring.application.name` |
 | SQL | Flyway and Liquibase migrations, `.sql` files (JSqlParser) | Schema as of the commit: tables, columns, keys |
@@ -157,6 +158,8 @@ Which manifests, environment files, proxies and calls the Frontend extractor rea
 Which HTTP clients the HTTP client extractor reads, how it follows a URL one hop through the code, what facts it makes of calls and of the code that enables or injects a client, and what a recorded URL leaves out is in ADR 0038.
 
 How the Mail extractor and linker make the mail server a unit's config names an external system, linked by `SENDS_MAIL` and shown as a step in the flows that reach the sending code, is in ADR 0076.
+
+How the Identity extractor reads JWT secrets and admin clients, and how the linker makes the issuers, JWK sets and OAuth2 providers a unit's config names into links to a unit of the system or to an external system, and records the JWT secrets units share, is in ADR 0085.
 
 **Why javac instead of only a parser:** production Spring code relies on Lombok, MapStruct and generated OpenAPI or Protobuf clients. Analyzing through the compiler, with annotation processing on, sees generated members and resolves calls exactly as the build does.
 
@@ -259,6 +262,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | Messaging | Topic, exchange or queue names and routing keys, produced vs. consumed, with AMQP topic wildcards (`order.*`) matched as the broker matches them |
 | Shared database | Datasource URLs and table names; Redis servers (`spring.data.redis.*`), one data store per server |
 | Shared config | Common property keys and config servers |
+| Identity provider | An issuer, JWK set, OAuth2 provider or admin client URL in config (`spring.security.oauth2.*` and keys like it) against units as for an HTTP call, else an identity provider container a deployment runs, else a host with a domain as an external system; HMAC secrets for JWTs from the same placeholder, value or key are recorded as shared, for the findings (ADR 0085) |
 | People | Roles the code checks, the members of things it has members of, invitations, sign-up and sign-in, and the frontend routes for them; each kind of person is a `person` entity, inferred (ADR 0074) |
 
 A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open; where a deployment runs the unit, its environment fills the placeholders, and the database takes its name and version from the container it is on (ADR 0082). The exception is Redis: units whose host and port are the same unresolved placeholders (`${redis.host}`) are taken to share one server, since a deployment fills them from one environment (ADR 0073). A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
@@ -454,7 +458,7 @@ How the first composer builds per-repository documents from view definitions is 
 
 **View definitions.** A spec per document: scope, audience profile, template, sections and diagrams. Lantern's defaults are kept in code, so their new sections reach every workspace; a changed view is persisted (ADR 0047). Regenerating a document means applying the same view definition to a new snapshot, so its structure doesn't depend on the LLM's choices each run.
 
-**Diagrams.** Lantern uses the C4 levels with c4model.com's definitions. The software system is the scope: all repos in system scope, a group in grouped scope; a per-repo document shows its repo's containers inside that system. External systems are outbound targets the linker can't resolve to a container in scope, or come from deployment facts, outbound protocols such as mail (#260), verified Investigate proposals or annotations. A container is a runtime unit (an application, job, data store, or queue or topic), never a Maven module or jar; a component is a group of functionality behind an interface, never just a package. Each diagram must also pass the Quality bar. The document model holds sequence diagrams as a `sequence` diagram kind (ADR 0028).
+**Diagrams.** Lantern uses the C4 levels with c4model.com's definitions. The software system is the scope: all repos in system scope, a group in grouped scope; a per-repo document shows its repo's containers inside that system. External systems are outbound targets the linker can't resolve to a container in scope, or come from deployment facts, outbound protocols such as mail (#260) and identity providers (#261), verified Investigate proposals or annotations. A container is a runtime unit (an application, job, data store, or queue or topic), never a Maven module or jar; a component is a group of functionality behind an interface, never just a package. Each diagram must also pass the Quality bar. The document model holds sequence diagrams as a `sequence` diagram kind (ADR 0028).
 
 | Diagram | Contains | Built from |
 | --- | --- | --- |

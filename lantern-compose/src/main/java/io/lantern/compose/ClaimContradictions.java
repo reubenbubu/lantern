@@ -43,6 +43,8 @@ final class ClaimContradictions {
           "calls",
           C4Views.SENDS_MAIL,
           "sends mail through",
+          C4Views.USES_IDENTITY_PROVIDER,
+          "uses as its identity provider",
           C4Views.ACCESSES_DATA_OF,
           "accesses the data of",
           C4Views.USES_DATABASE,

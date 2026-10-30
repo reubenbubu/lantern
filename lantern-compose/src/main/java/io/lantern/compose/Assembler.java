@@ -203,7 +203,12 @@ final class Assembler {
         yield key.substring(slash + 1) + " on " + host;
       }
       case C4Views.TOPIC, C4Views.QUEUE, C4Views.EXCHANGE -> key.substring(key.indexOf(':') + 1);
-      case C4Views.EXTERNAL_SYSTEM -> MailProviders.name(key).orElse(key);
+      case C4Views.EXTERNAL_SYSTEM ->
+          knowledge
+              .attribute(id, "display-name")
+              .or(() -> MailProviders.name(key))
+              .or(() -> IdentityProviders.name(key))
+              .orElse(key);
       case C4Views.DECISION -> knowledge.attribute(id, "title").orElse(key);
       case C4Views.PERSON -> knowledge.attribute(id, "display-name").orElse(key);
       case C4Views.FRONTEND ->
