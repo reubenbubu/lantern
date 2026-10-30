@@ -58,7 +58,10 @@ changes them. This file covers only how you work.
      prefix is `feature/`, `bugfix/` or `chore/`, chosen by the issue type.
   2. Read the issue and the design sections it touches. Comment on the issue that work has
      started.
-  3. Build and test until everything passes. Commits carry no `Co-Authored-By` trailer.
+  3. Build and test until everything passes. While working, run the quick check (see Commands)
+     and the integration tests of the modules you changed; run the full check once, before
+     opening the PR, and again only if later commits change code. Commits carry no
+     `Co-Authored-By` trailer.
   4. Open a PR whose description says `Closes #<number>` and carries the evidence its issue's
      "Accepted when" names. A change to Lantern's output shows the scores before and after on the
      named test sets and an excerpt or screenshot of the generated document; until the scoring
