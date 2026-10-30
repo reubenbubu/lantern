@@ -904,6 +904,9 @@ class DescriberTest {
       assertThat(description).isNotEmpty().isEqualTo(description.strip());
       assertThat(description).doesNotContain("  ").doesNotContain(" .");
     }
+    DocumentEntity appEntity =
+        document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
+    assertThat(text(appEntity.description())).contains("Takes orders").doesNotContain("orders .");
     DocumentEntity worker =
         document.entities().stream().filter(e -> e.id().equals(WORKER)).findFirst().orElseThrow();
     assertThat(text(worker.description()))

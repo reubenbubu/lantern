@@ -412,7 +412,10 @@ final class Assembler {
   private static void dropped(StringBuilder kept, String text, int next) {
     boolean atEnd = next >= text.length();
     boolean spaceAfter = !atEnd && Character.isWhitespace(text.charAt(next));
-    boolean punctuationAfter = !atEnd && ".,;:!?)".indexOf(text.charAt(next)) >= 0;
+    boolean punctuationAfter =
+        !atEnd
+            && !Character.isLetterOrDigit(text.charAt(next))
+            && "[({\"`".indexOf(text.charAt(next)) < 0;
     if (atEnd || spaceAfter || punctuationAfter || kept.toString().isBlank()) {
       int end = kept.length();
       while (end > 0 && Character.isWhitespace(kept.charAt(end - 1))) {
