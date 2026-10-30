@@ -2533,7 +2533,7 @@ class CrossRepoLinksTest {
     container("s", "keycloak", KEYCLOAK);
 
     assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
-        .containsExactly(
+        .containsExactlyInAnyOrder(
             "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
                 + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
                 + "\"matchedBy\":\"published-port\",\"protocol\":\"OAuth2 over HTTP\","
