@@ -53,7 +53,7 @@ public final class DocsExtractor {
   public static final String NAME = "docs";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "docs-extractor";
@@ -156,7 +156,20 @@ public final class DocsExtractor {
    * @throws IllegalStateException if git fails or times out
    */
   public List<Fact> extract(List<RepoBuild> repos, long snapshot) {
+    return extract(repos, snapshot, Set.of());
+  }
+
+  /**
+   * As {@link #extract(List, long)}, masking the values written under config keys known to hold a
+   * secret whatever they are called (ADR 0032, amendment for #338).
+   *
+   * @param secretKeys config keys known to hold a secret, such as {@link
+   *     ConfigExtractor#jwtSecretKeys}
+   */
+  public List<Fact> extract(List<RepoBuild> repos, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(repos, "repos");
+    Objects.requireNonNull(secretKeys, "secretKeys");
+    Set<String> known = ConfigExtractor.normalizedKeys(secretKeys);
     Facts facts = new Facts(Validity.from(snapshot));
     for (RepoBuild repo : repos) {
       for (String path : GitFiles.list(repo, "")) {
@@ -177,7 +190,7 @@ public final class DocsExtractor {
         if (decision) {
           decision(source, doc, facts);
         } else {
-          readme(source, doc, facts);
+          readme(source, doc, facts, known);
         }
       }
     }
@@ -287,7 +300,7 @@ public final class DocsExtractor {
         DECISION_CONFIDENCE);
   }
 
-  private static void readme(Source source, Markdown doc, Facts facts) {
+  private static void readme(Source source, Markdown doc, Facts facts, Set<String> known) {
     EntityId id = source.id(README);
     String section = null;
     for (Block b : doc.blocks) {
@@ -313,7 +326,7 @@ public final class DocsExtractor {
       facts.put(
           id,
           CLAIM,
-          FactObject.string(maskSecrets(b.text())),
+          FactObject.string(maskSecrets(b.text(), known)),
           attributes,
           source.evidence(b.start(), b.end()),
           README_CONFIDENCE);
@@ -327,12 +340,20 @@ public final class DocsExtractor {
    * says where the secret comes from, and is kept.
    */
   static String maskSecrets(String text) {
+    return maskSecrets(text, Set.of());
+  }
+
+  /**
+   * As {@link #maskSecrets(String)}, with keys known to hold a secret too (from {@link
+   * ConfigExtractor#normalizedKeys}).
+   */
+  static String maskSecrets(String text, Set<String> known) {
     Matcher m = SECRET_PAIR.matcher(text);
     StringBuilder out = new StringBuilder();
     while (m.find()) {
       String value = m.group(3);
       boolean secret =
-          ConfigExtractor.isSecret(m.group(1)) && !PLACEHOLDER.matcher(value).matches();
+          ConfigExtractor.isSecret(m.group(1), known) && !PLACEHOLDER.matcher(value).matches();
       m.appendReplacement(
           out,
           Matcher.quoteReplacement(

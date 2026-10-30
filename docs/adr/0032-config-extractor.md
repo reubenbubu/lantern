@@ -149,3 +149,14 @@ what the facts look like and how a secret written in a config file is handled.
   true`, as a secret's, unless it is only placeholders nothing resolves. Keys compare without list
   indexes, `-`, `_` and case, as Spring's relaxed binding does. `extract(repos, snapshot)` alone
   masks by key name only. The config extractor's version becomes 4.
+
+## Amendment: the other readers of config (#338)
+
+- **The known JWT secret keys reach every extractor that records a config value.** The docs
+  extractor (a README line such as `jwt.key: <value>`), the persistence extractor (datasource URLs,
+  and the values substituted into them) and the Spring Cloud Stream settings of the messaging
+  extractor take the same keys as `ConfigExtractor.extract(repos, snapshot, secretKeys)`, through
+  an `extract` overload with a `secretKeys` argument, and judge a key with
+  `ConfigExtractor.isSecret(key, ConfigExtractor.normalizedKeys(secretKeys))`. Without the keys
+  they mask by key name only, as before. The docs extractor becomes version 2, the persistence
+  extractor 3 and the messaging extractor 4.
