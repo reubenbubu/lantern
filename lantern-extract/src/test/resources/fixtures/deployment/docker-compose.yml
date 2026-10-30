@@ -44,6 +44,11 @@ services:
   broker:
     image: rabbitmq:3.13-management
     profiles: [messaging]
+    ports:
+      - 15672:15672
+      - 8025:25
+    environment:
+      JAVA_OPTS: -Xmx256m -Dapp.password=topsecret
 
 volumes:
   db-data:

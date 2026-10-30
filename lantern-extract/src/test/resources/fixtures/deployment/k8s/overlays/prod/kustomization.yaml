@@ -8,6 +8,8 @@ configMapGenerator:
       - orders.properties
     literals:
       - LOG_LEVEL=info
+patches:
+  - path: replicas.yaml
 images:
   - name: example/orders
     newTag: 1.4.0

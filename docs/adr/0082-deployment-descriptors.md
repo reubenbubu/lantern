@@ -21,7 +21,7 @@ for the Redis store's version (ADR 0073), which the Deployment extractor was to 
   under `src/test/`, `node_modules/`, `target/` and test fixtures are skipped. Its facts are on
   the repository (`repo:<name>`, ADR 0073):
   - `dockerfile`, valued with the file's path: the last stage's base image (`from`, `ARG`
-    defaults filled in), the product and version it names (`technology`) and the ports it exposes.
+    defaults filled in, a stage built on an earlier stage taking that stage's base image), the product and version it names (`technology`) and the ports it exposes.
   - `deployment-container`, valued with the container's name, one per container an environment
     runs: its `platform` (`compose`, `kubernetes`, `helm`) and `environment`, `kind` (`service`
     or the workload kind), `image` and the `product`, `version` and `role` it names (a table of
@@ -33,18 +33,21 @@ for the Redis store's version (ADR 0073), which the Deployment extractor was to 
 - **Environments.** A compose file is one (`docker-compose.local.yml` is `local`, a plain one
   `default`); variables come from a committed `.env` beside it, else their defaults
   (`${X:-d}`), else stay `${X}` so that two services sharing a variable can be tied. Each
-  kustomization no other one builds on is one, named by its folder, with the resources,
+  kustomization no other one builds on is one, named by its folder, with the resources (patches are not resources),
   `configMapGenerator` (`envs`, `env`, `literals`, `files`) and `images` of the kustomizations it
   builds on. A Helm chart is one per values file (`values.yaml`, then each `values-<env>.yaml`
   merged over it); its templates are read by filling value actions (`.Values`, `.Chart`,
   `.Release`, literals, `printf` and simple pipeline functions such as `default` and `quote`) and
   blanking control lines, both branches of an `if` kept and nothing repeated for a `range`, so
   line numbers stay the template's. Kubernetes manifests that no kustomization or chart uses are
-  one environment, `default`. A container's environment variables include the ConfigMaps it takes
+  one environment, `default`. YAML is read as YAML 1.1 without base-60 numbers, so a port `22:22`
+  stays as written. Two environments of one platform with the same name (two `prod` overlays) are
+  not told apart in the table. A container's environment variables include the ConfigMaps it takes
   them from; Kubernetes Secrets are never read.
 - **Secrets.** A variable whose name reads as a secret (password, secret, token, credential,
   private, API or access key, signing key) is listed in `masked` without its value, as is one
-  taken from a Secret; credentials in a URL are left out; `.env` variables named so are not
+  taken from a Secret, one whose value writes a secret out (`-Dapp.password=x`,
+  `?password=x`) and one holding a whole file from a ConfigMap; credentials in a URL are left out; `.env` variables named so are not
   substituted.
 - **Databases a container creates**: the database an official image's variable names
   (`POSTGRES_DB`, `MYSQL_DATABASE`, `MARIADB_DATABASE`, `MONGO_INITDB_DATABASE`) when it is
@@ -53,15 +56,17 @@ for the Redis store's version (ADR 0073), which the Deployment extractor was to 
 - **Containers and units.** The linker (`cross-repo-links`) ties a container to a deployable unit
   when one of the container's names (value, hosts, aliases, the image's name) is the unit's
   `spring.application.name` or artifact ID, compared without case and other characters than
-  letters and digits, and no other unit matches; a container of a known product (a database,
-  broker...) runs none. Each tie is a `deployed-in` fact on the unit, valued with the environment
+  letters and digits, and no other unit matches; a container whose image is infrastructure (a
+  database, cache, broker, identity provider, discovery, observability, mail or storage product)
+  runs none, while one on a runtime or proxy image (`eclipse-temurin`, `node`, `nginx`) may. Each tie is a `deployed-in` fact on the unit, valued with the environment
   (`Docker Compose (local)`), naming the container and its fact.
 - **Placeholders the environment fills.** For a datasource whose server or database is a
   placeholder no config resolves, each container that runs the unit fills the placeholders from
   its environment variables, as Spring Boot's relaxed binding reads them (`AUTH_DATASOURCE_HOST`
   sets `auth.datasource.host`). The database's server is the container of the same environment
-  whose hosts include the filled host, or, when the database is a compose variable, the container
-  whose image variable (`POSTGRES_DB`...) is the same variable. The database's name is the filled
+  whose hosts include the filled host (a Kubernetes `*.svc` name by its first label), or, when the database is a compose variable, the container
+  whose image variable (`POSTGRES_DB`...) is the same variable; only containers of the datasource's
+  product (or of no known product) count, and only a single match is taken. The database's name is the filled
   one when written out, else the server's only database, else the one of the server's databases
   whose name shares a word with the unit's names or the placeholder's key (`auth_db` for
   `auth-service` and `auth.datasource.database`), generic words such as `db` and `service`

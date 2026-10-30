@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+spec:
+  replicas: 4
+  template:
+    spec:
+      containers:
+        - name: orders
+          image: example/orders:patched

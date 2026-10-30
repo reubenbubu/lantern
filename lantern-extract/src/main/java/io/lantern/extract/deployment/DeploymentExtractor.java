@@ -96,6 +96,15 @@ public final class DeploymentExtractor {
               + "|signing|_key$|^key$).*");
 
   private static final Pattern URL_USER = Pattern.compile("(?i)(://)[^/@\\s]+@");
+
+  /**
+   * A value that writes a secret out: {@code password=x}, {@code -Dapp.secret=x}, {@code key: x}.
+   */
+  private static final Pattern SECRET_VALUE =
+      Pattern.compile(
+          "(?i)(pass(word|wd)?|pwd|secret|token|credential|api_?key|access_?key|private_?key)"
+              + "[\\w.-]*\\s*[=:]");
+
   private static final Pattern CREATE_DATABASE =
       Pattern.compile(
           "(?i)\\bCREATE\\s+DATABASE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?[\"`']?([A-Za-z_][A-Za-z0-9_$-]*)");
@@ -108,6 +117,21 @@ public final class DeploymentExtractor {
 
   /** Where an official database image runs its init scripts. */
   private static final String INIT_DIRECTORY = "/docker-entrypoint-initdb.d";
+
+  /**
+   * An environment as documents name it, such as {@code Docker Compose (local)}, from a container's
+   * {@code platform} and {@code environment}.
+   */
+  public static String environmentLabel(String platform, String environment) {
+    String name =
+        switch (platform == null ? "" : platform) {
+          case COMPOSE -> "Docker Compose";
+          case KUBERNETES -> "Kubernetes";
+          case HELM -> "Helm";
+          default -> platform;
+        };
+    return environment == null ? name : name + " (" + environment + ")";
+  }
 
   /** The vocabulary types this extractor's facts use besides the built-in and earlier ones. */
   public static List<VocabularyType> vocabulary() {
@@ -189,6 +213,7 @@ public final class DeploymentExtractor {
     private final EntityId subject;
     private final Map<String, File> cache = new TreeMap<>();
     private List<String> paths;
+    private Set<String> pathSet;
 
     Run(RepoBuild repo, Validity validity, Map<String, Fact> facts) {
       this.repo = repo;
@@ -202,6 +227,7 @@ public final class DeploymentExtractor {
           GitFiles.list(repo, "").stream()
               .filter(p -> SKIPPED.stream().noneMatch(s -> p.startsWith(s) || p.contains("/" + s)))
               .toList();
+      pathSet = Set.copyOf(paths);
       Set<String> used = new TreeSet<>();
       for (String path : paths) {
         String name = path.substring(path.lastIndexOf('/') + 1);
@@ -238,6 +264,7 @@ public final class DeploymentExtractor {
         return;
       }
       Map<String, String> args = new TreeMap<>();
+      Map<String, String> stages = new TreeMap<>();
       String from = null;
       int fromLine = 0;
       Set<String> exposes = new LinkedHashSet<>();
@@ -258,6 +285,11 @@ public final class DeploymentExtractor {
           }
           if (i < words.length) {
             from = substitute(words[i], args);
+            // FROM <stage> builds on an earlier stage: its base image is that stage's.
+            from = stages.getOrDefault(from.toLowerCase(Locale.ROOT), from);
+            if (i + 2 < words.length && words[i + 1].equalsIgnoreCase("AS")) {
+              stages.put(words[i + 2].toLowerCase(Locale.ROOT), from);
+            }
             fromLine = n + 1;
             exposes.clear();
           }
@@ -476,6 +508,10 @@ public final class DeploymentExtractor {
           if (value == null || (operator.startsWith(":") && value.isEmpty())) {
             value = m.group(3);
           }
+        } else if (operator != null && operator.endsWith("+")) {
+          // ${X:+alt} is alt when X is set, else empty; unset here means unknown.
+          value =
+              value == null || (operator.startsWith(":") && value.isEmpty()) ? null : m.group(3);
         }
         // An unset variable is kept as a reference, so a service and the container it reaches can
         // be tied by the variable they share.
@@ -494,18 +530,31 @@ public final class DeploymentExtractor {
 
     /** The line of a compose service's key, 1-based; 0 when it cannot be found. */
     private static int keyLine(File file, String key) {
-      Pattern line = Pattern.compile("^\\s+[\"']?" + Pattern.quote(key) + "[\"']?\\s*:\\s*(#.*)?$");
+      Pattern line =
+          Pattern.compile("^(\\s+)[\"']?" + Pattern.quote(key) + "[\"']?\\s*:\\s*(#.*)?$");
       boolean inServices = false;
+      int indent = -1;
       for (int n = 0; n < file.lines().size(); n++) {
         String text = file.lines().get(n);
         if (text.startsWith("services:")) {
           inServices = true;
+          indent = -1;
+          continue;
         } else if (!text.isBlank()
             && !Character.isWhitespace(text.charAt(0))
             && !text.startsWith("#")) {
           inServices = false;
         }
-        if (inServices && line.matcher(text).matches()) {
+        if (!inServices || text.isBlank() || text.strip().startsWith("#")) {
+          continue;
+        }
+        int at = text.length() - text.stripLeading().length();
+        if (indent < 0) {
+          // The first key under services: is a service; every service is at its indent.
+          indent = at;
+        }
+        Matcher m = line.matcher(text);
+        if (at == indent && m.matches()) {
           return n + 1;
         }
       }
@@ -581,6 +630,16 @@ public final class DeploymentExtractor {
           if (file != null) {
             used.add(target);
             docs.addAll(docs(file));
+          }
+        }
+      }
+      for (String key : List.of("patches", "patchesStrategicMerge", "patchesJson6902")) {
+        for (Object item : Yaml.list(k.get(key))) {
+          Map<String, Object> patch = Yaml.map(item);
+          String path = patch == null ? Yaml.string(item) : Yaml.string(patch.get("path"));
+          if (path != null) {
+            // A patch changes resources; it is not one, so it is no manifest of its own.
+            used.add(normalize(dir, path));
           }
         }
       }
@@ -762,7 +821,7 @@ public final class DeploymentExtractor {
           case "Pod" -> template = doc.map();
           default -> template = null;
         }
-        if (workload == null || template == null) {
+        if (template == null) {
           continue;
         }
         Map<String, Object> podMetadata = Yaml.map(template.get("metadata"));
@@ -794,6 +853,13 @@ public final class DeploymentExtractor {
           c.file = doc.file();
           c.kind = kind;
           String containerName = Yaml.string(container.get("name"));
+          if (workload == null) {
+            // A name this reading cannot fill (a Helm helper): the container's.
+            workload = containerName;
+          }
+          if (workload == null) {
+            continue;
+          }
           c.name =
               containers.size() == 1 || containerName == null
                   ? workload
@@ -892,6 +958,14 @@ public final class DeploymentExtractor {
 
     /** An image as kustomize's {@code images} transformer changes it. */
     private static String retag(String image, Map<String, Map<String, String>> images) {
+      if (image.contains("@")) {
+        // Pinned by digest: kustomize matches the name before it; keep it as written.
+        String name = image.substring(0, image.indexOf('@'));
+        Map<String, String> change = images.get(name);
+        return change == null || !change.containsKey("newName")
+            ? image
+            : change.get("newName") + image.substring(image.indexOf('@'));
+      }
       int colon = image.lastIndexOf(':');
       String name = colon > image.lastIndexOf('/') ? image.substring(0, colon) : image;
       Map<String, String> change = images.get(name);
@@ -929,6 +1003,12 @@ public final class DeploymentExtractor {
         c.env.remove(name);
         return;
       }
+      if (value.contains("\n") || SECRET_VALUE.matcher(value).find()) {
+        // A whole file from a ConfigMap, or a value that writes a secret out: not recorded.
+        c.masked.add(name);
+        c.env.remove(name);
+        return;
+      }
       c.env.put(name, URL_USER.matcher(value).replaceAll("$1"));
     }
 
@@ -942,7 +1022,7 @@ public final class DeploymentExtractor {
     }
 
     private void initScripts(String path, Set<String> databases) {
-      if (paths.contains(path)) {
+      if (pathSet.contains(path)) {
         File file = read(path);
         if (file != null) {
           createdDatabases(file.text(), databases);
@@ -1082,7 +1162,7 @@ public final class DeploymentExtractor {
     }
 
     private File read(String path) {
-      if (path == null || !paths.contains(path)) {
+      if (path == null || !pathSet.contains(path)) {
         return null;
       }
       return cache.computeIfAbsent(

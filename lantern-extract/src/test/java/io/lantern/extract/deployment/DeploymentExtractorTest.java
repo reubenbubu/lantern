@@ -36,7 +36,8 @@ class DeploymentExtractorTest {
     assertThat(new DeploymentExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
     Fixtures.assertGolden("deployment/deployment.txt", facts);
     // Secrets never reach a fact: not from the compose file, its .env or a URL.
-    assertThat(Fixtures.render(facts)).doesNotContain("secret\"", "hunter2", "user:pw", "\"9\"");
+    assertThat(Fixtures.render(facts))
+        .doesNotContain("secret\"", "hunter2", "user:pw", "\"9\"", "topsecret", "patched");
   }
 
   @Test

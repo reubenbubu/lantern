@@ -1065,6 +1065,7 @@ final class C4Views {
 
   /** A container's environment as documents name it, such as "Docker Compose (local)". */
   private static String environment(Fact container) {
+    // As the linker names it on deployed-in facts; the composer does not depend on the extractor.
     String platform = attribute(container, "platform");
     String environment = attribute(container, "environment");
     String name =

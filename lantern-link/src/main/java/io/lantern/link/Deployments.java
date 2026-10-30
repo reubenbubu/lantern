@@ -53,8 +53,11 @@ final class Deployments {
     /** Whether others in its environment reach it by a host name. */
     boolean answers(String host) {
       String wanted = host.toLowerCase(Locale.ROOT);
+      // A Kubernetes DNS name (postgres.ns.svc.cluster.local) names the Service by its first label.
+      String first = wanted.contains(".svc") ? wanted.substring(0, wanted.indexOf('.')) : wanted;
       return LinkIndex.texts(fact, "hosts").stream()
-          .anyMatch(h -> h.toLowerCase(Locale.ROOT).equals(wanted));
+          .map(h -> h.toLowerCase(Locale.ROOT))
+          .anyMatch(h -> h.equals(wanted) || h.equals(first));
     }
 
     /** The environment's name as documents show it, such as "Docker Compose (local)". */
@@ -63,16 +66,8 @@ final class Deployments {
     }
 
     static String label(Fact fact) {
-      String platform = LinkIndex.text(fact, "platform");
-      String environment = LinkIndex.text(fact, "environment");
-      String name =
-          switch (platform == null ? "" : platform) {
-            case DeploymentExtractor.COMPOSE -> "Docker Compose";
-            case DeploymentExtractor.KUBERNETES -> "Kubernetes";
-            case DeploymentExtractor.HELM -> "Helm";
-            default -> platform;
-          };
-      return environment == null ? name : name + " (" + environment + ")";
+      return DeploymentExtractor.environmentLabel(
+          LinkIndex.text(fact, "platform"), LinkIndex.text(fact, "environment"));
     }
   }
 
@@ -107,6 +102,18 @@ final class Deployments {
           "sql",
           "schema");
 
+  /** The roles of products that run infrastructure, never a unit; runtimes and proxies may. */
+  private static final Set<String> INFRASTRUCTURE =
+      Set.of(
+          "database",
+          "cache",
+          "broker",
+          "identity",
+          "discovery",
+          "observability",
+          "mail",
+          "storage");
+
   private final List<Container> containers = new ArrayList<>();
   private final Map<EntityId, List<Container>> byUnit = new HashMap<>();
 
@@ -118,7 +125,8 @@ final class Deployments {
       LinkIndex.texts(f, "aliases").forEach(a -> names.add(normalized(a)));
       String image = LinkIndex.text(f, "image");
       if (image != null && !image.contains("${")) {
-        String last = image.substring(image.lastIndexOf('/') + 1);
+        String plain = image.contains("@") ? image.substring(0, image.indexOf('@')) : image;
+        String last = plain.substring(plain.lastIndexOf('/') + 1);
         names.add(normalized(last.contains(":") ? last.substring(0, last.indexOf(':')) : last));
       }
       names.remove("");
@@ -153,7 +161,8 @@ final class Deployments {
       }
     }
     for (Container c : containers) {
-      if (c.product() != null) {
+      String role = LinkIndex.text(c.fact(), "role");
+      if (role != null && INFRASTRUCTURE.contains(role)) {
         continue;
       }
       Set<Unit> matched = new LinkedHashSet<>();
@@ -252,30 +261,18 @@ final class Deployments {
       if (address != null && !address.contains("${") && !address.isBlank()) {
         String hostName =
             address.contains(":") ? address.substring(0, address.lastIndexOf(':')) : address;
-        host =
-            sameEnvironment(c).stream()
-                .filter(o -> o != c && o.answers(hostName))
-                .findFirst()
-                .orElse(null);
+        host = only(c, technology, o -> o.answers(hostName));
       }
       if (host == null && name != null && name.matches("\\$\\{[A-Za-z_][A-Za-z0-9_]*}")) {
         // A compose variable that names the database for both the unit and a database container.
         String variable = name;
         host =
-            sameEnvironment(c).stream()
-                .filter(
-                    o ->
-                        o != c
-                            && DeploymentExtractor.DATABASE_VARIABLES.stream()
-                                .anyMatch(v -> variable.equals(o.env().get(v))))
-                .findFirst()
-                .orElse(null);
-      }
-      if (host != null
-          && technology != null
-          && host.product() != null
-          && !host.product().equalsIgnoreCase(technology)) {
-        host = null;
+            only(
+                c,
+                technology,
+                o ->
+                    DeploymentExtractor.DATABASE_VARIABLES.stream()
+                        .anyMatch(v -> variable.equals(o.env().get(v))));
       }
       String known = name == null || name.contains("${") || name.isBlank() ? null : name;
       boolean guessed = false;
@@ -296,6 +293,25 @@ final class Deployments {
       }
     }
     return placed;
+  }
+
+  /**
+   * The one other container of an environment that matches and does not run another product than
+   * the datasource's, or null when none or several do.
+   */
+  private Container only(
+      Container c, String technology, java.util.function.Predicate<Container> matches) {
+    List<Container> found =
+        sameEnvironment(c).stream()
+            .filter(o -> o != c)
+            .filter(
+                o ->
+                    technology == null
+                        || o.product() == null
+                        || o.product().equalsIgnoreCase(technology))
+            .filter(matches)
+            .toList();
+    return found.size() == 1 ? found.getFirst() : null;
   }
 
   private List<Container> sameEnvironment(Container c) {
@@ -345,10 +361,12 @@ final class Deployments {
     String[] x = a.split("\\.");
     String[] y = b.split("\\.");
     for (int i = 0; i < Math.max(x.length, y.length); i++) {
-      int p = i < x.length ? Integer.parseInt(x[i]) : -1;
-      int q = i < y.length ? Integer.parseInt(y[i]) : -1;
-      if (p != q) {
-        return Integer.compare(p, q);
+      java.math.BigInteger p =
+          i < x.length ? new java.math.BigInteger(x[i]) : java.math.BigInteger.ONE.negate();
+      java.math.BigInteger q =
+          i < y.length ? new java.math.BigInteger(y[i]) : java.math.BigInteger.ONE.negate();
+      if (!p.equals(q)) {
+        return p.compareTo(q);
       }
     }
     return 0;

@@ -3,14 +3,40 @@ package io.lantern.extract.deployment;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.representer.Representer;
+import org.yaml.snakeyaml.resolver.Resolver;
 
 /** Loose reading of YAML descriptors: what is not the shape asked for is null or empty. */
 final class Yaml {
 
   private Yaml() {}
+
+  /**
+   * YAML 1.1's implicit types without its base-60 integers, so a compose port {@code 22:22} stays
+   * the text it is and is not read as the number 1342.
+   */
+  private static final class Yaml11WithoutSexagesimal extends Resolver {
+
+    private static final Pattern INT =
+        Pattern.compile(
+            "^(?:[-+]?0b[0-1_]+|[-+]?0[0-7_]+|[-+]?(?:0|[1-9][0-9_]*)|[-+]?0x[0-9a-fA-F_]+)$");
+
+    @Override
+    protected void addImplicitResolvers() {
+      addImplicitResolver(Tag.BOOL, BOOL, "yYnNtTfFoO");
+      addImplicitResolver(Tag.INT, INT, "-+0123456789");
+      addImplicitResolver(Tag.FLOAT, FLOAT, "-+0123456789.");
+      addImplicitResolver(Tag.MERGE, MERGE, "<");
+      addImplicitResolver(Tag.NULL, NULL, "~nN\0");
+      addImplicitResolver(Tag.NULL, EMPTY, null);
+    }
+  }
 
   /** One YAML document, or null when it does not parse. Merge keys ({@code <<}) are applied. */
   static Object load(String text) {
@@ -18,7 +44,14 @@ final class Yaml {
     options.setAllowDuplicateKeys(true);
     options.setMaxAliasesForCollections(200);
     try {
-      return new org.yaml.snakeyaml.Yaml(new SafeConstructor(options)).load(text);
+      DumperOptions dumper = new DumperOptions();
+      return new org.yaml.snakeyaml.Yaml(
+              new SafeConstructor(options),
+              new Representer(dumper),
+              dumper,
+              options,
+              new Yaml11WithoutSexagesimal())
+          .load(text);
     } catch (YAMLException | ClassCastException e) {
       return null;
     }
