@@ -95,6 +95,7 @@ public final class GraphTools implements ToolBox {
     private final Map<String, String> rendered = new HashMap<>();
     private final Set<String> repos = new TreeSet<>();
     private final RepoFiles files;
+    private final Set<String> secretKeys;
 
     /**
      * @param facts the facts that hold in the snapshot
@@ -102,6 +103,8 @@ public final class GraphTools implements ToolBox {
      */
     public Graph(List<Fact> facts, RepoFiles files) {
       this.files = Objects.requireNonNull(files, "files");
+      // Values under the config keys the code uses as a JWT secret are masked in files (#348).
+      this.secretKeys = ConfigExtractor.normalizedKeys(ConfigExtractor.jwtSecretKeys(facts));
       List<Fact> sorted = new ArrayList<>();
       for (Fact fact : Objects.requireNonNull(facts, "facts")) {
         if (rendered.putIfAbsent(fact.id(), ResolvePrompt.fact(fact)) == null) {
@@ -124,6 +127,7 @@ public final class GraphTools implements ToolBox {
   private final Map<String, String> rendered;
   private final Set<String> repos;
   private final RepoFiles files;
+  private final Set<String> secretKeys;
   private final Map<String, Fact> shown = new LinkedHashMap<>();
   private final Map<String, String> refs = new HashMap<>();
 
@@ -132,6 +136,7 @@ public final class GraphTools implements ToolBox {
     this.rendered = graph.rendered;
     this.repos = graph.repos;
     this.files = graph.files;
+    this.secretKeys = graph.secretKeys;
   }
 
   /** The facts the tools have shown so far, by reference, in the order shown. */
@@ -334,7 +339,7 @@ public final class GraphTools implements ToolBox {
     if (content.isEmpty()) {
       return LlmToolResult.error(call, "No file " + path + " in " + repo + ".");
     }
-    String text = masked(path, content.get());
+    String text = masked(path, content.get(), secretKeys);
     if (text == null) {
       return LlmToolResult.error(
           call, path + " is not shown: it is binary, or a key or keystore that holds secrets.");
@@ -406,6 +411,11 @@ public final class GraphTools implements ToolBox {
    * key or keystore, which are never shown. Line breaks are kept, so line numbers hold.
    */
   static String masked(String path, byte[] content) {
+    return masked(path, content, Set.of());
+  }
+
+  /** As {@link #masked(String, byte[])}, also masking values under the known secret keys. */
+  static String masked(String path, byte[] content, Set<String> secretKeys) {
     if (KEY_FILE.matcher(path).find()) {
       return null;
     }
@@ -417,7 +427,7 @@ public final class GraphTools implements ToolBox {
     String text = new String(content, StandardCharsets.UTF_8);
     text = withoutPrivateKeys(text);
     if (CODE_FILE.matcher(path).matches()) {
-      return SourceSecrets.scrub(text);
+      return SourceSecrets.scrub(text, secretKeys);
     }
     StringBuilder out = new StringBuilder();
     int blockIndent = -1;
@@ -433,7 +443,7 @@ public final class GraphTools implements ToolBox {
       }
       Matcher kv = KEY_VALUE.matcher(line);
       String shown;
-      if (kv.matches() && ConfigExtractor.isSecret(kv.group(2))) {
+      if (kv.matches() && ConfigExtractor.isSecret(kv.group(2), secretKeys)) {
         String value = kv.group(4).strip();
         if (value.matches("[|>][-+0-9]*")) {
           blockIndent = indent;
@@ -444,7 +454,7 @@ public final class GraphTools implements ToolBox {
           shown = kv.group(1) + kv.group(2) + kv.group(3) + "******";
         }
       } else {
-        shown = xmlMasked(UrlCredentials.withoutCredentials(line));
+        shown = xmlMasked(UrlCredentials.withoutCredentials(line), secretKeys);
       }
       out.append(shown).append('\n');
     }
@@ -473,13 +483,13 @@ public final class GraphTools implements ToolBox {
   }
 
   /** The values of secret XML elements and attributes masked. */
-  private static String xmlMasked(String line) {
+  private static String xmlMasked(String line, Set<String> secretKeys) {
     Matcher element = XML_ELEMENT.matcher(line);
     StringBuilder out = new StringBuilder();
     while (element.find()) {
       String name = element.group(1).substring(element.group(1).indexOf(':') + 1);
       String replacement =
-          ConfigExtractor.isSecret(name) && !element.group(3).isBlank()
+          ConfigExtractor.isSecret(name, secretKeys) && !element.group(3).isBlank()
               ? "<"
                   + element.group(1)
                   + (element.group(2) == null ? "" : element.group(2))
@@ -494,7 +504,7 @@ public final class GraphTools implements ToolBox {
     out = new StringBuilder();
     while (pair.find()) {
       String replacement =
-          ConfigExtractor.isSecret(pair.group(2))
+          ConfigExtractor.isSecret(pair.group(2), secretKeys)
               ? pair.group(1) + "******" + pair.group(4)
               : pair.group();
       pair.appendReplacement(out, Matcher.quoteReplacement(replacement));
@@ -504,7 +514,7 @@ public final class GraphTools implements ToolBox {
     out = new StringBuilder();
     while (attribute.find()) {
       String replacement =
-          ConfigExtractor.isSecret(attribute.group(1)) && !attribute.group(4).isEmpty()
+          ConfigExtractor.isSecret(attribute.group(1), secretKeys) && !attribute.group(4).isEmpty()
               ? attribute.group(1)
                   + attribute.group(2)
                   + attribute.group(3)

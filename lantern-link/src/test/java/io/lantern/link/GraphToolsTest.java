@@ -257,4 +257,40 @@ class GraphToolsTest {
     assertThat(tools.shown()).hasSize((int) listed);
     assertThat(tools.shown().keySet()).first().isEqualTo("T1");
   }
+
+  @Test
+  void readFileMasksValuesUnderTheSnapshotsKnownJwtSecretKeys() {
+    var attributes = FactJson.newObject();
+    attributes.putArray("keys").add("jwt.key");
+    facts.add(
+        Fact.create(
+            EntityId.parse("method:o.Jwt#key()"),
+            "jwt-secret-key",
+            FactObject.string("jwt"),
+            attributes,
+            new Origin(Origin.Kind.STATIC, "test", "1"),
+            new Evidence("a", COMMIT, "src/main/java/o/Jwt.java", null, null),
+            1.0,
+            Validity.from(1)));
+    String java = "class Jwt { @Value(\"${jwt.key:literal-secret}\") String k; }";
+    String properties = "jwt.key=literal-secret\napp.name=x";
+    GraphTools tools =
+        new GraphTools.Graph(
+                facts,
+                (repo, path) ->
+                    Optional.of(
+                        (path.endsWith(".java") ? java : properties)
+                            .getBytes(StandardCharsets.UTF_8)))
+            .tools();
+
+    String fromJava =
+        tools.run(call("read_file", "{\"repo\": \"a\", \"path\": \"src/Jwt.java\"}")).content();
+    String fromProperties =
+        tools
+            .run(call("read_file", "{\"repo\": \"a\", \"path\": \"application.properties\"}"))
+            .content();
+
+    assertThat(fromJava).contains("${jwt.key:******}").doesNotContain("literal-secret");
+    assertThat(fromProperties).contains("jwt.key=******", "app.name=x");
+  }
 }

@@ -198,3 +198,15 @@ what the facts look like and how a secret written in a config file is handled.
   identity-provider links of ADR 0085, so a service gets its "Validates tokens" line from a
   bundled library's issuer. The config extractor becomes version 5 and the cross-repository link
   step 13.
+
+## Amendment: source shown to the model (#348)
+
+- **`SourceSecrets.scrub(source, secretKeys)` also masks values under the known JWT secret
+  keys.** A placeholder default (`${jwt.key:x}`) and a literal following such a key
+  (`put("jwt.key", "x")`) are masked as if the key's name said secret, comparing keys as
+  `ConfigExtractor.isSecret(key, ConfigExtractor.normalizedKeys(secretKeys))` does. Every path that
+  puts file content in front of a model passes the snapshot's keys: `SourceFiles.secretKeys()`
+  (set with `GitSourceFiles.withSecretKeys`) for the summarizer's and describer's excerpts, and the
+  keys of the `jwt-secret-key` facts given to `GraphTools.Graph` for `read_file` (ADR 0081), which
+  also masks `key=value` and `key: value` lines and XML under them in non-code files.
+  `scrub(source)` alone masks by name only. Prompt text is unchanged.
