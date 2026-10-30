@@ -1,6 +1,6 @@
 # 0074: People inferred from the code
 
-Status: accepted (#268), pending the user's review (#24)
+Status: accepted (#268), amended for #365, pending the user's review (#24)
 
 ## Context
 
@@ -70,3 +70,22 @@ unknown users are marked unknown, not invented.
 Frontends are containers now (ADR 0083). Each person gets a line in the container diagrams to the
 frontend whose folder holds a route it cites, among the repositories its `person-basis` names as
 `frontends`, labelled with those screens; the system context's line is unchanged.
+
+## Amendment (#365): people only from human-facing evidence, and an unknown caller
+
+Decided with the user (#364, `docs/quality-bar.md`, What the code can and cannot tell): a GUI is
+for people, an API is for software. Implemented by #365.
+
+- **Roles alone make no person.** A role the code checks no longer becomes a person by itself.
+  People come only from human-facing evidence: memberships, invitations, accounts, sign-up and
+  sign-in, and a frontend's routes. A role becomes what those people may do: it is shown with the
+  person whose screens or endpoints it guards, or, when that cannot be told, with every person of
+  the system. A code with roles and no human-facing evidence has no people.
+- **Unknown caller.** An API is there to be called. An entry point that nothing in scope reaches
+  and no person uses (an HTTP or WebSocket endpoint, a queue or topic consumed but never published
+  to) is drawn as called by one `Unknown caller`, marked unknown: an actor outside the system on
+  the context diagram, with a line to each container that has such entry points on the container
+  diagrams. A scheduled job is not one; an endpoint a gateway route reaches counts as reached, and
+  the gateway's own routes are then the entry points. Once the questions queue and annotations
+  exist (#170, Phase 3), each unknown caller is a question, and an answer replaces it with the real
+  caller.
