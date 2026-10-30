@@ -70,5 +70,29 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "message-destination",
+    "kind": "attribute",
+    "description": "The subject method declares a destination of a broker, whether or not anything binds, sends to or listens on it: a RabbitMQ queue or exchange (new Queue, QueueBuilder, new TopicExchange and the other exchange classes, ExchangeBuilder, also inside a Declarables or another call's arguments) or a Kafka topic (TopicBuilder.name, new NewTopic). The object is its name, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Values resolved from config are those of the default view unless profile is set.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "broker": { "type": "string", "enum": ["rabbitmq", "kafka"], "description": "Which broker the destination is declared on." },
+        "destinationKind": { "type": "string", "enum": ["queue", "exchange", "topic"], "description": "What is declared." },
+        "exchangeType": { "type": "string", "description": "For an exchange, its type, such as topic, direct, fanout or headers, when known." },
+        "durable": { "type": "boolean", "description": "For RabbitMQ, whether the queue or exchange survives a broker restart, when the declaration tells." },
+        "deadLetterExchange": { "type": "string", "description": "For a queue, the exchange its rejected and expired messages go to (deadLetterExchange, or the x-dead-letter-exchange argument); empty for the default exchange." },
+        "deadLetterRoutingKey": { "type": "string", "description": "For a queue, the routing key its dead letters are sent with (deadLetterRoutingKey, or the x-dead-letter-routing-key argument)." },
+        "profile": { "type": "string", "description": "The profile active instead of the default one when the value was resolved. Absent for the default view; present only where the value differs from it." },
+        "written": { "type": "string", "description": "The name as written, when it differs from the resolved one (it had placeholders)." },
+        "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders no config value resolved." },
+        "masked": { "type": "boolean", "description": "Present and true when a placeholder named a secret, so the values are recorded as written, not resolved." },
+        "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave a value, when a value was followed from one." }
+      },
+      "required": ["broker", "destinationKind"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

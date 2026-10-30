@@ -63,7 +63,7 @@ public final class MessagingExtractor {
   public static final String NAME = "messaging";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
@@ -76,6 +76,9 @@ public final class MessagingExtractor {
 
   /** Attribute: the method binds a RabbitMQ queue to an exchange. */
   public static final String BINDING = "message-binding";
+
+  /** Attribute: the method declares a queue, exchange or topic. */
+  public static final String DESTINATION = "message-destination";
 
   /** Brokers. */
   public static final String KAFKA = "kafka";
@@ -187,6 +190,15 @@ public final class MessagingExtractor {
           "directExchange", "direct",
           "fanoutExchange", "fanout",
           "headersExchange", "headers");
+
+  private static final String TOPIC_BUILDER = "org.springframework.kafka.config.TopicBuilder";
+  private static final String NEW_TOPIC = "org.apache.kafka.clients.admin.NewTopic";
+
+  /** Queue arguments naming where rejected and expired messages go, by their attribute. */
+  private static final Map<String, String> DEAD_LETTER_ARGUMENTS =
+      Map.of(
+          "x-dead-letter-exchange", "deadLetterExchange",
+          "x-dead-letter-routing-key", "deadLetterRoutingKey");
 
   private static final String STRING = "java.lang.String";
 
@@ -362,6 +374,7 @@ public final class MessagingExtractor {
       for (Invocation i : m.structure().invocations()) {
         send(i);
         binding(i);
+        declaration(i);
       }
       this.stream = new StreamConfig(config, m.repo(), m.directory());
       functions(m);
@@ -851,6 +864,104 @@ public final class MessagingExtractor {
     private Declared named(Expression.Invoke call, EntityId context, String exchangeType) {
       Text name = text(call.arguments().getFirst(), context);
       return name == null ? null : new Declared(name, exchangeType);
+    }
+
+    /**
+     * The queue, exchange or Kafka topic a chain creates, as a {@code message-destination} fact on
+     * the method, at the chain: declared, whether or not anything binds, sends to or listens on it.
+     * One created in another call's arguments (inside a {@code Declarables} or a binding) is a
+     * chain of its own.
+     */
+    private void declaration(Invocation i) {
+      Expression.Invoke call = i.expression();
+      EntityId context = i.caller();
+      Location where = i.where();
+      for (boolean exchange : List.of(false, true)) {
+        Declared d = declaration(call, context, exchange);
+        if (d != null) {
+          rabbitDestination(call, context, d, exchange, where);
+          return;
+        }
+      }
+      Text topic = kafkaTopic(call, context);
+      if (topic != null) {
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("broker", KAFKA);
+        attributes.put("destinationKind", "topic");
+        emit(context, DESTINATION, topic, Map.of(), attributes, where);
+      }
+    }
+
+    private void rabbitDestination(
+        Expression.Invoke call, EntityId context, Declared d, boolean exchange, Location where) {
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("broker", RABBITMQ);
+      attributes.put("destinationKind", exchange ? "exchange" : "queue");
+      if (d.exchangeType() != null) {
+        attributes.put("exchangeType", d.exchangeType());
+      }
+      Map<String, Text> named = new LinkedHashMap<>();
+      List<Expression.Invoke> chain = call.chain();
+      Expression.Invoke first = chain.getFirst();
+      Boolean durable = null;
+      if (first.method().equals(ModuleStructure.CONSTRUCTOR)) {
+        // new Queue(name), new Queue(name, durable, ...), new TopicExchange(name, durable, ...)
+        durable =
+            first.arguments().size() >= 2
+                    && first.arguments().get(1) instanceof Expression.Literal l
+                    && (l.value().equals("true") || l.value().equals("false"))
+                ? Boolean.valueOf(l.value())
+                : first.arguments().size() >= 2 ? null : true;
+      } else if (first.method().equals("durable") || first.method().equals("nonDurable")) {
+        durable = first.method().equals("durable");
+      } else if (exchange) {
+        durable = true;
+      }
+      for (Expression.Invoke link : chain.subList(1, chain.size())) {
+        switch (link.method()) {
+          case "durable" -> {
+            if (link.arguments().size() == 1
+                && link.arguments().getFirst() instanceof Expression.Literal l) {
+              durable = Boolean.valueOf(l.value());
+            }
+          }
+          case "deadLetterExchange", "deadLetterRoutingKey" -> {
+            Text t =
+                link.arguments().size() == 1 ? text(link.arguments().getFirst(), context) : null;
+            if (t != null) {
+              named.put(link.method(), t);
+            }
+          }
+          case "withArgument" -> {
+            if (link.arguments().size() == 2
+                && link.arguments().getFirst() instanceof Expression.Literal key
+                && DEAD_LETTER_ARGUMENTS.containsKey(key.value())) {
+              Text t = text(link.arguments().get(1), context);
+              if (t != null) {
+                named.put(DEAD_LETTER_ARGUMENTS.get(key.value()), t);
+              }
+            }
+          }
+          default -> {}
+        }
+      }
+      if (durable != null) {
+        attributes.put("durable", durable);
+      }
+      emit(context, DESTINATION, d.name(), named, attributes, where);
+    }
+
+    /** The Kafka topic a chain declares: {@code TopicBuilder.name(...)} or {@code new NewTopic}. */
+    private Text kafkaTopic(Expression.Invoke call, EntityId context) {
+      Expression.Invoke first = call.chain().getFirst();
+      if (!(first.receiver() instanceof Expression.TypeRef t) || first.arguments().isEmpty()) {
+        return null;
+      }
+      boolean declares =
+          (t.binaryName().equals(TOPIC_BUILDER) && first.method().equals("name"))
+              || (t.binaryName().equals(NEW_TOPIC)
+                  && first.method().equals(ModuleStructure.CONSTRUCTOR));
+      return declares ? text(first.arguments().getFirst(), context) : null;
     }
 
     /** The method of the caller's own type with that name and number of parameters, or null. */

@@ -39,6 +39,9 @@ final class TrackedApis {
           // and RabbitMQ templates and declarations (queues, exchanges, bindings and builders).
           "org.springframework.kafka.core.",
           "org.apache.kafka.clients.producer.",
+          // Kafka topic declarations (the messaging extractor's message-destination facts).
+          "org.springframework.kafka.config.TopicBuilder",
+          "org.apache.kafka.clients.admin.NewTopic",
           "org.springframework.jms.core.",
           "org.springframework.amqp.",
           // Spring Cloud Stream: StreamBridge, and the legacy Source and Processor bindings.
