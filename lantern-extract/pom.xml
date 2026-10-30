@@ -78,7 +78,7 @@
             <!-- FixtureBuildIT builds the fixtures with this project's Maven wrapper... -->
             <lantern.test.mvnw>${maven.multiModuleProjectDirectory}/mvnw</lantern.test.mvnw>
             <!-- ...reading, but never writing, the local repository of the outer build. -->
-            <lantern.test.localRepository>${settings.localRepository}</lantern.test.localRepository>
+            <lantern.test.localRepository>${lantern.test.localRepository}</lantern.test.localRepository>
             <!-- The folder project-0 was set up in (testsets/project-0/setup.sh); the Project0*IT
                  tests run if set. -->
             <lantern.test.project0>${lantern.test.project0}</lantern.test.project0>

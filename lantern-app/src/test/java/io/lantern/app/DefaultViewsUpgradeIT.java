@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Migration V12 removes the view definitions earlier runs stored with the defaults of the time, so
@@ -48,9 +47,7 @@ class DefaultViewsUpgradeIT {
 
   @Test
   void removesStoredDefaultViewsAndKeepsOverrides() {
-    try (PostgreSQLContainer postgres =
-        new PostgreSQLContainer(
-            DockerImageName.parse(TestcontainersConfiguration.composePostgresImage()))) {
+    try (PostgreSQLContainer postgres = TestcontainersConfiguration.newPostgres()) {
       postgres.start();
       DriverManagerDataSource dataSource =
           new DriverManagerDataSource(

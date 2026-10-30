@@ -152,6 +152,14 @@
             <lantern.test.repo>${lantern.test.repo}</lantern.test.repo>
             <lantern.test.project0>${lantern.test.project0}</lantern.test.project0>
           </systemPropertyVariables>
+          <!-- Runs the classes in 4 JVMs side by side, each taking the next class when it is free,
+               in alphabetical order, so EndToEndIT, the longest, starts early.
+               Each JVM has its own Spring contexts, and with them its own PostgreSQL containers;
+               the classes write to folders of their own and label their sandbox builds with an
+               owner of their own, so they share no database, folder, port or system property. -->
+          <forkCount>4</forkCount>
+          <reuseForks>true</reuseForks>
+          <runOrder>alphabetical</runOrder>
         </configuration>
       </plugin>
     </plugins>
