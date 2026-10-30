@@ -25,9 +25,10 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Links units to the Redis servers their config connects them to (ADR 0073): one data store per
- * server, shared by the units that use it, with the protocol RESP, the technology its compose file
- * runs when known, and what the units' code keeps in it where it writes the keys out. A unit with
- * Redis code or a Redis client dependency but no connection config uses Spring's default server.
+ * server, shared by the units that use it, with the protocol RESP, the technology the deployments'
+ * containers run when known, and what the units' code keeps in it where it writes the keys out. A
+ * unit with Redis code or a Redis client dependency but no connection config uses Spring's default
+ * server.
  */
 final class RedisLinker {
 
@@ -41,16 +42,23 @@ final class RedisLinker {
 
   private static final int MAX_STORES = 40;
 
+  /** The products a Redis client connects to. */
+  private static final Set<String> PRODUCTS = Set.of("Redis", "Valkey", "Redis Stack");
+
   private final LinkIndex index;
   private final FoundLinks out;
 
   /** The units' Redis uses, by unit, in ID order. */
   private final Map<Unit, List<Fact>> uses = new HashMap<>();
 
-  /** The compose files' Redis images, in ID order. */
-  private final List<Fact> images;
+  /** The containers the deployments run Redis (or Valkey, Redis Stack) in, in ID order. */
+  private final List<Deployments.Container> images;
 
-  RedisLinker(LinkIndex index, FoundLinks out) {
+  /** The containers each store's technology came from. */
+  private final Map<EntityId, Set<Deployments.Container>> containers =
+      new TreeMap<>(LinkIndex.BY_TEXT);
+
+  RedisLinker(LinkIndex index, FoundLinks out, Deployments deployments) {
     this.index = index;
     this.out = out;
     for (Fact f : index.of(RedisExtractor.REDIS_USE)) {
@@ -58,7 +66,10 @@ final class RedisLinker {
         uses.computeIfAbsent(unit, u -> new ArrayList<>()).add(f);
       }
     }
-    this.images = index.of(RedisExtractor.REDIS_IMAGE);
+    this.images =
+        deployments.all().stream()
+            .filter(c -> c.product() != null && PRODUCTS.contains(c.product()))
+            .toList();
   }
 
   /** A server a unit connects to in a view. */
@@ -105,12 +116,15 @@ final class RedisLinker {
                     source.evidence(),
                     source.confidence(),
                     validity)));
+    containers.forEach(
+        (database, used) ->
+            used.forEach(c -> out.add(Deployments.deployedIn(database, c, origin, validity))));
     // A store alone in every view it is in is just Redis; with others in a view, each is told
     // apart by its server.
     servers.forEach(
         (database, server) -> {
           Fact source = technologies.get(database);
-          String product = technology(source).replaceFirst(" \\d[\\d.]*$", "");
+          String product = technology(source).replaceFirst(" \\d.*$", "");
           boolean several =
               perView.values().stream().anyMatch(v -> v.contains(database) && v.size() > 1);
           out.add(
@@ -189,8 +203,9 @@ final class RedisLinker {
         new EntityId(CrossRepoLinks.DATABASE, connection.server().replace(' ', '_') + "/redis");
     servers.putIfAbsent(database, connection.server());
 
-    List<Fact> imagesUsed = images(unit);
+    List<Deployments.Container> imagesUsed = images(unit);
     String technology = technology(imagesUsed);
+    containers.computeIfAbsent(database, d -> new LinkedHashSet<>()).addAll(imagesUsed);
     ObjectNode attributes = FactJson.newObject();
     attributes.put("protocol", "RESP");
     attributes.put("technology", technology);
@@ -223,7 +238,7 @@ final class RedisLinker {
     Set<String> ids = new TreeSet<>();
     connection.facts().forEach(f -> ids.add(f.id()));
     used.forEach(f -> ids.add(f.id()));
-    imagesUsed.forEach(f -> ids.add(f.id()));
+    imagesUsed.forEach(c -> ids.add(c.fact().id()));
 
     double confidence = connection.evidence().confidence() * unit.fact().confidence();
     if (connection.inferredFrom() != null) {
@@ -242,7 +257,7 @@ final class RedisLinker {
             connection.evidence().evidence(),
             CrossRepoLinks.round(confidence),
             ids));
-    Fact source = imagesUsed.isEmpty() ? connection.evidence() : imagesUsed.getFirst();
+    Fact source = imagesUsed.isEmpty() ? connection.evidence() : imagesUsed.getFirst().fact();
     technologies.merge(
         database,
         technologyFact(source, technology),
@@ -268,33 +283,26 @@ final class RedisLinker {
   // Technology
 
   /**
-   * The Redis images that run next to a unit: those its own repository's compose files run, else
+   * The Redis containers that run next to a unit: those its own repository's descriptors run, else
    * those of any repository in the snapshot.
    */
-  private List<Fact> images(Unit unit) {
+  private List<Deployments.Container> images(Unit unit) {
     String repo = unit.fact().evidence().repo();
-    List<Fact> own = images.stream().filter(f -> f.evidence().repo().equals(repo)).toList();
+    List<Deployments.Container> own =
+        images.stream().filter(c -> c.fact().evidence().repo().equals(repo)).toList();
     return own.isEmpty() ? images : own;
   }
 
   /**
-   * The technology the images give: their product and version when they agree, else the product
-   * alone; Redis when there is no image.
+   * The technology the containers give: their product with its versions when they name one product
+   * (ADR 0082), else Redis.
    */
-  private static String technology(List<Fact> images) {
-    Set<String> technologies = new TreeSet<>();
-    for (Fact f : images) {
-      String technology = LinkIndex.text(f, "technology");
-      if (technology != null) {
-        technologies.add(technology);
-      }
-    }
-    if (technologies.size() == 1) {
-      return technologies.iterator().next();
-    }
+  private static String technology(List<Deployments.Container> images) {
     Set<String> products = new TreeSet<>();
-    technologies.forEach(t -> products.add(t.split(" \\d")[0]));
-    return products.size() == 1 ? products.iterator().next() : "Redis";
+    images.forEach(c -> products.add(c.product()));
+    return products.size() == 1
+        ? Deployments.technology(products.iterator().next(), images)
+        : "Redis";
   }
 
   // ---------------------------------------------------------------------------------------------

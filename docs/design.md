@@ -112,7 +112,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | WebSocket / STOMP | `@EnableWebSocketMessageBroker` and `@EnableWebSocket` configuration (endpoints, broker prefixes, client channel interceptors), `@MessageMapping` handlers, `SimpMessagingTemplate` sends | WebSocket endpoints and their paths, STOMP destinations handled and pushed to, the interceptors that check connect and subscribe |
 | Spring Cloud Gateway | Routes built with `RouteLocatorBuilder` and routes in `spring.cloud.gateway` config; filter classes | Routes per profile with their predicates, filters and target URI (`lb://`, `lb:ws://`, a URL), and the global, gateway and web filters requests pass through, as entry points |
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
-| Redis | Redis templates and operations, `@RedisHash`, Spring Session, lock registries, the gateway's rate limiter and caches in code, config and POM dependencies; Redis images in compose files | How each module uses Redis, with the keys the code writes out, and the product and version Redis runs as |
+| Redis | Redis templates and operations, `@RedisHash`, Spring Session, lock registries, the gateway's rate limiter and caches in code, config and POM dependencies | How each module uses Redis, with the keys the code writes out |
 | People | Role checks (`@PreAuthorize`, `@Secured`, `@RolesAllowed`, `hasRole`), Keycloak realm roles, types about members and invitations, and the routes of Angular, React and Vue frontends | The evidence for who uses the system, each citing its line; the linker makes people of it |
 | Config | `.properties`, `.yml` (`application*` and `bootstrap*`), Spring profiles, env-var placeholders | Resolved and unresolved config values per profile, including `spring.application.name` |
 | SQL | Flyway and Liquibase migrations, `.sql` files (JSqlParser) | Schema as of the commit: tables, columns, keys |
@@ -143,7 +143,9 @@ How the Persistence extractor finds entities, repositories and SQL in code, name
 
 How people are inferred from roles, memberships, invitations, sign-in and frontend routes, and always marked inferred, is in ADR 0074.
 
-How Redis becomes a data store, found from the code, config, dependencies and compose files and linked per server with the protocol RESP, is in ADR 0073.
+How Redis becomes a data store, found from the code, config and dependencies and linked per server with the protocol RESP, is in ADR 0073; its product and version come from the Deployment extractor's containers (ADR 0082).
+
+Which Dockerfiles, compose files, kustomize overlays, Helm charts and manifests the Deployment extractor reads, what an environment is, how it reads templates without rendering them and how it keeps secrets out of its facts is in ADR 0082.
 
 Which listeners, templates and bindings the Messaging extractor reads, how it follows a name from a constant, a placeholder or a `@Value` into the call that uses it, and what facts it makes of listeners, sends and RabbitMQ bindings is in ADR 0037. How it reads Spring Cloud Stream, whose destinations come from config through bindings, into the same facts is in ADR 0040.
 
@@ -256,7 +258,7 @@ The linker turns per-repo facts into one system graph by matching what one repo 
 | Shared config | Common property keys and config servers |
 | People | Roles the code checks, the members of things it has members of, invitations, sign-up and sign-in, and the frontend routes for them; each kind of person is a `person` entity, inferred (ADR 0074) |
 
-A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open. The exception is Redis: units whose host and port are the same unresolved placeholders (`${redis.host}`) are taken to share one server, since a deployment fills them from one environment (ADR 0073). A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
+A datasource whose server or database is a placeholder is a database of its unit alone, never shared, rather than a link left open; where a deployment runs the unit, its environment fills the placeholders, and the database takes its name and version from the container it is on (ADR 0082). The exception is Redis: units whose host and port are the same unresolved placeholders (`${redis.host}`) are taken to share one server, since a deployment fills them from one environment (ADR 0073). A link that holds only under a Spring profile records that profile. Service discovery, config servers and tracing are linked as infrastructure, not as business dependencies.
 
 Links that static matching can't resolve (a URL assembled from several properties and an env var, for example) go to the LLM resolver with the candidate facts. If it's still unresolved, the link goes to the questions queue. What the resolver is shown, how its answer is checked, the confidence of what it picks and how answers are cached are in ADR 0045; its tools to query the graph and read files are in ADR 0081, the questions queue comes with #170.
 
@@ -458,7 +460,7 @@ How the first composer builds per-repository documents from view definitions is 
 | Container | One view of the whole system, split by concern when above 15 elements. One box per deployable unit, folding in the in-set libraries it packages (a thin service and its library are one box), and one per frontend; each service's own schema as a separate data store; queues, topics and exchanges as elements or "via" labels, never one broker box | Deployable evidence (a Spring Boot main class, a repackaged executable artifact, a Dockerfile), `spring.application.name`, linked HTTP client, messaging and persistence facts, frontend and deployment facts |
 | Component | Inside one container, one component per role: each controller, message listener, scheduled job, gateway filter or set of gateway routes with the services and repositories reachable only from it; a bean reachable from several entry points is its own component. Domain, DTO, mapper, configuration and util classes are left out. Above 15 elements, split by groups of entry points. Drawn only when it adds value: more than one component, and not a repeat of the container diagram | Spring stereotypes (including meta-annotations), aspects that advise an entry point (shown as components with a line to what they advise, ADR 0079) and the resolved call graph |
 | Sequence | See Sequence diagrams below | Entry points and the resolved call graph, linked across containers |
-| Deployment | Nodes and container instances in one environment | The Deployment extractor's facts; omitted with a note when there are none |
+| Deployment | Nodes and container instances in one environment; until the report spec has a page for it, a table on the container page of each environment's containers, their images and versions and what runs in them (ADR 0082) | The Deployment extractor's facts and the units and data stores the linker ties to its containers; omitted when there are none |
 | Dependency | Modules and artifacts with their build-time dependencies; not a C4 view | Maven facts |
 | Code | Not drawn; the Explorer links types to their source | |
 

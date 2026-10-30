@@ -1,0 +1,383 @@
+package io.lantern.link;
+
+import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
+import io.lantern.core.fact.Validity;
+import io.lantern.extract.deployment.DeploymentExtractor;
+import io.lantern.link.LinkIndex.Unit;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * The containers the deployment descriptors of a snapshot run (the deployment extractor's {@code
+ * deployment-container} facts), tied to the units they run and used to fill in what the units'
+ * config leaves to the environment. See {@code docs/adr/0082-deployment-descriptors.md}.
+ *
+ * <p>A container runs a unit when one of its names (compose service, container name, workload,
+ * Service, app label or the image's name) is the unit's {@code spring.application.name} or artifact
+ * ID, compared without case, dashes or underscores, and no other unit has that name. In a container
+ * that runs a unit, an environment variable sets the config key it binds to as Spring Boot's
+ * relaxed binding does ({@code AUTH_DATASOURCE_HOST} sets {@code auth.datasource.host}).
+ */
+final class Deployments {
+
+  /** Attribute the linker gives a unit or data store: a container that runs it. */
+  static final String DEPLOYED_IN = "deployed-in";
+
+  /** A container of one environment, read from its fact. */
+  record Container(
+      Fact fact,
+      String environment,
+      String name,
+      Set<String> names,
+      Map<String, String> env,
+      String product,
+      String version,
+      List<String> databases) {
+
+    /** Whether others in its environment reach it by a host name. */
+    boolean answers(String host) {
+      String wanted = host.toLowerCase(Locale.ROOT);
+      return LinkIndex.texts(fact, "hosts").stream()
+          .anyMatch(h -> h.toLowerCase(Locale.ROOT).equals(wanted));
+    }
+
+    /** The environment's name as documents show it, such as "Docker Compose (local)". */
+    String label() {
+      return label(fact);
+    }
+
+    static String label(Fact fact) {
+      String platform = LinkIndex.text(fact, "platform");
+      String environment = LinkIndex.text(fact, "environment");
+      String name =
+          switch (platform == null ? "" : platform) {
+            case DeploymentExtractor.COMPOSE -> "Docker Compose";
+            case DeploymentExtractor.KUBERNETES -> "Kubernetes";
+            case DeploymentExtractor.HELM -> "Helm";
+            default -> platform;
+          };
+      return environment == null ? name : name + " (" + environment + ")";
+    }
+  }
+
+  /**
+   * What a datasource of a unit is in one environment: the container that runs the unit, the one
+   * its database is on (or null), the server as the environment writes it, and the database name
+   * (null when the environment does not say).
+   */
+  record Placed(
+      Container unit, Container server, String address, String database, boolean guessed) {}
+
+  /** Placeholders in config as written: {@code ${key}} or {@code ${key:default}}. */
+  private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}:]+)(?::([^}]*))?}");
+
+  /** Words a database name shares with any service's config, so they tie nothing. */
+  private static final Set<String> GENERIC =
+      Set.of(
+          "db",
+          "database",
+          "datasource",
+          "data",
+          "source",
+          "service",
+          "app",
+          "spring",
+          "jdbc",
+          "url",
+          "name",
+          "server",
+          "host",
+          "port",
+          "sql",
+          "schema");
+
+  private final List<Container> containers = new ArrayList<>();
+  private final Map<EntityId, List<Container>> byUnit = new HashMap<>();
+
+  Deployments(LinkIndex index) {
+    for (Fact f : index.of(DeploymentExtractor.DEPLOYMENT_CONTAINER)) {
+      Set<String> names = new LinkedHashSet<>();
+      names.add(normalized(f.object().value()));
+      LinkIndex.texts(f, "hosts").forEach(h -> names.add(normalized(h)));
+      LinkIndex.texts(f, "aliases").forEach(a -> names.add(normalized(a)));
+      String image = LinkIndex.text(f, "image");
+      if (image != null && !image.contains("${")) {
+        String last = image.substring(image.lastIndexOf('/') + 1);
+        names.add(normalized(last.contains(":") ? last.substring(0, last.indexOf(':')) : last));
+      }
+      names.remove("");
+      Map<String, String> env = new TreeMap<>();
+      JsonNode node = f.attributes().get("env");
+      if (node != null && node.isObject()) {
+        node.properties().forEach(e -> env.put(e.getKey(), e.getValue().asString("")));
+      }
+      containers.add(
+          new Container(
+              f,
+              f.evidence().repo()
+                  + "|"
+                  + LinkIndex.text(f, "platform")
+                  + "|"
+                  + LinkIndex.text(f, "environment")
+                  + ("compose".equals(LinkIndex.text(f, "platform"))
+                      ? "|" + f.evidence().path()
+                      : ""),
+              f.object().value(),
+              names,
+              env,
+              LinkIndex.text(f, "product"),
+              LinkIndex.text(f, "version"),
+              LinkIndex.texts(f, "databases")));
+    }
+    // Ties by name: a container names one unit, or none if it could be several.
+    Map<String, Set<Unit>> unitsByName = new HashMap<>();
+    for (Unit unit : index.units.values()) {
+      for (String name : unitNames(index, unit)) {
+        unitsByName.computeIfAbsent(name, n -> new LinkedHashSet<>()).add(unit);
+      }
+    }
+    for (Container c : containers) {
+      if (c.product() != null) {
+        continue;
+      }
+      Set<Unit> matched = new LinkedHashSet<>();
+      for (String name : c.names()) {
+        matched.addAll(unitsByName.getOrDefault(name, Set.of()));
+      }
+      if (matched.size() == 1) {
+        byUnit.computeIfAbsent(matched.iterator().next().id(), u -> new ArrayList<>()).add(c);
+      }
+    }
+  }
+
+  private static Set<String> unitNames(LinkIndex index, Unit unit) {
+    Set<String> names = new LinkedHashSet<>();
+    Fact application = index.name(unit.id(), null);
+    if (application != null) {
+      names.add(normalized(application.object().value()));
+    }
+    names.add(normalized(unit.artifactId()));
+    names.remove("");
+    return names;
+  }
+
+  static String normalized(String name) {
+    return name == null ? "" : name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+  }
+
+  /** Every container, in fact ID order. */
+  List<Container> all() {
+    return containers;
+  }
+
+  /** The containers that run a unit, in fact ID order. */
+  List<Container> running(Unit unit) {
+    return byUnit.getOrDefault(unit.id(), List.of());
+  }
+
+  /**
+   * A text of config with each placeholder the container's environment sets replaced by its value;
+   * a value that is itself an unset compose variable ({@code ${NAME}}) is put in as written, so it
+   * still says what it is. Null when the environment sets none of its placeholders.
+   */
+  static String fill(Container container, String text) {
+    if (text == null) {
+      return null;
+    }
+    Matcher m = PLACEHOLDER.matcher(text);
+    StringBuilder b = new StringBuilder();
+    boolean any = false;
+    while (m.find()) {
+      String value = env(container, m.group(1));
+      if (value == null || value.isEmpty()) {
+        value = m.group(2) != null ? m.group(2) : m.group();
+      } else {
+        any = true;
+      }
+      m.appendReplacement(b, Matcher.quoteReplacement(value));
+    }
+    m.appendTail(b);
+    return any ? b.toString() : null;
+  }
+
+  /** The value a container's environment gives a config key, by relaxed binding, or null. */
+  static String env(Container container, String key) {
+    String wanted = key.replace('.', '_').replace("-", "").toUpperCase(Locale.ROOT);
+    for (Map.Entry<String, String> e : container.env().entrySet()) {
+      String name = e.getKey();
+      if (name.equalsIgnoreCase(key) || name.toUpperCase(Locale.ROOT).equals(wanted)) {
+        return e.getValue();
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Where a datasource of a unit points in each environment that runs the unit: its server and
+   * database filled in from the container's environment, the container the server is (by host name,
+   * or by the compose variable that names the database in both), and the database's name when the
+   * environment, the server's image variable or its init scripts give it.
+   *
+   * @param server the datasource's server as the config writes it, placeholders and all
+   * @param database the datasource's database as the config writes it
+   * @param words names that tell the unit's database among a server's several: the unit's names and
+   *     the datasource's placeholder keys
+   */
+  List<Placed> place(
+      Unit unit, String server, String database, String technology, Collection<String> words) {
+    List<Placed> placed = new ArrayList<>();
+    for (Container c : running(unit)) {
+      String address = fill(c, server);
+      String name = fill(c, database);
+      if (address == null && name == null) {
+        continue;
+      }
+      Container host = null;
+      if (address != null && !address.contains("${") && !address.isBlank()) {
+        String hostName =
+            address.contains(":") ? address.substring(0, address.lastIndexOf(':')) : address;
+        host =
+            sameEnvironment(c).stream()
+                .filter(o -> o != c && o.answers(hostName))
+                .findFirst()
+                .orElse(null);
+      }
+      if (host == null && name != null && name.matches("\\$\\{[A-Za-z_][A-Za-z0-9_]*}")) {
+        // A compose variable that names the database for both the unit and a database container.
+        String variable = name;
+        host =
+            sameEnvironment(c).stream()
+                .filter(
+                    o ->
+                        o != c
+                            && DeploymentExtractor.DATABASE_VARIABLES.stream()
+                                .anyMatch(v -> variable.equals(o.env().get(v))))
+                .findFirst()
+                .orElse(null);
+      }
+      if (host != null
+          && technology != null
+          && host.product() != null
+          && !host.product().equalsIgnoreCase(technology)) {
+        host = null;
+      }
+      String known = name == null || name.contains("${") || name.isBlank() ? null : name;
+      boolean guessed = false;
+      if (known == null && host != null) {
+        List<String> candidates = host.databases();
+        if (candidates.size() == 1) {
+          known = candidates.getFirst();
+        } else {
+          known = byWords(candidates, words);
+          guessed = known != null;
+        }
+      }
+      if (address != null && (address.contains("${") || address.isBlank())) {
+        address = host == null ? null : host.name();
+      }
+      if (host != null || known != null || address != null) {
+        placed.add(new Placed(c, host, address, known, guessed));
+      }
+    }
+    return placed;
+  }
+
+  private List<Container> sameEnvironment(Container c) {
+    return containers.stream().filter(o -> o.environment().equals(c.environment())).toList();
+  }
+
+  /** The one candidate that shares a word with the given names, or null. */
+  private static String byWords(List<String> candidates, Collection<String> names) {
+    Set<String> wanted = new TreeSet<>();
+    for (String name : names) {
+      for (String word : name.toLowerCase(Locale.ROOT).split("[^a-z0-9]+")) {
+        if (!word.isEmpty() && !GENERIC.contains(word)) {
+          wanted.add(word);
+        }
+      }
+    }
+    String found = null;
+    for (String candidate : candidates) {
+      for (String word : candidate.toLowerCase(Locale.ROOT).split("[^a-z0-9]+")) {
+        if (wanted.contains(word)) {
+          if (found != null && !found.equals(candidate)) {
+            return null;
+          }
+          found = candidate;
+        }
+      }
+    }
+    return found;
+  }
+
+  /**
+   * A product with the versions its containers run: the version when they agree, the versions from
+   * oldest to newest when they differ ({@code Redis 7.4.4 / 8.4.0}), the product alone when none
+   * names one.
+   */
+  static String technology(String product, Collection<Container> running) {
+    Set<String> versions = new TreeSet<>(Deployments::compareVersions);
+    for (Container c : running) {
+      if (c.version() != null && product.equalsIgnoreCase(c.product())) {
+        versions.add(c.version());
+      }
+    }
+    return versions.isEmpty() ? product : product + " " + String.join(" / ", versions);
+  }
+
+  private static int compareVersions(String a, String b) {
+    String[] x = a.split("\\.");
+    String[] y = b.split("\\.");
+    for (int i = 0; i < Math.max(x.length, y.length); i++) {
+      int p = i < x.length ? Integer.parseInt(x[i]) : -1;
+      int q = i < y.length ? Integer.parseInt(y[i]) : -1;
+      if (p != q) {
+        return Integer.compare(p, q);
+      }
+    }
+    return 0;
+  }
+
+  /** A {@code deployed-in} fact: the subject runs in the container. */
+  static Fact deployedIn(EntityId subject, Container c, Origin origin, Validity validity) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("container", c.name());
+    attributes.put("platform", LinkIndex.text(c.fact(), "platform"));
+    attributes.put("environment", LinkIndex.text(c.fact(), "environment"));
+    attributes.put("fact", c.fact().id());
+    return Fact.create(
+        subject,
+        DEPLOYED_IN,
+        FactObject.string(c.label()),
+        attributes,
+        origin,
+        c.fact().evidence(),
+        c.fact().confidence(),
+        validity);
+  }
+
+  /** Records which containers run each unit. */
+  void link(LinkIndex index, FoundLinks out, Origin origin, Validity validity) {
+    for (Unit unit : index.units.values()) {
+      for (Container c : running(unit)) {
+        out.add(deployedIn(unit.id(), c, origin, validity));
+      }
+    }
+  }
+}

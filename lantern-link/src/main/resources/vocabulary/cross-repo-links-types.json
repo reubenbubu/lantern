@@ -512,7 +512,7 @@
         },
         "inferred": {
           "type": "string",
-          "description": "Why the link rests on an inference: the Redis host or port is a placeholder no config resolves, so units that write the same placeholders are taken to share one server."
+          "description": "Why the link rests on an inference: the Redis host or port is a placeholder no config resolves, so units that write the same placeholders are taken to share one server; or the database's name is left to the environment, and of the databases its server creates in a deployment the one whose name shares a word with the unit or the placeholder is taken."
         },
         "uses": {
           "type": "array",
@@ -534,6 +534,13 @@
             "type": "string"
           },
           "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+        },
+        "deployments": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Where the deployments put a datasource whose server or database is a placeholder no config resolves: for each environment that runs the unit, its environment, the container that runs the unit, the container the database is on, the server as the environment writes it (address) and the database's name, when known."
         }
       },
       "additionalProperties": false
@@ -752,7 +759,7 @@
   {
     "name": "display-name",
     "kind": "attribute",
-    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words.",
+    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the one a deployment names, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words.",
     "attributeSchema": {
       "type": "object",
       "properties": {},
@@ -867,6 +874,38 @@
       "required": [
         "target",
         "endpoint"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "deployed-in",
+    "kind": "attribute",
+    "description": "A container a deployment descriptor runs the subject in (a deployable unit, or a data store on a database or Redis container); the value names the environment, such as Docker Compose (local). The linker ties a container to a unit by name, and to a data store through the unit's datasource or Redis connection.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "container": {
+          "type": "string",
+          "description": "The container's name, the value of its deployment-container fact."
+        },
+        "platform": {
+          "type": "string",
+          "description": "compose, kubernetes or helm."
+        },
+        "environment": {
+          "type": "string",
+          "description": "The environment within its platform, as the deployment-container fact names it."
+        },
+        "fact": {
+          "type": "string",
+          "description": "The ID of the deployment-container fact."
+        }
+      },
+      "required": [
+        "container",
+        "fact"
       ],
       "additionalProperties": false
     },

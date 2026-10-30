@@ -262,6 +262,65 @@ class C4ViewsTest {
   }
 
   @Test
+  void aDeploymentTableListsEachEnvironmentsContainersAndWhatRunsInThem() {
+    facts
+        .attribute(
+            "shop",
+            "repo:shop",
+            "deployment-container",
+            "shop-db",
+            "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+                + "\"image\":\"postgres:16.4\",\"product\":\"PostgreSQL\",\"version\":\"16.4\","
+                + "\"ports\":[\"5432:5432\"]}")
+        .attribute(
+            "shop",
+            "repo:shop",
+            "deployment-container",
+            "shop-app",
+            "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+                + "\"build\":\"./app\"}");
+    Fact db = facts.list().get(facts.list().size() - 2);
+    Fact app = facts.list().getLast();
+    facts
+        .attribute(
+            "shop",
+            "database:db:5432/shop",
+            "deployed-in",
+            "Docker Compose (local)",
+            "{\"container\":\"shop-db\",\"fact\":\"" + db.id() + "\"}")
+        .attribute(
+            "shop",
+            "service:com.example:app",
+            "deployed-in",
+            "Docker Compose (local)",
+            "{\"container\":\"shop-app\",\"fact\":\"" + app.id() + "\"}");
+
+    Section containers = section(repo(facts.list()), "containers");
+
+    Table deployment =
+        containers.blocks().stream()
+            .filter(b -> b instanceof Table t && "Deployment".equals(t.title()))
+            .map(Table.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertThat(deployment.columns())
+        .extracting(Table.Column::label)
+        .containsExactly("Environment", "Container", "Image", "Technology", "Runs", "Ports");
+    assertThat(deployment.rows())
+        .extracting(row -> row.cells().stream().map(C4ViewsTest::text).toList())
+        .containsExactly(
+            List.of("Docker Compose (local)", "shop-app", "built from ./app", "", "shop-app", ""),
+            List.of(
+                "Docker Compose (local)",
+                "shop-db",
+                "postgres:16.4",
+                "PostgreSQL 16.4",
+                "shop on db",
+                "5432:5432"));
+    assertThat(deployment.rows().getLast().facts()).contains(db.id());
+  }
+
+  @Test
   void componentsAreFoundByRoleWithSharedBeansOnTheirOwn() {
     Section components = section(repo(facts.list()), "components");
 

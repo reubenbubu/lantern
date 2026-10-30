@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), pending the user's review (#24)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), pending the user's review (#24)
 
 ## Context
 
@@ -151,3 +151,12 @@ senders where only main-service calls the service.
   the library, say), or only one unit runs it, every unit running it sends, as before. Listeners
   and bindings are unchanged.
 - The step's version becomes 6.
+
+## Amendment (#266): what the deployments fill in
+
+A unit's own database, whose server or database is a placeholder no config resolves, keeps its key
+and is still never shared, but where a deployment runs the unit its environment fills the
+placeholders: the database takes its `display-name` from the database the server container
+creates and its `technology` version from that container's image, and the link lists the
+`deployments` (ADR 0082). Containers that run a unit or a data store are `deployed-in` facts on
+it, a new attribute type with source `cross-repo-links`.

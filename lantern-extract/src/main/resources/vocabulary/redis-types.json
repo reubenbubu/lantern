@@ -69,28 +69,5 @@
       "additionalProperties": false
     },
     "objectKind": "string"
-  },
-  {
-    "name": "redis-image",
-    "kind": "attribute",
-    "description": "A compose file of the subject repository runs a Redis (or Valkey, Redis Stack) image, as the value writes it. The linker takes the data store's technology from it.",
-    "attributeSchema": {
-      "type": "object",
-      "properties": {
-        "technology": {
-          "type": "string",
-          "description": "The product with its version, such as Redis 8.4.0; without a version when the tag names none."
-        },
-        "service": {
-          "type": "string",
-          "description": "The compose service that runs it."
-        }
-      },
-      "required": [
-        "technology"
-      ],
-      "additionalProperties": false
-    },
-    "objectKind": "string"
   }
 ]

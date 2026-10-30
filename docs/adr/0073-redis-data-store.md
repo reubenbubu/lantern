@@ -1,6 +1,6 @@
 # 0073: Redis as a data store
 
-Status: accepted (#259), pending the user's review (#24)
+Status: accepted (#259), amended by ADR 0082 (#266), pending the user's review (#24)
 
 ## Context
 
@@ -68,3 +68,10 @@ datasource, so the persistence extractor and the data linker never saw it.
   extractor can later tie them to the compose service.
 - The extractor and the linker are new, so `redis` starts at version 1 and `cross-repo-links` is
   raised.
+
+## Amendment (#266): versions from the Deployment extractor
+
+The Deployment extractor reads compose files, kustomize and Helm in place of the Redis extractor
+(ADR 0082): the `redis-image` facts are gone (`redis` version 2), the store's technology comes from
+the Redis, Valkey and Redis Stack containers the deployments run, and differing versions are listed
+from oldest to newest (`Redis 7.4.4 / 8.4.0`) instead of leaving only the product.
