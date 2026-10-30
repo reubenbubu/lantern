@@ -440,7 +440,9 @@ class Project0EndToEndIT {
             "sequences-storefront-ordercontroller-place",
             "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
-            // The decision records and unknowns are a documentation page (ADR 0086).
+            // The risks and findings, and the decision records and unknowns, are documentation
+            // pages (ADR 0084, ADR 0086).
+            "findings",
             "decisions");
     assertThat(data.get("pages").get(8).get("level").asString()).isEqualTo("documentation");
     JsonNode containers = data.get("pages").get(1).get("sections").get(0);
