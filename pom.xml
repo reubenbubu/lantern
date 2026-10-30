@@ -46,6 +46,9 @@
          Empty means none, so they use Maven Central. Set it in a profile of Maven's settings, or
          with -Dlantern.test.properties=<absolute path>. -->
     <lantern.test.properties></lantern.test.properties>
+    <!-- The local Maven repository whose downloads FixtureBuildIT reads. scripts/full-check.sh
+         sets it to the shared one, as it runs Maven on a repository of its own chained to it. -->
+    <lantern.test.localRepository>${settings.localRepository}</lantern.test.localRepository>
   </properties>
 
   <dependencyManagement>
@@ -135,6 +138,11 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
           <configuration>
+            <!-- *IT classes are failsafe's, also those whose names start with Test. -->
+            <excludes>
+              <exclude>**/*$*</exclude>
+              <exclude>**/*IT.java</exclude>
+            </excludes>
             <systemPropertyVariables>
               <lantern.test.properties>${lantern.test.properties}</lantern.test.properties>
             </systemPropertyVariables>

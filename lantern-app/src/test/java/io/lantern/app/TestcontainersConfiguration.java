@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -15,7 +16,10 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * Starts a PostgreSQL container for tests and points the app's data source at it. The image is read
  * from the repository's {@code compose.yaml}, so tests run against the same version as local
- * development.
+ * development. Its data lives in memory and initdb does not sync it to disk, so the container
+ * starts quickly also while other tests' builds keep the disk busy. Starting is tried up to three
+ * times: while many containers start at once, as when the integration tests of all modules run side
+ * by side, Docker may pick a host port that another process takes before Docker can bind it.
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
@@ -26,7 +30,15 @@ public class TestcontainersConfiguration {
   @Bean
   @ServiceConnection
   PostgreSQLContainer postgresContainer() {
-    return new PostgreSQLContainer(DockerImageName.parse(composePostgresImage()));
+    return newPostgres();
+  }
+
+  /** A PostgreSQL container as described above, not started, for tests that start their own. */
+  static PostgreSQLContainer newPostgres() {
+    return new PostgreSQLContainer(DockerImageName.parse(composePostgresImage()))
+        .withEnv("POSTGRES_INITDB_ARGS", "--no-sync")
+        .withTmpFs(Map.of("/var/lib/postgresql", "rw"))
+        .withStartupAttempts(3);
   }
 
   static String composePostgresImage() {

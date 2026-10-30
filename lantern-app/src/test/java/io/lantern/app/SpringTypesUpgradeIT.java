@@ -19,7 +19,6 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -43,9 +42,7 @@ class SpringTypesUpgradeIT {
 
   @Test
   void anExistingDatabaseGetsTheJobTypesAsOneRevision() throws IOException {
-    try (PostgreSQLContainer postgres =
-        new PostgreSQLContainer(
-            DockerImageName.parse(TestcontainersConfiguration.composePostgresImage()))) {
+    try (PostgreSQLContainer postgres = TestcontainersConfiguration.newPostgres()) {
       postgres.start();
       DriverManagerDataSource dataSource =
           new DriverManagerDataSource(
