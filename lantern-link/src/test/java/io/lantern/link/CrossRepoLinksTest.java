@@ -839,6 +839,140 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aSendInALibraryBundledBySeveralUnitsIsTheirsWhoCallIt() {
+    type("lib", "messaging-lib", "l.Messages");
+    messaging(
+        "lib",
+        "l.Messages#send()",
+        MessagingExtractor.SEND,
+        "notify.send",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        30);
+    // Nothing calls the heartbeat, so it runs in every unit bundling the library.
+    messaging(
+        "lib",
+        "l.Messages#heartbeat()",
+        MessagingExtractor.SEND,
+        "heartbeat",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        40);
+    calls("lib", "l.Messages#toUser()", "l.Messages#send()");
+    unit("a", "shop", "shop");
+    bundled("a", "shop", "messaging-lib");
+    type("a", "shop", "s.Orders");
+    calls("a", "s.Orders#place()", "l.Messages#toUser()");
+    unit("b", "admin", "admin");
+    bundled("b", "admin", "messaging-lib");
+
+    assertThat(derive(CrossRepoLinks.PUBLISHES))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:admin PUBLISHES queue:rabbitmq:heartbeat",
+            "service:g:shop PUBLISHES queue:rabbitmq:heartbeat",
+            "service:g:shop PUBLISHES queue:rabbitmq:notify.send");
+  }
+
+  @Test
+  void aCallThroughAnInterfaceOrAnInheritedMethodReachesALibrarysSend() {
+    type("lib", "messaging-lib", "l.Messages");
+    type("lib", "messaging-lib", "l.Api");
+    type("lib", "messaging-lib", "l.Base");
+    messaging(
+        "lib",
+        "l.Messages#send()",
+        MessagingExtractor.SEND,
+        "notify.send",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        30);
+    messaging(
+        "lib",
+        "l.Base#audit()",
+        MessagingExtractor.SEND,
+        "audit",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        31);
+    relation("lib", "l.Messages", BuiltInTypes.IMPLEMENTS, "l.Api");
+    relation("lib", "l.Messages", BuiltInTypes.EXTENDS, "l.Base");
+    unit("a", "shop", "shop");
+    bundled("a", "shop", "messaging-lib");
+    type("a", "shop", "s.Orders");
+    // shop calls the interface's method, which l.Messages implements.
+    calls("a", "s.Orders#place()", "l.Api#send()");
+    unit("b", "admin", "admin");
+    bundled("b", "admin", "messaging-lib");
+    type("b", "admin", "b.Audit");
+    // admin calls the method l.Messages inherits from l.Base.
+    calls("b", "b.Audit#run()", "l.Messages#audit()");
+
+    assertThat(derive(CrossRepoLinks.PUBLISHES))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:admin PUBLISHES queue:rabbitmq:audit",
+            "service:g:shop PUBLISHES queue:rabbitmq:notify.send");
+  }
+
+  @Test
+  void aLibrarysSendStaysWithASingleUnitAndWithTheUnitWhoseOwnModuleDeclaresIt() {
+    // One unit runs the library: it sends, though nothing calls the method. (With one unit the
+    // result is that unit either way; unitsCalling only skips the call search for it.)
+    type("lib", "messaging-lib", "l.Messages");
+    messaging(
+        "lib",
+        "l.Messages#send()",
+        MessagingExtractor.SEND,
+        "notify.send",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        30);
+    unit("a", "shop", "shop");
+    bundled("a", "shop", "messaging-lib");
+    // worker's own module declares a send that shop, which bundles worker as a library, calls.
+    unit("w", "worker", "worker");
+    type("w", "worker", "w.Jobs");
+    messaging(
+        "w",
+        "w.Jobs#done()",
+        MessagingExtractor.SEND,
+        "jobs.done",
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
+        12);
+    bundled("a", "shop", "worker");
+    type("a", "shop", "s.Orders");
+    calls("a", "s.Orders#place()", "w.Jobs#done()");
+
+    assertThat(derive(CrossRepoLinks.PUBLISHES))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly(
+            "service:g:shop PUBLISHES queue:rabbitmq:jobs.done",
+            "service:g:shop PUBLISHES queue:rabbitmq:notify.send",
+            "service:g:worker PUBLISHES queue:rabbitmq:jobs.done");
+  }
+
+  private void relation(String repo, String from, String predicate, String to) {
+    add(
+        JavaExtractor.NAME,
+        "type:" + from,
+        predicate,
+        FactObject.entity(EntityId.parse("type:" + to)),
+        null,
+        repo + ":src/main/java/" + from.replace('.', '/') + ".java#3",
+        1.0);
+  }
+
+  private void calls(String repo, String from, String to) {
+    add(
+        JavaExtractor.NAME,
+        "method:" + from,
+        BuiltInTypes.CALLS,
+        FactObject.entity(EntityId.parse("method:" + to)),
+        null,
+        repo
+            + ":src/main/java/"
+            + from.substring(0, from.indexOf('#')).replace('.', '/')
+            + ".java#9",
+        1.0);
+  }
+
+  @Test
   void kafkaTopicsMatchByNameOrByAListenersPatternAndJmsByDestination() {
     unit("p", "payments", "payments");
     type("p", "payments", "p.Publisher");

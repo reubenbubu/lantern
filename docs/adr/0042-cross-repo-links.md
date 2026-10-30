@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), pending the user's review (#24)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), pending the user's review (#24)
 
 ## Context
 
@@ -134,3 +134,20 @@ its path is known, and what is matched when.
   without builds; DB-5's table access needs the build (ADR 0036). It runs when
   `lantern.test.project0` is set, with the same command as `Project0BuildIT` (see Commands in
   `CLAUDE.md`) but `-pl lantern-link` and `-Dit.test=Project0LinksIT`.
+
+## Amendment (#265): a send in a shared library is its callers'
+
+Once JitPack coordinates are matched (ADR 0006, amendment for #265), project-4's four services all
+bundle crm-shared-lib's `messaging` module, whose `MessagingService` sends to
+`notification-service.send-message`. Taking every unit that runs the code as a sender drew four
+senders where only main-service calls the service.
+
+- **The senders of a send in library code** are, of the units running it, those whose own module
+  declares it or that run other code calling its method, directly or through other methods (the
+  Java extractor's `CALLS`). A call may point at the method as an interface or a supertype
+  declares it, or as a subtype inherits it, so the callers of a method include those of the same
+  signature on its type's supertypes and subtypes (`EXTENDS`, `IMPLEMENTS`), as the sequence
+  flows resolve dispatch. When none of them calls it (it runs from a listener or a schedule of
+  the library, say), or only one unit runs it, every unit running it sends, as before. Listeners
+  and bindings are unchanged.
+- The step's version becomes 6.

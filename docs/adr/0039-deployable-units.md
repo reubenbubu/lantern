@@ -1,6 +1,6 @@
 # 0039: Deployable units
 
-Status: accepted (#93), pending the user's review (#24)
+Status: accepted (#93), amended (#265), pending the user's review (#24)
 
 ## Context
 
@@ -98,3 +98,20 @@ are decided.
   runs when `lantern.test.project0` is set (see Commands in `CLAUDE.md`).
   `LinkerIT` checks both cases where a derived fact must stop holding: a library bundled by a
   service analyzed later, and a name changed in a carried-forward service's library.
+
+## Amendment (#265): the version each unit bundles, and version skew
+
+A library's code is analyzed at its repository's commit, but each unit that bundles it gets the
+version its dependency asks for. In project-4 the four services ask for crm-shared-lib 0.2.0,
+0.2.1, 0.2.5 and 0.3.0 (all `-SNAPSHOT`), while the repository builds 0.3.0-SNAPSHOT.
+
+- **`version-skew`**, a new attribute fact on a bundled library whose units ask for a version other
+  than the one its module declares at the snapshot's commit (its `version` fact): the value is
+  that version, with `pins` (each bundling unit's version, by unit ID: the version its dependency
+  on the library names, or for a library bundled through others the one the library before it
+  asks for; units whose dependency names no version are left out) and `versions` (the distinct versions asked for). Its evidence is
+  the library's version declaration, its confidence the lowest of the facts it comes from. A
+  library every unit asks for at its own version gets none, and `BUNDLES` is unchanged, so a
+  snapshot without skew gets the same facts as before. The findings page (#273) reads it for its
+  version-skew risk.
+- The step's version becomes 2.

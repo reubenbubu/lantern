@@ -52,7 +52,7 @@ public final class DeployableUnits implements LinkStep {
   public static final String NAME = "deployable-units";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "deployable-units";
@@ -68,6 +68,12 @@ public final class DeployableUnits implements LinkStep {
 
   /** Relationship: a deployable unit ships an in-set library. */
   public static final String BUNDLES = "BUNDLES";
+
+  /**
+   * Attribute: the units that bundle an in-set library ask for versions other than the one its
+   * repository builds at the snapshot's commit.
+   */
+  public static final String VERSION_SKEW = "version-skew";
 
   /** Confidence of a unit found from an application class alone, relative to that class's fact. */
   static final double LIBRARY_UNIT_FACTOR = 0.8;
@@ -123,9 +129,11 @@ public final class DeployableUnits implements LinkStep {
     Index index = new Index(facts);
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> derived = new LinkedHashMap<>();
-    for (Unit unit : units(index)) {
+    List<Unit> units = units(index);
+    for (Unit unit : units) {
       unit.facts(index, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
     }
+    versionSkew(units, index, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
     return derived.values().stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
@@ -182,8 +190,13 @@ public final class DeployableUnits implements LinkStep {
   // ---------------------------------------------------------------------------------------------
   // A unit
 
-  /** A library a unit bundles, found through the dependency that leads to it from the unit. */
-  private record Bundled(EntityId library, EntityId module, Fact first, List<EntityId> via) {}
+  /**
+   * A library a unit bundles, found through the dependency that leads to it from the unit ({@code
+   * first}); {@code reached} is the dependency on the library itself, whose version is the one the
+   * unit gets.
+   */
+  private record Bundled(
+      EntityId library, EntityId module, Fact first, Fact reached, List<EntityId> via) {}
 
   /** One deployable unit and what it is made of. */
   private static final class Unit {
@@ -497,13 +510,68 @@ public final class DeployableUnits implements LinkStep {
           continue;
         }
         Fact first = step.first() == null ? dep : step.first();
-        bundled.add(new Bundled(contains.subject(), target, first, step.via()));
+        bundled.add(new Bundled(contains.subject(), target, first, dep, step.via()));
         List<EntityId> via = new ArrayList<>(step.via());
         via.add(contains.subject());
         queue.add(new Step(target, first, List.copyOf(via)));
       }
     }
     return bundled;
+  }
+
+  /**
+   * A {@code version-skew} fact for each in-set library that a unit bundles at a version other than
+   * the one its module declares at the snapshot's commit: the library's version, with the version
+   * each unit that bundles it asks for. Units whose dependency names no version are left out. The
+   * evidence is the library's own version declaration.
+   */
+  private static List<Fact> versionSkew(List<Unit> units, Index index, Validity validity) {
+    Map<EntityId, Map<EntityId, Fact>> pins = new TreeMap<>(Comparator.comparing(Object::toString));
+    Map<EntityId, EntityId> moduleOf = new HashMap<>();
+    for (Unit unit : units) {
+      for (Bundled b : unit.bundled) {
+        if (text(b.reached(), "version") != null) {
+          pins.computeIfAbsent(
+                  b.library(), l -> new TreeMap<>(Comparator.comparing(Object::toString)))
+              .putIfAbsent(unit.id, b.reached());
+          moduleOf.putIfAbsent(b.library(), b.module());
+        }
+      }
+    }
+    List<Fact> facts = new ArrayList<>();
+    pins.forEach(
+        (library, byUnit) -> {
+          Fact built = index.moduleVersion.get(moduleOf.get(library));
+          if (built == null) {
+            return;
+          }
+          String version = built.object().value();
+          if (byUnit.values().stream().allMatch(f -> version.equals(text(f, "version")))) {
+            return;
+          }
+          ObjectNode attributes = FactJson.newObject();
+          ObjectNode byUnitVersion = attributes.putObject("pins");
+          Set<String> versions = new TreeSet<>();
+          double confidence = built.confidence();
+          for (Map.Entry<EntityId, Fact> pin : byUnit.entrySet()) {
+            String pinned = text(pin.getValue(), "version");
+            byUnitVersion.put(pin.getKey().toString(), pinned);
+            versions.add(pinned);
+            confidence = Math.min(confidence, pin.getValue().confidence());
+          }
+          ArrayNode list = attributes.putArray("versions");
+          versions.forEach(list::add);
+          facts.add(
+              fact(
+                  library,
+                  VERSION_SKEW,
+                  FactObject.string(version),
+                  attributes,
+                  built.evidence(),
+                  confidence,
+                  validity));
+        });
+    return facts;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -527,6 +595,9 @@ public final class DeployableUnits implements LinkStep {
     final Map<EntityId, Fact> parent = new HashMap<>();
 
     final Map<EntityId, Fact> javaRelease = new HashMap<>();
+
+    /** A module's {@code version} fact: the version its POM declares. */
+    final Map<EntityId, Fact> moduleVersion = new HashMap<>();
 
     /** A module's {@code config-value} facts. */
     final Map<EntityId, List<Fact>> config = new HashMap<>();
@@ -577,6 +648,12 @@ public final class DeployableUnits implements LinkStep {
           case MavenExtractor.PARENT -> parent.merge(f.subject(), f, DeployableUnits::first);
           case MavenExtractor.JAVA_RELEASE ->
               javaRelease.merge(f.subject(), f, DeployableUnits::first);
+          case MavenExtractor.VERSION_ATTRIBUTE -> {
+            if (extractor.equals(MavenExtractor.NAME)
+                && f.subject().type().equals(BuiltInTypes.MODULE)) {
+              moduleVersion.merge(f.subject(), f, DeployableUnits::first);
+            }
+          }
           case ConfigExtractor.CONFIG_VALUE ->
               config.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
           case SpringExtractor.MAIN_CLASS -> {
