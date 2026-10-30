@@ -15,7 +15,9 @@ changes them. This file covers only how you work.
 ## How work is organized
 
 - Tasks are GitHub issues in `reubenbubu/lantern`. Phases, or their parts (2A to 2E), are
-  milestones.
+  milestones. Every issue is written to a template in `.github/ISSUE_TEMPLATE/`: `fix.md` for
+  what Lantern does wrong, `feature.md` for what it cannot do yet, chores and foundations (a
+  test drop excepted); every issue has a milestone, and `Later` holds what no phase has taken yet.
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
   which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
   picks up an issue without one writes it first. A PR runs Lantern on those sets only; the
@@ -102,7 +104,7 @@ Every piece of information lives in exactly one place. Link to it; never copy it
 | The quality standard the output must meet, and the evidence behind it | `docs/quality-bar.md` |
 | What to build to meet it | `docs/design.md` |
 | How to work | This file |
-| Tasks, status, progress | GitHub issues and milestones |
+| Tasks, status, progress | GitHub issues (written to `.github/ISSUE_TEMPLATE/`) and milestones |
 | Decisions made while building | `docs/adr/NNNN-title.md` |
 | Document templates and specifications | `report-specs/` (one folder per document: template, schema, sample data) |
 | Build and test commands | The Commands section below |
