@@ -7,7 +7,9 @@
   <!--
     Fixture for the gateway extractor, never built: edge is a Spring Cloud Gateway with routes in
     code (RouteLocatorBuilder) and in config, and filters that are beans, applied by routes, or
-    neither.
+    neither; legacy is a Netflix Zuul proxy with routes in config; finder turns on the discovery
+    locator; classic is a Zuul proxy that keeps its global prefix, with the locator under the old
+    prefix.
   -->
   <groupId>com.example.edge</groupId>
   <artifactId>edge-parent</artifactId>
@@ -16,5 +18,8 @@
 
   <modules>
     <module>edge</module>
+    <module>legacy</module>
+    <module>finder</module>
+    <module>classic</module>
   </modules>
 </project>
