@@ -234,8 +234,9 @@ function matchElements(report, reference, aliases) {
     byName.set(`${element.kind}:${normalizeName(id)}`, id);
     // A reference element the alias table allows in other kinds too matches by name there as well.
     for (const kind of aliases.eitherKind?.[id] ?? []) {
-      byName.set(`${kind}:${normalizeName(element.name)}`, id);
-      byName.set(`${kind}:${normalizeName(id)}`, id);
+      for (const key of [`${kind}:${normalizeName(element.name)}`, `${kind}:${normalizeName(id)}`]) {
+        if (!byName.has(key)) byName.set(key, id);
+      }
     }
   }
   for (const id of Object.keys(aliases.eitherKind ?? {})) {
