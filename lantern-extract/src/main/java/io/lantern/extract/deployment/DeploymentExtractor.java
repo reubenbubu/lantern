@@ -111,7 +111,16 @@ public final class DeploymentExtractor {
 
   /** The java launcher's options that take the next word as their value. */
   private static final Set<String> OPTION_WITH_VALUE =
-      Set.of("-cp", "-classpath", "--class-path", "-p", "--module-path", "--add-modules");
+      Set.of(
+          "-cp",
+          "-classpath",
+          "--class-path",
+          "-p",
+          "--module-path",
+          "--add-modules",
+          "--add-opens",
+          "--add-exports",
+          "--add-reads");
 
   /** Environment variable names whose values are secrets, so never recorded. */
   private static final Pattern SECRET_NAME =
@@ -228,6 +237,10 @@ public final class DeploymentExtractor {
     final Set<String> databases = new TreeSet<>();
     final Map<String, String> properties = new TreeMap<>();
     final List<String> command = new ArrayList<>();
+
+    /** SPRING_APPLICATION_JSON as written, read for its properties even when its env is masked. */
+    String applicationJson;
+
     Integer replicas;
     File file;
     int line;
@@ -247,6 +260,7 @@ public final class DeploymentExtractor {
       copy.from = from;
       copy.settings.env.putAll(settings.env);
       copy.settings.masked.addAll(settings.masked);
+      copy.settings.applicationJson = settings.applicationJson;
       copy.exposes.addAll(exposes);
       copy.entrypoint = entrypoint;
       copy.shellEntrypoint = shellEntrypoint;
@@ -535,7 +549,7 @@ public final class DeploymentExtractor {
         // A variable such as $JAVA_OPTS holds options too.
         while (i < words.size() && (words.get(i).startsWith("-") || words.get(i).startsWith("$"))) {
           String w = words.get(i++);
-          if (w.equals("-jar")) {
+          if (w.equals("-jar") || w.equals("-m") || w.equals("--module")) {
             break;
           }
           if (OPTION_WITH_VALUE.contains(w)) {
@@ -564,7 +578,7 @@ public final class DeploymentExtractor {
         }
       }
       jvmOptions.stream().filter(w -> w.startsWith("-D")).forEach(w -> commandProperty(c, w));
-      String json = c.env.get("SPRING_APPLICATION_JSON");
+      String json = c.applicationJson;
       if (json != null && Yaml.load(json) instanceof Map<?, ?> tree) {
         applicationJson(c, "", tree);
       }
@@ -1547,6 +1561,9 @@ public final class DeploymentExtractor {
     private void putEnv(Found c, String name, String value) {
       if (name == null || value == null) {
         return;
+      }
+      if (name.equals("SPRING_APPLICATION_JSON")) {
+        c.applicationJson = value;
       }
       if (SECRET_NAME.matcher(name).matches()) {
         c.masked.add(name);

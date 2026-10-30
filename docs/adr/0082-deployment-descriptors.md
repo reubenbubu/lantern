@@ -118,32 +118,34 @@ Extractor `deployment` version 2.
 
 - **Environment.** A compose service's `env_file` (a path, a list, or entries with `path`, read
   relative to the compose file) is part of its environment; `environment` wins over it. A
-  Dockerfile's `ENV` (both forms) counts for the final stage: a `FROM <stage>` inherits that
-  stage's `ENV`, `EXPOSE`, `ENTRYPOINT` and `CMD`, while any other `FROM` starts afresh, so a build
-  stage's settings are not the runtime image's.
-- **Command lines.** A container's command is read from the Dockerfile's last `ENTRYPOINT` and
-  `CMD` (exec or shell form; `ENTRYPOINT` resets an inherited `CMD`, not one set in its own stage, and a
-  shell-form `ENTRYPOINT` ignores `CMD`), compose `entrypoint` and `command`, and
-  Kubernetes `command` and `args` with `$(VAR)` filled from its `env`. An `sh -c` script is split
-  into words. On a `java` command line, `-D` options count only before the main class or `-jar`'s
-  file, and `--` arguments only after it, so `--add-opens` is not a property. The command counts only when it runs Java, or when it is bare arguments (its first
-  word starts with `-`) to an image that is not a known product, so a Redis `--requirepass` is not
-  a Spring setting.
+  Dockerfile's `ENV` (both forms) counts for the final stage: a `FROM <stage>` inherits that stage's
+  `ENV`, `EXPOSE`, `ENTRYPOINT` and `CMD`, while any other `FROM` starts afresh, so a build stage's
+  settings are not the runtime image's.
+- **Command lines.** A container's command is read from the Dockerfile's last `ENTRYPOINT` and `CMD`
+  (exec or shell form; `ENTRYPOINT` resets an inherited `CMD`, not one set in its own stage, and a
+  shell-form `ENTRYPOINT` ignores `CMD`), compose `entrypoint` and `command`, and Kubernetes
+  `command` and `args` with `$(VAR)` filled from its `env`. An `sh -c` script is split into words.
+  On a `java` command line, `-D` options count only before the main class or `-jar`'s file, and `--`
+  arguments only after it, so `--add-opens` is not a property. The command counts only when it runs
+  Java, or when it is bare arguments (its first word starts with `-`) to an image that is not a
+  known product, so a Redis `--requirepass` is not a Spring setting.
 - **Spring properties and profiles.** Each `deployment-container` and `dockerfile` fact gets
-  `properties`: the Spring properties its deployment sets, in Spring's order, lowest first:
-  `-D` options in `JAVA_TOOL_OPTIONS` and `JDK_JAVA_OPTIONS` (and in `JAVA_OPTS` only when the
-  command expands it), the command's `-D` words, `SPRING_APPLICATION_JSON` flattened to keys, the
-  command's `--` words. `activeProfiles` is `spring.profiles.active` from those properties, else
+  `properties`: the Spring properties its deployment sets, in Spring's order, lowest first: `-D`
+  options in `JAVA_TOOL_OPTIONS` and `JDK_JAVA_OPTIONS` (and in `JAVA_OPTS` only when the command
+  expands it), the command's `-D` words, `SPRING_APPLICATION_JSON` flattened to keys, the command's
+  `--` words. `activeProfiles` is `spring.profiles.active` from those properties, else
   `SPRING_PROFILES_ACTIVE`. Values with unresolved `${...}` or `$(...)` are kept as written, for the
   linker to fill; `activeProfiles` leaves them out. Secret keys and values are masked as for the
-  environment, a JSON `"password": ...` included, and a known product's image (Kafka, Keycloak)
-  gets no properties from its JVM option variables.
-- **Routes.** A `deployment-route` fact is recorded for each path of an Ingress rule and its default backend (with the
-  pre-1.22 `serviceName`/`servicePort` and `spec.backend` forms too) and each match of an HTTPRoute rule (a rule
-  without matches, or a match without a path, is PathPrefix `/`). Its value is the host, or `*`, followed by the path; it
-  records the platform, environment, kind and name, the ingress class or Gateway, host, path, path
-  type, backend Service and port, and the rewrite set by `nginx.ingress.kubernetes.io/rewrite-target`
-  or a `URLRewrite` filter. It cites the path's line.
+  environment, a JSON `"password": ...` included, and a known product's image (Kafka, Keycloak) gets
+  no properties from its JVM option variables.
+- **Routes.** A `deployment-route` fact is recorded for each path of an Ingress rule and its default
+  backend (with the pre-1.22 `serviceName`/`servicePort` and `spec.backend` forms too) and each
+  match of an HTTPRoute rule (a rule without matches, or a match without a path, is PathPrefix `/`).
+  Its value is the host, or `*`, followed by the path; it records the platform, environment, kind
+  and name, the ingress class or Gateway, host, path, path type, backend Service and port, and the
+  rewrite set by `nginx.ingress.kubernetes.io/rewrite-target` or a `URLRewrite` filter. It cites the
+  path's line.
 - **Not yet linked.** Using a container's properties and profiles when layering its unit's config,
-  and tying routes to units, is the linker's (#502, #503); images built by Jib or `build-image` (#504) and compose override files and `extends` (#505) follow too; this version records the
-  facts only, so the report does not change yet.
+  and tying routes to units, is the linker's (#502, #503); images built by Jib or `build-image`
+  (#504) and compose override files and `extends` (#505) follow too; this version records the facts
+  only, so the report does not change yet.
