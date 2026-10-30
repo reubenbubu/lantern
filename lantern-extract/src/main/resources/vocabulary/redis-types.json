@@ -10,7 +10,7 @@
   {
     "name": "redis-use",
     "kind": "attribute",
-    "description": "The subject (a method, a type or a module) uses Redis in the way the value names: template (operations on Redis through a Spring Data Redis template), hash (a @RedisHash type kept as Redis hashes), session (Spring Session's Redis store), rate-limiter (the gateway's RedisRateLimiter), lock (a Redis lock registry), cache (a Redis cache manager or spring.cache.type=redis), pubsub (publishing or subscribing to channels) or client (a Redis client among the module's dependencies). Which server is the config's; the linker matches them.",
+    "description": "The subject (a method, a type or a module) uses Redis in the way the value names: template (operations on Redis through a Spring Data Redis template), hash (a @RedisHash type kept as Redis hashes), session (Spring Session's Redis store), rate-limiter (the gateway's RedisRateLimiter), lock (a Redis lock registry), cache (a Redis cache manager, spring.cache.type=redis, @EnableCaching, or a Spring or JCache cache annotation or Cache call in a module whose cache provider is Redis), pubsub (publishing or subscribing to channels) or client (a Redis client among the module's dependencies). Which server is the config's; the linker matches them.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -64,6 +64,10 @@
         "configKey": {
           "type": "string",
           "description": "The config key that shows the use."
+        },
+        "cache": {
+          "type": "string",
+          "description": "The Spring cache a cache annotation or call names (constants folded), kept in Redis under <cache>::<key>."
         }
       },
       "additionalProperties": false

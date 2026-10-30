@@ -63,6 +63,8 @@ final class TrackedApis {
           "org.springframework.data.redis.listener.",
           "org.springframework.integration.redis.util.",
           "org.springframework.cloud.gateway.filter.ratelimit.",
+          // Spring's cache abstraction (the Redis extractor): caches named in code.
+          "org.springframework.cache.",
           // Spring Cloud Gateway (the gateway extractor): routes built with RouteLocatorBuilder.
           "org.springframework.cloud.gateway.",
 
