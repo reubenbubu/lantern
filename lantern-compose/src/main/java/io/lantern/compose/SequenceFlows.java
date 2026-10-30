@@ -75,6 +75,7 @@ final class SequenceFlows {
   private static final String STOMP_SEND = "stomp-send";
   private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
   private static final String STOMP_INTERCEPTOR = "stomp-interceptor";
+  private static final String ROUTED_ENDPOINT = "routed-endpoint";
   private static final String BACKGROUND_JOB = "background-job";
   private static final String PROFILE_GATE = "profile-gate";
   private static final String SENDS_MESSAGES_TO = "SENDS_MESSAGES_TO";
@@ -120,6 +121,19 @@ final class SequenceFlows {
   private final Map<String, Start> starts = new HashMap<>();
 
   /**
+   * How a flow starts at a gateway that routes a client's request to its endpoint (ADR 0047,
+   * amendment for #351).
+   *
+   * @param routed the gateway's {@code routed-endpoint} fact: the request as the gateway receives
+   *     it, and as the unit serves it
+   * @param route the gateway's route link to the unit; null for the discovery locator
+   */
+  private record GatewayStart(EntityId gateway, Fact routed, Fact route) {}
+
+  /** The gateways' {@code routed-endpoint} facts, by the unit and handler method they reach. */
+  private final Map<String, List<Fact>> routedEndpoints = new HashMap<>();
+
+  /**
    * @param units the deployable units in scope; flows that start in or pass through one are shown
    */
   SequenceFlows(Knowledge knowledge, Assembler assembler, C4Views c4, Set<EntityId> units) {
@@ -141,6 +155,55 @@ final class SequenceFlows {
     for (EntityId frontend : C4Views.frontends(knowledge)) {
       starts(frontend);
     }
+    for (EntityId gateway : C4Views.units(knowledge)) {
+      for (Fact fact : knowledge.attributes(gateway)) {
+        if (fact.predicate().equals(ROUTED_ENDPOINT)
+            && attribute(fact, "profile") == null
+            && attribute(fact, "target") != null
+            && attribute(fact, "endpoint") != null) {
+          routedEndpoints
+              .computeIfAbsent(
+                  attribute(fact, "target") + " " + attribute(fact, "endpoint"),
+                  k -> new ArrayList<>())
+              .add(fact);
+        }
+      }
+    }
+  }
+
+  /**
+   * How a flow that starts at an endpoint, not in a browser, starts at a gateway that routes a
+   * client's request to it: through a route before the discovery locator, then by the gateway's ID
+   * and the request; null when no gateway routes to it.
+   */
+  private GatewayStart gatewayStart(Entry entry) {
+    if (!entry.fact.predicate().equals(ENDPOINT)) {
+      return null;
+    }
+    Fact routed =
+        routedEndpoints.getOrDefault(entry.key(), List.of()).stream()
+            .filter(f -> C4Views.strings(f, "facts").contains(entry.fact.id()))
+            .min(
+                Comparator.comparing((Fact f) -> "true".equals(attribute(f, "discoveryLocator")))
+                    .thenComparing(f -> f.subject().toString())
+                    .thenComparing(f -> f.object().value()))
+            .orElse(null);
+    if (routed == null) {
+      return null;
+    }
+    String id = attribute(routed, "route");
+    Fact route =
+        id == null
+            ? null
+            : knowledge.relations(routed.subject(), C4Views.CALLS_HTTP).stream()
+                .filter(
+                    f ->
+                        !alternatives.contains(f)
+                            && Knowledge.object(f).equals(entry.unit)
+                            && id.equals(attribute(f, "route")))
+                .findFirst()
+                .orElse(null);
+    return new GatewayStart(routed.subject(), routed, route);
   }
 
   /**
@@ -262,6 +325,9 @@ final class SequenceFlows {
     /** How the browser starts the flow; null when it starts at its entry point. */
     final Start start;
 
+    /** How a gateway starts the flow, when the browser does not; null when none does. */
+    final GatewayStart gateway;
+
     List<Item> items = new ArrayList<>();
     final Set<EntityId> participants = new LinkedHashSet<>();
 
@@ -307,6 +373,7 @@ final class SequenceFlows {
     Trace(Entry entry) {
       this.entry = entry;
       this.start = starts.get(entry.key());
+      this.gateway = start == null ? gatewayStart(entry) : null;
       if (start != null) {
         if (start.person != null) {
           participants.add(start.person);
@@ -315,6 +382,9 @@ final class SequenceFlows {
         if (start.via != null) {
           participants.add(start.via);
         }
+      }
+      if (gateway != null) {
+        participants.add(gateway.gateway());
       }
       participants.add(entry.unit);
     }
@@ -586,6 +656,8 @@ final class SequenceFlows {
     Trace trace = new Trace(entry);
     if (trace.start != null) {
       browser(trace);
+    } else if (trace.gateway != null) {
+      gateway(trace);
     }
     sync(trace, entry.unit, entry.method, List.of());
     if (entry.fact.predicate().equals(WEBSOCKET_ENDPOINT)) {
@@ -680,6 +752,50 @@ final class SequenceFlows {
         null,
         route == null ? List.of() : profiles(route, List.of()),
         routeInfo.toString(),
+        facts,
+        plain,
+        plainFacts);
+  }
+
+  /**
+   * The step before the entry point when a gateway starts the flow: the gateway routing the request
+   * it receives to the unit, with the request as the unit serves it.
+   */
+  private void gateway(Trace trace) {
+    GatewayStart start = trace.gateway;
+    Entry entry = trace.entry;
+    List<Fact> facts = new ArrayList<>(withEnds(start.routed()));
+    if (start.route() != null) {
+      facts.addAll(withEnds(start.route()));
+    }
+    List<Fact> plainFacts = List.copyOf(facts);
+    String plain = "Routes to " + methodName(entry.method);
+    StringBuilder info = new StringBuilder();
+    String url = attribute(start.routed(), "url");
+    if (attribute(start.routed(), "route") != null) {
+      info.append("Route ").append(attribute(start.routed(), "route"));
+      if (url != null) {
+        info.append(" to ").append(url);
+      }
+    } else {
+      info.append("Through the discovery locator");
+      if (url != null) {
+        info.append(", to ").append(url);
+      }
+    }
+    info.append('.');
+    Assembler.Phrased phrase = start.route() == null ? null : assembler.phrase(start.route());
+    if (phrase != null) {
+      facts.addAll(phrase.facts());
+    }
+    trace.message(
+        start.gateway(),
+        entry.unit,
+        phrase != null ? phrase.text() : plain,
+        attribute(start.routed(), "served"),
+        null,
+        start.route() == null ? List.of() : profiles(start.route(), List.of()),
+        info.toString(),
         facts,
         plain,
         plainFacts);
@@ -1483,7 +1599,9 @@ final class SequenceFlows {
     List<Trace> candidates = new ArrayList<>();
     for (Entry entry : entries) {
       Trace trace = trace(entry);
-      if (trace.messages > 0 || trace.pushes > 0 || !trace.unresolved.isEmpty()) {
+      // The gateway's routing to the entry point is no step of the flow's own.
+      int own = trace.messages - (trace.gateway == null ? 0 : 1);
+      if (own > 0 || trace.pushes > 0 || !trace.unresolved.isEmpty()) {
         candidates.add(trace);
       }
     }
@@ -1524,11 +1642,16 @@ final class SequenceFlows {
    * a browser, and reaches nothing but databases.
    */
   private boolean crud(Trace trace) {
+    EntityId gateway = trace.gateway == null ? null : trace.gateway.gateway();
     return trace.start == null
         && trace.pushes == 0
         && trace.unresolved.isEmpty()
         && trace.participants.stream()
-            .allMatch(p -> p.equals(trace.entry.unit) || p.type().equals(C4Views.DATABASE));
+            .allMatch(
+                p ->
+                    p.equals(trace.entry.unit)
+                        || p.equals(gateway)
+                        || p.type().equals(C4Views.DATABASE));
   }
 
   /**
@@ -1658,10 +1781,18 @@ final class SequenceFlows {
   private Heading heading(Trace trace) {
     Heading heading = heading(trace.entry);
     Start start = trace.start;
+    Entry entry = trace.entry;
+    if (start == null && trace.gateway != null) {
+      String request = trace.gateway.routed().object().value();
+      String gateway = nameOf(trace.gateway.gateway());
+      return new Heading(
+          request + " on " + gateway,
+          request + " to " + gateway + " (" + methodName(entry.method) + ")",
+          gateway + " receives " + request + " and routes it to " + nameOf(entry.unit));
+    }
     if (start == null) {
       return heading;
     }
-    Entry entry = trace.entry;
     boolean socket = socket(start.link);
     String request = request(start.link);
     StringBuilder starts = new StringBuilder();
@@ -1926,6 +2057,9 @@ final class SequenceFlows {
     List<String> others = new ArrayList<>();
     // What starts it in the browser is named already.
     Set<EntityId> named = new HashSet<>(List.of(trace.entry.unit));
+    if (trace.gateway != null) {
+      named.add(trace.gateway.gateway());
+    }
     if (trace.start != null) {
       named.add(trace.start.frontend);
       if (trace.start.person != null) {

@@ -1280,4 +1280,97 @@ class SequenceFlowsTest {
                 new SequenceFlows.Entry(EntityId.parse(SHIP), EntityId.parse(STATUS), null)))
         .isEqualTo("Get status");
   }
+
+  /**
+   * edge routes {@code GET /api/ship/status} to ship's {@code GET /status} (StripPrefix and
+   * PrefixPath, as the linker reverses them), or, with {@code locator}, its discovery locator
+   * forwards {@code GET /SHIP/status}; the status endpoint reads ship's database, so it is a flow.
+   */
+  private void routedStatus(boolean locator) {
+    browser();
+    relate("ship", STATUS, "READS_TABLE", "table:x:ship:parcel", "{}", 3);
+    String endpoint =
+        fact("ship", STATUS, "endpoint", FactObject.string("GET /status"), "{}", 0).id();
+    attribute(
+        "edge",
+        EDGE,
+        "routed-endpoint",
+        locator ? "GET /SHIP/status" : "GET /api/ship/status",
+        "{\"target\": \""
+            + SHIP
+            + "\", \"endpoint\": \""
+            + STATUS
+            + "\", \"served\": \"GET /status\", "
+            + (locator
+                ? "\"discoveryLocator\": true, \"url\": \"lb://SHIP\","
+                : "\"route\": \"ship\", \"url\": \"lb://ship\",")
+            + " \"source\": \"module:x:edge\", \"facts\": [\""
+            + endpoint
+            + "\"]}",
+        8);
+  }
+
+  @Test
+  void aFlowWhoseEndpointAGatewayRouteForwardsToStartsAtTheGateway() {
+    routedStatus(false);
+
+    Section status =
+        flows(system(facts)).sections().stream()
+            .filter(f -> trigger(f).equals("GET /api/ship/status on edge"))
+            .findFirst()
+            .orElseThrow();
+    SequenceDiagram diagram = diagram(status);
+
+    assertThat(diagram.participants())
+        .extracting(p -> p.id().toString())
+        .containsExactly(EDGE, SHIP, "database:db:5432/ship");
+    assertThat(steps(diagram.steps()))
+        .startsWith(
+            "note []: Starts when edge receives GET /api/ship/status and routes it to ship"
+                + " (Status.get).",
+            "service:x:edge > service:x:ship: Routes to Status.get [GET /status] (Route ship to"
+                + " lb://ship.)");
+    Table trigger =
+        status.blocks().stream()
+            .filter(Table.class::isInstance)
+            .map(Table.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(trigger.rows().getFirst().cells().getFirst()))
+        .isEqualTo("GET /api/ship/status to edge (Status.get)");
+    // A flow whose endpoint no gateway routes to is unchanged: it starts at its endpoint.
+    Section order = flows(system(facts)).sections().getFirst();
+    assertThat(order.title()).isEqualTo("Place (POST /orders on front)");
+    assertThat(steps(diagram(order).steps()).getFirst())
+        .isEqualTo("note []: Starts when front receives POST /orders (Api.place).");
+  }
+
+  @Test
+  void aFlowTheDiscoveryLocatorForwardsToStartsAtTheGateway() {
+    routedStatus(true);
+
+    Section status =
+        flows(system(facts)).sections().stream()
+            .filter(f -> trigger(f).equals("GET /SHIP/status on edge"))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(steps(diagram(status).steps()))
+        .startsWith(
+            "note []: Starts when edge receives GET /SHIP/status and routes it to ship"
+                + " (Status.get).",
+            "service:x:edge > service:x:ship: Routes to Status.get [GET /status] (Through the"
+                + " discovery locator, to lb://SHIP.)");
+  }
+
+  @Test
+  void anEndpointAGatewayRoutesToThatReachesNothingIsNoFlow() {
+    routedStatus(false);
+    facts.removeIf(
+        f -> f.subject().toString().equals(STATUS) && f.predicate().equals("READS_TABLE"));
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(SequenceFlowsTest::trigger)
+        .noneMatch(t -> t.contains("/status"));
+  }
 }

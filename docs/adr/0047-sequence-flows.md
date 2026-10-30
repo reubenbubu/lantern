@@ -1,7 +1,7 @@
 # 0047: Sequence flows traced from entry points and stitched across containers
 
 Status: accepted (#96), amended by ADR 0049 (#176), ADR 0050 (#181), ADR 0058 (#195), ADR 0070
-(#250), which supersedes its choosing of flows, and the amendments below (#313, #331, #272),
+(#250), which supersedes its choosing of flows, and the amendments below (#313, #331, #272, #351),
 pending the user's review (#24)
 
 ## Context
@@ -208,9 +208,40 @@ deliveries to its own listeners, and noted fourteen times that one of `CrmExcept
 ### Not covered
 
 Branches around a send, such as an email sent only under a condition, are still drawn as always
-happening: the call graph records no conditions (#350). A flow still starts at its unit's
-endpoint when no frontend's call reaches it, not at the gateway route a client calls (#351), so
-project-1's administrator flow and project-3's watch record keep the unit's path as their
-trigger. Flows of the same shape still differ only by rank: of project-4's sign-up, password
-reset and resend, the first by ID is shown.
+happening: the call graph records no conditions (#350). A flow still started at its unit's
+endpoint when no frontend's call reached it, not at the gateway route a client calls; #351
+starts it at the gateway (amendment below). Flows of the same shape still differ only by rank:
+of project-4's sign-up, password reset and resend, the first by ID is shown.
 
+## Amendment: flows start at the gateway (#351)
+
+Status: accepted, pending the user's review (#24). A flow whose entry point no frontend's call
+reaches started at the unit's endpoint, even when a gateway route forwards to it, so its trigger
+was the unit's path, not the one a client calls: project-1's administrator creating a user
+(`POST /profile/profile/admin/users` at the gateway, `POST /api/profile/admin/users` at
+profile-service) and project-3's watch record (`POST /USER-SERVICE/api/history/watch/{u}/{m}`
+through the discovery locator).
+
+- **The linker records each endpoint a gateway forwards to** with the request as the gateway
+  receives it (`routed-endpoint`, ADR 0077, amendment for #351).
+- **A flow whose endpoint a gateway forwards to starts at the gateway**, when no frontend's call
+  starts it in the browser: a note "Starts when api-gateway receives POST
+  /profile/profile/admin/users and routes it to profile-service", then the gateway's message to
+  the unit ("Routes to <Handler.method>", or the route link's intent phrase) with the request as
+  the unit serves it as its code and the route and its URI, or the discovery locator, in its
+  text. The gateway is the first lifeline. The title's trigger is the request on the gateway
+  ("POST /profile/profile/admin/users on api-gateway") and the overview's "POST
+  /profile/profile/admin/users to api-gateway (ProfileController.createUser)". A route is taken
+  before the discovery locator, then the gateway and the request by ID.
+- **Choosing.** The gateway's message is not a step of the flow's own: an endpoint that reaches
+  nothing else is still no candidate, and a flow that reaches only its databases through the
+  gateway still comes last. The gateway adds a lifeline, so such flows touch one more container
+  when ranked.
+- **Checks.** `SequenceFlowsTest` covers a flow started through a route, one through the
+  discovery locator, a routed endpoint that reaches nothing, and a flow with no route, unchanged;
+  `CrossRepoLinksTest` the reversal of each rewrite kind and the discovery locator.
+
+### Not covered
+
+The caller of a request the gateway receives is not known, so no person or client is drawn
+before the gateway; the gateway's own filters are still not traced into the flow.
