@@ -169,6 +169,68 @@ public class Account {
 }
 ```
 
+##### summarize type type:com.example.orders.Billing
+Summarize the type Billing in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
+
+Facts:
+[F1] type:com.example.orders.Billing CONTAINS field:com.example.orders.Billing#currency
+[F2] type:com.example.orders.Billing CONTAINS field:com.example.orders.Billing#ledger
+[F3] type:com.example.orders.Billing CONTAINS field:com.example.orders.Billing#retries
+[F4] type:com.example.orders.Billing CONTAINS method:com.example.orders.Billing#<init>(com.example.orders.Ledger,java.lang.String)
+[F5] type:com.example.orders.Billing kind "class"
+
+Source files:
+[E1] src/main/java/com/example/orders/Billing.java:
+```java
+package com.example.orders;
+
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
+
+/** Fields made final by @FieldDefaults, except the one marked @NonFinal. */
+@RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public class Billing {
+
+  Ledger ledger;
+  String currency;
+  @NonFinal int retries;
+}
+```
+
+##### summarize type type:com.example.orders.Customer
+Summarize the type Customer in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
+
+Facts:
+[F1] type:com.example.orders.Customer CONTAINS field:com.example.orders.Customer#id
+[F2] type:com.example.orders.Customer CONTAINS field:com.example.orders.Customer#name
+[F3] type:com.example.orders.Customer CONTAINS method:com.example.orders.Customer#<init>()
+[F4] type:com.example.orders.Customer CONTAINS method:com.example.orders.Customer#<init>(java.lang.String,java.lang.String)
+[F5] type:com.example.orders.Customer kind "class"
+
+Source files:
+[E1] src/main/java/com/example/orders/Customer.java:
+```java
+package com.example.orders;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.NonNull;
+
+/** The usual JPA and DTO pattern: @Data adds no constructor of its own here. */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Customer {
+
+  @NonNull private String id;
+  private String name;
+}
+```
+
 ##### summarize type type:com.example.orders.Ledger
 Summarize the type Ledger in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
 
@@ -196,6 +258,32 @@ public class Ledger {
 
   private String name;
   private int size;
+}
+```
+
+##### summarize type type:com.example.orders.Money
+Summarize the type Money in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
+
+Facts:
+[F1] type:com.example.orders.Money CONTAINS field:com.example.orders.Money#cents
+[F2] type:com.example.orders.Money CONTAINS field:com.example.orders.Money#scale
+[F3] type:com.example.orders.Money CONTAINS method:com.example.orders.Money#<init>(long,int)
+[F4] type:com.example.orders.Money kind "class"
+
+Source files:
+[E1] src/main/java/com/example/orders/Money.java:
+```java
+package com.example.orders;
+
+import lombok.Value;
+import lombok.experimental.NonFinal;
+
+/** @Value with a field that stays non-final and initialized. */
+@Value
+public class Money {
+
+  long cents;
+  @NonFinal int scale = 2;
 }
 ```
 
@@ -227,6 +315,33 @@ public class Order {
   String id;
   String customer;
   @Singular List<OrderLine> lines;
+}
+```
+
+##### summarize type type:com.example.orders.OrderDto
+Summarize the type OrderDto in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
+
+Facts:
+[F1] type:com.example.orders.OrderDto CONTAINS field:com.example.orders.OrderDto#count
+[F2] type:com.example.orders.OrderDto CONTAINS field:com.example.orders.OrderDto#id
+[F3] type:com.example.orders.OrderDto CONTAINS method:com.example.orders.OrderDto#<init>(java.lang.String,int)
+[F4] type:com.example.orders.OrderDto kind "class"
+
+Source files:
+[E1] src/main/java/com/example/orders/OrderDto.java:
+```java
+package com.example.orders;
+
+import lombok.Builder;
+import lombok.Data;
+
+/** @Data with @Builder: Lombok gives no required-args constructor, only the builder's. */
+@Data
+@Builder
+public class OrderDto {
+
+  private String id;
+  private int count;
 }
 ```
 
@@ -298,22 +413,61 @@ public class OrderService {
 }
 ```
 
+##### summarize type type:com.example.orders.Status
+Summarize the type Status in package com.example.orders in 2 to 4 sentences and at most 80 words, covering its purpose, its main responsibilities and the types it works with most.
+
+Facts:
+[F1] type:com.example.orders.Status CONTAINS field:com.example.orders.Status#CLOSED
+[F2] type:com.example.orders.Status CONTAINS field:com.example.orders.Status#OPEN
+[F3] type:com.example.orders.Status CONTAINS field:com.example.orders.Status#code
+[F4] type:com.example.orders.Status CONTAINS method:com.example.orders.Status#<init>(java.lang.String)
+[F5] type:com.example.orders.Status kind "enum"
+
+Source files:
+[E1] src/main/java/com/example/orders/Status.java:
+```java
+package com.example.orders;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+/** An enum with Lombok's constructor. */
+@Getter
+@RequiredArgsConstructor
+public enum Status {
+  OPEN("o"),
+  CLOSED("c");
+
+  private final String code;
+}
+```
+
 ##### summarize package package:com.example.orders:orders:com.example.orders
 Summarize the package com.example.orders in 3 to 5 sentences and at most 120 words, covering what the package is for and its main parts.
 
 Facts:
 [F1] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Account
-[F2] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Ledger
-[F3] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Order
-[F4] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderLine
-[F5] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderService
+[F2] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Billing
+[F3] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Customer
+[F4] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Ledger
+[F5] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Money
+[F6] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Order
+[F7] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderDto
+[F8] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderLine
+[F9] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderService
+[F10] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Status
 
 Summaries of the parts it contains:
 [S1] type Account in package com.example.orders (purpose inferred): It is described by its facts.
-[S2] type Ledger in package com.example.orders (purpose inferred): It is described by its facts.
-[S3] type Order in package com.example.orders (purpose inferred): It is described by its facts.
-[S4] type OrderLine in package com.example.orders (purpose inferred): It is described by its facts.
-[S5] type OrderService in package com.example.orders (purpose inferred): It is described by its facts.
+[S2] type Billing in package com.example.orders (purpose inferred): It is described by its facts.
+[S3] type Customer in package com.example.orders (purpose inferred): It is described by its facts.
+[S4] type Ledger in package com.example.orders (purpose inferred): It is described by its facts.
+[S5] type Money in package com.example.orders (purpose inferred): It is described by its facts.
+[S6] type Order in package com.example.orders (purpose inferred): It is described by its facts.
+[S7] type OrderDto in package com.example.orders (purpose inferred): It is described by its facts.
+[S8] type OrderLine in package com.example.orders (purpose inferred): It is described by its facts.
+[S9] type OrderService in package com.example.orders (purpose inferred): It is described by its facts.
+[S10] type Status in package com.example.orders (purpose inferred): It is described by its facts.
 
 ##### summarize module module:com.example.orders:orders
 Summarize the Maven module orders in 1 to 3 sentences and at most 60 words, covering what the Maven module as a whole is for and what it adds to its only part, such as its dependencies. Do not restate the summary of that part [S1].

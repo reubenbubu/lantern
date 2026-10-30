@@ -12,7 +12,7 @@
     "vocabularyRevision" : 3,
     "toolVersion" : "0.1.0-test",
     "commits" : {
-      "orders" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4"
+      "orders" : "edaff9a77935a96294edb9799f751a51590b5fe5"
     },
     "date" : "1970-01-01"
   },
@@ -20,7 +20,7 @@
     "id" : "library:com.example.orders:orders",
     "name" : "orders",
     "parent" : "repo:orders",
-    "facts" : [ "e44fc3201978ea402203d383c6d24f2a9ca717e6b81c901830ae5816b8fefe53" ]
+    "facts" : [ "3ff80554a7fb210430f17fb02d1173e135f8d72c499c2c2806106417242e1f9d" ]
   }, {
     "id" : "module:com.example.orders:orders",
     "name" : "orders",
@@ -48,9 +48,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "e44fc3201978ea402203d383c6d24f2a9ca717e6b81c901830ae5816b8fefe53" ]
+      "facts" : [ "3ff80554a7fb210430f17fb02d1173e135f8d72c499c2c2806106417242e1f9d" ]
     } ],
-    "facts" : [ "153fc5c11a452180660d394ebd6eefd3747d382ea0e3cef164cfd37022e577c1", "44adce68fd0b7874b66e9c2136650fbe56a390a138f68873653362a8ec53d4ed", "81eaf1d6e9022fad608c8850a648c424cb6338ea77880878a6b8f1de0ba027b5" ]
+    "facts" : [ "8b36e1c0f065a2a3ce8ef69a4cc820c14530cc2b5291ecf785ba2fb0af664c48", "b69f33fe5ca8a8d818b2070cb3fd4c56e062e51a0bc9619b7163716268b4b081", "feec92f681215e8edeb80e30eba7e60298b056e42ca16e9a721307cf8687f582" ]
   }, {
     "id" : "package:com.example.orders:orders:com.example.orders",
     "name" : "com.example.orders",
@@ -78,9 +78,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "e6a3dc37c83ed6523d0361d41f903aeb0479aa54288464c983fd1a63a9e594ff" ]
+      "facts" : [ "3be8d0894a82ab0f977abca798f2e5afe96c2efa68be573e5fbac7a61fda5abc" ]
     } ],
-    "facts" : [ "9b63d3addef345b2f8c24aa733ab80cea22601901cbf7a795d930b0eb2827bcc" ]
+    "facts" : [ "38d6b776f50f45bc1c2032eb425572795e402aee5b224b7360b9038391ca3ef3" ]
   }, {
     "id" : "repo:orders",
     "name" : "orders",
@@ -107,7 +107,7 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "153fc5c11a452180660d394ebd6eefd3747d382ea0e3cef164cfd37022e577c1" ]
+      "facts" : [ "b69f33fe5ca8a8d818b2070cb3fd4c56e062e51a0bc9619b7163716268b4b081" ]
     } ],
     "facts" : [ ]
   }, {
@@ -130,9 +130,47 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "6793c03f60125883ee3055fe28064ff1afd9b1dcc2b683f41d8c7fb95a081d21" ]
+      "facts" : [ "6d8a05466a07ffe1f077f0c69d058e06e77a10feee6707f6e270dc13f3a10ea9" ]
     } ],
-    "facts" : [ "921df75afe7a91252ecf87fa469fcf2e7a6fe293ba4e8be8699536f22d8bea84", "e6a3dc37c83ed6523d0361d41f903aeb0479aa54288464c983fd1a63a9e594ff" ]
+    "facts" : [ "3b564b7066f7df8571d2d6843d32d5e3402cc1b7a94b6c713f34ffaf846f181f", "3be8d0894a82ab0f977abca798f2e5afe96c2efa68be573e5fbac7a61fda5abc" ]
+  }, {
+    "id" : "type:com.example.orders.Billing",
+    "name" : "Billing",
+    "parent" : "package:com.example.orders:orders:com.example.orders",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
+      "text" : "It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "05a2d8148b177f61c761d7f1f8bdd0588bd437ece55bb549ddfcf268d646f829" ]
+    } ],
+    "facts" : [ "06a470bbcd9e18f015d15842916820b572ad131b2e0925b377e34d39fd272ce9", "0a73029a80a91e6f4b15a25fd949cad5e046adeb3b65d73e58427bad7e4ef455" ]
+  }, {
+    "id" : "type:com.example.orders.Customer",
+    "name" : "Customer",
+    "parent" : "package:com.example.orders:orders:com.example.orders",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
+      "text" : "It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "a429c1f729bf1d8f5efd100aa4f562058bf63a8f6fc7107cfc26810e80c74072" ]
+    } ],
+    "facts" : [ "9fbe27a1fdeaf36327fd260befd290e4302fa65f3bba97d33cd2de1f5a22760b", "ed7aaf58349eb743d9040d11287a0074b8fdd122a76c12c7dedad3cf9ae6ec17" ]
   }, {
     "id" : "type:com.example.orders.Ledger",
     "name" : "Ledger",
@@ -149,9 +187,28 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "032bb318024582e6b740e9f9734210a88f3cbbc0f91835c202f8a8e81ff89725" ]
+      "facts" : [ "e4d41591fbdb4c9db1f413f17c995bef9750810cca000c0be6bebc56f5e0994f" ]
     } ],
-    "facts" : [ "5d1b54f0b56e1a3850f0b9d8ec34ca7d1eb9d3628068baadf040a79a39ffd37f", "7e7ef0441bc99cf0ebfaea163e5f48c85c8aac87fce5b7b7cd06218d0771b403" ]
+    "facts" : [ "69d3ddfa43d1a5b231b388d34fca65872071632123156c6ecf34e89461d866d0", "be07e42a3c7cae95ef0a776d0c1d72efc0083e629c23f83f92b78276218df894" ]
+  }, {
+    "id" : "type:com.example.orders.Money",
+    "name" : "Money",
+    "parent" : "package:com.example.orders:orders:com.example.orders",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
+      "text" : "It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "686450be50ae9eb39d0aece42e89f6141d9641558f46f59c65b9ace2dae446ea" ]
+    } ],
+    "facts" : [ "d54a64ab39ff97c279116015bd97e0d93c720e69db3ac07de4fd7819f3ba4637", "e55c04a356c5e7f6c8f12ec5f623710d06b14211c71a67f0cbbb200beff7b995" ]
   }, {
     "id" : "type:com.example.orders.Order",
     "name" : "Order",
@@ -168,9 +225,28 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "039da5c1f6c29267f66c6418a1202c0c0a1a648a28bd34a3e99061ac28c3b64f" ]
+      "facts" : [ "bd670396597bec35363116270544d53bbd63a266ce6a224eed39f2dd156cae8f" ]
     } ],
-    "facts" : [ "1fd8622eadec39d39491250f4fb806b424ae6c3d84019d3001a96f541a3a3ee2", "82fd57a45ca8e2f261d7e4c7af0fa496f97818d9142dcaae6c465ddcbf0c26e1" ]
+    "facts" : [ "3438c1ca1fba6d67389a951dd94c41996b7afe1aa2afc1caf9d13c765eea28cc", "5812b56656f9f86f0d6a000151d52b731269b3a9636d221374dc9b6ef38554bf" ]
+  }, {
+    "id" : "type:com.example.orders.OrderDto",
+    "name" : "OrderDto",
+    "parent" : "package:com.example.orders:orders:com.example.orders",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
+      "text" : "It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "3c0f01e38e8f463a2d001206b3804aefa179ddb79a482c58434a02f3f1bee801" ]
+    } ],
+    "facts" : [ "6a4d327da1e547582b6726abd0feffd9150fc5e6332fdf1ffe11fb6551873a11", "875c347dbf4d703c1960ee5365d17252b684672b3689a9cadf1eb1194f98d0c0" ]
   }, {
     "id" : "type:com.example.orders.OrderLine",
     "name" : "OrderLine",
@@ -187,9 +263,9 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "165eda2bf8fa0e2462da87114d761115776e9a8eebc8b1652e5cde30c18ac44a" ]
+      "facts" : [ "21ce96ff1450a337e8495642bb90af973f117ec9607878a28fc95f1a3c54022a" ]
     } ],
-    "facts" : [ "31207ab5a7e7e6d3123138b095090471c658d0bec7f3f871c4aed89dd6c9f912", "890054ac8dc5e084854371968d7bad2af5c1de931b97fa4cdaaa97aface40f31" ]
+    "facts" : [ "8cd644da8aff3ae5b2d009b1f7c50d21e5564201085a148a7a9682942a7bf8ef", "a12e51ea73971208efa5d618556fea6f0101539cab00967dfaad4ebb37b20c74" ]
   }, {
     "id" : "type:com.example.orders.OrderService",
     "name" : "OrderService",
@@ -206,479 +282,31 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "87392e422493cac4e0b1d0afe3127c6e0a58837d8380434fd656c4f48ccb3b57" ]
+      "facts" : [ "82b281f4d18c9b64e631229aecfa9389490a5d280b1d33fc2fa8f13280f0f84f" ]
     } ],
-    "facts" : [ "ae6e22d03f85c54e49f9bb3d9c2e51ef36226d10bceba1fb30eab8d5430a7cca", "c0769a00f8c233482e46259b7e1cd6d75c99074804d7b769efc2b434dbc75d0e" ]
+    "facts" : [ "67bcfc49b4038ca9eab162e69a91963e96e05ca88a3c923cbfa652175a8350dd", "9dc714427f3f4cf24b6650888879121e4e9452785294f1dea28edc83ea87db57" ]
+  }, {
+    "id" : "type:com.example.orders.Status",
+    "name" : "Status",
+    "parent" : "package:com.example.orders:orders:com.example.orders",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Purpose inferred from the code:",
+      "style" : "emphasis"
+    }, {
+      "kind" : "text",
+      "text" : " "
+    }, {
+      "kind" : "text",
+      "text" : "It is described by its facts."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "9e9969ed34f8d2cb660cef289bf4fc116ae0cae40914c4e26526812e9c1116fd" ]
+    } ],
+    "facts" : [ "779a0cee5520d9e01e894dfeb1952699936663c7eef4e9f12150585124541370", "e399dd7a51e3fd2b131f36531b59289bcedfabb1f5e5ed4fdc060f4a74dd2122" ]
   } ],
   "facts" : [ {
-    "id" : "032bb318024582e6b740e9f9734210a88f3cbbc0f91835c202f8a8e81ff89725",
-    "subject" : "type:com.example.orders.Ledger",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "field:com.example.orders.Ledger#name"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/Ledger.java",
-      "lines" : {
-        "start" : 13,
-        "end" : 13
-      },
-      "contentHash" : "85cbd034a3cb028b1fc4cca49b273cdcf559457ddcda1afc42f7a31b1f7c164d"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "039da5c1f6c29267f66c6418a1202c0c0a1a648a28bd34a3e99061ac28c3b64f",
-    "subject" : "type:com.example.orders.Order",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "field:com.example.orders.Order#customer"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/Order.java",
-      "lines" : {
-        "start" : 14,
-        "end" : 14
-      },
-      "contentHash" : "08a7ed1705d04359b21f43b3ccea61cf574dbcf13780d9431ca68d926347dd4e"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "153fc5c11a452180660d394ebd6eefd3747d382ea0e3cef164cfd37022e577c1",
-    "subject" : "module:com.example.orders:orders",
-    "predicate" : "java-release",
-    "object" : {
-      "kind" : "string",
-      "value" : "21"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "pom.xml",
-      "lines" : {
-        "start" : 13,
-        "end" : 13
-      },
-      "contentHash" : "97bcfc3e5c435297290d7b21e0752505a6e2edd4ec8504d5ec34405a8c5a81b8"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "165eda2bf8fa0e2462da87114d761115776e9a8eebc8b1652e5cde30c18ac44a",
-    "subject" : "type:com.example.orders.OrderLine",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "field:com.example.orders.OrderLine#productId"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/OrderLine.java",
-      "lines" : {
-        "start" : 9,
-        "end" : 9
-      },
-      "contentHash" : "2ba04901da904296ab004a2f458e632a5b5df94b221c4ec525a4b0966938fa68"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "1fd8622eadec39d39491250f4fb806b424ae6c3d84019d3001a96f541a3a3ee2",
-    "subject" : "package:com.example.orders:orders:com.example.orders",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "type:com.example.orders.Order"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/Order.java",
-      "lines" : {
-        "start" : 9,
-        "end" : 16
-      },
-      "contentHash" : "08a7ed1705d04359b21f43b3ccea61cf574dbcf13780d9431ca68d926347dd4e"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "31207ab5a7e7e6d3123138b095090471c658d0bec7f3f871c4aed89dd6c9f912",
-    "subject" : "type:com.example.orders.OrderLine",
-    "predicate" : "kind",
-    "object" : {
-      "kind" : "string",
-      "value" : "class"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/OrderLine.java",
-      "lines" : {
-        "start" : 6,
-        "end" : 12
-      },
-      "contentHash" : "2ba04901da904296ab004a2f458e632a5b5df94b221c4ec525a4b0966938fa68"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "44adce68fd0b7874b66e9c2136650fbe56a390a138f68873653362a8ec53d4ed",
-    "subject" : "module:com.example.orders:orders",
-    "predicate" : "version",
-    "object" : {
-      "kind" : "string",
-      "value" : "1.0.0"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "pom.xml",
-      "lines" : {
-        "start" : 10,
-        "end" : 10
-      },
-      "contentHash" : "97bcfc3e5c435297290d7b21e0752505a6e2edd4ec8504d5ec34405a8c5a81b8"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "5d1b54f0b56e1a3850f0b9d8ec34ca7d1eb9d3628068baadf040a79a39ffd37f",
-    "subject" : "package:com.example.orders:orders:com.example.orders",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "type:com.example.orders.Ledger"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/Ledger.java",
-      "lines" : {
-        "start" : 8,
-        "end" : 15
-      },
-      "contentHash" : "85cbd034a3cb028b1fc4cca49b273cdcf559457ddcda1afc42f7a31b1f7c164d"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "6793c03f60125883ee3055fe28064ff1afd9b1dcc2b683f41d8c7fb95a081d21",
-    "subject" : "type:com.example.orders.Account",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "field:com.example.orders.Account#balance"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/Account.java",
-      "lines" : {
-        "start" : 15,
-        "end" : 15
-      },
-      "contentHash" : "19135806e41a37e472dffb8760706455d8b0a1a1e88322d60a243a21b6be7767"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "7e7ef0441bc99cf0ebfaea163e5f48c85c8aac87fce5b7b7cd06218d0771b403",
-    "subject" : "type:com.example.orders.Ledger",
-    "predicate" : "kind",
-    "object" : {
-      "kind" : "string",
-      "value" : "class"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/Ledger.java",
-      "lines" : {
-        "start" : 8,
-        "end" : 15
-      },
-      "contentHash" : "85cbd034a3cb028b1fc4cca49b273cdcf559457ddcda1afc42f7a31b1f7c164d"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "81eaf1d6e9022fad608c8850a648c424cb6338ea77880878a6b8f1de0ba027b5",
-    "subject" : "module:com.example.orders:orders",
-    "predicate" : "packaging",
-    "object" : {
-      "kind" : "string",
-      "value" : "jar"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "pom.xml",
-      "contentHash" : "97bcfc3e5c435297290d7b21e0752505a6e2edd4ec8504d5ec34405a8c5a81b8"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "82fd57a45ca8e2f261d7e4c7af0fa496f97818d9142dcaae6c465ddcbf0c26e1",
-    "subject" : "type:com.example.orders.Order",
-    "predicate" : "kind",
-    "object" : {
-      "kind" : "string",
-      "value" : "class"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/Order.java",
-      "lines" : {
-        "start" : 9,
-        "end" : 16
-      },
-      "contentHash" : "08a7ed1705d04359b21f43b3ccea61cf574dbcf13780d9431ca68d926347dd4e"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "87392e422493cac4e0b1d0afe3127c6e0a58837d8380434fd656c4f48ccb3b57",
-    "subject" : "type:com.example.orders.OrderService",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "field:com.example.orders.OrderService#currency"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/OrderService.java",
-      "lines" : {
-        "start" : 9,
-        "end" : 9
-      },
-      "contentHash" : "12c8f0679ba2f383b08b1692505ae49dd4a6c795791a9f4e1639c361c82363dc"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "890054ac8dc5e084854371968d7bad2af5c1de931b97fa4cdaaa97aface40f31",
-    "subject" : "package:com.example.orders:orders:com.example.orders",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "type:com.example.orders.OrderLine"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/OrderLine.java",
-      "lines" : {
-        "start" : 6,
-        "end" : 12
-      },
-      "contentHash" : "2ba04901da904296ab004a2f458e632a5b5df94b221c4ec525a4b0966938fa68"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "921df75afe7a91252ecf87fa469fcf2e7a6fe293ba4e8be8699536f22d8bea84",
-    "subject" : "type:com.example.orders.Account",
-    "predicate" : "kind",
-    "object" : {
-      "kind" : "string",
-      "value" : "class"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/Account.java",
-      "lines" : {
-        "start" : 8,
-        "end" : 21
-      },
-      "contentHash" : "19135806e41a37e472dffb8760706455d8b0a1a1e88322d60a243a21b6be7767"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "9b63d3addef345b2f8c24aa733ab80cea22601901cbf7a795d930b0eb2827bcc",
-    "subject" : "module:com.example.orders:orders",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "package:com.example.orders:orders:com.example.orders"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "ae6e22d03f85c54e49f9bb3d9c2e51ef36226d10bceba1fb30eab8d5430a7cca",
-    "subject" : "type:com.example.orders.OrderService",
-    "predicate" : "kind",
-    "object" : {
-      "kind" : "string",
-      "value" : "class"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "3"
-    },
-    "evidence" : {
-      "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/OrderService.java",
-      "lines" : {
-        "start" : 6,
-        "end" : 26
-      },
-      "contentHash" : "12c8f0679ba2f383b08b1692505ae49dd4a6c795791a9f4e1639c361c82363dc"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "b9aa52bf4e60405c85351b4a1bf799cb603b0d9c42acc51a3cd7ad888318f3b8",
+    "id" : "0236f6fcd71e771a5745848132a97fa0634a918697ca63688b0c3541101c4c90",
     "subject" : "module:com.example.orders:orders",
     "predicate" : "BUILD_DEPENDS_ON",
     "object" : {
@@ -696,7 +324,7 @@
     },
     "evidence" : {
       "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
       "path" : "pom.xml",
       "lines" : {
         "start" : 19,
@@ -709,12 +337,12 @@
       "from" : 1
     }
   }, {
-    "id" : "c0769a00f8c233482e46259b7e1cd6d75c99074804d7b769efc2b434dbc75d0e",
-    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "id" : "05a2d8148b177f61c761d7f1f8bdd0588bd437ece55bb549ddfcf268d646f829",
+    "subject" : "type:com.example.orders.Billing",
     "predicate" : "CONTAINS",
     "object" : {
       "kind" : "entity",
-      "value" : "type:com.example.orders.OrderService"
+      "value" : "field:com.example.orders.Billing#currency"
     },
     "attributes" : { },
     "origin" : {
@@ -724,44 +352,183 @@
     },
     "evidence" : {
       "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "src/main/java/com/example/orders/OrderService.java",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Billing.java",
       "lines" : {
-        "start" : 6,
-        "end" : 26
+        "start" : 14,
+        "end" : 14
       },
-      "contentHash" : "12c8f0679ba2f383b08b1692505ae49dd4a6c795791a9f4e1639c361c82363dc"
+      "contentHash" : "00c95988a66f2e212a425a371caa9360c19de873d2e77d77ae8977345b9a1b8e"
     },
     "confidence" : 0.7,
     "validity" : {
       "from" : 1
     }
   }, {
-    "id" : "e44fc3201978ea402203d383c6d24f2a9ca717e6b81c901830ae5816b8fefe53",
-    "subject" : "library:com.example.orders:orders",
+    "id" : "06a470bbcd9e18f015d15842916820b572ad131b2e0925b377e34d39fd272ce9",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
     "predicate" : "CONTAINS",
     "object" : {
       "kind" : "entity",
-      "value" : "module:com.example.orders:orders"
+      "value" : "type:com.example.orders.Billing"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
+      "name" : "java",
+      "version" : "3"
     },
     "evidence" : {
       "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
-      "path" : "pom.xml",
-      "contentHash" : "97bcfc3e5c435297290d7b21e0752505a6e2edd4ec8504d5ec34405a8c5a81b8"
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Billing.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 16
+      },
+      "contentHash" : "00c95988a66f2e212a425a371caa9360c19de873d2e77d77ae8977345b9a1b8e"
     },
     "confidence" : 0.7,
     "validity" : {
       "from" : 1
     }
   }, {
-    "id" : "e6a3dc37c83ed6523d0361d41f903aeb0479aa54288464c983fd1a63a9e594ff",
+    "id" : "0a73029a80a91e6f4b15a25fd949cad5e046adeb3b65d73e58427bad7e4ef455",
+    "subject" : "type:com.example.orders.Billing",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Billing.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 16
+      },
+      "contentHash" : "00c95988a66f2e212a425a371caa9360c19de873d2e77d77ae8977345b9a1b8e"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "21ce96ff1450a337e8495642bb90af973f117ec9607878a28fc95f1a3c54022a",
+    "subject" : "type:com.example.orders.OrderLine",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.OrderLine#productId"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderLine.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 9
+      },
+      "contentHash" : "2ba04901da904296ab004a2f458e632a5b5df94b221c4ec525a4b0966938fa68"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "3438c1ca1fba6d67389a951dd94c41996b7afe1aa2afc1caf9d13c765eea28cc",
+    "subject" : "type:com.example.orders.Order",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Order.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 16
+      },
+      "contentHash" : "08a7ed1705d04359b21f43b3ccea61cf574dbcf13780d9431ca68d926347dd4e"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "38d6b776f50f45bc1c2032eb425572795e402aee5b224b7360b9038391ca3ef3",
+    "subject" : "module:com.example.orders:orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "package:com.example.orders:orders:com.example.orders"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "3b564b7066f7df8571d2d6843d32d5e3402cc1b7a94b6c713f34ffaf846f181f",
+    "subject" : "type:com.example.orders.Account",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Account.java",
+      "lines" : {
+        "start" : 8,
+        "end" : 21
+      },
+      "contentHash" : "19135806e41a37e472dffb8760706455d8b0a1a1e88322d60a243a21b6be7767"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "3be8d0894a82ab0f977abca798f2e5afe96c2efa68be573e5fbac7a61fda5abc",
     "subject" : "package:com.example.orders:orders:com.example.orders",
     "predicate" : "CONTAINS",
     "object" : {
@@ -776,13 +543,761 @@
     },
     "evidence" : {
       "repo" : "orders",
-      "commit" : "89e1b1f5fcefc95a8fa4c7f3d70cde9e2ca925e4",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
       "path" : "src/main/java/com/example/orders/Account.java",
       "lines" : {
         "start" : 8,
         "end" : 21
       },
       "contentHash" : "19135806e41a37e472dffb8760706455d8b0a1a1e88322d60a243a21b6be7767"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "3c0f01e38e8f463a2d001206b3804aefa179ddb79a482c58434a02f3f1bee801",
+    "subject" : "type:com.example.orders.OrderDto",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.OrderDto#count"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderDto.java",
+      "lines" : {
+        "start" : 12,
+        "end" : 12
+      },
+      "contentHash" : "479f01b1be563154cc50453b225078e76bb7641785f20d46e752e987c931194a"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "3ff80554a7fb210430f17fb02d1173e135f8d72c499c2c2806106417242e1f9d",
+    "subject" : "library:com.example.orders:orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "module:com.example.orders:orders"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "4"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "pom.xml",
+      "contentHash" : "97bcfc3e5c435297290d7b21e0752505a6e2edd4ec8504d5ec34405a8c5a81b8"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "5812b56656f9f86f0d6a000151d52b731269b3a9636d221374dc9b6ef38554bf",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.orders.Order"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Order.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 16
+      },
+      "contentHash" : "08a7ed1705d04359b21f43b3ccea61cf574dbcf13780d9431ca68d926347dd4e"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "67bcfc49b4038ca9eab162e69a91963e96e05ca88a3c923cbfa652175a8350dd",
+    "subject" : "type:com.example.orders.OrderService",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderService.java",
+      "lines" : {
+        "start" : 6,
+        "end" : 26
+      },
+      "contentHash" : "12c8f0679ba2f383b08b1692505ae49dd4a6c795791a9f4e1639c361c82363dc"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "686450be50ae9eb39d0aece42e89f6141d9641558f46f59c65b9ace2dae446ea",
+    "subject" : "type:com.example.orders.Money",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.Money#cents"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Money.java",
+      "lines" : {
+        "start" : 10,
+        "end" : 10
+      },
+      "contentHash" : "ebe5bef6f7d2725947a0dccd5f3b65b9b8b1500ea28f94deb20a30643a15478f"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "69d3ddfa43d1a5b231b388d34fca65872071632123156c6ecf34e89461d866d0",
+    "subject" : "type:com.example.orders.Ledger",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Ledger.java",
+      "lines" : {
+        "start" : 8,
+        "end" : 15
+      },
+      "contentHash" : "85cbd034a3cb028b1fc4cca49b273cdcf559457ddcda1afc42f7a31b1f7c164d"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "6a4d327da1e547582b6726abd0feffd9150fc5e6332fdf1ffe11fb6551873a11",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.orders.OrderDto"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderDto.java",
+      "lines" : {
+        "start" : 7,
+        "end" : 13
+      },
+      "contentHash" : "479f01b1be563154cc50453b225078e76bb7641785f20d46e752e987c931194a"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "6d8a05466a07ffe1f077f0c69d058e06e77a10feee6707f6e270dc13f3a10ea9",
+    "subject" : "type:com.example.orders.Account",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.Account#balance"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Account.java",
+      "lines" : {
+        "start" : 15,
+        "end" : 15
+      },
+      "contentHash" : "19135806e41a37e472dffb8760706455d8b0a1a1e88322d60a243a21b6be7767"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "779a0cee5520d9e01e894dfeb1952699936663c7eef4e9f12150585124541370",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.orders.Status"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Status.java",
+      "lines" : {
+        "start" : 7,
+        "end" : 14
+      },
+      "contentHash" : "dc028504a9e173009e08c497234b088fc4603327fd23b3b040ddea4dec51a50b"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "82b281f4d18c9b64e631229aecfa9389490a5d280b1d33fc2fa8f13280f0f84f",
+    "subject" : "type:com.example.orders.OrderService",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.OrderService#currency"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderService.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 9
+      },
+      "contentHash" : "12c8f0679ba2f383b08b1692505ae49dd4a6c795791a9f4e1639c361c82363dc"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "875c347dbf4d703c1960ee5365d17252b684672b3689a9cadf1eb1194f98d0c0",
+    "subject" : "type:com.example.orders.OrderDto",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderDto.java",
+      "lines" : {
+        "start" : 7,
+        "end" : 13
+      },
+      "contentHash" : "479f01b1be563154cc50453b225078e76bb7641785f20d46e752e987c931194a"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "8b36e1c0f065a2a3ce8ef69a4cc820c14530cc2b5291ecf785ba2fb0af664c48",
+    "subject" : "module:com.example.orders:orders",
+    "predicate" : "version",
+    "object" : {
+      "kind" : "string",
+      "value" : "1.0.0"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "4"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 10,
+        "end" : 10
+      },
+      "contentHash" : "97bcfc3e5c435297290d7b21e0752505a6e2edd4ec8504d5ec34405a8c5a81b8"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "8cd644da8aff3ae5b2d009b1f7c50d21e5564201085a148a7a9682942a7bf8ef",
+    "subject" : "type:com.example.orders.OrderLine",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderLine.java",
+      "lines" : {
+        "start" : 6,
+        "end" : 12
+      },
+      "contentHash" : "2ba04901da904296ab004a2f458e632a5b5df94b221c4ec525a4b0966938fa68"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "9dc714427f3f4cf24b6650888879121e4e9452785294f1dea28edc83ea87db57",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.orders.OrderService"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderService.java",
+      "lines" : {
+        "start" : 6,
+        "end" : 26
+      },
+      "contentHash" : "12c8f0679ba2f383b08b1692505ae49dd4a6c795791a9f4e1639c361c82363dc"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "9e9969ed34f8d2cb660cef289bf4fc116ae0cae40914c4e26526812e9c1116fd",
+    "subject" : "type:com.example.orders.Status",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.Status#CLOSED"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Status.java",
+      "lines" : {
+        "start" : 11,
+        "end" : 11
+      },
+      "contentHash" : "dc028504a9e173009e08c497234b088fc4603327fd23b3b040ddea4dec51a50b"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "9fbe27a1fdeaf36327fd260befd290e4302fa65f3bba97d33cd2de1f5a22760b",
+    "subject" : "type:com.example.orders.Customer",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Customer.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 16
+      },
+      "contentHash" : "942cf9093021039e2e764ae96a11b6586d34fab6d11814506fa70de242519e3d"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "a12e51ea73971208efa5d618556fea6f0101539cab00967dfaad4ebb37b20c74",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.orders.OrderLine"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/OrderLine.java",
+      "lines" : {
+        "start" : 6,
+        "end" : 12
+      },
+      "contentHash" : "2ba04901da904296ab004a2f458e632a5b5df94b221c4ec525a4b0966938fa68"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "a429c1f729bf1d8f5efd100aa4f562058bf63a8f6fc7107cfc26810e80c74072",
+    "subject" : "type:com.example.orders.Customer",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.Customer#id"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Customer.java",
+      "lines" : {
+        "start" : 14,
+        "end" : 14
+      },
+      "contentHash" : "942cf9093021039e2e764ae96a11b6586d34fab6d11814506fa70de242519e3d"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "b69f33fe5ca8a8d818b2070cb3fd4c56e062e51a0bc9619b7163716268b4b081",
+    "subject" : "module:com.example.orders:orders",
+    "predicate" : "java-release",
+    "object" : {
+      "kind" : "string",
+      "value" : "21"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "4"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 13,
+        "end" : 13
+      },
+      "contentHash" : "97bcfc3e5c435297290d7b21e0752505a6e2edd4ec8504d5ec34405a8c5a81b8"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "bd670396597bec35363116270544d53bbd63a266ce6a224eed39f2dd156cae8f",
+    "subject" : "type:com.example.orders.Order",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.Order#customer"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Order.java",
+      "lines" : {
+        "start" : 14,
+        "end" : 14
+      },
+      "contentHash" : "08a7ed1705d04359b21f43b3ccea61cf574dbcf13780d9431ca68d926347dd4e"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "be07e42a3c7cae95ef0a776d0c1d72efc0083e629c23f83f92b78276218df894",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.orders.Ledger"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Ledger.java",
+      "lines" : {
+        "start" : 8,
+        "end" : 15
+      },
+      "contentHash" : "85cbd034a3cb028b1fc4cca49b273cdcf559457ddcda1afc42f7a31b1f7c164d"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "d54a64ab39ff97c279116015bd97e0d93c720e69db3ac07de4fd7819f3ba4637",
+    "subject" : "type:com.example.orders.Money",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "class"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Money.java",
+      "lines" : {
+        "start" : 7,
+        "end" : 12
+      },
+      "contentHash" : "ebe5bef6f7d2725947a0dccd5f3b65b9b8b1500ea28f94deb20a30643a15478f"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "e399dd7a51e3fd2b131f36531b59289bcedfabb1f5e5ed4fdc060f4a74dd2122",
+    "subject" : "type:com.example.orders.Status",
+    "predicate" : "kind",
+    "object" : {
+      "kind" : "string",
+      "value" : "enum"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Status.java",
+      "lines" : {
+        "start" : 7,
+        "end" : 14
+      },
+      "contentHash" : "dc028504a9e173009e08c497234b088fc4603327fd23b3b040ddea4dec51a50b"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "e4d41591fbdb4c9db1f413f17c995bef9750810cca000c0be6bebc56f5e0994f",
+    "subject" : "type:com.example.orders.Ledger",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "field:com.example.orders.Ledger#name"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Ledger.java",
+      "lines" : {
+        "start" : 13,
+        "end" : 13
+      },
+      "contentHash" : "85cbd034a3cb028b1fc4cca49b273cdcf559457ddcda1afc42f7a31b1f7c164d"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "e55c04a356c5e7f6c8f12ec5f623710d06b14211c71a67f0cbbb200beff7b995",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.orders.Money"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Money.java",
+      "lines" : {
+        "start" : 7,
+        "end" : 12
+      },
+      "contentHash" : "ebe5bef6f7d2725947a0dccd5f3b65b9b8b1500ea28f94deb20a30643a15478f"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "ed7aaf58349eb743d9040d11287a0074b8fdd122a76c12c7dedad3cf9ae6ec17",
+    "subject" : "package:com.example.orders:orders:com.example.orders",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.orders.Customer"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "src/main/java/com/example/orders/Customer.java",
+      "lines" : {
+        "start" : 9,
+        "end" : 16
+      },
+      "contentHash" : "942cf9093021039e2e764ae96a11b6586d34fab6d11814506fa70de242519e3d"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "feec92f681215e8edeb80e30eba7e60298b056e42ca16e9a721307cf8687f582",
+    "subject" : "module:com.example.orders:orders",
+    "predicate" : "packaging",
+    "object" : {
+      "kind" : "string",
+      "value" : "jar"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "4"
+    },
+    "evidence" : {
+      "repo" : "orders",
+      "commit" : "edaff9a77935a96294edb9799f751a51590b5fe5",
+      "path" : "pom.xml",
+      "contentHash" : "97bcfc3e5c435297290d7b21e0752505a6e2edd4ec8504d5ec34405a8c5a81b8"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -820,9 +1335,9 @@
         "text" : " It is described by its facts."
       }, {
         "kind" : "citation",
-        "facts" : [ "153fc5c11a452180660d394ebd6eefd3747d382ea0e3cef164cfd37022e577c1" ]
+        "facts" : [ "b69f33fe5ca8a8d818b2070cb3fd4c56e062e51a0bc9619b7163716268b4b081" ]
       } ],
-      "facts" : [ "153fc5c11a452180660d394ebd6eefd3747d382ea0e3cef164cfd37022e577c1" ]
+      "facts" : [ "b69f33fe5ca8a8d818b2070cb3fd4c56e062e51a0bc9619b7163716268b4b081" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",
@@ -839,7 +1354,7 @@
           "kind" : "text",
           "text" : ", a library"
         } ],
-        "facts" : [ "81eaf1d6e9022fad608c8850a648c424cb6338ea77880878a6b8f1de0ba027b5", "e44fc3201978ea402203d383c6d24f2a9ca717e6b81c901830ae5816b8fefe53" ]
+        "facts" : [ "3ff80554a7fb210430f17fb02d1173e135f8d72c499c2c2806106417242e1f9d", "feec92f681215e8edeb80e30eba7e60298b056e42ca16e9a721307cf8687f582" ]
       } ],
       "facts" : [ ]
     } ],
@@ -860,19 +1375,19 @@
       }, {
         "label" : "Libraries",
         "value" : 1,
-        "facts" : [ "81eaf1d6e9022fad608c8850a648c424cb6338ea77880878a6b8f1de0ba027b5", "e44fc3201978ea402203d383c6d24f2a9ca717e6b81c901830ae5816b8fefe53" ]
+        "facts" : [ "3ff80554a7fb210430f17fb02d1173e135f8d72c499c2c2806106417242e1f9d", "feec92f681215e8edeb80e30eba7e60298b056e42ca16e9a721307cf8687f582" ]
       }, {
         "label" : "Modules",
         "value" : 1,
-        "facts" : [ "81eaf1d6e9022fad608c8850a648c424cb6338ea77880878a6b8f1de0ba027b5" ]
+        "facts" : [ "feec92f681215e8edeb80e30eba7e60298b056e42ca16e9a721307cf8687f582" ]
       }, {
         "label" : "Java types",
-        "value" : 5,
-        "facts" : [ "1fd8622eadec39d39491250f4fb806b424ae6c3d84019d3001a96f541a3a3ee2", "5d1b54f0b56e1a3850f0b9d8ec34ca7d1eb9d3628068baadf040a79a39ffd37f", "890054ac8dc5e084854371968d7bad2af5c1de931b97fa4cdaaa97aface40f31", "c0769a00f8c233482e46259b7e1cd6d75c99074804d7b769efc2b434dbc75d0e", "e6a3dc37c83ed6523d0361d41f903aeb0479aa54288464c983fd1a63a9e594ff" ]
+        "value" : 10,
+        "facts" : [ "06a470bbcd9e18f015d15842916820b572ad131b2e0925b377e34d39fd272ce9", "3be8d0894a82ab0f977abca798f2e5afe96c2efa68be573e5fbac7a61fda5abc", "5812b56656f9f86f0d6a000151d52b731269b3a9636d221374dc9b6ef38554bf", "6a4d327da1e547582b6726abd0feffd9150fc5e6332fdf1ffe11fb6551873a11", "779a0cee5520d9e01e894dfeb1952699936663c7eef4e9f12150585124541370", "9dc714427f3f4cf24b6650888879121e4e9452785294f1dea28edc83ea87db57", "a12e51ea73971208efa5d618556fea6f0101539cab00967dfaad4ebb37b20c74", "be07e42a3c7cae95ef0a776d0c1d72efc0083e629c23f83f92b78276218df894", "e55c04a356c5e7f6c8f12ec5f623710d06b14211c71a67f0cbbb200beff7b995", "ed7aaf58349eb743d9040d11287a0074b8fdd122a76c12c7dedad3cf9ae6ec17" ]
       }, {
         "label" : "Third-party libraries",
         "value" : 1,
-        "facts" : [ "b9aa52bf4e60405c85351b4a1bf799cb603b0d9c42acc51a3cd7ad888318f3b8" ]
+        "facts" : [ "0236f6fcd71e771a5745848132a97fa0634a918697ca63688b0c3541101c4c90" ]
       }, {
         "label" : "Repositories it uses",
         "value" : 0,
@@ -933,7 +1448,7 @@
         "kind" : "text",
         "text" : "As of the snapshot's date, 1 Jan 1970, the one version in use is not past the end of free support."
       } ],
-      "facts" : [ "153fc5c11a452180660d394ebd6eefd3747d382ea0e3cef164cfd37022e577c1" ]
+      "facts" : [ "b69f33fe5ca8a8d818b2070cb3fd4c56e062e51a0bc9619b7163716268b4b081" ]
     }, {
       "kind" : "table",
       "id" : "technology_currency.versions",
@@ -965,7 +1480,7 @@
           "kind" : "text",
           "text" : "31 Dec 2029"
         } ] ],
-        "facts" : [ "153fc5c11a452180660d394ebd6eefd3747d382ea0e3cef164cfd37022e577c1" ]
+        "facts" : [ "b69f33fe5ca8a8d818b2070cb3fd4c56e062e51a0bc9619b7163716268b4b081" ]
       } ],
       "facts" : [ ]
     }, {

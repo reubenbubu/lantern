@@ -102,16 +102,21 @@ The extractor's version becomes 3.
   is marked too, by its annotation. The vocabulary gains the attribute type. Leaving generated types
   out of components is the composer's (#477); endpoints and calls in generated OpenAPI and gRPC code
   are #480.
-- **Lombok in the fallback.** The parser adds, as javac with Lombok declares them and with the
-  annotation's lines: `@NoArgsConstructor`; `@RequiredArgsConstructor`, or `@Data` without a
-  constructor of the class's own, with a parameter for each non-static uninitialized `final` or
-  `@NonNull` field in declaration order; `@AllArgsConstructor`, or `@Value` or `@Builder` without
-  another constructor, with one for each non-static field that is not an initialized `final` one
-  (every field is `final` under `@Value`); and the `log` field of `@Slf4j`, `@XSlf4j`, `@Log`,
-  `@Log4j`, `@Log4j2`, `@CommonsLog`, `@JBossLog` or `@Flogger`, typed as Lombok types it. A test
-  checks both paths give the same constructors and log fields. Getters, setters, builder classes,
-  `@SuperBuilder` and `lombok.config` settings (such as another log field name) are still missing,
-  so calls to them do not resolve.
+- **Lombok in the fallback.** For a class or enum, the parser adds, as javac with Lombok declares
+  them and with the annotation's lines: `@NoArgsConstructor`; `@RequiredArgsConstructor`, or
+  `@Data` when no other constructor exists or is generated (none of its own, no
+  `@NoArgsConstructor`, `@AllArgsConstructor` or `@Builder`), with a parameter for each non-static
+  uninitialized field that is `final` or non-null (an annotation named `NonNull`, `Nonnull` or
+  `NotNull`, whatever its package), in declaration order; `@AllArgsConstructor`, or `@Value` or
+  `@Builder` without another constructor, with one for each non-static field that is not an
+  initialized `final` one; and the `log` field of `@Slf4j`, `@XSlf4j`, `@Log`, `@Log4j`, `@Log4j2`,
+  `@CommonsLog`, `@JBossLog` or `@Flogger`, typed as Lombok types it. Fields are `final` as
+  written, under `@Value`, or under `@FieldDefaults(makeFinal = true)`, except those marked
+  `@NonFinal`. An unqualified annotation is Lombok's by a single-type import of it, or by a star
+  import of a Lombok package for a name Lombok has. A test checks both paths give the same
+  constructors and log fields, on a real compile. Getters, setters, builder classes, `@SuperBuilder`
+  and `lombok.config` settings (such as another log field name) are still missing, so calls to them
+  do not resolve.
 - **Not changed:** which calls are kept. Injection and dispatch resolved to beans (#478), unresolved
   calls kept with each module's share of resolved calls (#479), and `@Bean` references and AOP
   self-invocation (#481) are issues of their own.

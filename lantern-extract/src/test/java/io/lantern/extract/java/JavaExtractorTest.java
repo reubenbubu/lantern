@@ -133,10 +133,11 @@ class JavaExtractorTest {
     Path lombok =
         Path.of(lombok.Value.class.getProtectionDomain().getCodeSource().getLocation().toURI());
 
-    Set<String> compiled =
-        lombokMembers(
-            extract(
-                List.of(built(repo, "com.example.orders", "orders", List.of(lombok.toString())))));
+    List<Fact> compiledFacts =
+        extract(List.of(built(repo, "com.example.orders", "orders", List.of(lombok.toString()))));
+    // Compiled indeed, not parsed after a compile error.
+    assertThat(compiledFacts).allMatch(f -> f.confidence() == JavaExtractor.COMPILED_CONFIDENCE);
+    Set<String> compiled = lombokMembers(compiledFacts);
     Set<String> parsed = lombokMembers(extract(List.of(unbuilt(repo))));
 
     assertThat(compiled)
@@ -146,7 +147,19 @@ class JavaExtractorTest {
             "type:com.example.orders.Account CONTAINS field:com.example.orders.Account#log",
             "type:com.example.orders.Ledger CONTAINS method:com.example.orders.Ledger#<init>()",
             "type:com.example.orders.Ledger CONTAINS"
-                + " method:com.example.orders.Ledger#<init>(java.lang.String,int)");
+                + " method:com.example.orders.Ledger#<init>(java.lang.String,int)",
+            "type:com.example.orders.Billing CONTAINS method:com.example.orders.Billing"
+                + "#<init>(com.example.orders.Ledger,java.lang.String)",
+            "type:com.example.orders.Status CONTAINS"
+                + " method:com.example.orders.Status#<init>(java.lang.String)",
+            "type:com.example.orders.Money CONTAINS method:com.example.orders.Money#<init>(long,int)",
+            "type:com.example.orders.Customer CONTAINS method:com.example.orders.Customer#<init>()",
+            "type:com.example.orders.OrderDto CONTAINS"
+                + " method:com.example.orders.OrderDto#<init>(java.lang.String,int)")
+        .doesNotContain(
+            "type:com.example.orders.OrderDto CONTAINS method:com.example.orders.OrderDto#<init>()",
+            "type:com.example.orders.Customer CONTAINS"
+                + " method:com.example.orders.Customer#<init>(java.lang.String)");
     assertThat(parsed).isEqualTo(compiled);
   }
 

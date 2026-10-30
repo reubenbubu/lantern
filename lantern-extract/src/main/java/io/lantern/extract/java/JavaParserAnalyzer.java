@@ -148,6 +148,30 @@ final class JavaParserAnalyzer {
           "AllArgsConstructor",
           "RequiredArgsConstructor");
 
+  /** The names Lombok counts as non-null on a field, whatever their package. */
+  private static final Set<String> NON_NULL = Set.of("NonNull", "Nonnull", "NotNull");
+
+  /** Lombok's annotations this analyzer reads, for names reached through a star import. */
+  private static final Set<String> LOMBOK_NAMES =
+      Set.of(
+          "Value",
+          "Data",
+          "Builder",
+          "AllArgsConstructor",
+          "RequiredArgsConstructor",
+          "NoArgsConstructor",
+          "NonNull",
+          "FieldDefaults",
+          "NonFinal",
+          "Slf4j",
+          "XSlf4j",
+          "Log",
+          "Log4j",
+          "Log4j2",
+          "CommonsLog",
+          "JBossLog",
+          "Flogger");
+
   /** Lombok's log annotations, with the type of the {@code log} field each adds. */
   private static final Map<String, String> LOMBOK_LOGS =
       Map.of(
@@ -379,8 +403,9 @@ final class JavaParserAnalyzer {
           default -> {}
         }
       }
-      if (type instanceof ClassOrInterfaceDeclaration c && !c.isInterface()) {
-        lombokMembers(c, binary, members);
+      if (type instanceof ClassOrInterfaceDeclaration c && !c.isInterface()
+          || type instanceof EnumDeclaration) {
+        lombokMembers(type, binary, members);
       }
       structure.types.add(
           new TypeDecl(
@@ -459,8 +484,7 @@ final class JavaParserAnalyzer {
      * Each has the annotation's lines. {@code lombok.config} settings (such as another log field
      * name) and {@code @SuperBuilder} are not followed.
      */
-    private void lombokMembers(
-        ClassOrInterfaceDeclaration type, String binary, List<Member> members) {
+    private void lombokMembers(TypeDeclaration<?> type, String binary, List<Member> members) {
       Map<String, AnnotationExpr> lombok = new LinkedHashMap<>();
       for (AnnotationExpr annotation : type.getAnnotations()) {
         if (isLombok(annotation)) {
@@ -474,18 +498,29 @@ final class JavaParserAnalyzer {
       boolean ownConstructor =
           type.getMembers().stream().anyMatch(m -> m instanceof ConstructorDeclaration);
       boolean value = lombok.containsKey("Value");
+      AnnotationExpr defaults = lombok.get("FieldDefaults");
+      boolean makeFinal =
+          defaults instanceof NormalAnnotationExpr n
+              && n.getPairs().stream()
+                  .anyMatch(
+                      p ->
+                          p.getNameAsString().equals("makeFinal")
+                              && p.getValue().toString().equals("true"));
       List<Type> required = new ArrayList<>();
       List<Type> all = new ArrayList<>();
       for (FieldDeclaration f : type.getFields()) {
         if (f.isStatic()) {
           continue;
         }
+        // Lombok counts any annotation named so as non-null, whatever its package.
         boolean nonNull =
+            f.getAnnotations().stream().anyMatch(a -> NON_NULL.contains(simpleName(a)));
+        boolean nonFinal =
             f.getAnnotations().stream()
-                .anyMatch(a -> a.getNameAsString().endsWith("NonNull") && isLombok(a));
+                .anyMatch(a -> simpleName(a).equals("NonFinal") && isLombok(a));
         for (VariableDeclarator v : f.getVariables()) {
           boolean initialized = v.getInitializer().isPresent();
-          boolean isFinal = f.isFinal() || value;
+          boolean isFinal = f.isFinal() || (value || makeFinal) && !nonFinal;
           if (initialized && isFinal) {
             continue;
           }
@@ -502,7 +537,13 @@ final class JavaParserAnalyzer {
       if (lombok.containsKey("RequiredArgsConstructor")) {
         lombokConstructor(
             binary, required, lombok.get("RequiredArgsConstructor"), type, members, added);
-      } else if (lombok.containsKey("Data") && !ownConstructor && !value) {
+      } else if (lombok.containsKey("Data")
+          && !ownConstructor
+          && !value
+          && !lombok.containsKey("NoArgsConstructor")
+          && !lombok.containsKey("AllArgsConstructor")
+          && !lombok.containsKey("Builder")) {
+        // @Data skips its constructor if any other constructor exists or is generated.
         lombokConstructor(binary, required, lombok.get("Data"), type, members, added);
       }
       boolean otherConstructor =
@@ -548,13 +589,29 @@ final class JavaParserAnalyzer {
       }
     }
 
-    /** Whether an annotation is Lombok's, by its written name or the imports. */
+    private static String simpleName(AnnotationExpr annotation) {
+      String name = annotation.getNameAsString();
+      return name.substring(name.lastIndexOf('.') + 1);
+    }
+
+    /**
+     * Whether an annotation is Lombok's, by its written name or the imports: a single-type import
+     * of the name decides; a star import of a Lombok package counts only for a name Lombok has.
+     */
     private boolean isLombok(AnnotationExpr annotation) {
       String name = annotation.getNameAsString();
       if (name.startsWith(LOMBOK)) {
         return true;
       }
       if (name.contains(".")) {
+        return false;
+      }
+      for (ImportDeclaration i : unit.getImports()) {
+        if (!i.isStatic() && !i.isAsterisk() && i.getNameAsString().endsWith("." + name)) {
+          return i.getNameAsString().startsWith(LOMBOK);
+        }
+      }
+      if (!LOMBOK_NAMES.contains(name)) {
         return false;
       }
       for (ImportDeclaration i : unit.getImports()) {
