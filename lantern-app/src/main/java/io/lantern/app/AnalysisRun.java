@@ -366,7 +366,8 @@ public final class AnalysisRun {
 
       // Prompts show source excerpts read from git at the commits the facts were observed in.
       GitSourceFiles sources =
-          new GitSourceFiles(name -> Optional.ofNullable(registered.get(name)).map(Repo::path));
+          new GitSourceFiles(name -> Optional.ofNullable(registered.get(name)).map(Repo::path))
+              .withSecretKeys(secretKeys);
       Summarizer.Result summarized =
           new Summarizer(client, summaries, sources).summarize(SummaryTree.fromFacts(extracted));
       LOG.info(
@@ -390,10 +391,11 @@ public final class AnalysisRun {
       // (ADR 0069).
       GitSourceFiles allSources =
           new GitSourceFiles(
-              name ->
-                  Optional.ofNullable(registered.get(name))
-                      .or(() -> registry.find(name))
-                      .map(Repo::path));
+                  name ->
+                      Optional.ofNullable(registered.get(name))
+                          .or(() -> registry.find(name))
+                          .map(Repo::path))
+              .withSecretKeys(secretKeys);
       Describer.Result described =
           new Describer(client, wordings, allSources).describe(systemFacts, extracted);
 

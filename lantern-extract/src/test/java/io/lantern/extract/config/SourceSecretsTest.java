@@ -2,6 +2,7 @@ package io.lantern.extract.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -164,5 +165,25 @@ class SourceSecretsTest {
         }
         """;
     assertThat(SourceSecrets.scrub(code)).isEqualTo(code);
+  }
+
+  @Test
+  void masksValuesUnderKnownSecretKeysWhateverTheyAreCalled() {
+    String code =
+        """
+        class Jwt {
+          @Value("${jwt.key:literal-one}") String a;
+          @Value("${app.token.signing.key:literal-two}") String b;
+          void init(Map<String, String> m) { m.put("jwt.key", "literal-three"); }
+          String other = "${app.name:literal-four}";
+        }
+        """;
+
+    String scrubbed = SourceSecrets.scrub(code, Set.of("jwt.key", "app.token.signing.key"));
+
+    assertThat(scrubbed)
+        .doesNotContain("literal-one", "literal-two", "literal-three")
+        .contains("${jwt.key:******}", "${app.token.signing.key:******}", "literal-four");
+    assertThat(SourceSecrets.scrub(code)).contains("literal-one");
   }
 }

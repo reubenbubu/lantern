@@ -77,6 +77,19 @@ public final class SourceSecrets {
    * @param source Java source code
    */
   public static String scrub(String source) {
+    return scrub(source, Set.of());
+  }
+
+  /**
+   * The source with its secrets masked or removed, and also the values under config keys known to
+   * hold a secret, such as {@link ConfigExtractor#jwtSecretKeys}, whatever the key is called (ADR
+   * 0032, amendment for #348): {@code put("jwt.key", "x")} and {@code ${jwt.key:x}} are masked.
+   *
+   * @param source Java source code
+   * @param secretKeys config keys known to hold a secret
+   */
+  public static String scrub(String source, Set<String> secretKeys) {
+    Set<String> known = ConfigExtractor.normalizedKeys(secretKeys);
     List<Token> all = tokens(source);
     List<Token> code = new ArrayList<>();
     for (Token token : all) {
@@ -90,9 +103,9 @@ public final class SourceSecrets {
     for (Token token : all) {
       String replacement = null;
       if (token.kind() == Kind.COMMENT) {
-        replacement = cleaned(content(source, token));
+        replacement = cleaned(content(source, token), known);
       } else if (token.isLiteral()) {
-        replacement = literal(source, code, index);
+        replacement = literal(source, code, index, known);
       }
       if (token.kind() != Kind.COMMENT) {
         index++;
@@ -106,24 +119,24 @@ public final class SourceSecrets {
   }
 
   /** The new content of the literal at {@code index} of the code tokens. */
-  private static String literal(String source, List<Token> code, int index) {
+  private static String literal(String source, List<Token> code, int index, Set<String> known) {
     Token token = code.get(index);
     String content = source.substring(token.contentStart(), token.contentEnd());
     if (content.isBlank() || ONLY_PLACEHOLDERS.matcher(content.strip()).matches()) {
       return content;
     }
-    if (secretNamed(source, code, index) || PRIVATE_KEY.matcher(content).find()) {
+    if (secretNamed(source, code, index, known) || PRIVATE_KEY.matcher(content).find()) {
       return mask(content);
     }
-    return cleaned(content);
+    return cleaned(content, known);
   }
 
   /**
    * A literal's or comment's content with the defaults of placeholders naming a secret masked and
    * credentials removed; masked whole if a URL in it still looks like it holds a credential.
    */
-  private static String cleaned(String content) {
-    String cleaned = UrlCredentials.withoutCredentials(placeholderDefaultsMasked(content));
+  private static String cleaned(String content, Set<String> known) {
+    String cleaned = UrlCredentials.withoutCredentials(placeholderDefaultsMasked(content, known));
     if (UrlCredentials.containsUrl(cleaned) && UrlCredentials.mayHoldCredential(cleaned)) {
       return mask(content);
     }
@@ -144,7 +157,8 @@ public final class SourceSecrets {
   }
 
   /** Whether a name a config key would be secret by gives the literal at {@code index} meaning. */
-  private static boolean secretNamed(String source, List<Token> code, int index) {
+  private static boolean secretNamed(
+      String source, List<Token> code, int index, Set<String> known) {
     // "a" + "b" counts as one literal: what comes before the first decides.
     int first = index;
     while (first >= 2 && is(source, code, first - 1, "+") && code.get(first - 2).isLiteral()) {
@@ -160,7 +174,7 @@ public final class SourceSecrets {
     if (is(source, code, last + 1, ".")
         && comparison(source, code, last + 2)
         && is(source, code, last + 3, "(")
-        && secretIdentifier(source, code, last + 4)
+        && secretIdentifier(source, code, last + 4, known)
         && is(source, code, last + 5, ")")) {
       return true;
     }
@@ -169,14 +183,14 @@ public final class SourceSecrets {
       return false;
     }
     if (is(source, code, before, "=") || is(source, code, before, "+=")) {
-      return secretIdentifier(source, code, before - 1);
+      return secretIdentifier(source, code, before - 1, known);
     }
     if (is(source, code, before, ",")) {
       // put("db.password", "x"): the literal before it is a secret key.
       if (before >= 1
           && code.get(before - 1).isLiteral()
           && (is(source, code, before - 2, "(") || is(source, code, before - 2, ","))
-          && isSecretName(content(source, code.get(before - 1)))) {
+          && isSecretName(content(source, code.get(before - 1)), known)) {
         return true;
       }
       // headers.set(HttpHeaders.AUTHORIZATION, "x"): a constant before it names a secret.
@@ -189,14 +203,14 @@ public final class SourceSecrets {
           start -= 2;
         }
         if ((is(source, code, start - 1, "(") || is(source, code, start - 1, ","))
-            && isSecretName(text(source, code.get(key)))) {
+            && isSecretName(text(source, code.get(key)), known)) {
           return true;
         }
       }
-      return openerNamesSecret(source, code, opener(source, code, before));
+      return openerNamesSecret(source, code, opener(source, code, before), known);
     }
     if (is(source, code, before, "(") || is(source, code, before, "{")) {
-      return openerNamesSecret(source, code, before);
+      return openerNamesSecret(source, code, before, known);
     }
     return false;
   }
@@ -205,21 +219,22 @@ public final class SourceSecrets {
    * Whether the bracket at {@code opener} belongs to a call of a method named as a secret, to a
    * comparison with a variable named as a secret, or to an array initializer of one.
    */
-  private static boolean openerNamesSecret(String source, List<Token> code, int opener) {
+  private static boolean openerNamesSecret(
+      String source, List<Token> code, int opener, Set<String> known) {
     if (opener < 1) {
       return false;
     }
     if (is(source, code, opener, "(")) {
       // password.equals("x")
       if (comparison(source, code, opener - 1) && is(source, code, opener - 2, ".")) {
-        return secretIdentifier(source, code, opener - 3);
+        return secretIdentifier(source, code, opener - 3, known);
       }
-      return secretIdentifier(source, code, opener - 1);
+      return secretIdentifier(source, code, opener - 1, known);
     }
     // String[] passwords = {"a", "b"} and @Annotation(secrets = {"a", "b"})
     return is(source, code, opener, "{")
         && is(source, code, opener - 1, "=")
-        && secretIdentifier(source, code, opener - 2);
+        && secretIdentifier(source, code, opener - 2, known);
   }
 
   /** The unclosed bracket before the token at {@code at}, or -1 if there is none. */
@@ -251,21 +266,22 @@ public final class SourceSecrets {
         && COMPARISONS.contains(text(source, code.get(at)));
   }
 
-  private static boolean secretIdentifier(String source, List<Token> code, int at) {
+  private static boolean secretIdentifier(
+      String source, List<Token> code, int at, Set<String> known) {
     return at >= 0
         && at < code.size()
         && code.get(at).kind() == Kind.IDENTIFIER
-        && isSecretName(text(source, code.get(at)));
+        && isSecretName(text(source, code.get(at)), known);
   }
 
   /** Whether a name, an identifier or a literal key, is one a config key would be secret by. */
-  private static boolean isSecretName(String name) {
+  private static boolean isSecretName(String name, Set<String> known) {
     if (name.isBlank()) {
       return false;
     }
     String lower = name.toLowerCase(Locale.ROOT);
     String last = lower.substring(lower.lastIndexOf('.') + 1).replace("-", "").replace("_", "");
-    return ConfigExtractor.isSecret(name) || SECRET_NAMES.contains(last);
+    return ConfigExtractor.isSecret(name, known) || SECRET_NAMES.contains(last);
   }
 
   private static boolean is(String source, List<Token> code, int at, String text) {
@@ -288,7 +304,7 @@ public final class SourceSecrets {
    * ${db.password:changeme}} becomes {@code ${db.password:******}}. Other placeholders' defaults
    * are looked at in turn.
    */
-  private static String placeholderDefaultsMasked(String content) {
+  private static String placeholderDefaultsMasked(String content, Set<String> known) {
     StringBuilder out = new StringBuilder();
     int i = 0;
     while (i < content.length()) {
@@ -316,11 +332,11 @@ public final class SourceSecrets {
       out.append(content, i, open);
       if (colon < 0) {
         out.append(content, open, close + 1);
-      } else if (isSecretName(content.substring(open + 2, colon))) {
+      } else if (isSecretName(content.substring(open + 2, colon), known)) {
         out.append(content, open, colon + 1).append(ConfigExtractor.MASK).append('}');
       } else {
         out.append(content, open, colon + 1)
-            .append(placeholderDefaultsMasked(content.substring(colon + 1, close)))
+            .append(placeholderDefaultsMasked(content.substring(colon + 1, close), known))
             .append('}');
       }
       i = close + 1;
