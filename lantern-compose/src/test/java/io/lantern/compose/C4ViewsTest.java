@@ -308,8 +308,15 @@ class C4ViewsTest {
   }
 
   @Test
-  void unresolvedLinksAndDecisionRecordsFollowTheDiagram() {
-    Section containers = section(repo(facts.list()), "containers");
+  void decisionRecordsAndUnresolvedLinksAreASectionOfTheirOwn() {
+    Document document = repo(facts.list());
+    // C4 pages hold only C4 content (ADR 0070): the containers section keeps only its diagram.
+    assertThat(section(document, "containers").blocks())
+        .noneMatch(b -> b instanceof Table || b instanceof Callout);
+    Section containers = section(document, "decisions");
+    assertThat(containers.title()).isEqualTo("Decisions and unknowns");
+    // Without deployment descriptors there is no deployment section.
+    assertThat(document.sections()).noneMatch(s -> s.id().equals("deployment"));
 
     Callout unresolved = block(containers, Callout.class);
     assertThat(unresolved.variant()).isEqualTo(Callout.Variant.WARNING);
@@ -366,7 +373,9 @@ class C4ViewsTest {
             "Docker Compose (local)",
             "{\"container\":\"shop-app\",\"fact\":\"" + app.id() + "\"}");
 
-    Section containers = section(repo(facts.list()), "containers");
+    Document document = repo(facts.list());
+    assertThat(section(document, "containers").blocks()).noneMatch(b -> b instanceof Table);
+    Section containers = section(document, "deployment");
 
     Table deployment =
         containers.blocks().stream()

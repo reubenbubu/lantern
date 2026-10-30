@@ -84,6 +84,12 @@ export function crossReferenceIssues(data) {
         issues.push(`${where}: "of" names no sequence section on this page`);
       }
       if (section.type === 'elements') (section.select.ids ?? []).forEach((id) => known(id, where));
+      if (page.level === 'documentation' && ['diagram', 'sequence', 'steps'].includes(section.type)) {
+        issues.push(`${where}: a documentation page holds no ${section.type} section`);
+      }
+      for (const row of section.llmRows ?? []) {
+        if (row >= section.rows.length) issues.push(`${where}: llmRows names row ${row}, which it lacks`);
+      }
     }
   }
   return issues;

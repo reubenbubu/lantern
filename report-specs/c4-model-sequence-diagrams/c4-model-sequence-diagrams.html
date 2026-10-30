@@ -94,11 +94,11 @@ body.sb-collapsed .sidebar{transform:translateX(-100%)}
 .sb-search kbd{font:500 10.5px var(--mono);border:1px solid var(--border);border-radius:5px;padding:1px 5px;color:var(--muted)}
 .sb-nav{flex:1;overflow-y:auto;padding:6px 10px 20px;scrollbar-width:thin}
 .nav-label{font:600 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:18px 10px 8px}
-.nav-top,.nav-seq{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:var(--text-2);
+.nav-top,.nav-seq,.nav-doc{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:var(--text-2);
   font-weight:500;font-size:13.5px;position:relative;transition:background .15s,color .15s}
-.nav-top svg,.nav-seq svg{width:16px;height:16px;color:var(--muted);flex:none}
-.nav-top:hover,.nav-seq:hover{background:var(--surface-2);color:var(--text)}
-.nav-seq span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-top svg,.nav-seq svg,.nav-doc svg{width:16px;height:16px;color:var(--muted);flex:none}
+.nav-top:hover,.nav-seq:hover,.nav-doc:hover{background:var(--surface-2);color:var(--text)}
+.nav-seq span,.nav-doc span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav-seq em{font:500 10.5px var(--mono);font-style:normal;color:var(--faint);border:1px solid var(--border);border-radius:6px;padding:0 5px}
 .nav-group{margin:2px 0}
 .nav-ghead{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border:0;background:transparent;
@@ -116,9 +116,9 @@ body.sb-collapsed .sidebar{transform:translateX(-100%)}
 .nav-sec:hover,.nav-sub:hover{color:var(--text);background:var(--surface-2)}
 .nav-sub{font-weight:600;color:var(--text-2);margin-top:6px;font-size:12.5px}
 .nav-sub+.nav-sec{margin-top:0}
-.nav-sec.active,.nav-top.active,.nav-seq.active{color:var(--accent);background:var(--accent-soft)}
+.nav-sec.active,.nav-top.active,.nav-seq.active,.nav-doc.active{color:var(--accent);background:var(--accent-soft)}
 .nav-sec.active::before{content:'';position:absolute;left:-11px;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--accent)}
-.nav-seq.active svg,.nav-top.active svg{color:var(--accent)}
+.nav-seq.active svg,.nav-doc.active svg,.nav-top.active svg{color:var(--accent)}
 .nav-group.current>.nav-ghead{color:var(--text)}
 .nav-hidden{display:none!important}
 .sb-foot{padding:12px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
@@ -249,6 +249,7 @@ td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2);white-space:n
 .b-med{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,transparent);background:color-mix(in srgb,var(--warn) 8%,transparent)}
 .b-low,.b-ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent);background:color-mix(in srgb,var(--ok) 8%,transparent)}
 .b-info{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+.b-llm{color:var(--accent-2);border-color:color-mix(in srgb,var(--accent-2) 40%,transparent);background:color-mix(in srgb,var(--accent-2) 8%,transparent);padding:1px 6px;vertical-align:1px}
 .drill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;white-space:nowrap;padding:4px 10px;border-radius:7px;
   border:1px solid var(--accent-line);background:var(--accent-soft)}
 .drill:hover{background:var(--accent);color:var(--on-accent)}
@@ -2114,7 +2115,8 @@ body.sb-collapsed .mx{left:0}
               "from": "notifier",
               "to": "sendgrid",
               "label": "Sends email",
-              "technology": "HTTPS"
+              "technology": "HTTPS",
+              "llm": true
             }
           ],
           "layout": {
@@ -2196,44 +2198,6 @@ body.sb-collapsed .mx{left:0}
               "key": "properties.backup",
               "label": "Backup / DR",
               "mono": true
-            }
-          ]
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Architecture decisions",
-          "title": "Key Decisions",
-          "items": [
-            {
-              "id": "ADR-012",
-              "title": "Kafka as the domain event backbone",
-              "body": "Decouples notifications, analytics and fulfilment from the checkout path.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-015",
-              "title": "Kong as the single API gateway",
-              "body": "Centralises JWT validation, rate limiting and request logging at the edge.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-019",
-              "title": "Database per service",
-              "body": "Services own their schema; integration only via APIs and events.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-021",
-              "title": "Transactional outbox for events",
-              "body": "Guarantees at-least-once publication without distributed transactions.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-024",
-              "title": "gRPC between Order and Payment",
-              "body": "Strongly-typed contract with deadlines on the hot path.",
-              "status": "Proposed"
             }
           ]
         }
@@ -2406,26 +2370,6 @@ body.sb-collapsed .mx{left:0}
               "key": "properties.backup",
               "label": "Backup / DR",
               "mono": true
-            }
-          ]
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Architecture decisions",
-          "title": "Key Decisions",
-          "items": [
-            {
-              "id": "ADR-027",
-              "title": "OpenSearch for product search",
-              "body": "Managed service, good facet performance, no licence lock-in.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-029",
-              "title": "ClickHouse for operational reporting",
-              "body": "Column store keeps dashboard queries under a second at current volumes.",
-              "status": "Accepted"
             }
           ]
         }
@@ -2606,32 +2550,6 @@ body.sb-collapsed .mx{left:0}
               "key": "properties.backup",
               "label": "Backup / DR",
               "mono": true
-            }
-          ]
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Architecture decisions",
-          "title": "Key Decisions",
-          "items": [
-            {
-              "id": "ADR-031",
-              "title": "RabbitMQ inside the fulfilment platform",
-              "body": "Work-queue semantics and per-message acknowledgement suit warehouse tasks better than a log.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-033",
-              "title": "Event-sourced stock ledger",
-              "body": "Every movement is auditable; snapshots keep reads fast.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-036",
-              "title": "Offline mode for the scanner app",
-              "body": "Associates keep working through Wi-Fi drops; tasks sync when back online.",
-              "status": "Proposed"
             }
           ]
         }
@@ -4218,6 +4136,156 @@ body.sb-collapsed .mx{left:0}
           "of": "diagram"
         }
       ]
+    },
+    {
+      "id": "doc-findings",
+      "level": "documentation",
+      "title": "Decisions, Risks and Unknowns",
+      "summary": "What the diagrams do not show: the decisions behind the architecture, what could go wrong, and what is not known yet.",
+      "sections": [
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Architecture decisions",
+          "title": "Key Decisions",
+          "items": [
+            {
+              "id": "ADR-012",
+              "title": "Kafka as the domain event backbone",
+              "body": "Decouples notifications, analytics and fulfilment from the checkout path.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-015",
+              "title": "Kong as the single API gateway",
+              "body": "Centralises JWT validation, rate limiting and request logging at the edge.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-019",
+              "title": "Database per service",
+              "body": "Services own their schema; integration only via APIs and events.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-021",
+              "title": "Transactional outbox for events",
+              "body": "Guarantees at-least-once publication without distributed transactions.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-024",
+              "title": "gRPC between Order and Payment",
+              "body": "Strongly-typed contract with deadlines on the hot path.",
+              "status": "Proposed"
+            },
+            {
+              "id": "ADR-027",
+              "title": "OpenSearch for product search",
+              "body": "Managed service, good facet performance, no licence lock-in.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-029",
+              "title": "ClickHouse for operational reporting",
+              "body": "Column store keeps dashboard queries under a second at current volumes.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-031",
+              "title": "RabbitMQ inside the fulfilment platform",
+              "body": "Work-queue semantics and per-message acknowledgement suit warehouse tasks better than a log.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-033",
+              "title": "Event-sourced stock ledger",
+              "body": "Every movement is auditable; snapshots keep reads fast.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-036",
+              "title": "Offline mode for the scanner app",
+              "body": "Associates keep working through Wi-Fi drops; tasks sync when back online.",
+              "status": "Proposed"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "risks",
+          "eyebrow": "Findings",
+          "title": "Risks",
+          "columns": [
+            "Impact",
+            "Finding",
+            "Consequence",
+            "Confidence"
+          ],
+          "rows": [
+            [
+              "High",
+              "**Order Service and Payment Service share one Kafka topic for retries.**",
+              "A poison message blocks both retry paths until it is skipped by hand.",
+              "90%"
+            ],
+            [
+              "Medium",
+              "**Catalogue cache has no expiry on price changes.**",
+              "Customers can see a stale price for up to an hour after a change.",
+              "75%"
+            ],
+            [
+              "Low",
+              "**The notifier retries SendGrid without a back-off.**",
+              "A SendGrid outage turns into a burst of retries when it recovers.",
+              "45%"
+            ]
+          ],
+          "llmRows": [
+            2
+          ]
+        },
+        {
+          "type": "list",
+          "id": "unknowns",
+          "title": "Unknowns",
+          "items": [
+            "Who owns the Fulfilment platform's on-call rota is not documented.",
+            "The expected peak order rate behind the checkout SLA is not stated."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-glossary",
+      "level": "documentation",
+      "title": "Glossary",
+      "sections": [
+        {
+          "type": "table",
+          "id": "terms",
+          "title": "Terms",
+          "columns": [
+            "Term",
+            "Meaning"
+          ],
+          "rows": [
+            [
+              "ADR",
+              "Architecture Decision Record: one decision, its context and its consequences."
+            ],
+            [
+              "SLA",
+              "Service Level Agreement: the availability or latency the business commits to."
+            ],
+            [
+              "WMS",
+              "Warehouse Management System: the fulfilment platform's stock and picking service."
+            ]
+          ]
+        }
+      ]
     }
   ]
 }
@@ -4240,6 +4308,7 @@ const ICON = {
   info: I('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'),
   arrow: I('<path d="M5 12h14M13 6l6 6-6 6"/>'),
   layers: I('<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>'),
+  doc: I('<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>'),
 };
 
 /* ==========================================================================
@@ -4262,13 +4331,18 @@ const LEVELS = [
   {id:'containers', badge:'L2',  label:'Containers',     card:'Container diagram',      blurb:'Deployable applications, services and data stores, and how they communicate.'},
   {id:'components', badge:'L3',  label:'Components',     card:'Component diagram',      blurb:'The internal structure of individual containers.'},
   {id:'sequence',   badge:'SEQ', label:'Sequence Diagrams', card:'Sequence diagram',    blurb:'Dynamic views of the most important runtime flows.'},
+  {id:'documentation', badge:'DOC', label:'Documentation', card:'Documentation',          blurb:'Architecture documentation at no C4 level: decisions, risks, unknowns, glossary, catalog, deployment and sources.'},
 ];
+/* Levels drawn as C4 diagrams; sequence and documentation pages are groups of their own. */
+const C4_LEVELS = LEVELS.filter(l => l.id !== 'sequence' && l.id !== 'documentation');
 const LEVEL = Object.fromEntries(LEVELS.map(l => [l.id, l]));
 
 /* Elements, normalised for the renderers (tech / desc / props). */
 const EL = {};
 for (const [id, e] of Object.entries(DATA.elements || {}))
   EL[id] = {...e, tech:e.technology || '', desc:e.description || '', props:e.properties || {}};
+/* An element's type label in diagrams; one the LLM found says so (schema: llm). */
+const tagOf = e => (e.llm ? 'LLM · ' : '') + (e.tag || KIND[e.kind]?.label || '');
 
 const PAGES = (DATA.pages || []).filter(p => LEVEL[p.level]);
 const PAGE = Object.fromEntries(PAGES.map(p => [p.id, p]));
@@ -4280,7 +4354,7 @@ for (const p of PAGES) for (const s of (p.sections || [])){
   const key = `${p.id}/${s.id}`;
   if (s.type === 'diagram'){
     // relationships naming unknown elements are skipped (and reported by validate()) so the rest still draws
-    const edges = (s.relationships || []).filter(r => EL[r.from] && EL[r.to]).map(r => ({f:r.from, t:r.to, l:r.label || '', tech:r.technology || ''}));
+    const edges = (s.relationships || []).filter(r => EL[r.from] && EL[r.to]).map(r => ({f:r.from, t:r.to, l:(r.llm ? 'LLM · ' : '') + (r.label || ''), tech:r.technology || ''}));
     const ids = new Set([...edges.flatMap(e => [e.f, e.t]), ...(s.elements || []).filter(id => EL[id])]);
     const spec = {level:LEVEL[p.level].badge, title:s.caption || LEVEL[p.level].card, sub:p.title, edges, groupByKind: s.layout?.groupByKind !== false,
       constraints:(s.layout?.rules || []).map(r => r.strict === false ? {a:r.a, rel:r.rel, b:r.b, strict:false} : {a:r.a, rel:r.rel, b:r.b})};
@@ -4381,6 +4455,8 @@ function pillRowWidth(pills){ return pills.reduce((s, p) => s + PILL.w(p.title),
       }
       if (s.type === 'steps' && !SEQS[`${p.id}/${s.of}`]) issues.push(`${where}: "of" must name a sequence section on this page`);
       if (s.type === 'elements') for (const id of s.select?.ids || []) if (!EL[id]) issues.push(`${where}: unknown element "${id}"`);
+      if (p.level === 'documentation' && ['diagram','sequence','steps'].includes(s.type)) issues.push(`${where}: a documentation page holds no ${s.type} section`);
+      for (const r of s.llmRows || []) if (!(s.rows || [])[r]) issues.push(`${where}: llmRows names row ${r}, which the table lacks`);
     }
   }
   if (issues.length){ console.groupCollapsed(`[arc-data] ${issues.length} issue${issues.length>1?'s':''} found in the document data`); issues.forEach(i => console.warn(i)); console.groupEnd(); }
@@ -4447,7 +4523,7 @@ function nodeSVG(n, view, uid, ruled=false){
       <circle class="glyph" cx="${cx}" cy="${y-4}" r="5"/><path class="glyph" d="M${cx-8.5},${y+10} a8.5,7.5 0 0 1 17,0 z"/>`;
   }
   const hero = !!n.hero;
-  const tag = e.tag || KIND[k].label;
+  const tag = tagOf(e);
   const descLines = h >= 300 ? 6 : h >= 140 ? 3 : h >= 100 ? 2 : 1;
   const desc = e.desc ? wrap(e.desc, Math.floor((w-(hero?60:26))/(hero?6.6:6.05)), descLines) : [];
   const nameH = hero ? 24 : 18, tech = e.tech;
@@ -5207,7 +5283,7 @@ function seqSVG(spec, view){
   // participant heads
   P.forEach(id => {
     const e = EL[id], x = X[id] - boxW/2, lk = linkFor(id, view);
-    const tag = e.tag || KIND[e.kind].label;
+    const tag = tagOf(e);
     const tagW = tag.length*6.3 + 14;
     let head = '';
     s += `<g class="node k-${e.kind}${lk?' link':''}" data-id="${id}"${lk?` data-href="${lk.href}" data-tip="${esc(lk.tip)}" data-sub="${esc(lk.sub)}"`:''}>
@@ -5401,7 +5477,8 @@ function diagramCard(kind, key){
    PAGES — rendered from DATA.pages, one section at a time
    ========================================================================== */
 let currentView = 'home';
-const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b><small>${esc(e.tag||KIND[e.kind].label)}</small></div></div>`; };
+const llmBadge = '<span class="badge b-llm" title="Found by the LLM, not by static analysis">LLM</span>';
+const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b>${e.llm ? ' ' + llmBadge : ''}<small>${esc(e.tag||KIND[e.kind].label)}</small></div></div>`; };
 const critBadge = c => c ? `<span class="badge ${/^(high|critical)$/i.test(c)?'b-high':/^med/i.test(c)?'b-med':'b-low'}">${esc(c)}</span>` : '';
 const statusBadge = s => `<span class="badge ${/approved|accepted|done|active/i.test(s)?'b-ok':/rejected|deprecated/i.test(s)?'b-high':'b-info'}">${esc(s)}</span>`;
 const fmtDate = d => { const t = Date.parse(d); return isNaN(t) ? d : new Date(t).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); };
@@ -5458,7 +5535,7 @@ const SECTION = {
       ${ids.map(id => `<tr${CATALOGUE[id] && CATALOGUE[id].page === p.id && CATALOGUE[id].section === s.id ? ` id="el-${id}"` : ''}>${cols.map(c => `<td${c.mono?' class="mono"':''}>${c.cell(id)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   },
   decisions: s => `<div class="card">${(s.items||[]).map(d => `<div class="adr"><span class="id">${esc(d.id || '')}</span><div><b>${mdInline(d.title)}</b>${d.body ? `<p>${mdInline(d.body)}</p>` : ''}</div>${d.status ? statusBadge(d.status) : '<span></span>'}</div>`).join('')}</div>`,
-  table: s => `<div class="tbl-wrap"><table>${(s.columns||[]).length ? `<thead><tr>${s.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}<tbody>${(s.rows||[]).map(r => `<tr>${r.map(c => `<td>${mdInline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
+  table: s => `<div class="tbl-wrap"><table>${(s.columns||[]).length ? `<thead><tr>${s.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}<tbody>${(s.rows||[]).map((r, i) => `<tr>${r.map((c, j) => `<td>${j === 0 && (s.llmRows || []).includes(i) ? llmBadge + ' ' : ''}${mdInline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
 };
 
 function renderSection(s, p){
@@ -5506,7 +5583,7 @@ function renderHome(){
   const pills = [d.status && `<span class="pill"><i class="dot"></i>${esc(d.status)}</span>`, d.version && `<span class="pill">Version ${esc(d.version)}</span>`,
     d.owner && `<span class="pill">Owner · ${esc(d.owner)}</span>`, d.updated && `<span class="pill">Updated · ${esc(fmtDate(d.updated))}</span>`,
     d.classification && `<span class="pill">${esc(d.classification)}</span>`].filter(Boolean).join('');
-  const cards = LEVELS.filter(l => l.id !== 'sequence' && pagesOf(l.id).length).map(l => {
+  const cards = C4_LEVELS.filter(l => pagesOf(l.id).length).map(l => {
     const ps = pagesOf(l.id);
     const links = ps.length === 1
       ? titledSections(ps[0]).map(s => `<a href="#/${ps[0].id}/${s.id}">${esc(s.title)}</a>`).join('')
@@ -5519,6 +5596,8 @@ function renderHome(){
     const meta = q ? `${q.p.length} participants · ${q.s.filter(s => s.f).length} interactions` : `${titledSections(p).length} sections`;
     return `<a class="card seqcard" href="#/${p.id}"><div class="ic">${ICON.seq}</div><div><b>${esc(p.title)}</b><span>${meta}</span></div><span class="go">→</span></a>`;
   }).join('');
+  const docs = pagesOf('documentation').map(p =>
+    `<a class="card seqcard" href="#/${p.id}"><div class="ic">${ICON.doc}</div><div><b>${esc(p.title)}</b><span>${titledSections(p).map(s => esc(s.title)).join(' · ') || 'Documentation'}</span></div><span class="go">→</span></a>`).join('');
   const usedKinds = Object.keys(KIND).filter(k => Object.values(EL).some(e => e.kind === k));
   return `
     <section class="hero">
@@ -5540,6 +5619,7 @@ function renderHome(){
     </section>
     ${cards ? `<section class="sec" id="contents" data-sec data-label="Contents"><div class="sec-head"><div class="eyebrow">Index</div><h2>Contents</h2></div><div class="grid g3">${cards}</div></section>` : ''}
     ${seqs ? `<section class="sec" id="sequences" data-sec data-label="Sequence Diagrams"><div class="sec-head"><div class="eyebrow">Dynamic views</div><h2>Sequence Diagrams</h2></div><div class="grid g2">${seqs}</div></section>` : ''}
+    ${docs ? `<section class="sec" id="documentation" data-sec data-label="Documentation"><div class="sec-head"><div class="eyebrow">Beyond the diagrams</div><h2>Documentation</h2></div><div class="grid g2">${docs}</div></section>` : ''}
     <section class="sec" id="notation" data-sec data-label="Notation"><div class="sec-head"><div class="eyebrow">Legend</div><h2>Notation</h2></div>
       <p>Each element type has a dedicated colour used consistently across every diagram and table. Elements with a <b style="color:var(--accent)">●</b> badge are clickable and jump to their deeper diagram or catalogue entry.</p>
       <div class="notation">${usedKinds.map(k => `<div class="card ncard">${notationArt(k)}<div><b>${KIND[k].label}</b><span>${KIND[k].desc}</span></div></div>`).join('')}
@@ -5554,19 +5634,20 @@ function renderHome(){
    ========================================================================== */
 const NAV_ORDER = ['home', ...LEVELS.flatMap(l => pagesOf(l.id).map(p => p.id))];
 function buildNav(){
-  const c4 = LEVELS.filter(l => l.id !== 'sequence' && pagesOf(l.id).length).map(l => {
+  const c4 = C4_LEVELS.filter(l => pagesOf(l.id).length).map(l => {
     const ps = pagesOf(l.id);
     if (ps.length === 1) return `<a class="nav-solo" href="#/${ps[0].id}" data-page="${ps[0].id}" data-level="${l.id}" title="${esc(ps[0].title)}"><span class="lvl">${l.badge}</span><span class="nav-solo-t">${esc(l.label)}<small>${esc(ps[0].title)}</small></span></a>`;
     return `<div class="nav-group open" data-group="${l.id}">
       <button class="nav-ghead" aria-expanded="true"><span class="lvl">${l.badge}</span>${esc(l.label)}<em class="nav-count">${ps.length}</em>${ICON.chev}</button>
       <div class="nav-gbody"><div><div class="inner">${ps.map(p => `<a class="nav-sec" href="#/${p.id}" data-page="${p.id}">${esc(p.title)}</a>`).join('')}</div></div></div></div>`;
   }).join('');
-  const seqs = pagesOf('sequence');
+  const seqs = pagesOf('sequence'), docs = pagesOf('documentation');
   $('#nav').innerHTML = `
     <a class="nav-top" href="#/home" data-page="home">${ICON.home}<span>Index</span></a>
     ${c4 ? `<div class="nav-label">C4 Model</div>${c4}` : ''}
     ${seqs.length ? `<div class="nav-label">Sequence Diagrams</div>${seqs.map(p => { const q = Object.entries(SEQS).find(([k]) => pageOf(k) === p.id)?.[1];
-      return `<a class="nav-seq" href="#/${p.id}" data-page="${p.id}">${ICON.seq}<span>${esc(p.title)}</span>${q ? `<em>${q.p.length}</em>` : ''}</a>`; }).join('')}` : ''}`;
+      return `<a class="nav-seq" href="#/${p.id}" data-page="${p.id}">${ICON.seq}<span>${esc(p.title)}</span>${q ? `<em>${q.p.length}</em>` : ''}</a>`; }).join('')}` : ''}
+    ${docs.length ? `<div class="nav-label">Documentation</div>${docs.map(p => `<a class="nav-doc" href="#/${p.id}" data-page="${p.id}">${ICON.doc}<span>${esc(p.title)}</span></a>`).join('')}` : ''}`;
   $$('.nav-ghead').forEach(b => b.addEventListener('click', () => {
     const g = b.parentElement; g.classList.toggle('open'); b.setAttribute('aria-expanded', g.classList.contains('open'));
   }));

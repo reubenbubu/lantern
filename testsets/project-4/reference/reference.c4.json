@@ -754,324 +754,6 @@
           "id": "left-out",
           "tone": "info",
           "body": "Left out on purpose: Docker Hub and JitPack are used only to build and publish (images `aappaa/*`, the shared library), and Prometheus and Grafana only scrape metrics. None takes part in a user request."
-        },
-        {
-          "type": "table",
-          "id": "sources",
-          "eyebrow": "Provenance",
-          "title": "Sources",
-          "columns": [
-            "Repository",
-            "Commit",
-            "Commit date",
-            "Runtime unit"
-          ],
-          "rows": [
-            [
-              "CRM-Frontend",
-              "`0797125`",
-              "2026-06-28",
-              "CRM-Frontend"
-            ],
-            [
-              "Discovery-and-Gateway",
-              "`62649cb`",
-              "2026-06-04",
-              "api-gateway, eureka-service"
-            ],
-            [
-              "Auth-Service",
-              "`6cb4eda`",
-              "2026-08-02",
-              "auth-service"
-            ],
-            [
-              "Main-Service",
-              "`0b59f25`",
-              "2026-08-22",
-              "main-service"
-            ],
-            [
-              "File-Service",
-              "`413caa5`",
-              "2026-05-28",
-              "file-service"
-            ],
-            [
-              "Notification-Service",
-              "`0fc0353`",
-              "2026-06-23",
-              "notification-service"
-            ],
-            [
-              "crm-shared-lib",
-              "`442bbbb`",
-              "2026-08-22",
-              "none: a library (core, messaging, rbac) built into the services"
-            ],
-            [
-              "Deployment",
-              "`3857d28`",
-              "2026-08-23",
-              "none: Docker Compose, Helm and Kustomize descriptors"
-            ]
-          ]
-        },
-        {
-          "type": "table",
-          "id": "glossary",
-          "eyebrow": "Reference",
-          "title": "Glossary",
-          "columns": [
-            "Term",
-            "Meaning here"
-          ],
-          "rows": [
-            [
-              "Organization",
-              "The tenant: members, roles, files and tasks all belong to one. A user can be in several and switches between them."
-            ],
-            [
-              "Role / permission",
-              "A per-organization role is a set of resource × action pairs (resources such as USERS, ROLES, INVITATIONS, FILES, TASKS; actions CREATE, READ, UPDATE, DELETE; ALL as a wildcard)."
-            ],
-            [
-              "User-Id, User-Permissions",
-              "Request headers the gateway adds after checking the token; the services trust them instead of checking the token again."
-            ],
-            [
-              "AMQP",
-              "Advanced Message Queuing Protocol, spoken by RabbitMQ."
-            ],
-            [
-              "Exchange, routing key, queue",
-              "RabbitMQ terms: a producer publishes to an exchange with a routing key; bindings copy the message to queues, which consumers read."
-            ],
-            [
-              "Feign",
-              "OpenFeign, the declarative HTTP client the services use to call each other."
-            ],
-            [
-              "HMAC, HS-signed",
-              "A token signature made with one secret key shared by signer and checker."
-            ],
-            [
-              "JobRunr",
-              "A Java library that stores delayed background jobs in the database and runs them at their due time."
-            ],
-            [
-              "JWT",
-              "JSON Web Token: the 30-minute access token issued by auth-service."
-            ],
-            [
-              "LOB",
-              "Large object: a database column holding binary content, here the file bytes."
-            ],
-            [
-              "lb://, lb:ws://",
-              "Load-balanced service names that Spring Cloud resolves to an instance through the service registry."
-            ],
-            [
-              "RBAC",
-              "Role-based access control."
-            ],
-            [
-              "SMTP, STARTTLS",
-              "The mail-sending protocol, upgraded to TLS on port 587."
-            ],
-            [
-              "SPA",
-              "Single-page application: the Angular app that runs in the browser."
-            ],
-            [
-              "STOMP",
-              "Simple Text Oriented Messaging Protocol, a pub/sub protocol run over a WebSocket."
-            ]
-          ]
-        },
-        {
-          "type": "callout",
-          "id": "no-adrs",
-          "tone": "warning",
-          "title": "No recorded decisions",
-          "body": "None of the eight repositories has architecture decision records or design documents. The decisions below are observed in code and configuration; their rationale is *not recorded* unless a README states it."
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Observed",
-          "title": "Observed decisions",
-          "items": [
-            {
-              "title": "Authorization at the gateway; services trust headers",
-              "status": "Observed",
-              "body": "api-gateway verifies the JWT and adds `User-Id` and `User-Permissions`; the services check those headers, not the token. Rationale: Main-Service's README says authorization is expected at the gateway (`Main-Service/README.md:70`)."
-            },
-            {
-              "title": "One PostgreSQL schema per service",
-              "status": "Observed",
-              "body": "auth_db, main_db and file_db, each written only by its service. Compose runs three PostgreSQL containers; Kustomize puts all three in one instance. Rationale: not recorded."
-            },
-            {
-              "title": "Shared HMAC key for access tokens",
-              "status": "Observed",
-              "body": "auth-service signs HS JWTs and the gateway checks them with the same `auth.token.signing.key`; refresh tokens are opaque strings in auth_db. Rationale: not recorded."
-            },
-            {
-              "title": "Permissions cached in Redis, refreshed by events",
-              "status": "Observed",
-              "body": "auth-service writes each member's permissions to Redis (TTL 10 h); the gateway reads them; `org-user.role-changes` triggers a recompute. Rationale: not recorded."
-            },
-            {
-              "title": "One topic exchange per producing service",
-              "status": "Observed",
-              "body": "main-service.events, file-service.events and auth-service.event; most queues are declared by both producer and consumer. Rationale: not recorded."
-            },
-            {
-              "title": "File bytes in PostgreSQL",
-              "status": "Observed",
-              "body": "file-service keeps content as LOBs in file_db and serves it from memory; no object store exists in any deployment. Rationale: not recorded."
-            },
-            {
-              "title": "Delayed reminders with JobRunr",
-              "status": "Observed",
-              "body": "main-service schedules a one-off job per task reminder, stored in main_db. Rationale: not recorded."
-            },
-            {
-              "title": "Shared library for cross-cutting code",
-              "status": "Observed",
-              "body": "crm-shared-lib (core, messaging, rbac) is pulled from JitPack as a SNAPSHOT at a different version by each service. Rationale: not recorded."
-            },
-            {
-              "title": "Compose for local and dev, Helm for Kubernetes",
-              "status": "Observed",
-              "body": "Rationale recorded: Compose for local and development, Helm for \"Kubernetes production\" (`Deployment/README.md:18-21`)."
-            }
-          ]
-        },
-        {
-          "type": "table",
-          "id": "risks",
-          "eyebrow": "Findings",
-          "title": "Risks and findings",
-          "columns": [
-            "Impact",
-            "Finding",
-            "Consequence",
-            "Evidence"
-          ],
-          "rows": [
-            [
-              "**High**",
-              "Identity headers are trusted and never stripped. The gateway does not remove client-sent `User-Id` or `User-Permissions` on its public routes (`/api/auth/**`, `/api/restore-password-request/**`, `/ws-notifications/**`), and `/api/internal/**` has no authentication; only the route table keeps it private.",
-              "Anyone who reaches a service directly on the network can act as any user with any permission. Through the gateway this is latent today: the public routes lead only to endpoints that ignore these headers.",
-              "`AuthorizeAndCheckAccessFilter.java:53-55`; `PermissionControlAspect.java:29-31`; gateway `RouteConfig.java:33-85`"
-            ],
-            [
-              "**High**",
-              "The check-access filter takes the organization from the `Organization-Id` header, never from the path: its pattern `^/api/organizations/(\\d+)…` is matched against the absolute request URI. main-service checks membership in the path's organization but the permission in the header, which is computed for the header's organization.",
-              "A member of an organization can probably act there with the permissions they hold in another organization, for example one they created themselves (Admin = ALL:ALL), by sending that organization's id in the header.",
-              "gateway `OrganizationIdExtractor.java:17-21,30-34`; `AuthorizeAndCheckAccessFilter.java:45-55`; `OrganizationMembershipControlAspect.java:28-35`; `OrganizationCreatorService.java:69-77`"
-            ],
-            [
-              "**High**",
-              "The gateway's permission fallback calls `/users/{u}/organizations/{o}/persmissions` without the `/api/internal` prefix that auth-service serves.",
-              "Organization-scoped calls probably fail whenever the Redis entry is missing or has expired (TTL 10 h), until a role change rewrites it.",
-              "`UserPermissionClient.java:12-13,24`; `InternalUserPermissionsController.java:12,18`"
-            ],
-            [
-              "**High**",
-              "Secrets: one HMAC signing key shared by gateway and auth-service; Gmail SMTP credentials; generated passwords sent in plaintext through RabbitMQ and email; Hibernate bind parameters logged at TRACE (password hashes, refresh tokens); Helm secrets as plaintext `stringData`; test keys committed.",
-              "Whoever holds the signing key can mint tokens for any user; logs and the broker carry credentials.",
-              "Auth `application.properties:11,21,35`; Notification `application.properties:10-15`; `templates/secrets.yaml`; `Deployment/README.md:450-458`"
-            ],
-            [
-              "Medium",
-              "Events and Feign side effects happen inside database transactions, before commit, with no outbox. Example: organization creation publishes `org.created` before its transaction commits.",
-              "Consumers can run before the organization exists: the default priorities and statuses consumers then fail without requeue, leaving the organization without them, while the root-directory reply is requeued and retried until it succeeds; roles created in auth-service are orphaned if the transaction rolls back.",
-              "`OrganizationCreatorService.java:46-64`; `CreateTaskDefaultPrioritiesConsumer.java:57-60`; `OrganizationRootDirCreatedConsumer.java:38-41`"
-            ],
-            [
-              "Medium",
-              "notification-service declares `GET /api/internal/auth/authorize` with a body; auth-service maps `POST`.",
-              "It works only because the default Feign HTTP client turns a GET with a body into a POST; changing the client would break every notification socket.",
-              "`Notification-Service/.../feign/AuthClient.java:13`; `InternalAuthController.java:19`"
-            ],
-            [
-              "Medium",
-              "The web app calls `GET /api/organizations/{id}/preview`, which main-service serves, but no gateway route matches it (`*` matches one path segment).",
-              "The organization preview probably returns 404 in every deployment.",
-              "FE `organization.service.ts:26`; `OrganizationController.java:36`; `RouteConfig.java:39-61`"
-            ],
-            [
-              "Medium",
-              "crm-shared-lib versions differ: gateway and auth-service 0.2.0, file-service 0.2.1, notification-service 0.2.5, main-service 0.3.0 (Boot 4, Jackson 3), all SNAPSHOTs from JitPack. Message classes differ between them.",
-              "Builds are not reproducible, and messages from main-service may not deserialize in the older consumers (unverified).",
-              "each `pom.xml` near lines 30-33; Auth `OrgUserRoleChangedEvent` vs Main `OrgUserRoleChangedMessage`"
-            ],
-            [
-              "Medium",
-              "Single instances: one Eureka with no peers, one PostgreSQL for all schemas in Kustomize, single Redis and RabbitMQ, one replica of everything in Helm, and an in-memory STOMP broker.",
-              "Any one of them failing stops the system; notification-service cannot run more than one instance; gateway authorization depends on Redis and auth-service.",
-              "`eureka-service/application.properties:1-4`; `kustomize/base/postgres.yml`; Helm `values.yaml:121-187`; `WebSocketsConfig.java:39-41`"
-            ],
-            [
-              "Medium",
-              "file-service has no notion of organization, and only GET and PATCH on `/api/files/**` get the gateway's ownership check; DELETE and POST check only a FILES permission. Removing a member does not refresh their cached permissions.",
-              "Anyone with FILES:DELETE or FILES:CREATE in some organization (their own, for instance) can delete or add files in another organization's tree if they know a file id; a removed member keeps their cached permissions for up to 10 h.",
-              "gateway `RouteConfig.java:65-78`; `FileController.java:39-63`; `OrganizationUserAssignmentService.java:62-72`"
-            ],
-            [
-              "Medium",
-              "`DELETE /api/organizations/{id}/tasks/{taskId}` requires only TASKS:READ.",
-              "Any member who can read tasks can delete them.",
-              "`TaskController.java:78`"
-            ],
-            [
-              "Medium",
-              "The frontend image is built with `--configuration development`, so it calls `http://localhost:8080`; the production configuration uses a hardcoded LAN IP. The API URL is fixed at build time.",
-              "The image only works where the gateway is on the user's own machine.",
-              "FE `Dockerfile:12`; `angular.json:39,59-64,78`; `environment.ts:2`"
-            ],
-            [
-              "Low",
-              "CORS allows every origin at the gateway, and the Helm ingress combines `*` with credentials.",
-              "Browsers reject the Helm combination; the gateway accepts calls from any site.",
-              "gateway `application.properties:18-20`; Helm `values.yaml:36-38`"
-            ],
-            [
-              "Low",
-              "READMEs are stale: Main-Service says Java 21 and Boot 3; Notification-Service says Java 17 and lists test endpoints and destinations that do not exist; File-Service lists a non-existent internal endpoint; Deployment lists templates, a local frontend and environment variables that do not exist.",
-              "New engineers following the READMEs are misled.",
-              "`Main-Service/README.md:30-31,63`; `Notification-Service/README.md:26,67-71`; `File-Service/README.md:83`; `Deployment/README.md:183,399-404,526-579`"
-            ],
-            [
-              "Low",
-              "`GET /api/organizations/{id}` has no membership check and its gateway route only authenticates.",
-              "Any signed-in user can read any organization's details (name, address, email, description) by id.",
-              "`OrganizationController.java:55-61`; gateway `RouteConfig.java:38-45`"
-            ],
-            [
-              "Low",
-              "No schema migrations anywhere: Hibernate `ddl-auto=update`.",
-              "Schema changes are applied implicitly at startup and cannot be reviewed or rolled back.",
-              "each service's `application.*`"
-            ]
-          ]
-        },
-        {
-          "type": "list",
-          "id": "unknowns",
-          "eyebrow": "Gaps",
-          "title": "Unknowns",
-          "items": [
-            "Owners, quality goals and the rationale of most decisions: not recorded.",
-            "Which Kubernetes descriptor (Helm or Kustomize) is used in production, and how the web app is served there: no frontend manifest exists and the ingress sends `/` to the gateway.",
-            "Whether `lb://` and Feign names actually resolve in Kubernetes with Eureka off: all five services have Spring Cloud Kubernetes on the classpath, but this was not run.",
-            "Where the `aappaa/discovery-service` image is built: no workflow builds it.",
-            "Whether main-service's 0.3.0 messages deserialize in the consumers on 0.2.x.",
-            "The values of the `.env.*` files and secrets, which are not committed."
-          ]
         }
       ]
     },
@@ -3313,6 +2995,345 @@
           "eyebrow": "Walkthrough",
           "title": "Steps",
           "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "doc-findings",
+      "level": "documentation",
+      "title": "Decisions, risks and unknowns",
+      "sections": [
+        {
+          "type": "callout",
+          "id": "no-adrs",
+          "tone": "warning",
+          "title": "No recorded decisions",
+          "body": "None of the eight repositories has architecture decision records or design documents. The decisions below are observed in code and configuration; their rationale is *not recorded* unless a README states it."
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Observed",
+          "title": "Observed decisions",
+          "items": [
+            {
+              "title": "Authorization at the gateway; services trust headers",
+              "status": "Observed",
+              "body": "api-gateway verifies the JWT and adds `User-Id` and `User-Permissions`; the services check those headers, not the token. Rationale: Main-Service's README says authorization is expected at the gateway (`Main-Service/README.md:70`)."
+            },
+            {
+              "title": "One PostgreSQL schema per service",
+              "status": "Observed",
+              "body": "auth_db, main_db and file_db, each written only by its service. Compose runs three PostgreSQL containers; Kustomize puts all three in one instance. Rationale: not recorded."
+            },
+            {
+              "title": "Shared HMAC key for access tokens",
+              "status": "Observed",
+              "body": "auth-service signs HS JWTs and the gateway checks them with the same `auth.token.signing.key`; refresh tokens are opaque strings in auth_db. Rationale: not recorded."
+            },
+            {
+              "title": "Permissions cached in Redis, refreshed by events",
+              "status": "Observed",
+              "body": "auth-service writes each member's permissions to Redis (TTL 10 h); the gateway reads them; `org-user.role-changes` triggers a recompute. Rationale: not recorded."
+            },
+            {
+              "title": "One topic exchange per producing service",
+              "status": "Observed",
+              "body": "main-service.events, file-service.events and auth-service.event; most queues are declared by both producer and consumer. Rationale: not recorded."
+            },
+            {
+              "title": "File bytes in PostgreSQL",
+              "status": "Observed",
+              "body": "file-service keeps content as LOBs in file_db and serves it from memory; no object store exists in any deployment. Rationale: not recorded."
+            },
+            {
+              "title": "Delayed reminders with JobRunr",
+              "status": "Observed",
+              "body": "main-service schedules a one-off job per task reminder, stored in main_db. Rationale: not recorded."
+            },
+            {
+              "title": "Shared library for cross-cutting code",
+              "status": "Observed",
+              "body": "crm-shared-lib (core, messaging, rbac) is pulled from JitPack as a SNAPSHOT at a different version by each service. Rationale: not recorded."
+            },
+            {
+              "title": "Compose for local and dev, Helm for Kubernetes",
+              "status": "Observed",
+              "body": "Rationale recorded: Compose for local and development, Helm for \"Kubernetes production\" (`Deployment/README.md:18-21`)."
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "risks",
+          "eyebrow": "Findings",
+          "title": "Risks and findings",
+          "columns": [
+            "Impact",
+            "Finding",
+            "Consequence",
+            "Evidence"
+          ],
+          "rows": [
+            [
+              "**High**",
+              "Identity headers are trusted and never stripped. The gateway does not remove client-sent `User-Id` or `User-Permissions` on its public routes (`/api/auth/**`, `/api/restore-password-request/**`, `/ws-notifications/**`), and `/api/internal/**` has no authentication; only the route table keeps it private.",
+              "Anyone who reaches a service directly on the network can act as any user with any permission. Through the gateway this is latent today: the public routes lead only to endpoints that ignore these headers.",
+              "`AuthorizeAndCheckAccessFilter.java:53-55`; `PermissionControlAspect.java:29-31`; gateway `RouteConfig.java:33-85`"
+            ],
+            [
+              "**High**",
+              "The check-access filter takes the organization from the `Organization-Id` header, never from the path: its pattern `^/api/organizations/(\\d+)…` is matched against the absolute request URI. main-service checks membership in the path's organization but the permission in the header, which is computed for the header's organization.",
+              "A member of an organization can probably act there with the permissions they hold in another organization, for example one they created themselves (Admin = ALL:ALL), by sending that organization's id in the header.",
+              "gateway `OrganizationIdExtractor.java:17-21,30-34`; `AuthorizeAndCheckAccessFilter.java:45-55`; `OrganizationMembershipControlAspect.java:28-35`; `OrganizationCreatorService.java:69-77`"
+            ],
+            [
+              "**High**",
+              "The gateway's permission fallback calls `/users/{u}/organizations/{o}/persmissions` without the `/api/internal` prefix that auth-service serves.",
+              "Organization-scoped calls probably fail whenever the Redis entry is missing or has expired (TTL 10 h), until a role change rewrites it.",
+              "`UserPermissionClient.java:12-13,24`; `InternalUserPermissionsController.java:12,18`"
+            ],
+            [
+              "**High**",
+              "Secrets: one HMAC signing key shared by gateway and auth-service; Gmail SMTP credentials; generated passwords sent in plaintext through RabbitMQ and email; Hibernate bind parameters logged at TRACE (password hashes, refresh tokens); Helm secrets as plaintext `stringData`; test keys committed.",
+              "Whoever holds the signing key can mint tokens for any user; logs and the broker carry credentials.",
+              "Auth `application.properties:11,21,35`; Notification `application.properties:10-15`; `templates/secrets.yaml`; `Deployment/README.md:450-458`"
+            ],
+            [
+              "Medium",
+              "Events and Feign side effects happen inside database transactions, before commit, with no outbox. Example: organization creation publishes `org.created` before its transaction commits.",
+              "Consumers can run before the organization exists: the default priorities and statuses consumers then fail without requeue, leaving the organization without them, while the root-directory reply is requeued and retried until it succeeds; roles created in auth-service are orphaned if the transaction rolls back.",
+              "`OrganizationCreatorService.java:46-64`; `CreateTaskDefaultPrioritiesConsumer.java:57-60`; `OrganizationRootDirCreatedConsumer.java:38-41`"
+            ],
+            [
+              "Medium",
+              "notification-service declares `GET /api/internal/auth/authorize` with a body; auth-service maps `POST`.",
+              "It works only because the default Feign HTTP client turns a GET with a body into a POST; changing the client would break every notification socket.",
+              "`Notification-Service/.../feign/AuthClient.java:13`; `InternalAuthController.java:19`"
+            ],
+            [
+              "Medium",
+              "The web app calls `GET /api/organizations/{id}/preview`, which main-service serves, but no gateway route matches it (`*` matches one path segment).",
+              "The organization preview probably returns 404 in every deployment.",
+              "FE `organization.service.ts:26`; `OrganizationController.java:36`; `RouteConfig.java:39-61`"
+            ],
+            [
+              "Medium",
+              "crm-shared-lib versions differ: gateway and auth-service 0.2.0, file-service 0.2.1, notification-service 0.2.5, main-service 0.3.0 (Boot 4, Jackson 3), all SNAPSHOTs from JitPack. Message classes differ between them.",
+              "Builds are not reproducible, and messages from main-service may not deserialize in the older consumers (unverified).",
+              "each `pom.xml` near lines 30-33; Auth `OrgUserRoleChangedEvent` vs Main `OrgUserRoleChangedMessage`"
+            ],
+            [
+              "Medium",
+              "Single instances: one Eureka with no peers, one PostgreSQL for all schemas in Kustomize, single Redis and RabbitMQ, one replica of everything in Helm, and an in-memory STOMP broker.",
+              "Any one of them failing stops the system; notification-service cannot run more than one instance; gateway authorization depends on Redis and auth-service.",
+              "`eureka-service/application.properties:1-4`; `kustomize/base/postgres.yml`; Helm `values.yaml:121-187`; `WebSocketsConfig.java:39-41`"
+            ],
+            [
+              "Medium",
+              "file-service has no notion of organization, and only GET and PATCH on `/api/files/**` get the gateway's ownership check; DELETE and POST check only a FILES permission. Removing a member does not refresh their cached permissions.",
+              "Anyone with FILES:DELETE or FILES:CREATE in some organization (their own, for instance) can delete or add files in another organization's tree if they know a file id; a removed member keeps their cached permissions for up to 10 h.",
+              "gateway `RouteConfig.java:65-78`; `FileController.java:39-63`; `OrganizationUserAssignmentService.java:62-72`"
+            ],
+            [
+              "Medium",
+              "`DELETE /api/organizations/{id}/tasks/{taskId}` requires only TASKS:READ.",
+              "Any member who can read tasks can delete them.",
+              "`TaskController.java:78`"
+            ],
+            [
+              "Medium",
+              "The frontend image is built with `--configuration development`, so it calls `http://localhost:8080`; the production configuration uses a hardcoded LAN IP. The API URL is fixed at build time.",
+              "The image only works where the gateway is on the user's own machine.",
+              "FE `Dockerfile:12`; `angular.json:39,59-64,78`; `environment.ts:2`"
+            ],
+            [
+              "Low",
+              "CORS allows every origin at the gateway, and the Helm ingress combines `*` with credentials.",
+              "Browsers reject the Helm combination; the gateway accepts calls from any site.",
+              "gateway `application.properties:18-20`; Helm `values.yaml:36-38`"
+            ],
+            [
+              "Low",
+              "READMEs are stale: Main-Service says Java 21 and Boot 3; Notification-Service says Java 17 and lists test endpoints and destinations that do not exist; File-Service lists a non-existent internal endpoint; Deployment lists templates, a local frontend and environment variables that do not exist.",
+              "New engineers following the READMEs are misled.",
+              "`Main-Service/README.md:30-31,63`; `Notification-Service/README.md:26,67-71`; `File-Service/README.md:83`; `Deployment/README.md:183,399-404,526-579`"
+            ],
+            [
+              "Low",
+              "`GET /api/organizations/{id}` has no membership check and its gateway route only authenticates.",
+              "Any signed-in user can read any organization's details (name, address, email, description) by id.",
+              "`OrganizationController.java:55-61`; gateway `RouteConfig.java:38-45`"
+            ],
+            [
+              "Low",
+              "No schema migrations anywhere: Hibernate `ddl-auto=update`.",
+              "Schema changes are applied implicitly at startup and cannot be reviewed or rolled back.",
+              "each service's `application.*`"
+            ]
+          ]
+        },
+        {
+          "type": "list",
+          "id": "unknowns",
+          "eyebrow": "Gaps",
+          "title": "Unknowns",
+          "items": [
+            "Owners, quality goals and the rationale of most decisions: not recorded.",
+            "Which Kubernetes descriptor (Helm or Kustomize) is used in production, and how the web app is served there: no frontend manifest exists and the ingress sends `/` to the gateway.",
+            "Whether `lb://` and Feign names actually resolve in Kubernetes with Eureka off: all five services have Spring Cloud Kubernetes on the classpath, but this was not run.",
+            "Where the `aappaa/discovery-service` image is built: no workflow builds it.",
+            "Whether main-service's 0.3.0 messages deserialize in the consumers on 0.2.x.",
+            "The values of the `.env.*` files and secrets, which are not committed."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-glossary",
+      "level": "documentation",
+      "title": "Glossary",
+      "sections": [
+        {
+          "type": "table",
+          "id": "glossary",
+          "eyebrow": "Reference",
+          "title": "Glossary",
+          "columns": [
+            "Term",
+            "Meaning here"
+          ],
+          "rows": [
+            [
+              "Organization",
+              "The tenant: members, roles, files and tasks all belong to one. A user can be in several and switches between them."
+            ],
+            [
+              "Role / permission",
+              "A per-organization role is a set of resource × action pairs (resources such as USERS, ROLES, INVITATIONS, FILES, TASKS; actions CREATE, READ, UPDATE, DELETE; ALL as a wildcard)."
+            ],
+            [
+              "User-Id, User-Permissions",
+              "Request headers the gateway adds after checking the token; the services trust them instead of checking the token again."
+            ],
+            [
+              "AMQP",
+              "Advanced Message Queuing Protocol, spoken by RabbitMQ."
+            ],
+            [
+              "Exchange, routing key, queue",
+              "RabbitMQ terms: a producer publishes to an exchange with a routing key; bindings copy the message to queues, which consumers read."
+            ],
+            [
+              "Feign",
+              "OpenFeign, the declarative HTTP client the services use to call each other."
+            ],
+            [
+              "HMAC, HS-signed",
+              "A token signature made with one secret key shared by signer and checker."
+            ],
+            [
+              "JobRunr",
+              "A Java library that stores delayed background jobs in the database and runs them at their due time."
+            ],
+            [
+              "JWT",
+              "JSON Web Token: the 30-minute access token issued by auth-service."
+            ],
+            [
+              "LOB",
+              "Large object: a database column holding binary content, here the file bytes."
+            ],
+            [
+              "lb://, lb:ws://",
+              "Load-balanced service names that Spring Cloud resolves to an instance through the service registry."
+            ],
+            [
+              "RBAC",
+              "Role-based access control."
+            ],
+            [
+              "SMTP, STARTTLS",
+              "The mail-sending protocol, upgraded to TLS on port 587."
+            ],
+            [
+              "SPA",
+              "Single-page application: the Angular app that runs in the browser."
+            ],
+            [
+              "STOMP",
+              "Simple Text Oriented Messaging Protocol, a pub/sub protocol run over a WebSocket."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-sources",
+      "level": "documentation",
+      "title": "Sources",
+      "sections": [
+        {
+          "type": "table",
+          "id": "sources",
+          "eyebrow": "Provenance",
+          "title": "Sources",
+          "columns": [
+            "Repository",
+            "Commit",
+            "Commit date",
+            "Runtime unit"
+          ],
+          "rows": [
+            [
+              "CRM-Frontend",
+              "`0797125`",
+              "2026-06-28",
+              "CRM-Frontend"
+            ],
+            [
+              "Discovery-and-Gateway",
+              "`62649cb`",
+              "2026-06-04",
+              "api-gateway, eureka-service"
+            ],
+            [
+              "Auth-Service",
+              "`6cb4eda`",
+              "2026-08-02",
+              "auth-service"
+            ],
+            [
+              "Main-Service",
+              "`0b59f25`",
+              "2026-08-22",
+              "main-service"
+            ],
+            [
+              "File-Service",
+              "`413caa5`",
+              "2026-05-28",
+              "file-service"
+            ],
+            [
+              "Notification-Service",
+              "`0fc0353`",
+              "2026-06-23",
+              "notification-service"
+            ],
+            [
+              "crm-shared-lib",
+              "`442bbbb`",
+              "2026-08-22",
+              "none: a library (core, messaging, rbac) built into the services"
+            ],
+            [
+              "Deployment",
+              "`3857d28`",
+              "2026-08-23",
+              "none: Docker Compose, Helm and Kustomize descriptors"
+            ]
+          ]
         }
       ]
     }

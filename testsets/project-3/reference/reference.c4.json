@@ -562,319 +562,6 @@
           "id": "left-out",
           "tone": "info",
           "body": "Left out on purpose: GitHub hosts the config repository (modelled as a data store, since the config server only reads it) and GitHub Actions tries to push three services' images to GHCR, which no deployment uses (its publish job builds no jar first, so the image build would fail as read). Prometheus and Grafana have configuration files but are not in compose. No payment provider, email service or video storage exists anywhere in the code."
-        },
-        {
-          "type": "table",
-          "id": "sources",
-          "eyebrow": "Provenance",
-          "title": "Sources",
-          "columns": [
-            "Repository",
-            "Commit",
-            "Commit date",
-            "Runtime unit"
-          ],
-          "rows": [
-            [
-              "mediahub-frontend-ui",
-              "`acefeda`",
-              "2026-03-24",
-              "mediahub-ui (dev server only)"
-            ],
-            [
-              "mediahub-api-gateway",
-              "`3ad3447`",
-              "2026-03-15",
-              "api-gateway"
-            ],
-            [
-              "mediahub-discovery-server",
-              "`4363aa9`",
-              "2026-03-15",
-              "discovery-server"
-            ],
-            [
-              "mediahub-config-server",
-              "`7def2da`",
-              "2026-03-15",
-              "config-server"
-            ],
-            [
-              "mediahub-config-repo",
-              "`a57c8a6`",
-              "2026-03-15",
-              "none: the YAML files the config server serves"
-            ],
-            [
-              "mediahub-user-service",
-              "`c5698fa`",
-              "2026-03-15",
-              "user-service"
-            ],
-            [
-              "mediahub-media-service",
-              "`fab6a4c`",
-              "2026-03-15",
-              "media-service"
-            ],
-            [
-              "mediahub-subscription-service",
-              "`8a16d85`",
-              "2026-03-15",
-              "subscription-service"
-            ],
-            [
-              "mediahub-infra",
-              "`aef86fb`",
-              "2026-03-15",
-              "none: Docker Compose, Makefile, Insomnia collection, unused Prometheus and Grafana files"
-            ]
-          ]
-        },
-        {
-          "type": "table",
-          "id": "glossary",
-          "eyebrow": "Reference",
-          "title": "Glossary",
-          "columns": [
-            "Term",
-            "Meaning here"
-          ],
-          "rows": [
-            [
-              "ApiResponse",
-              "The JSON envelope every service wraps its answers in: success, message, data, timestamp."
-            ],
-            [
-              "BCrypt",
-              "A slow, salted password-hashing function; user-service stores only the hash."
-            ],
-            [
-              "Config Server, native and git profiles",
-              "Spring Cloud Config Server hands each service its settings at start-up. In the native profile it reads a folder (compose mounts the config repository); in the git profile, its default, it clones the repository from GitHub."
-            ],
-            [
-              "Discovery locator",
-              "A Spring Cloud Gateway option that creates a route /{SERVICE-ID}/** for every service in the registry."
-            ],
-            [
-              "Eureka",
-              "Netflix's service registry: services register their address and renew a lease; clients look addresses up by name."
-            ],
-            [
-              "Feign",
-              "OpenFeign, the declarative HTTP client the services use to call each other."
-            ],
-            [
-              "GHCR",
-              "GitHub Container Registry, where three services' CI tries to push images."
-            ],
-            [
-              "JPA, ddl-auto=update",
-              "Java Persistence API; Hibernate alters the tables to match the entities at start-up, instead of versioned migrations."
-            ],
-            [
-              "lb://",
-              "A load-balanced service name that Spring Cloud resolves to an instance through the registry."
-            ],
-            [
-              "SPA",
-              "Single-page application: the Angular app that runs in the browser."
-            ],
-            [
-              "WebClient",
-              "Spring's reactive HTTP client; subscription-service uses it in blocking mode."
-            ]
-          ]
-        },
-        {
-          "type": "callout",
-          "id": "no-adrs",
-          "tone": "warning",
-          "title": "No recorded decisions",
-          "body": "None of the nine repositories has architecture decision records or design documents. The decisions below are observed in code and configuration; their rationale is *not recorded* unless a README states it."
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Observed",
-          "title": "Observed decisions",
-          "items": [
-            {
-              "title": "Spring Cloud microservices: gateway, Eureka and Config Server",
-              "status": "Observed",
-              "body": "One Spring Cloud Gateway, one Eureka registry and one Config Server in front of three domain services, each in its own repository. Rationale: not recorded."
-            },
-            {
-              "title": "Configuration in a separate Git repository",
-              "status": "Observed",
-              "body": "Per-service YAML files plus a shared application.yml in mediahub-config-repo, cloned from GitHub by default and mounted as a folder in compose. Services fail fast if the config server is missing. Rationale: not recorded; the READMEs only say credentials \"are injected via the Config Server\" (`mediahub-media-service/README.md:9`)."
-            },
-            {
-              "title": "One PostgreSQL database per service",
-              "status": "Observed",
-              "body": "mediahub_user, mediahub_media and mediahub_subscription, each in its own PostgreSQL 15 container and written only by its service. Rationale: not recorded."
-            },
-            {
-              "title": "Other services' data referenced by id only",
-              "status": "Observed",
-              "body": "subscriptions.user_id and watch_history.media_id hold plain ids checked over HTTP at write time. Rationale recorded: a subscription \"should not duplicate the User entity, only reference userId\" (`mediahub-subscription-service/README.md:29`)."
-            },
-            {
-              "title": "Synchronous HTTP between services, no messaging",
-              "status": "Observed",
-              "body": "OpenFeign clients and one load-balanced WebClient, resolved through Eureka; no broker or events. Rationale: not recorded."
-            },
-            {
-              "title": "Routing by path prefix plus discovery locator",
-              "status": "Observed",
-              "body": "/api/v1/users, /media and /subscriptions map to one service each; the discovery locator additionally routes /{SERVICE-ID}/** to every registered service. Rationale: not recorded."
-            },
-            {
-              "title": "Uniform response envelope and exception mapping",
-              "status": "Observed",
-              "body": "Every service wraps answers in ApiResponse and maps its exceptions in a @RestControllerAdvice. Rationale recorded as a rule: \"ALL endpoints MUST return responses wrapped in the ApiResponse<T> class\" (`mediahub-user-service/README.md:7-8`)."
-            },
-            {
-              "title": "Passwords hashed with BCrypt",
-              "status": "Observed",
-              "body": "user-service hashes on create and update with spring-security-crypto, without Spring Security itself. Rationale: not recorded."
-            },
-            {
-              "title": "Schema by Hibernate ddl-auto=update",
-              "status": "Observed",
-              "body": "No migrations in any service. Rationale: not recorded."
-            },
-            {
-              "title": "Docker Compose as the only deployment",
-              "status": "Observed",
-              "body": "mediahub-infra builds every backend image from pre-built jars and runs it with three databases; three services' CI also tries to push images to GHCR, unused by compose. Rationale: not recorded."
-            }
-          ]
-        },
-        {
-          "type": "table",
-          "id": "risks",
-          "eyebrow": "Findings",
-          "title": "Risks and findings",
-          "columns": [
-            "Impact",
-            "Finding",
-            "Consequence",
-            "Evidence"
-          ],
-          "rows": [
-            [
-              "**High**",
-              "No authentication or authorization anywhere: the gateway has no security or filters, the services have no Spring Security, and the role is taken from the request body.",
-              "Anyone who reaches port 8080 can create an ADMIN user, change roles, list every user's email, delete users or media and cancel any subscription.",
-              "gateway `pom.xml:21-50`, `application.yaml:12-24`; `UserController.java:24-67`; `UserRequestDto.java:36-37`; `UserServiceImpl.java:34-40`"
-            ],
-            [
-              "**High**",
-              "The gateway's discovery locator routes /{SERVICE-ID}/** to every registered service, including config-server, and the gateway actuator (with the gateway endpoint) is exposed on the public port.",
-              "Through port 8080 a caller can read every service's configuration, including database users and default passwords, and see and probably change the gateway's routes (framework default; not run). The config server is also published directly on port 8888.",
-              "gateway `application.yaml:8-11,35-39`; config-repo `api-gateway.yml:4-7,22-29`; `ConfigServerApplication.java:10`; config-server `application.yaml` (no security); `docker-compose.yml:18-19`"
-            ],
-            [
-              "**High**",
-              "The web app does not match the backend: it signs in and registers at /api/v1/auth/**, which has no route or controller, and calls /subscriptions/my, /subscriptions/history, /users/stats and /media/recommended, which the services parse as ids and answer with 500. The catalogue expects an array where media-service returns a page.",
-              "Nobody can sign in, so every guarded page is unreachable; even with a token, the dashboard, history and the media detail's recommendations fail and the catalogue list is empty or broken.",
-              "`auth.service.ts:23,35-53`; `subscription.ts:14-28`; `user.ts:17-27`; `media.ts:14-28`; `catalog.ts:161-166`; `MediaController.java:45-59`"
-            ],
-            [
-              "Medium",
-              "user-service's Feign client asks media-service for /api/media/{id}; media-service serves /api/v1/media/{id}.",
-              "Recording a watch always fails with 500 and nothing is saved, so watch history stays empty.",
-              "`MediaServiceClient.java:10`; `MediaController.java:21,45`; `WatchHistoryServiceImpl.java:22-29`"
-            ],
-            [
-              "Medium",
-              "The active-subscription check looks only at status: end dates are never compared and nothing sets EXPIRED; creation does not stop a second ACTIVE subscription, after which the Optional query throws.",
-              "Expired subscriptions count as active forever, and a user with two active subscriptions gets 500 from the check that decides access to premium media.",
-              "`SubscriptionServiceImpl.java:26-46,79-84`; `SubscriptionRepository.java:15`; `SubscriptionStatus.java:3-8`"
-            ],
-            [
-              "Medium",
-              "Subscriptions take plan, price and dates from the caller with no payment step, and any failure calling user-service (including it being down) is reported as 404 \"User not found\".",
-              "Prices are whatever the client sends; an outage looks like a bad request.",
-              "`CreateSubscriptionRequest.java:16-29`; `SubscriptionServiceImpl.java:28-41`"
-            ],
-            [
-              "Medium",
-              "Access to premium media is not enforced: no service calls the active-subscription check, and the catalogue is open to everyone.",
-              "Subscriptions have no effect on what a user can see.",
-              "`SubscriptionController.java:49-54`; media-service has no client; `MediaController.java:20-77`"
-            ],
-            [
-              "Medium",
-              "No cross-service consistency: deleting a user leaves their subscriptions and watch history; deleting media leaves watch rows; there are no events.",
-              "Orphaned rows that point at users or media that no longer exist.",
-              "`UserServiceImpl.java:78-85`; `MediaServiceImpl.java:70-77`; `Subscription.java:23-24`; `WatchHistory.java:20-24`"
-            ],
-            [
-              "Medium",
-              "Single instances and a start-up chain: one Eureka with no peers, one config server that every service needs at start (fail-fast, 5 retries), one gateway.",
-              "If the config server is down no service can start or restart; if the gateway is down the system is unreachable.",
-              "discovery-server `application.yaml:8-15`; user `bootstrap.yaml:4-9`; media and subscription `application.yaml:4-9`; `docker-compose.yml:44-48,112-118`"
-            ],
-            [
-              "Medium",
-              "Credentials: PostgreSQL user postgres with password \"password\" in compose and as config defaults, database ports published on the host; the config server's default git profile needs a GitHub personal access token; encrypt.key is set but no value is encrypted.",
-              "Anyone on the host network can open the databases with the default password; the token must be handled as a secret.",
-              "`docker-compose.yml:55-60,72-77,89-94`; config-repo `user-service.yml:7-8`; config-server `application.yaml:10-22`; `.env.example:1-3`"
-            ],
-            [
-              "Low",
-              "The compose file cannot run as committed: its build contexts (./api-gateway, ./user-service, …) are not in mediahub-infra, the images need jars built beforehand, and the web app is not in it at all. The CI publish job has the same gap: it builds the image without building the jar.",
-              "Starting the system needs undocumented manual steps; the web app runs only under ng serve; the GHCR images are probably never produced.",
-              "`docker-compose.yml:3,16,24,36,104,123,142`; `Makefile:7,27-35`; `proxy.conf.json:1-7`; `ci-cd.yml:42-74`; `Dockerfile:3`"
-            ],
-            [
-              "Low",
-              "Framework versions differ: the gateway is on Boot 3.4.3 and Spring Cloud 2024.0.0, everything else on Boot 4.0.3 and 2025.1.0.",
-              "Two dependency lines to keep patched and compatible.",
-              "gateway `pom.xml:8,18`; other `pom.xml:8,31`"
-            ],
-            [
-              "Low",
-              "Error handling: user- and subscription-service return the exception message in 500 bodies, and because every service catches Exception, a malformed path id and an unknown path both become 500 instead of 400 or 404.",
-              "Internal details leak to callers; client mistakes look like server faults.",
-              "user `GlobalExceptionHandler.java:46-50`; subscription `GlobalExceptionHandler.java:46-50`; media `GlobalExceptionHandler.java:50-56`"
-            ],
-            [
-              "Low",
-              "Monitoring is configured but not deployed: Prometheus and Grafana are not in compose, the gateway has no Prometheus registry, the registry does not expose /actuator/prometheus, and the three services' ports 8081-8083, which prometheus.yml scrapes on the host, are not published.",
-              "None of the five application targets could be scraped; there is no working metrics collection.",
-              "`prometheus/prometheus.yml:1-32`; gateway `pom.xml:21-50`; discovery-server `application.yaml:1-15`; `docker-compose.yml:103-158` (no ports)"
-            ],
-            [
-              "Low",
-              "Stale or inconsistent docs: READMEs give database ports 5433-5435 and endpoints that do not exist; .env.example gives other ports than compose; the plan names in the web app (ULTRA) differ from the backend (PRO).",
-              "New engineers following them are misled.",
-              "user `README.md:9,45-51`; `.env.example:10-13`; `subscription.ts:100-104`; `Plan.java:3-7`"
-            ],
-            [
-              "Low",
-              "No schema migrations (ddl-auto=update), SQL logging on, gateway logging at TRACE, and run logs committed to the repositories.",
-              "Schema changes cannot be reviewed or rolled back; logs grow and may carry request data.",
-              "config-repo `*-service.yml:10-13`; `api-gateway.yml:31-35`; tracked `app.log`, `config.log`, `eureka.log`"
-            ]
-          ]
-        },
-        {
-          "type": "list",
-          "id": "unknowns",
-          "eyebrow": "Gaps",
-          "title": "Unknowns",
-          "items": [
-            "Owners, quality goals and the rationale of most decisions: not recorded.",
-            "How sign-in is meant to work: the web app expects an /api/v1/auth API with tokens, and no repository has one.",
-            "How the web app is meant to be served outside ng serve: no Dockerfile, web server or production API URL exists.",
-            "Which config backend runs outside compose (the GitHub clone is the default) and where the GitHub token comes from.",
-            "Whether the GHCR images of user-, media- and subscription-service exist (the publish job looks unable to build them) and are deployed anywhere; no descriptor uses them.",
-            "Whether payments are planned: the PENDING_PAYMENT status exists but nothing sets it."
-          ]
         }
       ]
     },
@@ -2624,6 +2311,340 @@
           "eyebrow": "Walkthrough",
           "title": "Steps",
           "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "doc-findings",
+      "level": "documentation",
+      "title": "Decisions, risks and unknowns",
+      "sections": [
+        {
+          "type": "callout",
+          "id": "no-adrs",
+          "tone": "warning",
+          "title": "No recorded decisions",
+          "body": "None of the nine repositories has architecture decision records or design documents. The decisions below are observed in code and configuration; their rationale is *not recorded* unless a README states it."
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Observed",
+          "title": "Observed decisions",
+          "items": [
+            {
+              "title": "Spring Cloud microservices: gateway, Eureka and Config Server",
+              "status": "Observed",
+              "body": "One Spring Cloud Gateway, one Eureka registry and one Config Server in front of three domain services, each in its own repository. Rationale: not recorded."
+            },
+            {
+              "title": "Configuration in a separate Git repository",
+              "status": "Observed",
+              "body": "Per-service YAML files plus a shared application.yml in mediahub-config-repo, cloned from GitHub by default and mounted as a folder in compose. Services fail fast if the config server is missing. Rationale: not recorded; the READMEs only say credentials \"are injected via the Config Server\" (`mediahub-media-service/README.md:9`)."
+            },
+            {
+              "title": "One PostgreSQL database per service",
+              "status": "Observed",
+              "body": "mediahub_user, mediahub_media and mediahub_subscription, each in its own PostgreSQL 15 container and written only by its service. Rationale: not recorded."
+            },
+            {
+              "title": "Other services' data referenced by id only",
+              "status": "Observed",
+              "body": "subscriptions.user_id and watch_history.media_id hold plain ids checked over HTTP at write time. Rationale recorded: a subscription \"should not duplicate the User entity, only reference userId\" (`mediahub-subscription-service/README.md:29`)."
+            },
+            {
+              "title": "Synchronous HTTP between services, no messaging",
+              "status": "Observed",
+              "body": "OpenFeign clients and one load-balanced WebClient, resolved through Eureka; no broker or events. Rationale: not recorded."
+            },
+            {
+              "title": "Routing by path prefix plus discovery locator",
+              "status": "Observed",
+              "body": "/api/v1/users, /media and /subscriptions map to one service each; the discovery locator additionally routes /{SERVICE-ID}/** to every registered service. Rationale: not recorded."
+            },
+            {
+              "title": "Uniform response envelope and exception mapping",
+              "status": "Observed",
+              "body": "Every service wraps answers in ApiResponse and maps its exceptions in a @RestControllerAdvice. Rationale recorded as a rule: \"ALL endpoints MUST return responses wrapped in the ApiResponse<T> class\" (`mediahub-user-service/README.md:7-8`)."
+            },
+            {
+              "title": "Passwords hashed with BCrypt",
+              "status": "Observed",
+              "body": "user-service hashes on create and update with spring-security-crypto, without Spring Security itself. Rationale: not recorded."
+            },
+            {
+              "title": "Schema by Hibernate ddl-auto=update",
+              "status": "Observed",
+              "body": "No migrations in any service. Rationale: not recorded."
+            },
+            {
+              "title": "Docker Compose as the only deployment",
+              "status": "Observed",
+              "body": "mediahub-infra builds every backend image from pre-built jars and runs it with three databases; three services' CI also tries to push images to GHCR, unused by compose. Rationale: not recorded."
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "risks",
+          "eyebrow": "Findings",
+          "title": "Risks and findings",
+          "columns": [
+            "Impact",
+            "Finding",
+            "Consequence",
+            "Evidence"
+          ],
+          "rows": [
+            [
+              "**High**",
+              "No authentication or authorization anywhere: the gateway has no security or filters, the services have no Spring Security, and the role is taken from the request body.",
+              "Anyone who reaches port 8080 can create an ADMIN user, change roles, list every user's email, delete users or media and cancel any subscription.",
+              "gateway `pom.xml:21-50`, `application.yaml:12-24`; `UserController.java:24-67`; `UserRequestDto.java:36-37`; `UserServiceImpl.java:34-40`"
+            ],
+            [
+              "**High**",
+              "The gateway's discovery locator routes /{SERVICE-ID}/** to every registered service, including config-server, and the gateway actuator (with the gateway endpoint) is exposed on the public port.",
+              "Through port 8080 a caller can read every service's configuration, including database users and default passwords, and see and probably change the gateway's routes (framework default; not run). The config server is also published directly on port 8888.",
+              "gateway `application.yaml:8-11,35-39`; config-repo `api-gateway.yml:4-7,22-29`; `ConfigServerApplication.java:10`; config-server `application.yaml` (no security); `docker-compose.yml:18-19`"
+            ],
+            [
+              "**High**",
+              "The web app does not match the backend: it signs in and registers at /api/v1/auth/**, which has no route or controller, and calls /subscriptions/my, /subscriptions/history, /users/stats and /media/recommended, which the services parse as ids and answer with 500. The catalogue expects an array where media-service returns a page.",
+              "Nobody can sign in, so every guarded page is unreachable; even with a token, the dashboard, history and the media detail's recommendations fail and the catalogue list is empty or broken.",
+              "`auth.service.ts:23,35-53`; `subscription.ts:14-28`; `user.ts:17-27`; `media.ts:14-28`; `catalog.ts:161-166`; `MediaController.java:45-59`"
+            ],
+            [
+              "Medium",
+              "user-service's Feign client asks media-service for /api/media/{id}; media-service serves /api/v1/media/{id}.",
+              "Recording a watch always fails with 500 and nothing is saved, so watch history stays empty.",
+              "`MediaServiceClient.java:10`; `MediaController.java:21,45`; `WatchHistoryServiceImpl.java:22-29`"
+            ],
+            [
+              "Medium",
+              "The active-subscription check looks only at status: end dates are never compared and nothing sets EXPIRED; creation does not stop a second ACTIVE subscription, after which the Optional query throws.",
+              "Expired subscriptions count as active forever, and a user with two active subscriptions gets 500 from the check that decides access to premium media.",
+              "`SubscriptionServiceImpl.java:26-46,79-84`; `SubscriptionRepository.java:15`; `SubscriptionStatus.java:3-8`"
+            ],
+            [
+              "Medium",
+              "Subscriptions take plan, price and dates from the caller with no payment step, and any failure calling user-service (including it being down) is reported as 404 \"User not found\".",
+              "Prices are whatever the client sends; an outage looks like a bad request.",
+              "`CreateSubscriptionRequest.java:16-29`; `SubscriptionServiceImpl.java:28-41`"
+            ],
+            [
+              "Medium",
+              "Access to premium media is not enforced: no service calls the active-subscription check, and the catalogue is open to everyone.",
+              "Subscriptions have no effect on what a user can see.",
+              "`SubscriptionController.java:49-54`; media-service has no client; `MediaController.java:20-77`"
+            ],
+            [
+              "Medium",
+              "No cross-service consistency: deleting a user leaves their subscriptions and watch history; deleting media leaves watch rows; there are no events.",
+              "Orphaned rows that point at users or media that no longer exist.",
+              "`UserServiceImpl.java:78-85`; `MediaServiceImpl.java:70-77`; `Subscription.java:23-24`; `WatchHistory.java:20-24`"
+            ],
+            [
+              "Medium",
+              "Single instances and a start-up chain: one Eureka with no peers, one config server that every service needs at start (fail-fast, 5 retries), one gateway.",
+              "If the config server is down no service can start or restart; if the gateway is down the system is unreachable.",
+              "discovery-server `application.yaml:8-15`; user `bootstrap.yaml:4-9`; media and subscription `application.yaml:4-9`; `docker-compose.yml:44-48,112-118`"
+            ],
+            [
+              "Medium",
+              "Credentials: PostgreSQL user postgres with password \"password\" in compose and as config defaults, database ports published on the host; the config server's default git profile needs a GitHub personal access token; encrypt.key is set but no value is encrypted.",
+              "Anyone on the host network can open the databases with the default password; the token must be handled as a secret.",
+              "`docker-compose.yml:55-60,72-77,89-94`; config-repo `user-service.yml:7-8`; config-server `application.yaml:10-22`; `.env.example:1-3`"
+            ],
+            [
+              "Low",
+              "The compose file cannot run as committed: its build contexts (./api-gateway, ./user-service, …) are not in mediahub-infra, the images need jars built beforehand, and the web app is not in it at all. The CI publish job has the same gap: it builds the image without building the jar.",
+              "Starting the system needs undocumented manual steps; the web app runs only under ng serve; the GHCR images are probably never produced.",
+              "`docker-compose.yml:3,16,24,36,104,123,142`; `Makefile:7,27-35`; `proxy.conf.json:1-7`; `ci-cd.yml:42-74`; `Dockerfile:3`"
+            ],
+            [
+              "Low",
+              "Framework versions differ: the gateway is on Boot 3.4.3 and Spring Cloud 2024.0.0, everything else on Boot 4.0.3 and 2025.1.0.",
+              "Two dependency lines to keep patched and compatible.",
+              "gateway `pom.xml:8,18`; other `pom.xml:8,31`"
+            ],
+            [
+              "Low",
+              "Error handling: user- and subscription-service return the exception message in 500 bodies, and because every service catches Exception, a malformed path id and an unknown path both become 500 instead of 400 or 404.",
+              "Internal details leak to callers; client mistakes look like server faults.",
+              "user `GlobalExceptionHandler.java:46-50`; subscription `GlobalExceptionHandler.java:46-50`; media `GlobalExceptionHandler.java:50-56`"
+            ],
+            [
+              "Low",
+              "Monitoring is configured but not deployed: Prometheus and Grafana are not in compose, the gateway has no Prometheus registry, the registry does not expose /actuator/prometheus, and the three services' ports 8081-8083, which prometheus.yml scrapes on the host, are not published.",
+              "None of the five application targets could be scraped; there is no working metrics collection.",
+              "`prometheus/prometheus.yml:1-32`; gateway `pom.xml:21-50`; discovery-server `application.yaml:1-15`; `docker-compose.yml:103-158` (no ports)"
+            ],
+            [
+              "Low",
+              "Stale or inconsistent docs: READMEs give database ports 5433-5435 and endpoints that do not exist; .env.example gives other ports than compose; the plan names in the web app (ULTRA) differ from the backend (PRO).",
+              "New engineers following them are misled.",
+              "user `README.md:9,45-51`; `.env.example:10-13`; `subscription.ts:100-104`; `Plan.java:3-7`"
+            ],
+            [
+              "Low",
+              "No schema migrations (ddl-auto=update), SQL logging on, gateway logging at TRACE, and run logs committed to the repositories.",
+              "Schema changes cannot be reviewed or rolled back; logs grow and may carry request data.",
+              "config-repo `*-service.yml:10-13`; `api-gateway.yml:31-35`; tracked `app.log`, `config.log`, `eureka.log`"
+            ]
+          ]
+        },
+        {
+          "type": "list",
+          "id": "unknowns",
+          "eyebrow": "Gaps",
+          "title": "Unknowns",
+          "items": [
+            "Owners, quality goals and the rationale of most decisions: not recorded.",
+            "How sign-in is meant to work: the web app expects an /api/v1/auth API with tokens, and no repository has one.",
+            "How the web app is meant to be served outside ng serve: no Dockerfile, web server or production API URL exists.",
+            "Which config backend runs outside compose (the GitHub clone is the default) and where the GitHub token comes from.",
+            "Whether the GHCR images of user-, media- and subscription-service exist (the publish job looks unable to build them) and are deployed anywhere; no descriptor uses them.",
+            "Whether payments are planned: the PENDING_PAYMENT status exists but nothing sets it."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-glossary",
+      "level": "documentation",
+      "title": "Glossary",
+      "sections": [
+        {
+          "type": "table",
+          "id": "glossary",
+          "eyebrow": "Reference",
+          "title": "Glossary",
+          "columns": [
+            "Term",
+            "Meaning here"
+          ],
+          "rows": [
+            [
+              "ApiResponse",
+              "The JSON envelope every service wraps its answers in: success, message, data, timestamp."
+            ],
+            [
+              "BCrypt",
+              "A slow, salted password-hashing function; user-service stores only the hash."
+            ],
+            [
+              "Config Server, native and git profiles",
+              "Spring Cloud Config Server hands each service its settings at start-up. In the native profile it reads a folder (compose mounts the config repository); in the git profile, its default, it clones the repository from GitHub."
+            ],
+            [
+              "Discovery locator",
+              "A Spring Cloud Gateway option that creates a route /{SERVICE-ID}/** for every service in the registry."
+            ],
+            [
+              "Eureka",
+              "Netflix's service registry: services register their address and renew a lease; clients look addresses up by name."
+            ],
+            [
+              "Feign",
+              "OpenFeign, the declarative HTTP client the services use to call each other."
+            ],
+            [
+              "GHCR",
+              "GitHub Container Registry, where three services' CI tries to push images."
+            ],
+            [
+              "JPA, ddl-auto=update",
+              "Java Persistence API; Hibernate alters the tables to match the entities at start-up, instead of versioned migrations."
+            ],
+            [
+              "lb://",
+              "A load-balanced service name that Spring Cloud resolves to an instance through the registry."
+            ],
+            [
+              "SPA",
+              "Single-page application: the Angular app that runs in the browser."
+            ],
+            [
+              "WebClient",
+              "Spring's reactive HTTP client; subscription-service uses it in blocking mode."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-sources",
+      "level": "documentation",
+      "title": "Sources",
+      "sections": [
+        {
+          "type": "table",
+          "id": "sources",
+          "eyebrow": "Provenance",
+          "title": "Sources",
+          "columns": [
+            "Repository",
+            "Commit",
+            "Commit date",
+            "Runtime unit"
+          ],
+          "rows": [
+            [
+              "mediahub-frontend-ui",
+              "`acefeda`",
+              "2026-03-24",
+              "mediahub-ui (dev server only)"
+            ],
+            [
+              "mediahub-api-gateway",
+              "`3ad3447`",
+              "2026-03-15",
+              "api-gateway"
+            ],
+            [
+              "mediahub-discovery-server",
+              "`4363aa9`",
+              "2026-03-15",
+              "discovery-server"
+            ],
+            [
+              "mediahub-config-server",
+              "`7def2da`",
+              "2026-03-15",
+              "config-server"
+            ],
+            [
+              "mediahub-config-repo",
+              "`a57c8a6`",
+              "2026-03-15",
+              "none: the YAML files the config server serves"
+            ],
+            [
+              "mediahub-user-service",
+              "`c5698fa`",
+              "2026-03-15",
+              "user-service"
+            ],
+            [
+              "mediahub-media-service",
+              "`fab6a4c`",
+              "2026-03-15",
+              "media-service"
+            ],
+            [
+              "mediahub-subscription-service",
+              "`8a16d85`",
+              "2026-03-15",
+              "subscription-service"
+            ],
+            [
+              "mediahub-infra",
+              "`aef86fb`",
+              "2026-03-15",
+              "none: Docker Compose, Makefile, Insomnia collection, unused Prometheus and Grafana files"
+            ]
+          ]
         }
       ]
     }

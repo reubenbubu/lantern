@@ -593,277 +593,6 @@
      "id": "left-out",
      "tone": "info",
      "body": "Left out on purpose: Zipkin, Prometheus, Loki and Grafana only receive traces, metrics and logs, and GitLab CI only builds. None takes part in a user request. No email provider appears: confirmation links are only logged, and Keycloak has no SMTP server configured. Keycloak is drawn as a container because this repository runs it with its own realm configuration."
-    },
-    {
-     "type": "table",
-     "id": "sources",
-     "eyebrow": "Provenance",
-     "title": "Sources",
-     "columns": [
-      "Repository",
-      "Commit",
-      "Commit date",
-      "Runtime units"
-     ],
-     "rows": [
-      [
-       "Enterprise-Spring-Microservices-Template",
-       "`8f5cb68`",
-       "2026-09-21",
-       "angular-ui, bff, gateway, profile-service, order-service, keycloak-admin-service; Keycloak configured by its realm export. common-core, common-web, common-security and common-test are libraries."
-      ]
-     ]
-    },
-    {
-     "type": "table",
-     "id": "glossary",
-     "eyebrow": "Reference",
-     "title": "Glossary",
-     "columns": [
-      "Term",
-      "Meaning here"
-     ],
-     "rows": [
-      [
-       "BFF",
-       "Backend for Frontend: a server that runs the login for the web app and keeps its tokens, so the browser only holds a cookie."
-      ],
-      [
-       "BFF_SESSION",
-       "The BFF's own cookie: an RS256-signed JWT whose jti names the Redis record that holds the user's tokens."
-      ],
-      [
-       "JSESSIONID",
-       "The repository's name for the BFF's servlet session cookie, kept in Redis by Spring Session; used only by /bff/user and the login itself. With Spring Session and no cookie name configured, the cookie is most likely named `SESSION` on the wire."
-      ],
-      [
-       "Audience (aud)",
-       "Token claim naming who the token is for; every resource server here requires `template-api`."
-      ],
-      [
-       "Client credentials",
-       "OAuth2 grant in which a service gets a token for itself, with no user."
-      ],
-      [
-       "CSRF",
-       "Cross-site request forgery; the BFF requires the XSRF-TOKEN cookie value back on state-changing requests."
-      ],
-      [
-       "JWKS",
-       "The JSON Web Key Set Keycloak publishes; resource servers fetch it to check token signatures."
-      ],
-      [
-       "JWT",
-       "JSON Web Token."
-      ],
-      [
-       "OIDC",
-       "OpenID Connect, the sign-in protocol on top of OAuth2."
-      ],
-      [
-       "PKCE",
-       "Proof Key for Code Exchange, which protects the authorization-code flow of public clients such as the mobile app."
-      ],
-      [
-       "Realm",
-       "Keycloak's tenant: here `my-realm`, with its clients, roles and users."
-      ],
-      [
-       "Refresh-token rotation",
-       "Each refresh token can be used once; the BFF serializes refreshes with a Redis lock because of it."
-      ],
-      [
-       "Problem Details",
-       "RFC 9457 error format returned by every service."
-      ]
-     ]
-    },
-    {
-     "type": "callout",
-     "id": "no-adrs",
-     "tone": "warning",
-     "title": "No decision records",
-     "body": "The repository has no architecture decision records, but its `docs/` folder and README explain several choices. Decisions below cite that rationale where it exists and say *not recorded* otherwise."
-    },
-    {
-     "type": "decisions",
-     "id": "decisions",
-     "eyebrow": "Observed",
-     "title": "Observed decisions",
-     "items": [
-      {
-       "title": "Decoupled BFF service for the web app",
-       "status": "Observed",
-       "body": "A separate Spring MVC BFF runs the OAuth2 login and proxies to the gateway, instead of a BFF inside the gateway. Rationale recorded: single responsibility, room to aggregate, three verification layers (`docs/bff_comparison_analysis.md:33-39`)."
-      },
-      {
-       "title": "Two client lanes",
-       "status": "Observed",
-       "body": "Web: cookie session through the BFF. Mobile: OIDC with PKCE and bearer tokens straight to the gateway (`README.md:24-25`; `docs/bff_comparison_analysis.md:41-47`)."
-      },
-      {
-       "title": "Defense in depth: every hop validates the JWT",
-       "status": "Observed",
-       "body": "The gateway and each service validate signature, issuer and audience `template-api`; profile-service's admin endpoints and keycloak-admin-service also check realm roles (the gateway and order-service check none). Rationale recorded: no trusted internal network (`docs/defense_in_depth_vs_perimeter.md:31-37`; `README.md:348-355`)."
-      },
-      {
-       "title": "Tokens never reach the browser",
-       "status": "Observed",
-       "body": "The BFF keeps access, refresh and ID tokens in Redis as JSON (no client secret, no Java serialization) behind a signed BFF_SESSION cookie (`BffSession.java:9-31`; `RedisConfig.java:11-20`)."
-      },
-      {
-       "title": "Two BFF sessions",
-       "status": "Observed",
-       "body": "JSESSIONID (Spring Session in Redis) for /bff/user and the login; BFF_SESSION for the proxy, so refresh is under the BFF's control (`README.md:459-464`; `docs/dual_session_strategy.md:83-97`)."
-      },
-      {
-       "title": "Proactive, race-safe token refresh",
-       "status": "Observed",
-       "body": "Refresh 60 s before expiry, one refresher per session through a Redis lock, because the realm rotates refresh tokens (`README.md:407-433`; `docs/proactive_token_refresh.md:39-65`)."
-      },
-      {
-       "title": "Keycloak user only after email confirmation, no password collected",
-       "status": "Observed",
-       "body": "Unconfirmed registrations live only in profile_db; the password is set through Keycloak's own email; every registration answer is the same 201 (`docs/user_registration_flow.md:69-117`)."
-      },
-      {
-       "title": "User administration through a dedicated service",
-       "status": "Observed",
-       "body": "keycloak-admin-service alone holds the realm-management service account; profile-service calls it (`README.md:278`; `KeycloakConfig.java:25-33`). Rationale: not recorded."
-      },
-      {
-       "title": "Database per service, schema by Flyway",
-       "status": "Observed",
-       "body": "profile_db and order_db on separate PostgreSQL instances, Hibernate only validates (`README.md:665-671`). Rationale: not recorded."
-      },
-      {
-       "title": "Reactive gateway for the Redis rate limiter",
-       "status": "Observed",
-       "body": "Rationale recorded: Spring Cloud Gateway WebFlux was chosen for its Redis RequestRateLimiter (`README.md:292`)."
-      },
-      {
-       "title": "Shared libraries and one Dockerfile",
-       "status": "Observed",
-       "body": "common-web and common-security auto-configure error handling and the resource-server chain; one multi-stage Dockerfile builds every Java service (`README.md:223-265`; `Dockerfile:1-14`)."
-      }
-     ]
-    },
-    {
-     "type": "table",
-     "id": "risks",
-     "eyebrow": "Findings",
-     "title": "Risks and findings",
-     "columns": [
-      "Impact",
-      "Finding",
-      "Consequence",
-      "Evidence"
-     ],
-     "rows": [
-      [
-       "**High**",
-       "Default credentials are live: the realm export, imported when Keycloak first starts on an empty database, holds the client secrets and users `admin`/`password` (ADMIN) and `user`/`password`; `test-client` allows the password grant and adds audience `template-api`. Keycloak runs `start-dev`, and its bootstrap console admin defaults to `admin`/`admin`.",
-       "Unless every default is overridden, anyone who reaches Keycloak can get an ADMIN token that all services accept, and create or delete users, or take over the whole Keycloak server through the admin console.",
-       "`realm-export.json:35-124,161-196`; `compose.yaml:107,117-118`; `README.md:590-601`"
-      ],
-      [
-       "**High**",
-       "Self-registered users probably cannot set a password: the realm configures no SMTP server, and keycloak-admin-service logs and ignores the failed UPDATE_PASSWORD email and still answers 201.",
-       "Registration \"succeeds\" but the new Keycloak user has no password and no way to get the email again.",
-       "`AdminController.java:118-127`; `realm-export.json` (no smtpServer); `PRODUCTION_CHECKLIST.md:76-81`"
-      ],
-      [
-       "Medium",
-       "No email sender exists for confirmation links: the only EmailService logs the link and is disabled under `prod`.",
-       "In production profile-service does not start until one is written; elsewhere confirmation links are only in the logs.",
-       "`LoggingEmailService.java:7-28`; `PRODUCTION_CHECKLIST.md:41-51`"
-      ],
-      [
-       "Medium",
-       "An unconfirmed or expired registration blocks its email for good: register silently does nothing when any profile has the email, and no cleanup job exists.",
-       "A visitor whose link expired cannot register again with the same address.",
-       "`RegistrationService.java:51-56,100-106,139-141`"
-      ],
-      [
-       "Medium",
-       "Confirmation is not atomic across Keycloak and profile_db: the Keycloak user is created inside the database transaction.",
-       "If the save or commit fails, the Keycloak user stays and every retry of the link fails with 500 because the username exists.",
-       "`RegistrationService.java:133-168`; `AdminController.java:114-133`"
-      ],
-      [
-       "Medium",
-       "Anonymous web traffic shares one rate-limit bucket: public calls reach the gateway from the BFF without a token or X-Forwarded-For, and TRUSTED_PROXY_HOPS is 0.",
-       "All visitors together get 10 requests/s for registration and confirmation; one noisy client blocks everyone.",
-       "`BffController.java:407-430`; `RateLimiterConfig.java:35-53`; gateway `application.properties:20-23,120`"
-      ],
-      [
-       "Medium",
-       "Single instances: one Redis holds BFF sessions, Spring sessions, refresh locks and rate-limit state; one Keycloak in dev mode with one PostgreSQL; no HA in the repository.",
-       "Losing Redis logs every web user out and fails gateway readiness; losing Keycloak stops all sign-ins and token refreshes.",
-       "`compose.yaml:24-39,104-140`; gateway `application.properties:128`"
-      ],
-      [
-       "Low",
-       "BFF_SESSION expires 30 minutes after login whatever the activity: it is issued only at login, and refresh renews only the Redis record.",
-       "Active web users are sent back through the Keycloak login every 30 minutes.",
-       "`JwtUtils.java:102-118,141-145`; `BffController.java:184`"
-      ],
-      [
-       "Low",
-       "Order numbers are made in the browser (`ORD-` + random below 10000) but must be unique across all users.",
-       "Collisions give 409 once there are a few hundred orders.",
-       "`orders.service.ts:38-39`; `V1__init.sql:13`; `GlobalExceptionHandler.java:100-104`"
-      ],
-      [
-       "Low",
-       "The profile `enabled` flag is inconsistent and unused: admin-created profiles stay false, self-registered ones become true.",
-       "Business logic cannot rely on it as the docs suggest.",
-       "`ProfileService.java:86-93`; `UserProfileEntity.java:62-64`; `user_registration_flow.md:132-139`"
-      ],
-      [
-       "Low",
-       "Confirmation tokens are stored in plain text, while admin-service Javadoc says a BCrypt hash is stored; confirmation is a state-changing GET.",
-       "A database reader can confirm pending registrations; link scanners can confirm by fetching the link.",
-       "`RegistrationPersistenceService.java:59-65`; `AdminController.java:92-93`; `RegistrationController.java:71-78`"
-      ],
-      [
-       "Low",
-       "Every container publishes its port on the host, including PostgreSQL, Redis and the services.",
-       "Direct calls bypass the gateway's rate limiting and circuit breakers (the JWT is still checked).",
-       "`compose.yaml:28-29,48-49,119-120,228-230,267-269`"
-      ],
-      [
-       "Low",
-       "A profile's email is whatever the client sends: `POST /api` takes the email from the request body and never compares it with the token, while `user_profiles.email` is unique and registration silently skips any email already in it.",
-       "Any signed-in user can claim someone else's address in their profile, and that person can then never self-register with it.",
-       "`ProfileService.java:49-64`; `UserProfileRequest.java:19-20`; `V1__init.sql:16`; `RegistrationService.java:103-106`; `profile.component.ts:80`"
-      ],
-      [
-       "Low",
-       "No transport security by default: every hop is plain HTTP (nginx on 4200, Keycloak with `KC_HTTP_ENABLED`, the services), the BFF_SESSION cookie is not `Secure` unless `BFF_COOKIE_SECURE` is set, and Redis runs without TLS.",
-       "Outside a trusted network, session cookies and bearer tokens travel in clear text; production needs TLS added in front of or inside every container.",
-       "`angular-ui/nginx.conf:2`; `compose.yaml:114-115,387`; `bff/src/main/resources/application.properties:15,36`; `.env.example:42,82`"
-      ],
-      [
-       "Low",
-       "Stale or missing documentation: the README diagram puts the order database on 5433 (it is 5434); the admin profile endpoints sit at `/profile/profile/admin/users` through the gateway, which no document mentions; and `.env.example` says its values work out of the box, but its `changeme` client secrets do not match the realm export.",
-       "New engineers are misled about ports and paths; a copied `.env.example` breaks sign-in and service calls until the realm's secrets are changed to match.",
-       "`README.md:75-78`; `compose.yaml:91-92`; `AdminProfileController.java:13`; `.env.example:7,31,48,56`; `realm-export.json:38,47,80`"
-      ]
-     ]
-    },
-    {
-     "type": "list",
-     "id": "unknowns",
-     "eyebrow": "Gaps",
-     "title": "Unknowns",
-     "items": [
-      "How the system runs in production: only Docker Compose exists, and CI builds images without pushing them anywhere.",
-      "The mobile app: the README and the realm (`mobile-client`) describe it, but no code exists.",
-      "Which email provider is meant for confirmation links and for Keycloak's password email.",
-      "Owners and quality goals: not recorded.",
-      "The order lifecycle: six statuses exist, but no endpoint or job changes an order's status."
-     ]
     }
    ]
   },
@@ -2653,6 +2382,298 @@
      "eyebrow": "Walkthrough",
      "title": "Steps",
      "of": "diagram"
+    }
+   ]
+  },
+  {
+   "id": "doc-findings",
+   "level": "documentation",
+   "title": "Decisions, risks and unknowns",
+   "sections": [
+    {
+     "type": "callout",
+     "id": "no-adrs",
+     "tone": "warning",
+     "title": "No decision records",
+     "body": "The repository has no architecture decision records, but its `docs/` folder and README explain several choices. Decisions below cite that rationale where it exists and say *not recorded* otherwise."
+    },
+    {
+     "type": "decisions",
+     "id": "decisions",
+     "eyebrow": "Observed",
+     "title": "Observed decisions",
+     "items": [
+      {
+       "title": "Decoupled BFF service for the web app",
+       "status": "Observed",
+       "body": "A separate Spring MVC BFF runs the OAuth2 login and proxies to the gateway, instead of a BFF inside the gateway. Rationale recorded: single responsibility, room to aggregate, three verification layers (`docs/bff_comparison_analysis.md:33-39`)."
+      },
+      {
+       "title": "Two client lanes",
+       "status": "Observed",
+       "body": "Web: cookie session through the BFF. Mobile: OIDC with PKCE and bearer tokens straight to the gateway (`README.md:24-25`; `docs/bff_comparison_analysis.md:41-47`)."
+      },
+      {
+       "title": "Defense in depth: every hop validates the JWT",
+       "status": "Observed",
+       "body": "The gateway and each service validate signature, issuer and audience `template-api`; profile-service's admin endpoints and keycloak-admin-service also check realm roles (the gateway and order-service check none). Rationale recorded: no trusted internal network (`docs/defense_in_depth_vs_perimeter.md:31-37`; `README.md:348-355`)."
+      },
+      {
+       "title": "Tokens never reach the browser",
+       "status": "Observed",
+       "body": "The BFF keeps access, refresh and ID tokens in Redis as JSON (no client secret, no Java serialization) behind a signed BFF_SESSION cookie (`BffSession.java:9-31`; `RedisConfig.java:11-20`)."
+      },
+      {
+       "title": "Two BFF sessions",
+       "status": "Observed",
+       "body": "JSESSIONID (Spring Session in Redis) for /bff/user and the login; BFF_SESSION for the proxy, so refresh is under the BFF's control (`README.md:459-464`; `docs/dual_session_strategy.md:83-97`)."
+      },
+      {
+       "title": "Proactive, race-safe token refresh",
+       "status": "Observed",
+       "body": "Refresh 60 s before expiry, one refresher per session through a Redis lock, because the realm rotates refresh tokens (`README.md:407-433`; `docs/proactive_token_refresh.md:39-65`)."
+      },
+      {
+       "title": "Keycloak user only after email confirmation, no password collected",
+       "status": "Observed",
+       "body": "Unconfirmed registrations live only in profile_db; the password is set through Keycloak's own email; every registration answer is the same 201 (`docs/user_registration_flow.md:69-117`)."
+      },
+      {
+       "title": "User administration through a dedicated service",
+       "status": "Observed",
+       "body": "keycloak-admin-service alone holds the realm-management service account; profile-service calls it (`README.md:278`; `KeycloakConfig.java:25-33`). Rationale: not recorded."
+      },
+      {
+       "title": "Database per service, schema by Flyway",
+       "status": "Observed",
+       "body": "profile_db and order_db on separate PostgreSQL instances, Hibernate only validates (`README.md:665-671`). Rationale: not recorded."
+      },
+      {
+       "title": "Reactive gateway for the Redis rate limiter",
+       "status": "Observed",
+       "body": "Rationale recorded: Spring Cloud Gateway WebFlux was chosen for its Redis RequestRateLimiter (`README.md:292`)."
+      },
+      {
+       "title": "Shared libraries and one Dockerfile",
+       "status": "Observed",
+       "body": "common-web and common-security auto-configure error handling and the resource-server chain; one multi-stage Dockerfile builds every Java service (`README.md:223-265`; `Dockerfile:1-14`)."
+      }
+     ]
+    },
+    {
+     "type": "table",
+     "id": "risks",
+     "eyebrow": "Findings",
+     "title": "Risks and findings",
+     "columns": [
+      "Impact",
+      "Finding",
+      "Consequence",
+      "Evidence"
+     ],
+     "rows": [
+      [
+       "**High**",
+       "Default credentials are live: the realm export, imported when Keycloak first starts on an empty database, holds the client secrets and users `admin`/`password` (ADMIN) and `user`/`password`; `test-client` allows the password grant and adds audience `template-api`. Keycloak runs `start-dev`, and its bootstrap console admin defaults to `admin`/`admin`.",
+       "Unless every default is overridden, anyone who reaches Keycloak can get an ADMIN token that all services accept, and create or delete users, or take over the whole Keycloak server through the admin console.",
+       "`realm-export.json:35-124,161-196`; `compose.yaml:107,117-118`; `README.md:590-601`"
+      ],
+      [
+       "**High**",
+       "Self-registered users probably cannot set a password: the realm configures no SMTP server, and keycloak-admin-service logs and ignores the failed UPDATE_PASSWORD email and still answers 201.",
+       "Registration \"succeeds\" but the new Keycloak user has no password and no way to get the email again.",
+       "`AdminController.java:118-127`; `realm-export.json` (no smtpServer); `PRODUCTION_CHECKLIST.md:76-81`"
+      ],
+      [
+       "Medium",
+       "No email sender exists for confirmation links: the only EmailService logs the link and is disabled under `prod`.",
+       "In production profile-service does not start until one is written; elsewhere confirmation links are only in the logs.",
+       "`LoggingEmailService.java:7-28`; `PRODUCTION_CHECKLIST.md:41-51`"
+      ],
+      [
+       "Medium",
+       "An unconfirmed or expired registration blocks its email for good: register silently does nothing when any profile has the email, and no cleanup job exists.",
+       "A visitor whose link expired cannot register again with the same address.",
+       "`RegistrationService.java:51-56,100-106,139-141`"
+      ],
+      [
+       "Medium",
+       "Confirmation is not atomic across Keycloak and profile_db: the Keycloak user is created inside the database transaction.",
+       "If the save or commit fails, the Keycloak user stays and every retry of the link fails with 500 because the username exists.",
+       "`RegistrationService.java:133-168`; `AdminController.java:114-133`"
+      ],
+      [
+       "Medium",
+       "Anonymous web traffic shares one rate-limit bucket: public calls reach the gateway from the BFF without a token or X-Forwarded-For, and TRUSTED_PROXY_HOPS is 0.",
+       "All visitors together get 10 requests/s for registration and confirmation; one noisy client blocks everyone.",
+       "`BffController.java:407-430`; `RateLimiterConfig.java:35-53`; gateway `application.properties:20-23,120`"
+      ],
+      [
+       "Medium",
+       "Single instances: one Redis holds BFF sessions, Spring sessions, refresh locks and rate-limit state; one Keycloak in dev mode with one PostgreSQL; no HA in the repository.",
+       "Losing Redis logs every web user out and fails gateway readiness; losing Keycloak stops all sign-ins and token refreshes.",
+       "`compose.yaml:24-39,104-140`; gateway `application.properties:128`"
+      ],
+      [
+       "Low",
+       "BFF_SESSION expires 30 minutes after login whatever the activity: it is issued only at login, and refresh renews only the Redis record.",
+       "Active web users are sent back through the Keycloak login every 30 minutes.",
+       "`JwtUtils.java:102-118,141-145`; `BffController.java:184`"
+      ],
+      [
+       "Low",
+       "Order numbers are made in the browser (`ORD-` + random below 10000) but must be unique across all users.",
+       "Collisions give 409 once there are a few hundred orders.",
+       "`orders.service.ts:38-39`; `V1__init.sql:13`; `GlobalExceptionHandler.java:100-104`"
+      ],
+      [
+       "Low",
+       "The profile `enabled` flag is inconsistent and unused: admin-created profiles stay false, self-registered ones become true.",
+       "Business logic cannot rely on it as the docs suggest.",
+       "`ProfileService.java:86-93`; `UserProfileEntity.java:62-64`; `user_registration_flow.md:132-139`"
+      ],
+      [
+       "Low",
+       "Confirmation tokens are stored in plain text, while admin-service Javadoc says a BCrypt hash is stored; confirmation is a state-changing GET.",
+       "A database reader can confirm pending registrations; link scanners can confirm by fetching the link.",
+       "`RegistrationPersistenceService.java:59-65`; `AdminController.java:92-93`; `RegistrationController.java:71-78`"
+      ],
+      [
+       "Low",
+       "Every container publishes its port on the host, including PostgreSQL, Redis and the services.",
+       "Direct calls bypass the gateway's rate limiting and circuit breakers (the JWT is still checked).",
+       "`compose.yaml:28-29,48-49,119-120,228-230,267-269`"
+      ],
+      [
+       "Low",
+       "A profile's email is whatever the client sends: `POST /api` takes the email from the request body and never compares it with the token, while `user_profiles.email` is unique and registration silently skips any email already in it.",
+       "Any signed-in user can claim someone else's address in their profile, and that person can then never self-register with it.",
+       "`ProfileService.java:49-64`; `UserProfileRequest.java:19-20`; `V1__init.sql:16`; `RegistrationService.java:103-106`; `profile.component.ts:80`"
+      ],
+      [
+       "Low",
+       "No transport security by default: every hop is plain HTTP (nginx on 4200, Keycloak with `KC_HTTP_ENABLED`, the services), the BFF_SESSION cookie is not `Secure` unless `BFF_COOKIE_SECURE` is set, and Redis runs without TLS.",
+       "Outside a trusted network, session cookies and bearer tokens travel in clear text; production needs TLS added in front of or inside every container.",
+       "`angular-ui/nginx.conf:2`; `compose.yaml:114-115,387`; `bff/src/main/resources/application.properties:15,36`; `.env.example:42,82`"
+      ],
+      [
+       "Low",
+       "Stale or missing documentation: the README diagram puts the order database on 5433 (it is 5434); the admin profile endpoints sit at `/profile/profile/admin/users` through the gateway, which no document mentions; and `.env.example` says its values work out of the box, but its `changeme` client secrets do not match the realm export.",
+       "New engineers are misled about ports and paths; a copied `.env.example` breaks sign-in and service calls until the realm's secrets are changed to match.",
+       "`README.md:75-78`; `compose.yaml:91-92`; `AdminProfileController.java:13`; `.env.example:7,31,48,56`; `realm-export.json:38,47,80`"
+      ]
+     ]
+    },
+    {
+     "type": "list",
+     "id": "unknowns",
+     "eyebrow": "Gaps",
+     "title": "Unknowns",
+     "items": [
+      "How the system runs in production: only Docker Compose exists, and CI builds images without pushing them anywhere.",
+      "The mobile app: the README and the realm (`mobile-client`) describe it, but no code exists.",
+      "Which email provider is meant for confirmation links and for Keycloak's password email.",
+      "Owners and quality goals: not recorded.",
+      "The order lifecycle: six statuses exist, but no endpoint or job changes an order's status."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "doc-glossary",
+   "level": "documentation",
+   "title": "Glossary",
+   "sections": [
+    {
+     "type": "table",
+     "id": "glossary",
+     "eyebrow": "Reference",
+     "title": "Glossary",
+     "columns": [
+      "Term",
+      "Meaning here"
+     ],
+     "rows": [
+      [
+       "BFF",
+       "Backend for Frontend: a server that runs the login for the web app and keeps its tokens, so the browser only holds a cookie."
+      ],
+      [
+       "BFF_SESSION",
+       "The BFF's own cookie: an RS256-signed JWT whose jti names the Redis record that holds the user's tokens."
+      ],
+      [
+       "JSESSIONID",
+       "The repository's name for the BFF's servlet session cookie, kept in Redis by Spring Session; used only by /bff/user and the login itself. With Spring Session and no cookie name configured, the cookie is most likely named `SESSION` on the wire."
+      ],
+      [
+       "Audience (aud)",
+       "Token claim naming who the token is for; every resource server here requires `template-api`."
+      ],
+      [
+       "Client credentials",
+       "OAuth2 grant in which a service gets a token for itself, with no user."
+      ],
+      [
+       "CSRF",
+       "Cross-site request forgery; the BFF requires the XSRF-TOKEN cookie value back on state-changing requests."
+      ],
+      [
+       "JWKS",
+       "The JSON Web Key Set Keycloak publishes; resource servers fetch it to check token signatures."
+      ],
+      [
+       "JWT",
+       "JSON Web Token."
+      ],
+      [
+       "OIDC",
+       "OpenID Connect, the sign-in protocol on top of OAuth2."
+      ],
+      [
+       "PKCE",
+       "Proof Key for Code Exchange, which protects the authorization-code flow of public clients such as the mobile app."
+      ],
+      [
+       "Realm",
+       "Keycloak's tenant: here `my-realm`, with its clients, roles and users."
+      ],
+      [
+       "Refresh-token rotation",
+       "Each refresh token can be used once; the BFF serializes refreshes with a Redis lock because of it."
+      ],
+      [
+       "Problem Details",
+       "RFC 9457 error format returned by every service."
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "doc-sources",
+   "level": "documentation",
+   "title": "Sources",
+   "sections": [
+    {
+     "type": "table",
+     "id": "sources",
+     "eyebrow": "Provenance",
+     "title": "Sources",
+     "columns": [
+      "Repository",
+      "Commit",
+      "Commit date",
+      "Runtime units"
+     ],
+     "rows": [
+      [
+       "Enterprise-Spring-Microservices-Template",
+       "`8f5cb68`",
+       "2026-09-21",
+       "angular-ui, bff, gateway, profile-service, order-service, keycloak-admin-service; Keycloak configured by its realm export. common-core, common-web, common-security and common-test are libraries."
+      ]
+     ]
     }
    ]
   }

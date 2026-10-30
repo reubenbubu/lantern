@@ -38,7 +38,7 @@ MediaHub, nine repositories under `~/workspace/lantern-test-projects/project-3/`
 ## Contents
 
 - Elements: 2 people (viewer, operator/API client), 1 system, 1 external system (Lorem Picsum), 7 containers (mediahub-ui, api-gateway, discovery-server, config-server, user-, media-, subscription-service), 4 data stores (three PostgreSQL databases, the config repository), 0 queues, 24 components.
-- Pages: context (with decisions, risks and unknowns at its end, as in project-4, stopgap until #249), 2 container pages (requests and data; configuration and discovery), 5 component pages (web app, gateway, three services), 7 sequence pages.
+- Pages: context, 2 container pages (requests and data; configuration and discovery), 5 component pages (web app, gateway, three services), 7 sequence pages, and 3 documentation pages (decisions, risks and unknowns; glossary; sources, #249).
 - Relationships: 3 context, 24 container (13 + 11), 45 component; sequences have 83 steps in all.
 - 10 observed decisions, 16 risks (3 High, 7 Medium, 6 Low), 6 unknowns.
 - Sequences, chosen by entry point and importance: service start-up (config fetch and Eureka registration, the system's backbone), sign-in attempt from the web app, browse the catalogue, create a subscription (the main business write, used by the Makefile and Insomnia), check for an active subscription (the README's "crucial" call), record a watch, media details through subscription-service (the WebClient call the Makefile tests).

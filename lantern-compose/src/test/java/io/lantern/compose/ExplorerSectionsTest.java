@@ -267,7 +267,7 @@ class ExplorerSectionsTest {
 
   @Test
   void decisionsQuoteTheirRationaleFromTheRecordsContext() {
-    Section containers = section(explorer(facts()), "containers");
+    Section containers = section(explorer(facts()), "decisions");
 
     Table decisions = table(containers, "Decisions");
     assertThat(rows(decisions))
@@ -282,7 +282,7 @@ class ExplorerSectionsTest {
         facts().stream().filter(f -> !f.subject().type().equals(C4Views.DECISION)).toList();
 
     Callout note =
-        blocks(section(explorer(facts), "containers"), Callout.class).stream()
+        blocks(section(explorer(facts), "decisions"), Callout.class).stream()
             .filter(c -> "Decisions".equals(c.title()))
             .findFirst()
             .orElseThrow();

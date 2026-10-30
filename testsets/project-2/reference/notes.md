@@ -41,7 +41,7 @@ and the judgement calls a scorer should accept. The numbers below are after that
 1 Redis), 3 Kafka topics, 34 components; 38 container-level connections with protocol
 (16 request, 12 data/JWKS, 10 messaging), 127 diagram relationships in all; 6 sequence diagrams;
 12 decisions (9 ADRs + 3 observed); 18 risks (2 High, 5 Medium, 11 Low); 5 unknowns.
-Decisions, risks and unknowns sit at the end of the context page (stopgap until #249).
+Decisions, risks and unknowns, the glossary and the sources are documentation pages after the sequence pages (#249).
 
 ## Scope choices
 

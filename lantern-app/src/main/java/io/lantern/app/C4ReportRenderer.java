@@ -1,5 +1,6 @@
 package io.lantern.app;
 
+import io.lantern.compose.SectionKind;
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
 import io.lantern.core.document.Citation;
@@ -18,8 +19,11 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.Origin;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -45,10 +49,16 @@ import tools.jackson.databind.node.ObjectNode;
  * <ul>
  *   <li>A section that holds a C4 or sequence diagram becomes a page, at the level of its first
  *       such diagram; its other blocks, and those of subsections without such a diagram, become the
- *       page's sections, with the leading paragraphs as the page summary. Content on no page
- *       becomes the index's introduction where it is text or a list, each later section's title in
- *       bold before its first block, and is left out otherwise, except a quality report: each
- *       failure goes to the end of the page showing what failed, or of the first page.
+ *       page's sections, with the leading paragraphs as the page summary. A top-level section after
+ *       the first page that holds no such diagram and is not a context, containers, components or
+ *       main flows section becomes a documentation page the same way, such as the decisions, the
+ *       deployment, the catalog and the glossary: C4 pages hold only C4 content (ADR 0070). Content
+ *       on no page, such as the sections before the first page, becomes the index's introduction
+ *       where it is text or a list, each later section's title in bold before its first block, and
+ *       is left out otherwise, except a quality report: each failure goes to the end of the page
+ *       showing what failed, or of the first page.
+ *   <li>Elements, relationships and table rows whose facts all come from the LLM are marked as
+ *       found by the LLM.
  *   <li>The entities drawn in diagrams become elements, of the kind the diagrams draw them as: a
  *       box on a context diagram is a system, on a container diagram a container, on a component
  *       diagram a component, and a node other nodes are drawn inside is the system or container
@@ -156,6 +166,14 @@ public final class C4ReportRenderer {
           new Catalogue("components", Set.of("component"), "Components", DEFAULT_COLUMNS),
           new Catalogue("external", Set.of("external"), "External Systems", DEFAULT_COLUMNS));
 
+  /** The sections whose diagrams are at a C4 level or are sequences, as the composer names them. */
+  private static final Set<String> C4_SECTIONS =
+      Set.of(
+          SectionKind.CONTEXT.jsonName(),
+          SectionKind.CONTAINERS.jsonName(),
+          SectionKind.COMPONENTS.jsonName(),
+          SectionKind.SEQUENCES.jsonName());
+
   /** Element kinds a parent may have, per the schema's rules. */
   private static final Map<String, Set<String>> PARENT_KINDS =
       Map.of(
@@ -169,6 +187,7 @@ public final class C4ReportRenderer {
 
     private final Document document;
     private final Map<EntityId, DocumentEntity> entities = new HashMap<>();
+    private final Map<String, Fact> facts = new HashMap<>();
     private final List<PagePlan> pages = new ArrayList<>();
     private final List<Part> loose = new ArrayList<>();
     private final ReportSpecIds pageIds = new ReportSpecIds("page");
@@ -191,6 +210,15 @@ public final class C4ReportRenderer {
     Mapping(Document document) {
       this.document = document;
       document.entities().forEach(e -> entities.put(e.id(), e));
+      document.facts().forEach(f -> facts.put(f.id(), f));
+    }
+
+    /** Whether there are facts and every one of them comes from the LLM. */
+    private boolean foundByLlm(Collection<String> ids) {
+      return !ids.isEmpty()
+          && ids.stream()
+              .allMatch(
+                  id -> facts.containsKey(id) && facts.get(id).origin().kind() == Origin.Kind.LLM);
     }
 
     Result run() {
@@ -218,6 +246,9 @@ public final class C4ReportRenderer {
       String level = level(section.blocks());
       PagePlan target = enclosing;
       boolean first = true;
+      if (level == null && enclosing == null && !pages.isEmpty() && isDocumentation(section)) {
+        level = "documentation";
+      }
       if (level != null) {
         target = new PagePlan(section, level, pageIds.id(section.id()));
         pages.add(target);
@@ -249,6 +280,25 @@ public final class C4ReportRenderer {
       for (Section sub : section.sections()) {
         plan(sub, target);
       }
+    }
+
+    /**
+     * Whether a top-level section without a C4 or sequence diagram is a documentation page: it is
+     * not one of the sections whose diagrams the spec draws, whatever they hold when they draw
+     * none, and it shows something other than quality reports, which go to the pages they are
+     * about.
+     */
+    private static boolean isDocumentation(Section section) {
+      if (C4_SECTIONS.contains(section.id())) {
+        return false;
+      }
+      boolean shows = !section.sections().isEmpty();
+      for (Block block : section.blocks()) {
+        if (!(block instanceof QualityReport)) {
+          shows = true;
+        }
+      }
+      return shows;
     }
 
     /** The page level of the first C4 or sequence diagram among the blocks, or none. */
@@ -407,6 +457,7 @@ public final class C4ReportRenderer {
             for (Diagram.Node node : d.nodes()) {
               int rank = rank(d.diagramKind(), parents.contains(node.id()));
               element(node.id()).seen(rank, node.parent(), node.technology());
+              element(node.id()).facts.addAll(node.facts());
             }
           }
           case SequenceDiagram s -> {
@@ -583,6 +634,11 @@ public final class C4ReportRenderer {
       if (!description.isBlank()) {
         node.put("description", description);
       }
+      Set<String> cited = new HashSet<>(entity.facts());
+      cited.addAll(element.facts);
+      if (foundByLlm(cited)) {
+        node.put("llm", true);
+      }
       return node;
     }
 
@@ -703,9 +759,17 @@ public final class C4ReportRenderer {
       ArrayNode columns = node.putArray("columns");
       table.columns().forEach(c -> columns.add(c.label()));
       ArrayNode rows = node.putArray("rows");
+      List<Integer> llmRows = new ArrayList<>();
       for (Table.Row row : table.rows()) {
+        if (foundByLlm(row.facts())) {
+          llmRows.add(rows.size());
+        }
         ArrayNode cells = rows.addArray();
         row.cells().forEach(cell -> cells.add(oneLine(markdown(cell))));
+      }
+      if (!llmRows.isEmpty()) {
+        ArrayNode marked = node.putArray("llmRows");
+        llmRows.forEach(marked::add);
       }
       return node;
     }
@@ -862,6 +926,9 @@ public final class C4ReportRenderer {
         }
         if (edge.technology() != null) {
           relationship.put("technology", edge.technology());
+        }
+        if (foundByLlm(edge.facts())) {
+          relationship.put("llm", true);
         }
         related.add(edge.from());
         related.add(edge.to());
@@ -1119,6 +1186,10 @@ public final class C4ReportRenderer {
   /** An entity drawn in diagrams, and how. */
   private static final class Element {
     final EntityId id;
+
+    /** The facts its diagram nodes cite. */
+    final Set<String> facts = new HashSet<>();
+
     private int rank = Integer.MAX_VALUE;
     private final Map<Integer, EntityId> parentByRank = new HashMap<>();
     String technology;

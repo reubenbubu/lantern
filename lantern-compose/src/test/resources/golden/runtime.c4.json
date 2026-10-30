@@ -1430,117 +1430,6 @@
         "facts" : [ "747af169ca525eecb96896e7255b9dea1d9450359c95a7f7dd53e9623a8e80ec" ]
       } ],
       "facts" : [ ]
-    }, {
-      "kind" : "callout",
-      "id" : "containers.unresolved",
-      "variant" : "warning",
-      "title" : "Not linked",
-      "content" : [ {
-        "kind" : "text",
-        "text" : "shop-app: GET ${TAX_URL}/quotes (unresolved placeholder TAX_URL)."
-      } ],
-      "facts" : [ "562c093935193deea17395a2cb186dd2e4b57be3a332766966c11a8bbf70554d" ]
-    }, {
-      "kind" : "table",
-      "id" : "containers.decisions",
-      "title" : "Decisions",
-      "columns" : [ {
-        "label" : "ID"
-      }, {
-        "label" : "Decision"
-      }, {
-        "label" : "Status"
-      }, {
-        "label" : "Outcome"
-      }, {
-        "label" : "Rationale"
-      } ],
-      "rows" : [ {
-        "entity" : "decision:shop:docs/adr/0001-kafka.md",
-        "cells" : [ [ {
-          "kind" : "text",
-          "text" : "ADR 1"
-        } ], [ {
-          "kind" : "text",
-          "text" : "Use Kafka"
-        } ], [ {
-          "kind" : "text",
-          "text" : "Accepted"
-        } ], [ {
-          "kind" : "text",
-          "text" : "Orders go to Kafka."
-        } ], [ {
-          "kind" : "text",
-          "text" : "Not recorded."
-        } ] ],
-        "facts" : [ "035e5e675ceea8774462d63432d88da8af22f048df901c2f5e64a7b8079cf115", "5b1d166614b8639204654085384e568e77f91b45c1746a3fa0bafaa85563eb48", "6634b6e29c4cc6822fbdaf4a2efc972ace034c96c2921b8867af563ffc91ca3a", "9a3df55e3959424aaeffc9b6fdaf3bebde63d200ab9caa5a0e57961f9fe1f348" ]
-      } ],
-      "facts" : [ ]
-    }, {
-      "kind" : "callout",
-      "id" : "containers.contradicted-claim",
-      "variant" : "warning",
-      "title" : "Claim the code contradicts",
-      "content" : [ {
-        "kind" : "text",
-        "text" : "README.md",
-        "style" : "code"
-      }, {
-        "kind" : "text",
-        "text" : ", line 3, in shop"
-      }, {
-        "kind" : "text",
-        "text" : " says: “The app keeps its orders in MySQL.”"
-      }, {
-        "kind" : "citation",
-        "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44" ]
-      }, {
-        "kind" : "text",
-        "text" : "."
-      }, {
-        "kind" : "text",
-        "text" : " It states MySQL; the code shows PostgreSQL."
-      }, {
-        "kind" : "text",
-        "text" : " The code shows otherwise: "
-      }, {
-        "kind" : "ref",
-        "text" : "shop-app",
-        "target" : {
-          "kind" : "entity",
-          "id" : "service:com.example:app"
-        }
-      }, {
-        "kind" : "text",
-        "text" : " uses "
-      }, {
-        "kind" : "ref",
-        "text" : "shop on db",
-        "target" : {
-          "kind" : "entity",
-          "id" : "database:db:5432/shop"
-        }
-      }, {
-        "kind" : "text",
-        "text" : " ("
-      }, {
-        "kind" : "text",
-        "text" : "pom.xml",
-        "style" : "code"
-      }, {
-        "kind" : "text",
-        "text" : ", in shop"
-      }, {
-        "kind" : "text",
-        "text" : ")"
-      }, {
-        "kind" : "citation",
-        "facts" : [ "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
-      }, {
-        "kind" : "text",
-        "text" : "."
-      } ],
-      "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "eac7517edf6100dc209d840b862376ebcac870c9a20b0ca047ac964643610575" ]
     } ],
     "sections" : [ ]
   }, {
@@ -1900,6 +1789,125 @@
       "sections" : [ ]
     } ]
   }, {
+    "id" : "decisions",
+    "title" : "Decisions and unknowns",
+    "levels" : [ "L1", "L2" ],
+    "entity" : "system:snapshot",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "table",
+      "id" : "decisions.decisions",
+      "title" : "Decisions",
+      "columns" : [ {
+        "label" : "ID"
+      }, {
+        "label" : "Decision"
+      }, {
+        "label" : "Status"
+      }, {
+        "label" : "Outcome"
+      }, {
+        "label" : "Rationale"
+      } ],
+      "rows" : [ {
+        "entity" : "decision:shop:docs/adr/0001-kafka.md",
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "ADR 1"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Use Kafka"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Accepted"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Orders go to Kafka."
+        } ], [ {
+          "kind" : "text",
+          "text" : "Not recorded."
+        } ] ],
+        "facts" : [ "035e5e675ceea8774462d63432d88da8af22f048df901c2f5e64a7b8079cf115", "5b1d166614b8639204654085384e568e77f91b45c1746a3fa0bafaa85563eb48", "6634b6e29c4cc6822fbdaf4a2efc972ace034c96c2921b8867af563ffc91ca3a", "9a3df55e3959424aaeffc9b6fdaf3bebde63d200ab9caa5a0e57961f9fe1f348" ]
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
+      "id" : "decisions.unresolved",
+      "variant" : "warning",
+      "title" : "Not linked",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "shop-app: GET ${TAX_URL}/quotes (unresolved placeholder TAX_URL)."
+      } ],
+      "facts" : [ "562c093935193deea17395a2cb186dd2e4b57be3a332766966c11a8bbf70554d" ]
+    }, {
+      "kind" : "callout",
+      "id" : "decisions.contradicted-claim",
+      "variant" : "warning",
+      "title" : "Claim the code contradicts",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "README.md",
+        "style" : "code"
+      }, {
+        "kind" : "text",
+        "text" : ", line 3, in shop"
+      }, {
+        "kind" : "text",
+        "text" : " says: “The app keeps its orders in MySQL.”"
+      }, {
+        "kind" : "citation",
+        "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44" ]
+      }, {
+        "kind" : "text",
+        "text" : "."
+      }, {
+        "kind" : "text",
+        "text" : " It states MySQL; the code shows PostgreSQL."
+      }, {
+        "kind" : "text",
+        "text" : " The code shows otherwise: "
+      }, {
+        "kind" : "ref",
+        "text" : "shop-app",
+        "target" : {
+          "kind" : "entity",
+          "id" : "service:com.example:app"
+        }
+      }, {
+        "kind" : "text",
+        "text" : " uses "
+      }, {
+        "kind" : "ref",
+        "text" : "shop on db",
+        "target" : {
+          "kind" : "entity",
+          "id" : "database:db:5432/shop"
+        }
+      }, {
+        "kind" : "text",
+        "text" : " ("
+      }, {
+        "kind" : "text",
+        "text" : "pom.xml",
+        "style" : "code"
+      }, {
+        "kind" : "text",
+        "text" : ", in shop"
+      }, {
+        "kind" : "text",
+        "text" : ")"
+      }, {
+        "kind" : "citation",
+        "facts" : [ "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502" ]
+      }, {
+        "kind" : "text",
+        "text" : "."
+      } ],
+      "facts" : [ "2f33cb8797e3148123e8df13d4ad20af304c440ff32ab3356e7a7ba6431daf44", "79b6e9e60a0c2e15011b48e27c2db47fa18f26e60e256cd64671b0bae3e64502", "eac7517edf6100dc209d840b862376ebcac870c9a20b0ca047ac964643610575" ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "quality",
     "title" : "Quality report",
     "facts" : [ ],
@@ -1983,7 +1991,7 @@
         "check" : "README claims agree with the code",
         "target" : {
           "kind" : "block",
-          "id" : "containers.contradicted-claim"
+          "id" : "decisions.contradicted-claim"
         },
         "detail" : [ {
           "kind" : "text",
