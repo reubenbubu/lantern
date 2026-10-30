@@ -29,6 +29,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -53,7 +54,7 @@ public final class PeopleExtractor {
   public static final String NAME = "people";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "people-extractor";
@@ -67,6 +68,30 @@ public final class PeopleExtractor {
   public static final String MEMBERSHIP = "membership";
   public static final String INVITATION = "invitation";
   public static final String ROUTE = "route";
+  public static final String ACCOUNT = "account";
+  public static final String ROLE_TYPE = "role-type";
+
+  /** The last path segments of endpoints and screens where people sign up. */
+  public static final Set<String> SIGN_UP =
+      Set.of("sign-up", "signup", "sign_up", "register", "registration");
+
+  /** The last path segments of endpoints and screens where people sign in. */
+  public static final Set<String> SIGN_IN =
+      Set.of("sign-in", "signin", "sign_in", "login", "log-in", "authenticate");
+
+  /** Words in a path that say it is about a person's account. */
+  private static final List<String> ACCOUNT_WORDS =
+      List.of("user", "account", "auth", "email", "registration", "signup", "sign-up", "member");
+
+  /** The last path segments of endpoints where people confirm an account or reset a password. */
+  private static final Map<String, String> ACCOUNT_STEPS =
+      Map.ofEntries(
+          Map.entry("confirm", "confirm"),
+          Map.entry("activate", "confirm"),
+          Map.entry("verify-email", "confirm"),
+          Map.entry("reset-password", "reset"),
+          Map.entry("forgot-password", "reset"),
+          Map.entry("password-reset", "reset"));
 
   private static final String RESOURCE = "/vocabulary/people-types.json";
 
@@ -81,6 +106,41 @@ public final class PeopleExtractor {
       Set.of("jakarta.annotation.security.RolesAllowed", "javax.annotation.security.RolesAllowed");
   private static final Set<String> ROLE_CALLS =
       Set.of("hasRole", "hasAnyRole", "hasAuthority", "hasAnyAuthority");
+
+  /**
+   * Role checks on any receiver, the system's own included ({@code actor.hasRole("ADMIN")}), and
+   * the servlet's and Jakarta Security's.
+   */
+  private static final Set<String> ANY_ROLE_CALLS =
+      Set.of("hasRole", "hasAnyRole", "isUserInRole", "isCallerInRole");
+
+  private static final Set<String> DECLARE_ROLES =
+      Set.of("jakarta.annotation.security.DeclareRoles", "javax.annotation.security.DeclareRoles");
+
+  private static final String MAPPING = "org.springframework.web.bind.annotation.";
+  private static final Set<String> CONTROLLERS =
+      Set.of(MAPPING + "RestController", "org.springframework.stereotype.Controller");
+  private static final Set<String> MAPPINGS =
+      Set.of(
+          MAPPING + "RequestMapping",
+          MAPPING + "GetMapping",
+          MAPPING + "PostMapping",
+          MAPPING + "PutMapping",
+          MAPPING + "PatchMapping",
+          MAPPING + "DeleteMapping");
+  private static final String OPERATION = "io.swagger.v3.oas.annotations.Operation";
+
+  /** Annotations that make a type one the system keeps: an account is such a type. */
+  private static final Set<String> KEPT =
+      Set.of("Entity", "Document", "Table", "RedisHash", "Node");
+
+  /** Field names that hold an account's roles. */
+  private static final Set<String> ROLE_FIELDS =
+      Set.of("role", "roles", "authority", "authorities", "userRole", "userRoles", "roleType");
+
+  /** Enum constants that name software, never a kind of person. */
+  private static final Set<String> SOFTWARE_CONSTANTS =
+      Set.of("SYSTEM", "SERVICE", "INTERNAL", "BOT", "ANONYMOUS", "API");
 
   /** Roles in a method security expression: {@code hasRole('ADMIN')}, {@code hasAnyRole(...)}. */
   private static final Pattern EXPRESSION =
@@ -206,6 +266,13 @@ public final class PeopleExtractor {
     Run run = new Run(Validity.from(snapshot));
     Set<RepoBuild> all = new LinkedHashSet<>(repos);
     for (JavaAnalysis.Module module : code.modules()) {
+      for (TypeDecl type : module.structure().types()) {
+        if (type.where() != null && !type.where().file().path().contains("src/test/")) {
+          run.types.putIfAbsent(type.binaryName(), type);
+        }
+      }
+    }
+    for (JavaAnalysis.Module module : code.modules()) {
       all.add(module.repo());
       run.code(module);
     }
@@ -278,6 +345,61 @@ public final class PeopleExtractor {
         : null;
   }
 
+  /** The name of the method a callee ID names if it is a role check on any receiver. */
+  static String anyRoleMethod(String calleeKey) {
+    int hash = calleeKey.indexOf('#');
+    int paren = calleeKey.indexOf('(');
+    if (hash < 0 || paren < hash) {
+      return null;
+    }
+    String method = calleeKey.substring(hash + 1, paren);
+    return ANY_ROLE_CALLS.contains(method) ? method : null;
+  }
+
+  /**
+   * What a person does at an endpoint or screen with this path, or null for none of it. A
+   * confirmation or reset step counts only when it is about an account: no path variable comes
+   * before it ({@code /orders/{id}/confirm} confirms an order), unless the path names an account.
+   */
+  static String accountAction(String path) {
+    String lower = path.toLowerCase(Locale.ROOT);
+    String[] segments = lower.replaceAll("\\{[^}]*}", "").split("/");
+    String last = segments.length == 0 ? "" : segments[segments.length - 1];
+    if (SIGN_UP.contains(last)) {
+      return "sign-up";
+    }
+    if (SIGN_IN.contains(last)) {
+      return "sign-in";
+    }
+    String step = ACCOUNT_STEPS.get(last);
+    if (step == null) {
+      return null;
+    }
+    String before = lower.substring(0, lower.lastIndexOf(last));
+    boolean variable = before.contains("{");
+    boolean named = ACCOUNT_WORDS.stream().anyMatch(before::contains);
+    return !variable || named ? step : null;
+  }
+
+  /** The paths a mapping annotation names: {@code value} or {@code path}. */
+  private static List<String> paths(Annotation a) {
+    List<String> paths = new ArrayList<>(a.values("value"));
+    paths.addAll(a.values("path"));
+    return paths.stream().map(String::strip).distinct().toList();
+  }
+
+  private static String join(String prefix, String path) {
+    String joined = ("/" + prefix + "/" + path).replaceAll("/+", "/");
+    return joined.length() > 1 && joined.endsWith("/")
+        ? joined.substring(0, joined.length() - 1)
+        : joined;
+  }
+
+  private static String first(Annotation a, String element) {
+    List<String> values = a.values(element);
+    return values.isEmpty() || values.getFirst().isBlank() ? null : values.getFirst().strip();
+  }
+
   /** The roles a role check names in the arguments written out in the call. */
   static List<String> callRoles(String method, List<String> arguments) {
     List<String> roles = new ArrayList<>();
@@ -296,7 +418,8 @@ public final class PeopleExtractor {
       return;
     }
     String role = prefixed ? name.substring("ROLE_".length()) : name;
-    if (!role.isBlank() && role.length() <= 60 && !roles.contains(role)) {
+    // A templated check (hasRole('{value}')) names its role where the annotation is used.
+    if (!role.isBlank() && role.length() <= 60 && !role.contains("{") && !roles.contains(role)) {
       roles.add(role);
     }
   }
@@ -328,6 +451,9 @@ public final class PeopleExtractor {
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
 
+    /** Every type of the snapshot's code, by binary name: for meta-annotations and role types. */
+    final Map<String, TypeDecl> types = new LinkedHashMap<>();
+
     Run(Validity validity) {
       this.validity = validity;
     }
@@ -346,11 +472,15 @@ public final class PeopleExtractor {
             roles(m, typeId, a, type.where());
           }
           concept(m, type, typeId);
+          roleTypes(m, type);
         }
         for (Member member : type.members()) {
           for (Annotation a : member.annotations()) {
             roles(m, member.id(), a, member.where());
           }
+        }
+        if (type.annotations().stream().anyMatch(a -> CONTROLLERS.contains(a.type()))) {
+          accountEndpoints(m, type);
         }
       }
       for (Call call : m.structure().calls()) {
@@ -360,24 +490,227 @@ public final class PeopleExtractor {
 
     /** The roles an annotation names. */
     private void roles(JavaAnalysis.Module m, EntityId subject, Annotation a, Location at) {
-      List<String> roles = new ArrayList<>();
+      List<String> roles = checkedRoles(a);
       String source = simpleName(a.type());
-      if (PREAUTHORIZE.contains(a.type())) {
-        a.values("value").forEach(v -> roles.addAll(expressionRoles(v)));
-      } else if (a.type().equals(SECURED) || ROLES_ALLOWED.contains(a.type())) {
-        for (String value : a.values("value")) {
-          role(value, a.type().equals(SECURED), roles);
+      String via = null;
+      if (roles == null) {
+        // A custom annotation carrying the check (@IsAdmin with @PreAuthorize("hasRole('ADMIN')")).
+        Annotation carried = meta(a);
+        if (carried == null) {
+          return;
         }
-      } else {
-        return;
+        roles = checkedRoles(carried);
+        source = simpleName(carried.type());
+        via = a.type();
       }
       Location where = a.where() != null ? a.where() : at;
       for (String role : roles) {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("name", role);
         attributes.put("source", source);
+        if (via != null) {
+          attributes.put("annotation", via);
+        }
         code(m, subject, ROLE, attributes, where);
       }
+    }
+
+    /** The security annotation a custom annotation carries, or null. */
+    private Annotation meta(Annotation a) {
+      TypeDecl meta = types.get(a.type());
+      if (meta == null || !meta.kind().equals(ModuleStructure.ANNOTATION)) {
+        return null;
+      }
+      return meta.annotations().stream()
+          .filter(carried -> checkedRoles(carried) != null)
+          .findFirst()
+          .orElse(null);
+    }
+
+    /** The roles an annotation checks, directly or through the annotation it carries; or null. */
+    private List<String> guardRoles(Annotation a) {
+      if (DECLARE_ROLES.contains(a.type())) {
+        return null; // It declares roles; it guards nothing.
+      }
+      List<String> roles = checkedRoles(a);
+      if (roles == null) {
+        Annotation carried = meta(a);
+        roles = carried == null ? null : checkedRoles(carried);
+      }
+      return roles;
+    }
+
+    /** The roles a security annotation names, or null when it is none. */
+    private static List<String> checkedRoles(Annotation a) {
+      List<String> roles = new ArrayList<>();
+      if (PREAUTHORIZE.contains(a.type())) {
+        a.values("value").forEach(v -> roles.addAll(expressionRoles(v)));
+      } else if (a.type().equals(SECURED)
+          || ROLES_ALLOWED.contains(a.type())
+          || DECLARE_ROLES.contains(a.type())) {
+        for (String value : a.values("value")) {
+          role(value, a.type().equals(SECURED), roles);
+        }
+      } else {
+        return null;
+      }
+      return roles;
+    }
+
+    /**
+     * The sign-up, sign-in, confirmation and password-reset endpoints of a controller, at their
+     * mapping annotation: what a person does with an account, with the roles that guard it.
+     */
+    private void accountEndpoints(JavaAnalysis.Module m, TypeDecl type) {
+      List<String> prefixes = List.of("");
+      List<String> classGuard = new ArrayList<>();
+      for (Annotation a : type.annotations()) {
+        if (a.type().equals(MAPPING + "RequestMapping")) {
+          List<String> paths = paths(a);
+          if (!paths.isEmpty()) {
+            prefixes = paths;
+          }
+        }
+        List<String> roles = guardRoles(a);
+        if (roles != null) {
+          classGuard.addAll(roles);
+        }
+      }
+      for (Member member : type.members()) {
+        Annotation mapping = null;
+        Annotation operation = null;
+        List<String> guard = new ArrayList<>(classGuard);
+        for (Annotation a : member.annotations()) {
+          if (MAPPINGS.contains(a.type()) && mapping == null) {
+            mapping = a;
+          } else if (a.type().equals(OPERATION)) {
+            operation = a;
+          }
+          List<String> roles = guardRoles(a);
+          if (roles != null) {
+            guard = roles;
+          }
+        }
+        if (mapping == null || mapping.where() == null) {
+          continue;
+        }
+        List<String> paths = paths(mapping);
+        for (String prefix : prefixes) {
+          for (String path : paths.isEmpty() ? List.of("") : paths) {
+            String full = join(prefix, path);
+            String action = accountAction(full);
+            if (action == null) {
+              continue;
+            }
+            ObjectNode attributes = FactJson.newObject();
+            attributes.put("action", action);
+            attributes.put("path", full);
+            if (operation != null) {
+              String summary = first(operation, "summary");
+              if (summary != null) {
+                attributes.put("summary", summary);
+              }
+            }
+            if (!guard.isEmpty()) {
+              guard.forEach(attributes.putArray("guard")::add);
+            }
+            Location at = mapping.where();
+            if (operation != null
+                && operation.where() != null
+                && operation.where().start() == at.end() + 1) {
+              at = new Location(at.file(), at.start(), operation.where().end());
+            }
+            code(m, member.id(), ACCOUNT, attributes, at);
+          }
+        }
+      }
+    }
+
+    /**
+     * The constants of an enum that types the roles of an account (a kept type with a password or
+     * Spring Security's {@code UserDetails}): the kinds of user the system stores, each at its
+     * line.
+     */
+    private void roleTypes(JavaAnalysis.Module m, TypeDecl type) {
+      if (!type.kind().equals(ModuleStructure.ENUM)) {
+        return;
+      }
+      String held = null;
+      for (TypeDecl account : accounts()) {
+        for (Member field : account.members()) {
+          if (field.type() == null || !field.id().type().equals(ModuleStructure.FIELD)) {
+            continue;
+          }
+          String fieldName = field.id().key().substring(field.id().key().indexOf('#') + 1);
+          String enumName = simpleName(type.binaryName());
+          boolean named = enumName.contains("Role") || enumName.contains("Authorit");
+          // The field's name or the enum's says it holds roles. A collection's element type is
+          // erased, so then both must, and the field must be mapped as a collection of values.
+          boolean typed =
+              field.type().equals(type.binaryName()) && (named || ROLE_FIELDS.contains(fieldName));
+          boolean collection =
+              named
+                  && ROLE_FIELDS.contains(fieldName)
+                  && field.type().startsWith("java.util.")
+                  && field.annotations().stream()
+                      .anyMatch(
+                          f ->
+                              Set.of("ElementCollection", "Enumerated")
+                                  .contains(simpleName(f.type())));
+          if (typed || collection) {
+            held = field.id().toString();
+            break;
+          }
+        }
+        if (held != null) {
+          break;
+        }
+      }
+      if (held == null) {
+        return;
+      }
+      for (Member constant : type.members()) {
+        if (constant.where() == null
+            || !constant.id().type().equals(ModuleStructure.FIELD)
+            || !type.binaryName().equals(constant.type())) {
+          continue;
+        }
+        String name = constant.id().key().substring(constant.id().key().indexOf('#') + 1);
+        if (SOFTWARE_CONSTANTS.contains(name)) {
+          continue;
+        }
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("name", name);
+        attributes.put("type", type.binaryName());
+        attributes.put("field", held);
+        code(m, constant.id(), ROLE_TYPE, attributes, constant.where());
+      }
+    }
+
+    private List<TypeDecl> accounts;
+
+    /** The user accounts among the snapshot's types, found once. */
+    private List<TypeDecl> accounts() {
+      if (accounts == null) {
+        accounts = types.values().stream().filter(Run::account).toList();
+      }
+      return accounts;
+    }
+
+    /** Whether a type is a user account the system keeps: it has a password or is UserDetails. */
+    private static boolean account(TypeDecl type) {
+      boolean kept = type.annotations().stream().anyMatch(a -> KEPT.contains(simpleName(a.type())));
+      if (!kept) {
+        return false;
+      }
+      if (type.supertypes().stream()
+          .anyMatch(t -> t.binaryName().endsWith("security.core.userdetails.UserDetails"))) {
+        return true;
+      }
+      return type.members().stream()
+          .filter(f -> f.id().type().equals(ModuleStructure.FIELD))
+          .map(f -> f.id().key().substring(f.id().key().indexOf('#') + 1).toLowerCase(Locale.ROOT))
+          .anyMatch(n -> n.contains("password") || n.equals("credentials"));
     }
 
     /** A call of Spring Security's {@code hasRole} and its like with the role written out. */
@@ -387,6 +720,10 @@ public final class PeopleExtractor {
       }
       String key = call.callee().key();
       String method = securityMethod(key);
+      boolean anyReceiver = method == null;
+      if (anyReceiver) {
+        method = anyRoleMethod(key);
+      }
       if (method == null) {
         return;
       }
@@ -394,6 +731,9 @@ public final class PeopleExtractor {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("name", role);
         attributes.put("source", method);
+        if (anyReceiver) {
+          attributes.put("anyReceiver", true);
+        }
         code(m, call.caller(), ROLE, attributes, call.where());
       }
     }
@@ -481,6 +821,29 @@ public final class PeopleExtractor {
         if (lines[n].matches("\\s*\"realm\"\\s*:\\s*\\[.*")) {
           from = n;
         }
+      }
+      // Self-registration on Keycloak's own pages: a Register link on its login page.
+      if (FactJson.parse(text).path("registrationAllowed").asBoolean(false)) {
+        int at = 0;
+        for (int n = 0; n < lines.length && at == 0; n++) {
+          if (lines[n].matches("\\s*\"registrationAllowed\"\\s*:\\s*true.*")) {
+            at = n + 1;
+          }
+        }
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("action", "sign-up");
+        attributes.put("source", "keycloak-realm");
+        add(
+            subject,
+            ACCOUNT,
+            attributes,
+            new Evidence(
+                repo.repo().name(),
+                repo.commit(),
+                path,
+                at > 0 ? new Evidence.LineRange(at, at) : null,
+                sha256(bytes)),
+            1.0);
       }
       Set<String> serviceHolders = new LinkedHashSet<>();
       Set<String> otherHolders = new LinkedHashSet<>();

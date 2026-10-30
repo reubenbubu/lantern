@@ -9,6 +9,7 @@ import io.lantern.extract.RepoBuild;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -77,5 +78,269 @@ class PeopleExtractorTest {
         .containsExactly("STAFF");
     assertThat(PeopleExtractor.expressionRoles("hasAuthority('orders:write')")).isEmpty();
     assertThat(PeopleExtractor.expressionRoles("isAuthenticated()")).isEmpty();
+  }
+
+  @Test
+  void accountEndpointsRoleTypesAndOtherRoleChecks() throws IOException {
+    Map<String, String> files = new java.util.HashMap<>();
+    files.put(
+        "pom.xml",
+        "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId><artifactId>shop</artifactId><version>1</version></project>\n");
+    files.put(
+        "src/main/java/com/example/Registration.java",
+"""
+package com.example;
+
+import io.swagger.v3.oas.annotations.Operation;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/public")
+public class Registration {
+  @PostMapping("/register")
+  @Operation(summary = "Register an attendee account")
+  public void register() {}
+
+  @GetMapping("/confirm/{token}")
+  public void confirm() {}
+
+  @PostMapping("/users/register")
+  @PreAuthorize("hasRole('INTERNAL_SERVICE')")
+  public void provision() {}
+
+  @GetMapping("/items")
+  public void items() {}
+
+  @IsAdmin
+  @PostMapping(path = "/reset-password")
+  public void reset() {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/IsAdmin.java",
+"""
+package com.example;
+
+import org.springframework.security.access.prepost.PreAuthorize;
+
+@PreAuthorize("hasRole('ADMIN')")
+public @interface IsAdmin {}
+""");
+    files.put(
+        "src/main/java/com/example/AppUser.java",
+"""
+package com.example;
+
+import jakarta.annotation.security.DeclareRoles;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import java.util.Set;
+
+@Entity
+@DeclareRoles({"AUDITOR"})
+public class AppUser {
+  private String passwordHash;
+  private Role role;
+  @ElementCollection private Set<Authority> authorities;
+  private Status status;
+}
+""");
+    files.put(
+        "src/main/java/com/example/Role.java",
+"""
+package com.example;
+
+public enum Role {
+  USER,
+  ADMIN,
+  SYSTEM
+}
+""");
+    files.put(
+        "src/main/java/com/example/Authority.java",
+"""
+package com.example;
+
+public enum Authority {
+  ORGANIZER
+}
+""");
+    files.put(
+        "src/main/java/com/example/Status.java",
+"""
+package com.example;
+
+public enum Status {
+  ACTIVE
+}
+""");
+    files.put(
+        "src/main/java/com/example/Actor.java",
+"""
+package com.example;
+
+public class Actor {
+  boolean hasRole(String role) {
+    return false;
+  }
+
+  void pay() {
+    if (hasRole("ORGANIZER")) {
+      return;
+    }
+  }
+}
+""");
+    files.put(
+        "realm-export.json",
+"""
+{
+  "realm": "shop",
+  "registrationAllowed": true,
+  "roles": {
+    "realm": []
+  }
+}
+""");
+    files.put(
+        "src/main/java/com/example/Orders.java",
+        """
+        package com.example;
+
+        import jakarta.annotation.security.DeclareRoles;
+        import org.springframework.security.access.prepost.PreAuthorize;
+        import org.springframework.web.bind.annotation.PostMapping;
+        import org.springframework.web.bind.annotation.RestController;
+
+        @RestController
+        @PreAuthorize("hasRole('CLERK')")
+        @DeclareRoles({"AUDITOR"})
+        public class Orders {
+          @PostMapping("/orders/{id}/confirm")
+          public void confirmOrder() {}
+
+          @PostMapping("/users/{id}/activate")
+          public void activate() {}
+
+          @PostMapping({"/signin", "/login"})
+          public void signIn() {}
+        }
+        """);
+    files.put(
+        "src/main/java/com/example/Member.java",
+        """
+        package com.example;
+
+        import jakarta.persistence.Entity;
+        import org.springframework.security.core.userdetails.UserDetails;
+
+        @Entity
+        public abstract class Member implements UserDetails {
+          private Tier role;
+
+          boolean isUserInRole(String role) {
+            return false;
+          }
+
+          void check() {
+            isUserInRole("MANAGER");
+          }
+        }
+        """);
+    files.put(
+        "src/main/java/com/example/Tier.java",
+        """
+        package com.example;
+
+        public enum Tier {
+          GOLD
+        }
+        """);
+    Repo repo = Fixtures.repo(temp.resolve("accounts"), "shop", files);
+    String facts =
+        Fixtures.render(
+            new PeopleExtractor()
+                .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT));
+    assertThat(facts.lines())
+        .contains(
+            "field:com.example.Authority#ORGANIZER person-evidence role-type {\""
+                + "field\":\"field:com.example.AppUser#authorities\",\"name\":\"ORGAN"
+                + "IZER\",\"type\":\"com.example.Authority\"} @shop:src/main/java/com"
+                + "/example/Authority.java#4-4 0.7",
+            "field:com.example.Role#ADMIN person-evidence role-type {\"field\":"
+                + "\"field:com.example.AppUser#role\",\"name\":\"ADMIN\",\"type\":\"c"
+                + "om.example.Role\"} @shop:src/main/java/com/example/Role.java#5-5 0"
+                + ".7",
+            "field:com.example.Role#USER person-evidence role-type {\"field\":\""
+                + "field:com.example.AppUser#role\",\"name\":\"USER\",\"type\":\"com."
+                + "example.Role\"} @shop:src/main/java/com/example/Role.java#4-4 0.7",
+            "method:com.example.Actor#pay() person-evidence role {\"anyReceiver"
+                + "\":true,\"name\":\"ORGANIZER\",\"source\":\"hasRole\"} @shop:src/m"
+                + "ain/java/com/example/Actor.java#9-9 0.7",
+            "method:com.example.Member#check() person-evidence role {\"anyRecei"
+                + "ver\":true,\"name\":\"MANAGER\",\"source\":\"isUserInRole\"} @shop"
+                + ":src/main/java/com/example/Member.java#15-15 0.7",
+            "field:com.example.Tier#GOLD person-evidence role-type {\"field\":\""
+                + "field:com.example.Member#role\",\"name\":\"GOLD\",\"type\":\"com.e"
+                + "xample.Tier\"} @shop:src/main/java/com/example/Tier.java#4-4 0.7",
+            "method:com.example.Orders#activate() person-evidence account {\"ac"
+                + "tion\":\"confirm\",\"guard\":[\"CLERK\"],\"path\":\"/users/{id}/ac"
+                + "tivate\"} @shop:src/main/java/com/example/Orders.java#15-15 0.7",
+            "method:com.example.Orders#signIn() person-evidence account {\"acti"
+                + "on\":\"sign-in\",\"guard\":[\"CLERK\"],\"path\":\"/login\"} @shop:"
+                + "src/main/java/com/example/Orders.java#18-18 0.7",
+            "method:com.example.Orders#signIn() person-evidence account {\"acti"
+                + "on\":\"sign-in\",\"guard\":[\"CLERK\"],\"path\":\"/signin\"} @shop"
+                + ":src/main/java/com/example/Orders.java#18-18 0.7",
+            "method:com.example.Registration#confirm() person-evidence account "
+                + "{\"action\":\"confirm\",\"path\":\"/api/public/confirm/{token}\"} "
+                + "@shop:src/main/java/com/example/Registration.java#17-17 0.7",
+            "method:com.example.Registration#provision() person-evidence accoun"
+                + "t {\"action\":\"sign-up\",\"guard\":[\"INTERNAL_SERVICE\"],\"path\""
+                + ":\"/api/public/users/register\"} @shop:src/main/java/com/example/R"
+                + "egistration.java#20-20 0.7",
+            "method:com.example.Registration#register() person-evidence account"
+                + " {\"action\":\"sign-up\",\"path\":\"/api/public/register\",\"summa"
+                + "ry\":\"Register an attendee account\"} @shop:src/main/java/com/exa"
+                + "mple/Registration.java#13-14 0.7",
+            "method:com.example.Registration#reset() person-evidence account {\""
+                + "action\":\"reset\",\"guard\":[\"ADMIN\"],\"path\":\"/api/public/re"
+                + "set-password\"} @shop:src/main/java/com/example/Registration.java#"
+                + "28-28 0.7",
+            "method:com.example.Registration#reset() person-evidence role {\"an"
+                + "notation\":\"com.example.IsAdmin\",\"name\":\"ADMIN\",\"source\":\""
+                + "PreAuthorize\"} @shop:src/main/java/com/example/Registration.java#"
+                + "27-27 0.7",
+            "repo:shop person-evidence account {\"action\":\"sign-up\",\"source"
+                + "\":\"keycloak-realm\"} @shop:realm-export.json#3-3 1.0",
+            "type:com.example.AppUser person-evidence role {\"name\":\"AUDITOR\""
+                + ",\"source\":\"DeclareRoles\"} @shop:src/main/java/com/example/AppU"
+                + "ser.java#9-9 0.7")
+        // Items is no account step and an order's confirmation none either; Status types no role,
+        // SYSTEM names software, and @DeclareRoles guards nothing.
+        .noneMatch(
+            l ->
+                l.contains("items()")
+                    || l.contains("confirmOrder")
+                    || l.contains("Status")
+                    || l.contains("SYSTEM")
+                    || l.contains("AUDITOR\"]"));
+  }
+
+  @Test
+  void confirmationAndResetStepsAreAboutAccounts() {
+    assertThat(
+            PeopleExtractor.accountAction(
+                "/api/v1/events/{eventId}/ticket-types/{ticketTypeId}/inventory/reservations/"
+                    + "{reservationId}/confirm"))
+        .isNull();
+    assertThat(PeopleExtractor.accountAction("/orders/{id}/confirm")).isNull();
+    assertThat(PeopleExtractor.accountAction("/users/{id}/activate")).isEqualTo("confirm");
+    assertThat(PeopleExtractor.accountAction("/api/public/confirm/{token}")).isEqualTo("confirm");
+    assertThat(PeopleExtractor.accountAction("/api/v1/auth/register")).isEqualTo("sign-up");
   }
 }

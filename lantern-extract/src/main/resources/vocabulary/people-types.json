@@ -2,17 +2,17 @@
   {
     "name": "person-evidence",
     "kind": "attribute",
-    "description": "The subject (a type, a method or a repository) shows that people use the system in the way the value names: role (a role or authority that Spring Security, Jakarta or a Keycloak realm names), membership (a type about members of something, such as an organization), invitation (a type about invitations people receive) or route (a screen of a frontend, by its path). It records only what the code says; the linker decides which people it makes of it.",
+    "description": "The subject (a type, a method or a repository) shows that people use the system in the way the value names: role (a role or authority that Spring Security, Jakarta or a Keycloak realm names), membership (a type about members of something, such as an organization), invitation (a type about invitations people receive), route (a screen of a frontend, by its path), account (an endpoint where people sign up, sign in, confirm an account or reset a password, or a Keycloak realm that lets people register) or role-type (a constant of the enum that types the roles of a user account the system keeps). It records only what the code says; the linker decides which people it makes of it.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "name": {
           "type": "string",
-          "description": "For a role, the role as the code names it, without the ROLE_ prefix."
+          "description": "For a role, the role as the code names it, without the ROLE_ prefix. For role-type: the enum constant."
         },
         "source": {
           "type": "string",
-          "description": "For a role, where it is named: the annotation (PreAuthorize, PostAuthorize, Secured, RolesAllowed), the security call (hasRole, hasAnyRole, hasAuthority, hasAnyAuthority) or keycloak-realm."
+          "description": "For a role, where it is named: the annotation (PreAuthorize, PostAuthorize, Secured, RolesAllowed), the security call (hasRole, hasAnyRole, hasAuthority, hasAnyAuthority) or keycloak-realm. Also DeclareRoles, isUserInRole and isCallerInRole for role, and keycloak-realm for account."
         },
         "serviceAccountOnly": {
           "type": "boolean",
@@ -24,15 +24,48 @@
         },
         "type": {
           "type": "string",
-          "description": "For a membership or an invitation, the binary name of the type."
+          "description": "For a membership or an invitation, the binary name of the type. For role-type: the enum."
         },
         "path": {
           "type": "string",
-          "description": "For a route, the path as the frontend's router writes it."
+          "description": "For a route, the path as the frontend's router writes it. For account: the endpoint's full path."
         },
         "framework": {
           "type": "string",
           "description": "For a route, the router: angular, react or vue."
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "sign-up",
+            "sign-in",
+            "confirm",
+            "reset"
+          ],
+          "description": "For account: what a person does there: signs up, signs in, confirms an account or resets a password."
+        },
+        "summary": {
+          "type": "string",
+          "description": "For account: the endpoint's OpenAPI summary, in the code's own words."
+        },
+        "guard": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "For account: the roles that guard the endpoint; one guarded only by a role for software is not a person's."
+        },
+        "field": {
+          "type": "string",
+          "description": "For role-type: the account's field that holds the role."
+        },
+        "annotation": {
+          "type": "string",
+          "description": "For role: the custom annotation that carries the check, when it is not written directly."
+        },
+        "anyReceiver": {
+          "type": "boolean",
+          "description": "For role: true when the check is a hasRole-like call on a type of the system's own or the servlet's (isUserInRole), not Spring Security's."
         }
       }
     }

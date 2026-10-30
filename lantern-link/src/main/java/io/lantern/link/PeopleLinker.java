@@ -59,10 +59,8 @@ final class PeopleLinker {
   /** Confidence of a person: it is an inference from what the code names. */
   static final double CONFIDENCE = 0.7;
 
-  private static final Set<String> SIGN_UP =
-      Set.of("sign-up", "signup", "sign_up", "register", "registration");
-  private static final Set<String> SIGN_IN =
-      Set.of("sign-in", "signin", "sign_in", "login", "log-in", "authenticate");
+  private static final Set<String> SIGN_UP = PeopleExtractor.SIGN_UP;
+  private static final Set<String> SIGN_IN = PeopleExtractor.SIGN_IN;
 
   /** The bases from the one that wins when two kinds of evidence make one person. */
   private static final List<String> PRIORITY = List.of(MEMBER, INVITED, ROLE, ACCOUNT);
@@ -130,6 +128,11 @@ final class PeopleLinker {
   private void roles(List<Fact> evidence, Map<String, Draft> people) {
     Map<String, List<Fact>> byRole = new TreeMap<>();
     for (Fact fact : of(evidence, PeopleExtractor.ROLE)) {
+      // Declared roles and checks on the system's own types wait for the people rule of #437.
+      if (fact.attributes().path("source").asString("").equals("DeclareRoles")
+          || fact.attributes().path("anyReceiver").asBoolean(false)) {
+        continue;
+      }
       byRole
           .computeIfAbsent(
               slug(words(fact.attributes().path("name").asString(""))), r -> new ArrayList<>())
