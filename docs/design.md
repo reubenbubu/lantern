@@ -124,7 +124,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 
 Later: OpenAPI and AsyncAPI specs, Terraform.
 
-How the Maven extractor names entities, tells internal from third-party dependencies and links a thin service to its library is in ADR 0006.
+How the Maven extractor names entities, tells internal from third-party dependencies (a dependency under JitPack coordinates, `com.github.<owner>:<repo>` or `com.github.<owner>.<repo>:<module>`, is internal when the snapshot has a repository of that name) and links a thin service to its library is in ADR 0006.
 
 How the Java structure extractor names packages, types and members, which annotation processors it runs, which calls it keeps and how its parsing fallback matches the compiler is in ADR 0007; calls to methods a type inherits from third-party code, such as a Spring Data repository's `save`, are in ADR 0049.
 
@@ -240,7 +240,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 
 The linker turns per-repo facts into one system graph by matching what one repo exposes with what another uses. Scopes and groups then decide which part of that graph a document covers.
 
-**Deployable units.** Before matching, the linker folds each deployable unit together: a service (or a library with a Spring Boot main class that no service packages) with the in-set libraries on its runtime classpath, its `spring.application.name` and its technology. These units are the containers of the diagrams, and a library's code runs as part of every unit that packages it. The linker derives its facts from everything that holds in the snapshot and records them for the whole snapshot, so a derived fact stops holding when what it came from changes, in whichever repository. Which facts the units get, and how their name, main class and technology are chosen, is in ADR 0039.
+**Deployable units.** Before matching, the linker folds each deployable unit together: a service (or a library with a Spring Boot main class that no service packages) with the in-set libraries on its runtime classpath, its `spring.application.name` and its technology. These units are the containers of the diagrams, and a library's code runs as part of every unit that packages it. The linker derives its facts from everything that holds in the snapshot and records them for the whole snapshot, so a derived fact stops holding when what it came from changes, in whichever repository. Which facts the units get, and how their name, main class and technology are chosen, is in ADR 0039. Where units ask for versions of an in-set library other than the one its repository builds at the snapshot's commit, the library gets a version-skew fact naming each unit's version, for the findings page.
 
 **Linking rules**
 

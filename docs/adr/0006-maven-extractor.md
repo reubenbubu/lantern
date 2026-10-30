@@ -1,6 +1,6 @@
 # 0006: Maven extractor
 
-Status: accepted (#8), amended (#100, #93), amended by ADR 0064 (#226), pending the user's review (#24)
+Status: accepted (#8), amended (#100, #93, #265), amended by ADR 0064 (#226), pending the user's review (#24)
 
 ## Context
 
@@ -112,3 +112,38 @@ cover the link, and `MavenRulesTest` a dependency with classifier `all`.
 Each module whose build runs a coverage plugin gets a `coverage-tool` attribute fact, with the
 goals it binds and, for JaCoCo, the limits its `check` goal enforces. The extractor's version
 becomes 3. The details are in ADR 0064.
+
+## Amendment (#265): JitPack coordinates
+
+project-4's services depend on their shared library through JitPack, which builds a repository
+from its git host and publishes it under coordinates of its own, not those in the repository's
+POMs: `com.github.APA-CRM:crm-shared-lib` for the library whose POMs say `com.crm:sharedlib`,
+`com.crm:core` and so on. Matched by `groupId:artifactId` only, the library was third-party, so no
+unit bundled it.
+
+- **A dependency under JitPack coordinates is internal** when the snapshot has a repository of
+  that name, compared without case; the owner is not checked. A group ID starting with
+  `com.github.`, `com.gitlab.`, `org.bitbucket.` or `com.gitee.` is JitPack's.
+  `<host>.<owner>:<repo>` names the whole build, so the dependency points at every module of the
+  repository that builds a service or library (not its `pom` modules), one `BUILD_DEPENDS_ON`
+  each; `<host>.<owner>.<repo>:<artifactId>` names the module with that artifact ID. Exact
+  coordinates are matched first. A JitPack dependency that names no analyzed repository or module
+  stays an `artifact:`.
+- Such a `BUILD_DEPENDS_ON` has the declared `groupId:artifactId` as its `coordinates` attribute,
+  and keeps the declared `version`, which for JitPack is a git tag, branch or commit, not
+  necessarily the version the repository's POM declares. The linker compares the two (ADR 0039,
+  amendment for #265).
+- **Known false positive.** The match is by repository name only. A dependency from a Maven
+  repository other than JitPack whose group ID starts with `com.github.` (some projects publish to
+  Maven Central under `com.github.<owner>`) is taken for the analyzed repository whenever one has
+  the dependency's artifact ID as its name, though its code is someone else's. Checking the
+  owner against the repository's git remote would rule that out; it is not done.
+- **The version is JitPack's.** A JitPack version is a git tag, a `<branch>-SNAPSHOT` or a commit
+  hash, not a version from a POM. The skew check compares it with the version the library's POM
+  declares as text, so a tag spelt differently from that version (`v0.3.0` for `0.3.0`) or a
+  commit hash reads as skew even when it names the analyzed commit. Tags are not resolved to
+  commits.
+- The build is unchanged: the sandbox still resolves JitPack coordinates from the Maven
+  repositories or mirror it is given (ADR 0023, ADR 0030), and does not give the library's own
+  build under them; whether the extractor finds the library does not depend on the build.
+- The extractor's version becomes 4.
