@@ -192,9 +192,9 @@ public final class SpringExtractor {
   private static final String CONDITIONAL_ON_PROPERTY =
       "org.springframework.boot.autoconfigure.condition.ConditionalOnProperty";
 
-  /** An {@code @annotation(...)}, {@code @within(...)} or {@code @target(...)} designator. */
-  private static final java.util.regex.Pattern ANNOTATION_DESIGNATOR =
-      java.util.regex.Pattern.compile("@(annotation|within|target)\\(\\s*([^)\\s]+)\\s*\\)");
+  /** The Quartz {@code Scheduler} methods that schedule a job. */
+  private static final Set<String> QUARTZ_SCHEDULING_METHODS =
+      Set.of("scheduleJob", "scheduleJobs");
 
   private static final String JOBRUNR = "org.jobrunr.";
   private static final String JOBRUNR_HANDLER = JOBRUNR + "jobs.lambdas.JobRequestHandler";
@@ -887,6 +887,13 @@ public final class SpringExtractor {
             crons.add(l.value());
           }
         }
+        // Only the scheduler call schedules; building the job or trigger does not.
+        Location at =
+            root.equals("org.quartz.Scheduler")
+                    && QUARTZ_SCHEDULING_METHODS.contains(
+                        i.expression().chain().getFirst().method())
+                ? i.where()
+                : null;
         for (String job : classes) {
           schedulings.add(
               new Scheduling(
@@ -895,11 +902,10 @@ public final class SpringExtractor {
                   "quartz",
                   job,
                   classes.size() == 1 && crons.size() == 1 ? crons.getFirst() : null,
-                  i.where()));
+                  at));
         }
         if (classes.isEmpty() && crons.size() == 1) {
-          schedulings.add(
-              new Scheduling(module, i.caller(), "quartz", null, crons.getFirst(), i.where()));
+          schedulings.add(new Scheduling(module, i.caller(), "quartz", null, crons.getFirst(), at));
         }
       }
     }
@@ -1279,16 +1285,19 @@ public final class SpringExtractor {
             if (name.equals(ModuleStructure.CONSTRUCTOR) || name.contains("$")) {
               continue;
             }
-            if (AspectPointcuts.selects(
-                advice.pointcut(),
-                new AspectPointcuts.Candidate(type, lineage, method.annotations(), name),
-                names)) {
+            AspectPointcuts.Candidate candidate =
+                new AspectPointcuts.Candidate(type, lineage, method.annotations(), name);
+            if (AspectPointcuts.selects(advice.pointcut(), candidate, names)) {
               ObjectNode attributes = FactJson.newObject();
               attributes.put("advice", advice.method().id().toString());
               attributes.put("kind", advice.kind());
               attributes.put("pointcut", advice.pointcut());
               relation(subject, ADVISES, method.id(), attributes, advice.written().where());
-              Annotation selecting = selecting(advice, names, method, type);
+              Annotation selecting =
+                  selecting(
+                      AspectPointcuts.selectingAnnotation(advice.pointcut(), candidate, names),
+                      method,
+                      type);
               if (selecting != null && selecting.where() != null) {
                 ObjectNode at = FactJson.newObject();
                 at.put("advice", advice.method().id().toString());
@@ -1305,33 +1314,17 @@ public final class SpringExtractor {
       }
     }
 
-    /**
-     * The annotation on an advised method, or on its class, that the advice's pointcut selects by
-     * {@code @annotation}, {@code @within} or {@code @target}; null when it selects by anything
-     * else.
-     */
-    private static Annotation selecting(
-        Advice advice, AspectPointcuts.Names names, Member method, TypeDecl type) {
-      String pointcut = advice.pointcut();
-      for (int depth = 0; depth < 3 && pointcut != null; depth++) {
-        java.util.regex.Matcher m = ANNOTATION_DESIGNATOR.matcher(pointcut);
-        while (m.find()) {
-          String annotation = names.annotationType(m.group(2));
-          if (annotation == null) {
-            continue;
-          }
-          List<Annotation> on =
-              m.group(1).equals("annotation") ? method.annotations() : type.annotations();
-          for (Annotation a : on) {
-            if (a.type().equals(annotation)) {
-              return a;
-            }
+    /** The annotation of the given type on the method, else on its class; null for none. */
+    private static Annotation selecting(String annotation, Member method, TypeDecl type) {
+      if (annotation == null) {
+        return null;
+      }
+      for (List<Annotation> on : List.of(method.annotations(), type.annotations())) {
+        for (Annotation a : on) {
+          if (a.type().equals(annotation)) {
+            return a;
           }
         }
-        // A named pointcut: follow it once more.
-        java.util.regex.Matcher named =
-            java.util.regex.Pattern.compile("^\\s*([\\w.]+)\\s*\\(\\s*\\)").matcher(pointcut);
-        pointcut = named.find() ? names.pointcut(named.group(1)) : null;
       }
       return null;
     }

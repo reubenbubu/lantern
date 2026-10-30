@@ -148,10 +148,12 @@ records each registration, access check and scheduling call at the line that dec
   where a `method-security` fact of the same unit enables its kind; the linker decides that.
 - **`advised-by`** on a method an aspect advises because of an annotation it carries: the
   pointcut selects it with `@annotation`, `@within` or `@target`, directly or through named
-  pointcuts up to three deep. Value: the aspect; `advice`, `kind` and `annotation` as attributes;
+  pointcuts as `ADVISES` follows them: the annotation without which the pointcut would no longer
+  select the method. Value: the aspect; `advice`, `kind` and `annotation` as attributes;
   evidence: the annotation on the method. `ADVISES` (ADR 0079) is unchanged.
 - **`SCHEDULES`** from a method that schedules a JobRunr or Quartz job to the job method, at the
-  scheduling call (`framework`), beside the job's `scheduledBy`.
+  scheduling call (`framework`), beside the job's `scheduledBy`. For Quartz that is the
+  `Scheduler.scheduleJob` call, not the `JobBuilder` that builds the job.
 - **`property-gate`** for `@ConditionalOnProperty` on a bean class or `@Bean` method, directly or
   meta-annotated, like `profile-gate`: `properties` (prefix joined to each name), `havingValue`,
   `matchIfMissing`; value the properties joined by ` & `, with `=havingValue` when given.
@@ -159,5 +161,7 @@ records each registration, access check and scheduling call at the line that dec
 **Not read yet**, each with a project-0 case first: HTTP security matchers
 (`authorizeHttpRequests`, `authorizeExchange`) as access checks (#418); JobRunr `BackgroundJob`
 and `JobScheduler` lambdas and the `aJob()` builder (#419); `RouterFunction` beans, server-side
-`@HttpExchange`, `@EventListener` and Modulith listeners, GraphQL and gRPC (#420). Linking the
+`@HttpExchange`, `@EventListener` and Modulith listeners, GraphQL and gRPC (#420). Also not
+read: access checks on interfaces (Spring Security honours them, no test set has one), and
+Boot 3.5's repeated `@ConditionalOnProperty` and `@ConditionalOnBooleanProperty`. Linking the
 new facts is #421.

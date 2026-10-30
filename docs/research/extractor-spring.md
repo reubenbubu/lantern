@@ -113,6 +113,7 @@ For security, record an access check where it is written, and record separately 
 - `advised-by` on the advised method, at the annotation an aspect's pointcut selects through `@annotation`, `@within` or `@target`, following named pointcuts. This is the same link as `ADVISES` (ADR 0079), seen from the method; `ADVISES` is unchanged.
 - `SCHEDULES` from the method that schedules a job to the job method, at the scheduling call.
 - `property-gate` for `@ConditionalOnProperty`, beside `profile-gate`.
+- Not read, as no development set has them: access-check annotations on interfaces, and Boot 3.5's repeated `@ConditionalOnProperty` and `@ConditionalOnBooleanProperty`.
 - Deferred to `Later`, each with a project-0 case: HTTP security matchers as access checks; JobRunr `BackgroundJob` and `JobScheduler` lambdas and the `aJob()` builder; RouterFunction, server-side `@HttpExchange`, events and Modulith, GraphQL and gRPC.
 
 The quality-bar line the research suggests (a security check is shown only where something enforces it) belongs with the work that first draws access checks, not with this extraction-only change.

@@ -412,4 +412,204 @@ class SpringExtractorTest {
                 + " {\"matchIfMissing\":true,\"properties\":[\"shop.metrics\"]}"
                 + " @shop:src/main/java/com/example/Cache.java#11-11 0.7");
   }
+
+  @Test
+  void otherRegistrationsChecksAndAdvice() throws IOException {
+    Map<String, String> files = new java.util.HashMap<>();
+    files.put(
+        "pom.xml",
+        "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+            + "<artifactId>shop</artifactId><version>1</version></project>\n");
+    files.put(
+        "src/main/java/com/example/Servers.java",
+"""
+package com.example;
+
+import de.codecentric.boot.admin.server.config.EnableAdminServer;
+import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
+import org.springframework.cloud.netflix.eureka.server.EnableEurekaServer;
+
+@EnableEurekaServer
+@EnableAdminServer
+@EnableEurekaClient
+public class Servers {}
+""");
+    files.put(
+        "src/main/java/com/example/Legacy.java",
+"""
+package com.example;
+
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+
+@EnableGlobalMethodSecurity(jsr250Enabled = true)
+public class Legacy {}
+""");
+    files.put(
+        "src/main/java/com/example/Reactive.java",
+"""
+package com.example;
+
+import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
+
+@EnableReactiveMethodSecurity
+public class Reactive {}
+""");
+    files.put(
+        "src/main/java/com/example/Ledger.java",
+"""
+package com.example;
+
+import jakarta.annotation.security.RolesAllowed;
+import javax.annotation.security.DenyAll;
+import javax.annotation.security.PermitAll;
+import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.stereotype.Service;
+
+@Service
+@Audited
+public class Ledger {
+  @RolesAllowed({"ADMIN", "CLERK"})
+  public void post() {}
+
+  @PermitAll
+  public void read() {}
+
+  @DenyAll
+  public void purge() {}
+
+  @PostAuthorize("returnObject == principal")
+  @Audit
+  @Skip
+  public String owner() {
+    return "";
+  }
+}
+""");
+    files.put(
+        "src/main/java/com/example/Audited.java",
+"""
+package com.example;
+
+public @interface Audited {}
+""");
+    files.put(
+        "src/main/java/com/example/Audit.java",
+"""
+package com.example;
+
+public @interface Audit {}
+""");
+    files.put(
+        "src/main/java/com/example/Skip.java",
+"""
+package com.example;
+
+public @interface Skip {}
+""");
+    files.put(
+        "src/main/java/com/example/Trail.java",
+"""
+package com.example;
+
+import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.aspectj.lang.annotation.Pointcut;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class Trail {
+  @Around("@within(com.example.Audited)")
+  public Object around(Object joinPoint) {
+    return joinPoint;
+  }
+
+  @Before("!@annotation(com.example.Skip) || @annotation(com.example.Audit)")
+  public void before() {}
+
+  @Pointcut("@annotation(com.example.Audit)")
+  void audit() {}
+
+  @After("execution(* *(..)) && audit()")
+  public void after() {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/OnFeature.java",
+"""
+package com.example;
+
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
+@ConditionalOnProperty(prefix = "feature.", name = {"a", "b"}, havingValue = "on")
+public @interface OnFeature {}
+""");
+    files.put(
+        "src/main/java/com/example/Features.java",
+"""
+package com.example;
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@OnFeature
+public class Features {}
+""");
+    Repo repo = Fixtures.repo(temp.resolve("other"), "shop", files);
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+    String facts = Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT));
+    // The negated @annotation(Skip) does not select owner(); @annotation(Audit) does, also
+    // through the named pointcut audit() after another term.
+    assertThat(facts.lines())
+        .contains(
+            "method:com.example.Ledger#owner() access-check returnObject == princip"
+                + "al {\"kind\":\"post-authorize\"} @shop:src/main/java/com/example/Ledge"
+                + "r.java#21-21 0.7",
+            "method:com.example.Ledger#owner() advised-by com.example.Trail {\"advi"
+                + "ce\":\"method:com.example.Trail#after()\",\"annotation\":\"com.example"
+                + ".Audit\",\"kind\":\"after\"} @shop:src/main/java/com/example/Ledger.ja"
+                + "va#22-22 0.7",
+            "method:com.example.Ledger#owner() advised-by com.example.Trail {\"advi"
+                + "ce\":\"method:com.example.Trail#before()\",\"annotation\":\"com.exampl"
+                + "e.Audit\",\"kind\":\"before\"} @shop:src/main/java/com/example/Ledger."
+                + "java#22-22 0.7",
+            "method:com.example.Ledger#post() access-check ADMIN, CLERK {\"kind\":"
+                + "\"roles-allowed\"} @shop:src/main/java/com/example/Ledger.java#12-12 0."
+                + "7",
+            "method:com.example.Ledger#post() advised-by com.example.Trail {\"advic"
+                + "e\":\"method:com.example.Trail#around(java.lang.Object)\",\"annotation"
+                + "\":\"com.example.Audited\",\"kind\":\"around\"} @shop:src/main/java/co"
+                + "m/example/Ledger.java#10-10 0.7",
+            "method:com.example.Ledger#purge() access-check deny-all {\"kind\":\"de"
+                + "ny-all\"} @shop:src/main/java/com/example/Ledger.java#18-18 0.7",
+            "method:com.example.Ledger#read() access-check permit-all {\"kind\":\"p"
+                + "ermit-all\"} @shop:src/main/java/com/example/Ledger.java#15-15 0.7",
+            "type:com.example.Features property-gate feature.a & feature.b=on {\"an"
+                + "notation\":\"com.example.OnFeature\",\"havingValue\":\"on\",\"properti"
+                + "es\":[\"feature.a\",\"feature.b\"]} @shop:src/main/java/com/example/Fe"
+                + "atures.java#6-6 0.7",
+            "type:com.example.Legacy method-security on {\"annotation\":\"org.sprin"
+                + "gframework.security.config.annotation.method.configuration.EnableGloba"
+                + "lMethodSecurity\",\"jsr250Enabled\":true,\"prePostEnabled\":false,\"se"
+                + "curedEnabled\":false} @shop:src/main/java/com/example/Legacy.java#5-5 "
+                + "0.7",
+            "type:com.example.Reactive method-security on {\"annotation\":\"org.spr"
+                + "ingframework.security.config.annotation.method.configuration.EnableRea"
+                + "ctiveMethodSecurity\",\"jsr250Enabled\":false,\"prePostEnabled\":true,"
+                + "\"securedEnabled\":false} @shop:src/main/java/com/example/Reactive.jav"
+                + "a#5-5 0.7",
+            "type:com.example.Servers discovery-client discovery {\"annotation\":\""
+                + "org.springframework.cloud.netflix.eureka.EnableEurekaClient\"} @shop:s"
+                + "rc/main/java/com/example/Servers.java#9-9 0.7",
+            "type:com.example.Servers infrastructure-server admin {\"annotation\":"
+                + "\"de.codecentric.boot.admin.server.config.EnableAdminServer\"} @shop:sr"
+                + "c/main/java/com/example/Servers.java#8-8 0.7",
+            "type:com.example.Servers infrastructure-server eureka {\"annotation\":"
+                + "\"org.springframework.cloud.netflix.eureka.server.EnableEurekaServer\""
+                + "} @shop:src/main/java/com/example/Servers.java#7-7 0.7")
+        .noneMatch(l -> l.contains("advised-by") && l.contains("\"com.example.Skip\""));
+  }
 }
