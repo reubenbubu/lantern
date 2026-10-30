@@ -111,7 +111,7 @@ class WordingPromptTest {
 
     assertThat(WordingPrompt.FLOW_VERSION + " " + fingerprint)
         .as("The prompt changed: raise WordingPrompt.FLOW_VERSION and update this fingerprint")
-        .isEqualTo("3 cd96a3dc2a6926a68746fca554903ea4623c4ee2119a84d21510e8ceec9dd483");
+        .isEqualTo("4 f8979d0dbfeca850643cca4a06c43dab95c392fd4b8af96f8c01ab0d744f205f");
   }
 
   /**

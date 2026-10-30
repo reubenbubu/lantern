@@ -1554,7 +1554,7 @@
     "blocks" : [ ],
     "sections" : [ {
       "id" : "sequences.shop-app.Controller.list",
-      "title" : "GET /orders on shop-app",
+      "title" : "List (GET /orders on shop-app)",
       "levels" : [ "L1", "L2" ],
       "facts" : [ ],
       "blocks" : [ {
@@ -1594,7 +1594,7 @@
         "kind" : "diagram",
         "id" : "sequences.shop-app.Controller.list.diagram",
         "diagramKind" : "sequence",
-        "title" : "GET /orders on shop-app",
+        "title" : "List (GET /orders on shop-app)",
         "participants" : [ {
           "id" : "service:com.example:app",
           "technology" : "Spring Boot 3.5.0 / Java 21",
@@ -1684,7 +1684,7 @@
       "sections" : [ ]
     }, {
       "id" : "sequences.shop-app.Jobs.run",
-      "title" : "Jobs.run on its schedule in shop-app",
+      "title" : "Run (Jobs.run on its schedule in shop-app)",
       "levels" : [ "L1", "L2" ],
       "facts" : [ ],
       "blocks" : [ {
@@ -1724,7 +1724,7 @@
         "kind" : "diagram",
         "id" : "sequences.shop-app.Jobs.run.diagram",
         "diagramKind" : "sequence",
-        "title" : "Jobs.run on its schedule in shop-app",
+        "title" : "Run (Jobs.run on its schedule in shop-app)",
         "participants" : [ {
           "id" : "service:com.example:app",
           "technology" : "Spring Boot 3.5.0 / Java 21",

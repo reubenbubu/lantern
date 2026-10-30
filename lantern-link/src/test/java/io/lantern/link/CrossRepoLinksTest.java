@@ -1141,6 +1141,35 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void aSendToTheUnitsOwnListenerIsLinked() {
+    // A unit that hands work to itself through the broker: the flows draw the delivery (ADR 0047,
+    // amendment for #272).
+    unit("m", "main", "main");
+    type("m", "main", "m.Organizations");
+    messaging(
+        "m",
+        "m.Organizations#create()",
+        MessagingExtractor.SEND,
+        "org.created",
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        20);
+    messaging(
+        "m",
+        "m.Organizations#defaults()",
+        MessagingExtractor.LISTENER,
+        "org.created",
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        30);
+
+    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
+        .containsExactly(
+            "service:g:main SENDS_MESSAGES_TO service:g:main"
+                + " {\"destination\":\"topic:kafka:org.created\",\"protocol\":\"Kafka\","
+                + "\"source\":\"method:m.Organizations#create()\","
+                + "\"target\":\"method:m.Organizations#defaults()\"} 1.0");
+  }
+
+  @Test
   void codeGatedByAProfileLinksOnlyUnderThatProfile() {
     unit("s", "shop", "shop");
     type("s", "shop", "s.AuditTrail");
