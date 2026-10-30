@@ -431,9 +431,10 @@ class Project0EndToEndIT {
         .containsExactly(
             "context",
             "containers",
+            // From the entry inward (#270): the units nothing calls, then payments.
             "components-service-com-acme-shop-fulfilment",
-            "components-service-com-acme-shop-payments",
             "components-service-com-acme-shop-storefront-app",
+            "components-service-com-acme-shop-payments",
             "sequences-storefront-ordercontroller-place",
             "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
