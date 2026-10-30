@@ -114,7 +114,7 @@ class ResolvedLinksTest {
   }
 
   private static List<Callout> notLinked(Document document) {
-    return section(document, "containers").blocks().stream()
+    return section(document, "decisions").blocks().stream()
         .filter(Callout.class::isInstance)
         .map(Callout.class::cast)
         .filter(c -> "Not linked".equals(c.title()))
@@ -122,7 +122,7 @@ class ResolvedLinksTest {
   }
 
   @Test
-  void aResolvedLinkIsNotListedAsNotLinkedInTheContainers() {
+  void aResolvedLinkIsNotListedAsNotLinked() {
     assertThat(notLinked(c4(open()))).hasSize(1);
     assertThat(notLinked(c4(resolved()))).isEmpty();
   }

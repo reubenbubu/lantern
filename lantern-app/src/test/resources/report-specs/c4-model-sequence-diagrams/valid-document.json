@@ -41,7 +41,8 @@
         "from" : "library-orders-lib",
         "to" : "database-orders-db",
         "label" : "reads (only with the Spring profile prod)",
-        "technology" : "JDBC"
+        "technology" : "JDBC",
+        "llm" : true
       }, {
         "from" : "service-orders",
         "to" : "database-orders-db"
@@ -68,7 +69,8 @@
       "id" : "dependencies",
       "title" : "Dependencies",
       "columns" : [ "From", "To" ],
-      "rows" : [ [ "[orders-lib](#/structure/el-library-orders-lib)", "orders-db" ], [ "orders", "" ] ]
+      "rows" : [ [ "[orders-lib](#/structure/el-library-orders-lib)", "orders-db" ], [ "orders", "" ] ],
+      "llmRows" : [ 0 ]
     }, {
       "type" : "list",
       "id" : "modules",

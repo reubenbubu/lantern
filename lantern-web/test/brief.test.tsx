@@ -15,7 +15,7 @@ describe('the Executive Brief', () => {
 
   test('is composer output for the brief', () => {
     expect(document.template.name).toBe('executive-brief');
-    expect(document.sections.map((s) => s.id)).toEqual(['overview', 'headlines', 'risks', 'blast_radius', 'technology_currency', 'quality_evidence', 'context', 'containers', 'glossary', 'quality']);
+    expect(document.sections.map((s) => s.id)).toEqual(['overview', 'headlines', 'risks', 'blast_radius', 'technology_currency', 'quality_evidence', 'context', 'containers', 'decisions', 'glossary', 'quality']);
   });
 
   test('opens with the title and links every section from its header', () => {

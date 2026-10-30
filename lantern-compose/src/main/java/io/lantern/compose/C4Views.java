@@ -1142,8 +1142,9 @@ final class C4Views {
 
   /**
    * The container diagram of the scope's units and their direct neighbours, inside the system; one
-   * per unit when that would show more than {@link #MAX_ELEMENTS} elements. Then the links Lantern
-   * could not resolve and the scope's decision records.
+   * per unit when that would show more than {@link #MAX_ELEMENTS} elements. What is not at a C4
+   * level, the deployment table, the decision records and the links not resolved, is in sections of
+   * its own (ADR 0086).
    *
    * @param section the containers section's ID
    * @param blocks receives the blocks of the section itself
@@ -1189,9 +1190,6 @@ final class C4Views {
       }
     }
     alternativesNote(assembler.id(section, "profiles"), units, false).ifPresent(blocks::add);
-    unresolved(section).ifPresent(blocks::add);
-    deployment(section).ifPresent(blocks::add);
-    decisions(section).ifPresent(blocks::add);
   }
 
   /**
@@ -1199,7 +1197,7 @@ final class C4Views {
    * 0082): one row per container, with its image, the product and version the image is, the units
    * and data stores the linker found running in it, and its ports. Absent when there are none.
    */
-  private Optional<Table> deployment(String section) {
+  Optional<Table> deployment(String section) {
     Map<String, SortedSet<EntityId>> running = new TreeMap<>();
     Map<String, List<Fact>> runningFacts = new TreeMap<>();
     for (Fact fact : knowledge.withPredicate(DEPLOYED_IN)) {
@@ -1328,7 +1326,7 @@ final class C4Views {
   }
 
   /** The calls, sends and datasources of the scope's units that Lantern could not link. */
-  private Optional<Callout> unresolved(String section) {
+  Optional<Callout> unresolved(String section) {
     List<Inline> content = new ArrayList<>();
     List<Fact> facts = new ArrayList<>();
     for (EntityId unit : units) {
@@ -1373,7 +1371,7 @@ final class C4Views {
    * quoted from its context section or marked as not recorded; a note when there are none, since
    * then why the system is built as it is is not known (Quality bar, Architecture Explorer).
    */
-  private Optional<Block> decisions(String section) {
+  Optional<Block> decisions(String section) {
     SortedSet<EntityId> decisions = new TreeSet<>(Knowledge.BY_ID);
     for (Fact fact : knowledge.withPredicate("title")) {
       EntityId subject = fact.subject();

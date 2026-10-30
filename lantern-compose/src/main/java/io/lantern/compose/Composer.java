@@ -123,7 +123,11 @@ public final class Composer {
       if (kind == SectionKind.GLOSSARY) {
         glossary = sections.size();
       } else {
-        sections.add(composition.section(kind));
+        Section section = composition.section(kind);
+        // The deployment of a scope without deployment descriptors is left out.
+        if (kind != SectionKind.DEPLOYMENT || !section.blocks().isEmpty()) {
+          sections.add(section);
+        }
       }
     }
     List<QualityReport.Failure> claimFailures = composition.claimFailures();

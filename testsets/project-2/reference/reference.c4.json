@@ -765,305 +765,6 @@
           "id": "left-out",
           "tone": "info",
           "body": "Left out on purpose. **Payment, email and SMS providers** are ports with only local implementations: payments go to an in-process fake and messages are stored in notification-service's database, so no outside system receives them. The maps provider is a no-op adapter. Prometheus, Grafana, Loki, Jaeger and the OpenTelemetry collector only observe the system, and GitHub Actions only builds it."
-        },
-        {
-          "type": "table",
-          "id": "sources",
-          "eyebrow": "Provenance",
-          "title": "Sources",
-          "columns": [
-            "Repository",
-            "Commit",
-            "Commit date",
-            "Runtime units"
-          ],
-          "rows": [
-            [
-              "Event-Management-platform",
-              "`4625169`",
-              "2026-08-16",
-              "frontend, api-gateway and the six services; `shared/` holds libraries only"
-            ]
-          ]
-        },
-        {
-          "type": "table",
-          "id": "glossary",
-          "eyebrow": "Reference",
-          "title": "Glossary",
-          "columns": [
-            "Term",
-            "Meaning here"
-          ],
-          "rows": [
-            [
-              "Hold (inventory reservation)",
-              "Seats of one ticket type set aside for 15 minutes by event-service while a booking is paid; confirmed, released or expired."
-            ],
-            [
-              "Booking Saga",
-              "The booking/payment workflow that attendee-service drives over Kafka: payment, inventory confirmation, ticket issue, or compensation."
-            ],
-            [
-              "Compensation",
-              "A full refund requested by attendee-service when a payment succeeds but the seats can no longer be confirmed."
-            ],
-            [
-              "Transactional outbox",
-              "A table row written in the same database transaction as the business change and published to Kafka later by a relay."
-            ],
-            [
-              "DLT",
-              "Dead-letter topic: `<topic>.dlt`, where a record goes after the consumer's retries are exhausted."
-            ],
-            [
-              "Idempotency-Key",
-              "Client-supplied request header; the same key with the same input returns the original result."
-            ],
-            [
-              "JWT, JWKS",
-              "JSON Web Token (the access token) and JSON Web Key Set (the published public key that verifies it)."
-            ],
-            [
-              "RS256",
-              "RSA signature with SHA-256: auth-service signs with a private key, everyone else verifies with the public key."
-            ],
-            [
-              "Refresh session / family",
-              "One refresh token row; a family is the chain of rotations from one login, revoked together on reuse."
-            ],
-            [
-              "QR token",
-              "An HMAC-SHA256-signed string identifying a ticket and event, shown at the door."
-            ],
-            [
-              "KRaft",
-              "Kafka running without ZooKeeper; here a single node acts as broker and controller."
-            ],
-            [
-              "OTLP",
-              "OpenTelemetry protocol, used to send traces to the collector."
-            ]
-          ]
-        },
-        {
-          "type": "callout",
-          "id": "adrs",
-          "tone": "info",
-          "title": "Recorded decisions",
-          "body": "The decisions below come from `docs/adr/` (all *Accepted*), followed by decisions seen only in code and configuration, whose rationale is *not recorded*. Each was checked against the code; where the code differs the risk table says so."
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Decisions",
-          "title": "Architecture decisions",
-          "items": [
-            {
-              "id": "ADR-0001",
-              "title": "Kafka is the only message broker",
-              "status": "Accepted",
-              "body": "Versioned event schemas, at-least-once delivery, correlation and trace context in headers. Holds in code: three lifecycle topics, no other broker."
-            },
-            {
-              "id": "ADR-0002",
-              "title": "Database per service",
-              "status": "Accepted",
-              "body": "Six PostgreSQL databases, one login each with CONNECT revoked from PUBLIC; locally all in one PostgreSQL container (`docker/postgres/init-databases.sql`)."
-            },
-            {
-              "id": "ADR-0003",
-              "title": "Orchestrated Saga with transactional outboxes",
-              "status": "Accepted",
-              "body": "attendee-service orchestrates; event-, attendee- and payment-service publish only through their outbox tables; no XA."
-            },
-            {
-              "id": "ADR-0004",
-              "title": "URI-versioned public APIs",
-              "status": "Accepted",
-              "body": "Every public path starts with `/api/v1`."
-            },
-            {
-              "id": "ADR-0005",
-              "title": "RS256 access tokens checked at every boundary, rotated refresh sessions",
-              "status": "Accepted",
-              "body": "The gateway and each service validate the token against auth-service's JWKS; refresh tokens are opaque, hashed and rotated, reuse revokes the family. Access tokens are not revoked before expiry (10 minutes)."
-            },
-            {
-              "id": "ADR-0006",
-              "title": "Locked inventory holds and venue reservation over HTTP",
-              "status": "Accepted",
-              "body": "Ticket rows are locked for every hold change; publication reserves the room through venue-service with the organizer's token and owner reference `event:<id>`."
-            },
-            {
-              "id": "ADR-0007",
-              "title": "Durable booking commands, signed QR tickets, locked check-in",
-              "status": "Accepted",
-              "body": "A booking command row is claimed before calling event-service; QR tokens are HMAC-SHA256 signed; check-in locks the ticket row."
-            },
-            {
-              "id": "ADR-0008",
-              "title": "Provider-neutral payments with a fake adapter; recoverable Saga",
-              "status": "Accepted",
-              "body": "One provider port; only a deterministic fake exists. Refund policy by role; stuck payments and Saga steps are re-driven by scheduled jobs."
-            },
-            {
-              "id": "ADR-0009",
-              "title": "Bounded Kafka retries and durable notification delivery",
-              "status": "Accepted",
-              "body": "Four exponential retries then `<topic>.dlt`; outbox rows dead-lettered after 10 attempts; notifications stored as intents with attempts."
-            },
-            {
-              "title": "Fixed service URLs, no service discovery",
-              "status": "Observed",
-              "body": "The gateway and the two HTTP clients use configured URLs (`http://<service>:<port>` in compose). Rationale: not recorded."
-            },
-            {
-              "title": "Redis for auth rate limits and the public event cache",
-              "status": "Observed",
-              "body": "One Redis serves the gateway's rate limiter and event-service's Spring cache. Rationale: not recorded (system-context.md allows Redis for caches and rate limits)."
-            },
-            {
-              "title": "One repository, one Maven reactor, one backend Dockerfile",
-              "status": "Observed",
-              "body": "All services build from `docker/backend.Dockerfile` with a `MODULE` argument; shared libraries hold no domain code. Rationale: not recorded."
-            }
-          ]
-        },
-        {
-          "type": "table",
-          "id": "risks",
-          "eyebrow": "Findings",
-          "title": "Risks and findings",
-          "columns": [
-            "Impact",
-            "Finding",
-            "Consequence",
-            "Evidence"
-          ],
-          "rows": [
-            [
-              "**High**",
-              "event-service's inventory endpoints are reachable through the gateway by any attendee: the gateway routes all of `/api/v1/events/**` and only requires a token, and the endpoints allow the ATTENDEE role. An attendee can hold seats and confirm their own hold without a booking or payment.",
-              "Seats can be taken out of sale permanently without paying; repeated holds can also block sales for 15 minutes at a time.",
-              "gateway `application.yml:24-27`; `GatewaySecurityConfiguration.java:57-58`; `InventoryController.java:26-27,87-103`; `InventoryService.java:250-255`"
-            ],
-            [
-              "**High**",
-              "Cancelling an event cancels its bookings and tickets in attendee-service but requests no refund; no service reacts to `event.cancelled` with money. Refunds stay a manual call that closes when the event's start time passes.",
-              "Paid attendees of a cancelled event keep being charged unless someone refunds each payment before the original start time.",
-              "`BookingPersistenceService.java:185-199`; `EventLifecycleConsumer.java:68-69`; `RefundStateService.java:13-14`"
-            ],
-            [
-              "Medium",
-              "Default configuration is local-only: the JWT signing key and the QR signing key are generated at startup when none is configured (allowed by default), the payment webhook secret defaults to a known value, and all database passwords are `local_dev_only`.",
-              "Restarting auth-service logs everyone out; restarting attendee-service makes every issued QR ticket fail at the door; a deployment that keeps the defaults accepts forged webhooks.",
-              "`JwtKeyConfiguration.java:66-74`; `QrTokenService.java:36-48`; `compose.yaml:169,269,305`; `init-databases.sql:1-16`"
-            ],
-            [
-              "Medium",
-              "Redis is on event-service's write path: business transactions evict the cache by calling `Cache.evict` directly, which no cache error handler covers, and cached detail reads use Spring's default handler, which rethrows.",
-              "A Redis outage makes event publication, transitions, inventory holds (so every booking) and public event details fail. (The gateway's login rate limiter does not block: it fails open, so the limits stop applying.)",
-              "`PublicEventCache.java:19-24`; `EventManagementService.java:128,166`; `InventoryService.java:151,277`; `PublicEventQueryService.java:94-96`"
-            ],
-            [
-              "Medium",
-              "Publishing and cancelling an event call venue-service over HTTP inside the event database transaction.",
-              "If the transaction rolls back after the call (e.g. Redis or database failure), the room stays reserved, or is released while the event stays published. The idempotent `event:<id>` reference only helps if publication is retried.",
-              "`EventManagementService.java:209-229,282-292`; `VenueAvailabilityService.java:86-101`"
-            ],
-            [
-              "Medium",
-              "Personal data and ticket credentials travel through Kafka and are copied: `booking.created`, `ticket.issued` and payment events carry email, phone and locale, and `ticket.issued` carries the signed QR token, which notification-service stores in intent variables and local deliveries.",
-              "Anyone who can read the topics or notification_service can use other people's tickets; GDPR erasure has to reach three services and the topics.",
-              "`BookingSagaService.java:210-220`; `PaymentLifecycleEvents.java:9-10`; `NotificationEventHandler.java:109-122`"
-            ],
-            [
-              "Medium",
-              "Single points of failure in the only deployment: one Kafka node with replication factor 1 and auto-created topics, one PostgreSQL for all six databases, one Redis.",
-              "Losing any of them stops bookings; losing the Kafka volume loses undelivered Saga commands already marked published.",
-              "`compose.yaml:14-74`"
-            ],
-            [
-              "Low",
-              "The payment provider is an in-process fake that keeps payment state in memory.",
-              "After a restart, reconciliation of a payment still PROCESSING finds no provider record and marks it failed.",
-              "`FakePaymentProvider.java:22,32`; `PaymentReconciliationJob.java:9`"
-            ],
-            [
-              "Low",
-              "Compensation refunds call the provider inside the Kafka consumer's database transaction.",
-              "With a real, slow provider the consumer holds locks and stalls its partition; failures retry and end in the DLT.",
-              "`AttendeeLifecycleConsumer.java:59-60,74-76`; `RefundApplicationService.java:10`"
-            ],
-            [
-              "Low",
-              "Any EVENT_STAFF user may validate and check in tickets for every event; staff are not tied to events.",
-              "A staff account of one organizer can check in (consume) tickets of another organizer's event.",
-              "`AuthenticatedActor.java:34-35` (attendee-service)"
-            ],
-            [
-              "Low",
-              "Cancelling an event does not stop bookings still awaiting payment: payment-service never hears of the cancellation, event-service confirms an active hold without checking the event status, and attendee-service confirms a booking from any status.",
-              "An attendee who pays within the 15-minute hold after a cancellation gets a confirmed booking and valid tickets for the cancelled event, and is charged.",
-              "`BookingPersistenceService.java:185-199`; `PaymentStateService.java:17-25`; `InventoryService.java:223-279`; `BookingSagaService.java:81-103,201-206`"
-            ],
-            [
-              "Low",
-              "Reminders and cancellation alerts are not withdrawn for bookings that end without tickets: notification-service plans the 24 h reminder on `booking.created` for every unexpired booking and ignores `booking.payment-failed`, `ticket-hold.expired` and `booking.refunded`; `event.cancelled` alerts every booking it has seen.",
-              "Attendees whose booking failed, expired or was refunded still get a reminder and a cancellation message.",
-              "`NotificationEventHandler.java:57-67,82-85,130-139`"
-            ],
-            [
-              "Low",
-              "The gateway rate-limits by the TCP peer address and ignores `X-Forwarded-For`, while the frontend's nginx proxies `/api/` to it.",
-              "All users who reach the API through the frontend share one sign-up, login and refresh bucket, so a few failed logins block everyone; any future load balancer has the same effect.",
-              "`AuthenticationRateLimitWebFilter.java:64-69`; `frontend/nginx.conf:8-14`"
-            ],
-            [
-              "Low",
-              "Every service port (8081-8086) is published on the host next to the gateway.",
-              "Callers can bypass the gateway's CORS, correlation and rate limiting (tokens are still checked by each service).",
-              "`compose.yaml:175-176,209-210,240-241,278-279,312-313,346-347`"
-            ],
-            [
-              "Low",
-              "Reschedule alerts cannot fire: event details can change only while an event is a draft, and bookings exist only once sales are open.",
-              "The EVENT_RESCHEDULED notification and template are dead code.",
-              "`EventManagementService.java:96-101`; `InventoryService.java:111-116`; `NotificationPlanner.java:110-126`"
-            ],
-            [
-              "Low",
-              "Setting the email or SMS provider to anything but `local` leaves no sender bean, since no other adapter exists.",
-              "notification-service would fail to start.",
-              "`LocalEmailAdapter.java:14`; `LocalSmsAdapter.java:14`"
-            ],
-            [
-              "Low",
-              "Observability gaps: Grafana has a Loki data source but nothing ships logs to Loki.",
-              "Logs exist only in container output.",
-              "`datasources.yml:11-15`; `otel-collector/config.yml:23-28`"
-            ],
-            [
-              "Low",
-              "Documentation and UI are behind the code: the front end says \"Phase 3\" and that booking is deferred, and system-context.md says notification delivery is deferred and draws users going through the front end.",
-              "New engineers get a wrong picture of what runs.",
-              "`frontend/src/App.tsx:25,53`; `docs/architecture/system-context.md:5,9-10`"
-            ]
-          ]
-        },
-        {
-          "type": "list",
-          "id": "unknowns",
-          "eyebrow": "Gaps",
-          "title": "Unknowns",
-          "items": [
-            "Owners and quality goals: not recorded.",
-            "Production deployment: Kubernetes, Helm, Terraform and AWS are named as future work; no descriptor exists.",
-            "Which payment, email, SMS and maps providers will be used, and how their credentials and keys will be managed.",
-            "Whether a real web or mobile client is planned; the React app makes no API calls.",
-            "Topic partitioning, retention and replication outside the local compose file."
-          ]
         }
       ]
     },
@@ -1423,34 +1124,6 @@
               "notification-service",
               "token",
               "own data; local deliveries ADMIN"
-            ]
-          ]
-        },
-        {
-          "type": "table",
-          "id": "deployment",
-          "eyebrow": "Runtime",
-          "title": "Deployment",
-          "columns": [
-            "Descriptor",
-            "What runs",
-            "Notes"
-          ],
-          "rows": [
-            [
-              "`compose.yaml` (default)",
-              "PostgreSQL 17.6 (six databases), Redis 8.2.1, Kafka 4.0.0 (single KRaft node).",
-              "Infrastructure only, for running services from an IDE."
-            ],
-            [
-              "`compose.yaml --profile full-stack`",
-              "Adds the gateway, six services (one image per module from `docker/backend.Dockerfile`, Temurin 17 JRE) and the frontend (nginx), plus Jaeger, OTel collector, Loki, Prometheus, Grafana.",
-              "The only deployment descriptor. One replica of everything; service ports also published on the host."
-            ],
-            [
-              "`compose.yaml --profile observability`",
-              "Jaeger, OTel collector, Loki, Prometheus, Grafana.",
-              "Prometheus scrapes all seven Spring services; traces go through the collector to Jaeger."
             ]
           ]
         }
@@ -3441,6 +3114,361 @@
           "eyebrow": "Walkthrough",
           "title": "Steps",
           "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "doc-findings",
+      "level": "documentation",
+      "title": "Decisions, risks and unknowns",
+      "sections": [
+        {
+          "type": "callout",
+          "id": "adrs",
+          "tone": "info",
+          "title": "Recorded decisions",
+          "body": "The decisions below come from `docs/adr/` (all *Accepted*), followed by decisions seen only in code and configuration, whose rationale is *not recorded*. Each was checked against the code; where the code differs the risk table says so."
+        },
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Decisions",
+          "title": "Architecture decisions",
+          "items": [
+            {
+              "id": "ADR-0001",
+              "title": "Kafka is the only message broker",
+              "status": "Accepted",
+              "body": "Versioned event schemas, at-least-once delivery, correlation and trace context in headers. Holds in code: three lifecycle topics, no other broker."
+            },
+            {
+              "id": "ADR-0002",
+              "title": "Database per service",
+              "status": "Accepted",
+              "body": "Six PostgreSQL databases, one login each with CONNECT revoked from PUBLIC; locally all in one PostgreSQL container (`docker/postgres/init-databases.sql`)."
+            },
+            {
+              "id": "ADR-0003",
+              "title": "Orchestrated Saga with transactional outboxes",
+              "status": "Accepted",
+              "body": "attendee-service orchestrates; event-, attendee- and payment-service publish only through their outbox tables; no XA."
+            },
+            {
+              "id": "ADR-0004",
+              "title": "URI-versioned public APIs",
+              "status": "Accepted",
+              "body": "Every public path starts with `/api/v1`."
+            },
+            {
+              "id": "ADR-0005",
+              "title": "RS256 access tokens checked at every boundary, rotated refresh sessions",
+              "status": "Accepted",
+              "body": "The gateway and each service validate the token against auth-service's JWKS; refresh tokens are opaque, hashed and rotated, reuse revokes the family. Access tokens are not revoked before expiry (10 minutes)."
+            },
+            {
+              "id": "ADR-0006",
+              "title": "Locked inventory holds and venue reservation over HTTP",
+              "status": "Accepted",
+              "body": "Ticket rows are locked for every hold change; publication reserves the room through venue-service with the organizer's token and owner reference `event:<id>`."
+            },
+            {
+              "id": "ADR-0007",
+              "title": "Durable booking commands, signed QR tickets, locked check-in",
+              "status": "Accepted",
+              "body": "A booking command row is claimed before calling event-service; QR tokens are HMAC-SHA256 signed; check-in locks the ticket row."
+            },
+            {
+              "id": "ADR-0008",
+              "title": "Provider-neutral payments with a fake adapter; recoverable Saga",
+              "status": "Accepted",
+              "body": "One provider port; only a deterministic fake exists. Refund policy by role; stuck payments and Saga steps are re-driven by scheduled jobs."
+            },
+            {
+              "id": "ADR-0009",
+              "title": "Bounded Kafka retries and durable notification delivery",
+              "status": "Accepted",
+              "body": "Four exponential retries then `<topic>.dlt`; outbox rows dead-lettered after 10 attempts; notifications stored as intents with attempts."
+            },
+            {
+              "title": "Fixed service URLs, no service discovery",
+              "status": "Observed",
+              "body": "The gateway and the two HTTP clients use configured URLs (`http://<service>:<port>` in compose). Rationale: not recorded."
+            },
+            {
+              "title": "Redis for auth rate limits and the public event cache",
+              "status": "Observed",
+              "body": "One Redis serves the gateway's rate limiter and event-service's Spring cache. Rationale: not recorded (system-context.md allows Redis for caches and rate limits)."
+            },
+            {
+              "title": "One repository, one Maven reactor, one backend Dockerfile",
+              "status": "Observed",
+              "body": "All services build from `docker/backend.Dockerfile` with a `MODULE` argument; shared libraries hold no domain code. Rationale: not recorded."
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "risks",
+          "eyebrow": "Findings",
+          "title": "Risks and findings",
+          "columns": [
+            "Impact",
+            "Finding",
+            "Consequence",
+            "Evidence"
+          ],
+          "rows": [
+            [
+              "**High**",
+              "event-service's inventory endpoints are reachable through the gateway by any attendee: the gateway routes all of `/api/v1/events/**` and only requires a token, and the endpoints allow the ATTENDEE role. An attendee can hold seats and confirm their own hold without a booking or payment.",
+              "Seats can be taken out of sale permanently without paying; repeated holds can also block sales for 15 minutes at a time.",
+              "gateway `application.yml:24-27`; `GatewaySecurityConfiguration.java:57-58`; `InventoryController.java:26-27,87-103`; `InventoryService.java:250-255`"
+            ],
+            [
+              "**High**",
+              "Cancelling an event cancels its bookings and tickets in attendee-service but requests no refund; no service reacts to `event.cancelled` with money. Refunds stay a manual call that closes when the event's start time passes.",
+              "Paid attendees of a cancelled event keep being charged unless someone refunds each payment before the original start time.",
+              "`BookingPersistenceService.java:185-199`; `EventLifecycleConsumer.java:68-69`; `RefundStateService.java:13-14`"
+            ],
+            [
+              "Medium",
+              "Default configuration is local-only: the JWT signing key and the QR signing key are generated at startup when none is configured (allowed by default), the payment webhook secret defaults to a known value, and all database passwords are `local_dev_only`.",
+              "Restarting auth-service logs everyone out; restarting attendee-service makes every issued QR ticket fail at the door; a deployment that keeps the defaults accepts forged webhooks.",
+              "`JwtKeyConfiguration.java:66-74`; `QrTokenService.java:36-48`; `compose.yaml:169,269,305`; `init-databases.sql:1-16`"
+            ],
+            [
+              "Medium",
+              "Redis is on event-service's write path: business transactions evict the cache by calling `Cache.evict` directly, which no cache error handler covers, and cached detail reads use Spring's default handler, which rethrows.",
+              "A Redis outage makes event publication, transitions, inventory holds (so every booking) and public event details fail. (The gateway's login rate limiter does not block: it fails open, so the limits stop applying.)",
+              "`PublicEventCache.java:19-24`; `EventManagementService.java:128,166`; `InventoryService.java:151,277`; `PublicEventQueryService.java:94-96`"
+            ],
+            [
+              "Medium",
+              "Publishing and cancelling an event call venue-service over HTTP inside the event database transaction.",
+              "If the transaction rolls back after the call (e.g. Redis or database failure), the room stays reserved, or is released while the event stays published. The idempotent `event:<id>` reference only helps if publication is retried.",
+              "`EventManagementService.java:209-229,282-292`; `VenueAvailabilityService.java:86-101`"
+            ],
+            [
+              "Medium",
+              "Personal data and ticket credentials travel through Kafka and are copied: `booking.created`, `ticket.issued` and payment events carry email, phone and locale, and `ticket.issued` carries the signed QR token, which notification-service stores in intent variables and local deliveries.",
+              "Anyone who can read the topics or notification_service can use other people's tickets; GDPR erasure has to reach three services and the topics.",
+              "`BookingSagaService.java:210-220`; `PaymentLifecycleEvents.java:9-10`; `NotificationEventHandler.java:109-122`"
+            ],
+            [
+              "Medium",
+              "Single points of failure in the only deployment: one Kafka node with replication factor 1 and auto-created topics, one PostgreSQL for all six databases, one Redis.",
+              "Losing any of them stops bookings; losing the Kafka volume loses undelivered Saga commands already marked published.",
+              "`compose.yaml:14-74`"
+            ],
+            [
+              "Low",
+              "The payment provider is an in-process fake that keeps payment state in memory.",
+              "After a restart, reconciliation of a payment still PROCESSING finds no provider record and marks it failed.",
+              "`FakePaymentProvider.java:22,32`; `PaymentReconciliationJob.java:9`"
+            ],
+            [
+              "Low",
+              "Compensation refunds call the provider inside the Kafka consumer's database transaction.",
+              "With a real, slow provider the consumer holds locks and stalls its partition; failures retry and end in the DLT.",
+              "`AttendeeLifecycleConsumer.java:59-60,74-76`; `RefundApplicationService.java:10`"
+            ],
+            [
+              "Low",
+              "Any EVENT_STAFF user may validate and check in tickets for every event; staff are not tied to events.",
+              "A staff account of one organizer can check in (consume) tickets of another organizer's event.",
+              "`AuthenticatedActor.java:34-35` (attendee-service)"
+            ],
+            [
+              "Low",
+              "Cancelling an event does not stop bookings still awaiting payment: payment-service never hears of the cancellation, event-service confirms an active hold without checking the event status, and attendee-service confirms a booking from any status.",
+              "An attendee who pays within the 15-minute hold after a cancellation gets a confirmed booking and valid tickets for the cancelled event, and is charged.",
+              "`BookingPersistenceService.java:185-199`; `PaymentStateService.java:17-25`; `InventoryService.java:223-279`; `BookingSagaService.java:81-103,201-206`"
+            ],
+            [
+              "Low",
+              "Reminders and cancellation alerts are not withdrawn for bookings that end without tickets: notification-service plans the 24 h reminder on `booking.created` for every unexpired booking and ignores `booking.payment-failed`, `ticket-hold.expired` and `booking.refunded`; `event.cancelled` alerts every booking it has seen.",
+              "Attendees whose booking failed, expired or was refunded still get a reminder and a cancellation message.",
+              "`NotificationEventHandler.java:57-67,82-85,130-139`"
+            ],
+            [
+              "Low",
+              "The gateway rate-limits by the TCP peer address and ignores `X-Forwarded-For`, while the frontend's nginx proxies `/api/` to it.",
+              "All users who reach the API through the frontend share one sign-up, login and refresh bucket, so a few failed logins block everyone; any future load balancer has the same effect.",
+              "`AuthenticationRateLimitWebFilter.java:64-69`; `frontend/nginx.conf:8-14`"
+            ],
+            [
+              "Low",
+              "Every service port (8081-8086) is published on the host next to the gateway.",
+              "Callers can bypass the gateway's CORS, correlation and rate limiting (tokens are still checked by each service).",
+              "`compose.yaml:175-176,209-210,240-241,278-279,312-313,346-347`"
+            ],
+            [
+              "Low",
+              "Reschedule alerts cannot fire: event details can change only while an event is a draft, and bookings exist only once sales are open.",
+              "The EVENT_RESCHEDULED notification and template are dead code.",
+              "`EventManagementService.java:96-101`; `InventoryService.java:111-116`; `NotificationPlanner.java:110-126`"
+            ],
+            [
+              "Low",
+              "Setting the email or SMS provider to anything but `local` leaves no sender bean, since no other adapter exists.",
+              "notification-service would fail to start.",
+              "`LocalEmailAdapter.java:14`; `LocalSmsAdapter.java:14`"
+            ],
+            [
+              "Low",
+              "Observability gaps: Grafana has a Loki data source but nothing ships logs to Loki.",
+              "Logs exist only in container output.",
+              "`datasources.yml:11-15`; `otel-collector/config.yml:23-28`"
+            ],
+            [
+              "Low",
+              "Documentation and UI are behind the code: the front end says \"Phase 3\" and that booking is deferred, and system-context.md says notification delivery is deferred and draws users going through the front end.",
+              "New engineers get a wrong picture of what runs.",
+              "`frontend/src/App.tsx:25,53`; `docs/architecture/system-context.md:5,9-10`"
+            ]
+          ]
+        },
+        {
+          "type": "list",
+          "id": "unknowns",
+          "eyebrow": "Gaps",
+          "title": "Unknowns",
+          "items": [
+            "Owners and quality goals: not recorded.",
+            "Production deployment: Kubernetes, Helm, Terraform and AWS are named as future work; no descriptor exists.",
+            "Which payment, email, SMS and maps providers will be used, and how their credentials and keys will be managed.",
+            "Whether a real web or mobile client is planned; the React app makes no API calls.",
+            "Topic partitioning, retention and replication outside the local compose file."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-deployment",
+      "level": "documentation",
+      "title": "Deployment",
+      "sections": [
+        {
+          "type": "table",
+          "id": "deployment",
+          "eyebrow": "Runtime",
+          "title": "Deployment",
+          "columns": [
+            "Descriptor",
+            "What runs",
+            "Notes"
+          ],
+          "rows": [
+            [
+              "`compose.yaml` (default)",
+              "PostgreSQL 17.6 (six databases), Redis 8.2.1, Kafka 4.0.0 (single KRaft node).",
+              "Infrastructure only, for running services from an IDE."
+            ],
+            [
+              "`compose.yaml --profile full-stack`",
+              "Adds the gateway, six services (one image per module from `docker/backend.Dockerfile`, Temurin 17 JRE) and the frontend (nginx), plus Jaeger, OTel collector, Loki, Prometheus, Grafana.",
+              "The only deployment descriptor. One replica of everything; service ports also published on the host."
+            ],
+            [
+              "`compose.yaml --profile observability`",
+              "Jaeger, OTel collector, Loki, Prometheus, Grafana.",
+              "Prometheus scrapes all seven Spring services; traces go through the collector to Jaeger."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-glossary",
+      "level": "documentation",
+      "title": "Glossary",
+      "sections": [
+        {
+          "type": "table",
+          "id": "glossary",
+          "eyebrow": "Reference",
+          "title": "Glossary",
+          "columns": [
+            "Term",
+            "Meaning here"
+          ],
+          "rows": [
+            [
+              "Hold (inventory reservation)",
+              "Seats of one ticket type set aside for 15 minutes by event-service while a booking is paid; confirmed, released or expired."
+            ],
+            [
+              "Booking Saga",
+              "The booking/payment workflow that attendee-service drives over Kafka: payment, inventory confirmation, ticket issue, or compensation."
+            ],
+            [
+              "Compensation",
+              "A full refund requested by attendee-service when a payment succeeds but the seats can no longer be confirmed."
+            ],
+            [
+              "Transactional outbox",
+              "A table row written in the same database transaction as the business change and published to Kafka later by a relay."
+            ],
+            [
+              "DLT",
+              "Dead-letter topic: `<topic>.dlt`, where a record goes after the consumer's retries are exhausted."
+            ],
+            [
+              "Idempotency-Key",
+              "Client-supplied request header; the same key with the same input returns the original result."
+            ],
+            [
+              "JWT, JWKS",
+              "JSON Web Token (the access token) and JSON Web Key Set (the published public key that verifies it)."
+            ],
+            [
+              "RS256",
+              "RSA signature with SHA-256: auth-service signs with a private key, everyone else verifies with the public key."
+            ],
+            [
+              "Refresh session / family",
+              "One refresh token row; a family is the chain of rotations from one login, revoked together on reuse."
+            ],
+            [
+              "QR token",
+              "An HMAC-SHA256-signed string identifying a ticket and event, shown at the door."
+            ],
+            [
+              "KRaft",
+              "Kafka running without ZooKeeper; here a single node acts as broker and controller."
+            ],
+            [
+              "OTLP",
+              "OpenTelemetry protocol, used to send traces to the collector."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-sources",
+      "level": "documentation",
+      "title": "Sources",
+      "sections": [
+        {
+          "type": "table",
+          "id": "sources",
+          "eyebrow": "Provenance",
+          "title": "Sources",
+          "columns": [
+            "Repository",
+            "Commit",
+            "Commit date",
+            "Runtime units"
+          ],
+          "rows": [
+            [
+              "Event-Management-platform",
+              "`4625169`",
+              "2026-08-16",
+              "frontend, api-gateway and the six services; `shared/` holds libraries only"
+            ]
+          ]
         }
       ]
     }

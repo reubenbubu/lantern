@@ -158,8 +158,11 @@ final class RepoSections {
     switch (kind) {
       case OVERVIEW -> overview(id, blocks);
       case CONTEXT -> blocks.addAll(c4.context(id));
-      case CONTAINERS -> {
-        c4.containers(id, blocks, subsections);
+      case CONTAINERS -> c4.containers(id, blocks, subsections);
+      case DEPLOYMENT -> c4.deployment(id).ifPresent(blocks::add);
+      case DECISIONS -> {
+        c4.decisions(id).ifPresent(blocks::add);
+        c4.unresolved(id).ifPresent(blocks::add);
         blocks.addAll(claims().callouts(id));
       }
       case COMPONENTS -> subsections.addAll(c4.components(id));
@@ -223,8 +226,8 @@ final class RepoSections {
 
   /**
    * The quality report's failures for README claims the code contradicts, pointing at their
-   * callouts in the containers section when the document has one. Call after the sections and
-   * before {@link #facts()}.
+   * callouts in the decisions section when the document has one. Call after the sections and before
+   * {@link #facts()}.
    */
   List<QualityReport.Failure> claimFailures() {
     return claims().failures();

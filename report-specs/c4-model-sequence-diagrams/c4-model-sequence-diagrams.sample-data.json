@@ -1433,7 +1433,8 @@
               "from": "notifier",
               "to": "sendgrid",
               "label": "Sends email",
-              "technology": "HTTPS"
+              "technology": "HTTPS",
+              "llm": true
             }
           ],
           "layout": {
@@ -1515,44 +1516,6 @@
               "key": "properties.backup",
               "label": "Backup / DR",
               "mono": true
-            }
-          ]
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Architecture decisions",
-          "title": "Key Decisions",
-          "items": [
-            {
-              "id": "ADR-012",
-              "title": "Kafka as the domain event backbone",
-              "body": "Decouples notifications, analytics and fulfilment from the checkout path.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-015",
-              "title": "Kong as the single API gateway",
-              "body": "Centralises JWT validation, rate limiting and request logging at the edge.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-019",
-              "title": "Database per service",
-              "body": "Services own their schema; integration only via APIs and events.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-021",
-              "title": "Transactional outbox for events",
-              "body": "Guarantees at-least-once publication without distributed transactions.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-024",
-              "title": "gRPC between Order and Payment",
-              "body": "Strongly-typed contract with deadlines on the hot path.",
-              "status": "Proposed"
             }
           ]
         }
@@ -1725,26 +1688,6 @@
               "key": "properties.backup",
               "label": "Backup / DR",
               "mono": true
-            }
-          ]
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Architecture decisions",
-          "title": "Key Decisions",
-          "items": [
-            {
-              "id": "ADR-027",
-              "title": "OpenSearch for product search",
-              "body": "Managed service, good facet performance, no licence lock-in.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-029",
-              "title": "ClickHouse for operational reporting",
-              "body": "Column store keeps dashboard queries under a second at current volumes.",
-              "status": "Accepted"
             }
           ]
         }
@@ -1925,32 +1868,6 @@
               "key": "properties.backup",
               "label": "Backup / DR",
               "mono": true
-            }
-          ]
-        },
-        {
-          "type": "decisions",
-          "id": "decisions",
-          "eyebrow": "Architecture decisions",
-          "title": "Key Decisions",
-          "items": [
-            {
-              "id": "ADR-031",
-              "title": "RabbitMQ inside the fulfilment platform",
-              "body": "Work-queue semantics and per-message acknowledgement suit warehouse tasks better than a log.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-033",
-              "title": "Event-sourced stock ledger",
-              "body": "Every movement is auditable; snapshots keep reads fast.",
-              "status": "Accepted"
-            },
-            {
-              "id": "ADR-036",
-              "title": "Offline mode for the scanner app",
-              "body": "Associates keep working through Wi-Fi drops; tasks sync when back online.",
-              "status": "Proposed"
             }
           ]
         }
@@ -3535,6 +3452,156 @@
           "eyebrow": "Walkthrough",
           "title": "Steps",
           "of": "diagram"
+        }
+      ]
+    },
+    {
+      "id": "doc-findings",
+      "level": "documentation",
+      "title": "Decisions, Risks and Unknowns",
+      "summary": "What the diagrams do not show: the decisions behind the architecture, what could go wrong, and what is not known yet.",
+      "sections": [
+        {
+          "type": "decisions",
+          "id": "decisions",
+          "eyebrow": "Architecture decisions",
+          "title": "Key Decisions",
+          "items": [
+            {
+              "id": "ADR-012",
+              "title": "Kafka as the domain event backbone",
+              "body": "Decouples notifications, analytics and fulfilment from the checkout path.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-015",
+              "title": "Kong as the single API gateway",
+              "body": "Centralises JWT validation, rate limiting and request logging at the edge.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-019",
+              "title": "Database per service",
+              "body": "Services own their schema; integration only via APIs and events.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-021",
+              "title": "Transactional outbox for events",
+              "body": "Guarantees at-least-once publication without distributed transactions.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-024",
+              "title": "gRPC between Order and Payment",
+              "body": "Strongly-typed contract with deadlines on the hot path.",
+              "status": "Proposed"
+            },
+            {
+              "id": "ADR-027",
+              "title": "OpenSearch for product search",
+              "body": "Managed service, good facet performance, no licence lock-in.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-029",
+              "title": "ClickHouse for operational reporting",
+              "body": "Column store keeps dashboard queries under a second at current volumes.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-031",
+              "title": "RabbitMQ inside the fulfilment platform",
+              "body": "Work-queue semantics and per-message acknowledgement suit warehouse tasks better than a log.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-033",
+              "title": "Event-sourced stock ledger",
+              "body": "Every movement is auditable; snapshots keep reads fast.",
+              "status": "Accepted"
+            },
+            {
+              "id": "ADR-036",
+              "title": "Offline mode for the scanner app",
+              "body": "Associates keep working through Wi-Fi drops; tasks sync when back online.",
+              "status": "Proposed"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "id": "risks",
+          "eyebrow": "Findings",
+          "title": "Risks",
+          "columns": [
+            "Impact",
+            "Finding",
+            "Consequence",
+            "Confidence"
+          ],
+          "rows": [
+            [
+              "High",
+              "**Order Service and Payment Service share one Kafka topic for retries.**",
+              "A poison message blocks both retry paths until it is skipped by hand.",
+              "90%"
+            ],
+            [
+              "Medium",
+              "**Catalogue cache has no expiry on price changes.**",
+              "Customers can see a stale price for up to an hour after a change.",
+              "75%"
+            ],
+            [
+              "Low",
+              "**The notifier retries SendGrid without a back-off.**",
+              "A SendGrid outage turns into a burst of retries when it recovers.",
+              "45%"
+            ]
+          ],
+          "llmRows": [
+            2
+          ]
+        },
+        {
+          "type": "list",
+          "id": "unknowns",
+          "title": "Unknowns",
+          "items": [
+            "Who owns the Fulfilment platform's on-call rota is not documented.",
+            "The expected peak order rate behind the checkout SLA is not stated."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "doc-glossary",
+      "level": "documentation",
+      "title": "Glossary",
+      "sections": [
+        {
+          "type": "table",
+          "id": "terms",
+          "title": "Terms",
+          "columns": [
+            "Term",
+            "Meaning"
+          ],
+          "rows": [
+            [
+              "ADR",
+              "Architecture Decision Record: one decision, its context and its consequences."
+            ],
+            [
+              "SLA",
+              "Service Level Agreement: the availability or latency the business commits to."
+            ],
+            [
+              "WMS",
+              "Warehouse Management System: the fulfilment platform's stock and picking service."
+            ]
+          ]
         }
       ]
     }
