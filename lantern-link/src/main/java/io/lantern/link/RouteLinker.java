@@ -13,6 +13,7 @@ import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Addresses.Kind;
 import io.lantern.link.Addresses.Target;
+import io.lantern.link.Deployments.Container;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.LinkText.Url;
@@ -125,10 +126,26 @@ final class RouteLinker {
     Url url = LinkText.parse(rest);
     String scheme = url.scheme();
     Answer answer = null;
+    // The URI as a deployment filled it in, with the container whose environment did.
+    String filledUri = null;
+    Container filledBy = null;
     if (!balanced && scheme == null && rest.startsWith("${")) {
       // The whole URI is left to a placeholder, which the deployment may set.
       answer = addresses.resolve(gateway, view, rest, written(route, false));
       scheme = answer.url().scheme();
+      if (answer.address().startsWith("lb:")) {
+        // The deployment gives a load-balanced URI: matched by its name, as one written so.
+        balanced = true;
+        rest = answer.address().substring(3);
+        if (rest.startsWith("//")) {
+          rest = "http:" + rest;
+        }
+        url = LinkText.parse(rest);
+        scheme = url.scheme();
+        filledBy = answer.filledBy();
+        filledUri = filledBy == null ? null : answer.address();
+        answer = null;
+      }
       if (scheme == null) {
         unresolved(
             gateway, route, view, candidates(gateway, route, view), reasonWithoutHost(route));
@@ -148,6 +165,9 @@ final class RouteLinker {
     Target target;
     Set<String> facts = new TreeSet<>();
     facts.add(route.id());
+    if (filledBy != null) {
+      facts.add(filledBy.fact().id());
+    }
     if (balanced) {
       if (url.host() == null) {
         unresolved(gateway, route, view, List.of(), reasonWithoutHost(route));
@@ -195,7 +215,11 @@ final class RouteLinker {
       return null;
     }
     ObjectNode attributes = common(route);
-    attributes.put("url", answer != null && answer.filledBy() != null ? answer.address() : uri);
+    attributes.put(
+        "url",
+        filledUri != null
+            ? filledUri
+            : answer != null && answer.filledBy() != null ? answer.address() : uri);
     attributes.put("protocol", protocol);
     attributes.put("matchedBy", target.matchedBy());
     if (target.fact() != null) {

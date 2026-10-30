@@ -209,12 +209,16 @@ containers.
 
 1. **Fill.** An address is taken as the calling unit's config resolves it, then as the environment
    of each deployment container that runs the unit fills it in (ADR 0082), the way Spring Boot
-   reads it: a key the config sets keeps the config's value, one it does not set takes the
-   environment's value (relaxed binding) before the placeholder's default. Where the config's
-   answer and the environments' answers lead to different units or systems, the link is left open
-   as `ambiguous` with all of them as candidates; an answer that leads nowhere does not count
-   against one that does. A link filled in this way shows the filled URL and lists the container
-   among its `facts`.
+   reads it: an environment variable (relaxed binding) comes before the value in the config files
+   and before a placeholder's default. (ADR 0082's datasources still keep the config's value.)
+   Where the config's answer and the environments' answers lead to different units or systems, the
+   link is left open as `ambiguous` with all of them as candidates, and never decided by its path;
+   an answer that leads nowhere does not count against one that does. A link filled in this way
+   shows the filled URL and lists the container among its `facts`. A whole route URI left to a
+   placeholder is filled the same way, and one filled with `lb://name` goes by the name. Identity
+   providers try the deployments' answers first, then the config's, since only that linker knows
+   identity provider containers. A mail host is the deployments' where one sets it, and every one
+   must name the same public domain.
 2. **Classify** the host: this machine (`localhost`, `127.*`, `[::1]`); a private address
    (RFC 1918, `0.0.0.0`, `host.docker.internal`, `.local`, `.internal`, `.lan`, `.home.arpa`); a
    Kubernetes name (`.svc`); a name without a domain; a public domain; a public IP address.
@@ -233,7 +237,10 @@ containers.
 Frontend links take these factors too (a host was 1.0 and a port 0.7 before). Gateway routes left
 open (`kind: route`) go to the LLM resolver (ADR 0045) with the units whose endpoints the route's
 paths reach as candidates, when a path has a literal segment; a pick is a `CALLS_HTTP` link from the
-gateway with the route's id, paths, URL and protocol. This covers two items of **Not covered**
+gateway with the route's id, paths, URL and protocol. Other changes from before: a host under a
+private suffix (`.local`, `.internal`, `.lan`) is matched by its port, not by name, and is never an
+external system; a URL to this machine without a port is matched by the scheme's port (80, 443);
+a frontend's host is matched against deployment container names before artifact IDs. This covers two items of **Not covered**
 above: deploy-time values from compose and Kubernetes environments, and service names that differ
 from `spring.application.name` and the artifact ID. Containers are still tied to units by name and
 image (ADR 0082), not by a compose `build` context. project-0 covers it with DEP-1 to DEP-4. The

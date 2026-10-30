@@ -56,13 +56,22 @@ final class MailLinker {
       return;
     }
     String written = LinkIndex.text(host, "written");
-    Answer answer =
-        addresses.resolve(
+    List<Answer> answers =
+        addresses.answers(
             unit,
             view,
             "smtp://" + host.object().value().trim(),
             written == null ? null : "smtp://" + written.trim());
-    if (answer.kind() != Kind.EXTERNAL) {
+    // Where a deployment sets the host, the config's own value is not what runs there: every
+    // deployment must name the same system outside.
+    List<Answer> filled = answers.stream().filter(a -> a.filledBy() != null).toList();
+    List<Answer> deciding = filled.isEmpty() ? answers : filled;
+    Answer answer = deciding.getFirst();
+    if (deciding.stream()
+        .anyMatch(
+            a ->
+                a.kind() != Kind.EXTERNAL
+                    || !a.external().equals(deciding.getFirst().external()))) {
       return;
     }
     String name = answer.url().host();

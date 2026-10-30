@@ -864,6 +864,89 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void anEnvironmentVariableComesBeforeTheValueInTheConfigFiles() {
+    shopAndFulfilment();
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET http://localhost:9999/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"url\":\"http://localhost:9999/api/orders/{id}\","
+            + "\"written\":\"${orders.url}/api/orders/{id}\"}",
+        5);
+    config("f", "fulfilment", "application.yml", "orders.url", "http://localhost:9999", null);
+    container(
+        "d",
+        "fulfilment",
+        composeService(
+            "acme/fulfilment:1.0",
+            "\"fulfilment\"",
+            "\"env\":{\"ORDERS_URL\":\"http://storefront:8080\"}"));
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:fulfilment CALLS_HTTP service:g:storefront-app")
+        .contains("\"matchedBy\":\"host\"")
+        .contains("\"url\":\"http://storefront:8080/api/orders/{id}\"");
+  }
+
+  @Test
+  void aLocalDefaultAndADeploymentThatDisagreeLeaveTheCallOpenNotDecidedByPath() {
+    shopAndFulfilment();
+    unit("p", "payments", "payments");
+    config("p", "payments", "application.yml", "server.port", "8082", null);
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET http://localhost:8082/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"url\":\"http://localhost:8082/api/orders/{id}\","
+            + "\"written\":\"${ORDERS_URL:http://localhost:8082}/api/orders/{id}\"}",
+        5);
+    container(
+        "d",
+        "fulfilment",
+        composeService(
+            "acme/fulfilment:1.0",
+            "\"fulfilment\"",
+            "\"env\":{\"ORDERS_URL\":\"http://storefront:8080\"}"));
+
+    assertThat(derive())
+        .filteredOn(l -> l.contains("CALLS_HTTP") || l.contains("unresolved-link"))
+        .singleElement()
+        .asString()
+        .contains("unresolved-link")
+        .contains("\"candidates\":[\"service:g:payments\",\"service:g:storefront-app\"]")
+        .contains("\"reason\":\"ambiguous\"");
+  }
+
+  @Test
+  void aRouteTheDeploymentGivesALoadBalancedUriGoesByItsName() {
+    shopAndFulfilment();
+    unit("g", "edge", "edge");
+    type("g", "edge", "gw.Routes");
+    route(
+        "g",
+        "type:gw.Routes",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"${ORDERS_URI}\",\"unresolved\":[\"ORDERS_URI\"],"
+            + "\"paths\":[\"/api/orders/**\"]}");
+    container(
+        "d",
+        "edge",
+        composeService(
+            "acme/edge:1.0", "\"edge\"", "\"env\":{\"ORDERS_URI\":\"lb://storefront\"}"));
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactly(
+            "service:g:edge CALLS_HTTP service:g:storefront-app"
+                + " {\"matchedBy\":\"service-name\",\"paths\":[\"/api/orders/**\"],"
+                + "\"protocol\":\"HTTP\",\"route\":\"orders\",\"source\":\"type:gw.Routes\","
+                + "\"url\":\"lb://storefront\"} 1.0");
+  }
+
+  @Test
   void environmentsThatSendACallToDifferentUnitsLeaveItOpenWithBoth() {
     shopAndFulfilment();
     unit("p", "payments", "payments");
@@ -935,6 +1018,25 @@ class CrossRepoLinksTest {
             "service:g:notification SENDS_MAIL external-system:smtp.mail.example.com"
                 + " {\"host\":\"smtp.mail.example.com\",\"key\":\"spring.mail.host\","
                 + "\"protocol\":\"SMTP\"} 1.0");
+  }
+
+  @Test
+  void aMailHostTheDeploymentOverridesWithALocalNameIsNoLink() {
+    unit("n", "notification", "notification");
+    config(
+        "n",
+        "notification",
+        "application.properties",
+        "spring.mail.host",
+        "smtp.gmail.com",
+        "\"written\":\"${MAIL_HOST:smtp.gmail.com}\"");
+    container(
+        "d",
+        "notification",
+        composeService(
+            "acme/notification:1.0", "\"notification\"", "\"env\":{\"MAIL_HOST\":\"mailhog\"}"));
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL)).isEmpty();
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -3095,6 +3197,33 @@ class CrossRepoLinksTest {
         .contains(
             "\"purpose\":\"validates-tokens\","
                 + "\"url\":\"http://keycloak:8080/realms/shop/protocol/openid-connect/certs\"");
+  }
+
+  @Test
+  void anIssuerTheEnvironmentSetsOverALocalDefaultIsTheKeycloakContainer() {
+    unit("s", "orders", "orders");
+    config(
+        "s",
+        "orders",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "http://localhost:8080/realms/shop",
+        "\"written\":\"${ISSUER:http://localhost:8080/realms/shop}\"");
+    container(
+        "s",
+        "orders",
+        "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+            + "\"build\":\".\",\"hosts\":[\"orders\"],"
+            + "\"env\":{\"ISSUER\":\"http://keycloak:8080/realms/shop\"}}");
+    // Published on another port, so the local default reaches nothing.
+    container("s", "keycloak", KEYCLOAK.replace("8080:8080", "8180:8080"));
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:orders USES_IDENTITY_PROVIDER external-system:keycloak")
+        .contains("\"matchedBy\":\"container\"")
+        .contains("\"url\":\"http://keycloak:8080/realms/shop\"");
   }
 
   @Test

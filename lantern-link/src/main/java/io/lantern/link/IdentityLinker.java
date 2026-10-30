@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -309,7 +310,21 @@ final class IdentityLinker {
    * @param written the URL as written, when config changed it
    */
   private Reached reach(Unit unit, String view, String value, String written) {
-    Answer answer = addresses.resolve(unit, view, value, written);
+    // What a deployment that runs the unit fills in comes before the config's own value, as in
+    // Spring Boot; each is tried until one reaches something, since only this linker knows
+    // identity provider containers.
+    List<Answer> answers = new ArrayList<>(addresses.answers(unit, view, value, written));
+    answers.sort(Comparator.comparing((Answer a) -> a.filledBy() == null));
+    for (Answer answer : answers) {
+      Reached reached = reach(unit, view, answer);
+      if (reached != null) {
+        return reached;
+      }
+    }
+    return null;
+  }
+
+  private Reached reach(Unit unit, String view, Answer answer) {
     Url url = answer.url();
     String host = url.host();
     if (host == null || !("http".equals(url.scheme()) || "https".equals(url.scheme()))) {

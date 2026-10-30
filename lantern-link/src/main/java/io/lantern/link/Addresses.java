@@ -124,6 +124,7 @@ final class Addresses {
    *     it
    * @param url the address taken apart
    * @param filledBy the container whose environment filled it in, or null
+   * @param split whether the config and the environments disagree, so no one URL stands for it
    */
   record Answer(
       Kind kind,
@@ -131,7 +132,8 @@ final class Addresses {
       EntityId external,
       String address,
       Url url,
-      Container filledBy) {
+      Container filledBy,
+      boolean split) {
 
     /** The one unit, for {@link Kind#UNIT}. */
     Target target() {
@@ -145,6 +147,9 @@ final class Addresses {
 
     /** Whether the URL is this machine or a private address, reached by its port. */
     boolean local() {
+      if (split) {
+        return false;
+      }
       Host h = host();
       return h == Host.THIS_MACHINE || h == Host.PRIVATE;
     }
@@ -182,9 +187,18 @@ final class Addresses {
    *     not set takes the environment's value before its default, as Spring Boot reads it
    */
   Answer resolve(Unit from, String view, String text, String written) {
+    return combined(answers(from, view, text, written));
+  }
+
+  /**
+   * Each answer an address has, the config's first: as the unit's config gives it (when it has a
+   * host, or nothing fills it), then as each deployment container that runs the unit fills it in.
+   * Never empty. Parameters as for {@link #resolve}.
+   */
+  List<Answer> answers(Unit from, String view, String text, String written) {
     Answer config = match(from, view, text, null);
     if (from == null) {
-      return config;
+      return List.of(config);
     }
     List<Answer> answers = new ArrayList<>();
     if (config.url().host() != null) {
@@ -196,34 +210,35 @@ final class Addresses {
         answers.add(match(from, view, filled, c));
       }
     }
-    return answers.isEmpty() ? config : combined(answers);
+    return answers.isEmpty() ? List.of(config) : answers;
   }
 
   /**
-   * The address with what a container's environment sets filled in, as Spring Boot resolves it: a
-   * key the unit's config sets takes the config's value (resolved again from what it was written
-   * as); one it does not set takes the environment's value, by relaxed binding, before its default.
-   * Null when the environment sets nothing the address uses, or a secret goes into it.
+   * The address with what a container's environment sets filled in, as Spring Boot resolves it: an
+   * environment variable, by relaxed binding, comes before the unit's config files and a
+   * placeholder's default; a key the environment does not set takes the config's value (resolved
+   * again from what it was written as). Null when the environment sets nothing the address uses, or
+   * a secret goes into it.
    */
   private String filled(Unit unit, String view, Container c, String text, String written) {
     boolean[] used = {false};
     boolean[] secret = {false};
     Function<String, String> lookup =
         key -> {
-          Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
-          if (f != null) {
-            if (LinkIndex.flag(f, "masked")) {
-              secret[0] = true;
-            }
-            String w = LinkIndex.text(f, "written");
-            return w != null ? w : f.object().value();
-          }
           String value = Deployments.env(c, key);
-          if (value == null || value.isBlank()) {
+          if (value != null && !value.isBlank()) {
+            used[0] = true;
+            return value;
+          }
+          Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
+          if (f == null) {
             return null;
           }
-          used[0] = true;
-          return value;
+          if (LinkIndex.flag(f, "masked")) {
+            secret[0] = true;
+          }
+          String w = LinkIndex.text(f, "written");
+          return w != null ? w : f.object().value();
         };
     String filled = LinkText.substitute(written != null ? written : text, lookup);
     return used[0] && !secret[0] ? filled : null;
@@ -254,7 +269,7 @@ final class Addresses {
     }
     Answer first = decided.values().iterator().next();
     return new Answer(
-        Kind.AMBIGUOUS, candidates, null, first.address(), first.url(), first.filledBy());
+        Kind.AMBIGUOUS, candidates, null, first.address(), first.url(), first.filledBy(), true);
   }
 
   /** Matches a URL with a host; {@code in} is the container that filled it, if any. */
@@ -262,7 +277,7 @@ final class Addresses {
     Url url = LinkText.parse(text);
     String host = url.host();
     if (host == null) {
-      return new Answer(Kind.UNKNOWN, List.of(), null, text, url, in);
+      return new Answer(Kind.UNKNOWN, List.of(), null, text, url, in, false);
     }
     Host kind = classify(host);
     if (kind == Host.THIS_MACHINE || kind == Host.PRIVATE) {
@@ -284,14 +299,15 @@ final class Addresses {
           new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, host),
           text,
           url,
-          in);
+          in,
+          false);
     }
     return answer(targets, text, url, in);
   }
 
   private static Answer answer(List<Target> targets, String text, Url url, Container in) {
     Kind kind = targets.isEmpty() ? Kind.UNKNOWN : targets.size() == 1 ? Kind.UNIT : Kind.AMBIGUOUS;
-    return new Answer(kind, targets, null, text, url, in);
+    return new Answer(kind, targets, null, text, url, in, false);
   }
 
   private static String defaultPort(String scheme) {
