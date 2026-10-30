@@ -1513,4 +1513,30 @@ class SummarizerTest {
     assertThat(Summarizer.promptBudget(big, model.withThinking(new Thinking(false, 1_000))))
         .isEqualTo(Summarizer.promptBudget(big, model) - 1_000 - 1_000 * 3 / 2);
   }
+
+  @Test
+  void promptsMaskValuesUnderKnownSecretKeys() throws Exception {
+    String source =
+        ExcerptsTest.ORDER.replace(
+            "@Id private Long id;",
+            "@Value(\"${jwt.key:literal-secret-default}\") private String key;");
+    SourceFiles files =
+        new SourceFiles() {
+          @Override
+          public Optional<byte[]> read(String repo, String commit, String path) {
+            return Optional.of(source.getBytes(StandardCharsets.UTF_8));
+          }
+
+          @Override
+          public java.util.Set<String> secretKeys() {
+            return java.util.Set.of("jwt.key");
+          }
+        };
+    SummaryNode order = orderWithSource(sha256(source));
+
+    new Summarizer(client("model-a", fake), store, files).summarize(List.of(order));
+
+    String prompt = fake.sent().getFirst().request().messages().getFirst().text();
+    assertThat(prompt).contains("${jwt.key:******}").doesNotContain("literal-secret-default");
+  }
 }

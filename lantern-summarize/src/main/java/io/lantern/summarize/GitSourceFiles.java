@@ -7,6 +7,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -27,13 +28,33 @@ public final class GitSourceFiles implements SourceFiles {
   private static final long TIMEOUT_SECONDS = 30;
 
   private final Function<String, Optional<Path>> directories;
+  private final Set<String> secretKeys;
 
   /**
    * @param directories the git working tree of each repository, by name, or empty for a repository
    *     whose files cannot be read
    */
   public GitSourceFiles(Function<String, Optional<Path>> directories) {
+    this(directories, Set.of());
+  }
+
+  private GitSourceFiles(Function<String, Optional<Path>> directories, Set<String> secretKeys) {
     this.directories = Objects.requireNonNull(directories, "directories");
+    this.secretKeys = Set.copyOf(secretKeys);
+  }
+
+  /**
+   * The same files, shown with the values under these config keys masked as well (#348).
+   *
+   * @param keys config keys known to hold a secret, such as {@code ConfigExtractor.jwtSecretKeys}
+   */
+  public GitSourceFiles withSecretKeys(Set<String> keys) {
+    return new GitSourceFiles(directories, keys);
+  }
+
+  @Override
+  public Set<String> secretKeys() {
+    return secretKeys;
   }
 
   @Override
