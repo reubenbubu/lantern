@@ -36,7 +36,7 @@ changes them. This file covers only how you work.
 - Subagents get only low-impact work: read-only searches across many files, mechanical chores
   with no judgment (a rename, a doc or config tweak, cleanup), research (below), and the review
   in step 5. Use the cheapest model that fits: `haiku` for chores, `sonnet` for searches,
-  research and reviews of small diffs, `opus` for hard research questions and reviews of large
+  medium research and reviews of small diffs, `opus` for high research and reviews of large
   or tricky diffs. Never use `fable`. If a subagent's result
   is wrong, retry one level up or do it yourself.
 - Research comes before building where others have solved the problem before:
@@ -46,11 +46,24 @@ changes them. This file covers only how you work.
   - What: a note `docs/research/<topic>.md` answers one question: what authorities, tools and
     papers say, with sources; evidence from the test sets where it matters; the options and
     their trade-offs; a recommendation; and what it changes in the bar or the design.
-  - Who: a read-only research subagent with web search returns the note's text; the chat writes
-    it, judges it and decides. The rule it leads to goes into `docs/quality-bar.md`,
-    `docs/design.md` or an ADR, in the same PR as the note, and links to the note; the note keeps
-    the sources, options and trade-offs. Only a finding that changes direction (scope, goals, what the report is
-    for) goes to the user, as one question with a recommendation.
+  - How deep: the chat picks one of two depths and the note states which, and why.
+    - Medium, for practice that is well documented (how a framework or library is used, what
+      its config means): the official documentation and one or two other sources, three to
+      five pages read; a short note with one recommendation. `sonnet`.
+    - High, for open questions (a milestone's outcome, a rule of the bar or the design, how to
+      measure something, a choice between approaches): official documentation, tools that solve
+      the same problem and research papers, at least eight pages read, options compared on
+      their trade-offs; a full note. `opus`.
+  - Who: a read-only `general-purpose` research subagent, at the depth's model. It searches the
+    web and opens every page it cites (through the `web-fetch` agent), reads it in full, and
+    returns the note's text; a search snippet is only a lead. A source it could not open is
+    listed as not read and carries no weight in the recommendation; if the depth's count of
+    pages read is not met, the chat retries or reads them itself. Code of the test sets is
+    evidence of what occurs, never a substitute for the sources. The chat writes the note,
+    judges it and decides. The rule it leads to goes into `docs/quality-bar.md`,
+    `docs/design.md` or an ADR, in the same PR as the note, and links to the note; the note
+    keeps the sources, options and trade-offs. Only a finding that changes direction (scope,
+    goals, what the report is for) goes to the user, as one question with a recommendation.
 - Steps for an issue:
   1. Pick an issue no other chat has taken (see Concurrent chats). Create its worktree first,
      before anything else: always a git worktree, never the main checkout, one per issue, on a

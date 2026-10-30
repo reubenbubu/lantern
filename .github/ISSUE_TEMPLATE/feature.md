@@ -21,7 +21,7 @@ command and what it prints.
 **Scope.** In: what this issue delivers. Out: what is deliberately left for later, with its issue
 if there is one.
 
-**Research.** "Needed: <the question>" when this introduces a new pattern or others have solved
+**Research.** "Needed, medium or high depth: <the question>" when this introduces a new pattern or others have solved
 the problem before (`CLAUDE.md`, How work is organized), or "not needed".
 
 **Facts needed.** The facts the result is built from, and which of them extraction and linking do
