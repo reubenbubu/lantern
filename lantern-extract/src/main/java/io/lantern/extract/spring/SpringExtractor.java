@@ -11,6 +11,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
+import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.Resolution;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
@@ -61,7 +62,7 @@ public final class SpringExtractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -203,8 +204,20 @@ public final class SpringExtractor {
    * @throws IllegalStateException if git fails or times out while reading config
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
+    return extract(code, snapshot, Set.of());
+  }
+
+  /**
+   * As {@link #extract(JavaAnalysis, long)}, with config keys known to hold a secret: a value
+   * substituted from one is masked as for a key whose name says it is secret.
+   *
+   * @param secretKeys config keys known to hold a secret, such as {@link
+   *     ConfigExtractor#jwtSecretKeys}
+   */
+  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Run run = new Run(code, Validity.from(snapshot));
+    Objects.requireNonNull(secretKeys, "secretKeys");
+    Run run = new Run(code, Validity.from(snapshot), secretKeys);
     for (JavaAnalysis.Module module : code.modules()) {
       run.module(module);
     }
@@ -226,7 +239,7 @@ public final class SpringExtractor {
     private final JavaAnalysis code;
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
-    private final CodeConfig configs = new CodeConfig();
+    private final CodeConfig configs;
 
     private JavaAnalysis.Module module;
     private CodeConfig.View config;
@@ -236,7 +249,8 @@ public final class SpringExtractor {
 
     private final List<Scheduling> schedulings = new ArrayList<>();
 
-    Run(JavaAnalysis code, Validity validity) {
+    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
+      this.configs = new CodeConfig(secretKeys);
       this.code = code;
       this.validity = validity;
     }
@@ -478,7 +492,7 @@ public final class SpringExtractor {
       SortedSet<String> used = new TreeSet<>(base.used());
       used.addAll(own.used());
       return Resolved.of(
-          join(base.value(), own.value()), joinWritten(basePath, path), unresolved, used);
+          config, join(base.value(), own.value()), joinWritten(basePath, path), unresolved, used);
     }
 
     /** A Spring request mapping written on an element, directly or through a composed one. */
@@ -625,10 +639,10 @@ public final class SpringExtractor {
         Location where,
         Annotation annotation,
         Map<String, String> extra) {
-      Resolved byDefault = Resolved.of(resolve(null, written), written);
+      Resolved byDefault = Resolved.of(config, resolve(null, written), written);
       for (String profile : views()) {
         Resolved value =
-            profile == null ? byDefault : Resolved.of(resolve(profile, written), written);
+            profile == null ? byDefault : Resolved.of(config, resolve(profile, written), written);
         if (profile != null && value.equals(byDefault)) {
           continue;
         }
@@ -1267,13 +1281,17 @@ public final class SpringExtractor {
   private record Resolved(
       String value, String written, SortedSet<String> unresolved, boolean masked) {
 
-    static Resolved of(Resolution r, String written) {
-      return of(r.value(), written, r.unresolved(), r.used());
+    static Resolved of(CodeConfig.View config, Resolution r, String written) {
+      return of(config, r.value(), written, r.unresolved(), r.used());
     }
 
     static Resolved of(
-        String value, String written, SortedSet<String> unresolved, SortedSet<String> used) {
-      CodeConfig.CodeValue v = CodeConfig.CodeValue.of(value, written, unresolved, used);
+        CodeConfig.View config,
+        String value,
+        String written,
+        SortedSet<String> unresolved,
+        SortedSet<String> used) {
+      CodeConfig.CodeValue v = config.value(value, written, unresolved, used);
       return new Resolved(v.value(), v.written(), v.unresolved(), v.masked());
     }
 

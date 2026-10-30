@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.StandardJavaFileManager;
@@ -153,5 +154,35 @@ class GatewayExtractorTest {
       assertThat(ok).as("the stand-ins compile").isTrue();
     }
     return classes;
+  }
+
+  @Test
+  void aRouteUriSubstitutedFromAKnownSecretKeyIsMasked() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("jwt"),
+            "shop",
+            Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>shop</artifactId><version>1</version></project>\n",
+                "src/main/java/com/example/Shop.java",
+                "package com.example;\n\npublic class Shop {}\n",
+                "src/main/resources/application.properties",
+                "jwt.key=literal-test-value-0123456789abcdef\n"
+                    + "spring.cloud.gateway.server.webmvc.routes[0].id=tokened\n"
+                    + "spring.cloud.gateway.server.webmvc.routes[0].uri=http://edge/${jwt.key}\n"
+                    + "spring.cloud.gateway.server.webmvc.routes[0].predicates[0]=Path=/tokened/${jwt.key}/**\n"
+                    + "spring.cloud.gateway.server.webmvc.routes[0].filters[0]=AddRequestHeader=X-Token, ${jwt.key}\n"));
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+
+    // Without the code's keys the name alone does not show jwt.key is a secret.
+    assertThat(Fixtures.render(new GatewayExtractor().extract(code, SNAPSHOT)))
+        .contains("literal-test-value");
+    String masked =
+        Fixtures.render(
+            new GatewayExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key")));
+    assertThat(masked).doesNotContain("literal-test-value").contains("tokened");
   }
 }

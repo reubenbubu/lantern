@@ -160,3 +160,14 @@ what the facts look like and how a secret written in a config file is handled.
   `ConfigExtractor.isSecret(key, ConfigExtractor.normalizedKeys(secretKeys))`. Without the keys
   they mask by key name only, as before. The docs extractor becomes version 2, the persistence
   extractor 3 and the messaging extractor 4.
+
+## Amendment: the Spring, HTTP client and gateway extractors (#340)
+
+- **The extractors that substitute config into code values take the known JWT secret keys too.**
+  The Spring, HTTP client and gateway extractors take the keys through an `extract(code, snapshot,
+  secretKeys)` overload, as the extractors of #338 do; `CodeConfig` is built with them and judges
+  both a key (`isSecret`) and a resolved value (`value`) by name or by the known keys. A value
+  substituted from such a key into an annotation value, a URL or a route is kept as written and
+  marked masked. Without the keys they mask by key name only. The Spring extractor becomes version
+  4, the HTTP client extractor 5 and the gateway extractor 2. The Redis extractor records config
+  keys, never values, and the other extractors read no config.
