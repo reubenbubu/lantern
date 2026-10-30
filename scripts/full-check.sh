@@ -54,7 +54,7 @@ step1=$((SECONDS - start))
 echo "full-check.sh: step 2, integration tests of ${IT_MODULES[*]}" >&2
 declare -A pids
 # Stopping the script stops the Maven processes of step 2 too.
-trap 'kill "${pids[@]}" 2>/dev/null; exit 130' INT TERM
+trap '((${#pids[@]})) && kill "${pids[@]}" 2>/dev/null; exit 130' INT TERM
 for module in "${IT_MODULES[@]}"; do
   ./mvnw -pl "$module" "${REPOS[@]}" "$@" failsafe:integration-test failsafe:verify \
     >"$OUT/$module.log" 2>&1 &
