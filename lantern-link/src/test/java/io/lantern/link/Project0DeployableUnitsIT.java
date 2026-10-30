@@ -202,12 +202,17 @@ class Project0DeployableUnitsIT {
     String technology =
         "%stechnology Spring Boot 3.5.14 / Java %s {\"framework\":\"Spring Boot\","
             + "\"frameworkVersion\":\"3.5.14\",\"java\":\"%2$s\"} @%s";
+    String reactive =
+        "%stechnology Spring Boot 3.5.14 / WebFlux / Java %s {\"framework\":\"Spring Boot\","
+            + "\"frameworkVersion\":\"3.5.14\",\"frameworks\":[\"WebFlux\"],\"java\":\"%2$s\"}"
+            + " @%s";
     assertThat(built)
         .contains(
             // catalog's Spring Boot and Java come through its parent, built by catalog-lib
             // (BUILD-1).
             technology.formatted(SHOP + "catalog-service ", "21", "catalog:pom.xml"),
-            technology.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#36"),
+            // fulfilment is reactive: WebFlux joins the line.
+            reactive.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#36"),
             technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#28"),
             technology.formatted(
                 SHOP + "storefront-app ", "21", "storefront:storefront-model/pom.xml#17"));
@@ -216,7 +221,7 @@ class Project0DeployableUnitsIT {
     assertThat(unbuilt)
         .contains(
             technology.formatted(SHOP + "catalog-service ", "21", "catalog:pom.xml"),
-            technology.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#7"),
+            reactive.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#7"),
             technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#7"),
             technology.formatted(SHOP + "storefront-app ", "21", "storefront:pom.xml#7"));
   }
