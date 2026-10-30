@@ -44,6 +44,9 @@ class IdentityProvidersIT {
                 + " signs-in-users OIDC over HTTP published-port",
             "service:com.example:gateway USES_IDENTITY_PROVIDER external-system:keycloak"
                 + " validates-tokens OIDC over HTTP published-port",
+            // The issuer comes from common-security's EnvironmentPostProcessor (#333).
+            "service:com.example:order-service USES_IDENTITY_PROVIDER external-system:keycloak"
+                + " validates-tokens OIDC over HTTP published-port",
             "service:com.example:profile-service USES_IDENTITY_PROVIDER external-system:keycloak"
                 + " gets-tokens OAuth2 over HTTP published-port",
             "service:com.example:keycloak-admin-service USES_IDENTITY_PROVIDER"

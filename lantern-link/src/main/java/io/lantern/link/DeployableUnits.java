@@ -757,11 +757,18 @@ public final class DeployableUnits implements LinkStep {
         subject, predicate, object, attributes, ORIGIN, evidence, confidence, validity);
   }
 
+  /** The config family of defaults a library adds in code; the lowest precedence. */
+  static final String DEFAULTS = "defaults";
+
   /**
    * Which config files a {@code config-value} fact comes from: {@code application} or {@code
-   * bootstrap}, by the name of the file its evidence names, or null.
+   * bootstrap}, by the name of the file its evidence names, or {@link #DEFAULTS} for a default a
+   * library adds in code, or null.
    */
   static String configFamily(Fact fact) {
+    if (ConfigExtractor.ENVIRONMENT_POST_PROCESSOR.equals(text(fact, ConfigExtractor.SOURCE))) {
+      return DEFAULTS;
+    }
     String path = fact.evidence().path();
     if (path == null) {
       return null;

@@ -41,10 +41,16 @@ public final class ConfigExtractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
+
+  /** Attribute on a {@code config-value} fact: where the value comes from, when not a file. */
+  public static final String SOURCE = "source";
+
+  /** The {@link #SOURCE} of a default a library's {@code EnvironmentPostProcessor} adds. */
+  public static final String ENVIRONMENT_POST_PROCESSOR = "environment-post-processor";
 
   /** Attribute: a config value of the subject module. */
   public static final String CONFIG_VALUE = "config-value";
@@ -163,7 +169,7 @@ public final class ConfigExtractor {
       for (ModuleConfig config : read(repo)) {
         SortedMap<String, ConfigValue> defaults = config.values(null);
         for (ConfigValue value : defaults.values()) {
-          add(facts, config, value, null, validity, known);
+          add(facts, config, value, null, validity, known, false);
         }
         for (String profile : config.profiles()) {
           for (ConfigValue value : config.values(profile).values()) {
@@ -171,9 +177,14 @@ public final class ConfigExtractor {
             if (byDefault == null
                 || !byDefault.value().equals(value.value())
                 || !byDefault.unresolved().equals(value.unresolved())) {
-              add(facts, config, value, profile, validity, known);
+              add(facts, config, value, profile, validity, known, false);
             }
           }
+        }
+      }
+      for (ModuleConfig config : ConfigReader.readDefaults(repo)) {
+        for (ConfigValue value : config.values(null).values()) {
+          add(facts, config, value, null, validity, known, true);
         }
       }
     }
@@ -192,9 +203,13 @@ public final class ConfigExtractor {
       ConfigValue value,
       String profile,
       Validity validity,
-      Set<String> known) {
+      Set<String> known,
+      boolean fromCode) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("key", value.key());
+    if (fromCode) {
+      attributes.put(SOURCE, ENVIRONMENT_POST_PROCESSOR);
+    }
     if (profile != null) {
       attributes.put("profile", profile);
     }
