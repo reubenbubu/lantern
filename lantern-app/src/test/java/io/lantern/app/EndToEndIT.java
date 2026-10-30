@@ -94,6 +94,7 @@ import tools.jackson.databind.json.JsonMapper;
       "lantern.llm.models.fake.context-window=1000000",
       "lantern.llm.models.fake.prices.input=0",
       "lantern.llm.models.fake.prices.output=0",
+      "lantern.llm.models.fake.capabilities=tool-use",
       "lantern.llm.tiers.high-volume=fake",
       "lantern.llm.tiers.reasoning=fake",
       "lantern.llm.anthropic.api-key="

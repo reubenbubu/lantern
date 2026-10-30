@@ -117,7 +117,7 @@
     }, {
       "type" : "callout",
       "id" : "findings-none",
-      "body" : "**No risks found**\nLantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify.",
+      "body" : "**The LLM investigator found no risks**\nLantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify.",
       "tone" : "info",
       "title" : "Risks and findings"
     }, {

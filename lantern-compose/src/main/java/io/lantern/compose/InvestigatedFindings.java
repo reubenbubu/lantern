@@ -96,7 +96,7 @@ final class InvestigatedFindings {
               assembler.id(section, "none"),
               Callout.Variant.NOTE,
               null,
-              "No risks found",
+              "The LLM investigator found no risks",
               List.of(
                   TextRun.of(
                       "Lantern's LLM investigator found no risks here, or did not run; it"

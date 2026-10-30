@@ -112,6 +112,68 @@ final class InvestigatePrompt {
       Your answer was rejected: %s
       Answer again with one JSON object in the form asked for.""";
 
+  /**
+   * Keywords and words of code that hold on almost any line, so they cannot be a proposal's names.
+   */
+  static final Set<String> COMMON =
+      Set.of(
+          "abstract",
+          "boolean",
+          "break",
+          "case",
+          "catch",
+          "char",
+          "class",
+          "const",
+          "continue",
+          "default",
+          "double",
+          "else",
+          "enum",
+          "extends",
+          "false",
+          "final",
+          "finally",
+          "float",
+          "for",
+          "import",
+          "implements",
+          "instanceof",
+          "int",
+          "interface",
+          "long",
+          "new",
+          "null",
+          "package",
+          "private",
+          "protected",
+          "public",
+          "return",
+          "short",
+          "static",
+          "string",
+          "super",
+          "switch",
+          "synchronized",
+          "this",
+          "throw",
+          "throws",
+          "true",
+          "try",
+          "var",
+          "void",
+          "volatile",
+          "while",
+          "object",
+          "list",
+          "map",
+          "set",
+          "override",
+          "get",
+          "value",
+          "the",
+          "and");
+
   /** The impacts and confidences a proposal may give. */
   static final Set<String> LEVELS = Set.of("high", "medium", "low");
 
@@ -454,6 +516,16 @@ final class InvestigatePrompt {
       return new Read(number, null, label, "it gives more than " + MAX_NAMES + " names.");
     }
     for (String name : names) {
+      if (COMMON.contains(name.toLowerCase(Locale.ROOT))) {
+        return new Read(
+            number,
+            null,
+            label,
+            "the name \""
+                + name
+                + "\" is a keyword or word that holds on almost any line; give the names of what"
+                + " the proposal is about.");
+      }
       if (name.length() < 3 || !name.matches(".*[A-Za-z].*") || name.contains("\n")) {
         return new Read(
             number,

@@ -116,6 +116,15 @@ public final class Investigator implements LinkStep {
           CrossRepoLinks.USES_BROKER,
           CrossRepoLinks.USES_INFRASTRUCTURE);
 
+  /** The types of element besides units a connection may lead to: those diagrams draw. */
+  private static final Set<String> ENDS =
+      Set.of(
+          CrossRepoLinks.DATABASE,
+          CrossRepoLinks.TOPIC,
+          CrossRepoLinks.QUEUE,
+          CrossRepoLinks.EXCHANGE,
+          CrossRepoLinks.EXTERNAL_SYSTEM);
+
   /** The code facts a unit's prompt shows, besides its own and its links. */
   private static final Set<String> UNIT_CODE =
       Set.of(
@@ -337,10 +346,13 @@ public final class Investigator implements LinkStep {
         List.copyOf(derived.values()), askedNow, reusedNow, rejected, dropped, skipped);
   }
 
-  /** What makes two proposals the same: a risk's title, a connection's ends and interaction. */
+  /**
+   * What makes two proposals the same: a risk's title and units, a connection's ends and
+   * interaction.
+   */
   private static String identity(Proposal proposal) {
     return proposal.kind() == Kind.RISK
-        ? "risk|" + proposal.title().toLowerCase(Locale.ROOT)
+        ? "risk|" + proposal.title().toLowerCase(Locale.ROOT) + "|" + proposal.units()
         : "connection|" + proposal.from() + "|" + proposal.to() + "|" + proposal.interaction();
   }
 
@@ -422,11 +434,12 @@ public final class Investigator implements LinkStep {
         if (to.equals(proposal.from())) {
           return "it connects a unit to itself.";
         }
-        if (!entities.contains(to.toString())
-            && !InvestigatePrompt.NEW_ELEMENTS.contains(to.type())) {
+        boolean unit = units.contains(to);
+        boolean element = ENDS.contains(to.type()) && entities.contains(to.toString());
+        if (!unit && !element && !InvestigatePrompt.NEW_ELEMENTS.contains(to.type())) {
           return to
-              + " is not an element the facts hold; a new one is external-system:<name> or"
-              + " database:<name>.";
+              + " is not a deployable unit, data store, topic, queue, exchange or external system"
+              + " the facts hold; a new one is external-system:<name> or database:<name>.";
         }
       }
       return null;
@@ -582,7 +595,9 @@ public final class Investigator implements LinkStep {
       String problem =
           read.problem() != null ? read.problem() : problem(read.proposal(), check, known);
       if (problem == null) {
-        accepted.add(read.proposal());
+        if (!accepted.contains(read.proposal())) {
+          accepted.add(read.proposal());
+        }
       } else {
         problems.add("- " + read.label() + ": " + problem);
       }

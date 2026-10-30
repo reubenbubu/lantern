@@ -220,6 +220,27 @@ class InvestigatedFindingsTest {
   }
 
   @Test
+  void anElementStaticAnalysisFoundIsNotMarkedWhenTheInvestigatorAlsoConnectsToIt() {
+    EntityId pay = EntityId.parse("external-system:pay.example.com");
+    facts.add(
+        investigated(
+            "service:com.example:worker",
+            InvestigatedFindings.CONNECTION,
+            FactObject.entity(pay),
+            "{\"interaction\": \"http\", \"description\": \"Refunds through\","
+                + " \"confidence\": \"low\", \"names\": [\"pay.example.com\"], \"cites\":"
+                + " [\"base:src/a.yml:1-1\"], \"scope\": \"system\", \"link\":"
+                + " \"fedcba9876543210\"}",
+            0.3));
+
+    Document system = compose(ViewDefinition.c4System("system:c4", "System", TEMPLATE));
+
+    system.entities().stream()
+        .filter(e -> e.id().equals(pay))
+        .forEach(e -> assertThat(text(e.description())).doesNotContain("Found by the LLM"));
+  }
+
+  @Test
   void withoutRisksTheSectionSaysTheInvestigatorFoundNone() {
     facts.removeIf(f -> f.origin().equals(INVESTIGATOR));
 
@@ -227,6 +248,6 @@ class InvestigatedFindingsTest {
 
     assertThat(blocks(section(explorer, "findings"), Callout.class))
         .singleElement()
-        .satisfies(c -> assertThat(c.title()).isEqualTo("No risks found"));
+        .satisfies(c -> assertThat(c.title()).isEqualTo("The LLM investigator found no risks"));
   }
 }

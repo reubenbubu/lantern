@@ -431,6 +431,56 @@ class InvestigatorTest {
   }
 
   @Test
+  void aConnectionToWhatNoDiagramDrawsOrAKeywordNameIsSentBack() {
+    String toAType =
+        RATES
+            .replace("external-system:api.rates.example.com", "type:o.OrderService")
+            .replace("Fetches rates from", "Uses");
+    String keyword =
+        BEFORE_COMMIT
+            .replace("[\"Transactional\", \"sendOrderCreated\"]", "[\"public\"]")
+            .replace("Event published before commit", "Vague");
+    FakeLlmProvider fake = proposing(proposals(toAType, keyword), proposals());
+
+    Investigator.Result result = investigate(fake);
+
+    String retry =
+        fake.sent().stream()
+            .map(s -> s.request())
+            .filter(r -> r.purpose().equals("investigate the system (retry)"))
+            .findFirst()
+            .orElseThrow()
+            .messages()
+            .getLast()
+            .text();
+    assertThat(retry)
+        .contains(
+            "type:o.OrderService is not a deployable unit, data store, topic, queue, exchange or"
+                + " external system the facts hold")
+        .contains("the name \"public\" is a keyword or word that holds on almost any line");
+    assertThat(result.facts()).isEmpty();
+    assertThat(result.rejected()).isEqualTo(2);
+  }
+
+  @Test
+  void theSameRiskTitleForTwoUnitsIsTwoRisks() {
+    String billing =
+        BEFORE_COMMIT
+            .replace("service:g:orders", "service:g:billing")
+            .replace("[\"Transactional\", \"sendOrderCreated\"]", "[\"User-Id\"]")
+            .replace(
+                "a:src/main/java/o/OrderService.java:7-11",
+                "b:src/main/java/b/PermissionFilter.java:5-5");
+
+    Investigator.Result result = investigate(proposing(proposals(BEFORE_COMMIT, billing)));
+
+    assertThat(result.facts())
+        .extracting(f -> f.subject().toString())
+        .containsExactlyInAnyOrder("service:g:orders", "service:g:billing");
+    assertThat(result.dropped()).isZero();
+  }
+
+  @Test
   void anAnswerThatIsNotJsonIsSentBackOnceThenTheConversationIsRejected() {
     FakeLlmProvider fake = proposing("I found nothing worth saying.", "Still nothing.");
 

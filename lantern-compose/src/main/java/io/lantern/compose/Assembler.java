@@ -145,8 +145,7 @@ final class Assembler {
         // An element only the LLM investigator found, by the connections it found (ADR 0082).
         || (C4Views.DESTINATIONS.contains(id.type())
             && responsibility(id) == null
-            && !investigatedTo(id).isEmpty()
-            && knowledge.about(id).isEmpty())) {
+            && foundOnlyByTheInvestigator(id))) {
       undescribed.add(id);
     }
     return id;
@@ -532,8 +531,7 @@ final class Assembler {
               ? person(entity.id()).content()
               : responsibility == null
                       && C4Views.DESTINATIONS.contains(entity.id().type())
-                      && knowledge.about(entity.id()).isEmpty()
-                      && !investigatedTo(entity.id()).isEmpty()
+                      && foundOnlyByTheInvestigator(entity.id())
                   ? investigated(entity.id()).content()
                   : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
                       ? purpose().content()
@@ -550,9 +548,17 @@ final class Assembler {
 
   /** The connections the LLM investigator found to an entity (ADR 0082). */
   private List<Fact> investigatedTo(EntityId id) {
-    return knowledge.withPredicate(InvestigatedFindings.CONNECTION).stream()
-        .filter(f -> Knowledge.isEntity(f) && Knowledge.object(f).equals(id))
+    return knowledge.pointingTo(id).stream()
+        .filter(f -> f.predicate().equals(InvestigatedFindings.CONNECTION))
         .toList();
+  }
+
+  /** Whether only the investigator's connections know the entity: no other fact names it. */
+  private boolean foundOnlyByTheInvestigator(EntityId id) {
+    List<Fact> pointing = knowledge.pointingTo(id);
+    return knowledge.about(id).isEmpty()
+        && !pointing.isEmpty()
+        && pointing.stream().allMatch(f -> f.predicate().equals(InvestigatedFindings.CONNECTION));
   }
 
   /**

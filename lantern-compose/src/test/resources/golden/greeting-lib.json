@@ -679,7 +679,7 @@
       "kind" : "callout",
       "id" : "findings.none",
       "variant" : "note",
-      "title" : "No risks found",
+      "title" : "The LLM investigator found no risks",
       "content" : [ {
         "kind" : "text",
         "text" : "Lantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify."
