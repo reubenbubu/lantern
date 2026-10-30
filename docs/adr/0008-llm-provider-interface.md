@@ -1,6 +1,6 @@
 # 0008: LLM provider interface and test fake
 
-Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69) and ADR 0081 (#169), pending the user's review (#24)
+Status: accepted (#10), amended by ADR 0021 (#44), ADR 0022 (#69), ADR 0081 (#169) and the amendment for #298, pending the user's review (#24)
 
 ## Context
 
@@ -69,3 +69,19 @@ where model settings come from.
 
 An OpenAI provider (#38), caching results by input hash, parallel calls with rate limiting, and
 the cost estimate shown before a run belong with the work that uses them.
+
+## Amendment (#298): cache tokens of a model without prompt caching
+
+A local Anthropic-compatible server (llama.cpp style) reports a call's whole prompt as
+`cache_creation_input_tokens` and `input_tokens=1`, although Lantern asked for no caching. The four
+counts were stored as reported, so the call log showed one input token, and since a model without
+the `prompt-caching` capability needs no cache prices (ADR 0009), which then default to zero, the
+prompt cost nothing against the budget.
+
+- **For a model without `prompt-caching`, the Anthropic provider counts cache writes and reads as
+  input** (`TokenUsage.cacheAsInput()`): input tokens are input plus cache-creation plus cache-read,
+  priced at the input price, and the cache counts are zero. Lantern never asks such a model to
+  cache, so any cache tokens it reports are the server's own split of the prompt.
+- **A model with `prompt-caching` keeps the split as reported**, with its cache prices, as before;
+  totals already sum all four counts. Real Anthropic responses therefore do not change: without
+  caching asked for they report no cache tokens, and with it the split is priced as configured.

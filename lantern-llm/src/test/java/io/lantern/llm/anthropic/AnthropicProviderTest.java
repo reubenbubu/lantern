@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.anthropic.core.http.Headers;
 import com.sun.net.httpserver.HttpServer;
+import io.lantern.llm.Capability;
 import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
@@ -13,10 +14,13 @@ import io.lantern.llm.LlmResponse;
 import io.lantern.llm.LlmTool;
 import io.lantern.llm.LlmToolCall;
 import io.lantern.llm.LlmToolResult;
+import io.lantern.llm.ModelConfig;
+import io.lantern.llm.Pricing;
 import io.lantern.llm.Role;
 import io.lantern.llm.TokenUsage;
 import io.lantern.llm.TransientLlmException;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -27,6 +31,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -122,6 +127,66 @@ class AnthropicProviderTest {
     assertThat(sent.at("/messages/0/content").asString()).isEqualTo("class Order {}");
     assertThat(sent.at("/messages/1/role").asString()).isEqualTo("assistant");
     assertThat(sent.at("/messages/2/content").asString()).isEqualTo("No.");
+  }
+
+  /**
+   * A local Anthropic-compatible server (llama.cpp style) reports the whole prompt as cache writes
+   * and one input token, although no caching was asked for (#298).
+   */
+  private static final String LOCAL_SERVER_ANSWER =
+      """
+      {"id": "msg_local", "type": "message", "role": "assistant", "model": "local-model",
+       "content": [{"type": "text", "text": "An order aggregate."}],
+       "stop_reason": "end_turn", "stop_sequence": null,
+       "usage": {"input_tokens": 1, "output_tokens": 5,
+                 "cache_creation_input_tokens": 1234, "cache_read_input_tokens": 66}}
+      """;
+
+  @Test
+  void aModelWithoutPromptCachingCountsTheCacheTokensItIsSentAsInput() {
+    responseBody = LOCAL_SERVER_ANSWER;
+    ModelConfig model =
+        new ModelConfig(
+            AnthropicProvider.NAME,
+            "local-model",
+            Set.of(),
+            100_000,
+            new Pricing(
+                new BigDecimal("1"), new BigDecimal("2"), BigDecimal.ZERO, BigDecimal.ZERO));
+
+    LlmResponse response;
+    try (AnthropicProvider provider = provider()) {
+      response =
+          provider.complete(
+              model, LlmRequest.of(Role.SUMMARIZE, "summarize", "You summarize.", "class O", 50));
+    }
+
+    assertThat(response.usage()).isEqualTo(new TokenUsage(1 + 1234 + 66, 5, 0, 0));
+    // So the call costs the whole prompt at the input price, not nothing at the unset cache prices.
+    assertThat(model.pricing().cost(response.usage()))
+        .isEqualByComparingTo(new BigDecimal("0.001311"));
+  }
+
+  @Test
+  void aModelWithPromptCachingKeepsTheSplitTheServerReports() {
+    responseBody = LOCAL_SERVER_ANSWER;
+    ModelConfig model =
+        new ModelConfig(
+            AnthropicProvider.NAME,
+            "local-model",
+            Set.of(Capability.PROMPT_CACHING),
+            100_000,
+            Pricing.FREE);
+
+    LlmResponse response;
+    try (AnthropicProvider provider = provider()) {
+      response =
+          provider.complete(
+              model, LlmRequest.of(Role.SUMMARIZE, "summarize", "You summarize.", "class O", 50));
+    }
+
+    assertThat(response.usage()).isEqualTo(new TokenUsage(1, 5, 1234, 66));
+    assertThat(response.usage().total()).isEqualTo(1 + 5 + 1234 + 66);
   }
 
   @Test
