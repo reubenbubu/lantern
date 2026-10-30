@@ -50,8 +50,12 @@ final class EnvironmentDefaults {
 
   private static final long MAX_BYTES = 1024L * 1024;
 
-  /** What a property key looks like; anything else written in the same places is not config. */
-  private static final Pattern KEY = Pattern.compile("[A-Za-z][A-Za-z0-9_.\\-\\[\\]]*");
+  /**
+   * What a property key looks like (dotted, so header and system property names are not); anything
+   * else written in the same places is not config.
+   */
+  private static final Pattern KEY =
+      Pattern.compile("[A-Za-z][A-Za-z0-9_\\-]*(\\.[A-Za-z0-9_.\\-\\[\\]]+)+");
 
   private static final JavaParser PARSER =
       new JavaParser(
