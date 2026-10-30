@@ -1072,7 +1072,7 @@
       "variant" : "note",
       "content" : [ {
         "kind" : "text",
-        "text" : "No entry point (HTTP endpoint, message listener or scheduled job) was found whose code reaches another container."
+        "text" : "No entry point (HTTP endpoint, message listener, STOMP handler, scheduled or background job) was found whose code reaches another container."
       } ],
       "facts" : [ ]
     } ],
@@ -1193,6 +1193,15 @@
         } ], [ {
           "kind" : "text",
           "text" : "Hypertext Transfer Protocol, the request and response protocol of the web"
+        } ] ],
+        "facts" : [ ]
+      }, {
+        "cells" : [ [ {
+          "kind" : "text",
+          "text" : "STOMP"
+        } ], [ {
+          "kind" : "text",
+          "text" : "Simple Text Oriented Messaging Protocol"
         } ] ],
         "facts" : [ ]
       } ],

@@ -47,6 +47,11 @@ extractors) lists extractors; this adds one.
   endpoints. A push counts as leaving the unit, so an entry point that reaches nothing else but
   pushes still makes a flow. The subscribers are browsers that no fact of the code names (a frontend extractor,
   #267, may), so there is no participant to draw a message to. `stomp-mapping` also starts flows.
+  A flow that starts at a `stomp-mapping` is titled "STOMP message to /chat/say on chat" (or
+  "STOMP subscription to ..." for `@SubscribeMapping`). In the component view, a class with a
+  `stomp-mapping` ("STOMP message handler") or that registers a `websocket-endpoint` ("STOMP
+  WebSocket endpoint", "WebSocket endpoint") is an entry point, so a gateway route that names the
+  endpoint (below) is drawn to it.
   The catalog lists WebSocket endpoints and STOMP handlers with the other entry points; the LLM's
   fact sheets and describer inputs include the new facts.
 - **Gateway routes to a WebSocket endpoint.** A gateway route whose URI is `ws://`, `wss://` or
@@ -61,7 +66,9 @@ extractors) lists extractors; this adds one.
 - **Not covered:** placeholders in paths or prefixes (not resolved), the commands an interceptor
   checks (the source is not kept after the analysis), `@SendTo` return values as sends in flows,
   clients that subscribe (frontends, #267), Spring Integration and Jakarta WebSocket
-  (`@ServerEndpoint`).
+  (`@ServerEndpoint`); `convertAndSend(payload, postProcessor)`, whose first argument is read as
+  the destination; an endpoint registration split over statements (its `withSockJS()` is not
+  seen); and the profiles under which an endpoint is registered, in a push's note.
 - **Tests.** The `websocket` fixture, parsed (golden) and through javac with stand-ins; the same
   facts both ways. `Project4WebSocketIT` reads project-4's Notification-Service when
   `lantern.test.project4` names the folder `testsets/project-4/setup.sh` set up.

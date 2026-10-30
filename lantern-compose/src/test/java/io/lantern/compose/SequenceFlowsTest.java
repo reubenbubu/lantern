@@ -444,6 +444,18 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aFlowStartedByAStompMessageIsTitledByItsDestination() {
+    // A STOMP handler on ship that pushes what it receives to the subscribers.
+    attribute("ship", STATUS, "stomp-mapping", "/parcels/track", "{\"kind\": \"message\"}", 0);
+    attribute(
+        "ship", STATUS, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 4);
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .contains("STOMP message to /parcels/track on ship");
+  }
+
+  @Test
   void aSendTheResolverLinkedIsMarkedAsTheLlmsToo() {
     Fact open =
         facts.stream().filter(f -> f.predicate().equals("unresolved-link")).findFirst().get();
@@ -487,8 +499,8 @@ class SequenceFlowsTest {
     assertThat(flows.sections()).isEmpty();
     assertThat(text(((Callout) flows.blocks().getFirst()).content()))
         .isEqualTo(
-            "No entry point (HTTP endpoint, message listener or scheduled job) was found whose"
-                + " code reaches another container.");
+            "No entry point (HTTP endpoint, message listener, STOMP handler, scheduled or"
+                + " background job) was found whose code reaches another container.");
   }
 
   @Test

@@ -313,7 +313,7 @@ public final class AnalysisRun {
       List<Fact> found =
           new ArrayList<>(new MavenExtractor().extract(repoBuilds, snapshot.number()));
       // The code is read once, for the Java structure, Spring, persistence, HTTP client,
-      // messaging and gateway extractors.
+      // messaging, WebSocket, mail, Redis, people and gateway extractors.
       JavaAnalysis code = JavaExtractor.analyze(repoBuilds);
       found.addAll(new JavaExtractor().extract(code, snapshot.number()));
       found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number()));

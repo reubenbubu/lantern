@@ -1069,7 +1069,8 @@ final class SequenceFlows {
               null,
               List.of(
                   TextRun.of(
-                      "No entry point (HTTP endpoint, message listener or scheduled job) was found"
+                      "No entry point (HTTP endpoint, message listener, STOMP handler, scheduled"
+                          + " or background job) was found"
                           + " whose code reaches another container.")),
               List.of()));
       return List.of();
@@ -1098,6 +1099,16 @@ final class SequenceFlows {
               "Message on " + value + " to " + nameOf(entry.unit),
               "A message on " + value + " (" + handler + ")",
               "a message arrives on " + value + " for " + nameOf(entry.unit));
+      case STOMP_MAPPING -> {
+        boolean subscribe = "subscribe".equals(attribute(entry.fact, "kind"));
+        String what = subscribe ? "STOMP subscription to " : "STOMP message to ";
+        yield new Heading(
+            what + value + " on " + nameOf(entry.unit),
+            "A " + what + value + " (" + handler + ")",
+            subscribe
+                ? "a client subscribes to " + value + " on " + nameOf(entry.unit)
+                : "a client sends a STOMP message to " + value + " on " + nameOf(entry.unit));
+      }
       default -> {
         String kind = attribute(entry.fact, "trigger");
         if (kind == null) {
