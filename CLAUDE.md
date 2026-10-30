@@ -1,8 +1,9 @@
 # Lantern: instructions for the coding agent
 
 Lantern analyzes a set of Java repositories and generates architecture documents from them.
-What to build is in `docs/design.md`, the only design document. Change it in the same PR as
-any code that changes the design. This file covers only how you work.
+The standard its output must meet is `docs/quality-bar.md`; how Lantern meets it is
+`docs/design.md`, the only design document. Change them in the same PR as any code that
+changes them. This file covers only how you work.
 
 ## Talking to the user
 
@@ -16,44 +17,52 @@ any code that changes the design. This file covers only how you work.
 - Tasks are GitHub issues in `reubenbubu/lantern`. Phases, or their parts (2A to 2E), are
   milestones.
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
-  which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The coordinator
-  writes it. A PR runs Lantern on those sets only; the milestone's test drop runs all development
+  which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
+  picks up an issue without one writes it first. A PR runs Lantern on those sets only; the milestone's test drop runs all development
   sets, and held-out ones only at 2D's acceptance.
 - Held-out test sets (`docs/design.md`, Test sets) are only pinned: no session reads their code,
   analyzes them or looks at their output until 2D's acceptance, where they are scored and judged
   once.
-- The main session coordinates and stays quiet. It picks the next issue, hands it to a
-  subagent, and relays a short summary. It does not do task work itself.
-- Each task runs in its own subagent, so its context is discarded when it finishes:
-  1. Read the issue and the design sections it touches. Comment on the issue that work has
-     started.
-  2. Always work in a git worktree, never in the main checkout. One worktree per issue, on a
+- Each chat works on one issue at a time and does the work itself: design, code, tests, PR,
+  merge and cleanup.
+- Subagents get only low-impact work: read-only searches across many files, mechanical chores
+  with no judgment (a rename, a doc or config tweak, cleanup), and the review in step 5. Use
+  the cheapest model that fits: `haiku` for chores, `sonnet` for searches and reviews of small
+  diffs, `opus` for reviews of large or tricky diffs. Never use `fable`. If a subagent's result
+  is wrong, retry one level up or do it yourself.
+- Steps for an issue:
+  1. Pick an issue no other chat has taken (see Concurrent chats). Create its worktree first,
+     before anything else: always a git worktree, never the main checkout, one per issue, on a
      branch named `<prefix>/<number>-<short-slug>`, e.g. `feature/12-maven-extractor`. The
      prefix is `feature/`, `bugfix/` or `chore/`, chosen by the issue type.
+  2. Read the issue and the design sections it touches. Comment on the issue that work has
+     started.
   3. Build and test until everything passes. Commits carry no `Co-Authored-By` trailer.
   4. Open a PR whose description says `Closes #<number>` and carries the evidence its issue's
      "Accepted when" names. A change to Lantern's output shows the scores before and after on the
      named test sets and an excerpt or screenshot of the generated document; until the scoring
      command exists (#252), excerpts before and after stand in for scores. A docs or chore issue
      names its own evidence. A PR without evidence is not mergeable.
-  5. A separate reviewer subagent reviews the PR diff and checks the evidence against the
-     "Accepted when". Give it the diff, the evidence and the issue, not the implementer's
-     reasoning. Fix what it finds.
+  5. A reviewer subagent reviews the PR. It first reads `docs/quality-bar.md` and, of
+     `docs/design.md`, Overview, Design principles, Phasing and the sections the issue
+     touches. Give it the issue, the diff and the evidence, not your reasoning. It checks that
+     the change is correct, that the evidence meets the "Accepted when", and that the change
+     fits the design and moves Lantern's output toward the quality bar. It only reads; it runs
+     nothing that builds or starts containers. Fix what it finds.
   6. Squash-merge when CI, review and evidence pass. CI is local, not on GitHub: it means
      `./mvnw verify` (see Commands), and it must pass on the branch before merging. Leave a
      short summary on the issue and make sure it is closed.
   7. Clean up: remove the worktree, delete the local and remote branch, and stop or remove any
      containers, temp files or test data the task created. Leave the machine as you found it.
-- Before handing off a task, judge its complexity and set the subagent's `model` to match.
-  Never use `fable`.
-  - `haiku`: mechanical work with no judgment, e.g. a doc or config tweak, a rename, cleanup.
-  - `sonnet`: routine, well-scoped work in one module that follows an existing pattern, and
-    reviews of small diffs.
-  - `opus`: work that touches the design, the data model or several modules, needs new
-    patterns, or has failed before at a lower level; and reviews of large or tricky diffs.
-  - If a subagent struggles or its result is wrong, retry one level up.
-- Tasks may run in parallel only if each task has its own isolated environment, used by every
-  subagent of that task that runs commands:
+- Concurrent chats: several chats may work at once, each on its own issue. They coordinate
+  through the workspace, not through messages:
+  - An issue is taken when `git worktree list` shows a branch with its number. If no file in
+    that worktree has changed for a day, ask the user before taking it over.
+  - The local database is in use when `docker ps` shows it running under another chat's
+    `COMPOSE_PROJECT_NAME`. Wait, or work on something that does not need it.
+  - Two issues that touch the same files should not run together; pick another.
+- Each chat keeps its issue in its own isolated environment, used by every command it or its
+  subagents run:
   - its own worktree, as above
   - its own temp folder under the session scratchpad, named after its branch with `/` replaced
     by `-` (e.g. `<scratchpad>/feature-12-maven-extractor`), with `TMPDIR` and
@@ -70,20 +79,16 @@ any code that changes the design. This file covers only how you work.
     builds and tests reuse between runs.
   - no fixed host ports; publish to a random host port (`-p 127.0.0.1::5432`) and read it back
     with `docker port`. The local database (Commands) is the exception: its port is fixed, so
-    only one task at a time may run it.
-  - reviewer subagents only read; they run nothing that builds or starts containers
-- Running subagents share a budget of 100 agent tokens: `opus` costs 20, `sonnet` 10,
-  `haiku` 4. The subagents running at any moment, reviewers included, must cost 100 or
-  less in total. The budget only caps parallelism: tasks that could clash (same files,
-  the local database, shared resources) still never run together, whatever is left.
+    only one chat at a time may run it.
 - Each milestone ends with one test drop, which the user tests, tracked by an issue titled "Test
   drop <milestone>" in that milestone and linked from its description. When the milestone's other
-  issues are merged, a subagent writes the drop to `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's
-  documents and the reference side by side, the scorecards (from 2D also the judge's verdicts),
-  and a README with what the milestone set out to do, a checklist of what to try, the known gaps,
-  and the commits and models used. Its path goes on the test-drop issue, and the user is told.
-  The user's verdict, recorded on that issue, closes it and the milestone; what the user rejects
-  reopens its issue or becomes a new one.
+  issues are merged, the chat that takes the test-drop issue writes the drop to
+  `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's documents and the
+  reference side by side, the scorecards (from 2D also the judge's verdicts), and a README with
+  what the milestone set out to do, a checklist of what to try, the known gaps, the reassessment
+  of the test sets (`docs/design.md`, Test sets), and the commits and models used. Its path goes
+  on the test-drop issue, and the user is told. The user's verdict, recorded on that issue,
+  closes it and the milestone; what the user rejects reopens its issue or becomes a new one.
 - Keep issues current. If scope changes, a task is blocked, or you find new work, update or
   open an issue right away. An issue's state must always match reality.
 
@@ -93,11 +98,11 @@ Every piece of information lives in exactly one place. Link to it; never copy it
 
 | What | Where |
 | --- | --- |
-| What to build | `docs/design.md` |
+| The quality standard the output must meet, and the evidence behind it | `docs/quality-bar.md` |
+| What to build to meet it | `docs/design.md` |
 | How to work | This file |
 | Tasks, status, progress | GitHub issues and milestones |
 | Decisions made while building | `docs/adr/NNNN-title.md` |
-| Research and evidence behind the design | `docs/research/` |
 | Document templates and specifications | `report-specs/` (one folder per document: template, schema, sample data) |
 | Build and test commands | The Commands section below |
 
