@@ -5,11 +5,13 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/package.json"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/package.json:18",
+          "hash": "9a915f830bc7f189"
         },
         {
           "area": "frontend",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/nginx.conf:40-53"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/nginx.conf:40-53",
+          "hash": "481990a738cdb00d"
         }
       ]
     },
@@ -17,15 +19,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Enterprise-Spring-Microservices-Template:bff/pom.xml:11-12"
+          "at": "Enterprise-Spring-Microservices-Template:bff/pom.xml:11-12",
+          "hash": "6d3647507dec94f4"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/BffApplication.java:6-7"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/BffApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-406"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-406",
+          "hash": "06888a82df89d1a6"
         }
       ]
     },
@@ -33,15 +38,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/pom.xml:11-12"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/pom.xml:11-12",
+          "hash": "76892528ae585522"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/GatewayApplication.java:11-12"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/GatewayApplication.java:11-12",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-257"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-257",
+          "hash": "d620c5909daed58b"
         }
       ]
     },
@@ -49,15 +57,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/pom.xml:11-12"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/pom.xml:11-12",
+          "hash": "1003d18fa2c028bb"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/ProfileServiceApplication.java:6-7"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/ProfileServiceApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-296"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-296",
+          "hash": "493590b5efe5aef9"
         }
       ]
     },
@@ -65,15 +76,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/pom.xml:11-12"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/pom.xml:11-12",
+          "hash": "af1d7847158085fc"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/OrderServiceApplication.java:6-7"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/OrderServiceApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-331"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-331",
+          "hash": "f2ebefc3c8149249"
         }
       ]
     },
@@ -81,15 +95,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/pom.xml:11-12"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/pom.xml:11-12",
+          "hash": "8f46dee06ffc75b3"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/AdminServiceApplication.java:6-7"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/AdminServiceApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:333-364"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:333-364",
+          "hash": "604df589643765c3"
         }
       ]
     },
@@ -97,7 +114,8 @@
       "needs": [
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-140"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-140",
+          "hash": "5805bce3b00b7f3a"
         }
       ]
     },
@@ -105,15 +123,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:7-15"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:7-15",
+          "hash": "612a57a9e54a5e9e"
         },
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:104-107"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:104-107",
+          "hash": "612a57a9e54a5e9e"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:24-39"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:24-39",
+          "hash": "ba77f9b04bf764c8"
         }
       ]
     },
@@ -121,15 +142,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:8"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:8",
+          "hash": "44009c469d4fc1cb"
         },
         {
           "area": "sql",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/db/migration/V1__init.sql:4-32"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/db/migration/V1__init.sql:4-32",
+          "hash": "6f9fbbd6400a23e3"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:64-82"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:64-82",
+          "hash": "a3eb2793856bca68"
         }
       ]
     },
@@ -137,15 +161,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/application.properties:8"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/application.properties:8",
+          "hash": "3f22c4973cdf3fe3"
         },
         {
           "area": "sql",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/db/migration/V1__init.sql:4-15"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/db/migration/V1__init.sql:4-15",
+          "hash": "236c23d3fbee5291"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:84-102"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:84-102",
+          "hash": "0ddc55e2aa84ad34"
         }
       ]
     },
@@ -153,11 +180,13 @@
       "needs": [
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:41-62"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:41-62",
+          "hash": "8f3d101577b08026"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-111"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-111",
+          "hash": "5805bce3b00b7f3a"
         }
       ]
     },
@@ -165,7 +194,8 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak/realm-config/realm-export.json:125-159"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak/realm-config/realm-export.json:125-159",
+          "hash": "021fb596db81e6d0"
         }
       ]
     },
@@ -173,7 +203,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:17-40"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:17-40",
+          "hash": "021fb596db81e6d0"
         }
       ]
     },
@@ -181,11 +212,13 @@
       "needs": [
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:9-16"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:9-16",
+          "hash": "021fb596db81e6d0"
         },
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/RegistrationController.java:54"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/RegistrationController.java:54",
+          "hash": "7133bb1e34a30735"
         }
       ]
     },
@@ -193,11 +226,13 @@
       "needs": [
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:23-24"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:23-24",
+          "hash": "87ffeaff8294f109"
         },
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:42-43"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:42-43",
+          "hash": "87ffeaff8294f109"
         }
       ]
     },
@@ -205,11 +240,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:123-131"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:123-131",
+          "hash": "406dd76d00cd6ff5"
         },
         {
           "area": "identity",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/config/SecurityConfig.java:94-96"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/config/SecurityConfig.java:94-96",
+          "hash": "ba241a04a3927d48"
         }
       ]
     },
@@ -217,11 +254,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/config/SecurityConfig.java:46-49"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/config/SecurityConfig.java:46-49",
+          "hash": "e3690d01005441f6"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/CsrfCookieFilter.java:25-26"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/CsrfCookieFilter.java:25-26",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -229,11 +268,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/TokenRefreshFilter.java:50-52"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/TokenRefreshFilter.java:50-52",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/RefreshLockService.java:26-29"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/RefreshLockService.java:26-29",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -241,15 +282,18 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:293"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:293",
+          "hash": "924e2af22c0e0ee4"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:337"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:337",
+          "hash": "07b0176cf8df6797"
         },
         {
           "area": "http-client",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:408-410"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:408-410",
+          "hash": "ec4fb2ef725ef10f"
         }
       ]
     },
@@ -257,7 +301,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:230-231"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:230-231",
+          "hash": "84e15b25944b7310"
         }
       ]
     },
@@ -265,11 +310,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:39-41"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:39-41",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "identity",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:95-96"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:95-96",
+          "hash": "1d229ad77cfe1fb7"
         }
       ]
     },
@@ -277,11 +324,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:15-17"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:15-17",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "redis",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:24-41"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:24-41",
+          "hash": "3e16cf4a8a750bc2"
         }
       ]
     },
@@ -289,11 +338,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/config/SecurityConfig.java:10-12"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/config/SecurityConfig.java:10-12",
+          "hash": "e3690d01005441f6"
         },
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:112-117"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:112-117",
+          "hash": "478be5d7ed600a89"
         }
       ]
     },
@@ -301,7 +352,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:15-66"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:15-66",
+          "hash": "fa0cc33cb773fe65"
         }
       ]
     },
@@ -309,11 +361,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:20-23"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:20-23",
+          "hash": "5e1b822888f9ce7a"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/config/RateLimiterConfig.java:20-21"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/config/RateLimiterConfig.java:20-21",
+          "hash": "e3690d01005441f6"
         }
       ]
     },
@@ -321,11 +375,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:24-26"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:24-26",
+          "hash": "08e1ebdbc52d5cb7"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/controller/FallbackController.java:19-20"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/controller/FallbackController.java:19-20",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -333,11 +389,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41"
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41",
+          "hash": "6f7290f8192f4fef"
         },
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerDefaultsEnvironmentPostProcessor.java:37-41"
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerDefaultsEnvironmentPostProcessor.java:37-41",
+          "hash": "cabd9cb0c09532c0"
         }
       ]
     },
@@ -345,7 +403,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/ProfileController.java:22-25"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/ProfileController.java:22-25",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -353,11 +412,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/RegistrationController.java:37-40"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/RegistrationController.java:37-40",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/RegistrationService.java:61-64"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/RegistrationService.java:61-64",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -365,7 +426,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:12-15"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:12-15",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -373,11 +435,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/LoggingEmailService.java:15-18"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/LoggingEmailService.java:15-18",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "java",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/EmailService.java:7"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/EmailService.java:7",
+          "hash": "789cd7f98592bb2b"
         }
       ]
     },
@@ -385,11 +449,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:12-13"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:12-13",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "http-client",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:47-54"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:47-54",
+          "hash": "281c48e4a5b1d0b7"
         }
       ]
     },
@@ -397,11 +463,13 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/UserProfileEntityRepository.java:8"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/UserProfileEntityRepository.java:8",
+          "hash": "ea6bc6caf3bd0e19"
         },
         {
           "area": "persistence",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/PendingRegistrationEntityRepository.java:8"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/PendingRegistrationEntityRepository.java:8",
+          "hash": "7236644f1a2a90db"
         }
       ]
     },
@@ -409,7 +477,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41"
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41",
+          "hash": "6f7290f8192f4fef"
         }
       ]
     },
@@ -417,7 +486,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/controller/OrdersController.java:23-26"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/controller/OrdersController.java:23-26",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -425,7 +495,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/config/JpaAuditingConfig.java:23-25"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/config/JpaAuditingConfig.java:23-25",
+          "hash": "e3690d01005441f6"
         }
       ]
     },
@@ -433,11 +504,13 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/repository/OrderRepository.java:8"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/repository/OrderRepository.java:8",
+          "hash": "8a7ee9a97e1ff23a"
         },
         {
           "area": "persistence",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/model/OrderEntity.java:14-16"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/model/OrderEntity.java:14-16",
+          "hash": "c55be333256092f9"
         }
       ]
     },
@@ -445,11 +518,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41"
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerSecurityAutoConfiguration.java:35-41",
+          "hash": "6f7290f8192f4fef"
         },
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:100-101"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:100-101",
+          "hash": "d4cf7a624550a7dd"
         }
       ]
     },
@@ -457,7 +532,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:31-35"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:31-35",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -465,11 +541,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:10-11"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:10-11",
+          "hash": "e3690d01005441f6"
         },
         {
           "area": "identity",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:25-33"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:25-33",
+          "hash": "36349814baf0b81d"
         }
       ]
     },
@@ -477,7 +555,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:17-40"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:17-40",
+          "hash": "021fb596db81e6d0"
         }
       ]
     },
@@ -485,7 +564,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:9-16"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/app/app.routes.ts:9-16",
+          "hash": "021fb596db81e6d0"
         }
       ]
     },
@@ -493,15 +573,18 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/proxy.conf.json"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/proxy.conf.json:2-6",
+          "hash": "82b3761441f95365"
         },
         {
           "area": "frontend",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/nginx.conf:40-53"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/nginx.conf:40-53",
+          "hash": "481990a738cdb00d"
         },
         {
           "area": "frontend",
-          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/environments/environment.ts"
+          "at": "Enterprise-Spring-Microservices-Template:angular-ui/src/environments/environment.ts:3",
+          "hash": "0076591b7033a36d"
         }
       ]
     },
@@ -509,15 +592,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:7-15"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:7-15",
+          "hash": "612a57a9e54a5e9e"
         },
         {
           "area": "redis",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:24-41"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/service/SessionRedisService.java:24-41",
+          "hash": "3e16cf4a8a750bc2"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-379"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-379",
+          "hash": "06888a82df89d1a6"
         }
       ]
     },
@@ -525,15 +611,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:45"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:45",
+          "hash": "af707d1c732175b1"
         },
         {
           "area": "http-client",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:408-410"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:408-410",
+          "hash": "ec4fb2ef725ef10f"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-388"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-388",
+          "hash": "06888a82df89d1a6"
         }
       ]
     },
@@ -544,11 +633,13 @@
       "needs": [
         {
           "area": "people",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:23-24"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:23-24",
+          "hash": "87ffeaff8294f109"
         },
         {
           "area": "gateway",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:43-44"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:43-44",
+          "hash": "58896d9347985587"
         }
       ]
     },
@@ -556,11 +647,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:104-107"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:104-107",
+          "hash": "612a57a9e54a5e9e"
         },
         {
           "area": "gateway",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:20-23"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:20-23",
+          "hash": "5e1b822888f9ce7a"
         }
       ]
     },
@@ -568,11 +661,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:15-16"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:15-16",
+          "hash": "fa0cc33cb773fe65"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-238"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-238",
+          "hash": "d620c5909daed58b"
         }
       ]
     },
@@ -580,11 +675,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:29-30"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:29-30",
+          "hash": "4d55edd20c797e07"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-239"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-239",
+          "hash": "d620c5909daed58b"
         }
       ]
     },
@@ -592,11 +689,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:43-44"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:43-44",
+          "hash": "58896d9347985587"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-240"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-240",
+          "hash": "d620c5909daed58b"
         }
       ]
     },
@@ -604,15 +703,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:23"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:23",
+          "hash": "599dc3b58c5c025f"
         },
         {
           "area": "http-client",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:47-54"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:47-54",
+          "hash": "281c48e4a5b1d0b7"
         },
         {
           "area": "http-client",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:83-87"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/KeycloakAdminClient.java:83-87",
+          "hash": "fc3cd183ad8feefe"
         }
       ]
     },
@@ -620,15 +722,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:8"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:8",
+          "hash": "44009c469d4fc1cb"
         },
         {
           "area": "persistence",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/UserProfileEntityRepository.java:8"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/repository/UserProfileEntityRepository.java:8",
+          "hash": "ea6bc6caf3bd0e19"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-273"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-273",
+          "hash": "493590b5efe5aef9"
         }
       ]
     },
@@ -636,15 +741,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/application.properties:8"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/application.properties:8",
+          "hash": "3f22c4973cdf3fe3"
         },
         {
           "area": "persistence",
-          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/repository/OrderRepository.java:8"
+          "at": "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/repository/OrderRepository.java:8",
+          "hash": "8a7ee9a97e1ff23a"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-312"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-312",
+          "hash": "f2ebefc3c8149249"
         }
       ]
     },
@@ -652,15 +760,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/resources/application.properties:9"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/resources/application.properties:9",
+          "hash": "825f532ab9ffaf8c"
         },
         {
           "area": "identity",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:25-33"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/config/KeycloakConfig.java:25-33",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:333-347"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:333-347",
+          "hash": "604df589643765c3"
         }
       ]
     },
@@ -674,7 +785,8 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Enterprise-Spring-Microservices-Template:keycloak/realm-config/realm-export.json:125-159"
+          "at": "Enterprise-Spring-Microservices-Template:keycloak/realm-config/realm-export.json:125-159",
+          "hash": "021fb596db81e6d0"
         }
       ]
     },
@@ -682,15 +794,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:18"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:18",
+          "hash": "b0858ff633d303f6"
         },
         {
           "area": "http-client",
-          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/TokenRefreshFilter.java:213-218"
+          "at": "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/TokenRefreshFilter.java:213-218",
+          "hash": "b2434469fc018408"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-378"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:366-378",
+          "hash": "06888a82df89d1a6"
         }
       ]
     },
@@ -698,11 +813,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:112"
+          "at": "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:112",
+          "hash": "478be5d7ed600a89"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-232"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:220-232",
+          "hash": "d620c5909daed58b"
         }
       ]
     },
@@ -710,11 +827,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:27-31"
+          "at": "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:27-31",
+          "hash": "96c2a2f6f41bae72"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-271"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:259-271",
+          "hash": "493590b5efe5aef9"
         }
       ]
     },
@@ -722,11 +841,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerDefaultsEnvironmentPostProcessor.java:37-41"
+          "at": "Enterprise-Spring-Microservices-Template:common-security/src/main/java/com/example/common/security/config/ResourceServerDefaultsEnvironmentPostProcessor.java:37-41",
+          "hash": "cabd9cb0c09532c0"
         },
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-310"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:298-310",
+          "hash": "f2ebefc3c8149249"
         }
       ]
     },
@@ -734,7 +855,8 @@
       "needs": [
         {
           "area": "deployment",
-          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-111"
+          "at": "Enterprise-Spring-Microservices-Template:compose.yaml:104-111",
+          "hash": "5805bce3b00b7f3a"
         }
       ]
     }

@@ -5,11 +5,13 @@
       "needs": [
         {
           "area": "people",
-          "at": "CRM-Frontend:src/app/app.routes.ts:32"
+          "at": "CRM-Frontend:src/app/app.routes.ts:32",
+          "hash": "9bc70a8e8f8a7417"
         },
         {
           "area": "people",
-          "at": "CRM-Frontend:src/app/app.routes.ts:36-37"
+          "at": "CRM-Frontend:src/app/app.routes.ts:36-37",
+          "hash": "021fb596db81e6d0"
         }
       ]
     },
@@ -17,11 +19,13 @@
       "needs": [
         {
           "area": "people",
-          "at": "CRM-Frontend:src/app/app.routes.ts:35"
+          "at": "CRM-Frontend:src/app/app.routes.ts:35",
+          "hash": "9b9d2a14612e8fb6"
         },
         {
           "area": "people",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationInvitationController.java:20-23"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationInvitationController.java:20-23",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -29,11 +33,13 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "CRM-Frontend:package.json"
+          "at": "CRM-Frontend:package.json:15",
+          "hash": "beadfb27ef522e9f"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.dev.yml:12-17"
+          "at": "Deployment:docker-compose.dev.yml:12-17",
+          "hash": "f43e4cf79c237e68"
         }
       ]
     },
@@ -41,15 +47,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Discovery-and-Gateway:api-gateway/pom.xml:12"
+          "at": "Discovery-and-Gateway:api-gateway/pom.xml:12",
+          "hash": "2189f55256c07ff0"
         },
         {
           "area": "spring",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/ApiGatewayApplication.java:8-11"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/ApiGatewayApplication.java:8-11",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:87-120"
+          "at": "Deployment:docker-compose.local.yml:87-120",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -57,15 +66,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Discovery-and-Gateway:eureka-service/pom.xml:12"
+          "at": "Discovery-and-Gateway:eureka-service/pom.xml:12",
+          "hash": "1d3d74867134e7ca"
         },
         {
           "area": "spring",
-          "at": "Discovery-and-Gateway:eureka-service/src/main/java/com/crm/EurekaServerApplication.java:7-9"
+          "at": "Discovery-and-Gateway:eureka-service/src/main/java/com/crm/EurekaServerApplication.java:7-9",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.dev.yml:73-84"
+          "at": "Deployment:docker-compose.dev.yml:73-84",
+          "hash": "a5c08618dbf22dc1"
         }
       ]
     },
@@ -73,15 +85,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Auth-Service:pom.xml:14"
+          "at": "Auth-Service:pom.xml:14",
+          "hash": "610c55c4d7953024"
         },
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/AuthServiceApplication.java:8-11"
+          "at": "Auth-Service:src/main/java/com/crm/auth/AuthServiceApplication.java:8-11",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:122-159"
+          "at": "Deployment:docker-compose.local.yml:122-159",
+          "hash": "4872d7e13e7cc20f"
         }
       ]
     },
@@ -89,15 +104,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Main-Service:pom.xml:13"
+          "at": "Main-Service:pom.xml:13",
+          "hash": "bfeef72c8a6bad59"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-13"
+          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-13",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:161-191"
+          "at": "Deployment:docker-compose.local.yml:161-191",
+          "hash": "48a820f810789d09"
         }
       ]
     },
@@ -105,15 +123,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "File-Service:pom.xml:13"
+          "at": "File-Service:pom.xml:13",
+          "hash": "e9811aa7873e24e1"
         },
         {
           "area": "spring",
-          "at": "File-Service:src/main/java/com/crm/file/FileServiceApplication.java:7-9"
+          "at": "File-Service:src/main/java/com/crm/file/FileServiceApplication.java:7-9",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:193-221"
+          "at": "Deployment:docker-compose.local.yml:193-221",
+          "hash": "23d22a8803b1dc0e"
         }
       ]
     },
@@ -121,15 +142,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Notification-Service:pom.xml:13"
+          "at": "Notification-Service:pom.xml:13",
+          "hash": "5d97d41b5ca5a527"
         },
         {
           "area": "spring",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/NotificationServiceApplication.java:7-9"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/NotificationServiceApplication.java:7-9",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:223-249"
+          "at": "Deployment:docker-compose.local.yml:223-249",
+          "hash": "b89b685d9afdb471"
         }
       ]
     },
@@ -137,11 +161,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "Auth-Service:src/main/resources/application.properties:6-8"
+          "at": "Auth-Service:src/main/resources/application.properties:6-8",
+          "hash": "d429d0d11b3d2a53"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:34-51"
+          "at": "Deployment:docker-compose.local.yml:34-51",
+          "hash": "3dc76435ed4c9ce0"
         }
       ]
     },
@@ -149,11 +175,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "Main-Service:src/main/resources/application.yml:42-45"
+          "at": "Main-Service:src/main/resources/application.yml:42-45",
+          "hash": "b8d4c88fdc3806df"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:15-32"
+          "at": "Deployment:docker-compose.local.yml:15-32",
+          "hash": "650cbfcf1f567082"
         }
       ]
     },
@@ -161,11 +189,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "File-Service:src/main/resources/application.properties:6-8"
+          "at": "File-Service:src/main/resources/application.properties:6-8",
+          "hash": "c748b0a904b3299d"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:53-70"
+          "at": "Deployment:docker-compose.local.yml:53-70",
+          "hash": "6380f2b87ad2ee6f"
         }
       ]
     },
@@ -173,15 +203,18 @@
       "needs": [
         {
           "area": "redis",
-          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java"
+          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java:40-42",
+          "hash": "262f0e765d6d4b99"
         },
         {
           "area": "redis",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java:14-22",
+          "hash": "597d28c0fe892b40"
         },
         {
           "area": "deployment",
-          "at": "Deployment:docker-compose.local.yml:264-280"
+          "at": "Deployment:docker-compose.local.yml:264-280",
+          "hash": "ba77f9b04bf764c8"
         }
       ]
     },
@@ -189,11 +222,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java"
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:19-25",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22",
+          "hash": "f55aefd800aa54a8"
         }
       ]
     },
@@ -201,11 +236,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "File-Service:src/main/java/com/crm/file/config/RabbitMQConfig.java"
+          "at": "File-Service:src/main/java/com/crm/file/config/RabbitMQConfig.java:17-20",
+          "hash": "d3cbe0a39a73c40e"
         },
         {
           "area": "messaging",
-          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38"
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38",
+          "hash": "d8239dece224280a"
         }
       ]
     },
@@ -213,11 +250,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/config/RabbitMQConfig.java"
+          "at": "Auth-Service:src/main/java/com/crm/auth/config/RabbitMQConfig.java:29-34",
+          "hash": "b58903c6954ec469"
         },
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20"
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20",
+          "hash": "e5d7efa286b50f01"
         }
       ]
     },
@@ -225,15 +264,18 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/RabbitMQConfig.java"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/RabbitMQConfig.java:33",
+          "hash": "8d21d5cba3910518"
         },
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20",
+          "hash": "6b7d68cd7ac807e9"
         },
         {
           "area": "messaging",
-          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73"
+          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73",
+          "hash": "fabe40a1fded4bc5"
         }
       ]
     },
@@ -241,11 +283,13 @@
       "needs": [
         {
           "area": "mail",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35",
+          "hash": "1d336585f1292f03"
         },
         {
           "area": "config",
-          "at": "Notification-Service:src/main/resources/application.properties:10-15"
+          "at": "Notification-Service:src/main/resources/application.properties:10-15",
+          "hash": "5f3bfb2859203c84"
         }
       ]
     },
@@ -253,7 +297,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:31-85"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:31-85",
+          "hash": "36349814baf0b81d"
         }
       ]
     },
@@ -261,7 +306,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/AuthFilter.java:18-19"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/AuthFilter.java:18-19",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -269,11 +315,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/AuthorizeAndCheckAccessFilter.java:22-23"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/AuthorizeAndCheckAccessFilter.java:22-23",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "java",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/utils/OrganizationIdExtractor.java:14-15"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/utils/OrganizationIdExtractor.java:14-15",
+          "hash": "bbfec6925360f390"
         }
       ]
     },
@@ -281,11 +329,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/OrganizationFilesFilter.java:22-23"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/OrganizationFilesFilter.java:22-23",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/OrganizationFilesClient.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/OrganizationFilesClient.java:15-34",
+          "hash": "51d93f1d4d4ef381"
         }
       ]
     },
@@ -293,11 +343,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/JwtService.java:21-22"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/JwtService.java:21-22",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "identity",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/JwtService.java:59"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/JwtService.java:59",
+          "hash": "1bcdacb6d4178cb5"
         }
       ]
     },
@@ -305,15 +357,18 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/UserPermissionService.java:10-12"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/UserPermissionService.java:10-12",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "redis",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java:14-22",
+          "hash": "597d28c0fe892b40"
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/UserPermissionClient.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/UserPermissionClient.java:13-29",
+          "hash": "669c37c90db6fc5e"
         }
       ]
     },
@@ -321,15 +376,18 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/controllers/TasksCompositeController.java:17-20"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/controllers/TasksCompositeController.java:17-20",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java:24-90",
+          "hash": "e3b0c44298fc1c14"
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/UsersClient.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/UsersClient.java:15-32",
+          "hash": "e3b0c44298fc1c14"
         }
       ]
     },
@@ -337,11 +395,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/controller/AuthController.java:15-18"
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/AuthController.java:15-18",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "config",
-          "at": "Auth-Service:src/main/resources/application.properties:35"
+          "at": "Auth-Service:src/main/resources/application.properties:35",
+          "hash": "68a393cad5eb775a"
         }
       ]
     },
@@ -349,7 +409,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/controller/RestorePasswordRequestController.java:16-19"
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/RestorePasswordRequestController.java:16-19",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -357,11 +418,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/controller/UserController.java:15-18"
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/UserController.java:15-18",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/controller/UserSessionController.java:14-17"
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/UserSessionController.java:14-17",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -369,19 +432,23 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalAuthController.java:12-15"
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalAuthController.java:12-15",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalRolesController.java:16-19"
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalRolesController.java:16-19",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalUsersController.java:15-18"
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalUsersController.java:15-18",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalUserPermissionsController.java:11-14"
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalUserPermissionsController.java:11-14",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -389,11 +456,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Auth-Service:src/main/java/com/crm/auth/service/operation/UserPermissionExtractor.java:17-20"
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/operation/UserPermissionExtractor.java:17-20",
+          "hash": "d2bea7b193713db4"
         },
         {
           "area": "http-client",
-          "at": "Auth-Service:src/main/java/com/crm/auth/feign/MainClient.java:9-16"
+          "at": "Auth-Service:src/main/java/com/crm/auth/feign/MainClient.java:9-16",
+          "hash": "ccb548d775c72f96"
         }
       ]
     },
@@ -401,7 +470,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/service/consumer/UpdateOrganizationUserPermission.java:19"
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/consumer/UpdateOrganizationUserPermission.java:19",
+          "hash": "e8288307a18997fc"
         }
       ]
     },
@@ -409,11 +479,13 @@
       "needs": [
         {
           "area": "redis",
-          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java"
+          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java:40-42",
+          "hash": "262f0e765d6d4b99"
         },
         {
           "area": "redis",
-          "at": "Auth-Service:src/main/java/com/crm/auth/config/RedisConfig.java:48-51"
+          "at": "Auth-Service:src/main/java/com/crm/auth/config/RedisConfig.java:48-51",
+          "hash": "36349814baf0b81d"
         }
       ]
     },
@@ -421,11 +493,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20"
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20",
+          "hash": "e5d7efa286b50f01"
         },
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendVerificationCodeProducer.java:22"
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendVerificationCodeProducer.java:22",
+          "hash": "4b33bbb623961a19"
         }
       ]
     },
@@ -433,7 +507,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationController.java:21-24"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationController.java:21-24",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -441,19 +516,23 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationInvitationController.java:20-23"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationInvitationController.java:20-23",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationUsersController.java:20-23"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationUsersController.java:20-23",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationRolesController.java:23-26"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationRolesController.java:23-26",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationUserRoleController.java:17-20"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationUserRoleController.java:17-20",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -461,7 +540,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationFileController.java:19-22"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationFileController.java:19-22",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -469,19 +549,23 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskController.java:23-26"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskController.java:23-26",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskPriorityController.java:21-24"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskPriorityController.java:21-24",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskStatusController.java:21-24"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskStatusController.java:21-24",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/service/processor/TaskProcessorService.java:137"
+          "at": "Main-Service:src/main/java/com/crm/main/service/processor/TaskProcessorService.java:137",
+          "hash": "03a9fdccfef66e84"
         }
       ]
     },
@@ -489,11 +573,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/internal/InternalOrganizationUserController.java:12-15"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/internal/InternalOrganizationUserController.java:12-15",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/controller/internal/InternalOrganizationFilesController.java:15-18"
+          "at": "Main-Service:src/main/java/com/crm/main/controller/internal/InternalOrganizationFilesController.java:15-18",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -501,11 +587,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/aspect/OrganizationMembershipControlAspect.java:19-22"
+          "at": "Main-Service:src/main/java/com/crm/main/aspect/OrganizationMembershipControlAspect.java:19-22",
+          "hash": "9fa22926fc1fe245"
         },
         {
           "area": "spring",
-          "at": "crm-shared-lib:rbac/src/main/java/com/crm/sharedlib/rbac/aspectj/PermissionControlAspect.java:19-23"
+          "at": "crm-shared-lib:rbac/src/main/java/com/crm/sharedlib/rbac/aspectj/PermissionControlAspect.java:19-23",
+          "hash": "9fa22926fc1fe245"
         }
       ]
     },
@@ -513,11 +601,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Main-Service:src/main/java/com/crm/main/feign/AuthClient.java:17-39"
+          "at": "Main-Service:src/main/java/com/crm/main/feign/AuthClient.java:17-39",
+          "hash": "c1a2588b6cf4313d"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-11"
+          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-11",
+          "hash": "90e607d910e4d12e"
         }
       ]
     },
@@ -525,23 +615,28 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22",
+          "hash": "f55aefd800aa54a8"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrgUserRoleChangedProducer.java:42"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrgUserRoleChangedProducer.java:42",
+          "hash": "0e8c61d6c072a2eb"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/InvitationCreatedProducer.java:25"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/InvitationCreatedProducer.java:25",
+          "hash": "ba5ac384fa327230"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/TaskReminderProducer.java:39"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/TaskReminderProducer.java:39",
+          "hash": "01820fdc23d7c1a2"
         },
         {
           "area": "messaging",
-          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73"
+          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73",
+          "hash": "fabe40a1fded4bc5"
         }
       ]
     },
@@ -549,15 +644,18 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultPrioritiesConsumer.java:30"
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultPrioritiesConsumer.java:30",
+          "hash": "2edf62da80659269"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultStatusesConsumer.java:30"
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultStatusesConsumer.java:30",
+          "hash": "57a0ce4da32dfb9f"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/OrganizationRootDirCreatedConsumer.java:24"
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/OrganizationRootDirCreatedConsumer.java:24",
+          "hash": "1dabb504a38fd3ac"
         }
       ]
     },
@@ -565,11 +663,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/service/jobs/handlers/TaskReminderJobHandler.java:21-23"
+          "at": "Main-Service:src/main/java/com/crm/main/service/jobs/handlers/TaskReminderJobHandler.java:21-23",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "Main-Service:src/main/java/com/crm/main/service/processor/TaskProcessorService.java:137"
+          "at": "Main-Service:src/main/java/com/crm/main/service/processor/TaskProcessorService.java:137",
+          "hash": "03a9fdccfef66e84"
         }
       ]
     },
@@ -577,7 +677,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "File-Service:src/main/java/com/crm/file/controller/FileController.java:20-23"
+          "at": "File-Service:src/main/java/com/crm/file/controller/FileController.java:20-23",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -585,11 +686,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "crm-shared-lib:rbac/src/main/java/com/crm/sharedlib/rbac/aspectj/PermissionControlAspect.java:19-23"
+          "at": "crm-shared-lib:rbac/src/main/java/com/crm/sharedlib/rbac/aspectj/PermissionControlAspect.java:19-23",
+          "hash": "9fa22926fc1fe245"
         },
         {
           "area": "spring",
-          "at": "File-Service:src/main/java/com/crm/file/controller/FileController.java:28"
+          "at": "File-Service:src/main/java/com/crm/file/controller/FileController.java:28",
+          "hash": "a096ad90c9f00689"
         }
       ]
     },
@@ -597,7 +700,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "File-Service:src/main/java/com/crm/file/service/FileService.java:26-28"
+          "at": "File-Service:src/main/java/com/crm/file/service/FileService.java:26-28",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -605,11 +709,13 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileMetadataRepository.java:9-10"
+          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileMetadataRepository.java:9-10",
+          "hash": "45fde6a2371ae2e1"
         },
         {
           "area": "persistence",
-          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileContentRepository.java:9-10"
+          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileContentRepository.java:9-10",
+          "hash": "45fde6a2371ae2e1"
         }
       ]
     },
@@ -617,11 +723,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:28"
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:28",
+          "hash": "a1b3e5635623694a"
         },
         {
           "area": "messaging",
-          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38"
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38",
+          "hash": "d8239dece224280a"
         }
       ]
     },
@@ -629,19 +737,23 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/PasswordSenderConsumer.java:24"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/PasswordSenderConsumer.java:24",
+          "hash": "068277d76f4e9fa2"
         },
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/VerificationCodeSenderConsumer.java:23"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/VerificationCodeSenderConsumer.java:23",
+          "hash": "a76cf69c862d31ff"
         },
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendInvitationOfOrganizationConsumer.java:27"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendInvitationOfOrganizationConsumer.java:27",
+          "hash": "ba82485b6b5d3d75"
         },
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/TaskReminderConsumer.java:27"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/TaskReminderConsumer.java:27",
+          "hash": "0764c1a57a0e05b3"
         }
       ]
     },
@@ -649,7 +761,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/TemplateBuilder.java:16-18"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/TemplateBuilder.java:16-18",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -657,15 +770,18 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:13-16"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:13-16",
+          "hash": "d2bea7b193713db4"
         },
         {
           "area": "mail",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35",
+          "hash": "1d336585f1292f03"
         },
         {
           "area": "config",
-          "at": "Notification-Service:src/main/resources/application.properties:10-15"
+          "at": "Notification-Service:src/main/resources/application.properties:10-15",
+          "hash": "5f3bfb2859203c84"
         }
       ]
     },
@@ -673,7 +789,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20",
+          "hash": "6b7d68cd7ac807e9"
         }
       ]
     },
@@ -681,11 +798,13 @@
       "needs": [
         {
           "area": "websocket",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/NotificationSender.java:42"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/NotificationSender.java:42",
+          "hash": "9ce20db98611068f"
         },
         {
           "area": "websocket",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/NotificationSender.java:56"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/NotificationSender.java:56",
+          "hash": "4388552e12f78e3a"
         }
       ]
     },
@@ -693,11 +812,13 @@
       "needs": [
         {
           "area": "websocket",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:23-29"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:23-29",
+          "hash": "362cadc6884e4981"
         },
         {
           "area": "websocket",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:38-42"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:38-42",
+          "hash": "b5d1a5d3c9e0899e"
         }
       ]
     },
@@ -705,11 +826,13 @@
       "needs": [
         {
           "area": "websocket",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:27-29"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:27-29",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "websocket",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:33-35"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:33-35",
+          "hash": "3c639457f1855af8"
         }
       ]
     },
@@ -717,15 +840,18 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/AuthClient.java:10-14"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/AuthClient.java:10-14",
+          "hash": "c1a2588b6cf4313d"
         },
         {
           "area": "http-client",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/MainClient.java:9-16"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/MainClient.java:9-16",
+          "hash": "768ed39ed153e403"
         },
         {
           "area": "http-client",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8",
+          "hash": "e3690d01005441f6"
         }
       ]
     },
@@ -733,7 +859,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "CRM-Frontend:src/app/app.routes.ts:32-37"
+          "at": "CRM-Frontend:src/app/app.routes.ts:32-37",
+          "hash": "9bc70a8e8f8a7417"
         }
       ]
     },
@@ -741,11 +868,13 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "CRM-Frontend:src/environments/environment.ts:2"
+          "at": "CRM-Frontend:src/environments/environment.ts:2",
+          "hash": "12a41012de4e310f"
         },
         {
           "area": "frontend",
-          "at": "CRM-Frontend:src/app/core/services/auth.service.ts:29"
+          "at": "CRM-Frontend:src/app/core/services/auth.service.ts:29",
+          "hash": "9e1085fba1756485"
         }
       ]
     },
@@ -753,7 +882,8 @@
       "needs": [
         {
           "area": "config",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/resources/application.properties:4"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/resources/application.properties:4",
+          "hash": "31f2e739b072cdae"
         }
       ]
     },
@@ -761,11 +891,13 @@
       "needs": [
         {
           "area": "redis",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java:14-22",
+          "hash": "597d28c0fe892b40"
         },
         {
           "area": "config",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/resources/application.properties:6-9"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/resources/application.properties:6-9",
+          "hash": "4cb7fa4838caa5b2"
         }
       ]
     },
@@ -773,15 +905,18 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:46-51"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:46-51",
+          "hash": "cf0d642cedf403a9"
         },
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:79-84"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:79-84",
+          "hash": "56132a61fafa97d0"
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/UserPermissionClient.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/UserPermissionClient.java:13-29",
+          "hash": "669c37c90db6fc5e"
         }
       ]
     },
@@ -789,15 +924,18 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:38-45"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:38-45",
+          "hash": "56132a61fafa97d0"
         },
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:52-64"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:52-64",
+          "hash": "56132a61fafa97d0"
         },
         {
           "area": "http-client",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java:24-90",
+          "hash": "e3b0c44298fc1c14"
         }
       ]
     },
@@ -805,7 +943,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:65-78"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:65-78",
+          "hash": "56132a61fafa97d0"
         }
       ]
     },
@@ -813,7 +952,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:34-37"
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:34-37",
+          "hash": "95366ef9dda1328b"
         }
       ]
     },
@@ -821,11 +961,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "Auth-Service:src/main/resources/application.properties:6-8"
+          "at": "Auth-Service:src/main/resources/application.properties:6-8",
+          "hash": "d429d0d11b3d2a53"
         },
         {
           "area": "persistence",
-          "at": "Auth-Service:src/main/java/com/crm/auth/persistance/repository/UserRepository.java:11-12"
+          "at": "Auth-Service:src/main/java/com/crm/auth/persistance/repository/UserRepository.java:11-12",
+          "hash": "45fde6a2371ae2e1"
         }
       ]
     },
@@ -833,11 +975,13 @@
       "needs": [
         {
           "area": "redis",
-          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java"
+          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java:40-42",
+          "hash": "262f0e765d6d4b99"
         },
         {
           "area": "config",
-          "at": "Auth-Service:src/main/resources/application.properties:29-32"
+          "at": "Auth-Service:src/main/resources/application.properties:29-32",
+          "hash": "4cb7fa4838caa5b2"
         }
       ]
     },
@@ -845,11 +989,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Auth-Service:src/main/java/com/crm/auth/feign/MainClient.java:9-16"
+          "at": "Auth-Service:src/main/java/com/crm/auth/feign/MainClient.java:9-16",
+          "hash": "ccb548d775c72f96"
         },
         {
           "area": "http-client",
-          "at": "Auth-Service:src/main/java/com/crm/auth/AuthServiceApplication.java:8-11"
+          "at": "Auth-Service:src/main/java/com/crm/auth/AuthServiceApplication.java:8-11",
+          "hash": "90e607d910e4d12e"
         }
       ]
     },
@@ -857,11 +1003,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Main-Service:src/main/java/com/crm/main/feign/AuthClient.java:17-39"
+          "at": "Main-Service:src/main/java/com/crm/main/feign/AuthClient.java:17-39",
+          "hash": "c1a2588b6cf4313d"
         },
         {
           "area": "http-client",
-          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-11"
+          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-11",
+          "hash": "90e607d910e4d12e"
         }
       ]
     },
@@ -869,11 +1017,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "Main-Service:src/main/resources/application.yml:42-45"
+          "at": "Main-Service:src/main/resources/application.yml:42-45",
+          "hash": "b8d4c88fdc3806df"
         },
         {
           "area": "persistence",
-          "at": "Main-Service:src/main/java/com/crm/main/persistance/repository/OrganizationRepository.java:7-8"
+          "at": "Main-Service:src/main/java/com/crm/main/persistance/repository/OrganizationRepository.java:7-8",
+          "hash": "45fde6a2371ae2e1"
         }
       ]
     },
@@ -881,11 +1031,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "File-Service:src/main/resources/application.properties:6-8"
+          "at": "File-Service:src/main/resources/application.properties:6-8",
+          "hash": "c748b0a904b3299d"
         },
         {
           "area": "persistence",
-          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileMetadataRepository.java:9-10"
+          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileMetadataRepository.java:9-10",
+          "hash": "45fde6a2371ae2e1"
         }
       ]
     },
@@ -893,11 +1045,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/AuthClient.java:10-14"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/AuthClient.java:10-14",
+          "hash": "c1a2588b6cf4313d"
         },
         {
           "area": "http-client",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8",
+          "hash": "e3690d01005441f6"
         }
       ]
     },
@@ -905,11 +1059,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/MainClient.java:9-16"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/MainClient.java:9-16",
+          "hash": "768ed39ed153e403"
         },
         {
           "area": "http-client",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8",
+          "hash": "e3690d01005441f6"
         }
       ]
     },
@@ -917,11 +1073,13 @@
       "needs": [
         {
           "area": "mail",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35",
+          "hash": "1d336585f1292f03"
         },
         {
           "area": "config",
-          "at": "Notification-Service:src/main/resources/application.properties:10-15"
+          "at": "Notification-Service:src/main/resources/application.properties:10-15",
+          "hash": "5f3bfb2859203c84"
         }
       ]
     },
@@ -929,19 +1087,23 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22",
+          "hash": "f55aefd800aa54a8"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrgUserRoleChangedProducer.java:42"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrgUserRoleChangedProducer.java:42",
+          "hash": "0e8c61d6c072a2eb"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/InvitationCreatedProducer.java:25"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/InvitationCreatedProducer.java:25",
+          "hash": "ba5ac384fa327230"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/producer/TaskReminderProducer.java:39"
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/TaskReminderProducer.java:39",
+          "hash": "01820fdc23d7c1a2"
         }
       ]
     },
@@ -949,11 +1111,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:84-90"
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:84-90",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "messaging",
-          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:28"
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:28",
+          "hash": "a1b3e5635623694a"
         }
       ]
     },
@@ -961,15 +1125,18 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:92-106"
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:92-106",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultPrioritiesConsumer.java:30"
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultPrioritiesConsumer.java:30",
+          "hash": "2edf62da80659269"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultStatusesConsumer.java:30"
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultStatusesConsumer.java:30",
+          "hash": "57a0ce4da32dfb9f"
         }
       ]
     },
@@ -977,11 +1144,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:108-114"
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:108-114",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/service/consumer/UpdateOrganizationUserPermission.java:19"
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/consumer/UpdateOrganizationUserPermission.java:19",
+          "hash": "e8288307a18997fc"
         }
       ]
     },
@@ -989,19 +1158,23 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:77-82"
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:77-82",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:116-122"
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:116-122",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendInvitationOfOrganizationConsumer.java:27"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendInvitationOfOrganizationConsumer.java:27",
+          "hash": "ba82485b6b5d3d75"
         },
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/TaskReminderConsumer.java:27"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/TaskReminderConsumer.java:27",
+          "hash": "0764c1a57a0e05b3"
         }
       ]
     },
@@ -1009,7 +1182,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38"
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38",
+          "hash": "d8239dece224280a"
         }
       ]
     },
@@ -1017,11 +1191,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "File-Service:src/main/java/com/crm/file/config/RabbitMQConfig.java:37-43"
+          "at": "File-Service:src/main/java/com/crm/file/config/RabbitMQConfig.java:37-43",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "messaging",
-          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/OrganizationRootDirCreatedConsumer.java:24"
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/OrganizationRootDirCreatedConsumer.java:24",
+          "hash": "1dabb504a38fd3ac"
         }
       ]
     },
@@ -1029,11 +1205,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20"
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20",
+          "hash": "e5d7efa286b50f01"
         },
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendVerificationCodeProducer.java:22"
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendVerificationCodeProducer.java:22",
+          "hash": "4b33bbb623961a19"
         }
       ]
     },
@@ -1041,15 +1219,18 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Auth-Service:src/main/java/com/crm/auth/config/RabbitMQConfig.java:49-65"
+          "at": "Auth-Service:src/main/java/com/crm/auth/config/RabbitMQConfig.java:49-65",
+          "hash": "36349814baf0b81d"
         },
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/PasswordSenderConsumer.java:24"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/PasswordSenderConsumer.java:24",
+          "hash": "068277d76f4e9fa2"
         },
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/VerificationCodeSenderConsumer.java:23"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/VerificationCodeSenderConsumer.java:23",
+          "hash": "a76cf69c862d31ff"
         }
       ]
     },
@@ -1057,7 +1238,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73"
+          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73",
+          "hash": "fabe40a1fded4bc5"
         }
       ]
     },
@@ -1065,7 +1247,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20"
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20",
+          "hash": "6b7d68cd7ac807e9"
         }
       ]
     }

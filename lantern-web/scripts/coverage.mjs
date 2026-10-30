@@ -8,11 +8,16 @@
 //   node scripts/coverage.mjs check <set folder> [<checkout folder>]
 //     checks the set's coverage map: every reference item mapped, every area an extractor, every
 //     citation well formed, and with the checkout folder (where the set's setup.sh cloned it),
-//     every cited file present and every cited line in it.
+//     every cited file present, every cited line in it, and each citation's first line as its
+//     hash in the map records it.
+//   node scripts/coverage.mjs hash <set folder> <checkout folder>
+//     writes each line citation's hash into the set's map, for a citation added or moved on
+//     purpose; check then flags any that drift.
 //
 // The set folder is testsets/<set>: its coverage.json maps each reference item to the facts it
 // needs, each an extractor area and a citation `<repo>:<path>[:<start>[-<end>]]`, or marks it
 // linking only. A set without a reference (project-0) lists its items in the map itself.
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -131,6 +136,9 @@ export function checkMap(items, map) {
     for (const need of needs) {
       if (!AREAS.includes(need.area)) errors.push(`${key}: unknown area '${need.area}'`);
       if (!parseAt(need.at)) errors.push(`${key}: bad citation '${need.at}'`);
+      if (need.hash !== undefined && !/^[0-9a-f]{16}$/.test(need.hash)) {
+        errors.push(`${key}: bad hash '${need.hash}' for ${need.at}`);
+      }
     }
   }
   return errors;
@@ -160,9 +168,27 @@ export function composeServices(text) {
 }
 
 /**
- * What is wrong with the map's citations in the set's checkout: missing files or lines, and a
- * compose citation that is not inside one service from its first line (ADR 0089), since a range
- * across services is met by any of their facts.
+ * The hash of a citation's first line, as GitHub's `primaryLocationLineHash` takes it: the line's
+ * first 100 characters without whitespace (ADR 0089, amendment for #410), here the start of their
+ * SHA-256.
+ */
+export function lineHash(line) {
+  const text = line.replace(/\s+/g, '').slice(0, 100);
+  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+}
+
+/** The cited line's text in the checkout, or null when the file or the line is not there. */
+function citedLine(checkoutDir, at) {
+  const file = join(checkoutDir, at.repo, at.path);
+  if (at.start === null || !existsSync(file)) return null;
+  return readFileSync(file, 'utf8').split('\n')[at.start - 1] ?? null;
+}
+
+/**
+ * What is wrong with the map's citations in the set's checkout: missing files or lines, a line
+ * citation whose first line no longer has the hash the map records (or has none), and a compose
+ * citation that is not inside one service from its first line (ADR 0089), since a range across
+ * services is met by any of their facts.
  */
 export function checkCitations(map, checkoutDir) {
   const errors = [];
@@ -178,6 +204,11 @@ export function checkCitations(map, checkoutDir) {
       const text = readFileSync(file, 'utf8');
       const lines = text.replace(/\n$/, '').split('\n').length;
       if (at.end !== null && at.end > lines) errors.push(`${key}: ${need.at}: the file has ${lines} lines`);
+      if (at.start !== null && at.start <= lines) {
+        const hash = lineHash(text.split('\n')[at.start - 1]);
+        if (need.hash === undefined) errors.push(`${key}: ${need.at}: no hash (coverage.mjs hash)`);
+        else if (need.hash !== hash) errors.push(`${key}: ${need.at}: the line changed since it was cited`);
+      }
       if (at.start !== null && /compose[^/]*\.ya?ml$/.test(at.path)) {
         const service = composeServices(text).find((s) => s.start <= at.start && at.start <= s.end);
         if (!service || service.start !== at.start || at.end > service.end) {
@@ -187,6 +218,25 @@ export function checkCitations(map, checkoutDir) {
     }
   }
   return errors;
+}
+
+/** The map with each line citation's hash set from the checkout; whole-file citations get none. */
+export function withHashes(map, checkoutDir) {
+  const items = {};
+  for (const [key, entry] of Object.entries(map.items ?? {})) {
+    if (!entry.needs) {
+      items[key] = entry;
+      continue;
+    }
+    const needs = entry.needs.map((need) => {
+      const at = parseAt(need.at);
+      const line = at ? citedLine(checkoutDir, at) : null;
+      const { hash, ...rest } = need;
+      return line === null ? rest : { ...rest, hash: lineHash(line) };
+    });
+    items[key] = { ...entry, needs };
+  }
+  return { ...map, items };
 }
 
 /** The facts of an `extracted.jsonl.gz` file (or a plain `.jsonl`), in the core envelope. */
@@ -207,18 +257,30 @@ function covers(fact, at) {
   return evidence.lines.start <= at.end && evidence.lines.end >= at.start;
 }
 
+/** A path's kind of file, for which areas record lines: its extension, else its name. */
+function fileKind(path) {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(dot) : name;
+}
+
 /**
  * Which items the facts support. A need is met when a fact of its area has evidence in the cited
- * file overlapping the cited lines (a fact or a citation without lines covers the whole file); an
- * unmet need lists the areas of the facts that are there instead. An
- * item is backed when all its needs are met, partly backed when some are, missing when none are,
- * and linking only when its map entry says no extractor should make a fact for it.
+ * file overlapping the cited lines; an unmet need lists the areas of the facts that are there
+ * instead. A need met only by a fact without lines, or cited without lines, is weak (ADR 0089,
+ * amendment for #410): it is reported apart, and it does not count as met where the area records
+ * lines for that kind of file elsewhere in the facts. An item is backed when all its needs are
+ * met (weakly backed when one of them is weak), partly backed when some are, missing when none
+ * are, and linking only when its map entry says no extractor should make a fact for it.
  */
 export function coverage(facts, items, map) {
   const byFile = new Map();
   const extractors = {};
+  // The kinds of file each area records lines for, `<area> <kind>`.
+  const withLines = new Set();
   for (const fact of facts) {
     const name = fact.origin?.name ?? '?';
+    if (fact.evidence?.lines && fact.evidence.path) withLines.add(`${name} ${fileKind(fact.evidence.path)}`);
     extractors[name] ??= {};
     extractors[name][fact.predicate] = (extractors[name][fact.predicate] ?? 0) + 1;
     const key = `${fact.evidence?.repo}:${fact.evidence?.path}`;
@@ -227,23 +289,29 @@ export function coverage(facts, items, map) {
   }
   // The areas of the facts on a need's cited lines: its own area meets it, another one is a fact
   // of the wrong area, which points at a missing rule rather than a file nobody reads.
-  const areasAt = (need) => {
-    const at = parseAt(need.at);
-    const found = (byFile.get(`${at.repo}:${at.path}`) ?? [])
-      .filter((fact) => covers(fact, at))
-      .map((fact) => fact.origin?.name ?? '?');
-    return [...new Set(found)].sort();
-  };
+  const factsAt = (at) => (byFile.get(`${at.repo}:${at.path}`) ?? []).filter((fact) => covers(fact, at));
 
   const results = items.map((item) => {
     const entry = map.items[item.key] ?? {};
     if (entry.linking) return { ...item, status: 'linking', linking: entry.linking, needs: [] };
     const needs = (entry.needs ?? []).map((need) => {
-      const found = areasAt(need);
-      return found.includes(need.area) ? { ...need, met: true } : { ...need, met: false, otherAreas: found };
+      const at = parseAt(need.at);
+      const found = factsAt(at);
+      const own = found.filter((fact) => (fact.origin?.name ?? '?') === need.area);
+      const { hash, ...shown } = need;
+      if (own.length === 0) {
+        const otherAreas = [...new Set(found.map((fact) => fact.origin?.name ?? '?'))].sort();
+        return { ...shown, met: false, otherAreas };
+      }
+      if (at.start !== null && own.some((fact) => fact.evidence?.lines)) return { ...shown, met: true };
+      // Weak: no lines on one side. It counts only where the area records no lines for the file.
+      const counts = !withLines.has(`${need.area} ${fileKind(at.path)}`);
+      return { ...shown, met: counts, weak: true };
     });
     const met = needs.filter((need) => need.met).length;
-    const status = met === needs.length ? 'backed' : met === 0 ? 'missing' : 'partial';
+    const weak = needs.some((need) => need.weak && need.met);
+    const status =
+      met === needs.length ? (weak ? 'weak' : 'backed') : met === 0 ? 'missing' : 'partial';
     return { ...item, status, needs };
   });
 
@@ -254,6 +322,7 @@ export function coverage(facts, items, map) {
       items: of.length,
       linking: of.filter((r) => r.status === 'linking').length,
       backed: of.filter((r) => r.status === 'backed').length,
+      weak: of.filter((r) => r.status === 'weak').length,
       partial: of.filter((r) => r.status === 'partial').length,
       missing: of.filter((r) => r.status === 'missing').length,
     };
@@ -261,7 +330,13 @@ export function coverage(facts, items, map) {
   const areas = {};
   for (const area of AREAS) {
     const needs = results.flatMap((r) => r.needs).filter((need) => need.area === area);
-    if (needs.length > 0) areas[area] = { needs: needs.length, met: needs.filter((n) => n.met).length };
+    if (needs.length > 0) {
+      areas[area] = {
+        needs: needs.length,
+        met: needs.filter((n) => n.met && !n.weak).length,
+        weak: needs.filter((n) => n.weak).length,
+      };
+    }
   }
   return { facts: facts.length, extractors, categories, areas, items: results };
 }
@@ -272,17 +347,30 @@ const fraction = (a, b) => (b === 0 ? '–' : `${a}/${b} (${Math.round((100 * a)
 export function coverageMarkdown(card) {
   const lines = [`# Extraction coverage: ${card.set}`, ''];
   lines.push(`Facts: ${card.facts}${card.source ? ` (${card.source})` : ''}.`, '');
-  lines.push('| Items | Backed | Partly | Missing | Linking only |', '| --- | --- | --- | --- | --- |');
+  lines.push(
+    '| Items | Backed | Weakly | Partly | Missing | Linking only |',
+    '| --- | --- | --- | --- | --- | --- |',
+  );
   for (const [category] of CATEGORIES) {
     const c = card.categories[category];
     if (c.items === 0) continue;
     const needed = c.items - c.linking;
     lines.push(
-      `| ${CATEGORY_LABELS[category]} | ${fraction(c.backed, needed)} | ${c.partial} | ${c.missing} | ${c.linking} |`,
+      `| ${CATEGORY_LABELS[category]} | ${fraction(c.backed, needed)} | ${c.weak} | ${c.partial} | ${c.missing} | ${c.linking} |`,
     );
   }
-  lines.push('', '| Area | Needs met |', '| --- | --- |');
-  for (const [area, a] of Object.entries(card.areas)) lines.push(`| ${area} | ${fraction(a.met, a.needs)} |`);
+  lines.push('', '| Area | Needs met | Weak |', '| --- | --- | --- |');
+  for (const [area, a] of Object.entries(card.areas)) {
+    lines.push(`| ${area} | ${fraction(a.met, a.needs)} | ${a.weak} |`);
+  }
+  lines.push('', '## Weak', '');
+  const weak = card.items.flatMap((r) => r.needs.filter((need) => need.weak).map((need) => [r, need]));
+  if (weak.length === 0) lines.push('None.');
+  for (const [r, need] of weak) {
+    const why = parseAt(need.at).start === null ? 'cited without lines' : 'only facts without lines';
+    const counts = need.met ? 'counted' : `not counted: ${need.area} records lines for such files`;
+    lines.push(`- ${CATEGORY_LABELS[r.category]}: **${r.name}**: ${need.area} at ${need.at}, ${why} (${counts})`);
+  }
   lines.push('', '## Not backed', '');
   const unmet = card.items.filter((r) => r.status === 'missing' || r.status === 'partial');
   if (unmet.length === 0) lines.push('None.');
@@ -290,6 +378,7 @@ export function coverageMarkdown(card) {
     const missing = r.needs
       .filter((need) => !need.met)
       .map((need) => {
+        if (need.weak) return `${need.area} at ${need.at} with lines`;
         const others = need.otherAreas.length > 0 ? `, only ${need.otherAreas.join(', ')} there` : ', no fact there';
         return `${need.area} at ${need.at}${others}`;
       });
@@ -332,7 +421,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   const args = process.argv.slice(2);
   try {
     const out = option(args, '--out');
-    if (args[0] === 'check') {
+    if (args[0] === 'hash') {
+      const [, setDir, checkoutDir] = args;
+      if (!setDir || !checkoutDir) throw new Error('usage: coverage.mjs hash <set folder> <checkout folder>');
+      const map = readCoverageMap(setDir);
+      if (!map) throw new Error(`${setDir} has no coverage.json`);
+      writeFileSync(join(setDir, 'coverage.json'), `${JSON.stringify(withHashes(map, checkoutDir), null, 2)}\n`);
+      console.log(`${setDir}/coverage.json: hashes written`);
+    } else if (args[0] === 'check') {
       const [, setDir, checkoutDir] = args;
       if (!setDir) throw new Error('usage: coverage.mjs check <set folder> [<checkout folder>]');
       const map = readCoverageMap(setDir);
@@ -354,6 +450,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     }
   } catch (e) {
     console.error(`coverage.mjs: ${e.message}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }

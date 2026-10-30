@@ -7,11 +7,13 @@
       "needs": [
         {
           "area": "maven",
-          "at": "storefront:storefront-app/pom.xml:13"
+          "at": "storefront:storefront-app/pom.xml:13",
+          "hash": "2b4c8d1891808245"
         },
         {
           "area": "spring",
-          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/StorefrontApplication.java:7-9"
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/StorefrontApplication.java:7-9",
+          "hash": "90e607d910e4d12e"
         }
       ]
     },
@@ -21,15 +23,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "catalog:pom.xml:15"
+          "at": "catalog:pom.xml:15",
+          "hash": "19814188967b4674"
         },
         {
           "area": "spring",
-          "at": "catalog:src/main/java/com/acme/shop/catalog/CatalogApplication.java:6-7"
+          "at": "catalog:src/main/java/com/acme/shop/catalog/CatalogApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "config",
-          "at": "catalog:src/main/resources/bootstrap.yml:3"
+          "at": "catalog:src/main/resources/bootstrap.yml:3",
+          "hash": "5722b678b6ecaf17"
         }
       ]
     },
@@ -39,11 +44,13 @@
       "needs": [
         {
           "area": "maven",
-          "at": "fulfilment:pom.xml:15"
+          "at": "fulfilment:pom.xml:15",
+          "hash": "ef9a75139955b326"
         },
         {
           "area": "spring",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/FulfilmentApplication.java:6-7"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/FulfilmentApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         }
       ]
     },
@@ -53,11 +60,13 @@
       "needs": [
         {
           "area": "maven",
-          "at": "payments:pom.xml:15"
+          "at": "payments:pom.xml:15",
+          "hash": "f852bc8b25f33028"
         },
         {
           "area": "spring",
-          "at": "payments:src/main/java/com/acme/shop/payments/PaymentsApplication.java:7-9"
+          "at": "payments:src/main/java/com/acme/shop/payments/PaymentsApplication.java:7-9",
+          "hash": "90e607d910e4d12e"
         }
       ]
     },
@@ -67,11 +76,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "catalog:src/main/resources/application.yml:6"
+          "at": "catalog:src/main/resources/application.yml:6",
+          "hash": "26466e5f11d7950d"
         },
         {
           "area": "sql",
-          "at": "catalog-lib:catalog-lib/src/main/resources/db/changelog/db.changelog-master.yaml:6-7"
+          "at": "catalog-lib:catalog-lib/src/main/resources/db/changelog/db.changelog-master.yaml:6-7",
+          "hash": "30a5aaf9aac1a978"
         }
       ]
     },
@@ -81,11 +92,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "storefront:storefront-app/src/main/resources/application.yml:5"
+          "at": "storefront:storefront-app/src/main/resources/application.yml:5",
+          "hash": "71801998e806b44b"
         },
         {
           "area": "sql",
-          "at": "storefront:storefront-app/src/main/resources/db/migration/V1__create_orders.sql"
+          "at": "storefront:storefront-app/src/main/resources/db/migration/V1__create_orders.sql:1-6",
+          "hash": "236c23d3fbee5291"
         }
       ]
     },
@@ -95,7 +108,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "payments:src/main/java/com/acme/shop/payments/RabbitConfig.java:32-38"
+          "at": "payments:src/main/java/com/acme/shop/payments/RabbitConfig.java:32-38",
+          "hash": "87c61201c3e55913"
         }
       ]
     },
@@ -105,7 +119,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnsConfig.java:26-27"
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnsConfig.java:26-27",
+          "hash": "d1842ca5c4030e23"
         }
       ]
     },
@@ -115,7 +130,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/AuditTrail.java:19"
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/AuditTrail.java:19",
+          "hash": "703c364a79d3b4f8"
         }
       ]
     },
@@ -125,7 +141,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ShipmentService.java:19"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ShipmentService.java:19",
+          "hash": "f281151b9f104422"
         }
       ]
     },
@@ -135,7 +152,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentCompletedListener.java:15"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentCompletedListener.java:15",
+          "hash": "c1b7e4185bda6163"
         }
       ]
     },
@@ -145,11 +163,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "payments:src/main/resources/application.properties:16"
+          "at": "payments:src/main/resources/application.properties:16",
+          "hash": "777e1b2b97777996"
         },
         {
           "area": "http-client",
-          "at": "payments:src/main/java/com/acme/shop/payments/PaymentGatewayClient.java:23-24"
+          "at": "payments:src/main/java/com/acme/shop/payments/PaymentGatewayClient.java:23-24",
+          "hash": "a340bc770ccbfd5f"
         }
       ]
     },
@@ -159,7 +179,8 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/CatalogClient.java:8-11"
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/CatalogClient.java:8-11",
+          "hash": "1cbf3dc0e3b1c1b4"
         }
       ]
     },
@@ -169,11 +190,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/PaymentsClient.java:21"
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/PaymentsClient.java:21",
+          "hash": "3a290d0db1a82e9d"
         },
         {
           "area": "config",
-          "at": "storefront:storefront-app/src/main/resources/application.yml:18"
+          "at": "storefront:storefront-app/src/main/resources/application.yml:18",
+          "hash": "1141b9790cac4a94"
         }
       ]
     },
@@ -183,11 +206,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "storefront:storefront-app/src/main/resources/application.yml:5"
+          "at": "storefront:storefront-app/src/main/resources/application.yml:5",
+          "hash": "71801998e806b44b"
         },
         {
           "area": "persistence",
-          "at": "storefront:storefront-model/src/main/java/com/acme/shop/storefront/model/OrderRepository.java:5"
+          "at": "storefront:storefront-model/src/main/java/com/acme/shop/storefront/model/OrderRepository.java:5",
+          "hash": "da6f39991008c6fb"
         }
       ]
     },
@@ -197,11 +222,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "catalog:src/main/resources/application.yml:6"
+          "at": "catalog:src/main/resources/application.yml:6",
+          "hash": "26466e5f11d7950d"
         },
         {
           "area": "persistence",
-          "at": "catalog-lib:catalog-lib/src/main/java/com/acme/shop/catalog/ProductRepository.java:5"
+          "at": "catalog-lib:catalog-lib/src/main/java/com/acme/shop/catalog/ProductRepository.java:5",
+          "hash": "6ddf7284b89729ff"
         }
       ]
     },
@@ -211,7 +238,8 @@
       "needs": [
         {
           "area": "config",
-          "at": "payments:src/main/resources/application.properties:5"
+          "at": "payments:src/main/resources/application.properties:5",
+          "hash": "94406be21da5fae4"
         }
       ]
     },
@@ -221,11 +249,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "payments:src/main/java/com/acme/shop/payments/PaymentGatewayClient.java:23-24"
+          "at": "payments:src/main/java/com/acme/shop/payments/PaymentGatewayClient.java:23-24",
+          "hash": "a340bc770ccbfd5f"
         },
         {
           "area": "config",
-          "at": "payments:src/main/resources/application.properties:16"
+          "at": "payments:src/main/resources/application.properties:16",
+          "hash": "777e1b2b97777996"
         }
       ]
     },
@@ -235,7 +265,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/OrderEventPublisher.java:16"
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/OrderEventPublisher.java:16",
+          "hash": "c4f542c5069e5d11"
         }
       ]
     },
@@ -245,11 +276,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "payments:src/main/java/com/acme/shop/payments/OrderEventsListener.java:15"
+          "at": "payments:src/main/java/com/acme/shop/payments/OrderEventsListener.java:15",
+          "hash": "8c724cab5fd2addb"
         },
         {
           "area": "messaging",
-          "at": "payments:src/main/java/com/acme/shop/payments/RabbitConfig.java:32-33"
+          "at": "payments:src/main/java/com/acme/shop/payments/RabbitConfig.java:32-33",
+          "hash": "87c61201c3e55913"
         }
       ]
     },
@@ -259,7 +292,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/AuditTrail.java:19"
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/AuditTrail.java:19",
+          "hash": "703c364a79d3b4f8"
         }
       ]
     },
@@ -269,7 +303,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/AuditListener.java:14"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/AuditListener.java:14",
+          "hash": "66fdae9b06143488"
         }
       ]
     },
@@ -279,7 +314,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "payments:src/main/java/com/acme/shop/payments/PaymentCompletedPublisher.java:20"
+          "at": "payments:src/main/java/com/acme/shop/payments/PaymentCompletedPublisher.java:20",
+          "hash": "0b2a2c690bab043f"
         }
       ]
     },
@@ -289,7 +325,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentCompletedListener.java:15"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentCompletedListener.java:15",
+          "hash": "c1b7e4185bda6163"
         }
       ]
     },
@@ -299,11 +336,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/StockClient.java:20-21"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/StockClient.java:20-21",
+          "hash": "256060396696fd41"
         },
         {
           "area": "config",
-          "at": "fulfilment:src/main/resources/application.yml:10"
+          "at": "fulfilment:src/main/resources/application.yml:10",
+          "hash": "9e6c7d4c152fe381"
         }
       ]
     },
@@ -313,7 +352,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ShipmentService.java:19"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ShipmentService.java:19",
+          "hash": "f281151b9f104422"
         }
       ]
     },
@@ -323,7 +363,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ShipmentListener.java:18"
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ShipmentListener.java:18",
+          "hash": "16649b9941772def"
         }
       ]
     },
@@ -333,7 +374,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ReturnsPublisher.java:19"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ReturnsPublisher.java:19",
+          "hash": "1482a1d425ee6cfd"
         }
       ]
     },
@@ -343,11 +385,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "payments:src/main/java/com/acme/shop/payments/RefundListener.java:10"
+          "at": "payments:src/main/java/com/acme/shop/payments/RefundListener.java:10",
+          "hash": "ebb3a0e7e95f5a52"
         },
         {
           "area": "messaging",
-          "at": "payments:src/main/java/com/acme/shop/payments/ReturnsConfig.java:26-27"
+          "at": "payments:src/main/java/com/acme/shop/payments/ReturnsConfig.java:26-27",
+          "hash": "c1bb0425a3cd6678"
         }
       ]
     },
@@ -357,11 +401,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnListener.java:10"
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnListener.java:10",
+          "hash": "8371cca1c2c9c22f"
         },
         {
           "area": "messaging",
-          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnsConfig.java:26-27"
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnsConfig.java:26-27",
+          "hash": "d1842ca5c4030e23"
         }
       ]
     },
@@ -371,11 +417,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/OrderClient.java:18"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/OrderClient.java:18",
+          "hash": "c7caa0bb321098f3"
         },
         {
           "area": "config",
-          "at": "fulfilment:src/main/resources/application.yml:14"
+          "at": "fulfilment:src/main/resources/application.yml:14",
+          "hash": "e3b0c44298fc1c14"
         }
       ]
     },
@@ -385,7 +433,8 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentStatusClient.java:19"
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentStatusClient.java:19",
+          "hash": "c7caa0bb321098f3"
         }
       ]
     }

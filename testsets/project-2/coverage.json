@@ -5,11 +5,13 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "Event-Management-platform:frontend/package.json"
+          "at": "Event-Management-platform:frontend/package.json:15",
+          "hash": "d12760e60e83b766"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:405-409"
+          "at": "Event-Management-platform:compose.yaml:405-409",
+          "hash": "309013386ee2a32a"
         }
       ]
     },
@@ -17,15 +19,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Event-Management-platform:api-gateway/pom.xml:12-13"
+          "at": "Event-Management-platform:api-gateway/pom.xml:12-13",
+          "hash": "2189f55256c07ff0"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/ApiGatewayApplication.java:6-7"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/ApiGatewayApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:357-363"
+          "at": "Event-Management-platform:compose.yaml:357-363",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -33,15 +38,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Event-Management-platform:auth-service/pom.xml:5-6"
+          "at": "Event-Management-platform:auth-service/pom.xml:5-6",
+          "hash": "610c55c4d7953024"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/AuthServiceApplication.java:6-7"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/AuthServiceApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:150-156"
+          "at": "Event-Management-platform:compose.yaml:150-156",
+          "hash": "4872d7e13e7cc20f"
         }
       ]
     },
@@ -49,15 +57,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Event-Management-platform:event-service/pom.xml:12-13"
+          "at": "Event-Management-platform:event-service/pom.xml:12-13",
+          "hash": "3f0403a741ae89bd"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/EventServiceApplication.java:8-11"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/EventServiceApplication.java:8-11",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:184-190"
+          "at": "Event-Management-platform:compose.yaml:184-190",
+          "hash": "7ffe2a95114ebcd2"
         }
       ]
     },
@@ -65,15 +76,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Event-Management-platform:venue-service/pom.xml:12-13"
+          "at": "Event-Management-platform:venue-service/pom.xml:12-13",
+          "hash": "8a2318c0c3f23daf"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/VenueServiceApplication.java:6-7"
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/VenueServiceApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:224-230"
+          "at": "Event-Management-platform:compose.yaml:224-230",
+          "hash": "f55965e97aa2e001"
         }
       ]
     },
@@ -81,15 +95,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Event-Management-platform:attendee-service/pom.xml:5-6"
+          "at": "Event-Management-platform:attendee-service/pom.xml:5-6",
+          "hash": "3265b5f4d5736cfd"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/AttendeeServiceApplication.java:7-9"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/AttendeeServiceApplication.java:7-9",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:251-257"
+          "at": "Event-Management-platform:compose.yaml:251-257",
+          "hash": "0d6d937cf5b2ff01"
         }
       ]
     },
@@ -97,15 +114,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Event-Management-platform:payment-service/pom.xml:5-6"
+          "at": "Event-Management-platform:payment-service/pom.xml:5-6",
+          "hash": "6112ae872b563466"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/PaymentServiceApplication.java:6-7"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/PaymentServiceApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:291-297"
+          "at": "Event-Management-platform:compose.yaml:291-297",
+          "hash": "dc76654df4a2ba21"
         }
       ]
     },
@@ -113,15 +133,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "Event-Management-platform:notification-service/pom.xml:5-6"
+          "at": "Event-Management-platform:notification-service/pom.xml:5-6",
+          "hash": "5d97d41b5ca5a527"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/NotificationServiceApplication.java:6-7"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/NotificationServiceApplication.java:6-7",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:321-327"
+          "at": "Event-Management-platform:compose.yaml:321-327",
+          "hash": "b89b685d9afdb471"
         }
       ]
     },
@@ -129,19 +152,23 @@
       "needs": [
         {
           "area": "redis",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16",
+          "hash": "1d4027522844d00a"
         },
         {
           "area": "redis",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96",
+          "hash": "cf04b73252995e72"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:18-27"
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:18-27",
+          "hash": "ff72caa36dca2baa"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:33-35"
+          "at": "Event-Management-platform:compose.yaml:33-35",
+          "hash": "ba77f9b04bf764c8"
         }
       ]
     },
@@ -149,15 +176,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:9"
+          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:9",
+          "hash": "aadb48e82a33e13c"
         },
         {
           "area": "sql",
-          "at": "Event-Management-platform:auth-service/src/main/resources/db/migration/V2__authentication_schema.sql:1"
+          "at": "Event-Management-platform:auth-service/src/main/resources/db/migration/V2__authentication_schema.sql:1",
+          "hash": "631fb73f05fedae6"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:150-160"
+          "at": "Event-Management-platform:compose.yaml:150-160",
+          "hash": "4872d7e13e7cc20f"
         }
       ]
     },
@@ -165,15 +195,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:9"
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:9",
+          "hash": "efaa769ac0c5d47e"
         },
         {
           "area": "sql",
-          "at": "Event-Management-platform:event-service/src/main/resources/db/migration/V2__event_lifecycle_and_inventory.sql:1"
+          "at": "Event-Management-platform:event-service/src/main/resources/db/migration/V2__event_lifecycle_and_inventory.sql:1",
+          "hash": "ea3bd92a7dafeed7"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:184-194"
+          "at": "Event-Management-platform:compose.yaml:184-194",
+          "hash": "7ffe2a95114ebcd2"
         }
       ]
     },
@@ -181,15 +214,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:9"
+          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:9",
+          "hash": "a6ff4a70f2fd5e4b"
         },
         {
           "area": "sql",
-          "at": "Event-Management-platform:venue-service/src/main/resources/db/migration/V2__venue_management.sql:1"
+          "at": "Event-Management-platform:venue-service/src/main/resources/db/migration/V2__venue_management.sql:1",
+          "hash": "614f9264e061ea9e"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:224-234"
+          "at": "Event-Management-platform:compose.yaml:224-234",
+          "hash": "f55965e97aa2e001"
         }
       ]
     },
@@ -197,15 +233,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:9"
+          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:9",
+          "hash": "58af827d882e2526"
         },
         {
           "area": "sql",
-          "at": "Event-Management-platform:attendee-service/src/main/resources/db/migration/V2__attendee_booking_ticketing.sql:1"
+          "at": "Event-Management-platform:attendee-service/src/main/resources/db/migration/V2__attendee_booking_ticketing.sql:1",
+          "hash": "5c17ab389a81c444"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:251-261"
+          "at": "Event-Management-platform:compose.yaml:251-261",
+          "hash": "0d6d937cf5b2ff01"
         }
       ]
     },
@@ -213,15 +252,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:9"
+          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:9",
+          "hash": "bd643c99bed43b26"
         },
         {
           "area": "sql",
-          "at": "Event-Management-platform:payment-service/src/main/resources/db/migration/V2__payments_refunds_and_outbox.sql:1"
+          "at": "Event-Management-platform:payment-service/src/main/resources/db/migration/V2__payments_refunds_and_outbox.sql:1",
+          "hash": "b99b203be2bd9f58"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:291-301"
+          "at": "Event-Management-platform:compose.yaml:291-301",
+          "hash": "dc76654df4a2ba21"
         }
       ]
     },
@@ -229,15 +271,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:9"
+          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:9",
+          "hash": "a1c89fce0e420285"
         },
         {
           "area": "sql",
-          "at": "Event-Management-platform:notification-service/src/main/resources/db/migration/V2__notification_delivery.sql:1"
+          "at": "Event-Management-platform:notification-service/src/main/resources/db/migration/V2__notification_delivery.sql:1",
+          "hash": "a795d1706eef1177"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:321-331"
+          "at": "Event-Management-platform:compose.yaml:321-331",
+          "hash": "b89b685d9afdb471"
         }
       ]
     },
@@ -245,11 +290,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70",
+          "hash": "4d9f5ea4cea5a3e7"
         },
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -257,11 +304,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68",
+          "hash": "4d9f5ea4cea5a3e7"
         },
         {
           "area": "messaging",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -269,11 +318,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65",
+          "hash": "4d9f5ea4cea5a3e7"
         },
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -281,11 +332,13 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/AuthSecurityConfiguration.java:95-98"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/AuthSecurityConfiguration.java:95-98",
+          "hash": "02e8e24cc6f15580"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:39-40"
+          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:39-40",
+          "hash": "2ef15a78c90123bd"
         }
       ]
     },
@@ -293,11 +346,13 @@
       "needs": [
         {
           "area": "people",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:29-30"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:29-30",
+          "hash": "d17f557fd0c61952"
         },
         {
           "area": "people",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:36-37"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:36-37",
+          "hash": "7133bb1e34a30735"
         }
       ]
     },
@@ -305,15 +360,18 @@
       "needs": [
         {
           "area": "people",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/TicketTypeController.java:24"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/TicketTypeController.java:24",
+          "hash": "86e3f3ee94f99f95"
         },
         {
           "area": "people",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:62-63"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:62-63",
+          "hash": "ae1e50ed883c0b29"
         },
         {
           "area": "people",
-          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/api/VenueController.java:26"
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/api/VenueController.java:26",
+          "hash": "86e3f3ee94f99f95"
         }
       ]
     },
@@ -321,7 +379,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:24-25"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:24-25",
+          "hash": "d17f557fd0c61952"
         }
       ]
     },
@@ -329,15 +388,18 @@
       "needs": [
         {
           "area": "people",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:97-98"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:97-98",
+          "hash": "ba640fe9df3bd1ec"
         },
         {
           "area": "people",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventCategoryController.java:38"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventCategoryController.java:38",
+          "hash": "b0dfb07da8cabe55"
         },
         {
           "area": "people",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/api/NotificationController.java:45"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/api/NotificationController.java:45",
+          "hash": "b0dfb07da8cabe55"
         }
       ]
     },
@@ -345,19 +407,23 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/CorrelationIdWebFilter.java:11-12"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/CorrelationIdWebFilter.java:11-12",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/CorsOriginValidationWebFilter.java:14-15"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/CorsOriginValidationWebFilter.java:14-15",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/UntrustedIdentityHeadersFilter.java:11-12"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/UntrustedIdentityHeadersFilter.java:11-12",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewaySecurityHeadersFilter.java:11-12"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewaySecurityHeadersFilter.java:11-12",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -365,11 +431,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/AuthenticationRateLimitWebFilter.java:14-15"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/AuthenticationRateLimitWebFilter.java:14-15",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "redis",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16",
+          "hash": "1d4027522844d00a"
         }
       ]
     },
@@ -377,11 +445,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewaySecurityConfiguration.java:20-23"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewaySecurityConfiguration.java:20-23",
+          "hash": "e3690d01005441f6"
         },
         {
           "area": "identity",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayJwtConfiguration.java:28"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayJwtConfiguration.java:28",
+          "hash": "a02654eefd15012f"
         }
       ]
     },
@@ -389,7 +459,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:15-43"
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:15-43",
+          "hash": "d67b54bff950de08"
         }
       ]
     },
@@ -397,7 +468,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:24-26"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:24-26",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -405,11 +477,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/JwkSetController.java:11-13"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/JwkSetController.java:11-13",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/JwtKeyConfiguration.java:39-40"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/JwtKeyConfiguration.java:39-40",
+          "hash": "e3690d01005441f6"
         }
       ]
     },
@@ -417,11 +491,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/user/AuthenticationService.java:33-34"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/user/AuthenticationService.java:33-34",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/session/JwtTokenService.java:17-18"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/session/JwtTokenService.java:17-18",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -429,7 +505,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/oauth/OAuth2LoginSuccessHandler.java:23-24"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/oauth/OAuth2LoginSuccessHandler.java:23-24",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -437,11 +514,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/audit/SecurityAuditService.java:15-16"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/audit/SecurityAuditService.java:15-16",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "persistence",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/audit/SecurityAuditEventRepository.java:8"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/audit/SecurityAuditEventRepository.java:8",
+          "hash": "9cc4a00de67da1d1"
         }
       ]
     },
@@ -449,11 +528,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:21-22"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:21-22",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "redis",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96",
+          "hash": "cf04b73252995e72"
         }
       ]
     },
@@ -461,11 +542,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/EventManagementService.java:27-28"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/EventManagementService.java:27-28",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:29-31"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:29-31",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -473,15 +556,18 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryService.java:27-28"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryService.java:27-28",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/InventoryController.java:24-29"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/InventoryController.java:24-29",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryExpiryJob.java:25"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryExpiryJob.java:25",
+          "hash": "120126e13d0d040d"
         }
       ]
     },
@@ -489,11 +575,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:33-34"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:33-34",
+          "hash": "7e779c15de77454c"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:14-15"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:14-15",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -501,7 +589,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -509,11 +598,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70",
+          "hash": "4d9f5ea4cea5a3e7"
         },
         {
           "area": "persistence",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxMessage.java:12-14"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxMessage.java:12-14",
+          "hash": "c55be333256092f9"
         }
       ]
     },
@@ -521,7 +612,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/api/VenueController.java:24-28"
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/api/VenueController.java:24-28",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -529,7 +621,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/application/VenueAvailabilityService.java:20-21"
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/application/VenueAvailabilityService.java:20-21",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -537,11 +630,13 @@
       "needs": [
         {
           "area": "java",
-          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/application/LocationEnrichmentPort.java:6"
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/application/LocationEnrichmentPort.java:6",
+          "hash": "971f3a8ad480dd80"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/infrastructure/maps/LocalLocationEnrichmentAdapter.java:8-9"
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/infrastructure/maps/LocalLocationEnrichmentAdapter.java:8-9",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -549,15 +644,18 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:27-32"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:27-32",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/AttendeeProfileController.java:16-20"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/AttendeeProfileController.java:16-20",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingCoordinator.java:11-12"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingCoordinator.java:11-12",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -565,11 +663,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:30-31"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:30-31",
+          "hash": "10df618345d705f9"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:16-17"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:16-17",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -577,15 +677,18 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaService.java:32-33"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaService.java:32-33",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaRecoveryJob.java:3"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaRecoveryJob.java:3",
+          "hash": "b3d25816d8a9e205"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/TicketHoldExpiryJob.java:12-14"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/TicketHoldExpiryJob.java:12-14",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -593,11 +696,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46",
+          "hash": "4359662a6d3dd455"
         },
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -605,11 +710,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:22-27"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:22-27",
+          "hash": "30ac9efe3c23e826"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/QrTokenService.java:21-22"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/QrTokenService.java:21-22",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -617,11 +724,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68",
+          "hash": "4d9f5ea4cea5a3e7"
         },
         {
           "area": "persistence",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxMessage.java:12-14"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxMessage.java:12-14",
+          "hash": "c55be333256092f9"
         }
       ]
     },
@@ -629,7 +738,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/api/PaymentController.java:7-8"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/api/PaymentController.java:7-8",
+          "hash": "aa4061f03af6d5d1"
         }
       ]
     },
@@ -637,11 +747,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/PaymentApplicationService.java:6-7"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/PaymentApplicationService.java:6-7",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/PaymentReconciliationJob.java:5-6"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/PaymentReconciliationJob.java:5-6",
+          "hash": "9c9cb25ff7629659"
         }
       ]
     },
@@ -649,11 +761,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/RefundApplicationService.java:5-6"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/RefundApplicationService.java:5-6",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/RefundStateService.java:6-7"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/RefundStateService.java:6-7",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -661,11 +775,13 @@
       "needs": [
         {
           "area": "java",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/provider/PaymentProvider.java:5"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/provider/PaymentProvider.java:5",
+          "hash": "f35a97378c92bbe1"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/provider/FakePaymentProvider.java:18-19"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/provider/FakePaymentProvider.java:18-19",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -673,7 +789,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/AttendeeLifecycleConsumer.java:56-58"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/AttendeeLifecycleConsumer.java:56-58",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -681,11 +798,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65",
+          "hash": "4d9f5ea4cea5a3e7"
         },
         {
           "area": "persistence",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxMessage.java:12-14"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxMessage.java:12-14",
+          "hash": "c55be333256092f9"
         }
       ]
     },
@@ -693,7 +812,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/api/NotificationController.java:15-17"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/api/NotificationController.java:15-17",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -701,11 +821,13 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26",
+          "hash": "4359662a6d3dd455"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationPlanner.java:26-27"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationPlanner.java:26-27",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -713,11 +835,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationDeliveryJob.java:32-33"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationDeliveryJob.java:32-33",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationDeliveryJob.java:73"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationDeliveryJob.java:73",
+          "hash": "486ef11a37e45686"
         }
       ]
     },
@@ -725,11 +849,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/provider/LocalEmailAdapter.java:13-15"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/provider/LocalEmailAdapter.java:13-15",
+          "hash": "049141d4b8fb0835"
         },
         {
           "area": "spring",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/provider/LocalSmsAdapter.java:13-15"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/provider/LocalSmsAdapter.java:13-15",
+          "hash": "049141d4b8fb0835"
         }
       ]
     },
@@ -737,7 +863,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:29-30"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/BookingController.java:29-30",
+          "hash": "d17f557fd0c61952"
         }
       ]
     },
@@ -745,7 +872,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:62-63"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/EventController.java:62-63",
+          "hash": "ae1e50ed883c0b29"
         }
       ]
     },
@@ -753,7 +881,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:24-25"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/api/TicketScanController.java:24-25",
+          "hash": "d17f557fd0c61952"
         }
       ]
     },
@@ -761,7 +890,8 @@
       "needs": [
         {
           "area": "people",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:97-98"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/api/AuthController.java:97-98",
+          "hash": "ba640fe9df3bd1ec"
         }
       ]
     },
@@ -772,11 +902,13 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "Event-Management-platform:frontend/nginx.conf:8-14"
+          "at": "Event-Management-platform:frontend/nginx.conf:8-14",
+          "hash": "71c1bf0fb9c94be9"
         },
         {
           "area": "frontend",
-          "at": "Event-Management-platform:frontend/vite.config.ts:10"
+          "at": "Event-Management-platform:frontend/vite.config.ts:10",
+          "hash": "6d04204d10f34d9e"
         }
       ]
     },
@@ -784,11 +916,13 @@
       "needs": [
         {
           "area": "redis",
-          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16"
+          "at": "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewayRateLimitConfiguration.java:12-16",
+          "hash": "1d4027522844d00a"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:7-10"
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:7-10",
+          "hash": "ff72caa36dca2baa"
         }
       ]
     },
@@ -796,11 +930,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:16-23"
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:16-23",
+          "hash": "d6d2fa973e3d59d7"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:357-367"
+          "at": "Event-Management-platform:compose.yaml:357-367",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -808,11 +944,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:24-27"
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:24-27",
+          "hash": "f6adc30f24172232"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:357-381"
+          "at": "Event-Management-platform:compose.yaml:357-381",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -820,11 +958,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:28-31"
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:28-31",
+          "hash": "c41de893095af966"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:357-382"
+          "at": "Event-Management-platform:compose.yaml:357-382",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -832,11 +972,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:32-35"
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:32-35",
+          "hash": "bf85b77ba763d7d3"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:357-383"
+          "at": "Event-Management-platform:compose.yaml:357-383",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -844,11 +986,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:36-39"
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:36-39",
+          "hash": "ef61cc2840d989cf"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:357-384"
+          "at": "Event-Management-platform:compose.yaml:357-384",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -856,11 +1000,13 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:40-43"
+          "at": "Event-Management-platform:api-gateway/src/main/resources/application.yml:40-43",
+          "hash": "b49ba4e4c5f79b78"
         },
         {
           "area": "deployment",
-          "at": "Event-Management-platform:compose.yaml:357-385"
+          "at": "Event-Management-platform:compose.yaml:357-385",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -868,11 +1014,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:33-34"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/infrastructure/venue/HttpVenueAvailabilityAdapter.java:33-34",
+          "hash": "7e779c15de77454c"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:38-40"
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:38-40",
+          "hash": "c93ec4a85f4c4319"
         }
       ]
     },
@@ -880,11 +1028,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:30-31"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/infrastructure/event/HttpEventInventoryAdapter.java:30-31",
+          "hash": "10df618345d705f9"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:36-38"
+          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:36-38",
+          "hash": "7ffe2a95114ebcd2"
         }
       ]
     },
@@ -892,7 +1042,8 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/AuthSecurityConfiguration.java:95-98"
+          "at": "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/AuthSecurityConfiguration.java:95-98",
+          "hash": "02e8e24cc6f15580"
         }
       ]
     },
@@ -900,7 +1051,8 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:8-11"
+          "at": "Event-Management-platform:auth-service/src/main/resources/application.yml:8-11",
+          "hash": "b8d4c88fdc3806df"
         }
       ]
     },
@@ -908,7 +1060,8 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:8-11"
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:8-11",
+          "hash": "b8d4c88fdc3806df"
         }
       ]
     },
@@ -916,7 +1069,8 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:8-11"
+          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:8-11",
+          "hash": "b8d4c88fdc3806df"
         }
       ]
     },
@@ -924,7 +1078,8 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:8-11"
+          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:8-11",
+          "hash": "b8d4c88fdc3806df"
         }
       ]
     },
@@ -932,7 +1087,8 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:8-11"
+          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:8-11",
+          "hash": "b8d4c88fdc3806df"
         }
       ]
     },
@@ -940,7 +1096,8 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:8-11"
+          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:8-11",
+          "hash": "b8d4c88fdc3806df"
         }
       ]
     },
@@ -948,11 +1105,13 @@
       "needs": [
         {
           "area": "redis",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:95-96",
+          "hash": "cf04b73252995e72"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:18-27"
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:18-27",
+          "hash": "ff72caa36dca2baa"
         }
       ]
     },
@@ -960,11 +1119,13 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/config/EventSecurityConfiguration.java:90-93"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/config/EventSecurityConfiguration.java:90-93",
+          "hash": "0279ebdd3c009a11"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:37"
+          "at": "Event-Management-platform:event-service/src/main/resources/application.yml:37",
+          "hash": "2efeee875e8b92b4"
         }
       ]
     },
@@ -972,11 +1133,13 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/config/VenueSecurityConfiguration.java:84-87"
+          "at": "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/config/VenueSecurityConfiguration.java:84-87",
+          "hash": "0279ebdd3c009a11"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:25"
+          "at": "Event-Management-platform:venue-service/src/main/resources/application.yml:25",
+          "hash": "2efeee875e8b92b4"
         }
       ]
     },
@@ -984,11 +1147,13 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/config/AttendeeSecurityConfiguration.java:60-63"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/config/AttendeeSecurityConfiguration.java:60-63",
+          "hash": "0279ebdd3c009a11"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:31"
+          "at": "Event-Management-platform:attendee-service/src/main/resources/application.yml:31",
+          "hash": "2efeee875e8b92b4"
         }
       ]
     },
@@ -996,11 +1161,13 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/config/PaymentSecurityConfiguration.java:40-42"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/config/PaymentSecurityConfiguration.java:40-42",
+          "hash": "1451846c1002a2a9"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:35"
+          "at": "Event-Management-platform:payment-service/src/main/resources/application.yml:35",
+          "hash": "b06b69b35b740fff"
         }
       ]
     },
@@ -1008,11 +1175,13 @@
       "needs": [
         {
           "area": "identity",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/config/NotificationSecurityConfiguration.java:54-57"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/config/NotificationSecurityConfiguration.java:54-57",
+          "hash": "e78b8891108c3565"
         },
         {
           "area": "config",
-          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:31"
+          "at": "Event-Management-platform:notification-service/src/main/resources/application.yml:31",
+          "hash": "b06b69b35b740fff"
         }
       ]
     },
@@ -1020,7 +1189,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:64-70",
+          "hash": "4d9f5ea4cea5a3e7"
         }
       ]
     },
@@ -1028,7 +1198,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/outbox/AttendeeOutboxRelay.java:62-68",
+          "hash": "4d9f5ea4cea5a3e7"
         }
       ]
     },
@@ -1036,7 +1207,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/outbox/PaymentOutboxRelay.java:59-65",
+          "hash": "4d9f5ea4cea5a3e7"
         }
       ]
     },
@@ -1044,7 +1216,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:44-46",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -1052,7 +1225,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40"
+          "at": "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/integration/AttendeeInventorySagaConsumer.java:38-40",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -1060,7 +1234,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/AttendeeLifecycleConsumer.java:56-58"
+          "at": "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/AttendeeLifecycleConsumer.java:56-58",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -1068,7 +1243,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45"
+          "at": "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/PaymentLifecycleConsumer.java:43-45",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -1076,7 +1252,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -1084,7 +1261,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26",
+          "hash": "4359662a6d3dd455"
         }
       ]
     },
@@ -1092,7 +1270,8 @@
       "needs": [
         {
           "area": "messaging",
-          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26"
+          "at": "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventConsumer.java:19-26",
+          "hash": "4359662a6d3dd455"
         }
       ]
     }
