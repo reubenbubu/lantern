@@ -124,3 +124,44 @@ like at `@Scheduled` ones, so the call graph from the handler reaches what it pu
 from the method that schedules a `background-job` goes on into the job (ADR 0047, amendment for
 #313). Documents call them
 "JobRunr job" and "Quartz job".
+
+## Amendment: registrations, access checks, property gates and scheduling calls (#383)
+
+Research: [`docs/research/extractor-spring.md`](../research/extractor-spring.md). The extractor
+records each registration, access check and scheduling call at the line that declares it. VERSION
+5 adds:
+
+- **`discovery-client`** on a class with `@EnableDiscoveryClient` or `@EnableEurekaClient`, value
+  `discovery`, `autoRegister: false` when written. The annotation is optional in Spring Cloud: the
+  client starter alone registers. The linker takes registration as the starter, the annotation or
+  the client config, unless `autoRegister=false` or config turns it off; the annotation alone is
+  never required.
+- **`infrastructure-server`** on a class with `@EnableEurekaServer`, `@EnableConfigServer` or
+  `@EnableAdminServer`, value `eureka`, `config` or `admin`.
+- **`method-security`** on a class with `@EnableMethodSecurity`, `@EnableReactiveMethodSecurity` or
+  `@EnableGlobalMethodSecurity`, value `on`, with `prePostEnabled`, `securedEnabled` and
+  `jsr250Enabled` as written or defaulted (`@EnableGlobalMethodSecurity` leaves all three off).
+- **`access-check`** on a bean class or one of its methods carrying `@PreAuthorize`,
+  `@PostAuthorize`, `@Secured`, `@RolesAllowed`, `@PermitAll` or `@DenyAll` (jakarta or javax),
+  directly or through a meta-annotation (`annotation` names it). Value: the expression or roles as
+  written, else the kind. A class-level check applies to its methods. A check is enforced only
+  where a `method-security` fact of the same unit enables its kind; the linker decides that.
+- **`advised-by`** on a method an aspect advises because of an annotation it carries: the
+  pointcut selects it with `@annotation`, `@within` or `@target`, directly or through named
+  pointcuts as `ADVISES` follows them: the annotation without which the pointcut would no longer
+  select the method. Value: the aspect; `advice`, `kind` and `annotation` as attributes;
+  evidence: the annotation on the method. `ADVISES` (ADR 0079) is unchanged.
+- **`SCHEDULES`** from a method that schedules a JobRunr or Quartz job to the job method, at the
+  scheduling call (`framework`), beside the job's `scheduledBy`. For Quartz that is the
+  `Scheduler.scheduleJob` call, not the `JobBuilder` that builds the job.
+- **`property-gate`** for `@ConditionalOnProperty` on a bean class or `@Bean` method, directly or
+  meta-annotated, like `profile-gate`: `properties` (prefix joined to each name), `havingValue`,
+  `matchIfMissing`; value the properties joined by ` & `, with `=havingValue` when given.
+
+**Not read yet**, each with a project-0 case first: HTTP security matchers
+(`authorizeHttpRequests`, `authorizeExchange`) as access checks (#418); JobRunr `BackgroundJob`
+and `JobScheduler` lambdas and the `aJob()` builder (#419); `RouterFunction` beans, server-side
+`@HttpExchange`, `@EventListener` and Modulith listeners, GraphQL and gRPC (#420). Also not
+read: access checks on interfaces (Spring Security honours them, no test set has one), and
+Boot 3.5's repeated `@ConditionalOnProperty` and `@ConditionalOnBooleanProperty`. Linking the
+new facts is #421.

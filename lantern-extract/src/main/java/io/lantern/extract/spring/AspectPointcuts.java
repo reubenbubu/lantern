@@ -39,7 +39,27 @@ final class AspectPointcuts {
    * @return true if it selects the candidate, false if it does not or cannot be told
    */
   static boolean selects(String expression, Candidate candidate, Names names) {
-    return Boolean.TRUE.equals(evaluate(expression, candidate, names, 0));
+    return Boolean.TRUE.equals(evaluate(expression, candidate, names, null, 0));
+  }
+
+  /**
+   * The annotation type on the candidate, or on its type, that an expression selects it by: one its
+   * {@code @annotation}, {@code @within} or {@code @target} terms name, without which the
+   * expression would no longer select it. Null when none is needed or it does not select it.
+   */
+  static String selectingAnnotation(String expression, Candidate candidate, Names names) {
+    if (!selects(expression, candidate, names)) {
+      return null;
+    }
+    for (String type : annotationTypes(expression, names)) {
+      boolean present =
+          hasAnnotation(candidate.annotations, type)
+              || hasAnnotation(candidate.type.annotations(), type);
+      if (present && !Boolean.TRUE.equals(evaluate(expression, candidate, names, type, 0))) {
+        return type;
+      }
+    }
+    return null;
   }
 
   /** The annotation types an expression selects by (its {@code @annotation} arguments). */
@@ -86,27 +106,31 @@ final class AspectPointcuts {
     return result;
   }
 
-  private static Boolean evaluate(String expression, Candidate c, Names names, int depth) {
+  /** Evaluates an expression as if the annotation type {@code hidden}, if any, were absent. */
+  private static Boolean evaluate(
+      String expression, Candidate c, Names names, String hidden, int depth) {
     if (depth > 5) {
       return null;
     }
     try {
-      return new Parser(expression).or(term -> term(term, c, names, depth));
+      return new Parser(expression).or(term -> term(term, c, names, hidden, depth));
     } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
       return null;
     }
   }
 
-  private static Boolean term(Term term, Candidate c, Names names, int depth) {
+  private static Boolean term(Term term, Candidate c, Names names, String hidden, int depth) {
     String argument = term.argument == null ? "" : term.argument.strip();
     switch (term.designator) {
       case "@annotation" -> {
         String type = names.annotationType(argument);
-        return type == null ? null : hasAnnotation(c.annotations, type);
+        return type == null ? null : !type.equals(hidden) && hasAnnotation(c.annotations, type);
       }
       case "@within", "@target" -> {
         String type = names.annotationType(argument);
-        return type == null ? null : hasAnnotation(c.type.annotations(), type);
+        return type == null
+            ? null
+            : !type.equals(hidden) && hasAnnotation(c.type.annotations(), type);
       }
       case "within" -> {
         return typeMatches(argument, c);
@@ -117,7 +141,7 @@ final class AspectPointcuts {
       default -> {
         if (term.argument == null || argument.isEmpty()) {
           String named = names.pointcut(term.designator);
-          return named == null ? null : evaluate(named, c, names, depth + 1);
+          return named == null ? null : evaluate(named, c, names, hidden, depth + 1);
         }
         return null;
       }

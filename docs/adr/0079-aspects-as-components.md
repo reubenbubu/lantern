@@ -39,3 +39,9 @@ component views, and nothing could state where authorization is decided.
   pattern on an interface does not select the methods its implementers declare. `@target` is read
   as `@within` (the annotation on the declaring class, not the runtime class). A malformed
   pointcut selects nothing.
+
+## Amendment: the advised method's side (#383)
+
+A method an aspect advises because of an annotation it carries also gets an `advised-by` fact at
+that annotation (ADR 0035, amendment for #383), so the line that asks for the advice, such as a
+custom permission check, is evidence too. `ADVISES` and how aspects are drawn are unchanged.
