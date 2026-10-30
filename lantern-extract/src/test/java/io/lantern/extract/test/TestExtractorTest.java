@@ -305,6 +305,9 @@ class TestExtractorTest {
                           .withExposedPorts(6379);
 
                   static PostgreSQLContainer<?> other = new PostgreSQLContainer<>(image());
+
+                  static final DockerImageName PG = DockerImageName.parse("postgres:17.5");
+                  static PostgreSQLContainer<?> pinned = new PostgreSQLContainer<>(PG);
                 }
                 """,
                 "src/test/java/com/example/EventsTest.java",
@@ -329,13 +332,15 @@ class TestExtractorTest {
                 """));
 
     assertThat(extract(repo))
-        .containsExactly(
+        .containsExactlyInAnyOrder(
             "module:g:infra test-container EmbeddedKafka {\"embedded\":true,\"role\":\"broker\",\"technology\":\"Kafka\",\"topics\":[\"orders\",\"${app.topic}\"]}"
                 + " @infra:src/test/java/com/example/EventsTest.java#6-6 0.9",
             "module:g:infra test-container PostgreSQLContainer {\"class\":\"PostgreSQLContainer\",\"role\":\"database\",\"technology\":\"PostgreSQL\"}"
                 + " @infra:src/test/java/com/example/BaseIntegrationTest.java#24-24 0.9",
             "module:g:infra test-container postgres:16 {\"class\":\"PostgreSQLContainer\",\"image\":\"postgres:16\",\"role\":\"database\",\"serviceConnection\":true,\"technology\":\"PostgreSQL 16\"}"
                 + " @infra:src/test/java/com/example/BaseIntegrationTest.java#14-14 0.9",
+            "module:g:infra test-container postgres:17.5 {\"class\":\"PostgreSQLContainer\",\"image\":\"postgres:17.5\",\"role\":\"database\",\"technology\":\"PostgreSQL 17.5\"}"
+                + " @infra:src/test/java/com/example/BaseIntegrationTest.java#27-27 0.9",
             "module:g:infra test-container rabbitmq:4.1-management {\"class\":\"RabbitMQContainer\",\"image\":\"rabbitmq:4.1-management\",\"role\":\"broker\",\"technology\":\"RabbitMQ 4.1\"}"
                 + " @infra:src/test/java/com/example/BaseIntegrationTest.java#17-17 0.9",
             "module:g:infra test-container redis:8.4.0-alpine {\"class\":\"GenericContainer\",\"image\":\"redis:8.4.0-alpine\",\"role\":\"cache\",\"technology\":\"Redis 8.4.0\"}"
@@ -361,6 +366,7 @@ class TestExtractorTest {
                 import static com.tngtech.archunit.library.Architectures.onionArchitecture;
                 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
+                import com.tngtech.archunit.core.domain.JavaClasses;
                 import com.tngtech.archunit.junit.AnalyzeClasses;
                 import com.tngtech.archunit.junit.ArchIgnore;
                 import com.tngtech.archunit.junit.ArchTest;
@@ -396,18 +402,60 @@ class TestExtractorTest {
                           .applicationServices("..application..")
                           .adapter("rest", "..adapter.rest..")
                           .adapter("persistence", Packages.PERSISTENCE);
+
+                  static void plain(JavaClasses classes) {
+                    layeredArchitecture()
+                        .consideringAllDependencies()
+                        .withOptionalLayers(true)
+                        .layer("Api").definedBy("..api..")
+                        .whereLayer("Api").mayNotBeAccessedByAnyLayer()
+                        .check(classes);
+                  }
+                }
+                """,
+                "src/test/java/com/example/RulesTest.java",
+                """
+                package com.example;
+
+                import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
+
+                import com.tngtech.archunit.junit.ArchTest;
+                import com.tngtech.archunit.lang.ArchRule;
+                import com.tngtech.archunit.library.freeze.FreezingArchRule;
+                import org.junit.jupiter.api.Disabled;
+
+                class RulesTest {
+                  static final ArchRule CYCLES = slices().matching("..(*)..").should().beFreeOfCycles();
+
+                  @ArchTest static final ArchRule frozen = FreezingArchRule.freeze(CYCLES);
+
+                  @Disabled
+                  static class Off {
+                    @ArchTest
+                    static final ArchRule apart =
+                        slices().matching("..feature.(*)..").should().notDependOnEachOther();
+                  }
                 }
                 """));
 
+    // Two rules of one kind order by their IDs, which hold the fixture's commit.
     assertThat(extract(repo))
-        .containsExactly(
-            "module:g:rules architecture-rule layered {\"access\":{\"Service\":[\"mayOnlyBeAccessedByLayers\",\"Web\"],\"Web\":[\"mayNotBeAccessedByAnyLayer\"]},\"because\":\"services stay behind the web layer\",\"layers\":{\"Persistence\":[\"..repository..\",\"..entity..\"],\"Service\":[\"..service..\"],\"Web\":[\"..web..\"]}}"
-                + " @rules:src/test/java/com/example/ArchitectureTest.java#19-26 0.9",
-            "module:g:rules architecture-rule onion {\"ignored\":true,\"layers\":{\"adapter persistence\":[],\"adapter rest\":[\"..adapter.rest..\"],\"applicationServices\":[\"..application..\"],\"domainModels\":[\"..domain.model..\"],\"domainServices\":[\"..domain.service..\"]},\"unresolved\":true}"
-                + " @rules:src/test/java/com/example/ArchitectureTest.java#36-41 0.9",
+        .containsExactlyInAnyOrder(
+            "module:g:rules architecture-rule layered {\"access\":{\"Service\":[\"mayOnlyBeAccessedByLayers\",\"Web\"],\"Web\":[\"mayNotBeAccessedByAnyLayer\"]},\"because\":\"services stay behind the web layer\",\"layers\":[{\"name\":\"Web\",\"packages\":[\"..web..\"]},{\"name\":\"Service\",\"packages\":[\"..service..\"]},{\"name\":\"Persistence\",\"packages\":[\"..repository..\",\"..entity..\"]}]}"
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#20-27 0.9",
+            "module:g:rules architecture-rule layered {\"access\":{\"Api\":[\"mayNotBeAccessedByAnyLayer\"]},\"layers\":[{\"name\":\"Api\",\"packages\":[\"..api..\"]}]}"
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#45-50 0.9",
+            "module:g:rules architecture-rule onion {\"ignored\":true,\"layers\":[{\"name\":\"domainModels\",\"packages\":[\"..domain.model..\"]},{\"name\":\"domainServices\",\"packages\":[\"..domain.service..\"]},{\"name\":\"applicationServices\",\"packages\":[\"..application..\"]},{\"name\":\"adapter rest\",\"packages\":[\"..adapter.rest..\"]},{\"name\":\"adapter persistence\",\"packages\":[]}],\"unresolved\":true}"
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#37-42 0.9",
+            "module:g:rules architecture-rule slices {\"checks\":[\"beFreeOfCycles\"],\"frozen\":true,\"slices\":\"..(*)..\"}"
+                + " @rules:src/test/java/com/example/RulesTest.java#11-11 0.9",
+            "module:g:rules architecture-rule slices {\"checks\":[\"notDependOnEachOther\"],\"ignored\":true,\"slices\":\"..feature.(*)..\"}"
+                + " @rules:src/test/java/com/example/RulesTest.java#19-19 0.9",
             "module:g:rules architecture-rule slices {\"checks\":[\"beFreeOfCycles\"],\"frozen\":true,\"slices\":\"com.example.(*)..\"}"
-                + " @rules:src/test/java/com/example/ArchitectureTest.java#31-31 0.9",
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#32-32 0.9",
             "test-class:g:rules:com.example.ArchitectureTest TESTS module:g:rules {\"architecture\":true,\"tests\":3}"
-                + " @rules:src/test/java/com/example/ArchitectureTest.java#13-42 0.9");
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#14-52 0.9",
+            "test-class:g:rules:com.example.RulesTest TESTS module:g:rules {\"architecture\":true,\"tests\":2}"
+                + " @rules:src/test/java/com/example/RulesTest.java#10-21 0.9");
   }
 }

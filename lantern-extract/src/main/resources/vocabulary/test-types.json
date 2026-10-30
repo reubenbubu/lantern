@@ -79,8 +79,11 @@
       "type": "object",
       "properties": {
         "layers": {
-          "type": "object",
-          "description": "Each layer, onion ring (domainModels, domainServices, applicationServices) or adapter ('adapter <name>') with its package patterns, in the rule's order."
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Each layer, onion ring (domainModels, domainServices, applicationServices) or adapter ('adapter <name>'), in the rule's order, as its name and package patterns: {\"name\": ..., \"packages\": [...]}."
         },
         "access": {
           "type": "object",

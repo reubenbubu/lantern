@@ -186,6 +186,10 @@ final class TestSources {
           "mayOnlyAccessPackages",
           "mayNotBeAccessedByLayers");
 
+  /** The other calls of a rule whose arguments it records. */
+  private static final Set<String> READ_CALLS =
+      Set.of("layer", "optionalLayer", "definedBy", "whereLayer", "adapter", "matching", "because");
+
   /** The onion architecture's rings, by ArchUnit's method that defines each. */
   private static final Set<String> ONION_RINGS =
       Set.of("domainModels", "domainServices", "applicationServices");
@@ -379,16 +383,21 @@ final class TestSources {
       String layer = null;
       String where = null;
       for (MethodCallExpr call : chain) {
+        String name = call.getNameAsString();
         List<String> args = new ArrayList<>();
-        for (Expression arg : call.getArguments()) {
-          String value = literal(arg);
-          if (value == null) {
-            unresolved = true;
-          } else {
-            args.add(value);
+        // Only the arguments of the calls read below; check(classes) and the like say nothing.
+        if (READ_CALLS.contains(name)
+            || ACCESS_RULES.contains(name)
+            || ONION_RINGS.contains(name)) {
+          for (Expression arg : call.getArguments()) {
+            String value = literal(arg);
+            if (value == null) {
+              unresolved = true;
+            } else {
+              args.add(value);
+            }
           }
         }
-        String name = call.getNameAsString();
         switch (name) {
           case "layer", "optionalLayer" -> layer = args.isEmpty() ? null : args.getFirst();
           case "definedBy" -> {
@@ -417,13 +426,28 @@ final class TestSources {
           }
         }
       }
+      Optional<NodeWithAnnotations<?>> declared = declaration(top);
+      // Frozen where it is written, or where a freeze(...) names the constant it is held in.
+      Set<String> names = new HashSet<>();
+      if (declared.orElse(null) instanceof FieldDeclaration field) {
+        field.getVariables().forEach(v -> names.add(v.getNameAsString()));
+      }
       boolean frozen =
-          top.getParentNode().orElse(null) instanceof MethodCallExpr wrap
-              && wrap.getNameAsString().equals("freeze");
+          (top.getParentNode().orElse(null) instanceof MethodCallExpr wrap
+                  && wrap.getNameAsString().equals("freeze"))
+              || unit.findAll(MethodCallExpr.class).stream()
+                  .anyMatch(
+                      c ->
+                          c.getNameAsString().equals("freeze")
+                              && c.getArguments().size() == 1
+                              && c.getArgument(0) instanceof NameExpr n
+                              && names.contains(n.getNameAsString()));
+      Set<String> off = Set.of(ARCH_IGNORE, DISABLED);
       boolean ignored =
-          declaration(top)
-              .map(d -> annotated(d, Set.of(ARCH_IGNORE, DISABLED), imports))
-              .orElse(false);
+          declared.map(d -> annotated(d, off, imports)).orElse(false)
+              || top.findAncestor(ClassOrInterfaceDeclaration.class)
+                  .map(c -> annotated(c, off, imports))
+                  .orElse(false);
       return new Rule(
           kind,
           layers,
@@ -462,6 +486,15 @@ final class TestSources {
       String value = literal(e);
       if (value != null) {
         return value;
+      }
+      // A constant holding DockerImageName.parse(...).
+      if (e instanceof NameExpr n) {
+        for (VariableDeclarator v : unit.findAll(VariableDeclarator.class)) {
+          if (v.getNameAsString().equals(n.getNameAsString())
+              && v.getInitializer().orElse(null) instanceof MethodCallExpr call) {
+            return image(call);
+          }
+        }
       }
       for (MethodCallExpr call : e.findAll(MethodCallExpr.class)) {
         if (call.getNameAsString().equals("parse") && call.getArguments().size() == 1) {

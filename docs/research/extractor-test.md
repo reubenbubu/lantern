@@ -136,7 +136,9 @@ issues in `Later`:
 - using the new facts in the brief and the C4 report, so each shows its own effect on the
   output.
 
-Skip Taikai's rule contents, slices, Failsafe classification, Spock, Cucumber, Kotlin and
+Of option 4, only the containers are taken now: WireMock paths do not name the system they stub,
+and `@DynamicPropertySource` keys add little beyond the container. Skip Taikai's rule contents,
+slices, Failsafe classification, Spock, Cucumber, Kotlin and
 `target/` output (generated pacts and Modulith documents), which are not committed. Lantern
 never claims a declared rule holds: it does not run the tests. Infrastructure seen only in tests
 is labelled as such wherever it is shown.

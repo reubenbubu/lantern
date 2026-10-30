@@ -106,12 +106,17 @@ only; using them in the C4 report is #509.
 - **Declared architecture rules.** Each `layeredArchitecture()`, `onionArchitecture()` and
   `slices()` rule of ArchUnit in a module's test sources, in a test class or a rules class, gives
   an `architecture-rule` attribute fact whose value is `layered`, `onion` or `slices`. It records
-  the layers (and onion rings and adapters) with their package patterns, each layer's access rule
+  the layers (and onion rings and adapters) in the rule's order, each with its package patterns, each layer's access rule
   with the layers it names, the slices' pattern and checks, and the reason `because` gives. It is
-  `frozen` when `FreezingArchRule.freeze` wraps it, `ignored` under `@ArchIgnore` or `@Disabled`,
-  and `unresolved` when an argument is neither a string literal nor a constant of the file. Other
+  `frozen` when `FreezingArchRule.freeze` wraps it or names the constant holding it, `ignored`
+  under `@ArchIgnore` or `@Disabled` on its field, method or class, and `unresolved` when an
+  argument of a call it reads (a layer, its packages, an access rule, an adapter, a ring, the slices'
+  pattern, the reason) is neither a string literal nor a constant of the file. Other
   ArchUnit rules stay counted only. Lantern never states a declared rule holds: it does not run
   the tests.
 - **Not read.** Spring Modulith and jMolecules declarations, which are main code (#507); contract
-  tests (#508); Taikai's rule contents, Spring test slices, Failsafe classification, Spock,
-  Cucumber and Kotlin.
+  tests (#508); WireMock stubs and `@DynamicPropertySource` keys; Taikai's rule contents, Spring
+  test slices, Failsafe classification, Spock, Cucumber and Kotlin. Containers are missed when
+  their class's name does not end in `Container` (a project's own subclass), when the image is
+  passed only through a subclass's `super(...)`, and when the class is written fully qualified in a
+  file that imports nothing of Testcontainers.

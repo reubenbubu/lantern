@@ -209,8 +209,15 @@ public final class TestExtractor {
         for (TestSources.Rule r : read.parsed().rules()) {
           ObjectNode attributes = FactJson.newObject();
           if (!r.layers().isEmpty()) {
-            ObjectNode layers = attributes.putObject("layers");
-            r.layers().forEach((name, packages) -> packages.forEach(layers.putArray(name)::add));
+            // An array, so the layers keep the rule's order, top to bottom.
+            ArrayNode layers = attributes.putArray("layers");
+            r.layers()
+                .forEach(
+                    (name, packages) -> {
+                      ObjectNode layer = layers.addObject();
+                      layer.put("name", name);
+                      packages.forEach(layer.putArray("packages")::add);
+                    });
           }
           if (!r.access().isEmpty()) {
             ObjectNode access = attributes.putObject("access");
