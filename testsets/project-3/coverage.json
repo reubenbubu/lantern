@@ -5,7 +5,8 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:package.json"
+          "at": "mediahub-frontend-ui:package.json:16",
+          "hash": "d7e25ff36a70245b"
         }
       ]
     },
@@ -13,15 +14,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "mediahub-api-gateway:pom.xml:12-12"
+          "at": "mediahub-api-gateway:pom.xml:12-12",
+          "hash": "2189f55256c07ff0"
         },
         {
           "area": "spring",
-          "at": "mediahub-api-gateway:src/main/java/com/mediahub/api_gateway/ApiGatewayApplication.java:7-11"
+          "at": "mediahub-api-gateway:src/main/java/com/mediahub/api_gateway/ApiGatewayApplication.java:7-11",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:35-51"
+          "at": "mediahub-infra:docker-compose.yml:35-51",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -29,15 +33,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "mediahub-discovery-server:pom.xml:12-12"
+          "at": "mediahub-discovery-server:pom.xml:12-12",
+          "hash": "e57977e74bfe845e"
         },
         {
           "area": "spring",
-          "at": "mediahub-discovery-server:src/main/java/com/mediahub/discovery_server/DiscoveryServerApplication.java:7-10"
+          "at": "mediahub-discovery-server:src/main/java/com/mediahub/discovery_server/DiscoveryServerApplication.java:7-10",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:2-14"
+          "at": "mediahub-infra:docker-compose.yml:2-14",
+          "hash": "24f560f387ac5efc"
         }
       ]
     },
@@ -45,15 +52,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "mediahub-config-server:pom.xml:12-12"
+          "at": "mediahub-config-server:pom.xml:12-12",
+          "hash": "b31987b4536450e9"
         },
         {
           "area": "spring",
-          "at": "mediahub-config-server:src/main/java/com/mediahub/config_server/ConfigServerApplication.java:8-12"
+          "at": "mediahub-config-server:src/main/java/com/mediahub/config_server/ConfigServerApplication.java:8-12",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:15-33"
+          "at": "mediahub-infra:docker-compose.yml:15-33",
+          "hash": "0fcabf3e1d3249c0"
         }
       ]
     },
@@ -61,15 +71,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "mediahub-user-service:pom.xml:12-12"
+          "at": "mediahub-user-service:pom.xml:12-12",
+          "hash": "eb1b15aa8a8dd7cd"
         },
         {
           "area": "spring",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/UserServiceApplication.java:8-11"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/UserServiceApplication.java:8-11",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:103-121"
+          "at": "mediahub-infra:docker-compose.yml:103-121",
+          "hash": "980a042a03f1ae00"
         }
       ]
     },
@@ -77,15 +90,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "mediahub-media-service:pom.xml:12-12"
+          "at": "mediahub-media-service:pom.xml:12-12",
+          "hash": "fe0f893a0565d2c9"
         },
         {
           "area": "spring",
-          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/MediaServiceApplication.java:8-11"
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/MediaServiceApplication.java:8-11",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:122-140"
+          "at": "mediahub-infra:docker-compose.yml:122-140",
+          "hash": "82496f5d365f2e7d"
         }
       ]
     },
@@ -93,15 +109,18 @@
       "needs": [
         {
           "area": "maven",
-          "at": "mediahub-subscription-service:pom.xml:12-12"
+          "at": "mediahub-subscription-service:pom.xml:12-12",
+          "hash": "d76aea7c6d5d2e2a"
         },
         {
           "area": "spring",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/SubscriptionServiceApplication.java:8-11"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/SubscriptionServiceApplication.java:8-11",
+          "hash": "90e607d910e4d12e"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:141-158"
+          "at": "mediahub-infra:docker-compose.yml:141-158",
+          "hash": "471907cfe07002a1"
         }
       ]
     },
@@ -109,15 +128,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:user-service.yml:5-8"
+          "at": "mediahub-config-repo:user-service.yml:5-8",
+          "hash": "b8d4c88fdc3806df"
         },
         {
           "area": "persistence",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/domain/AppUser.java:8-15"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/domain/AppUser.java:8-15",
+          "hash": "c55be333256092f9"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:52-68"
+          "at": "mediahub-infra:docker-compose.yml:52-68",
+          "hash": "930f0b1498236e02"
         }
       ]
     },
@@ -125,15 +147,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:media-service.yml:5-8"
+          "at": "mediahub-config-repo:media-service.yml:5-8",
+          "hash": "b8d4c88fdc3806df"
         },
         {
           "area": "persistence",
-          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/domain/entity/Media.java:11-19"
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/domain/entity/Media.java:11-19",
+          "hash": "c55be333256092f9"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:69-85"
+          "at": "mediahub-infra:docker-compose.yml:69-85",
+          "hash": "098211cbec4ec70f"
         }
       ]
     },
@@ -141,15 +166,18 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:subscription-service.yml:5-8"
+          "at": "mediahub-config-repo:subscription-service.yml:5-8",
+          "hash": "b8d4c88fdc3806df"
         },
         {
           "area": "persistence",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/domain/Subscription.java:10-17"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/domain/Subscription.java:10-17",
+          "hash": "c55be333256092f9"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:86-102"
+          "at": "mediahub-infra:docker-compose.yml:86-102",
+          "hash": "0a7569a34c4680db"
         }
       ]
     },
@@ -157,11 +185,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-server:src/main/resources/application.yaml:7-18"
+          "at": "mediahub-config-server:src/main/resources/application.yaml:7-18",
+          "hash": "82e822193dfb3257"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:15-24"
+          "at": "mediahub-infra:docker-compose.yml:15-24",
+          "hash": "0fcabf3e1d3249c0"
         }
       ]
     },
@@ -169,7 +199,8 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/features/catalog/catalog.ts:42-42"
+          "at": "mediahub-frontend-ui:src/app/features/catalog/catalog.ts:42-42",
+          "hash": "5c1bfb79b80d25bf"
         }
       ]
     },
@@ -177,11 +208,13 @@
       "needs": [
         {
           "area": "people",
-          "at": "mediahub-frontend-ui:src/app/app.routes.ts:13-23"
+          "at": "mediahub-frontend-ui:src/app/app.routes.ts:13-23",
+          "hash": "4938e8c5658e129c"
         },
         {
           "area": "people",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/domain/Role.java:3-6"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/domain/Role.java:3-6",
+          "hash": "d2ef5e508ae05d5b"
         }
       ]
     },
@@ -192,7 +225,8 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/core/services/auth.service.ts:35-53"
+          "at": "mediahub-frontend-ui:src/app/core/services/auth.service.ts:35-53",
+          "hash": "d4a4a70ba166d348"
         }
       ]
     },
@@ -200,11 +234,13 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/core/guards/auth.guard.ts:5-15"
+          "at": "mediahub-frontend-ui:src/app/core/guards/auth.guard.ts:5-15",
+          "hash": "163e98b2d4b801ec"
         },
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/core/interceptors/jwt.interceptor.ts:3-16"
+          "at": "mediahub-frontend-ui:src/app/core/interceptors/jwt.interceptor.ts:3-16",
+          "hash": "390f3e3fe670e1b5"
         }
       ]
     },
@@ -212,7 +248,8 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/services/media.ts:12-28"
+          "at": "mediahub-frontend-ui:src/app/services/media.ts:12-28",
+          "hash": "42060863bd33c362"
         }
       ]
     },
@@ -220,11 +257,13 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/services/subscription.ts:12-28"
+          "at": "mediahub-frontend-ui:src/app/services/subscription.ts:12-28",
+          "hash": "1c9098b4f07c519d"
         },
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/services/user.ts:11-27"
+          "at": "mediahub-frontend-ui:src/app/services/user.ts:11-27",
+          "hash": "ade065f18d032f41"
         }
       ]
     },
@@ -232,7 +271,8 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/features/home/home.ts:118-125"
+          "at": "mediahub-frontend-ui:src/app/features/home/home.ts:118-125",
+          "hash": "1f85eeb492221cb3"
         }
       ]
     },
@@ -240,7 +280,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:12-24"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:12-24",
+          "hash": "d67b54bff950de08"
         }
       ]
     },
@@ -248,7 +289,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:8-11"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:8-11",
+          "hash": "1e248a9add357cc5"
         }
       ]
     },
@@ -256,11 +298,13 @@
       "needs": [
         {
           "area": "maven",
-          "at": "mediahub-api-gateway:pom.xml:34-36"
+          "at": "mediahub-api-gateway:pom.xml:34-36",
+          "hash": "2308e634890eb2d7"
         },
         {
           "area": "config",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:26-31"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:26-31",
+          "hash": "24792dc85d157ca6"
         }
       ]
     },
@@ -268,11 +312,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:api-gateway.yml:22-29"
+          "at": "mediahub-config-repo:api-gateway.yml:22-29",
+          "hash": "c95f5f6991d8b9c2"
         },
         {
           "area": "config",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:35-39"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:35-39",
+          "hash": "c95f5f6991d8b9c2"
         }
       ]
     },
@@ -280,7 +326,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/controller/UserController.java:17-20"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/controller/UserController.java:17-20",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -288,11 +335,13 @@
       "needs": [
         {
           "area": "spring",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/UserServiceImpl.java:20-22"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/UserServiceImpl.java:20-22",
+          "hash": "f76d53d23446399c"
         },
         {
           "area": "spring",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/config/SecurityConfig.java:9-14"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/config/SecurityConfig.java:9-14",
+          "hash": "68385f847b474ee5"
         }
       ]
     },
@@ -300,7 +349,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/controller/WatchHistoryController.java:10-13"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/controller/WatchHistoryController.java:10-13",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -308,7 +358,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/WatchHistoryServiceImpl.java:11-13"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/WatchHistoryServiceImpl.java:11-13",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -316,7 +367,8 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/client/MediaServiceClient.java:7-11"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/client/MediaServiceClient.java:7-11",
+          "hash": "d5da28a26726663e"
         }
       ]
     },
@@ -324,11 +376,13 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/UserRepository.java:11-12"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/UserRepository.java:11-12",
+          "hash": "45fde6a2371ae2e1"
         },
         {
           "area": "persistence",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/WatchHistoryRepository.java:8-9"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/WatchHistoryRepository.java:8-9",
+          "hash": "45fde6a2371ae2e1"
         }
       ]
     },
@@ -336,7 +390,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/controller/MediaController.java:20-23"
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/controller/MediaController.java:20-23",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -344,7 +399,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/service/impl/MediaServiceImpl.java:20-23"
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/service/impl/MediaServiceImpl.java:20-23",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -352,7 +408,8 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/repository/MediaRepository.java:10-12"
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/repository/MediaRepository.java:10-12",
+          "hash": "a3f0be5c2b497a76"
         }
       ]
     },
@@ -360,7 +417,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/controller/SubscriptionController.java:14-17"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/controller/SubscriptionController.java:14-17",
+          "hash": "30ac9efe3c23e826"
         }
       ]
     },
@@ -368,7 +426,8 @@
       "needs": [
         {
           "area": "spring",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:18-20"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:18-20",
+          "hash": "f76d53d23446399c"
         }
       ]
     },
@@ -376,7 +435,8 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/UserClient.java:8-13"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/UserClient.java:8-13",
+          "hash": "59732c570e2992c3"
         }
       ]
     },
@@ -384,11 +444,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:86-94"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:86-94",
+          "hash": "3866b0c60e1f51c7"
         },
         {
           "area": "http-client",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/config/WebClientConfig.java:11-15"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/config/WebClientConfig.java:11-15",
+          "hash": "36349814baf0b81d"
         }
       ]
     },
@@ -396,7 +458,8 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/MediaClient.java:8-13"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/MediaClient.java:8-13",
+          "hash": "ed04564b247c1710"
         }
       ]
     },
@@ -404,7 +467,8 @@
       "needs": [
         {
           "area": "persistence",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/repository/SubscriptionRepository.java:11-15"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/repository/SubscriptionRepository.java:11-15",
+          "hash": "ec401661af263616"
         }
       ]
     },
@@ -418,11 +482,13 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:proxy.conf.json"
+          "at": "mediahub-frontend-ui:proxy.conf.json:2-6",
+          "hash": "c969a2b8af602787"
         },
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/services/media.ts:12-12"
+          "at": "mediahub-frontend-ui:src/app/services/media.ts:12-12",
+          "hash": "42060863bd33c362"
         }
       ]
     },
@@ -430,7 +496,8 @@
       "needs": [
         {
           "area": "frontend",
-          "at": "mediahub-frontend-ui:src/app/features/catalog/catalog.ts:42-42"
+          "at": "mediahub-frontend-ui:src/app/features/catalog/catalog.ts:42-42",
+          "hash": "5c1bfb79b80d25bf"
         }
       ]
     },
@@ -438,7 +505,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:13-16"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:13-16",
+          "hash": "a9ecb9bddeef12c8"
         }
       ]
     },
@@ -446,7 +514,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:17-20"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:17-20",
+          "hash": "2d9388a847593320"
         }
       ]
     },
@@ -454,7 +523,8 @@
       "needs": [
         {
           "area": "gateway",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:21-24"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:21-24",
+          "hash": "529d8746f6b07fb5"
         }
       ]
     },
@@ -462,7 +532,8 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/UserClient.java:8-13"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/UserClient.java:8-13",
+          "hash": "59732c570e2992c3"
         }
       ]
     },
@@ -470,11 +541,13 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:86-94"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:86-94",
+          "hash": "3866b0c60e1f51c7"
         },
         {
           "area": "http-client",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/MediaClient.java:8-13"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/MediaClient.java:8-13",
+          "hash": "ed04564b247c1710"
         }
       ]
     },
@@ -482,7 +555,8 @@
       "needs": [
         {
           "area": "http-client",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/client/MediaServiceClient.java:7-11"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/client/MediaServiceClient.java:7-11",
+          "hash": "d5da28a26726663e"
         }
       ]
     },
@@ -490,11 +564,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:user-service.yml:5-8"
+          "at": "mediahub-config-repo:user-service.yml:5-8",
+          "hash": "b8d4c88fdc3806df"
         },
         {
           "area": "persistence",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/UserRepository.java:11-12"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/repository/UserRepository.java:11-12",
+          "hash": "45fde6a2371ae2e1"
         }
       ]
     },
@@ -502,11 +578,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:media-service.yml:5-8"
+          "at": "mediahub-config-repo:media-service.yml:5-8",
+          "hash": "b8d4c88fdc3806df"
         },
         {
           "area": "persistence",
-          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/repository/MediaRepository.java:10-12"
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/repository/MediaRepository.java:10-12",
+          "hash": "a3f0be5c2b497a76"
         }
       ]
     },
@@ -514,11 +592,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:subscription-service.yml:5-8"
+          "at": "mediahub-config-repo:subscription-service.yml:5-8",
+          "hash": "b8d4c88fdc3806df"
         },
         {
           "area": "persistence",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/repository/SubscriptionRepository.java:11-15"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/repository/SubscriptionRepository.java:11-15",
+          "hash": "ec401661af263616"
         }
       ]
     },
@@ -526,7 +606,8 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-server:src/main/resources/application.yaml:10-18"
+          "at": "mediahub-config-server:src/main/resources/application.yaml:10-18",
+          "hash": "4b6b3aaa9dfa0616"
         }
       ]
     },
@@ -534,11 +615,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:4-6"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:4-6",
+          "hash": "82e822193dfb3257"
         },
         {
           "area": "deployment",
-          "at": "mediahub-infra:docker-compose.yml:35-42"
+          "at": "mediahub-infra:docker-compose.yml:35-42",
+          "hash": "db15991be4b5fa6c"
         }
       ]
     },
@@ -546,7 +629,8 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-user-service:src/main/resources/bootstrap.yaml:4-9"
+          "at": "mediahub-user-service:src/main/resources/bootstrap.yaml:4-9",
+          "hash": "82e822193dfb3257"
         }
       ]
     },
@@ -554,7 +638,8 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-media-service:src/main/resources/application.yaml:4-9"
+          "at": "mediahub-media-service:src/main/resources/application.yaml:4-9",
+          "hash": "82e822193dfb3257"
         }
       ]
     },
@@ -562,7 +647,8 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-subscription-service:src/main/resources/application.yaml:4-9"
+          "at": "mediahub-subscription-service:src/main/resources/application.yaml:4-9",
+          "hash": "82e822193dfb3257"
         }
       ]
     },
@@ -570,7 +656,8 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-server:src/main/resources/application.yaml:24-27"
+          "at": "mediahub-config-server:src/main/resources/application.yaml:24-27",
+          "hash": "24792dc85d157ca6"
         }
       ]
     },
@@ -578,7 +665,8 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-api-gateway:src/main/resources/application.yaml:26-31"
+          "at": "mediahub-api-gateway:src/main/resources/application.yaml:26-31",
+          "hash": "24792dc85d157ca6"
         }
       ]
     },
@@ -586,11 +674,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:application.yml:1-4"
+          "at": "mediahub-config-repo:application.yml:1-4",
+          "hash": "24792dc85d157ca6"
         },
         {
           "area": "spring",
-          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/UserServiceApplication.java:9-9"
+          "at": "mediahub-user-service:src/main/java/com/mediahub/user_service/UserServiceApplication.java:9-9",
+          "hash": "3533ffb6e9353149"
         }
       ]
     },
@@ -598,11 +688,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:application.yml:1-4"
+          "at": "mediahub-config-repo:application.yml:1-4",
+          "hash": "24792dc85d157ca6"
         },
         {
           "area": "spring",
-          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/MediaServiceApplication.java:9-9"
+          "at": "mediahub-media-service:src/main/java/com/mediahub/media_service/MediaServiceApplication.java:9-9",
+          "hash": "3533ffb6e9353149"
         }
       ]
     },
@@ -610,11 +702,13 @@
       "needs": [
         {
           "area": "config",
-          "at": "mediahub-config-repo:application.yml:1-4"
+          "at": "mediahub-config-repo:application.yml:1-4",
+          "hash": "24792dc85d157ca6"
         },
         {
           "area": "spring",
-          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/SubscriptionServiceApplication.java:9-9"
+          "at": "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/SubscriptionServiceApplication.java:9-9",
+          "hash": "3533ffb6e9353149"
         }
       ]
     },

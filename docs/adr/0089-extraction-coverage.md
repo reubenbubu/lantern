@@ -1,6 +1,6 @@
 # 0089: Extraction coverage: which reference items the extracted facts back
 
-Status: accepted (#380); amended for #410
+Status: accepted (#380); amended for #410 and #411
 
 ## Context
 
@@ -112,3 +112,25 @@ area, tightened as follows:
     too much for what it adds.
   - CodeQL-style known-gap markers are not needed while before and after reports are compared
     whole.
+
+## Amendment for #411: how weak matches and line hashes work
+
+- **Weak.** A need is weak when the facts of its area on the cited file have no lines, or when it is
+  cited without lines. "The area records lines for that kind of file" means some fact of that
+  area, anywhere in the run, cites lines in a file with the same extension (or name, for a file
+  without one). There a weak need is not met; elsewhere it is met and still listed as weak. The
+  report adds a Weakly column (items whose needs are all met, one of them weakly) and a Weak count
+  per area, and lists every weak need with its citation and whether it counted.
+- **Whole-file citations narrowed.** All 24 citations of the maps without lines were narrowed to the
+  lines that state the thing, from the reference's `facts/*.md` where it cites lines (the exchange
+  and queue declarations, the clients, the Redis repositories) and otherwise to the line that
+  names it: a frontend's framework dependency in `package.json`, its proxy entry, its URL line, and
+  project-0's `CREATE TABLE`.
+- **Line hashes.** Each line citation keeps `hash`, the first 16 hex digits of the SHA-256 of its
+  first line's first 100 characters without whitespace. `coverage.mjs hash <set> <checkout>` writes
+  them for a citation added or moved on purpose; `coverage.mjs check <set> <checkout>` fails on a
+  missing hash or a line that changed. Every map has them at the current pins.
+- **Consequence.** On the development sets every container is now partly backed: the Maven facts
+  that make a module a service cite no lines when what makes it deployable is inherited from its
+  parent, while Maven records lines for POMs elsewhere. That is an extraction gap the weak rule
+  exists to show; #510 fixes it in the Maven extractor.
