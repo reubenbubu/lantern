@@ -436,7 +436,10 @@ class Project0EndToEndIT {
             "components-service-com-acme-shop-storefront-app",
             "sequences-storefront-ordercontroller-place",
             "sequences-payments-settlementjob-settle",
-            "sequences-storefront-ordercontroller-order");
+            "sequences-storefront-ordercontroller-order",
+            // The decision records and unknowns are a documentation page (ADR 0086).
+            "decisions");
+    assertThat(data.get("pages").get(8).get("level").asString()).isEqualTo("documentation");
     JsonNode containers = data.get("pages").get(1).get("sections").get(0);
     assertThat(containers.get("relationships").toString())
         // HTTP-1: Feign by client name, with the endpoint and protocol.
