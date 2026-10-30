@@ -679,6 +679,21 @@ class C4ViewsTest {
   @Test
   void aContainerDiagramOfMoreThanFifteenElementsIsSplitByConcernThenPerUnit() {
     TestFacts many = TestFacts.runtime();
+    // A profile alternative, for the note.
+    many.relate(
+            "shop",
+            "service:com.example:app",
+            "USES_DATABASE",
+            "database:localhost:5432/shop",
+            "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
+                + " \"profile\": \"local\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "USES_DATABASE",
+            "database:db:5432/shop",
+            "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
+                + " \"exceptProfiles\": [\"local\"]}");
     for (int i = 0; i < 16; i++) {
       many.relate(
           "shop",
@@ -714,6 +729,8 @@ class C4ViewsTest {
         .isSubsetOf("PUBLISHES", "CONSUMES", "ROUTES_TO");
     // The profile note stays on a container page: the first view's.
     assertThat(containers.blocks()).isEmpty();
+    assertThat(containers.sections().getFirst().blocks())
+        .anyMatch(b -> b instanceof Callout c && "Under other profiles".equals(c.title()));
     // shop-app's own messaging still has more than 15 elements: a quality gap, not hidden.
     QualityReport gaps = block(document.sections().getLast(), QualityReport.class);
     assertThat(gaps.failures())

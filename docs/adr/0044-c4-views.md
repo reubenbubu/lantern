@@ -116,9 +116,11 @@ pages, showed the whole system on none and sent an element's links to whichever 
   exchange routes) with the units that send or receive. A view still above 15 splits into
   "Requests" (still with every container) and "Data"; a concern view still above that is drawn per
   unit with its neighbours in that concern ("Messaging around notification-service"), leaving out a
-  unit with no line in it and a unit whose view shows only what a view before it shows, so no
-  diagram repeats another. A per-unit view still above 15 is drawn whole and fails "At most 15
-  elements" (ADR 0046). A concern with no line has no view.
+  unit with no line in it (except, among requests, a unit with no line at all, which is drawn
+  alone) and a unit whose view shows only what a view before it shows, so no diagram repeats
+  another. A per-unit view still above 15 is drawn whole and fails "At most 15 elements" (ADR
+  0046). "Messaging" and "Data" are left out when they have no line; the first view, which draws
+  every container, is always drawn.
 - **From the entry inward.** Per-unit container views and the component pages run frontends first,
   then units by how many HTTP calls they are from a frontend or a gateway (a unit that routes
   requests), or when there are none from the units nothing in the system calls, unreached units
@@ -126,6 +128,9 @@ pages, showed the whole system on none and sent an element's links to whichever 
 - **Element links.** Since an element is drawn on the page of its concern, the first catalogue that
   lists it, where the template and the renderer link it, is that page; a unit with a component page
   still zooms into it, and the system into the first container page, the whole system's view.
+  Where a concern is drawn per unit, an element first drawn as a neighbour on another unit's view
+  still links to that view, not its own; none of project-1 to project-4 reaches that fallback
+  (#362).
 - **Nothing is dropped.** The "Under other profiles" note goes on the first view's page; the
   deployment table, decisions and unknowns are documentation pages of their own (ADR 0086), so the
   split leaves none of them out. On project-1 to project-4 the container pages draw the same elements
