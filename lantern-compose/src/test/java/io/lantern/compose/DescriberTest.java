@@ -976,7 +976,7 @@ class DescriberTest {
   }
 
   @Test
-  void aLineIsLabelledWithItsPhrasesOnlyWhenEveryLinkHasOne() {
+  void aLineIsLabelledWithOneIntentOnlyWhenEveryLinkHasAPhrase() {
     String other =
         """
         {"protocol": "Kafka", "routingKey": "order.paid", "source": \
@@ -1023,7 +1023,7 @@ class DescriberTest {
                         new Wordings.Phrase("Announces orders", List.of()),
                         sends.get(1).id(),
                         new Wordings.Phrase("Reports payments", List.of())))))
-        .isEqualTo("Announces orders; reports payments");
+        .isEqualTo("Announces orders");
   }
 
   @Test

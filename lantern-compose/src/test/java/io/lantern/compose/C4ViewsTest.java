@@ -665,6 +665,31 @@ class C4ViewsTest {
   }
 
   @Test
+  void anExchangeShowsItsTypeFromTheBindingsThatRouteFromIt() {
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "PUBLISHES",
+            "exchange:rabbitmq:audit",
+            "{\"protocol\": \"AMQP\"}")
+        .relate(
+            "shop",
+            "exchange:rabbitmq:audit",
+            "ROUTES_TO",
+            "queue:rabbitmq:audit.log",
+            "{\"protocol\": \"AMQP\", \"exchangeType\": \"fanout\"}");
+
+    Diagram diagram = block(section(repo(more.list()), "containers"), Diagram.class);
+
+    assertThat(nodes(diagram))
+        .anyMatch(
+            n ->
+                n.startsWith("exchange:rabbitmq:audit ")
+                    && n.contains("[RabbitMQ fanout exchange]"));
+  }
+
+  @Test
   void aDatabaseWithADisplayNameShowsItAndOneWithoutKeepsItsServerAndDatabase() {
     TestFacts more = TestFacts.runtime();
     String own = "database:com.example:app/sql-server:com.example:app";

@@ -52,7 +52,7 @@ public final class DeployableUnits implements LinkStep {
   public static final String NAME = "deployable-units";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "deployable-units";
@@ -90,6 +90,29 @@ public final class DeployableUnits implements LinkStep {
       Set.of(
           "org.springframework.boot:spring-boot-starter-parent",
           "org.springframework.boot:spring-boot-parent");
+
+  /**
+   * The frameworks beyond Spring Boot a unit names in its technology, by the group and artifact
+   * prefix of a dependency that brings it in; the first rule that matches an artifact names it.
+   */
+  private static final List<Framework> FRAMEWORKS =
+      List.of(
+          new Framework(
+              "Spring Cloud Gateway", "org.springframework.cloud:spring-cloud-starter-gateway"),
+          new Framework("Spring Cloud Gateway", "org.springframework.cloud:spring-cloud-gateway"),
+          new Framework(
+              "Eureka Server",
+              "org.springframework.cloud:spring-cloud-starter-netflix-eureka-server"),
+          new Framework(
+              "Spring Cloud Config Server", "org.springframework.cloud:spring-cloud-config-server"),
+          new Framework(
+              "Spring Cloud Config Server",
+              "org.springframework.cloud:spring-cloud-starter-config-server"),
+          new Framework("WebFlux", "org.springframework.boot:spring-boot-starter-webflux"),
+          new Framework("WebSocket", "org.springframework.boot:spring-boot-starter-websocket"));
+
+  private record Framework(String name, String artifactPrefix) {}
+
   private static final Set<String> PACKAGED_SCOPES = Set.of("compile", "runtime");
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
@@ -410,6 +433,42 @@ public final class DeployableUnits implements LinkStep {
     }
 
     /**
+     * The frameworks of {@link #FRAMEWORKS} that the unit's modules depend on, each with the
+     * version its dependency states, if any, in the table's order; WebFlux is left out when the
+     * gateway, which is built on it, is there.
+     */
+    private List<String> frameworks(Index index) {
+      Map<String, String> found = new LinkedHashMap<>();
+      for (Framework framework : FRAMEWORKS) {
+        if (found.containsKey(framework.name())) {
+          continue;
+        }
+        for (EntityId m : modules()) {
+          for (Fact dep : index.deps.getOrDefault(m, List.of())) {
+            if (dep.object().value().startsWith("artifact:" + framework.artifactPrefix())) {
+              // Spring Boot's own starters are at Spring Boot's version, already named.
+              String version =
+                  framework.artifactPrefix().startsWith(SPRING_BOOT_GROUP)
+                      ? null
+                      : text(dep, "version");
+              found.put(framework.name(), version == null ? "" : version);
+              break;
+            }
+          }
+          if (found.containsKey(framework.name())) {
+            break;
+          }
+        }
+      }
+      if (found.containsKey("Spring Cloud Gateway")) {
+        found.remove("WebFlux");
+      }
+      List<String> result = new ArrayList<>();
+      found.forEach((name, version) -> result.add(version.isEmpty() ? name : name + " " + version));
+      return result;
+    }
+
+    /**
      * Spring Boot with the version of the first {@code org.springframework.boot} dependency of the
      * nearest module that has one, else of the Spring Boot parent POM the nearest module inherits
      * from, if the unit uses Spring Boot; and the Java release of the unit's own module, else of
@@ -461,6 +520,12 @@ public final class DeployableUnits implements LinkStep {
           attributes.put("frameworkVersion", version);
         }
         parts.add(version == null ? SPRING_BOOT : SPRING_BOOT + " " + version);
+      }
+      List<String> frameworks = frameworks(index);
+      if (!frameworks.isEmpty()) {
+        ArrayNode names = attributes.putArray("frameworks");
+        frameworks.forEach(names::add);
+        parts.addAll(frameworks);
       }
       if (java != null) {
         attributes.put("java", java.object().value());
