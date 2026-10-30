@@ -137,3 +137,15 @@ what the facts look like and how a secret written in a config file is handled.
   that lost an option carries `masked: true`; a value without one is recorded byte for byte. The
   config extractor's version becomes 3; the HTTP client and persistence extractors, which clean
   their URLs with `UrlCredentials`, become version 2.
+
+## Amendment: keys the code uses as a JWT secret (#335)
+
+- **A key that a `jwt-secret-key` fact names is a secret too.** The key rule above leaves out keys
+  ending in plain `key`, so `jwt.key=<secret>` was recorded as a plain value. The identity
+  extractor (ADR 0085) names the config keys the code makes an HMAC key from. The app now runs it
+  before the config extractor and passes those keys to `ConfigExtractor.extract(repos, snapshot,
+  secretKeys)` (`ConfigExtractor.jwtSecretKeys` reads them from the facts). A value under such a
+  key, or one a value of such a key was substituted into, is recorded as `******` with `masked:
+  true`, as a secret's, unless it is only placeholders nothing resolves. Keys compare without list
+  indexes, `-`, `_` and case, as Spring's relaxed binding does. `extract(repos, snapshot)` alone
+  masks by key name only. The config extractor's version becomes 4.

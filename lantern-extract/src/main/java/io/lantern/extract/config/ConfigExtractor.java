@@ -41,7 +41,7 @@ public final class ConfigExtractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
@@ -125,14 +125,46 @@ public final class ConfigExtractor {
    * @throws IllegalStateException if git fails or times out
    */
   public List<Fact> extract(List<RepoBuild> repos, long snapshot) {
+    return extract(repos, snapshot, Set.of());
+  }
+
+  /**
+   * The config keys that the code uses as a JWT's HMAC secret: the keys of the {@code
+   * jwt-secret-key} facts (ADR 0085), for {@link #extract(List, long, Set)}.
+   *
+   * @param identityFacts the identity extractor's facts; others are ignored
+   */
+  public static Set<String> jwtSecretKeys(List<Fact> identityFacts) {
+    Set<String> keys = new java.util.TreeSet<>();
+    for (Fact fact : identityFacts) {
+      if (fact.predicate().equals("jwt-secret-key") && fact.attributes().has("keys")) {
+        fact.attributes().get("keys").forEach(k -> keys.add(k.stringValue()));
+      }
+    }
+    return keys;
+  }
+
+  /**
+   * Extracts the config facts of a snapshot's repositories, masking the values of keys the code
+   * uses as a JWT secret whatever they are called (ADR 0032, amendment for #335).
+   *
+   * @param repos the repositories of the snapshot, each at its commit with its build, if any
+   * @param snapshot the snapshot number the facts hold from
+   * @param secretKeys config keys known to hold a secret, such as {@link #jwtSecretKeys}
+   * @return the facts, without duplicates, ordered by subject, predicate, object and ID
+   * @throws IllegalStateException if git fails or times out
+   */
+  public List<Fact> extract(List<RepoBuild> repos, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(repos, "repos");
+    Set<String> known = new java.util.HashSet<>();
+    secretKeys.forEach(k -> known.add(normalized(k)));
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> facts = new LinkedHashMap<>();
     for (RepoBuild repo : repos) {
       for (ModuleConfig config : read(repo)) {
         SortedMap<String, ConfigValue> defaults = config.values(null);
         for (ConfigValue value : defaults.values()) {
-          add(facts, config, value, null, validity);
+          add(facts, config, value, null, validity, known);
         }
         for (String profile : config.profiles()) {
           for (ConfigValue value : config.values(profile).values()) {
@@ -140,7 +172,7 @@ public final class ConfigExtractor {
             if (byDefault == null
                 || !byDefault.value().equals(value.value())
                 || !byDefault.unresolved().equals(value.unresolved())) {
-              add(facts, config, value, profile, validity);
+              add(facts, config, value, profile, validity, known);
             }
           }
         }
@@ -160,7 +192,8 @@ public final class ConfigExtractor {
       ModuleConfig config,
       ConfigValue value,
       String profile,
-      Validity validity) {
+      Validity validity,
+      Set<String> known) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("key", value.key());
     if (profile != null) {
@@ -175,7 +208,7 @@ public final class ConfigExtractor {
             ? UrlCredentials.withoutCredentials(value.value(), nothingResolves)
             : UrlCredentials.withoutCredentials(
                 config.resolve(profile, written).value(), nothingResolves);
-    if (exposesSecret(value) || mayHoldCredential(object) || mayHoldCredential(written)) {
+    if (exposesSecret(value, known) || mayHoldCredential(object) || mayHoldCredential(written)) {
       object = MASK;
       attributes.put("masked", true);
     } else {
@@ -217,11 +250,11 @@ public final class ConfigExtractor {
    * or a secret's value unless it is only placeholders nothing resolves (environment variables),
    * which say where the secret comes from.
    */
-  private static boolean exposesSecret(ConfigValue value) {
-    if (value.used().stream().anyMatch(ConfigExtractor::isSecret)) {
+  private static boolean exposesSecret(ConfigValue value, Set<String> known) {
+    if (value.used().stream().anyMatch(k -> isSecret(k) || known.contains(normalized(k)))) {
       return true;
     }
-    return isSecret(value.key())
+    return (isSecret(value.key()) || known.contains(normalized(value.key())))
         && !(ONLY_PLACEHOLDERS.matcher(value.written()).matches() && value.used().isEmpty());
   }
 
@@ -242,5 +275,13 @@ public final class ConfigExtractor {
     }
     String last = plain.substring(plain.lastIndexOf('.') + 1);
     return SECRET.matcher(last.replace("-", "").replace("_", "")).matches();
+  }
+
+  /** A key as compared with the code's: no list indexes, hyphens or underscores, lower case. */
+  private static String normalized(String key) {
+    return key.replaceAll("\\[\\d+]", "")
+        .replace("-", "")
+        .replace("_", "")
+        .toLowerCase(Locale.ROOT);
   }
 }

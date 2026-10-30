@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
+import io.lantern.extract.config.ConfigExtractor;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -195,5 +196,52 @@ class IdentityExtractorTest {
             "method:com.example.KeycloakConfig#other() identity-admin-client"
                 + " https://sso.example.com");
     assertThat(facts).noneMatch(f -> f.toString().contains("pw@"));
+  }
+
+  @Test
+  void aConfigValueUnderAKeyTheCodeUsesAsAJwtSecretIsMasked() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("masked"),
+            "masked",
+            Map.of(
+                "pom.xml",
+                POM,
+                "src/main/java/com/example/JwtService.java",
+                """
+                package com.example;
+
+                import io.jsonwebtoken.security.Keys;
+                import javax.crypto.SecretKey;
+                import org.springframework.beans.factory.annotation.Value;
+
+                public class JwtService {
+                  @Value("${jwt.key}")
+                  private String key;
+
+                  public SecretKey key() {
+                    return Keys.hmacShaKeyFor(key.getBytes());
+                  }
+                }
+                """,
+                "src/main/resources/application.properties",
+                "jwt.key=literal-test-value-0123456789abcdef\n"
+                    + "jwt.copy=${jwt.key}\n"
+                    + "routing.key=orders.created\n"));
+    List<RepoBuild> inputs = List.of(new RepoBuild(repo, Fixtures.head(repo), null));
+    List<Fact> identity = new IdentityExtractor().extract(inputs, SNAPSHOT);
+    List<Fact> config =
+        new ConfigExtractor().extract(inputs, SNAPSHOT, ConfigExtractor.jwtSecretKeys(identity));
+
+    assertThat(config)
+        .extracting(f -> f.attributes().get("key").stringValue() + "=" + f.object().value())
+        .containsExactlyInAnyOrder(
+            "jwt.key=" + ConfigExtractor.MASK,
+            "jwt.copy=" + ConfigExtractor.MASK,
+            "routing.key=orders.created");
+    assertThat(config).noneMatch(f -> f.toString().contains("literal-test-value"));
+    // Without the code's keys, the value is recorded: the rule by key name alone is not enough.
+    assertThat(new ConfigExtractor().extract(inputs, SNAPSHOT))
+        .anyMatch(f -> f.toString().contains("literal-test-value"));
   }
 }
