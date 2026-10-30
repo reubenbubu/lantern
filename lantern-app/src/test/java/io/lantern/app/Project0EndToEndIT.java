@@ -437,9 +437,16 @@ class Project0EndToEndIT {
             "sequences-storefront-ordercontroller-place",
             "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
-            // The decision records and unknowns are a documentation page (ADR 0086).
-            "decisions");
+            // The decision records and unknowns are a documentation page (ADR 0086), then the
+            // glossary (ADR 0087).
+            "decisions",
+            "glossary");
     assertThat(data.get("pages").get(8).get("level").asString()).isEqualTo("documentation");
+    assertThat(data.get("pages").get(9).get("level").asString()).isEqualTo("documentation");
+    // The glossary explains every acronym, and the legend draws every boundary and arrowhead.
+    assertThat(data.toString())
+        .doesNotContain("Acronyms are explained in the glossary")
+        .doesNotContain("A legend for every shape");
     JsonNode containers = data.get("pages").get(1).get("sections").get(0);
     assertThat(containers.get("relationships").toString())
         // HTTP-1: Feign by client name, with the endpoint and protocol.
