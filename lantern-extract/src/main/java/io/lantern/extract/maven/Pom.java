@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * What the Maven extractor reads from one {@code <project>} element, either a POM as written in a
@@ -143,14 +144,21 @@ record Pom(
   static final String SHADE = "shade";
   static final String ASSEMBLY = "assembly";
 
+  private static final String FABRIC8_DOCKER_PLUGIN = "io.fabric8:docker-maven-plugin";
+
   /** Image plugins, by key, with the user property that skips each. */
   private static final Map<String, String[]> IMAGE_PLUGINS =
       Map.of(
-          "com.google.cloud.tools:jib-maven-plugin", new String[] {JIB, "jib.skip"},
-          "org.eclipse.jkube:kubernetes-maven-plugin", new String[] {JKUBE, "jkube.skip"},
-          "org.eclipse.jkube:openshift-maven-plugin", new String[] {JKUBE, "jkube.skip"},
-          "com.spotify:dockerfile-maven-plugin", new String[] {DOCKER, "dockerfile.skip"},
-          "io.fabric8:docker-maven-plugin", new String[] {DOCKER, "docker.skip"});
+          "com.google.cloud.tools:jib-maven-plugin",
+          new String[] {JIB, "jib.skip"},
+          "org.eclipse.jkube:kubernetes-maven-plugin",
+          new String[] {JKUBE, "jkube.skip"},
+          "org.eclipse.jkube:openshift-maven-plugin",
+          new String[] {JKUBE, "jkube.skip"},
+          "com.spotify:dockerfile-maven-plugin",
+          new String[] {DOCKER, "dockerfile.skip"},
+          FABRIC8_DOCKER_PLUGIN,
+          new String[] {DOCKER, "docker.skip"});
 
   /**
    * What makes the project's build deployable, or null for a library: a {@code war} or {@code ear};
@@ -164,7 +172,7 @@ record Pom(
    * @param properties the project's resolved properties, for {@code ${...}} references
    * @param barePluginCounts whether a Spring Boot or Quarkus plugin declared without its goal
    *     counts. In an effective POM every execution is spelled out, so it does not; in a POM as
-   *     written the parent may bind the goal, so it does.
+   *     written a parent's plugin or {@code pluginManagement} may bind the goal, so it does.
    */
   String deployedBy(String packaging, Map<String, String> properties, boolean barePluginCounts) {
     if (packaging.equals("pom")) {
@@ -221,23 +229,39 @@ record Pom(
     if (plugin.text("artifactId") != null
         && plugin.text("artifactId").equals("quarkus-maven-plugin")) {
       boolean build =
-          executions.stream().anyMatch(e -> hasGoal(e, "build"))
-              || barePluginCounts && plugin.list("executions", "execution").isEmpty();
+          !"true".equals(interpolate(properties.get("quarkus.build.skip"), properties))
+              && (executions.stream().anyMatch(e -> hasGoal(e, "build"))
+                  || barePluginCounts && plugin.list("executions", "execution").isEmpty());
       return build ? QUARKUS : null;
     }
     String[] image = IMAGE_PLUGINS.get(key);
     if (image != null) {
-      return "true".equals(interpolate(properties.get(image[1]), properties)) ? null : image[0];
+      if ("true".equals(interpolate(properties.get(image[1]), properties))) {
+        return null;
+      }
+      boolean declaresExecutions = !plugin.list("executions", "execution").isEmpty();
+      if (key.equals(FABRIC8_DOCKER_PLUGIN)) {
+        // Often declared only to start and stop containers for integration tests.
+        boolean builds =
+            executions.stream().anyMatch(e -> hasGoal(e, "build"))
+                || !declaresExecutions
+                    && plugin
+                        .child("configuration")
+                        .map(c -> c.list("images", "image"))
+                        .orElse(List.of())
+                        .stream()
+                        .anyMatch(i -> i.child("build").isPresent());
+        return builds ? image[0] : null;
+      }
+      // Run from the command line when it declares no executions; else one must remain.
+      return declaresExecutions && executions.isEmpty() ? null : image[0];
     }
     if (key.equals("org.apache.maven.plugins:maven-shade-plugin")) {
       for (XmlElement e : executions) {
         boolean mainClass =
             hasGoal(e, "shade")
-                && e
-                    .child("configuration")
-                    .map(c -> c.list("transformers", "transformer"))
-                    .orElse(List.of())
-                    .stream()
+                && configurations(e, plugin)
+                    .flatMap(c -> c.list("transformers", "transformer").stream())
                     .anyMatch(t -> resolved(t.text("mainClass"), properties));
         if (mainClass) {
           return SHADE;
@@ -249,19 +273,24 @@ record Pom(
         if (!hasGoal(e, "single")) {
           continue;
         }
-        String mainClass =
-            e.child("configuration")
-                .or(() -> plugin.child("configuration"))
-                .flatMap(c -> c.child("archive"))
-                .flatMap(a -> a.child("manifest"))
-                .map(m -> m.text("mainClass"))
-                .orElse(null);
-        if (resolved(mainClass, properties)) {
+        boolean mainClass =
+            configurations(e, plugin)
+                .flatMap(c -> c.child("archive").stream())
+                .flatMap(a -> a.child("manifest").stream())
+                .anyMatch(m -> resolved(m.text("mainClass"), properties));
+        if (mainClass) {
           return ASSEMBLY;
         }
       }
     }
     return null;
+  }
+
+  /**
+   * An execution's configuration, then its plugin's: in a POM as written they are not merged yet.
+   */
+  private static Stream<XmlElement> configurations(XmlElement execution, XmlElement plugin) {
+    return Stream.of(execution, plugin).flatMap(x -> x.child("configuration").stream());
   }
 
   private static boolean hasGoal(XmlElement execution, String goal) {

@@ -163,10 +163,15 @@ extractor's version becomes 5.
   archive manifest's `mainClass` resolves; Spring Boot's `build-image` or `build-image-no-fork`
   (unless `spring-boot.build-image.skip`); Jib, Eclipse JKube (`kubernetes-maven-plugin`,
   `openshift-maven-plugin`) and the Spotify and fabric8 Docker plugins, unless `jib.skip`,
-  `jkube.skip`, `dockerfile.skip` or `docker.skip` is set. A plugin or execution with `<skip>`
-  true, or an execution bound to phase `none`, does not count. A `pom` module is never
-  deployable. In a POM as written, a bare Spring Boot or Quarkus plugin still counts, since the
-  parent may bind its goal. A single `main` method and the jar plugin's manifest are not signals:
+  `jkube.skip`, `dockerfile.skip` or `docker.skip` is set. An image plugin declared without
+  executions counts, since it is run from the command line; one with executions counts only if
+  one remains. The fabric8 Docker plugin counts only for a `build` execution, or, without
+  executions, an image with a `<build>`: it is often declared just to start and stop containers
+  for integration tests. A plugin or execution with `<skip>` true, or an execution bound to phase
+  `none`, does not count, nor does Quarkus with `quarkus.build.skip`. A `pom` module is never
+  deployable. In a POM as written, a bare Spring Boot or Quarkus plugin still counts, since a
+  parent's plugins or `pluginManagement` may bind its goal, and the shade and assembly main class
+  may sit in the plugin's configuration rather than the execution's. A single `main` method and the jar plugin's manifest are not signals:
   Spring Boot's parent gives every jar module a `${start-class}` main class.
 - **`deployable-by`**, a new string attribute of a deployable module: `war`, `ear`,
   `spring-boot`, `quarkus`, `shade`, `assembly`, `spring-boot-build-image`, `jib`, `jkube` or

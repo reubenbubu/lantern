@@ -148,6 +148,50 @@ class PomTest {
                                 + "</mainClass></manifest></archive></configuration>")))
                 .deployedBy("jar", none, false))
         .isEqualTo("assembly");
+    // In a POM as written, the main class may sit in the plugin's own configuration.
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.apache.maven.plugins",
+                        "maven-assembly-plugin",
+                        "<configuration><archive><manifest><mainClass>com.example.Main"
+                            + "</mainClass></manifest></archive></configuration>"
+                            + execution(
+                                "single", "<configuration><descriptorRefs/></configuration>")))
+                .deployedBy("jar", none, false))
+        .isEqualTo("assembly");
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.apache.maven.plugins",
+                        "maven-shade-plugin",
+                        "<configuration><transformers><transformer>"
+                            + "<mainClass>com.example.Main</mainClass>"
+                            + "</transformer></transformers></configuration>"
+                            + execution("shade", "")))
+                .deployedBy("jar", none, false))
+        .isEqualTo("shade");
+    assertThat(
+            plugins(plugin("org.eclipse.jkube", "openshift-maven-plugin", ""))
+                .deployedBy("jar", none, false))
+        .isEqualTo("jkube");
+    assertThat(
+            plugins(plugin("io.fabric8", "docker-maven-plugin", execution("build", "")))
+                .deployedBy("jar", none, false))
+        .isEqualTo("docker");
+    assertThat(
+            plugins(
+                    plugin(
+                        "io.fabric8",
+                        "docker-maven-plugin",
+                        "<configuration><images><image><name>x</name><build/></image></images>"
+                            + "</configuration>"))
+                .deployedBy("jar", none, false))
+        .isEqualTo("docker");
+    // A bare Quarkus plugin counts only in a POM as written.
+    String bareQuarkus = plugin("io.quarkus.platform", "quarkus-maven-plugin", "");
+    assertThat(plugins(bareQuarkus).deployedBy("jar", none, true)).isEqualTo("quarkus");
+    assertThat(plugins(bareQuarkus).deployedBy("jar", none, false)).isNull();
   }
 
   @Test
@@ -171,6 +215,54 @@ class PomTest {
     assertThat(
             plugins(plugin("org.eclipse.jkube", "kubernetes-maven-plugin", ""))
                 .deployedBy("jar", Map.of("jkube.skip", "true"), false))
+        .isNull();
+    // Image plugins skipped in their configuration, by their property, or with no execution left.
+    assertThat(
+            plugins(
+                    plugin(
+                        "com.google.cloud.tools",
+                        "jib-maven-plugin",
+                        "<configuration><skip>true</skip></configuration>"))
+                .deployedBy("jar", none, false))
+        .isNull();
+    assertThat(
+            plugins(plugin("com.spotify", "dockerfile-maven-plugin", ""))
+                .deployedBy("jar", Map.of("dockerfile.skip", "true"), false))
+        .isNull();
+    assertThat(
+            plugins(
+                    plugin(
+                        "com.google.cloud.tools",
+                        "jib-maven-plugin",
+                        execution("build", "<phase>none</phase>")))
+                .deployedBy("jar", none, false))
+        .isNull();
+    // Docker started and stopped around integration tests builds nothing that ships.
+    assertThat(
+            plugins(
+                    plugin(
+                        "io.fabric8",
+                        "docker-maven-plugin",
+                        "<executions><execution><goals><goal>start</goal></goals></execution>"
+                            + "<execution><goals><goal>stop</goal></goals></execution>"
+                            + "</executions>"))
+                .deployedBy("jar", none, false))
+        .isNull();
+    assertThat(
+            plugins(plugin("io.fabric8", "docker-maven-plugin", "")).deployedBy("jar", none, false))
+        .isNull();
+    // Spring Boot's image and Quarkus's build skipped by their properties.
+    assertThat(
+            plugins(
+                    plugin(
+                        "org.springframework.boot",
+                        "spring-boot-maven-plugin",
+                        execution("build-image", "")))
+                .deployedBy("jar", Map.of("spring-boot.build-image.skip", "true"), false))
+        .isNull();
+    assertThat(
+            plugins(plugin("io.quarkus.platform", "quarkus-maven-plugin", execution("build", "")))
+                .deployedBy("jar", Map.of("quarkus.build.skip", "true"), false))
         .isNull();
     // Shade relocating dependencies, and an unresolved main class.
     assertThat(
