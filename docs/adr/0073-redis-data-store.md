@@ -94,12 +94,17 @@ reached over the network is a data store; an in-process cache is part of its con
     `clear`), at the call. `org.springframework.cache.` joins the tracked APIs.
 
   `spring.cache.redis.time-to-live` gives each cache fact of the module its `ttl`.
-- **The provider is Redis, as Spring Boot picks it,** when the module's main config sets
-  `spring.cache.type=redis`. Without that property it is Redis when the module's code builds a
-  Redis cache manager, or when the module has a Redis client among its own dependencies and none
-  of the providers Boot tries first (JCache, so also Ehcache 3, Hazelcast, Infinispan,
-  Couchbase). Any other `spring.cache.type`, `none` included, means no cache fact. Profiles are
-  not told apart (#426).
+- **The provider is Redis** when the module's code builds a Redis cache manager. Otherwise,
+  when the code builds no other cache manager (`new CaffeineCacheManager(...)`), it is decided as
+  Spring Boot picks it: by `spring.cache.type`, and without that property when the module has
+  Spring Data Redis among its own dependencies (a plain Jedis, Lettuce or Redisson client has no
+  `RedisConnectionFactory`) and no provider Boot tries first (a JCache provider such as Ehcache 3
+  or Caffeine's `jcache`, Hazelcast, Infinispan, Couchbase; JCache's `cache-api` alone picks
+  none). Any other `spring.cache.type`, `none` included, means no cache fact. Only the default
+  view of the module's own config is read: a value set only in a profile file or served by a
+  config repository is not seen (#426).
+- **A class-level** `@Cacheable`, `@CachePut` or `@CacheEvict`, which applies to the class's
+  public methods, gives its fact on the class.
 - **The rate limiter's facts** carry the key `request_rate_limiter.*` its Redis script writes.
 - **Client artifacts** add `spring-boot-data-redis` (Spring Boot 4), `spring-integration-redis`
   and `redisson`. Artifacts named `*-test` (Spring Boot 4's test starters) are skipped, like

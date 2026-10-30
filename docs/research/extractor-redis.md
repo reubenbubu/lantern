@@ -255,7 +255,7 @@ There are two ways to gate cache annotations on the provider:
 
 In-process caches are part of their container and never a data store: Caffeine, the simple `ConcurrentMap` cache, Ehcache on heap, and an embedded Hazelcast member. Test sources, test-scope dependencies and test starters are not uses, and neither is `spring.cache.type=none`.
 
-A Spring cache counts as Redis when its module's main config sets `spring.cache.type=redis`. Without that property it counts when the module's code builds a Redis cache manager, or when the module has a Redis client among its own dependencies and none of the providers Spring Boot tries first (JCache, which brings Ehcache 3; Hazelcast; Infinispan; Couchbase).
+A Spring cache counts as Redis when the module's code builds a Redis cache manager. Otherwise, if the code builds no other cache manager, it counts when the module's main config sets `spring.cache.type=redis`, or, without that property, when the module has Spring Data Redis among its own dependencies and none of the providers Spring Boot tries first (a JCache provider such as Ehcache 3, Hazelcast, Infinispan, Couchbase). A plain Jedis, Lettuce or Redisson client brings no `RedisConnectionFactory`, and JCache's `cache-api` alone picks no provider.
 
 **Decided for #392:**
 

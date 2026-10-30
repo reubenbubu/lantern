@@ -134,12 +134,13 @@ public final class RedisExtractor {
 
   /**
    * Dependencies, by artifact ID prefix, of the cache providers Spring Boot tries before Redis
-   * (JCache, with Ehcache 3, Hazelcast, Infinispan and Couchbase).
+   * (JCache providers such as Ehcache 3 and Caffeine's {@code jcache}, Hazelcast, Infinispan and
+   * Couchbase). JCache's own {@code cache-api}, which its annotations need, picks no provider.
    */
   private static final List<String> EARLIER_CACHE_PROVIDERS =
       List.of(
-          "cache-api",
           "ehcache",
+          "jcache",
           "hazelcast",
           "infinispan",
           "couchbase",
@@ -228,6 +229,22 @@ public final class RedisExtractor {
   /** Dependencies that bring Spring Session's Redis store, by artifact ID. */
   private static final Set<String> SESSION_ARTIFACTS =
       Set.of(
+          "spring-session-data-redis",
+          "spring-boot-starter-session-data-redis",
+          "spring-boot-session-data-redis");
+
+  /**
+   * Dependencies that bring Spring Data Redis, which Spring Boot's Redis cache needs, by artifact
+   * ID; a plain Jedis, Lettuce or Redisson client does not.
+   */
+  private static final Set<String> SPRING_DATA_REDIS_ARTIFACTS =
+      Set.of(
+          "spring-boot-starter-data-redis",
+          "spring-boot-starter-data-redis-reactive",
+          "spring-boot-data-redis",
+          "spring-data-redis",
+          "redisson-spring-boot-starter",
+          "spring-integration-redis",
           "spring-session-data-redis",
           "spring-boot-starter-session-data-redis",
           "spring-boot-session-data-redis");
@@ -450,7 +467,9 @@ public final class RedisExtractor {
               || simpleName(root).equals("RedisCacheConfiguration"))
           && root.startsWith(CACHE_MANAGER)
           && !first.method().startsWith("get")) {
-        caching(m.id()).redisManager = true;
+        if (simpleName(root).equals("RedisCacheManager")) {
+          caching(m.id()).redisManager = true;
+        }
         attributes.put("operation", "other");
         code(m, i.caller(), CACHE, attributes, i.where());
       } else if (listens(root, chain)) {
@@ -529,35 +548,48 @@ public final class RedisExtractor {
               a.where() != null ? a.where() : type.where());
         }
       }
+      // On a class, an operation applies to each of its public methods; it is recorded on the
+      // class.
+      cacheOperations(m, typeId(type.binaryName()), type.annotations(), defaults, type.where());
       for (ModuleStructure.Member member : type.members()) {
-        for (Annotation a : member.annotations()) {
-          List<Annotation> operations = new ArrayList<>();
-          if (a.type().equals(CACHE_ANNOTATION + "Caching")) {
-            a.nested().values().forEach(operations::addAll);
-          } else {
-            operations.add(a);
+        cacheOperations(m, member.id(), member.annotations(), defaults, member.where());
+      }
+    }
+
+    /** The cache operations among annotations, alone or inside {@code @Caching}. */
+    private void cacheOperations(
+        JavaAnalysis.Module m,
+        EntityId subject,
+        List<Annotation> annotations,
+        List<String> defaults,
+        Location fallback) {
+      for (Annotation a : annotations) {
+        List<Annotation> operations = new ArrayList<>();
+        if (a.type().equals(CACHE_ANNOTATION + "Caching")) {
+          a.nested().values().forEach(operations::addAll);
+        } else {
+          operations.add(a);
+        }
+        for (Annotation op : operations) {
+          String operation = CACHE_OPERATIONS.get(op.type());
+          if (operation == null) {
+            continue;
           }
-          for (Annotation op : operations) {
-            String operation = CACHE_OPERATIONS.get(op.type());
-            if (operation == null) {
-              continue;
-            }
-            List<String> names = cacheNames(op);
-            Location at = a.where() != null ? a.where() : member.where();
-            for (String name : names.isEmpty() ? defaults : names) {
-              ObjectNode attributes = FactJson.newObject();
-              attributes.put("api", op.type());
-              attributes.put("operation", operation);
-              attributes.put("cache", name);
-              attributes.put("key", name + "::*");
-              pending(m, member.id(), attributes, at);
-            }
-            if (names.isEmpty() && defaults.isEmpty()) {
-              ObjectNode attributes = FactJson.newObject();
-              attributes.put("api", op.type());
-              attributes.put("operation", operation);
-              pending(m, member.id(), attributes, at);
-            }
+          List<String> names = cacheNames(op);
+          Location at = a.where() != null ? a.where() : fallback;
+          for (String name : names.isEmpty() ? defaults : names) {
+            ObjectNode attributes = FactJson.newObject();
+            attributes.put("api", op.type());
+            attributes.put("operation", operation);
+            attributes.put("cache", name);
+            attributes.put("key", name + "::*");
+            pending(m, subject, attributes, at);
+          }
+          if (names.isEmpty() && defaults.isEmpty()) {
+            ObjectNode attributes = FactJson.newObject();
+            attributes.put("api", op.type());
+            attributes.put("operation", operation);
+            pending(m, subject, attributes, at);
           }
         }
       }
@@ -581,6 +613,15 @@ public final class RedisExtractor {
      * cacheManager.getCache("books").evict(id)}, the cache it names and what it does with it.
      */
     private void cacheCall(JavaAnalysis.Module m, Invocation i) {
+      // A cache manager the code builds itself (new CaffeineCacheManager(...)) is the provider.
+      Expression.Invoke built = i.expression().chain().getFirst();
+      if (simpleName(i.rootType()).endsWith("CacheManager")
+          && !i.rootType().equals(SPRING_CACHE + "CacheManager")
+          && (built.method().equals("<init>")
+              || Set.of("create", "builder").contains(built.method()))) {
+        caching(m.id()).otherManager = true;
+        return;
+      }
       String name = null;
       String operation = null;
       for (Expression.Invoke call : i.expression().chain()) {
@@ -625,17 +666,19 @@ public final class RedisExtractor {
     }
 
     /**
-     * The kept cache uses of the modules whose cache provider is Redis, as Spring Boot picks it:
-     * {@code spring.cache.type}, else a Redis cache manager in code, else a Redis client with no
-     * provider Boot tries first; with the time to live {@code spring.cache.redis.time-to-live}
-     * sets.
+     * The kept cache uses of the modules whose cache provider is Redis: a Redis cache manager built
+     * in code; else, with no other cache manager built in code, as Spring Boot picks it: {@code
+     * spring.cache.type}, else Spring Data Redis with no provider Boot tries first; with the time
+     * to live {@code spring.cache.redis.time-to-live} sets.
      */
     void caches() {
       for (Caching c : caching.values()) {
         boolean redis =
-            c.type != null
-                ? c.type.equalsIgnoreCase("redis")
-                : c.redisManager || (c.client && !c.earlierProvider);
+            c.redisManager
+                || (!c.otherManager
+                    && (c.type != null
+                        ? c.type.equalsIgnoreCase("redis")
+                        : c.springDataRedis && !c.earlierProvider));
         if (!redis) {
           continue;
         }
@@ -707,8 +750,8 @@ public final class RedisExtractor {
         if (kind == null) {
           continue;
         }
-        if (kind.equals(CLIENT)) {
-          caching(m.id()).client = true;
+        if (SPRING_DATA_REDIS_ARTIFACTS.contains(id)) {
+          caching(m.id()).springDataRedis = true;
         }
         int line = line(pom, dependency.start(1) + artifact.start());
         ObjectNode attributes = FactJson.newObject();
@@ -793,7 +836,8 @@ public final class RedisExtractor {
       String type;
       String ttl;
       boolean redisManager;
-      boolean client;
+      boolean otherManager;
+      boolean springDataRedis;
       boolean earlierProvider;
       final List<CacheUse> uses = new ArrayList<>();
     }
