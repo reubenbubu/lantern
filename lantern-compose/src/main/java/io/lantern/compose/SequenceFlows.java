@@ -51,7 +51,7 @@ final class SequenceFlows {
   /** The most flows a scope shows (docs/design.md: three to seven). */
   static final int MAX_FLOWS = 7;
 
-  /** The flows a scope shows before only flows showing something new are (three to seven). */
+  /** The fewest flows a scope shows; flows that reach only databases fill up to it. */
   static final int MIN_FLOWS = 3;
 
   /** The most implementations a call is drawn into, as the operands of one frame. */
@@ -59,6 +59,9 @@ final class SequenceFlows {
 
   /** The most messages one flow shows before the trace stops. */
   static final int MAX_MESSAGES = 40;
+
+  /** The most steps, notes included, one flow shows before the trace stops. */
+  static final int MAX_STEPS = 2 * MAX_MESSAGES;
 
   private static final String METHOD = "method";
 
@@ -279,6 +282,9 @@ final class SequenceFlows {
     /** How many steps, notes and later deliveries the flow has had, to tell quiet code. */
     int added;
 
+    /** How many recursive calls were cut, so code that reached one is not taken as quiet. */
+    int cut;
+
     /** The data access the last step drew, which the next one to the same database joins. */
     DataRun data;
 
@@ -314,7 +320,7 @@ final class SequenceFlows {
     }
 
     boolean full() {
-      if (messages >= MAX_MESSAGES) {
+      if (messages >= MAX_MESSAGES || added >= MAX_STEPS) {
         truncated = true;
       }
       return truncated;
@@ -379,7 +385,7 @@ final class SequenceFlows {
     }
 
     void note(List<EntityId> over, String text, List<String> profiles, List<Fact> facts) {
-      if (truncated) {
+      if (full()) {
         return;
       }
       added++;
@@ -488,6 +494,7 @@ final class SequenceFlows {
         return;
       }
       run.add(verb, what, info, facts);
+      added++;
       String label = DataRun.label(run.parts);
       String joined = run.info.isEmpty() ? null : String.join(" ", run.info);
       List<Fact> all = List.copyOf(run.facts);
@@ -586,12 +593,17 @@ final class SequenceFlows {
     }
     deliver(trace);
     if (trace.truncated) {
+      String after =
+          trace.messages >= MAX_MESSAGES ? MAX_MESSAGES + " messages" : MAX_STEPS + " steps";
+      // The closing note is drawn past the caps that stopped the trace.
+      int added = trace.added;
+      int messages = trace.messages;
       trace.truncated = false;
-      trace.note(
-          List.of(),
-          "The trace stops here, after " + MAX_MESSAGES + " messages.",
-          List.of(),
-          List.of());
+      trace.added = 0;
+      trace.messages = 0;
+      trace.note(List.of(), "The trace stops here, after " + after + ".", List.of(), List.of());
+      trace.added = added + 1;
+      trace.messages = messages;
       trace.truncated = true;
     }
     return trace;
@@ -785,17 +797,22 @@ final class SequenceFlows {
    */
   private void sync(Trace trace, EntityId unit, EntityId method, List<String> outer) {
     String key = unit + " " + method;
-    if (trace.truncated || trace.quiet.contains(key) || !trace.stack.add(key)) {
+    if (trace.truncated || trace.quiet.contains(key)) {
+      return;
+    }
+    if (!trace.stack.add(key)) {
+      trace.cut++;
       return;
     }
     trace.traced.add(key);
     int before = trace.added;
+    int cut = trace.cut;
     try {
       steps(trace, unit, method, outer);
     } finally {
       trace.stack.remove(key);
     }
-    if (trace.added == before) {
+    if (trace.added == before && trace.cut == cut) {
       trace.quiet.add(key);
     }
   }
@@ -1491,15 +1508,12 @@ final class SequenceFlows {
       consider(kept, trace, true);
     }
     // Then the rest in rank order, what someone asks for before what a listener or a schedule
-    // starts; a flow that only reaches its own unit's database shows nothing the container
+    // starts; a flow that reaches nothing but databases shows nothing the container
     // diagram does not, so it comes last and is shown only to reach the three a scope shows at
     // least (ADR 0047, amendment for #272).
     candidates.sort(
         Comparator.comparing((Trace t) -> crud(t)).thenComparingInt(SequenceFlows::tier));
     for (Trace trace : candidates) {
-      if (kept.size() >= MAX_FLOWS) {
-        break;
-      }
       consider(kept, trace, !crud(trace) || kept.size() < MIN_FLOWS);
     }
     return kept;

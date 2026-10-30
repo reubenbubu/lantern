@@ -1200,6 +1200,38 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void codeWhoseAccessJoinedARunIsTracedAgainWhenCalledAgain() {
+    // Nightly.run writes parcel, then a() reads stock through find(), joining the run; after a
+    // call out, b() runs find() again, which is a step of its own.
+    type("ship", "x.ship", "x.ship.Nightly", "class", "a()", "b()", "find()");
+    relate("ship", NIGHTLY, "CALLS", "method:x.ship.Nightly#a()", "{}", 5);
+    relate("ship", NIGHTLY, "CALLS", "method:x.ship.Nightly#b()", "{}", 7);
+    relate("ship", "method:x.ship.Nightly#a()", "CALLS", "method:x.ship.Nightly#find()", "{}", 11);
+    relate("ship", "method:x.ship.Nightly#b()", "CALLS", "method:x.ship.Nightly#find()", "{}", 12);
+    relate("ship", "method:x.ship.Nightly#find()", "READS_TABLE", "table:x:ship:stock", "{}", 15);
+    httpCall("ship", SHIP, NIGHTLY, "rates.example.com", 6);
+
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .containsExactly(
+            "note []: Starts when the schedule cron 0 0 2 * * * fires in ship (Nightly.run).",
+            "service:x:ship > database:db:5432/ship: Writes parcel; reads stock [JDBC]",
+            "service:x:ship > external-system:rates.example.com: Calls rates.example.com [POST /n]"
+                + " (Over HTTPS.)",
+            "service:x:ship > database:db:5432/ship: Reads stock [JDBC]");
+  }
+
+  @Test
+  void aRunOfDataAccessNamesFourAndSaysHowManyMore() {
+    for (int i = 0; i < 6; i++) {
+      relate("ship", NIGHTLY, "WRITES_TABLE", "table:x:ship:t" + i, "{}", 4);
+    }
+
+    assertThat(steps(diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps()))
+        .contains(
+            "service:x:ship > database:db:5432/ship: Writes parcel, t0, t1, t2 and 3 more [JDBC]");
+  }
+
+  @Test
   void requestsComeBeforeSchedulesAndFlowsThatOnlyReachTheirOwnDatabaseComeLast() {
     // ship's status endpoint reads its own database only; a job reaches more containers than a
     // request, but what someone asks for comes first.

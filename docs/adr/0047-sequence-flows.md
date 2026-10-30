@@ -172,8 +172,9 @@ deliveries to its own listeners, and noted fourteen times that one of `CrmExcept
 - **A method is traced each time the code calls it**, not once per flow: two calls to the same
   helper from two places are two steps. Only a recursive call, to a method being traced, is not
   followed again; a method whose code added nothing is not traced again, so the trace stays
-  small. A delivery or a job is traced once per flow, so a listener that sends to itself does not
-  loop.
+  small (code that reached a recursive call it did not follow is not taken as adding nothing). A
+  delivery or a job is traced once per flow, so a listener that sends to itself does not loop. The
+  trace also stops after 80 steps, notes included, as well as after 40 messages.
 - **A constructor is never an alternative**: `new X()` runs `X`'s constructor, not one of a class
   below it, so it is followed directly, without an `alt` frame or a note.
 - **Self-deliveries are kept.** The linker now links a send to a listener of the same unit
