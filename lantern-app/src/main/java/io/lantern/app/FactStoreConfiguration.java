@@ -17,6 +17,7 @@ import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.extract.test.TestExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.ClaimChecks;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
@@ -63,6 +64,7 @@ class FactStoreConfiguration {
     registry.apply(PeopleExtractor.VOCABULARY_SOURCE, PeopleExtractor.vocabulary());
     registry.apply(GatewayExtractor.VOCABULARY_SOURCE, GatewayExtractor.vocabulary());
     registry.apply(TestExtractor.VOCABULARY_SOURCE, TestExtractor.vocabulary());
+    registry.apply(WebSocketExtractor.VOCABULARY_SOURCE, WebSocketExtractor.vocabulary());
     registry.apply(DeployableUnits.VOCABULARY_SOURCE, DeployableUnits.vocabulary());
     registry.apply(CrossRepoLinks.VOCABULARY_SOURCE, CrossRepoLinks.vocabulary());
     registry.apply(ClaimChecks.VOCABULARY_SOURCE, ClaimChecks.vocabulary());

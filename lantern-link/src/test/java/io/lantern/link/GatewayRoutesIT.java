@@ -14,6 +14,7 @@ import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,8 +26,9 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 /**
  * The gateway routes of the development test sets project-1, project-2 and project-4 (#251), read
  * without builds (degraded mode), against their references: every route the reference draws is a
- * gateway-to-service line with its protocol, and project-4's unrouted endpoint is recorded (#257).
- * Runs only when {@code lantern.test.projects} names the folder the sets were set up in ({@code
+ * gateway-to-service line with its protocol, and project-4's unrouted endpoint is recorded (#257),
+ * and its WebSocket route names the STOMP endpoint it reaches (#262). Runs only when {@code
+ * lantern.test.projects} names the folder the sets were set up in ({@code
  * testsets/project-N/setup.sh}, each repository at its pin). Writes the links it finds to {@code
  * target/gateway-routes/}.
  */
@@ -97,6 +99,12 @@ class GatewayRoutesIT {
                               + route[2]
                               + " service-name"));
     }
+    // The WebSocket route reaches notification-service's STOMP endpoint (#262).
+    assertThat(lines)
+        .anyMatch(
+            l ->
+                l.contains(":notification-service route=notifications-service-web-sockets")
+                    && l.endsWith(" endpoint=/ws-notifications"));
     assertThat(lines)
         .anyMatch(
             l ->
@@ -119,6 +127,7 @@ class GatewayRoutesIT {
     facts.addAll(new SpringExtractor().extract(code, 1));
     facts.addAll(new HttpClientExtractor().extract(code, 1));
     facts.addAll(new GatewayExtractor().extract(code, 1));
+    facts.addAll(new WebSocketExtractor().extract(code, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<Fact> links = new CrossRepoLinks().derive(facts, 1);
     List<String> lines = new ArrayList<>();
@@ -134,7 +143,10 @@ class GatewayRoutesIT {
                 + " "
                 + LinkIndex.text(f, "protocol")
                 + " "
-                + LinkIndex.text(f, "matchedBy"));
+                + LinkIndex.text(f, "matchedBy")
+                + (LinkIndex.text(f, "endpoint") == null
+                    ? ""
+                    : " endpoint=" + LinkIndex.text(f, "endpoint")));
       } else if (f.predicate().equals(CrossRepoLinks.UNROUTED_ENDPOINT)) {
         lines.add(line + " on " + LinkIndex.text(f, "target") + calledBy(f));
       } else if (f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK)

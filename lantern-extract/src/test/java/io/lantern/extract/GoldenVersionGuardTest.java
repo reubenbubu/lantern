@@ -13,6 +13,7 @@ import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -56,7 +57,9 @@ class GoldenVersionGuardTest {
           Map.entry("people", new String[] {PeopleExtractor.NAME, PeopleExtractor.VERSION}),
           Map.entry("redis", new String[] {RedisExtractor.NAME, RedisExtractor.VERSION}),
           Map.entry("spring", new String[] {SpringExtractor.NAME, SpringExtractor.VERSION}),
-          Map.entry("sql", new String[] {SqlExtractor.NAME, SqlExtractor.VERSION}));
+          Map.entry("sql", new String[] {SqlExtractor.NAME, SqlExtractor.VERSION}),
+          Map.entry(
+              "websocket", new String[] {WebSocketExtractor.NAME, WebSocketExtractor.VERSION}));
 
   @Test
   void everyGoldenFolderBelongsToAnExtractor() throws IOException {

@@ -86,6 +86,8 @@ final class C4Views {
   private static final String SCHEDULED = "scheduled";
   private static final String BACKGROUND_JOB = "background-job";
   private static final String GATEWAY_ROUTE = "gateway-route";
+  private static final String STOMP_MAPPING = "stomp-mapping";
+  private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
   private static final String GATEWAY_FILTER = "gateway-filter";
 
   /** The name of a component of the routes a gateway's config defines. */
@@ -1303,7 +1305,8 @@ final class C4Views {
 
   /**
    * The roles that make a type an entry point: web controller, listener, scheduled job, gateway
-   * filter, or the routes of a gateway built in its code.
+   * filter, the routes of a gateway built in its code, a STOMP handler, or the registration of a
+   * WebSocket endpoint.
    */
   private List<String> entryKinds(EntityId type) {
     Set<String> kinds = new LinkedHashSet<>();
@@ -1339,6 +1342,12 @@ final class C4Views {
                   brokerName(RepoSections.attribute(fact, "broker", "message")) + " listener");
           case SCHEDULED, BACKGROUND_JOB -> kinds.add(ExplorerSections.jobKind(fact));
           case GATEWAY_ROUTE -> kinds.add("Gateway routes");
+          case STOMP_MAPPING -> kinds.add("STOMP message handler");
+          case WEBSOCKET_ENDPOINT ->
+              kinds.add(
+                  "stomp".equals(RepoSections.attribute(fact, "protocol", ""))
+                      ? "STOMP WebSocket endpoint"
+                      : "WebSocket endpoint");
           default -> {}
         }
       }

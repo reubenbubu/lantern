@@ -35,6 +35,7 @@ import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.extract.test.TestExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.GraphTools;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
@@ -312,7 +313,7 @@ public final class AnalysisRun {
       List<Fact> found =
           new ArrayList<>(new MavenExtractor().extract(repoBuilds, snapshot.number()));
       // The code is read once, for the Java structure, Spring, persistence, HTTP client,
-      // messaging and gateway extractors.
+      // messaging, WebSocket, mail, Redis, people and gateway extractors.
       JavaAnalysis code = JavaExtractor.analyze(repoBuilds);
       found.addAll(new JavaExtractor().extract(code, snapshot.number()));
       found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number()));
@@ -323,6 +324,7 @@ public final class AnalysisRun {
       found.addAll(new PersistenceExtractor().extract(code, snapshot.number()));
       found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
       found.addAll(new MessagingExtractor().extract(code, snapshot.number()));
+      found.addAll(new WebSocketExtractor().extract(code, snapshot.number()));
       found.addAll(new MailExtractor().extract(code, snapshot.number()));
       found.addAll(new RedisExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));

@@ -23,6 +23,7 @@ import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.extract.test.TestExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxSettings;
 import java.io.IOException;
@@ -149,6 +150,7 @@ public final class Fixtures {
             PersistenceExtractor.vocabulary(),
             HttpClientExtractor.vocabulary(),
             MessagingExtractor.vocabulary(),
+            WebSocketExtractor.vocabulary(),
             MailExtractor.vocabulary(),
             RedisExtractor.vocabulary(),
             PeopleExtractor.vocabulary(),

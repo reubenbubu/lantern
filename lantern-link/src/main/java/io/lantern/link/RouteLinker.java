@@ -8,6 +8,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.LinkText.Url;
@@ -28,9 +29,10 @@ import tools.jackson.databind.node.ObjectNode;
  * URI ({@code lb://name}, {@code lb:ws://name}) by the name against {@code
  * spring.application.name}, any other by its host as an HTTP call's URL is matched, and one to this
  * machine by its port against the units' {@code server.port}. Each route is a {@code CALLS_HTTP}
- * link from the gateway, with the route's id, paths and protocol (HTTP, HTTPS or WebSocket). Then,
- * for each unit a gateway routes to, the endpoints no route of that gateway reaches are recorded on
- * the gateway as {@code unrouted-endpoint}.
+ * link from the gateway, with the route's id, paths and protocol (HTTP, HTTPS or WebSocket); a
+ * WebSocket route also names the target's WebSocket endpoint it reaches (ADR 0080). Then, for each
+ * unit a gateway routes to, the endpoints no route of that gateway reaches are recorded on the
+ * gateway as {@code unrouted-endpoint}.
  */
 final class RouteLinker {
 
@@ -176,6 +178,22 @@ final class RouteLinker {
     if (target.fact() != null) {
       facts.add(target.fact().id());
     }
+    if (protocol.equals("WebSocket")) {
+      List<Fact> endpoints = webSocketEndpoints(target.unit(), route, view);
+      if (endpoints.size() == 1) {
+        Fact endpoint = endpoints.getFirst();
+        attributes.put("endpoint", LinkIndex.text(endpoint, "path"));
+        attributes.put("target", endpoint.subject().toString());
+      } else if (!endpoints.isEmpty()) {
+        ArrayNode array = attributes.putArray("endpoints");
+        endpoints.stream()
+            .map(e -> LinkIndex.text(e, "path"))
+            .distinct()
+            .sorted()
+            .forEach(array::add);
+      }
+      endpoints.forEach(e -> facts.add(e.id()));
+    }
     out.add(
         view,
         new Found(
@@ -196,6 +214,33 @@ final class RouteLinker {
             CrossRepoLinks.round(route.confidence() * target.factor()),
             facts));
     return target.unit();
+  }
+
+  /**
+   * The WebSocket endpoints of a unit (ADR 0080) a WebSocket route reaches in the view, by its
+   * paths as the unit sees them and the unit's servlet prefix; none when a filter rewrites the path
+   * in a way not followed.
+   */
+  private List<Fact> webSocketEndpoints(Unit target, Fact route, String view) {
+    List<Fact> found = new ArrayList<>();
+    List<String> patterns = patterns(route);
+    if (patterns == null) {
+      return found;
+    }
+    String prefix = index.servletPrefix(target, view);
+    for (Fact endpoint : index.of(WebSocketExtractor.ENDPOINT)) {
+      String template = LinkIndex.text(endpoint, "path");
+      if (template == null
+          || !index.unitsOf(endpoint.subject()).contains(target)
+          || !index.active(endpoint.subject(), view)) {
+        continue;
+      }
+      String path = LinkText.join(prefix, template);
+      if (patterns.stream().anyMatch(p -> matches(path, p))) {
+        found.add(endpoint);
+      }
+    }
+    return found;
   }
 
   /** A target found for a route, with the fact it was found by (a name or port), if any. */

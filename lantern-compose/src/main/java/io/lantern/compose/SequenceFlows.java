@@ -58,6 +58,9 @@ final class SequenceFlows {
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
   private static final String SCHEDULED = "scheduled";
+  private static final String STOMP_MAPPING = "stomp-mapping";
+  private static final String STOMP_SEND = "stomp-send";
+  private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
   private static final String BACKGROUND_JOB = "background-job";
   private static final String PROFILE_GATE = "profile-gate";
   private static final String SENDS_MESSAGES_TO = "SENDS_MESSAGES_TO";
@@ -131,6 +134,7 @@ final class SequenceFlows {
                   f ->
                       f.predicate().equals(ENDPOINT)
                           || f.predicate().equals(MESSAGE_LISTENER)
+                          || f.predicate().equals(STOMP_MAPPING)
                           || f.predicate().equals(SCHEDULED)
                           || f.predicate().equals(BACKGROUND_JOB))
               .findFirst()
@@ -171,6 +175,10 @@ final class SequenceFlows {
 
     int depth;
     int messages;
+
+    /** How many pushes to STOMP subscribers the flow shows, which leave the unit as notes. */
+    int pushes;
+
     boolean truncated;
 
     Trace(Entry entry) {
@@ -285,7 +293,7 @@ final class SequenceFlows {
 
     /** The units, stores, queues and external systems the flow touches. */
     int touches() {
-      return participants.size();
+      return participants.size() + (pushes > 0 ? 1 : 0);
     }
   }
 
@@ -376,6 +384,12 @@ final class SequenceFlows {
           };
       if (action != null) {
         events.add(new Event(line(link), 1, link.id(), action));
+      }
+    }
+    for (Fact push : knowledge.attributes(method)) {
+      if (push.predicate().equals(STOMP_SEND)) {
+        events.add(
+            new Event(line(push), 1, push.id(), () -> stompPush(trace, unit, push, profiles)));
       }
     }
     List<Entry> jobs = jobsByScheduler.getOrDefault(method.toString(), List.of());
@@ -798,6 +812,58 @@ final class SequenceFlows {
     return Character.toUpperCase(text.charAt(0)) + text.substring(1);
   }
 
+  /**
+   * A message pushed to STOMP subscribers: a note over the unit, since the subscribers are clients
+   * (a browser) that no fact of the code names; the WebSocket endpoints of the unit say where they
+   * connect (ADR 0080).
+   */
+  private void stompPush(Trace trace, EntityId unit, Fact push, List<String> profiles) {
+    List<Fact> facts = new ArrayList<>(List.of(push));
+    SortedSet<String> paths = new TreeSet<>();
+    for (Fact endpoint : websocketEndpoints(unit)) {
+      if ("stomp".equals(attribute(endpoint, "protocol"))) {
+        paths.add(endpoint.object().value());
+        facts.add(endpoint);
+      }
+    }
+    boolean toUser = "true".equals(attribute(push, "toUser"));
+    StringBuilder text =
+        new StringBuilder(nameOf(unit))
+            .append(
+                toUser
+                    ? " pushes to the user's STOMP subscribers of "
+                    : " pushes to the STOMP subscribers of ")
+            .append(push.object().value());
+    if (!paths.isEmpty()) {
+      text.append(", connected over ").append(String.join(" or ", paths));
+    }
+    text.append(" [STOMP over WebSocket]. It does not wait for them.");
+    trace.note(List.of(unit), text.toString(), profiles, facts);
+    trace.pushes++;
+  }
+
+  /** The WebSocket endpoints registered by the unit's code. */
+  private List<Fact> websocketEndpoints(EntityId unit) {
+    List<Fact> result = new ArrayList<>();
+    SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
+    for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+      code.addAll(knowledge.typesWithin(module));
+      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+        code.addAll(knowledge.typesWithin(pkg));
+      }
+    }
+    for (EntityId type : code) {
+      for (EntityId method : knowledge.parts(type, METHOD)) {
+        for (Fact fact : knowledge.attributes(method)) {
+          if (fact.predicate().equals(WEBSOCKET_ENDPOINT)) {
+            result.add(fact);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   private void unresolved(Trace trace, EntityId unit, Fact fact, List<String> profiles) {
     String reason = attribute(fact, "reason");
     StringBuilder text =
@@ -952,7 +1018,7 @@ final class SequenceFlows {
     List<Trace> candidates = new ArrayList<>();
     for (Entry entry : entries) {
       Trace trace = trace(entry);
-      if (trace.messages > 0 || !trace.unresolved.isEmpty()) {
+      if (trace.messages > 0 || trace.pushes > 0 || !trace.unresolved.isEmpty()) {
         candidates.add(trace);
       }
     }
@@ -1003,7 +1069,8 @@ final class SequenceFlows {
               null,
               List.of(
                   TextRun.of(
-                      "No entry point (HTTP endpoint, message listener or scheduled job) was found"
+                      "No entry point (HTTP endpoint, message listener, STOMP handler, scheduled"
+                          + " or background job) was found"
                           + " whose code reaches another container.")),
               List.of()));
       return List.of();
@@ -1032,6 +1099,16 @@ final class SequenceFlows {
               "Message on " + value + " to " + nameOf(entry.unit),
               "A message on " + value + " (" + handler + ")",
               "a message arrives on " + value + " for " + nameOf(entry.unit));
+      case STOMP_MAPPING -> {
+        boolean subscribe = "subscribe".equals(attribute(entry.fact, "kind"));
+        String what = subscribe ? "STOMP subscription to " : "STOMP message to ";
+        yield new Heading(
+            what + value + " on " + nameOf(entry.unit),
+            "A " + what + value + " (" + handler + ")",
+            subscribe
+                ? "a client subscribes to " + value + " on " + nameOf(entry.unit)
+                : "a client sends a STOMP message to " + value + " on " + nameOf(entry.unit));
+      }
       default -> {
         String kind = attribute(entry.fact, "trigger");
         if (kind == null) {

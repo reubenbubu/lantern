@@ -109,6 +109,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Spring / Jakarta | Annotations, including meta-annotations (a custom annotation carrying `@RestController` or `@Service` counts as one), and bean definitions | Application main classes, controllers and endpoints, beans by stereotype, configuration, `@Scheduled` jobs, JobRunr and Quartz jobs with where they are scheduled, `@Profile` gates, `@Aspect` types with the methods their pointcuts advise |
 | HTTP clients | Feign, Spring HTTP interfaces (`@HttpExchange`), RestTemplate, RestClient, WebClient, JAX-RS and MicroProfile clients, `java.net.http`, OkHttp and Apache HttpClient | Outbound calls with target service name, URL or property key, and path. The caller of a client interface is the code that enables or injects it, not the jar that defines it |
 | Messaging | Kafka, JMS, RabbitMQ listeners and templates; Spring Cloud Stream bindings and `StreamBridge` | Topics, exchanges, queues, bindings and routing keys produced and consumed |
+| WebSocket / STOMP | `@EnableWebSocketMessageBroker` and `@EnableWebSocket` configuration (endpoints, broker prefixes, client channel interceptors), `@MessageMapping` handlers, `SimpMessagingTemplate` sends | WebSocket endpoints and their paths, STOMP destinations handled and pushed to, the interceptors that check connect and subscribe |
 | Spring Cloud Gateway | Routes built with `RouteLocatorBuilder` and routes in `spring.cloud.gateway` config; filter classes | Routes per profile with their predicates, filters and target URI (`lb://`, `lb:ws://`, a URL), and the global, gateway and web filters requests pass through, as entry points |
 | Persistence | JPA entities, repositories, JDBC templates | Entities, tables touched, datasource bindings |
 | Redis | Redis templates and operations, `@RedisHash`, Spring Session, lock registries, the gateway's rate limiter and caches in code, config and POM dependencies; Redis images in compose files | How each module uses Redis, with the keys the code writes out, and the product and version Redis runs as |
@@ -146,6 +147,7 @@ How Redis becomes a data store, found from the code, config, dependencies and co
 
 Which listeners, templates and bindings the Messaging extractor reads, how it follows a name from a constant, a placeholder or a `@Value` into the call that uses it, and what facts it makes of listeners, sends and RabbitMQ bindings is in ADR 0037. How it reads Spring Cloud Stream, whose destinations come from config through bindings, into the same facts is in ADR 0040.
 
+What the WebSocket extractor reads of Spring's WebSocket and STOMP code, which facts it makes, how a push to subscribers shows in sequence diagrams and what a gateway route to a WebSocket endpoint needs of it is in ADR 0080.
 Which routes and filters the Spring Cloud Gateway extractor reads, and how lambdas in the code are read for it, is in ADR 0077.
 
 Which HTTP clients the HTTP client extractor reads, how it follows a URL one hop through the code, what facts it makes of calls and of the code that enables or injects a client, and what a recorded URL leaves out is in ADR 0038.
@@ -598,7 +600,7 @@ Each phase delivers something usable on real repos. The knowledge model and stab
    - Bottom-up LLM summaries
    - Architecture Explorer and Executive Brief templates, single-file HTML, per-repo scope
 2. **System view** (next, before the remaining Phase 1 fixes; see ADR 0026): many repos as one named system, measured against references (ADR 0070).
-   - Spring, HTTP client, messaging, persistence, config and SQL extractors, following values
+   - Spring, HTTP client, messaging, WebSocket, persistence, config and SQL extractors, following values
    - Deployment and frontend extractors; repos without a Maven build
    - Cross-repo linker, LLM resolver and Investigate
    - Deployable units, container, component and sequence views, findings, and Quality bar checks

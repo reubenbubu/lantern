@@ -31,7 +31,14 @@ final class FactSheet {
   enum Group {
     ENTRY_POINTS(
         "Entry points",
-        List.of("main-class", "endpoint", "message-listener", "scheduled", "background-job")),
+        List.of(
+            "main-class",
+            "endpoint",
+            "message-listener",
+            "websocket-endpoint",
+            "stomp-mapping",
+            "scheduled",
+            "background-job")),
     LINKS(
         "Links",
         List.of(
@@ -44,6 +51,7 @@ final class FactSheet {
             "USES_INFRASTRUCTURE",
             "http-call",
             "message-send",
+            "stomp-send",
             "mail-send",
             "http-client")),
     DATA_STORES(

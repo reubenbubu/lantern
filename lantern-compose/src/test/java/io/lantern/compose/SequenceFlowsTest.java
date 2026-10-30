@@ -410,6 +410,52 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aMessagePushedOverStompIsANoteNamingTheEndpointClientsConnectTo() {
+    // ship's listener pushes what it received to the browsers subscribed to /topic/parcels.
+    attribute(
+        "ship", LISTEN, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 9);
+    attribute(
+        "ship",
+        STATUS,
+        "websocket-endpoint",
+        "/ws-parcels",
+        "{\"path\": \"/ws-parcels\", \"protocol\": \"stomp\"}",
+        2);
+
+    List<String> lines = steps(diagram(flows(system(facts)).sections().getFirst()).steps());
+
+    assertThat(lines)
+        .containsSubsequence(
+            "topic:kafka:orders >> service:x:ship: Delivers to Listener.on [Kafka]",
+            "service:x:ship > database:db:5432/ship: Reads parcel [JDBC]",
+            "note [service:x:ship]: ship pushes to the STOMP subscribers of /topic/parcels,"
+                + " connected over /ws-parcels [STOMP over WebSocket]. It does not wait for"
+                + " them.");
+  }
+
+  @Test
+  void anEntryPointThatOnlyPushesOverStompIsAFlow() {
+    // ship's status endpoint reaches nothing else, but pushes to browsers subscribed over STOMP.
+    attribute("ship", STATUS, "stomp-send", "/topic/status", "{\"method\": \"convertAndSend\"}", 4);
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .contains("GET /status on ship");
+  }
+
+  @Test
+  void aFlowStartedByAStompMessageIsTitledByItsDestination() {
+    // A STOMP handler on ship that pushes what it receives to the subscribers.
+    attribute("ship", STATUS, "stomp-mapping", "/parcels/track", "{\"kind\": \"message\"}", 0);
+    attribute(
+        "ship", STATUS, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 4);
+
+    assertThat(flows(system(facts)).sections())
+        .extracting(Section::title)
+        .contains("STOMP message to /parcels/track on ship");
+  }
+
+  @Test
   void aSendTheResolverLinkedIsMarkedAsTheLlmsToo() {
     Fact open =
         facts.stream().filter(f -> f.predicate().equals("unresolved-link")).findFirst().get();
@@ -453,8 +499,8 @@ class SequenceFlowsTest {
     assertThat(flows.sections()).isEmpty();
     assertThat(text(((Callout) flows.blocks().getFirst()).content()))
         .isEqualTo(
-            "No entry point (HTTP endpoint, message listener or scheduled job) was found whose"
-                + " code reaches another container.");
+            "No entry point (HTTP endpoint, message listener, STOMP handler, scheduled or"
+                + " background job) was found whose code reaches another container.");
   }
 
   @Test

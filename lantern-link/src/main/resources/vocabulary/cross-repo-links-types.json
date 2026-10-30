@@ -149,7 +149,7 @@
         },
         "target": {
           "type": "string",
-          "description": "The entity ID of the code on the object's side: the endpoint's handler method, or the listener method."
+          "description": "The entity ID of the code on the object's side: the endpoint's handler method, or the listener method; for a WebSocket gateway route, the method that registers the one WebSocket endpoint it reaches."
         },
         "client": {
           "type": "string",
@@ -169,7 +169,14 @@
         },
         "endpoint": {
           "type": "string",
-          "description": "The endpoint matched, such as GET /api/products/{id}."
+          "description": "The endpoint matched, such as GET /api/products/{id}; for a WebSocket gateway route, the path of the one WebSocket endpoint it reaches, such as /ws-notifications."
+        },
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "For a WebSocket gateway route that reaches more than one WebSocket endpoint of its target, their paths."
         },
         "route": {
           "type": "string",

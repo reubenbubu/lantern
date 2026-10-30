@@ -58,7 +58,11 @@ final class TrackedApis {
 
           // Jobs (the Spring extractor): JobRunr's schedulers and Quartz's builders and scheduler.
           "org.jobrunr.scheduling.",
-          "org.quartz.");
+          "org.quartz.",
+          // WebSocket and STOMP (the WebSocket extractor): endpoint and handler registries, the
+          // broker's and client channel's registrations, and the Simp messaging templates.
+          "org.springframework.web.socket.config.annotation.",
+          "org.springframework.messaging.simp.");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";

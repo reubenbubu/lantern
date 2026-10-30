@@ -23,6 +23,7 @@ import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -629,6 +630,52 @@ class CrossRepoLinksTest {
                 + " {\"matchedBy\":\"service-name\",\"methods\":[\"GET\"],"
                 + "\"paths\":[\"/api/users/**\"],\"protocol\":\"HTTP\",\"route\":\"users\","
                 + "\"source\":\"method:gw.Routes#routes()\",\"url\":\"lb://users\"} 1.0");
+  }
+
+  private void webSocketEndpoint(String repo, String method, String path) {
+    add(
+        WebSocketExtractor.NAME,
+        "method:" + method,
+        WebSocketExtractor.ENDPOINT,
+        FactObject.string(path),
+        "{\"path\":\"" + path + "\",\"protocol\":\"stomp\",\"sockjs\":true}",
+        repo + ":src/main/java/n/WsConfig.java#12",
+        1.0);
+  }
+
+  @Test
+  void aWebSocketRouteNamesTheWebSocketEndpointItReaches() {
+    unit("gw", "edge", "edge");
+    type("gw", "edge", "gw.Routes");
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "notify",
+        "{\"definedIn\":\"java\",\"uri\":\"lb:ws://notifications\","
+            + "\"paths\":[\"/ws-notifications/**\"]}");
+    // Without a Path predicate a route reaches every endpoint, so it names none of several.
+    route(
+        "gw",
+        "method:gw.Routes#routes()",
+        "all",
+        "{\"definedIn\":\"java\",\"uri\":\"lb:ws://notifications\"}");
+    unit("n", "notifications-service", "notifications");
+    type("n", "notifications-service", "n.WsConfig");
+    webSocketEndpoint("n", "n.WsConfig#stomp()", "/ws-notifications");
+    webSocketEndpoint("n", "n.WsConfig#raw()", "/ws-raw");
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactlyInAnyOrder(
+            "service:g:edge CALLS_HTTP service:g:notifications-service"
+                + " {\"endpoints\":[\"/ws-notifications\",\"/ws-raw\"],"
+                + "\"matchedBy\":\"service-name\",\"protocol\":\"WebSocket\",\"route\":\"all\","
+                + "\"source\":\"method:gw.Routes#routes()\",\"url\":\"lb:ws://notifications\"} 1.0",
+            "service:g:edge CALLS_HTTP service:g:notifications-service"
+                + " {\"endpoint\":\"/ws-notifications\",\"matchedBy\":\"service-name\","
+                + "\"paths\":[\"/ws-notifications/**\"],\"protocol\":\"WebSocket\","
+                + "\"route\":\"notify\",\"source\":\"method:gw.Routes#routes()\","
+                + "\"target\":\"method:n.WsConfig#stomp()\",\"url\":\"lb:ws://notifications\"}"
+                + " 1.0");
   }
 
   @Test

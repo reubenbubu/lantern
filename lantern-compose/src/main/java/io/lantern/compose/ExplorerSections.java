@@ -38,6 +38,8 @@ final class ExplorerSections {
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
   private static final String SCHEDULED = "scheduled";
+  private static final String STOMP_MAPPING = "stomp-mapping";
+  private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
   private static final String BACKGROUND_JOB = "background-job";
   private static final String MAIN_CLASS = "main-class";
   private static final String CONFIG_VALUE = "config-value";
@@ -48,7 +50,8 @@ final class ExplorerSections {
   private static final String README = "readme";
   private static final String CLAIM = "claim";
   private static final List<String> ENTRY_KINDS =
-      List.of(ENDPOINT, MESSAGE_LISTENER, SCHEDULED, BACKGROUND_JOB);
+      List.of(
+          ENDPOINT, MESSAGE_LISTENER, STOMP_MAPPING, WEBSOCKET_ENDPOINT, SCHEDULED, BACKGROUND_JOB);
   private static final Set<String> DESTINATIONS =
       Set.of(C4Views.TOPIC, C4Views.QUEUE, C4Views.EXCHANGE);
 
@@ -189,6 +192,8 @@ final class ExplorerSections {
     return switch (fact.predicate()) {
       case ENDPOINT -> value;
       case MESSAGE_LISTENER -> "Messages on " + value;
+      case STOMP_MAPPING -> "STOMP messages to " + value;
+      case WEBSOCKET_ENDPOINT -> "WebSocket " + value;
       default -> jobKind(fact) + " (" + value + ")";
     };
   }
@@ -346,6 +351,11 @@ final class ExplorerSections {
           switch (entry.fact.predicate()) {
             case ENDPOINT -> "HTTP endpoint";
             case MESSAGE_LISTENER -> "Message listener";
+            case STOMP_MAPPING -> "STOMP message handler";
+            case WEBSOCKET_ENDPOINT ->
+                "stomp".equals(RepoSections.attribute(entry.fact, "protocol", ""))
+                    ? "STOMP WebSocket endpoint"
+                    : "WebSocket endpoint";
             default -> jobKind(entry.fact);
           };
       assembler.entity(entry.method);

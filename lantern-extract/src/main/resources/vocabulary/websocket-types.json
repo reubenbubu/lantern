@@ -1,0 +1,86 @@
+[
+  {
+    "name": "websocket-endpoint",
+    "kind": "attribute",
+    "description": "The subject method registers a WebSocket endpoint that clients connect to: a STOMP endpoint (registry.addEndpoint, @EnableWebSocketMessageBroker) or a raw WebSocket handler (registry.addHandler, @EnableWebSocket). The object is the path. A path registered twice, once plain and once with SockJS, is one fact.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "description": "The path clients connect to, such as /ws-notifications." },
+        "protocol": { "type": "string", "enum": ["stomp", "websocket"], "description": "stomp for a STOMP endpoint (clients subscribe to destinations and send to application destinations over it), websocket for a raw handler." },
+        "sockjs": { "type": "boolean", "description": "Whether the path is also offered with SockJS fallbacks (withSockJS)." },
+        "nativeWebSocket": { "type": "boolean", "description": "Whether the path accepts plain WebSocket connections (a registration without SockJS)." },
+        "allowedOrigins": { "type": "array", "items": { "type": "string" }, "description": "The origins or origin patterns the registration allows, such as *. Absent when none is set." },
+        "handler": { "type": "string", "description": "For a raw WebSocket endpoint, the binary name of the handler's type, when it could be told." }
+      },
+      "required": ["path", "protocol"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "stomp-prefix",
+    "kind": "attribute",
+    "description": "The subject method configures a STOMP destination prefix of the message broker (configureMessageBroker): the prefixes the simple broker or a broker relay serves, the prefix of destinations handled by @MessageMapping methods, or the prefix of user destinations. The object is the prefix.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["simple-broker", "broker-relay", "application", "user"], "description": "simple-broker: destinations the in-memory broker serves to subscribers; broker-relay: destinations relayed to an external broker; application: destinations that reach @MessageMapping methods; user: the prefix of user destinations." }
+      },
+      "required": ["kind"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "stomp-mapping",
+    "kind": "attribute",
+    "parent": "entry-point",
+    "description": "The subject method handles STOMP messages (@MessageMapping) or subscriptions (@SubscribeMapping) sent by a client: the object is the destination, the class's mapping joined with the method's, without the application prefix, which the stomp-prefix facts give.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["message", "subscribe"], "description": "message for @MessageMapping, subscribe for @SubscribeMapping." },
+        "annotation": { "type": "string", "description": "The binary name of the annotation written." },
+        "sendTo": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendTo on the method (or its class), where the return value is sent." },
+        "sendToUser": { "type": "array", "items": { "type": "string" }, "description": "The destinations of @SendToUser, where the return value is sent to the sending user." }
+      },
+      "required": ["kind", "annotation"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "stomp-send",
+    "kind": "attribute",
+    "description": "The subject method pushes a message to STOMP subscribers through SimpMessagingTemplate or SimpMessageSendingOperations (convertAndSend, send, convertAndSendToUser): the object is the destination, with constants folded and a part that is not a constant (an id formatted into it) written as {}.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "method": { "type": "string", "description": "The name of the method called, such as convertAndSendToUser." },
+        "template": { "type": "string", "description": "The binary name of the type whose method sends." },
+        "toUser": { "type": "boolean", "description": "Present and true when the message goes to one user's destination (convertAndSendToUser): subscribers of the user prefix plus the destination." },
+        "dynamic": { "type": "boolean", "description": "Present and true when part of the destination is not a constant, written as {}." },
+        "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields the destination was followed through." }
+      },
+      "required": ["method"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "stomp-interceptor",
+    "kind": "attribute",
+    "description": "The subject method registers a ChannelInterceptor on the STOMP client channel (configureClientInboundChannel or configureClientOutboundChannel), where connect, subscribe and send checks are made. The object is the interceptor's type.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "channel": { "type": "string", "enum": ["inbound", "outbound"], "description": "The client channel: inbound for messages from clients (CONNECT, SUBSCRIBE, SEND), outbound for messages to them." },
+        "intercepts": { "type": "array", "items": { "type": "string" }, "description": "The ChannelInterceptor methods the interceptor's class declares, such as preSend. Absent when its class is not in the analyzed sources." }
+      },
+      "required": ["channel"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

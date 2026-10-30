@@ -1,0 +1,237 @@
+package io.lantern.extract.websocket;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.lantern.core.fact.Fact;
+import io.lantern.core.repo.Repo;
+import io.lantern.core.vocabulary.Vocabulary;
+import io.lantern.extract.Fixtures;
+import io.lantern.extract.RepoBuild;
+import io.lantern.extract.java.JavaAnalysis;
+import io.lantern.extract.java.JavaExtractor;
+import io.lantern.sandbox.BuildModule;
+import io.lantern.sandbox.BuildResult;
+import io.lantern.sandbox.BuildStatus;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
+import javax.tools.JavaCompiler;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.ToolProvider;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * Tests that need no Docker, on the {@code websocket} fixture: golden facts with it parsed
+ * (degraded mode), the cases, and the same facts with it read through javac, with stand-ins for
+ * Spring's WebSocket and Messaging.
+ */
+class WebSocketExtractorTest {
+
+  private static final long SNAPSHOT = 5;
+  private static final String LIVE = "method:com.example.live.";
+
+  @TempDir Path temp;
+
+  private static List<Fact> extract(List<RepoBuild> inputs) throws IOException {
+    List<Fact> facts = new WebSocketExtractor().extract(inputs, SNAPSHOT);
+    Fixtures.checkEnvelope(
+        facts,
+        inputs.stream().map(RepoBuild::repo).toList(),
+        SNAPSHOT,
+        WebSocketExtractor.NAME,
+        WebSocketExtractor.VERSION);
+    assertThat(new WebSocketExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
+    return facts;
+  }
+
+  private Repo fixture() throws IOException {
+    return Fixtures.repo("websocket", temp.resolve("websocket"), "websocket");
+  }
+
+  @Test
+  void parsed() throws IOException {
+    Repo repo = fixture();
+    List<Fact> facts = extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+
+    Fixtures.assertGolden("websocket/websocket-parsed.txt", facts);
+  }
+
+  @Test
+  void cases() throws IOException {
+    Repo repo = fixture();
+    List<String> facts =
+        Fixtures.render(extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null))))
+            .lines()
+            .toList();
+
+    assertThat(facts)
+        // A path registered plain and with SockJS is one endpoint, offering both.
+        .anyMatch(
+            l ->
+                l.contains(" websocket-endpoint /ws-live ")
+                    && l.contains("\"sockjs\":true")
+                    && l.contains("\"nativeWebSocket\":true")
+                    && l.contains("\"allowedOrigins\":[\"*\"]"))
+        // SockJS only, several paths in one call.
+        .anyMatch(
+            l ->
+                l.contains(" websocket-endpoint /ws-other ")
+                    && l.contains("\"sockjs\":true")
+                    && l.contains("\"nativeWebSocket\":false"))
+        .anyMatch(l -> l.contains(" websocket-endpoint /ws-sockjs-only "))
+        // A raw handler, its type followed from the field.
+        .anyMatch(
+            l ->
+                l.contains(" websocket-endpoint /raw ")
+                    && l.contains("\"protocol\":\"websocket\"")
+                    && l.contains("\"handler\":\"org.springframework.web.socket.WebSocketHandler\"")
+                    && l.contains("\"allowedOrigins\":[\"https://example.com\"]"))
+        // The broker's prefixes.
+        .anyMatch(l -> l.contains(" stomp-prefix /topic ") && l.contains("simple-broker"))
+        .anyMatch(l -> l.contains(" stomp-prefix /queue ") && l.contains("simple-broker"))
+        .anyMatch(l -> l.contains(" stomp-prefix /app ") && l.contains("\"application\""))
+        .anyMatch(l -> l.contains(" stomp-prefix /user ") && l.contains("\"user\""))
+        // Interceptors: one from a field, with the methods its class declares; one created in
+        // place on the outbound channel.
+        .anyMatch(
+            l ->
+                l.startsWith(LIVE + "StompConfig#configureClientInboundChannel")
+                    && l.contains(" stomp-interceptor com.example.live.AuthInterceptor ")
+                    && l.contains("\"channel\":\"inbound\"")
+                    && l.contains("\"intercepts\":[\"preSend\"]"))
+        .anyMatch(
+            l ->
+                l.contains(" stomp-interceptor com.example.live.AuditInterceptor ")
+                    && l.contains("\"channel\":\"outbound\"")
+                    && l.contains("\"intercepts\":[\"afterSendCompletion\",\"postSend\"]"))
+        // Handlers: the class mapping joined with the method's, with where the reply goes.
+        .anyMatch(
+            l ->
+                l.startsWith(LIVE + "ChatController#say(java.lang.String) stomp-mapping /chat/say ")
+                    && l.contains("\"sendTo\":[\"/topic/chat\"]"))
+        .anyMatch(
+            l ->
+                l.contains(" stomp-mapping /chat/whisper ")
+                    && l.contains("\"sendToUser\":[\"/queue/whispers\"]"))
+        .anyMatch(
+            l ->
+                l.contains(" stomp-mapping /chat/history ") && l.contains("\"kind\":\"subscribe\""))
+        // The application's own annotation carrying @MessageMapping counts (it has a class prefix
+        // of /chat); a framework annotation that carries it does not.
+        .anyMatch(
+            l ->
+                l.startsWith(LIVE + "ChatController#custom(")
+                    && l.contains(" stomp-mapping /chat/live ")
+                    && l.contains("\"annotation\":\"com.example.live.Live\""))
+        .noneMatch(l -> l.startsWith(LIVE + "ChatController#activated("))
+        .noneMatch(l -> l.startsWith(LIVE + "ChatController#notMapped("))
+        // Sends: a constant, a format, a concatenation, a constant field.
+        .anyMatch(
+            l ->
+                l.startsWith(LIVE + "Pusher#toUser(")
+                    && l.contains(" stomp-send /topic/notifications ")
+                    && l.contains("\"toUser\":true"))
+        .anyMatch(
+            l ->
+                l.startsWith(LIVE + "Pusher#toOrganization(")
+                    && l.contains(" stomp-send /topic/organizations/{}/notifications ")
+                    && l.contains("\"dynamic\":true"))
+        .anyMatch(
+            l ->
+                l.startsWith(LIVE + "Pusher#toRoom(") && l.contains(" stomp-send /topic/rooms/{} "))
+        .anyMatch(
+            l -> l.startsWith(LIVE + "Pusher#toAudit(") && l.contains(" stomp-send /topic/audit "))
+        // A destination the caller chooses is not guessed, and the default destination is not read.
+        .noneMatch(l -> l.startsWith(LIVE + "Pusher#toChosen("))
+        .noneMatch(l -> l.startsWith(LIVE + "Pusher#toDefault("));
+  }
+
+  @Test
+  void compiledGivesTheSameFactsAsParsed() throws IOException {
+    Repo repo = fixture();
+    String commit = Fixtures.head(repo);
+    RepoBuild built = new RepoBuild(repo, commit, build(temp, repo, commit));
+
+    JavaAnalysis code = JavaExtractor.analyze(List.of(built));
+    List<Fact> compiled = new WebSocketExtractor().extract(code, SNAPSHOT);
+    List<Fact> parsed =
+        new WebSocketExtractor().extract(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT);
+
+    assertThat(code.modules()).singleElement().matches(JavaAnalysis.Module::compiled);
+    assertThat(withoutConfidence(compiled)).isNotEmpty().isEqualTo(withoutConfidence(parsed));
+    assertThat(Fixtures.render(compiled).lines()).allMatch(line -> line.endsWith(" 1.0"));
+  }
+
+  @Test
+  void vocabularyFitsOnTheSpringTypes() {
+    Vocabulary vocabulary = Fixtures.vocabulary();
+
+    // A STOMP handler is an entry point, as flows find them.
+    assertThat(vocabulary.isA(WebSocketExtractor.MAPPING, "entry-point")).isTrue();
+  }
+
+  private static List<String> withoutConfidence(List<Fact> facts) {
+    return Fixtures.render(facts).lines().map(l -> l.replaceAll(" [01]\\.[07]$", "")).toList();
+  }
+
+  /** A successful build of the one-module fixture with Lantern's test classpath and stand-ins. */
+  private static BuildResult build(Path temp, Repo repo, String commit) throws IOException {
+    List<String> classpath =
+        new ArrayList<>(
+            Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
+                .filter(entry -> entry.endsWith(".jar"))
+                .toList());
+    classpath.add(compileStubs(temp).toString());
+    BuildModule module =
+        new BuildModule(
+            "", "com.example.live", "live", "jar", "1.0.0", List.of(), classpath, null, null, null);
+    Path directory = Files.createDirectories(temp.resolve("builds").resolve(repo.name()));
+    return new BuildResult(
+        repo.name(),
+        commit,
+        BuildStatus.SUCCEEDED,
+        null,
+        21,
+        "test",
+        "test",
+        0,
+        Instant.EPOCH,
+        Duration.ZERO,
+        null,
+        List.of(module),
+        directory);
+  }
+
+  private static Path compileStubs(Path temp) throws IOException {
+    List<Path> sources = new ArrayList<>();
+    for (String stubs : List.of("websocket-stubs", "messaging-stubs")) {
+      try (Stream<Path> files = Files.walk(Fixtures.fixture(stubs))) {
+        files.filter(f -> f.toString().endsWith(".java")).forEach(sources::add);
+      }
+    }
+    Path classes = Files.createDirectories(temp.resolve("stub-classes"));
+    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+    try (StandardJavaFileManager files = compiler.getStandardFileManager(null, null, null)) {
+      boolean ok =
+          compiler
+              .getTask(
+                  null,
+                  files,
+                  null,
+                  List.of("-d", classes.toString()),
+                  null,
+                  files.getJavaFileObjectsFromPaths(sources))
+              .call();
+      assertThat(ok).as("the stand-ins compile").isTrue();
+    }
+    return classes;
+  }
+}
