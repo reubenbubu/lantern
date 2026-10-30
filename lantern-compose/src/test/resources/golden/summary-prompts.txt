@@ -109,11 +109,12 @@ Summarize the Maven module greeting-service in 1 to 3 sentences and at most 60 w
 Facts:
 [F1] module:com.example.greeting:greeting-service BUILD_DEPENDS_ON module:com.example.greeting:greeting-lib {"scope":"compile","version":"1.0.0"}
 [F2] module:com.example.greeting:greeting-service CONTAINS package:com.example.greeting:greeting-service:com.example.greeting.service
-[F3] module:com.example.greeting:greeting-service java-release "21"
-[F4] module:com.example.greeting:greeting-service packaging "jar"
-[F5] module:com.example.greeting:greeting-service version "1.0.0"
-[F6] service:com.example.greeting:greeting-service CONTAINS module:com.example.greeting:greeting-service
-[F7] service:com.example.greeting:greeting-service PACKAGES library:com.example.greeting:greeting-lib
+[F3] module:com.example.greeting:greeting-service deployable-by "spring-boot"
+[F4] module:com.example.greeting:greeting-service java-release "21"
+[F5] module:com.example.greeting:greeting-service packaging "jar"
+[F6] module:com.example.greeting:greeting-service version "1.0.0"
+[F7] service:com.example.greeting:greeting-service CONTAINS module:com.example.greeting:greeting-service
+[F8] service:com.example.greeting:greeting-service PACKAGES library:com.example.greeting:greeting-lib
 
 Summaries of the parts it contains:
 [S1] package com.example.greeting.service (purpose inferred): It builds on its parts. It is described by its facts.

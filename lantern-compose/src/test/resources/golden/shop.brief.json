@@ -20,12 +20,12 @@
     "id" : "library:com.example.shop:shop-api",
     "name" : "shop-api",
     "parent" : "repo:shop",
-    "facts" : [ "7ad30af3d1ec27021cf972837b89a7dbad7b92db26ba681945e3f171e2af456e" ]
+    "facts" : [ "ca3a0fe852e1754cace918e10ac22326e5682659e5dbfa20971c206dea44b357" ]
   }, {
     "id" : "library:com.example.shop:shop-core",
     "name" : "shop-core",
     "parent" : "repo:shop",
-    "facts" : [ "20a6a4fa0cb76d4c5dd8be4e52822829d3b307887ad1599ce91c738d4b0180a5" ]
+    "facts" : [ "181c0ed9a8b16a12e09e7c41dc9ecf66226135802c9fb89a6a922436c767dd25" ]
   }, {
     "id" : "module:com.example.shop:shop-api",
     "name" : "shop-api",
@@ -53,9 +53,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "7ad30af3d1ec27021cf972837b89a7dbad7b92db26ba681945e3f171e2af456e" ]
+      "facts" : [ "ca3a0fe852e1754cace918e10ac22326e5682659e5dbfa20971c206dea44b357" ]
     } ],
-    "facts" : [ "129dc4b2e91112dfaa9964d4da39808d2a0c18ccd9541ed00905d32b37e50568", "3f80459065d7180aaff13a4c63cda447b28611ba0a816ca78f629a5a36963d6b", "617a9233a83d3d69bbfbf33c781f403b128e37250f72ddf84ea190019fec2e82", "be4bcb5f9485440b93592ecd98f93bc286e71f845fb40d405992f5e30fbc1c2d", "dbf666dade24aa353692bb08639ff6c14d4d95a96a38addf82fea0c3b7a82e7a" ]
+    "facts" : [ "1617f5b6693fc1ad75050ac969f1e496c5bbec771c9791a332f767c0b43598a5", "1ae68e9f9e027b5386e0c79f838c1d78a0914b80b904eb13e6b2bd0d0ff5b1de", "6c61844f903ab9b2b0c3731e34c79575e748d2e2b2bfb680a9f6320118861718", "bb84e2c8e51126bee12869c156fc963b8195d899f85fe27f91cb3265e8e43028", "daded4d081d0363ba74ba3615934024b7ec841020cc70734d109005b2040b4ff" ]
   }, {
     "id" : "module:com.example.shop:shop-core",
     "name" : "shop-core",
@@ -83,9 +83,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "20a6a4fa0cb76d4c5dd8be4e52822829d3b307887ad1599ce91c738d4b0180a5" ]
+      "facts" : [ "181c0ed9a8b16a12e09e7c41dc9ecf66226135802c9fb89a6a922436c767dd25" ]
     } ],
-    "facts" : [ "0bc17c87d774f908bc7663a23517b1ffa341cf24c9c183de84bf167f25f25d06", "7bacf56a4dc2f3fee57add889a0a93f1f8dc3e072ec61502d0c10d463ba40abf", "9eb85187ef5b9076c13758911a0eff9e5cac8322fd478f22e2f7121a1c8ea3d2", "c3713436f547f02b1008d5abd98e8abc8e65ee9be7dc3a27a93ed55a924744fa", "faa8ba8945551c4e9265efb27a1d927c706f9717dcc02703c8ad3e37d3d5f036" ]
+    "facts" : [ "494f18caf7fe55fc459a63e00c5c0d00e604619b2cce2d536257e2e8f3ba3494", "60ad9cd2d8f80fa2232a536592b3e892e3c56c7ef06e03925b5035bb3ee81a82", "7cfc5f29482232c0be4398903569a7ff0e969ad3e24b404d3d77099e2cefbad8", "9ec704da11e725903b2a6aef433ebfb7eca4f88e623df3066a5d89d1994669d7", "e6eedf8f1b41c7084d0d211a504ae9e5caf7f6cf5ca90e03b59842b9391f3482" ]
   }, {
     "id" : "module:com.example.shop:shop-parent",
     "name" : "shop-parent",
@@ -113,9 +113,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "3f80459065d7180aaff13a4c63cda447b28611ba0a816ca78f629a5a36963d6b" ]
+      "facts" : [ "6c61844f903ab9b2b0c3731e34c79575e748d2e2b2bfb680a9f6320118861718" ]
     } ],
-    "facts" : [ "49832de22ce02ac100a47b3d3fd9daa1fccdd4bef97700dd01b9514ec07eab4b", "4d18623a74efb010aaffef00f98547e51b1f12d70dacf346603b0c337621fd0b", "a85163f41a03bcddc19709c62826dbda8d8d77febc6d41b554acae91ae0e2340" ]
+    "facts" : [ "8b5590f64dde2cb3f4477581db1cb9df4449a450090cb64ea741507745e41c53", "a3fd5a7feccd807b9d053bb0997c6357868c65a091dded6f7baa8002949851aa", "ed5bc2df8add0acfc1d5d453db2db9ebe4674c16c361aa6142f16d5143580752" ]
   }, {
     "id" : "package:com.example.shop:shop-api:com.example.shop.api",
     "name" : "com.example.shop.api",
@@ -202,7 +202,7 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "be4bcb5f9485440b93592ecd98f93bc286e71f845fb40d405992f5e30fbc1c2d" ]
+      "facts" : [ "1617f5b6693fc1ad75050ac969f1e496c5bbec771c9791a332f767c0b43598a5" ]
     } ],
     "facts" : [ ]
   }, {
@@ -249,42 +249,18 @@
     "facts" : [ "51e9df9aac4bec66872586de53563eb23f6dcd8091aa3df57bdca8f3b71b61a3", "7fb888aa67951b79930a02b9402686b8dbf3572078b1169a6057a10fb5daa361" ]
   } ],
   "facts" : [ {
-    "id" : "0bc17c87d774f908bc7663a23517b1ffa341cf24c9c183de84bf167f25f25d06",
-    "subject" : "module:com.example.shop:shop-core",
-    "predicate" : "packaging",
-    "object" : {
-      "kind" : "string",
-      "value" : "jar"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
-    },
-    "evidence" : {
-      "repo" : "shop",
-      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
-      "path" : "core/pom.xml",
-      "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "129dc4b2e91112dfaa9964d4da39808d2a0c18ccd9541ed00905d32b37e50568",
+    "id" : "1617f5b6693fc1ad75050ac969f1e496c5bbec771c9791a332f767c0b43598a5",
     "subject" : "module:com.example.shop:shop-api",
-    "predicate" : "packaging",
+    "predicate" : "java-release",
     "object" : {
       "kind" : "string",
-      "value" : "jar"
+      "value" : "21"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
@@ -297,7 +273,7 @@
       "from" : 1
     }
   }, {
-    "id" : "20a6a4fa0cb76d4c5dd8be4e52822829d3b307887ad1599ce91c738d4b0180a5",
+    "id" : "181c0ed9a8b16a12e09e7c41dc9ecf66226135802c9fb89a6a922436c767dd25",
     "subject" : "library:com.example.shop:shop-core",
     "predicate" : "CONTAINS",
     "object" : {
@@ -308,13 +284,41 @@
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
       "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
       "path" : "core/pom.xml",
       "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "1ae68e9f9e027b5386e0c79f838c1d78a0914b80b904eb13e6b2bd0d0ff5b1de",
+    "subject" : "module:com.example.shop:shop-api",
+    "predicate" : "parent",
+    "object" : {
+      "kind" : "string",
+      "value" : "com.example.shop:shop-parent:1.0.0"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "5"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
+      "path" : "api/pom.xml",
+      "lines" : {
+        "start" : 7,
+        "end" : 11
+      },
+      "contentHash" : "d3f6746f54dffdd6222929c795c1e4e5b6f87249e0b74656d233dc983a89d89a"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -349,82 +353,26 @@
       "from" : 1
     }
   }, {
-    "id" : "3f80459065d7180aaff13a4c63cda447b28611ba0a816ca78f629a5a36963d6b",
+    "id" : "494f18caf7fe55fc459a63e00c5c0d00e604619b2cce2d536257e2e8f3ba3494",
     "subject" : "module:com.example.shop:shop-parent",
     "predicate" : "CONTAINS",
     "object" : {
       "kind" : "entity",
-      "value" : "module:com.example.shop:shop-api"
+      "value" : "module:com.example.shop:shop-core"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
       "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
       "path" : "pom.xml",
       "lines" : {
-        "start" : 14,
-        "end" : 14
-      },
-      "contentHash" : "afc9fab40175ed70d59f67d55bf81663c3ebf80f49d7c77d29a80c73c9e67a1d"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "49832de22ce02ac100a47b3d3fd9daa1fccdd4bef97700dd01b9514ec07eab4b",
-    "subject" : "module:com.example.shop:shop-parent",
-    "predicate" : "version",
-    "object" : {
-      "kind" : "string",
-      "value" : "1.0.0"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
-    },
-    "evidence" : {
-      "repo" : "shop",
-      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
-      "path" : "pom.xml",
-      "lines" : {
-        "start" : 10,
-        "end" : 10
-      },
-      "contentHash" : "afc9fab40175ed70d59f67d55bf81663c3ebf80f49d7c77d29a80c73c9e67a1d"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "4d18623a74efb010aaffef00f98547e51b1f12d70dacf346603b0c337621fd0b",
-    "subject" : "module:com.example.shop:shop-parent",
-    "predicate" : "java-release",
-    "object" : {
-      "kind" : "string",
-      "value" : "21"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
-    },
-    "evidence" : {
-      "repo" : "shop",
-      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
-      "path" : "pom.xml",
-      "lines" : {
-        "start" : 19,
-        "end" : 19
+        "start" : 15,
+        "end" : 15
       },
       "contentHash" : "afc9fab40175ed70d59f67d55bf81663c3ebf80f49d7c77d29a80c73c9e67a1d"
     },
@@ -461,28 +409,24 @@
       "from" : 1
     }
   }, {
-    "id" : "617a9233a83d3d69bbfbf33c781f403b128e37250f72ddf84ea190019fec2e82",
-    "subject" : "module:com.example.shop:shop-api",
-    "predicate" : "version",
+    "id" : "60ad9cd2d8f80fa2232a536592b3e892e3c56c7ef06e03925b5035bb3ee81a82",
+    "subject" : "module:com.example.shop:shop-core",
+    "predicate" : "packaging",
     "object" : {
       "kind" : "string",
-      "value" : "1.0.0"
+      "value" : "jar"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
       "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
-      "path" : "api/pom.xml",
-      "lines" : {
-        "start" : 10,
-        "end" : 10
-      },
-      "contentHash" : "d3f6746f54dffdd6222929c795c1e4e5b6f87249e0b74656d233dc983a89d89a"
+      "path" : "core/pom.xml",
+      "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -517,8 +461,8 @@
       "from" : 1
     }
   }, {
-    "id" : "7ad30af3d1ec27021cf972837b89a7dbad7b92db26ba681945e3f171e2af456e",
-    "subject" : "library:com.example.shop:shop-api",
+    "id" : "6c61844f903ab9b2b0c3731e34c79575e748d2e2b2bfb680a9f6320118861718",
+    "subject" : "module:com.example.shop:shop-parent",
     "predicate" : "CONTAINS",
     "object" : {
       "kind" : "entity",
@@ -528,41 +472,41 @@
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
-    },
-    "evidence" : {
-      "repo" : "shop",
-      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
-      "path" : "api/pom.xml",
-      "contentHash" : "d3f6746f54dffdd6222929c795c1e4e5b6f87249e0b74656d233dc983a89d89a"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "7bacf56a4dc2f3fee57add889a0a93f1f8dc3e072ec61502d0c10d463ba40abf",
-    "subject" : "module:com.example.shop:shop-parent",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "module:com.example.shop:shop-core"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
       "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
       "path" : "pom.xml",
       "lines" : {
-        "start" : 15,
-        "end" : 15
+        "start" : 14,
+        "end" : 14
       },
       "contentHash" : "afc9fab40175ed70d59f67d55bf81663c3ebf80f49d7c77d29a80c73c9e67a1d"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "7cfc5f29482232c0be4398903569a7ff0e969ad3e24b404d3d77099e2cefbad8",
+    "subject" : "module:com.example.shop:shop-core",
+    "predicate" : "java-release",
+    "object" : {
+      "kind" : "string",
+      "value" : "21"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "5"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
+      "path" : "core/pom.xml",
+      "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -625,8 +569,8 @@
       "from" : 1
     }
   }, {
-    "id" : "9eb85187ef5b9076c13758911a0eff9e5cac8322fd478f22e2f7121a1c8ea3d2",
-    "subject" : "module:com.example.shop:shop-core",
+    "id" : "8b5590f64dde2cb3f4477581db1cb9df4449a450090cb64ea741507745e41c53",
+    "subject" : "module:com.example.shop:shop-parent",
     "predicate" : "java-release",
     "object" : {
       "kind" : "string",
@@ -636,12 +580,44 @@
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
+      "path" : "pom.xml",
+      "lines" : {
+        "start" : 19,
+        "end" : 19
+      },
+      "contentHash" : "afc9fab40175ed70d59f67d55bf81663c3ebf80f49d7c77d29a80c73c9e67a1d"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "9ec704da11e725903b2a6aef433ebfb7eca4f88e623df3066a5d89d1994669d7",
+    "subject" : "module:com.example.shop:shop-core",
+    "predicate" : "version",
+    "object" : {
+      "kind" : "string",
+      "value" : "1.0.0"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
       "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
       "path" : "core/pom.xml",
+      "lines" : {
+        "start" : 10,
+        "end" : 10
+      },
       "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
     },
     "confidence" : 0.7,
@@ -672,7 +648,7 @@
       "from" : 1
     }
   }, {
-    "id" : "a85163f41a03bcddc19709c62826dbda8d8d77febc6d41b554acae91ae0e2340",
+    "id" : "a3fd5a7feccd807b9d053bb0997c6357868c65a091dded6f7baa8002949851aa",
     "subject" : "module:com.example.shop:shop-parent",
     "predicate" : "packaging",
     "object" : {
@@ -683,7 +659,7 @@
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
@@ -700,18 +676,46 @@
       "from" : 1
     }
   }, {
-    "id" : "be4bcb5f9485440b93592ecd98f93bc286e71f845fb40d405992f5e30fbc1c2d",
+    "id" : "bb84e2c8e51126bee12869c156fc963b8195d899f85fe27f91cb3265e8e43028",
     "subject" : "module:com.example.shop:shop-api",
-    "predicate" : "java-release",
+    "predicate" : "version",
     "object" : {
       "kind" : "string",
-      "value" : "21"
+      "value" : "1.0.0"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
+      "path" : "api/pom.xml",
+      "lines" : {
+        "start" : 10,
+        "end" : 10
+      },
+      "contentHash" : "d3f6746f54dffdd6222929c795c1e4e5b6f87249e0b74656d233dc983a89d89a"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "ca3a0fe852e1754cace918e10ac22326e5682659e5dbfa20971c206dea44b357",
+    "subject" : "library:com.example.shop:shop-api",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "module:com.example.shop:shop-api"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
@@ -724,55 +728,23 @@
       "from" : 1
     }
   }, {
-    "id" : "c3713436f547f02b1008d5abd98e8abc8e65ee9be7dc3a27a93ed55a924744fa",
-    "subject" : "module:com.example.shop:shop-core",
-    "predicate" : "parent",
-    "object" : {
-      "kind" : "string",
-      "value" : "com.example.shop:shop-parent:1.0.0"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "maven",
-      "version" : "4"
-    },
-    "evidence" : {
-      "repo" : "shop",
-      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
-      "path" : "core/pom.xml",
-      "lines" : {
-        "start" : 7,
-        "end" : 11
-      },
-      "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "dbf666dade24aa353692bb08639ff6c14d4d95a96a38addf82fea0c3b7a82e7a",
+    "id" : "daded4d081d0363ba74ba3615934024b7ec841020cc70734d109005b2040b4ff",
     "subject" : "module:com.example.shop:shop-api",
-    "predicate" : "parent",
+    "predicate" : "packaging",
     "object" : {
       "kind" : "string",
-      "value" : "com.example.shop:shop-parent:1.0.0"
+      "value" : "jar"
     },
     "attributes" : { },
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
       "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
       "path" : "api/pom.xml",
-      "lines" : {
-        "start" : 7,
-        "end" : 11
-      },
       "contentHash" : "d3f6746f54dffdd6222929c795c1e4e5b6f87249e0b74656d233dc983a89d89a"
     },
     "confidence" : 0.7,
@@ -808,8 +780,36 @@
       "from" : 1
     }
   }, {
-    "id" : "faa8ba8945551c4e9265efb27a1d927c706f9717dcc02703c8ad3e37d3d5f036",
+    "id" : "e6eedf8f1b41c7084d0d211a504ae9e5caf7f6cf5ca90e03b59842b9391f3482",
     "subject" : "module:com.example.shop:shop-core",
+    "predicate" : "parent",
+    "object" : {
+      "kind" : "string",
+      "value" : "com.example.shop:shop-parent:1.0.0"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "maven",
+      "version" : "5"
+    },
+    "evidence" : {
+      "repo" : "shop",
+      "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
+      "path" : "core/pom.xml",
+      "lines" : {
+        "start" : 7,
+        "end" : 11
+      },
+      "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "ed5bc2df8add0acfc1d5d453db2db9ebe4674c16c361aa6142f16d5143580752",
+    "subject" : "module:com.example.shop:shop-parent",
     "predicate" : "version",
     "object" : {
       "kind" : "string",
@@ -819,17 +819,17 @@
     "origin" : {
       "kind" : "static",
       "name" : "maven",
-      "version" : "4"
+      "version" : "5"
     },
     "evidence" : {
       "repo" : "shop",
       "commit" : "785739c2c39ae7462a6e2599d65b114bbd436ffd",
-      "path" : "core/pom.xml",
+      "path" : "pom.xml",
       "lines" : {
         "start" : 10,
         "end" : 10
       },
-      "contentHash" : "d947bcb14227a95564229a42a760de52242b6273eaffe99ae3fd8ed76e116c1e"
+      "contentHash" : "afc9fab40175ed70d59f67d55bf81663c3ebf80f49d7c77d29a80c73c9e67a1d"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -890,9 +890,9 @@
         "text" : " It is described by its facts."
       }, {
         "kind" : "citation",
-        "facts" : [ "be4bcb5f9485440b93592ecd98f93bc286e71f845fb40d405992f5e30fbc1c2d" ]
+        "facts" : [ "1617f5b6693fc1ad75050ac969f1e496c5bbec771c9791a332f767c0b43598a5" ]
       } ],
-      "facts" : [ "be4bcb5f9485440b93592ecd98f93bc286e71f845fb40d405992f5e30fbc1c2d" ]
+      "facts" : [ "1617f5b6693fc1ad75050ac969f1e496c5bbec771c9791a332f767c0b43598a5" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",
@@ -909,7 +909,7 @@
           "kind" : "text",
           "text" : ", a library"
         } ],
-        "facts" : [ "129dc4b2e91112dfaa9964d4da39808d2a0c18ccd9541ed00905d32b37e50568", "7ad30af3d1ec27021cf972837b89a7dbad7b92db26ba681945e3f171e2af456e" ]
+        "facts" : [ "ca3a0fe852e1754cace918e10ac22326e5682659e5dbfa20971c206dea44b357", "daded4d081d0363ba74ba3615934024b7ec841020cc70734d109005b2040b4ff" ]
       }, {
         "content" : [ {
           "kind" : "ref",
@@ -922,7 +922,7 @@
           "kind" : "text",
           "text" : ", a library"
         } ],
-        "facts" : [ "0bc17c87d774f908bc7663a23517b1ffa341cf24c9c183de84bf167f25f25d06", "20a6a4fa0cb76d4c5dd8be4e52822829d3b307887ad1599ce91c738d4b0180a5" ]
+        "facts" : [ "181c0ed9a8b16a12e09e7c41dc9ecf66226135802c9fb89a6a922436c767dd25", "60ad9cd2d8f80fa2232a536592b3e892e3c56c7ef06e03925b5035bb3ee81a82" ]
       } ],
       "facts" : [ ]
     } ],
@@ -943,11 +943,11 @@
       }, {
         "label" : "Libraries",
         "value" : 2,
-        "facts" : [ "0bc17c87d774f908bc7663a23517b1ffa341cf24c9c183de84bf167f25f25d06", "129dc4b2e91112dfaa9964d4da39808d2a0c18ccd9541ed00905d32b37e50568", "20a6a4fa0cb76d4c5dd8be4e52822829d3b307887ad1599ce91c738d4b0180a5", "7ad30af3d1ec27021cf972837b89a7dbad7b92db26ba681945e3f171e2af456e" ]
+        "facts" : [ "181c0ed9a8b16a12e09e7c41dc9ecf66226135802c9fb89a6a922436c767dd25", "60ad9cd2d8f80fa2232a536592b3e892e3c56c7ef06e03925b5035bb3ee81a82", "ca3a0fe852e1754cace918e10ac22326e5682659e5dbfa20971c206dea44b357", "daded4d081d0363ba74ba3615934024b7ec841020cc70734d109005b2040b4ff" ]
       }, {
         "label" : "Modules",
         "value" : 3,
-        "facts" : [ "0bc17c87d774f908bc7663a23517b1ffa341cf24c9c183de84bf167f25f25d06", "129dc4b2e91112dfaa9964d4da39808d2a0c18ccd9541ed00905d32b37e50568", "a85163f41a03bcddc19709c62826dbda8d8d77febc6d41b554acae91ae0e2340" ]
+        "facts" : [ "60ad9cd2d8f80fa2232a536592b3e892e3c56c7ef06e03925b5035bb3ee81a82", "a3fd5a7feccd807b9d053bb0997c6357868c65a091dded6f7baa8002949851aa", "daded4d081d0363ba74ba3615934024b7ec841020cc70734d109005b2040b4ff" ]
       }, {
         "label" : "Java types",
         "value" : 2,
@@ -1016,7 +1016,7 @@
         "kind" : "text",
         "text" : "As of the snapshot's date, 1 Jan 1970, the one version in use is not past the end of free support."
       } ],
-      "facts" : [ "9eb85187ef5b9076c13758911a0eff9e5cac8322fd478f22e2f7121a1c8ea3d2", "be4bcb5f9485440b93592ecd98f93bc286e71f845fb40d405992f5e30fbc1c2d" ]
+      "facts" : [ "1617f5b6693fc1ad75050ac969f1e496c5bbec771c9791a332f767c0b43598a5", "7cfc5f29482232c0be4398903569a7ff0e969ad3e24b404d3d77099e2cefbad8" ]
     }, {
       "kind" : "table",
       "id" : "technology_currency.versions",
@@ -1058,7 +1058,7 @@
           "kind" : "text",
           "text" : "31 Dec 2029"
         } ] ],
-        "facts" : [ "9eb85187ef5b9076c13758911a0eff9e5cac8322fd478f22e2f7121a1c8ea3d2", "be4bcb5f9485440b93592ecd98f93bc286e71f845fb40d405992f5e30fbc1c2d" ]
+        "facts" : [ "1617f5b6693fc1ad75050ac969f1e496c5bbec771c9791a332f767c0b43598a5", "7cfc5f29482232c0be4398903569a7ff0e969ad3e24b404d3d77099e2cefbad8" ]
       } ],
       "facts" : [ ]
     }, {
