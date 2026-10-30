@@ -73,7 +73,7 @@ public final class HttpClientExtractor {
   public static final String NAME = "http-client";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "6";
+  public static final String VERSION = "7";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
@@ -83,6 +83,9 @@ public final class HttpClientExtractor {
 
   /** Attribute: the subject interface is a declarative HTTP client. */
   public static final String HTTP_CLIENT = "http-client";
+
+  /** Attribute: the subject {@code @Bean} method makes an HTTP client or client builder. */
+  public static final String CLIENT_BEAN = "http-client-bean";
 
   /** Relationship: the subject type turns on the object client interface. */
   public static final String ENABLES = "ENABLES";
@@ -125,6 +128,7 @@ public final class HttpClientExtractor {
   private static final String BEAN = SPRING + "context.annotation.Bean";
   private static final String QUALIFIER = SPRING + "beans.factory.annotation.Qualifier";
   private static final String PRIMARY = SPRING + "context.annotation.Primary";
+  private static final String LOAD_BALANCED = SPRING + "cloud.client.loadbalancer.LoadBalanced";
   private static final String HTTP_EXCHANGE = SPRING + "web.service.annotation.HttpExchange";
 
   /** The types an HTTP interface's proxy is made with, and the adapters they take. */
@@ -452,6 +456,11 @@ public final class HttpClientExtractor {
       }
       for (Invocation invocation : m.structure().invocations()) {
         imperative(invocation);
+      }
+      for (TypeDecl type : m.structure().types()) {
+        for (Member member : type.members()) {
+          clientBean(member);
+        }
       }
       for (List<Proxy> made : proxies.values()) {
         for (Proxy p : made) {
@@ -846,9 +855,15 @@ public final class HttpClientExtractor {
         return null;
       }
       Injection point = injection(e, scope, 0);
-      if (point == null) {
-        return null;
-      }
+      Bean bean = point == null ? null : injectedBean(chain.rootType(), point, scope);
+      return bean == null ? null : beanClientBase(bean.member(), bean.module(), depth + 1);
+    }
+
+    /** A {@code @Bean} method, and its module. */
+    private record Bean(Member member, JavaAnalysis.Module module) {}
+
+    /** The bean of a type Spring injects at a point, if the choice is certain; else null. */
+    private Bean injectedBean(String type, Injection point, Scope scope) {
       List<Member> own = new ArrayList<>();
       List<Member> others = new ArrayList<>();
       Map<Member, JavaAnalysis.Module> modules = new HashMap<>();
@@ -856,9 +871,9 @@ public final class HttpClientExtractor {
         if (!m.repo().equals(scope.module().repo())) {
           continue;
         }
-        for (TypeDecl type : m.structure().types()) {
-          for (Member member : type.members()) {
-            if (chain.rootType().equals(member.returns())
+        for (TypeDecl t : m.structure().types()) {
+          for (Member member : t.members()) {
+            if (type.equals(member.returns())
                 && code.annotationPath(member.annotations(), BEAN) != null) {
               (m == scope.module() ? own : others).add(member);
               modules.put(member, m);
@@ -867,11 +882,76 @@ public final class HttpClientExtractor {
         }
       }
       Member bean = pick(own.isEmpty() ? others : own, point);
-      return bean == null ? null : beanClientBase(bean, modules.get(bean), depth + 1);
+      return bean == null ? null : new Bean(bean, modules.get(bean));
+    }
+
+    /**
+     * Whether a client (or client builder) injected as a parameter or field is load balanced: the
+     * injection point carries {@code @LoadBalanced}, or the bean Spring injects there does (picked
+     * as for its base URL), or that bean is made from an injected builder that is.
+     */
+    private boolean injectedLoadBalanced(Chain chain, Expression e, Scope scope, int depth) {
+      if (depth > 2 || chain.rootType() == null || made(chain)) {
+        return false;
+      }
+      Injection point = injection(e, scope, 0);
+      if (point == null) {
+        return false;
+      }
+      if (point.loadBalanced()) {
+        return true;
+      }
+      Bean bean = injectedBean(chain.rootType(), point, scope);
+      if (bean == null) {
+        return false;
+      }
+      if (loadBalanced(bean.member().annotations())) {
+        return true;
+      }
+      Scope inner = new Scope(bean.module(), bean.member().id());
+      for (Invocation invocation : bean.module().structure().invocations()) {
+        if (invocation.caller().equals(bean.member().id())) {
+          Chain made = chain(invocation.expression(), inner, 0);
+          if (made.rootType() != null
+              && KINDS.containsKey(made.rootType())
+              && injectedLoadBalanced(made, invocation.expression(), inner, depth + 1)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    private boolean loadBalanced(List<Annotation> annotations) {
+      return code.annotationPath(annotations, LOAD_BALANCED) != null;
+    }
+
+    /**
+     * A {@code @Bean} method that makes a RestTemplate, RestClient or WebClient, or a builder of
+     * one: the client kind, whether it is {@code @LoadBalanced} (the hosts of its URLs are then
+     * service names, resolved through discovery), and the base URL its code sets, as written.
+     */
+    private void clientBean(Member member) {
+      String kind = member.returns() == null ? null : KINDS.get(member.returns());
+      if (kind == null
+          || !(kind.equals(REST_TEMPLATE) || kind.equals(REST_CLIENT) || kind.equals(WEB_CLIENT))
+          || code.annotationPath(member.annotations(), BEAN) == null) {
+        return;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("type", member.returns());
+      if (loadBalanced(member.annotations())) {
+        attributes.put("loadBalanced", true);
+      }
+      Found base = beanClientBase(member, module, 0);
+      if (base != null && base.module() == module) {
+        attributes.put("baseUrl", UrlCredentials.withoutCredentials(clean(base.base().text())));
+      }
+      fact(member.id(), CLIENT_BEAN, kind, attributes, member.where(), module);
     }
 
     /** What a client is injected as: its name, and the qualifier written on it, or null. */
-    private record Injection(String name, String qualifier) {}
+    private record Injection(String name, String qualifier, boolean loadBalanced) {}
 
     private Injection injection(Expression e, Scope scope, int depth) {
       Expression root = e instanceof Expression.Invoke i ? i.root() : e;
@@ -880,7 +960,10 @@ public final class HttpClientExtractor {
           ModuleStructure.Parameter parameter = parameter(scope.in(), p.index());
           return parameter == null
               ? null
-              : new Injection(parameter.name(), qualifier(parameter.annotations()));
+              : new Injection(
+                  parameter.name(),
+                  qualifier(parameter.annotations()),
+                  loadBalanced(parameter.annotations()));
         }
         case Expression.FieldRef f -> {
           Assignment given = single(f);
@@ -890,11 +973,17 @@ public final class HttpClientExtractor {
             if (found != null) {
               Member field = field(f);
               String q = field == null ? null : qualifier(field.annotations());
-              return new Injection(found.name(), found.qualifier() != null ? found.qualifier() : q);
+              return new Injection(
+                  found.name(),
+                  found.qualifier() != null ? found.qualifier() : q,
+                  found.loadBalanced() || (field != null && loadBalanced(field.annotations())));
             }
           }
           Member field = field(f);
-          return new Injection(f.name(), field == null ? null : qualifier(field.annotations()));
+          return new Injection(
+              f.name(),
+              field == null ? null : qualifier(field.annotations()),
+              field != null && loadBalanced(field.annotations()));
         }
         default -> {
           return null;
@@ -1097,7 +1186,8 @@ public final class HttpClientExtractor {
                       type.binaryName(),
                       mapping.written().type(),
                       mapping.written().where(),
-                      sources.get(e.getKey()));
+                      sources.get(e.getKey()),
+                      false);
               call(call, b.config());
             }
           }
@@ -1328,7 +1418,8 @@ public final class HttpClientExtractor {
                 null,
                 null,
                 invocation.where(),
-                module),
+                module,
+                followed.loadBalanced()),
             followed.view());
       }
     }
@@ -1337,7 +1428,12 @@ public final class HttpClientExtractor {
      * A request a chain sends, read in some code: the client kind, the request, the config its
      * placeholders resolve in, and whether its URL holds a parameter of that code not followed.
      */
-    private record Sent(String kind, Request request, CodeConfig.View view, boolean openParam) {}
+    private record Sent(
+        String kind,
+        Request request,
+        CodeConfig.View view,
+        boolean openParam,
+        boolean loadBalanced) {}
 
     /** The request a chain sends, read in the code given, or null if it sends none. */
     private Sent sent(Expression.Invoke expression, Scope scope) {
@@ -1346,10 +1442,10 @@ public final class HttpClientExtractor {
       if (kind == null) {
         return null;
       }
-      Found bean =
-          kind.equals(REST_TEMPLATE) || kind.equals(REST_CLIENT) || kind.equals(WEB_CLIENT)
-              ? injectedClientBase(chain, expression, scope, 0)
-              : null;
+      boolean spring =
+          kind.equals(REST_TEMPLATE) || kind.equals(REST_CLIENT) || kind.equals(WEB_CLIENT);
+      Found bean = spring ? injectedClientBase(chain, expression, scope, 0) : null;
+      boolean loadBalanced = spring && injectedLoadBalanced(chain, expression, scope, 0);
       Text injected = bean == null ? null : bean.base();
       // The bean's placeholders resolve in its own module's config, unless the call sets its base.
       CodeConfig.View view =
@@ -1368,7 +1464,7 @@ public final class HttpClientExtractor {
               case JAKARTA_CLIENT -> jakarta(chain.links());
               default -> built(kind, chain.rootType(), chain.links());
             };
-        return request == null ? null : new Sent(kind, request, view, openParam);
+        return request == null ? null : new Sent(kind, request, view, openParam, loadBalanced);
       } finally {
         openIn = outer;
         openParam = outerOpen;
@@ -1936,7 +2032,8 @@ public final class HttpClientExtractor {
         String clientType,
         String annotation,
         Location where,
-        JavaAnalysis.Module source) {}
+        JavaAnalysis.Module source,
+        boolean loadBalanced) {}
 
     private void call(Call call, CodeConfig.View config) {
       Recorded byDefault = recorded(config, null, call);
@@ -1975,6 +2072,9 @@ public final class HttpClientExtractor {
           if (value.service() != null) {
             attributes.put("service", value.service());
           }
+          if (value.loadBalanced()) {
+            attributes.put("loadBalanced", true);
+          }
           if (!value.written().equals(value.url())) {
             attributes.put("written", value.written());
           }
@@ -2000,7 +2100,12 @@ public final class HttpClientExtractor {
 
     /** A call's URL and service name resolved in one view, as they may be recorded. */
     private record Recorded(
-        String url, String written, String service, SortedSet<String> unresolved, boolean masked) {}
+        String url,
+        String written,
+        String service,
+        SortedSet<String> unresolved,
+        boolean masked,
+        boolean loadBalanced) {}
 
     private Recorded recorded(CodeConfig.View config, String profile, Call call) {
       String written = clean(call.url().text());
@@ -2020,12 +2125,32 @@ public final class HttpClientExtractor {
         service = s.value();
       }
       CodeConfig.CodeValue value = config.value(resolved, written, unresolved, used);
+      // A load-balanced client's host, and an lb:// URL's, is a service name, not a DNS name.
+      boolean loadBalanced = call.loadBalanced() || value.value().startsWith("lb://");
+      if (service == null && loadBalanced) {
+        service = host(value.value());
+      }
       return new Recorded(
           value.value(),
           value.written(),
           value.masked() ? null : service,
           value.unresolved(),
-          value.masked());
+          value.masked(),
+          loadBalanced && service != null);
+    }
+
+    /** The host of an absolute URL without placeholders in it, or null. */
+    private static String host(String url) {
+      Matcher m = ABSOLUTE.matcher(url);
+      if (!m.find()) {
+        return null;
+      }
+      String host = m.group(2);
+      int at = host.lastIndexOf('@');
+      host = at < 0 ? host : host.substring(at + 1);
+      int colon = host.indexOf(':');
+      host = colon < 0 ? host : host.substring(0, colon);
+      return host.isEmpty() || host.contains("{") || host.contains("$") ? null : host;
     }
 
     private void fact(

@@ -209,3 +209,27 @@ so the BFF reached nothing.
   the host and port and `path` the expressions; a slash or `?` inside an expression's source no
   longer splits it.
 - The extractor's version becomes 6.
+
+## Amendment (#389): client beans and load-balanced clients
+
+Research: `docs/research/extractor-http.md`. Under Spring Cloud LoadBalancer the host of a URL sent
+through a `@LoadBalanced` client, or of an `lb://` URL, is a service id resolved through
+discovery, not a DNS name; nothing recorded that, and a client bean made in a `@Bean` method had no
+fact unless a call was followed to it.
+
+- **`http-client-bean`**: on each `@Bean` method that makes a RestTemplate, RestClient or
+  WebClient, or a builder of one, evidenced by the method, with its `type`, `loadBalanced` when
+  the method is `@LoadBalanced`, and `baseUrl` when its code sets one (as written, without
+  credentials).
+- **`loadBalanced` on `http-call`**: a call is load balanced when its client is injected at a
+  point marked `@LoadBalanced` (the annotation is also a qualifier), when the bean picked for it is
+  `@LoadBalanced`, or when that bean is made from an injected builder that is (up to two beans
+  deep); and when its URL starts with `lb://`. A load-balanced call with no `service` yet takes the
+  URL's host, without user info or port, as its `service`, unless the host holds a placeholder or
+  an expression. Declarative clients keep their own `service`.
+- Still not read: Feign's property URL, HTTP service group defaults under the load balancer, and
+  MicroProfile and Quarkus precedence (#454); load-balancer filters, `String.format` URLs,
+  `DefaultUriBuilderFactory`, client subclasses, Retrofit, manual Feign, `DiscoveryClient` and
+  registrar groups (#455); auth, resilience and timeouts per call (#456); `@ConfigurationProperties`
+  values (#447).
+- The extractor's version becomes 7.

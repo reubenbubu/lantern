@@ -83,8 +83,9 @@ class HttpClientExtractorTest {
         .contains("http://alerts:8080/alerts")
         .contains("http://stock:8080/api/stock");
     // A client bean is followed only when the choice is certain: duplicate bean names, and a
-    // qualifier no bean has, give no base URL.
-    assertThat(rendered).doesNotContain("dup-a").doesNotContain("dup-b");
+    // qualifier no bean has, give no call a base URL (the beans themselves still have theirs).
+    assertThat(rendered.lines().filter(l -> l.contains(" http-call ")))
+        .noneMatch(l -> l.contains("dup-a") || l.contains("dup-b"));
     assertThat(rendered.lines().filter(l -> l.contains("AcrossModules#duplicate(")))
         .singleElement(InstanceOfAssertFactories.STRING)
         .contains("GET /dup")
@@ -113,6 +114,48 @@ class HttpClientExtractorTest {
         .singleElement(InstanceOfAssertFactories.STRING)
         .contains("https://admin.example.com/quotes/{symbol}")
         .doesNotContain("expressions");
+  }
+
+  @Test
+  void loadBalancedClientsNameTheirService() throws IOException {
+    List<String> lines = Fixtures.render(extract(unbuilt(fixture()))).lines().toList();
+    String callers = "method:com.example.shop.app.LoadBalancedCallers#";
+    String beans = "method:com.example.shop.app.LoadBalancedBeans#";
+
+    assertThat(lines)
+        // The beans that make clients, load balanced or not, at the method.
+        .anyMatch(
+            l ->
+                l.startsWith(beans + "lbBuilder() http-client-bean web-client ")
+                    && l.contains("\"loadBalanced\":true")
+                    && l.contains("LoadBalancedBeans.java#14-18 "))
+        .anyMatch(
+            l ->
+                l.startsWith(beans + "plainRestTemplate() http-client-bean rest-template ")
+                    && !l.contains("loadBalanced"))
+        // Through the @LoadBalanced builder bean: the host is the service.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "media(java.lang.String) http-call ")
+                    && l.contains("\"service\":\"media-service\"")
+                    && l.contains("\"loadBalanced\":true"))
+        // The @LoadBalanced qualifier at the injection point picks the load-balanced bean.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "stock() http-call ")
+                    && l.contains("\"service\":\"inventory-service\""))
+        // The @Primary plain bean: a host, no service.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "external() http-call ")
+                    && !l.contains("service")
+                    && !l.contains("loadBalanced"))
+        // An lb:// URL names its service.
+        .anyMatch(
+            l ->
+                l.startsWith(callers + "routed() http-call ")
+                    && l.contains("\"service\":\"billing\"")
+                    && l.contains("\"loadBalanced\":true"));
   }
 
   @Test
