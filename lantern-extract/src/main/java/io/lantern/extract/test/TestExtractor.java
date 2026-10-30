@@ -33,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -49,7 +50,7 @@ public final class TestExtractor {
   public static final String NAME = "test";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "test-extractor";
@@ -59,6 +60,12 @@ public final class TestExtractor {
 
   /** Relationship: a test class tests the code of a module. */
   public static final String TESTS = "TESTS";
+
+  /** Attribute: a container a module's tests start, such as a Testcontainers database. */
+  public static final String TEST_CONTAINER = "test-container";
+
+  /** Attribute: an architecture rule a module's tests declare with ArchUnit's library rules. */
+  public static final String ARCHITECTURE_RULE = "architecture-rule";
 
   /** Confidence of the facts: the annotations are matched by their imports, not resolved. */
   static final double CONFIDENCE = 0.9;
@@ -119,8 +126,8 @@ public final class TestExtractor {
         .toList();
   }
 
-  /** A test source file read from git, with what it declares. */
-  private record Read(String path, String hash, List<TestSources.TestClass> classes) {}
+  /** A test source file read from git and parsed. */
+  private record Read(String path, String hash, TestSources.Parsed parsed) {}
 
   private void extract(
       RepoBuild repo, Validity validity, Map<String, Fact> facts, ExecutorService executor) {
@@ -131,24 +138,128 @@ public final class TestExtractor {
     SortedMap<String, String> roots = MavenExtractor.testSourceDirectories(repo);
     List<String> paths = GitFiles.list(repo, "");
     Set<EntityId> seen = new HashSet<>();
+    Map<EntityId, List<Future<Read>>> reads = new LinkedHashMap<>();
     for (Map.Entry<String, EntityId> module : modules.entrySet()) {
       String root = roots.get(module.getKey());
       if (root == null) {
         continue;
       }
-      List<Future<Read>> reads = new ArrayList<>();
+      List<Future<Read>> moduleReads = new ArrayList<>();
       for (String path : paths) {
         if (path.startsWith(root + "/") && path.endsWith(".java") && !isInfo(path)) {
-          reads.add(executor.submit(() -> readLimited(repo, path)));
+          moduleReads.add(executor.submit(() -> readLimited(repo, path)));
         }
       }
-      for (Future<Read> future : reads) {
-        Read read = join(future);
-        if (read == null) {
-          continue;
+      reads.put(module.getValue(), moduleReads);
+    }
+    Map<EntityId, List<Read>> files = new LinkedHashMap<>();
+    List<TestSources.Parsed> all = new ArrayList<>();
+    reads.forEach(
+        (module, futures) -> {
+          List<Read> read = new ArrayList<>();
+          for (Future<Read> future : futures) {
+            Read r = join(future);
+            if (r != null) {
+              read.add(r);
+              all.add(r.parsed());
+            }
+          }
+          files.put(module, read);
+        });
+    // The repository's own test annotations, composed of JUnit's, count wherever it uses them.
+    Set<String> composed = TestSources.composed(all);
+    for (Map.Entry<EntityId, List<Read>> module : files.entrySet()) {
+      for (Read read : module.getValue()) {
+        for (TestSources.Container c : read.parsed().containers()) {
+          ObjectNode attributes = FactJson.newObject();
+          if (c.className() != null) {
+            attributes.put("class", c.className());
+          }
+          if (c.image() != null) {
+            attributes.put("image", c.image());
+          }
+          if (c.technology() != null) {
+            attributes.put("technology", c.technology());
+          }
+          if (c.role() != null) {
+            attributes.put("role", c.role());
+          }
+          if (c.serviceConnection()) {
+            attributes.put("serviceConnection", true);
+          }
+          if (c.className() == null) {
+            attributes.put("embedded", true);
+          }
+          if (!c.topics().isEmpty()) {
+            ArrayNode topics = attributes.putArray("topics");
+            c.topics().forEach(topics::add);
+          }
+          add(
+              facts,
+              repo,
+              validity,
+              module.getKey(),
+              TEST_CONTAINER,
+              c.value(),
+              attributes,
+              read,
+              c.line(),
+              c.line());
         }
-        for (TestSources.TestClass c : read.classes()) {
-          EntityId subject = entity(module.getValue(), c.binaryName());
+        for (TestSources.Rule r : read.parsed().rules()) {
+          ObjectNode attributes = FactJson.newObject();
+          if (!r.layers().isEmpty()) {
+            // An array, so the layers keep the rule's order, top to bottom.
+            ArrayNode layers = attributes.putArray("layers");
+            r.layers()
+                .forEach(
+                    (name, packages) -> {
+                      ObjectNode layer = layers.addObject();
+                      layer.put("name", name);
+                      packages.forEach(layer.putArray("packages")::add);
+                    });
+          }
+          if (!r.access().isEmpty()) {
+            ObjectNode access = attributes.putObject("access");
+            r.access().forEach((name, rule) -> rule.forEach(access.putArray(name)::add));
+          }
+          if (r.slices() != null) {
+            attributes.put("slices", r.slices());
+          }
+          if (!r.checks().isEmpty()) {
+            ArrayNode checks = attributes.putArray("checks");
+            r.checks().forEach(checks::add);
+          }
+          if (r.because() != null) {
+            attributes.put("because", r.because());
+          }
+          if (r.frozen()) {
+            attributes.put("frozen", true);
+          }
+          if (r.ignored()) {
+            attributes.put("ignored", true);
+          }
+          if (r.unresolved()) {
+            attributes.put("unresolved", true);
+          }
+          add(
+              facts,
+              repo,
+              validity,
+              module.getKey(),
+              ARCHITECTURE_RULE,
+              r.kind(),
+              attributes,
+              read,
+              r.startLine(),
+              r.endLine());
+        }
+      }
+    }
+    for (Map.Entry<EntityId, List<Read>> module : files.entrySet()) {
+      for (Read read : module.getValue()) {
+        for (TestSources.TestClass c : read.parsed().classes(composed)) {
+          EntityId subject = entity(module.getKey(), c.binaryName());
           // Two files declaring the same class (in two test source roots) give one test class.
           if (subject == null || !seen.add(subject)) {
             continue;
@@ -162,7 +273,7 @@ public final class TestExtractor {
               Fact.create(
                   subject,
                   TESTS,
-                  FactObject.entity(module.getValue()),
+                  FactObject.entity(module.getKey()),
                   attributes,
                   ORIGIN,
                   new Evidence(
@@ -177,6 +288,36 @@ public final class TestExtractor {
         }
       }
     }
+  }
+
+  /** Records an attribute fact of a module, citing lines of a test source file. */
+  private static void add(
+      Map<String, Fact> facts,
+      RepoBuild repo,
+      Validity validity,
+      EntityId module,
+      String predicate,
+      String value,
+      ObjectNode attributes,
+      Read read,
+      int start,
+      int end) {
+    Fact fact =
+        Fact.create(
+            module,
+            predicate,
+            FactObject.string(value),
+            attributes,
+            ORIGIN,
+            new Evidence(
+                repo.repo().name(),
+                repo.commit(),
+                read.path(),
+                new Evidence.LineRange(start, end),
+                read.hash()),
+            CONFIDENCE,
+            validity);
+    facts.putIfAbsent(fact.id(), fact);
   }
 
   private static boolean isInfo(String path) {
@@ -198,8 +339,8 @@ public final class TestExtractor {
     if (bytes == null) {
       return null;
     }
-    return new Read(
-        path, sha256(bytes), TestSources.read(new String(bytes, StandardCharsets.UTF_8)));
+    TestSources.Parsed parsed = TestSources.parse(new String(bytes, StandardCharsets.UTF_8));
+    return parsed == null ? null : new Read(path, sha256(bytes), parsed);
   }
 
   private static Read join(Future<Read> future) {

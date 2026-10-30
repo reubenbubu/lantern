@@ -222,4 +222,240 @@ class TestExtractorTest {
 
     assertThat(extract(repo)).isEmpty();
   }
+
+  @Test
+  void countsTestsOfTheRepositorysOwnComposedAnnotations() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("composed"),
+            "composed",
+            Map.of(
+                "pom.xml",
+                pom("composed", ""),
+                "src/test/java/com/example/support/FastTest.java",
+                """
+                package com.example.support;
+
+                import org.junit.jupiter.api.Tag;
+                import org.junit.jupiter.api.Test;
+
+                @Tag("fast")
+                @Test
+                public @interface FastTest {}
+                """,
+                "src/test/java/com/example/support/QuickTest.java",
+                """
+                package com.example.support;
+
+                @FastTest
+                public @interface QuickTest {}
+                """,
+                "src/test/java/com/example/OrderTest.java",
+                """
+                package com.example;
+
+                import com.example.support.FastTest;
+                import com.example.support.QuickTest;
+
+                class OrderTest {
+                  @FastTest void total() {}
+                  @QuickTest void lines() {}
+                  @Fast void notOne() {}
+                }
+                """));
+
+    assertThat(extract(repo))
+        .containsExactly(
+            "test-class:g:composed:com.example.OrderTest TESTS module:g:composed {\"tests\":2}"
+                + " @composed:src/test/java/com/example/OrderTest.java#6-10 0.9");
+  }
+
+  @Test
+  void recordsTheContainersTestsStart() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("infra"),
+            "infra",
+            Map.of(
+                "pom.xml",
+                pom("infra", ""),
+                "src/test/java/com/example/BaseIntegrationTest.java",
+                """
+                package com.example;
+
+                import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+                import org.testcontainers.containers.GenericContainer;
+                import org.testcontainers.containers.PostgreSQLContainer;
+                import org.testcontainers.containers.RabbitMQContainer;
+                import org.testcontainers.junit.jupiter.Container;
+                import org.testcontainers.utility.DockerImageName;
+
+                abstract class BaseIntegrationTest {
+                  static final String RABBIT = "rabbitmq:4.1-management";
+
+                  @Container @ServiceConnection
+                  static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
+
+                  @Container
+                  static RabbitMQContainer rabbit = new RabbitMQContainer(RABBIT);
+
+                  @Container
+                  static GenericContainer<?> redis =
+                      new GenericContainer<>(DockerImageName.parse("redis:8.4.0-alpine"))
+                          .withExposedPorts(6379);
+
+                  static PostgreSQLContainer<?> other = new PostgreSQLContainer<>(image());
+
+                  static final DockerImageName PG = DockerImageName.parse("postgres:17.5");
+                  static PostgreSQLContainer<?> pinned = new PostgreSQLContainer<>(PG);
+                }
+                """,
+                "src/test/java/com/example/EventsTest.java",
+                """
+                package com.example;
+
+                import org.junit.jupiter.api.Test;
+                import org.springframework.kafka.test.context.EmbeddedKafka;
+
+                @EmbeddedKafka(partitions = 1, topics = {"orders", "${app.topic}"})
+                class EventsTest {
+                  @Test void publishes() {}
+                }
+                """,
+                "src/test/java/com/example/NotTestcontainers.java",
+                """
+                package com.example;
+
+                class NotTestcontainers {
+                  Object box = new ShippingContainer("x");
+                }
+                """));
+
+    assertThat(extract(repo))
+        .containsExactlyInAnyOrder(
+            "module:g:infra test-container EmbeddedKafka {\"embedded\":true,\"role\":\"broker\",\"technology\":\"Kafka\",\"topics\":[\"orders\",\"${app.topic}\"]}"
+                + " @infra:src/test/java/com/example/EventsTest.java#6-6 0.9",
+            "module:g:infra test-container PostgreSQLContainer {\"class\":\"PostgreSQLContainer\",\"role\":\"database\",\"technology\":\"PostgreSQL\"}"
+                + " @infra:src/test/java/com/example/BaseIntegrationTest.java#24-24 0.9",
+            "module:g:infra test-container postgres:16 {\"class\":\"PostgreSQLContainer\",\"image\":\"postgres:16\",\"role\":\"database\",\"serviceConnection\":true,\"technology\":\"PostgreSQL 16\"}"
+                + " @infra:src/test/java/com/example/BaseIntegrationTest.java#14-14 0.9",
+            "module:g:infra test-container postgres:17.5 {\"class\":\"PostgreSQLContainer\",\"image\":\"postgres:17.5\",\"role\":\"database\",\"technology\":\"PostgreSQL 17.5\"}"
+                + " @infra:src/test/java/com/example/BaseIntegrationTest.java#27-27 0.9",
+            "module:g:infra test-container rabbitmq:4.1-management {\"class\":\"RabbitMQContainer\",\"image\":\"rabbitmq:4.1-management\",\"role\":\"broker\",\"technology\":\"RabbitMQ 4.1\"}"
+                + " @infra:src/test/java/com/example/BaseIntegrationTest.java#17-17 0.9",
+            "module:g:infra test-container redis:8.4.0-alpine {\"class\":\"GenericContainer\",\"image\":\"redis:8.4.0-alpine\",\"role\":\"cache\",\"technology\":\"Redis 8.4.0\"}"
+                + " @infra:src/test/java/com/example/BaseIntegrationTest.java#21-21 0.9",
+            "test-class:g:infra:com.example.EventsTest TESTS module:g:infra {\"tests\":1}"
+                + " @infra:src/test/java/com/example/EventsTest.java#6-9 0.9");
+  }
+
+  @Test
+  void recordsTheArchitectureRulesArchUnitsLibraryRulesDeclare() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("rules"),
+            "rules",
+            Map.of(
+                "pom.xml",
+                pom("rules", ""),
+                "src/test/java/com/example/ArchitectureTest.java",
+                """
+                package com.example;
+
+                import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
+                import static com.tngtech.archunit.library.Architectures.onionArchitecture;
+                import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
+
+                import com.tngtech.archunit.core.domain.JavaClasses;
+                import com.tngtech.archunit.junit.AnalyzeClasses;
+                import com.tngtech.archunit.junit.ArchIgnore;
+                import com.tngtech.archunit.junit.ArchTest;
+                import com.tngtech.archunit.lang.ArchRule;
+                import com.tngtech.archunit.library.freeze.FreezingArchRule;
+
+                @AnalyzeClasses(packages = "com.example")
+                class ArchitectureTest {
+                  static final String WEB = "..web..";
+
+                  @ArchTest
+                  static final ArchRule layers =
+                      layeredArchitecture()
+                          .consideringAllDependencies()
+                          .layer("Web").definedBy(WEB)
+                          .layer("Service").definedBy("..service..")
+                          .layer("Persistence").definedBy("..repository..", "..entity..")
+                          .whereLayer("Web").mayNotBeAccessedByAnyLayer()
+                          .whereLayer("Service").mayOnlyBeAccessedByLayers("Web")
+                          .because("services stay behind the web layer");
+
+                  @ArchTest
+                  static final ArchRule modules =
+                      FreezingArchRule.freeze(
+                          slices().matching("com.example.(*)..").should().beFreeOfCycles());
+
+                  @ArchIgnore
+                  @ArchTest
+                  static final ArchRule onion =
+                      onionArchitecture()
+                          .domainModels("..domain.model..")
+                          .domainServices("..domain.service..")
+                          .applicationServices("..application..")
+                          .adapter("rest", "..adapter.rest..")
+                          .adapter("persistence", Packages.PERSISTENCE);
+
+                  static void plain(JavaClasses classes) {
+                    layeredArchitecture()
+                        .consideringAllDependencies()
+                        .withOptionalLayers(true)
+                        .layer("Api").definedBy("..api..")
+                        .whereLayer("Api").mayNotBeAccessedByAnyLayer()
+                        .check(classes);
+                  }
+                }
+                """,
+                "src/test/java/com/example/RulesTest.java",
+                """
+                package com.example;
+
+                import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
+
+                import com.tngtech.archunit.junit.ArchTest;
+                import com.tngtech.archunit.lang.ArchRule;
+                import com.tngtech.archunit.library.freeze.FreezingArchRule;
+                import org.junit.jupiter.api.Disabled;
+
+                class RulesTest {
+                  static final ArchRule CYCLES = slices().matching("..(*)..").should().beFreeOfCycles();
+
+                  @ArchTest static final ArchRule frozen = FreezingArchRule.freeze(CYCLES);
+
+                  @Disabled
+                  static class Off {
+                    @ArchTest
+                    static final ArchRule apart =
+                        slices().matching("..feature.(*)..").should().notDependOnEachOther();
+                  }
+                }
+                """));
+
+    // Two rules of one kind order by their IDs, which hold the fixture's commit.
+    assertThat(extract(repo))
+        .containsExactlyInAnyOrder(
+            "module:g:rules architecture-rule layered {\"access\":{\"Service\":[\"mayOnlyBeAccessedByLayers\",\"Web\"],\"Web\":[\"mayNotBeAccessedByAnyLayer\"]},\"because\":\"services stay behind the web layer\",\"layers\":[{\"name\":\"Web\",\"packages\":[\"..web..\"]},{\"name\":\"Service\",\"packages\":[\"..service..\"]},{\"name\":\"Persistence\",\"packages\":[\"..repository..\",\"..entity..\"]}]}"
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#20-27 0.9",
+            "module:g:rules architecture-rule layered {\"access\":{\"Api\":[\"mayNotBeAccessedByAnyLayer\"]},\"layers\":[{\"name\":\"Api\",\"packages\":[\"..api..\"]}]}"
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#45-50 0.9",
+            "module:g:rules architecture-rule onion {\"ignored\":true,\"layers\":[{\"name\":\"domainModels\",\"packages\":[\"..domain.model..\"]},{\"name\":\"domainServices\",\"packages\":[\"..domain.service..\"]},{\"name\":\"applicationServices\",\"packages\":[\"..application..\"]},{\"name\":\"adapter rest\",\"packages\":[\"..adapter.rest..\"]},{\"name\":\"adapter persistence\",\"packages\":[]}],\"unresolved\":true}"
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#37-42 0.9",
+            "module:g:rules architecture-rule slices {\"checks\":[\"beFreeOfCycles\"],\"frozen\":true,\"slices\":\"..(*)..\"}"
+                + " @rules:src/test/java/com/example/RulesTest.java#11-11 0.9",
+            "module:g:rules architecture-rule slices {\"checks\":[\"notDependOnEachOther\"],\"ignored\":true,\"slices\":\"..feature.(*)..\"}"
+                + " @rules:src/test/java/com/example/RulesTest.java#19-19 0.9",
+            "module:g:rules architecture-rule slices {\"checks\":[\"beFreeOfCycles\"],\"frozen\":true,\"slices\":\"com.example.(*)..\"}"
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#32-32 0.9",
+            "test-class:g:rules:com.example.ArchitectureTest TESTS module:g:rules {\"architecture\":true,\"tests\":3}"
+                + " @rules:src/test/java/com/example/ArchitectureTest.java#14-52 0.9",
+            "test-class:g:rules:com.example.RulesTest TESTS module:g:rules {\"architecture\":true,\"tests\":2}"
+                + " @rules:src/test/java/com/example/RulesTest.java#10-21 0.9");
+  }
 }

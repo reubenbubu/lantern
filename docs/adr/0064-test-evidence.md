@@ -1,6 +1,6 @@
 # 0064: Test evidence: test classes, architecture tests and coverage tools
 
-Status: accepted (#226), amends ADR 0006 and ADR 0062, amended for #369
+Status: accepted (#226), amends ADR 0006 and ADR 0062, amended for #369 and #398
 
 ## Context
 
@@ -81,3 +81,42 @@ reading them needs a design decision first (#232). Test sources of Gradle builds
 Groovy, and test frameworks beyond those above.
 
 ## Amendment (#369): the Architecture Explorer and the Executive Brief are out of scope for now (`docs/design.md`, Non-goals; `docs/quality-bar.md`, Scope). What this ADR built stays; it gets no further work until the user brings the document back into scope.
+
+## Amendment (#398): composed test annotations, the containers tests start, and ArchUnit's declared rules
+
+The review of the extractor and its research note (`docs/research/extractor-test.md`) found that
+tests show more of the architecture than their count: which infrastructure they run against, and
+which layers or slices a team declares. Extractor `test` version 2. The extractor records facts
+only; using them in the C4 report is #509.
+
+- **Composed test annotations.** An annotation type the repository's test sources declare that is
+  annotated with a test annotation, directly or through another such annotation, makes a method a
+  test as JUnit 5 does (`@FastTest` carrying `@Test`). A name of the file's own package counts
+  without an import.
+- **Containers tests start.** Each module gets a `test-container` attribute fact for each
+  Testcontainers container its test sources create (`new XContainer(...)` in a file importing
+  `org.testcontainers` or `com.redis.testcontainers`), in any class, abstract base classes
+  included. Its value is the image as written (a literal, a constant of the file, or
+  `DockerImageName.parse` of one), else the class. It records the class, the image, the
+  technology and role (from the image as for deployment containers, else from the class:
+  `PostgreSQLContainer` is PostgreSQL), and whether `@ServiceConnection` connects the app to it.
+  Compose and browser containers are not one product and are left out. An `@EmbeddedKafka`
+  annotation gives one with `embedded: true` and the topics it names. These show what the tests
+  run against, not what production runs, and every use says so.
+- **Declared architecture rules.** Each `layeredArchitecture()`, `onionArchitecture()` and
+  `slices()` rule of ArchUnit in a module's test sources, in a test class or a rules class, gives
+  an `architecture-rule` attribute fact whose value is `layered`, `onion` or `slices`. It records
+  the layers (and onion rings and adapters) in the rule's order, each with its package patterns, each layer's access rule
+  with the layers it names, the slices' pattern and checks, and the reason `because` gives. It is
+  `frozen` when `FreezingArchRule.freeze` wraps it or names the constant holding it, `ignored`
+  under `@ArchIgnore` or `@Disabled` on its field, method or class, and `unresolved` when an
+  argument of a call it reads (a layer, its packages, an access rule, an adapter, a ring, the slices'
+  pattern, the reason) is neither a string literal nor a constant of the file. Other
+  ArchUnit rules stay counted only. Lantern never states a declared rule holds: it does not run
+  the tests.
+- **Not read.** Spring Modulith and jMolecules declarations, which are main code (#507); contract
+  tests (#508); WireMock stubs and `@DynamicPropertySource` keys; Taikai's rule contents, Spring
+  test slices, Failsafe classification, Spock, Cucumber and Kotlin. Containers are missed when
+  their class's name does not end in `Container` (a project's own subclass), when the image is
+  passed only through a subclass's `super(...)`, and when the class is written fully qualified in a
+  file that imports nothing of Testcontainers.
