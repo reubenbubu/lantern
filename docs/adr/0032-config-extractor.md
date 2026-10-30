@@ -171,3 +171,30 @@ what the facts look like and how a secret written in a config file is handled.
   marked masked. Without the keys they mask by key name only. The Spring extractor becomes version
   4, the HTTP client extractor 5 and the gateway extractor 2. The Redis extractor records config
   keys, never values, and the other extractors read no config.
+
+## Amendment: defaults a library adds in code (#333)
+
+- **An `EnvironmentPostProcessor`'s literal keys and values are config defaults.** A library such
+  as project-1's `common-security` gives every service that bundles it its resource-server issuer
+  from a post-processor, not from a file. The extractor now reads the classes listed under
+  `org.springframework.boot.env.EnvironmentPostProcessor` in a module's `META-INF/spring.factories`,
+  and those listed in a `META-INF/spring/*.imports` file that implement `EnvironmentPostProcessor`,
+  from the module's `src/main/java`. In such a class it takes every pair of string literals (a
+  literal, a concatenation of literals, a text block, or a `static final String` constant of the
+  class) written with `Map.of`, `Map.entry`, `singletonMap`, `put`, `putIfAbsent` or
+  `setProperty`, whose key looks like a property key. Computed keys or values are not read.
+- **Facts.** The same `config-value` fact for the module, default view only, with the attribute
+  `source: environment-post-processor` and the Java file and the line of the key as evidence.
+  Placeholders resolve against the defaults themselves (`${KEYCLOAK_ISSUER_URI:http://...}` takes
+  its default). The module's own `read` (for `${...}` in code, ADR 0035) does not see them, so the
+  rule "a library uses the config of the one module of its repository that has config" is
+  unchanged.
+- **Secrets are masked as any value.** A key that names a secret, or one of the known JWT secret
+  keys, or a value a secret was substituted into, is recorded as `******`, masked, whatever the
+  literal holds.
+- **For a unit that bundles the library** (ADR 0039), the linker treats these facts as the lowest
+  precedence, below the unit's `application` and `bootstrap` files: a key the unit's own files set
+  wins, and each bundled library adds its own defaults (the nearest first). They feed the
+  identity-provider links of ADR 0085, so a service gets its "Validates tokens" line from a
+  bundled library's issuer. The config extractor becomes version 5 and the cross-repository link
+  step 13.

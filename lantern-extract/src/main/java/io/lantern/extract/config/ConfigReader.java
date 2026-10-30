@@ -94,6 +94,24 @@ final class ConfigReader {
   }
 
   /**
+   * The config defaults the Maven modules add in code ({@link EnvironmentDefaults}), one config per
+   * module that adds any, ordered by directory. They are kept apart from {@link #read}: they are
+   * the lowest precedence of a unit that bundles the module, not the module's own files.
+   */
+  static List<ModuleConfig> readDefaults(RepoBuild repo) {
+    Map<String, EntityId> modules = moduleIds(repo);
+    List<String> paths = GitFiles.list(repo, "");
+    List<ModuleConfig> result = new ArrayList<>();
+    for (Map.Entry<String, EntityId> module : modules.entrySet()) {
+      Document document = EnvironmentDefaults.read(repo, module.getKey(), paths);
+      if (document != null) {
+        result.add(new ModuleConfig(repo, module.getKey(), module.getValue(), List.of(document)));
+      }
+    }
+    return result;
+  }
+
+  /**
    * The module IDs by directory, as the Java extractor finds them: from the build when it has the
    * module, else from the POM as written, so they match the Maven extractor's.
    */
