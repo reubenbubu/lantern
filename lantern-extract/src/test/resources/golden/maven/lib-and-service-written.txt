@@ -1,4 +1,4 @@
-library:com.example.greeting:greeting-lib CONTAINS module:com.example.greeting:greeting-lib @greeting-lib:pom.xml 0.7
+library:com.example.greeting:greeting-lib CONTAINS module:com.example.greeting:greeting-lib @greeting-lib:pom.xml#12-12 0.7
 module:com.example.greeting:greeting-lib java-release 21 @greeting-lib:pom.xml#16-16 0.7
 module:com.example.greeting:greeting-lib packaging jar @greeting-lib:pom.xml 0.7
 module:com.example.greeting:greeting-lib version 1.0.0 @greeting-lib:pom.xml#13-13 0.7
@@ -7,5 +7,5 @@ module:com.example.greeting:greeting-service deployable-by spring-boot @greeting
 module:com.example.greeting:greeting-service java-release 21 @greeting-service:pom.xml#16-16 0.7
 module:com.example.greeting:greeting-service packaging jar @greeting-service:pom.xml 0.7
 module:com.example.greeting:greeting-service version 1.0.0 @greeting-service:pom.xml#13-13 0.7
-service:com.example.greeting:greeting-service CONTAINS module:com.example.greeting:greeting-service @greeting-service:pom.xml 0.7
+service:com.example.greeting:greeting-service CONTAINS module:com.example.greeting:greeting-service @greeting-service:pom.xml#12-12 0.7
 service:com.example.greeting:greeting-service PACKAGES library:com.example.greeting:greeting-lib @greeting-service:pom.xml#21-25 0.56

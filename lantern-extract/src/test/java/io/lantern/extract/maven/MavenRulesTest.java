@@ -330,7 +330,7 @@ class MavenRulesTest {
             "module:g:child BUILD_DEPENDS_ON artifact:x:x-lib"
                 + " {\"artifactType\":\"test-jar\",\"classifier\":\"all\",\"scope\":\"test\","
                 + "\"version\":\"2.5\"} @child:pom.xml#1-1 0.7",
-            "library:g:child CONTAINS module:g:child @child:pom.xml 0.7");
+            "library:g:child CONTAINS module:g:child @child:pom.xml#1-1 0.7");
   }
 
   @Test

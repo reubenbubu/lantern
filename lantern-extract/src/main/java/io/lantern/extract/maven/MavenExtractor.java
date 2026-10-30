@@ -67,7 +67,7 @@ public final class MavenExtractor {
   public static final String NAME = "maven";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "5";
+  public static final String VERSION = "6";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
@@ -214,7 +214,6 @@ public final class MavenExtractor {
     Map<String, Fact> facts = new LinkedHashMap<>();
     for (Module m : modules) {
       EntityId id = m.id();
-      Evidence pom = m.evidence(null);
       XmlElement xml = m.written().pom().xml();
       if (m.version() != null) {
         XmlElement declared =
@@ -283,12 +282,13 @@ public final class MavenExtractor {
       }
       EntityId container = m.container();
       if (container != null) {
+        // The service or library is the module named here, whatever makes it one.
         add(
             facts,
             container,
             BuiltInTypes.CONTAINS,
             FactObject.entity(id),
-            pom,
+            m.evidence(xml.child("artifactId").orElse(null)),
             m.confidence(),
             validity);
       }

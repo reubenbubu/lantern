@@ -1,5 +1,5 @@
-library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api @shop:api/pom.xml 0.7
-library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core @shop:core/pom.xml 0.7
+library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api @shop:api/pom.xml#13-13 0.7
+library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core @shop:core/pom.xml#13-13 0.7
 module:com.example.shop:shop-api java-release 21 @shop:api/pom.xml 0.7
 module:com.example.shop:shop-api packaging jar @shop:api/pom.xml 0.7
 module:com.example.shop:shop-api parent com.example.shop:shop-parent:1.0.0 @shop:api/pom.xml#7-11 0.7

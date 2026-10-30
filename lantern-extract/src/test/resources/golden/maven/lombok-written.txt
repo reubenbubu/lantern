@@ -1,4 +1,4 @@
-library:com.example.orders:orders CONTAINS module:com.example.orders:orders @orders:pom.xml 0.7
+library:com.example.orders:orders CONTAINS module:com.example.orders:orders @orders:pom.xml#9-9 0.7
 module:com.example.orders:orders BUILD_DEPENDS_ON artifact:org.projectlombok:lombok {"scope":"provided","version":"1.18.48"} @orders:pom.xml#19-24 0.7
 module:com.example.orders:orders java-release 21 @orders:pom.xml#13-13 0.7
 module:com.example.orders:orders packaging jar @orders:pom.xml 0.7
