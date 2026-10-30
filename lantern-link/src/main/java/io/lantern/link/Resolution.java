@@ -14,7 +14,8 @@ import java.util.Objects;
  * @param confidence how sure the model said it is, {@code high}, {@code medium} or {@code low}, or
  *     {@code null} when it answered unknown
  * @param cited the prompt references the answer cites ({@code F1}, {@code C2}), which stand for the
- *     same facts and candidates whenever the prompt, and so the key, is the same
+ *     same facts and candidates whenever the prompt, and so the key, is the same; a fact a tool
+ *     showed (ADR 0081) is kept by its fact ID, which stands for it while it holds
  * @param rationale the model's reason, in a sentence or two
  * @param promptVersion the version of the prompt
  * @param provider the provider of the model

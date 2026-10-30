@@ -1,7 +1,9 @@
 package io.lantern.llm;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * One call to the LLM.
@@ -13,6 +15,8 @@ import java.util.Objects;
  * @param messages the conversation, starting and ending with a user turn
  * @param maxOutputTokens the most tokens the model may write
  * @param cacheSystem whether to cache the system prompt; needs {@link Capability#PROMPT_CACHING}
+ * @param tools the tools the model may call, each with a distinct name; any needs {@link
+ *     Capability#TOOL_USE}
  */
 public record LlmRequest(
     Role role,
@@ -20,7 +24,8 @@ public record LlmRequest(
     String system,
     List<LlmMessage> messages,
     int maxOutputTokens,
-    boolean cacheSystem) {
+    boolean cacheSystem,
+    List<LlmTool> tools) {
 
   public LlmRequest {
     Objects.requireNonNull(role, "role");
@@ -40,6 +45,29 @@ public record LlmRequest(
     if (cacheSystem && system == null) {
       throw new IllegalArgumentException("Cannot cache a missing system prompt");
     }
+    tools = List.copyOf(Objects.requireNonNull(tools, "tools"));
+    Set<String> names = new HashSet<>();
+    for (LlmTool tool : tools) {
+      if (!names.add(tool.name())) {
+        throw new IllegalArgumentException("Two tools are named " + tool.name());
+      }
+    }
+    boolean usesTools =
+        messages.stream().anyMatch(m -> !m.toolCalls().isEmpty() || !m.toolResults().isEmpty());
+    if (usesTools && tools.isEmpty()) {
+      throw new IllegalArgumentException("A conversation with tool calls must offer the tools");
+    }
+  }
+
+  /** A request without tools. */
+  public LlmRequest(
+      Role role,
+      String purpose,
+      String system,
+      List<LlmMessage> messages,
+      int maxOutputTokens,
+      boolean cacheSystem) {
+    this(role, purpose, system, messages, maxOutputTokens, cacheSystem, List.of());
   }
 
   /** A single-turn request without prompt caching. */
@@ -51,14 +79,33 @@ public record LlmRequest(
 
   /** The same request with another output limit. */
   public LlmRequest withMaxOutputTokens(int maxOutputTokens) {
-    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, cacheSystem);
+    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, cacheSystem, tools);
   }
 
-  /** A rough count of the input tokens, about four characters per token. */
+  /** The same request with other turns. */
+  public LlmRequest withMessages(List<LlmMessage> messages) {
+    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, cacheSystem, tools);
+  }
+
+  /** The same request with another purpose. */
+  public LlmRequest withPurpose(String purpose) {
+    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, cacheSystem, tools);
+  }
+
+  /**
+   * A rough count of the input tokens, about four characters per token: the system prompt, the
+   * turns with their tool calls and results, and the tools' definitions.
+   */
   public long estimatedInputTokens() {
     long chars = system == null ? 0 : system.length();
     for (LlmMessage message : messages) {
-      chars += message.text().length();
+      chars += message.chars();
+    }
+    for (LlmTool tool : tools) {
+      chars +=
+          tool.name().length()
+              + tool.description().length()
+              + tool.inputSchema().toString().length();
     }
     return Tokens.estimate(chars);
   }

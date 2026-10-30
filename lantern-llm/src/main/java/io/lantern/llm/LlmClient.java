@@ -137,13 +137,64 @@ public final class LlmClient {
    *     if the thread is interrupted while waiting
    */
   public LlmResponse call(LlmRequest request) {
+    return call(request, null);
+  }
+
+  /**
+   * Starts a conversation: a request whose answers may ask for the tool box's tools, which the
+   * conversation runs and sends back until the model answers (ADR 0081). The request's tools are
+   * replaced by the tool box's.
+   */
+  public Conversation converse(LlmRequest request, ToolBox tools) {
+    return new Conversation(this, request, tools, Conversation.DEFAULT_TURN_CAP);
+  }
+
+  /**
+   * A turn of a conversation, for the call log.
+   *
+   * @param conversation the conversation's id, or null for a call on its own
+   * @param number the turn's number, from 1; 0 for a call on its own
+   * @param toolCalls the tool calls the answer asked for, by tool name
+   */
+  record Turn(String conversation, int number, Map<String, Integer> toolCalls) {
+
+    /** This turn with the tool calls the answer asked for; for a call on its own, a new turn. */
+    static Turn answering(Turn turn, LlmResponse response) {
+      Map<String, Integer> calls = new HashMap<>();
+      response.toolCalls().forEach(call -> calls.merge(call.name(), 1, Integer::sum));
+      return turn == null
+          ? new Turn(null, 0, calls)
+          : new Turn(turn.conversation, turn.number, calls);
+    }
+  }
+
+  /** The clock of the call log's times. */
+  Clock clock() {
+    return clock;
+  }
+
+  /** Records how a conversation went. */
+  void log(LlmConversation conversation) {
+    log.recordConversation(conversation);
+  }
+
+  /** Sends a request as the given turn of a conversation, or on its own for null. */
+  LlmResponse call(LlmRequest request, Turn turn) {
     Objects.requireNonNull(request, "request");
     ModelConfig model = settings.forRole(request.role());
     Instant start = clock.instant();
     try {
       check(model, request);
     } catch (LlmException e) {
-      log(start, request, model, LlmCall.Outcome.REFUSED, TokenUsage.NONE, BigDecimal.ZERO, e);
+      log(
+          start,
+          request,
+          model,
+          LlmCall.Outcome.REFUSED,
+          TokenUsage.NONE,
+          BigDecimal.ZERO,
+          e,
+          turn);
       throw e;
     }
     CallLimiter.Lane lane = limiter.lane(model);
@@ -160,17 +211,19 @@ public final class LlmClient {
           LlmCall.Outcome.REFUSED,
           TokenUsage.NONE,
           BigDecimal.ZERO,
-          refused);
+          refused,
+          turn);
       throw refused;
     }
     try {
-      return send(lane, model, request.withMaxOutputTokens(model.outputLimit(request)));
+      return send(lane, model, request.withMaxOutputTokens(model.outputLimit(request)), turn);
     } finally {
       lane.release();
     }
   }
 
-  private LlmResponse send(CallLimiter.Lane lane, ModelConfig model, LlmRequest request) {
+  private LlmResponse send(
+      CallLimiter.Lane lane, ModelConfig model, LlmRequest request, Turn turn) {
     Instant attemptStart = clock.instant();
     List<BudgetGuard.Reservation> reservations;
     try {
@@ -183,7 +236,8 @@ public final class LlmClient {
           LlmCall.Outcome.REFUSED,
           TokenUsage.NONE,
           BigDecimal.ZERO,
-          e);
+          e,
+          turn);
       throw e;
     }
     boolean closed = false;
@@ -201,7 +255,8 @@ public final class LlmClient {
               model,
               reservations,
               LlmCall.Outcome.REFUSED,
-              new LlmException("Interrupted while waiting to call " + model.model(), e));
+              new LlmException("Interrupted while waiting to call " + model.model(), e),
+              turn);
         }
         LlmResponse response;
         try {
@@ -209,7 +264,8 @@ public final class LlmClient {
         } catch (RuntimeException e) {
           if (!(e instanceof TransientLlmException transientFailure)) {
             closed = true;
-            throw failed(attemptStart, request, model, reservations, LlmCall.Outcome.FAILED, e);
+            throw failed(
+                attemptStart, request, model, reservations, LlmCall.Outcome.FAILED, e, turn);
           }
           if (attempt >= policy.maxAttempts()) {
             closed = true;
@@ -224,7 +280,8 @@ public final class LlmClient {
                     : new LlmException(
                         "Gave up after %d attempts: %s"
                             .formatted(attempt, transientFailure.getMessage()),
-                        transientFailure));
+                        transientFailure),
+                turn);
           }
           Duration delay = policy.delay(attempt, transientFailure.retryAfter());
           transientFailure.retryAfter().ifPresent(lane::pause);
@@ -236,7 +293,8 @@ public final class LlmClient {
               TokenUsage.NONE,
               BigDecimal.ZERO,
               "%s (attempt %d of %d, retrying in %d ms)"
-                  .formatted(e.getMessage(), attempt, policy.maxAttempts(), delay.toMillis()));
+                  .formatted(e.getMessage(), attempt, policy.maxAttempts(), delay.toMillis()),
+              turn);
           attemptStart = clock.instant();
           try {
             TimeUnit.NANOSECONDS.sleep(delay.toNanos());
@@ -250,7 +308,8 @@ public final class LlmClient {
                 reservations,
                 LlmCall.Outcome.REFUSED,
                 new LlmException(
-                    "Interrupted while waiting to retry a call to " + model.model(), interrupted));
+                    "Interrupted while waiting to retry a call to " + model.model(), interrupted),
+                turn);
           }
           attemptStart = clock.instant();
           continue;
@@ -269,7 +328,8 @@ public final class LlmClient {
               response.usage(),
               cost,
               "Cut off at the output limit of %d tokens or the context window (stop reason %s)"
-                  .formatted(request.maxOutputTokens(), response.stopReason()));
+                  .formatted(request.maxOutputTokens(), response.stopReason()),
+              Turn.answering(turn, response));
         } else {
           log(
               attemptStart,
@@ -278,7 +338,8 @@ public final class LlmClient {
               LlmCall.Outcome.SUCCEEDED,
               response.usage(),
               cost,
-              null);
+              null,
+              Turn.answering(turn, response));
         }
         return response;
       }
@@ -300,15 +361,20 @@ public final class LlmClient {
       ModelConfig model,
       List<BudgetGuard.Reservation> reservations,
       LlmCall.Outcome outcome,
-      RuntimeException error) {
+      RuntimeException error,
+      Turn turn) {
     reservations.forEach(BudgetGuard.Reservation::release);
-    log(attemptStart, request, model, outcome, TokenUsage.NONE, BigDecimal.ZERO, error);
+    log(attemptStart, request, model, outcome, TokenUsage.NONE, BigDecimal.ZERO, error, turn);
     return error instanceof LlmException e
         ? e
         : new LlmException("LLM call failed: " + error, error);
   }
 
   private static void check(ModelConfig model, LlmRequest request) {
+    if (!request.tools().isEmpty() && !model.supports(Capability.TOOL_USE)) {
+      throw new UnsupportedCapabilityException(
+          "Model " + model.model() + " does not support tool use");
+    }
     if (request.cacheSystem() && !model.supports(Capability.PROMPT_CACHING)) {
       throw new UnsupportedCapabilityException(
           "Model " + model.model() + " does not support prompt caching");
@@ -358,9 +424,17 @@ public final class LlmClient {
       LlmCall.Outcome outcome,
       TokenUsage usage,
       BigDecimal cost,
-      Exception error) {
+      Exception error,
+      Turn turn) {
     logMessage(
-        start, request, model, outcome, usage, cost, error == null ? null : error.getMessage());
+        start,
+        request,
+        model,
+        outcome,
+        usage,
+        cost,
+        error == null ? null : error.getMessage(),
+        turn);
   }
 
   private void logMessage(
@@ -370,7 +444,8 @@ public final class LlmClient {
       LlmCall.Outcome outcome,
       TokenUsage usage,
       BigDecimal cost,
-      String error) {
+      String error,
+      Turn turn) {
     log.record(
         new LlmCall(
             start,
@@ -382,6 +457,9 @@ public final class LlmClient {
             outcome,
             usage,
             cost,
-            error));
+            error,
+            turn == null ? null : turn.conversation(),
+            turn == null ? 0 : turn.number(),
+            turn == null ? Map.of() : turn.toolCalls()));
   }
 }

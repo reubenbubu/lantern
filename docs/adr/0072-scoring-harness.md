@@ -1,6 +1,6 @@
 # 0072: Scoring harness: a report against a reference, and the models of a run
 
-Status: accepted (#252), amended (#254), pending the user's review (#24)
+Status: accepted (#252), amended (#254) and by ADR 0081 (#169: conversations in `run.json`), pending the user's review (#24)
 
 ## Context
 

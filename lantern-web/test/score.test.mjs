@@ -353,6 +353,21 @@ test('the command line reads HTML reports and writes the scorecard, and compares
       roles: [
         { role: 'SUMMARIZE', provider: 'fake', model, calls: 6, tokens: 600, costUsd: cost },
         { role: 'COMPOSE', provider: 'fake', model: 'fake-model', calls: 4, tokens: 400, costUsd: 0 },
+        {
+          role: 'RESOLVE',
+          provider: 'fake',
+          model: 'fake-model',
+          calls: 3,
+          tokens: 300,
+          costUsd: 0,
+          conversations: {
+            count: 1,
+            turns: 3,
+            mostTurns: 3,
+            toolCalls: { facts_about: 2, read_file: 1 },
+            endings: { ANSWERED: 1 },
+          },
+        },
       ],
     });
     writeFileSync(join(dir, 'run-a.json'), JSON.stringify(run('fake-model', 0)));
@@ -361,6 +376,10 @@ test('the command line reads HTML reports and writes the scorecard, and compares
     const b = scoreFiles(fixture, `${testsets}project-4`, join(dir, 'run-b.json'));
     const markdown = scorecardMarkdown(b);
     assert.match(markdown, /SUMMARIZE: fake\/fake-large \(6 calls, \$0\.12\)/);
+    assert.match(
+      markdown,
+      /RESOLVE: fake\/fake-model \(3 calls, \$0\); 1 conversations, 3 turns \(at most 3\), tool calls: facts_about 2, read_file 1; ended: ANSWERED 1/,
+    );
     assert.match(markdown, /\| Container connections \| 16\/28 \(57%\) \| 16\/37 \(43%\) \| 16\/16 \(100%\) \|/);
 
     const side = compareMarkdown(a, b, 'fake-model', 'fake-large');

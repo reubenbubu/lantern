@@ -31,11 +31,23 @@ class ResolvePromptTest {
     String texts =
         ResolvePrompt.SYSTEM
             + "\n--\n"
+            + ResolvePrompt.TOOLS
+            + "\n--\n"
             + ResolvePrompt.RETRY
             + "\n--\n"
             + LinkResolver.MAX_OUTPUT_TOKENS
             + "\n--\n"
-            + LinkResolver.MAX_CANDIDATE_FACTS;
+            + LinkResolver.MAX_CANDIDATE_FACTS
+            + "\n--\n"
+            + new GraphTools.Graph(java.util.List.of(), (repo, path) -> java.util.Optional.empty())
+                .tools()
+                .tools()
+            + "\n--\n"
+            + GraphTools.MAX_FACTS
+            + " "
+            + GraphTools.MAX_LINES
+            + " "
+            + GraphTools.MAX_CHARS;
     String fingerprint =
         HexFormat.of()
             .formatHex(
@@ -44,7 +56,7 @@ class ResolvePromptTest {
 
     assertThat(ResolvePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise ResolvePrompt.VERSION and update this fingerprint")
-        .isEqualTo("3 be793c276edf13792798e9f6f72e160ef564d8988cc3c79f6654f24d69c2ecea");
+        .isEqualTo("4 88b51a43e90f85bfcd8353c583ac51fb355ea69e3bb398212aa501130f8d1148");
   }
 
   /**
