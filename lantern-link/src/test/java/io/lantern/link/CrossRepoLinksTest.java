@@ -821,7 +821,8 @@ class CrossRepoLinksTest {
         "{\"definedIn\":\"config\",\"uri\":\"lb://profile\","
             + "\"paths\":[\"/profile/**\"],\"filters\":[\"StripPrefix=1\",\"PrefixPath=/api\","
             + "\"RequestRateLimiter(key-resolver=#{@userKeyResolver})\"]}");
-    // RewritePath, as config writes it.
+    // RewritePath, as config writes it; the request is kept only because forwarding it rewrites
+    // it back to the endpoint, so this also covers RewritePath on the way forward.
     route(
         "gw",
         "module:g:edge",
@@ -860,6 +861,33 @@ class CrossRepoLinksTest {
                 + " {\"discoveryLocator\":true,\"endpoint\":\"method:o.OrderController#one()\","
                 + "\"served\":\"GET /api/orders/{id}\",\"source\":\"module:g:edge\","
                 + "\"target\":\"service:g:orders-service\",\"url\":\"lb://ORDERS\"} 1.0");
+  }
+
+  @Test
+  void theDiscoveryLocatorTakesLowerCaseServiceIdsWhenToldTo() {
+    unit("gw", "edge", "edge");
+    config("gw", "edge", "application.yml", "eureka.client.enabled", "true", null);
+    config(
+        "gw",
+        "edge",
+        "application.yml",
+        "spring.cloud.gateway.server.webflux.discovery.locator.enabled",
+        "true",
+        null);
+    config(
+        "gw",
+        "edge",
+        "application.yml",
+        "spring.cloud.gateway.server.webflux.discovery.locator.lower-case-service-id",
+        "true",
+        null);
+    unit("o", "orders-service", "Orders");
+    type("o", "orders-service", "o.OrderController");
+    endpoint("o", "o.OrderController", "one()", "GET", "/api/orders/{id}");
+
+    assertThat(derive(CrossRepoLinks.ROUTED_ENDPOINT))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly("service:g:edge routed-endpoint GET /orders/api/orders/{id}");
   }
 
   @Test
@@ -918,6 +946,8 @@ class CrossRepoLinksTest {
     assertThat(RouteLinker.reverse(routeWith("/**", "PrefixPath=/api"), "/internal/x")).isNull();
     // A wildcard segment stripped cannot be told.
     assertThat(RouteLinker.reverse(routeWith("/**", "StripPrefix=1"), "/x")).isNull();
+    assertThat(RouteLinker.reverse(routeWith("/*/**", "StripPrefix=1"), "/x")).isNull();
+    assertThat(RouteLinker.reverse(routeWith("/{service}/**", "StripPrefix=1"), "/x")).isNull();
     assertThat(
             RouteLinker.reverse(
                 routeWith("/red/**", "RewritePath=/red/?(?<segment>.*), /$\\{segment}"),

@@ -1001,9 +1001,10 @@ final class RouteLinker {
         if (request.get(k) != null) {
           continue;
         }
-        // A stripped segment is the pattern's segment at that place, which must be one segment.
+        // A stripped segment is the pattern's literal segment at that place; a wildcard or a
+        // variable there cannot be told.
         String segment = k < fixed.size() ? fixed.get(k) : null;
-        if (segment == null || segment.equals("**") || segment.startsWith("{*")) {
+        if (segment == null || segment.contains("*") || segment.contains("{")) {
           ok = false;
         } else {
           request.set(k, segment);

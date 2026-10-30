@@ -120,7 +120,7 @@ route's filters rewrite before the unit sees it.
   serves it (`served`), the route (`route`, `url`, `source`) and the facts of the endpoint and the
   route. The filters are reversed from the last: `PrefixPath` takes its prefix off, `StripPrefix`
   puts back the segments it removed, read from the route's Path pattern at their place (a
-  wildcard there cannot be told, so nothing is recorded), and `RewritePath` is read backwards: the
+  wildcard or variable there cannot be told, so nothing is recorded), and `RewritePath` is read backwards: the
   replacement gives each group's value, put in its place in the regular expression with its
   literal characters, each optional character tried both ways; an expression with character
   classes, alternatives or quantifiers outside groups, and `SetPath`, are not reversed. Other
@@ -139,9 +139,10 @@ route's filters rewrite before the unit sees it.
   case under `lower-case-service-id: true`, else as written. A request a route takes first is not
   recorded. No line is drawn for the locator: it routes to every registered service, which the
   references do not draw.
-- **Checks.** `CrossRepoLinksTest` covers StripPrefix and PrefixPath in both orders, RewritePath in
+- **Checks.** `CrossRepoLinksTest` covers StripPrefix and PrefixPath in both orders, a wildcard
+  stripped, RewritePath in
   shortcut and full form, SetPath and paths no filter could make, the discovery locator, a method
-  the route does not take, and a gateway without the locator.
+  the route does not take, lower-case service IDs and a gateway without the locator.
 
 ### Not covered
 
