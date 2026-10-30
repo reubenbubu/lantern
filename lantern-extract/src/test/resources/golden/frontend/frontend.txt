@@ -5,12 +5,22 @@ frontend:shop/shop-ui frontend-call POST /api/cart {"alternates":["http://localh
 frontend:shop/shop-ui frontend-call WebSocket wss://push.example.com/live {"protocol":"WebSocket","url":"wss://push.example.com/live","written":"import.meta.env.VITE_PUSH + '/live'"} @shop:shop-ui/src/api.ts#10-10 0.9
 frontend:shop/shop-ui frontend-proxy /api {"source":"dev-server","target":"http://localhost:8080"} @shop:shop-ui/vite.config.ts#7-7 0.9
 frontend:shop/shop-ui frontend-proxy /auth {"source":"dev-server","target":"http://localhost:9090"} @shop:shop-ui/vite.config.ts#8-8 0.9
+frontend:shop/shop-ui frontend-url /api {"defaultBuild":true,"name":"VITE_API","source":"environment"} @shop:shop-ui/.env#1-1 0.9
+frontend:shop/shop-ui frontend-url http://localhost:8080/api {"name":"VITE_API","source":"environment"} @shop:shop-ui/.env.development#1-1 0.9
+frontend:shop/shop-ui frontend-url import.meta.env.VITE_API {"name":"BASE","source":"constant"} @shop:shop-ui/src/api.ts#3-3 0.9
+frontend:shop/shop-ui frontend-url wss://push.example.com {"defaultBuild":true,"name":"VITE_PUSH","source":"environment"} @shop:shop-ui/.env#2-2 0.9
 frontend:shop/web frontend-app angular {"directory":"web","framework":"Angular","image":"nginx:1.27-alpine","libraries":["Angular Material","STOMP.js","TypeScript"],"name":"web","package":"@acme/web","ports":["80"],"server":"nginx","technology":"Angular 19.2 · nginx","version":"19.2"} @shop:web/package.json#5-5 1.0
 frontend:shop/web frontend-call GET /api/login {"alternates":["http://localhost:8080/api/login"],"httpMethod":"GET","navigation":true,"protocol":"HTTP","url":"/api/login","written":"`${environment.apiUrl}/login?next=${next}`"} @shop:web/src/app/orders.service.ts#42-42 0.9
 frontend:shop/web frontend-call GET /api/orders {"alternates":["http://localhost:8080/api/orders"],"httpMethod":"GET","protocol":"HTTP","url":"/api/orders","written":"`${environment.apiUrl}${this.BASE_URI}?page=${page}`"} @shop:web/src/app/orders.service.ts#14-14 0.9
 frontend:shop/web frontend-call POST /api/orders {"alternates":["http://localhost:8080/api/orders"],"httpMethod":"POST","protocol":"HTTP","url":"/api/orders","written":"environment.apiUrl + this.BASE_URI"} @shop:web/src/app/orders.service.ts#18-18 0.9
 frontend:shop/web frontend-call PUT /api/orders/{id} {"alternates":["http://localhost:8080/api/orders/{id}"],"httpMethod":"PUT","protocol":"HTTP","url":"/api/orders/{id}","written":"`${environment.apiUrl}${this.BASE_URI}/${id}`"} @shop:web/src/app/orders.service.ts#25-25 0.9
 frontend:shop/web frontend-call WebSocket wss://shop.example.com/live {"alternates":["ws://localhost:8080/live"],"protocol":"WebSocket","url":"wss://shop.example.com/live","written":"environment.socketUrl"} @shop:web/src/app/orders.service.ts#34-34 0.9
+frontend:shop/web frontend-component service {"calls":["HttpClient.request"],"injects":["HttpClient"],"name":"OrdersService"} @shop:web/src/app/orders.service.ts#6-44 0.9
 frontend:shop/web frontend-proxy /api {"source":"dev-server","target":"http://localhost:8080"} @shop:web/proxy.conf.json#2-2 0.9
 frontend:shop/web frontend-proxy /api/ {"source":"nginx","target":"http://gateway:8080"} @shop:web/nginx.conf#12-12 0.9
 frontend:shop/web frontend-proxy /files/ {"source":"nginx","target":"http://storage:9000/media/"} @shop:web/nginx.conf#16-16 0.9
+frontend:shop/web frontend-url /api {"defaultBuild":true,"name":"apiUrl","source":"environment"} @shop:web/src/environments/environment.prod.ts#3-3 0.9
+frontend:shop/web frontend-url /orders {"name":"BASE_URI","source":"constant"} @shop:web/src/app/orders.service.ts#8-8 0.9
+frontend:shop/web frontend-url http://localhost:8080/api {"name":"apiUrl","source":"environment"} @shop:web/src/environments/environment.ts#3-3 0.9
+frontend:shop/web frontend-url ws://localhost:8080/live {"name":"socketUrl","source":"environment"} @shop:web/src/environments/environment.ts#4-4 0.9
+frontend:shop/web frontend-url wss://shop.example.com/live {"defaultBuild":true,"name":"socketUrl","source":"environment"} @shop:web/src/environments/environment.prod.ts#4-4 0.9

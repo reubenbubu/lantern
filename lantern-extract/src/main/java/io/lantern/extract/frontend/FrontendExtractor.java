@@ -55,7 +55,7 @@ public final class FrontendExtractor {
   public static final String NAME = "frontend";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "frontend-extractor";
@@ -71,6 +71,21 @@ public final class FrontendExtractor {
 
   /** Attribute: a path prefix the frontend's server passes on to another server. */
   public static final String PROXY = "frontend-proxy";
+
+  /**
+   * Attribute: a value a call's URL is built from, a constant or field of its file or an entry of
+   * an environment file, at the line that declares it.
+   */
+  public static final String URL = "frontend-url";
+
+  /** Attribute: how the frontend signs its requests or guards its pages. */
+  public static final String AUTH = "frontend-auth";
+
+  /** Attribute: an Angular page (component) or service of the frontend. */
+  public static final String COMPONENT = "frontend-component";
+
+  /** Attribute: an absolute URL the frontend's templates or styles load. */
+  public static final String RESOURCE_URL = "frontend-resource";
 
   /** The protocols of calls, as their {@code protocol}. */
   public static final String HTTP = "HTTP";
@@ -135,6 +150,7 @@ public final class FrontendExtractor {
   private static final Set<String> BUILD_TOOLS = Set.of("Vite", "Next.js", "Nuxt");
 
   private static final Pattern CODE_FILE = Pattern.compile("(?i).+\\.(ts|tsx|js|jsx|mjs|cjs|vue)");
+  private static final Pattern MARKUP_FILE = Pattern.compile("(?i).+\\.(html|css|scss|sass|less)");
   private static final Pattern TEST_FILE =
       Pattern.compile("(?i).*(\\.(spec|test|stories)\\.[a-z]+|/__tests__/.*|/__mocks__/.*)");
   private static final Pattern CONFIG_FILE =
@@ -450,7 +466,15 @@ public final class FrontendExtractor {
   // One repository
 
   /** An environment: its file and the values it sets. */
-  private record Environment(String path, Map<String, String> values) {}
+  private record Environment(String path, Map<String, String> values, Map<String, Where> where) {
+
+    Environment(String path, Map<String, String> values) {
+      this(path, values, Map.of());
+    }
+  }
+
+  /** Where a value is declared: its file and line. */
+  private record Where(Source source, int line) {}
 
   /** A file read at the commit: its text and hash. */
   private record Source(String path, String text, String hash) {}
@@ -626,6 +650,7 @@ public final class FrontendExtractor {
       List<Environment> environments = environments(prefix);
       calls(subject, prefix, environments);
       proxies(subject, prefix, manifest, json);
+      code(subject, prefix);
       return true;
     }
 
@@ -678,33 +703,39 @@ public final class FrontendExtractor {
     private List<Environment> environments(String prefix) {
       List<Environment> result = new ArrayList<>();
       Map<String, Map<String, String>> angular = new LinkedHashMap<>();
+      Map<String, Map<String, Where>> angularWhere = new LinkedHashMap<>();
       for (String path : paths) {
         if (path.startsWith(prefix) && ANGULAR_ENVIRONMENT.matcher(path).matches()) {
           Source source = read(path);
           if (source != null) {
             Map<String, String> values = new LinkedHashMap<>();
+            Map<String, Where> where = new LinkedHashMap<>();
             Matcher m = ENVIRONMENT_VALUE.matcher(source.text());
             while (m.find()) {
-              values.putIfAbsent(m.group(1), m.group(3));
+              if (values.putIfAbsent(m.group(1), m.group(3)) == null) {
+                where.put(m.group(1), new Where(source, lineOf(source.text(), m.start())));
+              }
             }
             angular.put(path, values);
+            angularWhere.put(path, where);
           }
         }
       }
       if (!angular.isEmpty()) {
         String chosen = angularDefault(prefix, angular.keySet());
         if (chosen != null) {
-          result.add(new Environment(chosen, angular.get(chosen)));
+          result.add(new Environment(chosen, angular.get(chosen), angularWhere.get(chosen)));
         }
         angular.forEach(
             (path, values) -> {
               if (!path.equals(chosen)) {
-                result.add(new Environment(path, values));
+                result.add(new Environment(path, values, angularWhere.get(path)));
               }
             });
         return result;
       }
       Map<String, Map<String, String>> dotenv = new LinkedHashMap<>();
+      Map<String, Map<String, Where>> dotenvWhere = new LinkedHashMap<>();
       for (String path : paths) {
         if (path.startsWith(prefix)
             && path.indexOf('/', prefix.length()) < 0
@@ -712,13 +743,17 @@ public final class FrontendExtractor {
           Source source = read(path);
           if (source != null) {
             Map<String, String> values = new LinkedHashMap<>();
-            for (String line : source.text().split("\n", -1)) {
-              Matcher m = DOTENV_LINE.matcher(line);
-              if (m.matches() && !line.trim().startsWith("#")) {
+            Map<String, Where> where = new LinkedHashMap<>();
+            String[] lines = source.text().split("\n", -1);
+            for (int n = 0; n < lines.length; n++) {
+              Matcher m = DOTENV_LINE.matcher(lines[n]);
+              if (m.matches() && !lines[n].trim().startsWith("#")) {
                 values.put(m.group(1), m.group(2).replaceAll("^(['\"])(.*)\\1$", "$2"));
+                where.put(m.group(1), new Where(source, n + 1));
               }
             }
             dotenv.put(path.substring(prefix.length()), values);
+            dotenvWhere.put(path.substring(prefix.length()), where);
           }
         }
       }
@@ -727,14 +762,20 @@ public final class FrontendExtractor {
       }
       Map<String, String> standard = new LinkedHashMap<>(dotenv.getOrDefault(".env", Map.of()));
       standard.putAll(dotenv.getOrDefault(".env.production", Map.of()));
-      result.add(new Environment(prefix + ".env", standard));
+      Map<String, Where> standardWhere =
+          new LinkedHashMap<>(dotenvWhere.getOrDefault(".env", Map.of()));
+      standardWhere.putAll(dotenvWhere.getOrDefault(".env.production", Map.of()));
+      result.add(new Environment(prefix + ".env", standard, standardWhere));
       dotenv.forEach(
           (file, values) -> {
             if (!file.equals(".env") && !file.equals(".env.production")) {
               Map<String, String> merged =
                   new LinkedHashMap<>(dotenv.getOrDefault(".env", Map.of()));
               merged.putAll(values);
-              result.add(new Environment(prefix + file, merged));
+              Map<String, Where> mergedWhere =
+                  new LinkedHashMap<>(dotenvWhere.getOrDefault(".env", Map.of()));
+              mergedWhere.putAll(dotenvWhere.get(file));
+              result.add(new Environment(prefix + file, merged, mergedWhere));
             }
           });
       return result;
@@ -781,6 +822,114 @@ public final class FrontendExtractor {
         }
       }
       return base != null ? base : files.iterator().next();
+    }
+
+    // Auth, Angular pages and services, and resources
+
+    /**
+     * Whether a path is a source file of the frontend: not a test, a build output or a vendor's.
+     */
+    private boolean source(String path, String prefix) {
+      return path.startsWith(prefix)
+          && !path.endsWith(".min.js")
+          && !path.endsWith(".min.css")
+          && !path.contains("/vendor/")
+          && !TEST_FILE.matcher(path).matches();
+    }
+
+    private void code(EntityId subject, String prefix) {
+      List<Source> scripts = new ArrayList<>();
+      List<Source> markup = new ArrayList<>();
+      for (String path : paths) {
+        if (!source(path, prefix)) {
+          continue;
+        }
+        boolean script =
+            CODE_FILE.matcher(path).matches()
+                && !path.contains("/assets/")
+                && !CONFIG_FILE.matcher(path).matches();
+        if (!script && !MARKUP_FILE.matcher(path).matches()) {
+          continue;
+        }
+        Source source = read(path);
+        if (source != null) {
+          (script ? scripts : markup).add(source);
+        }
+      }
+      Map<String, Set<String>> routes = new LinkedHashMap<>();
+      for (Source source : scripts) {
+        FrontendCode.routes(uncommented(source.text()))
+            .forEach((k, v) -> routes.computeIfAbsent(k, x -> new LinkedHashSet<>()).addAll(v));
+      }
+      for (Source source : scripts) {
+        String text = uncommented(source.text());
+        for (FrontendCode.Part part : FrontendCode.auth(text)) {
+          ObjectNode attributes = attributes(part);
+          Set<String> guarded = routes.get("guard:" + part.name());
+          if (part.kind().equals("guard") && guarded != null) {
+            ArrayNode array = attributes.putArray("routes");
+            guarded.forEach(array::add);
+          }
+          add(subject, AUTH, part.kind(), attributes, evidence(source, text, part), 0.9);
+        }
+        for (FrontendCode.Part part : FrontendCode.components(text)) {
+          ObjectNode attributes = attributes(part);
+          Set<String> paths = routes.get(part.name());
+          if (paths != null) {
+            ArrayNode array = attributes.putArray("routes");
+            paths.forEach(array::add);
+          }
+          add(subject, COMPONENT, part.kind(), attributes, evidence(source, text, part), 0.9);
+        }
+      }
+      List<Source> all = new ArrayList<>(scripts);
+      all.addAll(markup);
+      for (Source source : all) {
+        for (FrontendCode.Resource resource : FrontendCode.resources(source.text())) {
+          ObjectNode attributes = FactJson.newObject();
+          attributes.put("host", resource.host());
+          attributes.put("tag", resource.tag());
+          if (resource.perItem()) {
+            attributes.put("perItem", true);
+          }
+          add(
+              subject,
+              RESOURCE_URL,
+              resource.url(),
+              attributes,
+              evidence(source, lineOf(source.text(), resource.offset())),
+              0.9);
+        }
+      }
+    }
+
+    private static ObjectNode attributes(FrontendCode.Part part) {
+      ObjectNode attributes = FactJson.newObject();
+      part.attributes()
+          .forEach(
+              (key, value) -> {
+                if (value instanceof List<?> list) {
+                  ArrayNode array = attributes.putArray(key);
+                  list.forEach(item -> array.add(item.toString()));
+                } else if (value instanceof Boolean b) {
+                  attributes.put(key, b);
+                } else {
+                  attributes.put(key, value.toString());
+                }
+              });
+      return attributes;
+    }
+
+    /** The evidence of a part of a file: the lines from its start to its end. */
+    private Evidence evidence(Source source, String text, FrontendCode.Part part) {
+      int start = lineOf(text, part.start());
+      int end = lineOf(text, Math.max(part.start(), part.end() - 1));
+      return new Evidence(
+          repo.repo().name(),
+          repo.commit(),
+          source.path(),
+          new Evidence.LineRange(start, Math.max(start, end)),
+          source.hash());
     }
 
     // Calls
@@ -917,6 +1066,19 @@ public final class FrontendExtractor {
       return close < 0 ? text.length() : close;
     }
 
+    /** The line of each constant and field of a file that {@link #constants} reads. */
+    private static Map<String, Integer> constantLines(String text) {
+      Map<String, Integer> lines = new LinkedHashMap<>();
+      String[] all = text.split("\n", -1);
+      for (int n = 0; n < all.length; n++) {
+        Matcher m = DECLARATION.matcher(all[n]);
+        if (m.matches()) {
+          lines.putIfAbsent(m.group(1), n + 1);
+        }
+      }
+      return lines;
+    }
+
     /** The constants and fields of a file whose value is an expression on one line. */
     private static Map<String, String> constants(String text) {
       Map<String, String> constants = new LinkedHashMap<>();
@@ -940,9 +1102,25 @@ public final class FrontendExtractor {
       Set<String> unresolved = new TreeSet<>();
       String url = null;
       Set<String> alternates = new LinkedHashSet<>();
+      Set<String> constantsUsed = new LinkedHashSet<>();
+      // Each environment entry used, by where it is, with its name; a NUL marks one of another
+      // build than the default.
+      Map<Where, String> environmentUsed = new LinkedHashMap<>();
       for (int i = 0; i < views.size(); i++) {
         Set<String> missing = new TreeSet<>();
-        String resolved = url(evaluate(site.expression(), constants, views.get(i), 0, missing));
+        Set<String> usedHere = new LinkedHashSet<>();
+        String resolved =
+            url(evaluate(site.expression(), constants, views.get(i), 0, missing, usedHere));
+        for (String name : usedHere) {
+          if (name.startsWith("e:")) {
+            Where where = views.get(i).where().get(name.substring(2));
+            if (where != null) {
+              environmentUsed.putIfAbsent(where, name.substring(2) + (i == 0 ? "" : "\u0000"));
+            }
+          } else {
+            constantsUsed.add(name.substring(2));
+          }
+        }
         if (i == 0) {
           url = resolved;
           unresolved.addAll(missing);
@@ -980,22 +1158,72 @@ public final class FrontendExtractor {
           attributes,
           evidence(source, lineOf(source.text(), site.offset())),
           unresolved.isEmpty() ? 0.9 : 0.7);
+      Map<String, Integer> lines = constantLines(uncommented(source.text()));
+      for (String name : constantsUsed) {
+        Integer line = lines.get(name);
+        // A constant whose own value is unknown says nothing about where the call goes.
+        String own =
+            line == null || !constants.containsKey(name)
+                ? ""
+                : evaluate(
+                    constants.get(name),
+                    constants,
+                    views.get(0),
+                    0,
+                    new TreeSet<>(),
+                    new TreeSet<>());
+        if (!own.replaceAll("\\{[^}]*}", "").isBlank()) {
+          ObjectNode declared = FactJson.newObject();
+          declared.put("name", name);
+          declared.put("source", "constant");
+          String value = constants.get(name).trim().replaceAll("^(['\"`])(.*)\\1$", "$2");
+          add(subject, URL, value, declared, evidence(source, line), 0.9);
+        }
+      }
+      environmentUsed.forEach(
+          (where, name) -> {
+            boolean other = name.endsWith("\u0000");
+            String key = other ? name.substring(0, name.length() - 1) : name;
+            ObjectNode declared = FactJson.newObject();
+            declared.put("name", key);
+            declared.put("source", "environment");
+            if (!other) {
+              declared.put("defaultBuild", true);
+            }
+            String value = environmentValue(where, key);
+            add(subject, URL, value, declared, evidence(where.source(), where.line()), 0.9);
+          });
       return true;
+    }
+
+    /** The value of an environment entry as its file declares it. */
+    private static String environmentValue(Where where, String key) {
+      String line = where.source().text().split("\n", -1)[where.line() - 1];
+      Matcher m = ENVIRONMENT_VALUE.matcher(line);
+      while (m.find()) {
+        if (m.group(1).equals(key)) {
+          return m.group(3);
+        }
+      }
+      Matcher dotenv = DOTENV_LINE.matcher(line);
+      return dotenv.matches() ? dotenv.group(2).replaceAll("^(['\"])(.*)\\1$", "$2") : line.trim();
     }
 
     /**
      * The text an expression stands for: string and template literals as written, constants of the
-     * file and environment values filled in, anything else as {@code {name}}.
+     * file and environment values filled in, anything else as {@code {name}}. The constants and
+     * environment entries it uses go to {@code used}, as {@code c:<name>} and {@code e:<name>}.
      */
     private static String evaluate(
         String expression,
         Map<String, String> constants,
         Environment environment,
         int depth,
-        Set<String> unresolved) {
+        Set<String> unresolved,
+        Set<String> used) {
       StringBuilder text = new StringBuilder();
       for (String part : concatenated(expression)) {
-        text.append(term(part, constants, environment, depth, unresolved));
+        text.append(term(part, constants, environment, depth, unresolved, used));
       }
       return text.toString();
     }
@@ -1005,7 +1233,8 @@ public final class FrontendExtractor {
         Map<String, String> constants,
         Environment environment,
         int depth,
-        Set<String> unresolved) {
+        Set<String> unresolved,
+        Set<String> used) {
       String term = part.trim();
       while (term.startsWith("(") && term.endsWith(")")) {
         term = term.substring(1, term.length() - 1).trim();
@@ -1019,7 +1248,7 @@ public final class FrontendExtractor {
       }
       if (first == '`' && term.length() >= 2 && term.endsWith("`")) {
         return template(
-            term.substring(1, term.length() - 1), constants, environment, depth, unresolved);
+            term.substring(1, term.length() - 1), constants, environment, depth, unresolved, used);
       }
       // A ?? or || fallback: the first value that the code names.
       String name = term.replaceAll("\\s*(\\?\\?|\\|\\|).*$", "").replaceAll("[!?]$", "");
@@ -1033,6 +1262,7 @@ public final class FrontendExtractor {
         if (fromEnvironment) {
           String value = environment.values().get(last);
           if (value != null) {
+            used.add("e:" + last);
             return value;
           }
           unresolved.add(last);
@@ -1043,7 +1273,8 @@ public final class FrontendExtractor {
                 ? constants.get(last)
                 : null;
         if (constant != null && depth < 4) {
-          String value = evaluate(constant, constants, environment, depth + 1, unresolved);
+          used.add("c:" + last);
+          String value = evaluate(constant, constants, environment, depth + 1, unresolved, used);
           return value.equals("{…}") ? "{" + last + "}" : value;
         }
         return "{" + last + "}";
@@ -1056,7 +1287,8 @@ public final class FrontendExtractor {
         Map<String, String> constants,
         Environment environment,
         int depth,
-        Set<String> unresolved) {
+        Set<String> unresolved,
+        Set<String> used) {
       StringBuilder text = new StringBuilder();
       int i = 0;
       while (i < body.length()) {
@@ -1085,7 +1317,8 @@ public final class FrontendExtractor {
           break;
         }
         text.append(
-            evaluate(body.substring(start + 2, end), constants, environment, depth, unresolved));
+            evaluate(
+                body.substring(start + 2, end), constants, environment, depth, unresolved, used));
         i = end + 1;
       }
       return text.toString();

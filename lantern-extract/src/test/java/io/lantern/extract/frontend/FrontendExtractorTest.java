@@ -105,4 +105,117 @@ class FrontendExtractorTest {
     assertThat(FrontendExtractor.version("7.x")).isEqualTo("7");
     assertThat(FrontendExtractor.unscoped("@acme/web")).isEqualTo("web");
   }
+
+  @Test
+  void angularGuardsInterceptorsPagesServicesAndLoadedUrlsAreRecorded() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("media"),
+            "media",
+            Map.of(
+                "package.json",
+                "{\"name\": \"media-ui\", \"dependencies\": {\"@angular/core\": \"^20.0.0\"}}",
+                "src/app/app.routes.ts",
+                """
+                import { Routes } from '@angular/router';
+                export const routes: Routes = [
+                  { path: '', component: HomeComponent },
+                  { path: 'catalog', component: CatalogComponent, canActivate: [authGuard] },
+                ];
+                """,
+                "src/app/core/auth.guard.ts",
+                """
+                import { CanActivateFn, Router } from '@angular/router';
+
+                export const authGuard: CanActivateFn = (route, state) => {
+                  if (inject(AuthService).isLoggedIn()) {
+                    return true;
+                  }
+                  inject(Router).navigate(['/login']);
+                  return false;
+                };
+                """,
+                "src/app/core/jwt.interceptor.ts",
+                """
+                import { HttpInterceptorFn } from '@angular/common/http';
+
+                export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
+                  const token = localStorage.getItem('token');
+                  return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
+                };
+                """,
+                "src/app/core/session.interceptor.ts",
+                """
+                @Injectable()
+                export class SessionInterceptor implements HttpInterceptor {
+                  intercept(req: HttpRequest<any>, next: HttpHandler) {
+                    return next.handle(req.clone({ withCredentials: true }));
+                  }
+                }
+                """,
+                "src/app/services/media.ts",
+                """
+                @Injectable({ providedIn: 'root' })
+                export class MediaService {
+                  private http = inject(HttpClient);
+                  private apiUrl = '/api/v1/media';
+
+                  getAll() {
+                    return this.http.get(this.apiUrl);
+                  }
+                }
+                """,
+                "src/app/features/catalog.ts",
+                """
+                @Component({
+                  selector: 'app-catalog',
+                  template: `
+                    <img [src]="media.thumbnailUrl || 'https://picsum.photos/400/600?random=' + media.id">
+                    <a href="https://example.org/help">Help</a>
+                  `
+                })
+                export class CatalogComponent {
+                  constructor(private media: MediaService) {}
+
+                  load() {
+                    this.media.getAll();
+                  }
+                }
+                """,
+                "src/index.html",
+                "<link href=\"https://fonts.googleapis.com/css2?family=Inter\" rel=\"stylesheet\">\n"));
+    List<Fact> facts =
+        new FrontendExtractor()
+            .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT);
+
+    assertThat(Fixtures.render(facts).lines().filter(l -> !l.contains(" frontend-app ")))
+        .containsExactlyInAnyOrder(
+            "frontend:media frontend-auth guard {\"name\":\"authGuard\",\"redirect\":\"/login\","
+                + "\"routes\":[\"/catalog\"],\"type\":\"CanActivate\"}"
+                + " @media:src/app/core/auth.guard.ts#3-9 0.9",
+            "frontend:media frontend-auth interceptor {\"bearer\":true,"
+                + "\"headers\":[\"Authorization\"],\"name\":\"jwtInterceptor\","
+                + "\"storage\":\"localStorage:token\"}"
+                + " @media:src/app/core/jwt.interceptor.ts#3-6 0.9",
+            "frontend:media frontend-auth interceptor {\"name\":\"SessionInterceptor\","
+                + "\"withCredentials\":true} @media:src/app/core/session.interceptor.ts#2-6 0.9",
+            "frontend:media frontend-component service {\"calls\":[\"HttpClient.get\"],"
+                + "\"injects\":[\"HttpClient\"],\"name\":\"MediaService\"}"
+                + " @media:src/app/services/media.ts#1-9 0.9",
+            "frontend:media frontend-component component {\"calls\":[\"MediaService.getAll\"],"
+                + "\"injects\":[\"MediaService\"],\"name\":\"CatalogComponent\","
+                + "\"routes\":[\"/catalog\"],\"selector\":\"app-catalog\"}"
+                + " @media:src/app/features/catalog.ts#1-14 0.9",
+            "frontend:media frontend-call GET /api/v1/media {\"httpMethod\":\"GET\","
+                + "\"protocol\":\"HTTP\",\"url\":\"/api/v1/media\",\"written\":\"this.apiUrl\"}"
+                + " @media:src/app/services/media.ts#7-7 0.9",
+            "frontend:media frontend-url /api/v1/media {\"name\":\"apiUrl\",\"source\":\"constant\"}"
+                + " @media:src/app/services/media.ts#4-4 0.9",
+            "frontend:media frontend-resource https://picsum.photos/400/600"
+                + " {\"host\":\"picsum.photos\",\"perItem\":true,\"tag\":\"img\"}"
+                + " @media:src/app/features/catalog.ts#4-4 0.9",
+            "frontend:media frontend-resource https://fonts.googleapis.com/css2"
+                + " {\"host\":\"fonts.googleapis.com\",\"tag\":\"link\"}"
+                + " @media:src/index.html#1-1 0.9");
+  }
 }
