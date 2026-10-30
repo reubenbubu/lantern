@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -73,6 +74,25 @@ class DocsExtractorTest {
         .isEqualTo("password: ${DB_PASSWORD}; routing key: order.created");
     assertThat(DocsExtractor.maskSecrets("Status: accepted. Port=8080"))
         .isEqualTo("Status: accepted. Port=8080");
+  }
+
+  @Test
+  void masksTheValueUnderAKnownSecretKeyInAReadme() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("jwt"),
+            "orders",
+            Map.of(
+                "README.md",
+                "# Orders\n\nSet `jwt.key: literal-test-value-0123456789abcdef` before start.\n"));
+    List<RepoBuild> inputs = List.of(new RepoBuild(repo, Fixtures.head(repo), null));
+
+    // The name alone does not say jwt.key is a secret.
+    assertThat(Fixtures.render(new DocsExtractor().extract(inputs, SNAPSHOT)))
+        .contains("literal-test-value");
+    assertThat(Fixtures.render(new DocsExtractor().extract(inputs, SNAPSHOT, Set.of("jwt.key"))))
+        .doesNotContain("literal-test-value")
+        .contains("jwt.key: ******");
   }
 
   @Test

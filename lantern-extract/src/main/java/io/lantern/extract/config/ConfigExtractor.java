@@ -156,8 +156,7 @@ public final class ConfigExtractor {
    */
   public List<Fact> extract(List<RepoBuild> repos, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(repos, "repos");
-    Set<String> known = new java.util.HashSet<>();
-    secretKeys.forEach(k -> known.add(normalized(k)));
+    Set<String> known = normalizedKeys(secretKeys);
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> facts = new LinkedHashMap<>();
     for (RepoBuild repo : repos) {
@@ -251,10 +250,10 @@ public final class ConfigExtractor {
    * which say where the secret comes from.
    */
   private static boolean exposesSecret(ConfigValue value, Set<String> known) {
-    if (value.used().stream().anyMatch(k -> isSecret(k) || known.contains(normalized(k)))) {
+    if (value.used().stream().anyMatch(k -> isSecret(k, known))) {
       return true;
     }
-    return (isSecret(value.key()) || known.contains(normalized(value.key())))
+    return isSecret(value.key(), known)
         && !(ONLY_PLACEHOLDERS.matcher(value.written()).matches() && value.used().isEmpty());
   }
 
@@ -275,6 +274,27 @@ public final class ConfigExtractor {
     }
     String last = plain.substring(plain.lastIndexOf('.') + 1);
     return SECRET.matcher(last.replace("-", "").replace("_", "")).matches();
+  }
+
+  /**
+   * Known secret keys as {@link #isSecret(String, Set)} compares them.
+   *
+   * @param secretKeys config keys known to hold a secret, such as {@link #jwtSecretKeys}
+   */
+  public static Set<String> normalizedKeys(Set<String> secretKeys) {
+    Set<String> known = new java.util.HashSet<>();
+    secretKeys.forEach(k -> known.add(normalized(k)));
+    return known;
+  }
+
+  /**
+   * Whether a key names a secret by its name ({@link #isSecret(String)}) or is one of the keys
+   * known to hold a secret.
+   *
+   * @param known the keys, from {@link #normalizedKeys}
+   */
+  public static boolean isSecret(String key, Set<String> known) {
+    return isSecret(key) || known.contains(normalized(key));
   }
 
   /** A key as compared with the code's: no list indexes, hyphens or underscores, lower case. */

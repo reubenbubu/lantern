@@ -63,7 +63,7 @@ public final class MessagingExtractor {
   public static final String NAME = "messaging";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
@@ -234,8 +234,20 @@ public final class MessagingExtractor {
    * @throws IllegalStateException if git fails or times out while reading config
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
+    return extract(code, snapshot, Set.of());
+  }
+
+  /**
+   * As {@link #extract(JavaAnalysis, long)}, masking the values of config keys known to hold a
+   * secret whatever they are called (ADR 0032, amendment for #338).
+   *
+   * @param secretKeys config keys known to hold a secret, such as {@link
+   *     io.lantern.extract.config.ConfigExtractor#jwtSecretKeys}
+   */
+  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Run run = new Run(code, Validity.from(snapshot));
+    Objects.requireNonNull(secretKeys, "secretKeys");
+    Run run = new Run(code, Validity.from(snapshot), secretKeys);
     for (JavaAnalysis.Module module : code.modules()) {
       run.module(module);
     }
@@ -301,7 +313,7 @@ public final class MessagingExtractor {
     private final JavaAnalysis code;
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
-    private final CodeConfig configs = new CodeConfig();
+    private final CodeConfig configs;
     private final Map<EntityId, Member> members = new HashMap<>();
     private final Map<EntityId, List<Assignment>> assignments = new HashMap<>();
     private final Map<EntityId, List<Invocation>> invocationsByCaller = new HashMap<>();
@@ -311,7 +323,8 @@ public final class MessagingExtractor {
     private Map<String, EntityId> beans;
     private StreamConfig stream;
 
-    Run(JavaAnalysis code, Validity validity) {
+    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
+      this.configs = new CodeConfig(secretKeys);
       this.code = code;
       this.validity = validity;
       for (JavaAnalysis.Module m : code.modules()) {
@@ -1180,7 +1193,7 @@ public final class MessagingExtractor {
           continue;
         }
         String type =
-            StreamConfig.plain(
+            stream.plain(
                 stream.binderProperty(profile, "rabbit", binding, "consumer", "exchange-type"));
         String exchangeType = type == null || type.isBlank() ? "topic" : type.trim();
         attributes.put("exchangeType", exchangeType);
@@ -1259,7 +1272,7 @@ public final class MessagingExtractor {
         named.put("routingKey", Text.annotated(key.written()));
       } else if (expression != null) {
         // A SpEL string literal is a fixed key; any other expression is decided per message.
-        String spel = StreamConfig.plain(expression);
+        String spel = stream.plain(expression);
         Matcher literal = spel == null ? null : SPEL_LITERAL.matcher(spel.trim());
         if (literal != null && literal.matches()) {
           named.put("routingKey", Text.literal(literal.group(1)));
@@ -1301,8 +1314,8 @@ public final class MessagingExtractor {
       return r.masked() || !r.unresolved().isEmpty() || r.value().isBlank() ? null : r.value();
     }
 
-    private static boolean isTrue(ConfigValue v) {
-      String value = StreamConfig.plain(v);
+    private boolean isTrue(ConfigValue v) {
+      String value = stream.plain(v);
       return value != null && value.trim().equalsIgnoreCase("true");
     }
 
@@ -1484,7 +1497,7 @@ public final class MessagingExtractor {
       if (!text.placeholders()) {
         return new CodeValue(text.written(), text.written(), new TreeSet<>(), false);
       }
-      return CodeValue.of(config.resolve(profile, text.written()), text.written());
+      return config.value(config.resolve(profile, text.written()), text.written());
     }
 
     /** The attributes whose value as written is recorded too, when it differs. */

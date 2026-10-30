@@ -322,16 +322,15 @@ public final class AnalysisRun {
       // A config key the code uses as a JWT secret is masked whatever it is called (#335), so the
       // identity extractor runs before the config extractor.
       List<Fact> identity = new IdentityExtractor().extract(code, snapshot.number());
-      found.addAll(
-          new ConfigExtractor()
-              .extract(repoBuilds, snapshot.number(), ConfigExtractor.jwtSecretKeys(identity)));
-      found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number()));
+      Set<String> secretKeys = ConfigExtractor.jwtSecretKeys(identity);
+      found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
+      found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
       found.addAll(new SqlExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new TestExtractor().extract(repoBuilds, snapshot.number()));
       found.addAll(new SpringExtractor().extract(code, snapshot.number()));
-      found.addAll(new PersistenceExtractor().extract(code, snapshot.number()));
+      found.addAll(new PersistenceExtractor().extract(code, snapshot.number(), secretKeys));
       found.addAll(new HttpClientExtractor().extract(code, snapshot.number()));
-      found.addAll(new MessagingExtractor().extract(code, snapshot.number()));
+      found.addAll(new MessagingExtractor().extract(code, snapshot.number(), secretKeys));
       found.addAll(new WebSocketExtractor().extract(code, snapshot.number()));
       found.addAll(new MailExtractor().extract(code, snapshot.number()));
       found.addAll(identity);

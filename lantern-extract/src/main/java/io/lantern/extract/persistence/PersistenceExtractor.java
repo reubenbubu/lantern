@@ -65,7 +65,7 @@ public final class PersistenceExtractor {
   public static final String NAME = "persistence";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "persistence-extractor";
@@ -214,8 +214,20 @@ public final class PersistenceExtractor {
    * @throws IllegalStateException if git fails or times out while reading config
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
+    return extract(code, snapshot, Set.of());
+  }
+
+  /**
+   * As {@link #extract(JavaAnalysis, long)}, masking the values of config keys known to hold a
+   * secret whatever they are called (ADR 0032, amendment for #338).
+   *
+   * @param secretKeys config keys known to hold a secret, such as {@link
+   *     ConfigExtractor#jwtSecretKeys}
+   */
+  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Run run = new Run(code, Validity.from(snapshot));
+    Objects.requireNonNull(secretKeys, "secretKeys");
+    Run run = new Run(code, Validity.from(snapshot), ConfigExtractor.normalizedKeys(secretKeys));
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       run.executor = executor;
       Set<RepoBuild> repos = new LinkedHashSet<>();
@@ -248,8 +260,10 @@ public final class PersistenceExtractor {
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
     private ExecutorService executor;
+    private final Set<String> known;
 
-    Run(JavaAnalysis code, Validity validity) {
+    Run(JavaAnalysis code, Validity validity, Set<String> known) {
+      this.known = known;
       this.code = code;
       this.validity = validity;
     }
@@ -557,7 +571,7 @@ public final class PersistenceExtractor {
     private record Datasource(
         String key, String value, ObjectNode attributes, ConfigValue.Where where) {}
 
-    private static SortedMap<String, Datasource> datasources(ModuleConfig config, String profile) {
+    private SortedMap<String, Datasource> datasources(ModuleConfig config, String profile) {
       SortedMap<String, ConfigValue> values = config.values(profile);
       SortedMap<String, Datasource> found = new TreeMap<>();
       for (ConfigValue v : values.values()) {
@@ -566,10 +580,10 @@ public final class PersistenceExtractor {
             DATASOURCE_KEYS.contains(v.key())
                 || lower.startsWith("jdbc:")
                 || lower.startsWith("r2dbc:");
-        if (!url || ConfigExtractor.isSecret(v.key())) {
+        if (!url || ConfigExtractor.isSecret(v.key(), known)) {
           continue;
         }
-        boolean masked = v.used().stream().anyMatch(ConfigExtractor::isSecret);
+        boolean masked = v.used().stream().anyMatch(k -> ConfigExtractor.isSecret(k, known));
         JdbcUrl jdbc = JdbcUrl.of(masked ? v.written() : v.value(), driver(values, v.key()));
         ObjectNode attributes = FactJson.newObject();
         attributes.put("key", v.key());
@@ -606,7 +620,7 @@ public final class PersistenceExtractor {
     }
 
     /** The driver class configured next to a URL key, if it can be recorded. */
-    private static String driver(SortedMap<String, ConfigValue> values, String key) {
+    private String driver(SortedMap<String, ConfigValue> values, String key) {
       String prefix = key.substring(0, Math.max(0, key.lastIndexOf('.')));
       List<String> candidates = new ArrayList<>();
       candidates.add(prefix + ".driver-class-name");
@@ -616,7 +630,7 @@ public final class PersistenceExtractor {
       }
       for (String candidate : candidates) {
         ConfigValue v = values.get(candidate);
-        if (v != null && v.used().stream().noneMatch(ConfigExtractor::isSecret)) {
+        if (v != null && v.used().stream().noneMatch(k -> ConfigExtractor.isSecret(k, known))) {
           return v.value();
         }
       }

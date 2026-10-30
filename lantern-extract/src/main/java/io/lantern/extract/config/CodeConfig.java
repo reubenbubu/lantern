@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -19,6 +20,22 @@ import java.util.TreeSet;
 public final class CodeConfig {
 
   private final Map<RepoBuild, List<ModuleConfig>> configs = new HashMap<>();
+  private final Set<String> known;
+
+  /** Config where only the key name decides what is secret. */
+  public CodeConfig() {
+    this(Set.of());
+  }
+
+  /**
+   * Config where the given keys are secret too.
+   *
+   * @param secretKeys config keys known to hold a secret, such as {@link
+   *     ConfigExtractor#jwtSecretKeys}
+   */
+  public CodeConfig(Set<String> secretKeys) {
+    this.known = ConfigExtractor.normalizedKeys(secretKeys);
+  }
 
   /** Config for one module's code, or for none. */
   public final class View {
@@ -27,6 +44,22 @@ public final class CodeConfig {
 
     private View(ModuleConfig config) {
       this.config = config;
+    }
+
+    /** Whether a key names a secret, by its name or because the code uses it as one. */
+    public boolean isSecret(String key) {
+      return ConfigExtractor.isSecret(key, known);
+    }
+
+    /** A value read from this config as it may be recorded: see {@link CodeValue}. */
+    public CodeValue value(
+        String value, String written, SortedSet<String> unresolved, SortedSet<String> used) {
+      return CodeValue.of(value, written, unresolved, used, known);
+    }
+
+    /** A resolved text as it may be recorded: see {@link CodeValue}. */
+    public CodeValue value(Resolution r, String written) {
+      return value(r.value(), written, r.unresolved(), r.used());
     }
 
     /** The views to resolve placeholders in: the default view (null), then each profile. */
@@ -88,7 +121,21 @@ public final class CodeConfig {
 
     public static CodeValue of(
         String value, String written, SortedSet<String> unresolved, SortedSet<String> used) {
-      if (used.stream().anyMatch(ConfigExtractor::isSecret)) {
+      return of(value, written, unresolved, used, Set.of());
+    }
+
+    /**
+     * As {@link #of(String, String, SortedSet, SortedSet)}, with keys known to hold a secret too.
+     *
+     * @param known the keys, from {@link ConfigExtractor#normalizedKeys}
+     */
+    public static CodeValue of(
+        String value,
+        String written,
+        SortedSet<String> unresolved,
+        SortedSet<String> used,
+        Set<String> known) {
+      if (used.stream().anyMatch(k -> ConfigExtractor.isSecret(k, known))) {
         return new CodeValue(written, written, new TreeSet<>(), true);
       }
       return new CodeValue(value, written, new TreeSet<>(unresolved), false);
