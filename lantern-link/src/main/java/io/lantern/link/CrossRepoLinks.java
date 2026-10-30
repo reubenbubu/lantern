@@ -20,8 +20,9 @@ import tools.jackson.databind.JsonNode;
 /**
  * Links the deployable units of a snapshot at runtime, matching what one exposes with what another
  * uses: HTTP calls with endpoints, gateway routes with the units they send requests to, messages
- * sent with listeners, datasources with databases, and config with brokers and infrastructure. See
- * {@code docs/adr/0042-cross-repo-links.md}.
+ * sent with listeners, datasources with databases, and config with brokers and infrastructure; and
+ * ties the containers deployment descriptors run to the units and data stores in them. See {@code
+ * docs/adr/0042-cross-repo-links.md}.
  *
  * <p>It runs after {@link DeployableUnits} and reads its facts with the extractors'. Each link is
  * found in every view (the default one and each profile the facts name, one profile active at a
@@ -37,7 +38,7 @@ public final class CrossRepoLinks implements LinkStep {
   public static final String NAME = "cross-repo-links";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "8";
+  public static final String VERSION = "9";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -143,9 +144,11 @@ public final class CrossRepoLinks implements LinkStep {
     new HttpLinker(index, found).link();
     new RouteLinker(index, found).link();
     new MessageLinker(index, found).link();
-    new DataLinker(index, found).link(ORIGIN, validity);
+    Deployments deployments = new Deployments(index);
+    deployments.link(index, found, ORIGIN, validity);
+    new DataLinker(index, found, deployments).link(ORIGIN, validity);
     new MailLinker(index, found).link();
-    new RedisLinker(index, found).link(ORIGIN, validity);
+    new RedisLinker(index, found, deployments).link(ORIGIN, validity);
     new PeopleLinker(index, found).link(ORIGIN, validity);
     Map<String, Fact> derived = new LinkedHashMap<>();
     found.facts(index.profiles, ORIGIN, validity).forEach(f -> derived.putIfAbsent(f.id(), f));

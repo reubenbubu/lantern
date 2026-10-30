@@ -15,6 +15,7 @@ import io.lantern.core.vocabulary.C4Level;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
@@ -99,6 +100,7 @@ class BuiltInTypesUpgradeIT {
       registry.apply(MailExtractor.VOCABULARY_SOURCE, MailExtractor.vocabulary());
       registry.apply(RedisExtractor.VOCABULARY_SOURCE, RedisExtractor.vocabulary());
       registry.apply(PeopleExtractor.VOCABULARY_SOURCE, PeopleExtractor.vocabulary());
+      registry.apply(DeploymentExtractor.VOCABULARY_SOURCE, DeploymentExtractor.vocabulary());
       registry.apply(GatewayExtractor.VOCABULARY_SOURCE, GatewayExtractor.vocabulary());
       registry.apply(TestExtractor.VOCABULARY_SOURCE, TestExtractor.vocabulary());
       registry.apply(WebSocketExtractor.VOCABULARY_SOURCE, WebSocketExtractor.vocabulary());

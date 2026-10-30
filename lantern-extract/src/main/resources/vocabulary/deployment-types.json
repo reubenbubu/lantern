@@ -1,0 +1,117 @@
+[
+  {
+    "name": "deployment-container",
+    "kind": "attribute",
+    "description": "A container that a deployment descriptor of the subject repository runs in one environment: a compose service, or a container of a Kubernetes workload from a kustomize overlay, a Helm chart or a plain manifest. The value is its name: the compose container name or service, or the workload's name (with the container's after a slash when the pod has several). The linker ties it to the deployable unit it runs and to the data stores the units' config leaves open.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "type": "string",
+          "enum": ["compose", "kubernetes", "helm"],
+          "description": "What runs it: Docker Compose, Kubernetes manifests (kustomize or plain) or a Helm chart."
+        },
+        "environment": {
+          "type": "string",
+          "description": "The environment within its platform: the compose file's suffix (docker-compose.local.yml is local, a plain compose file default), the kustomize overlay's folder, the chart's name with a values file's suffix, or default for plain manifests."
+        },
+        "kind": {
+          "type": "string",
+          "description": "service for compose, else the Kubernetes workload kind, such as Deployment or StatefulSet."
+        },
+        "image": {
+          "type": "string",
+          "description": "The image as written, with variables resolved from a committed .env file or their defaults and Helm values filled in; an unset variable stays ${NAME}."
+        },
+        "product": {
+          "type": "string",
+          "description": "The product the image is, when Lantern knows it, such as PostgreSQL or RabbitMQ."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version the image's tag starts with, such as 17.5 for postgres:17.5-alpine3.22."
+        },
+        "role": {
+          "type": "string",
+          "description": "What the product is to the system: database, cache, broker, identity, proxy, discovery, observability, mail, storage or runtime."
+        },
+        "build": {
+          "type": "string",
+          "description": "A compose service's build context, with its Dockerfile after a space when one is named."
+        },
+        "hosts": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The names other containers of the environment reach it by: the compose service, container name, hostname and network aliases; the workload's name, its StatefulSet service and the Services that select its pods."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Other names it goes by that are not hosts: its pod's app labels and its container's name."
+        },
+        "env": {
+          "type": "object",
+          "description": "Its environment variables as the descriptor sets them, ConfigMaps a Kubernetes container takes them from included; values with credentials in a URL have them left out."
+        },
+        "masked": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Environment variables it sets whose values are not recorded: secret ones by name, and those taken from a Kubernetes Secret or the pod's fields."
+        },
+        "ports": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Its ports as written: a compose service's published ports (host:container), a Kubernetes container's container ports."
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The compose services it starts after."
+        },
+        "composeProfiles": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The compose profiles it runs under; without any it always runs."
+        },
+        "databases": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The databases it creates on start: the one an official image's variable names (POSTGRES_DB, MYSQL_DATABASE, MARIADB_DATABASE, MONGO_INITDB_DATABASE) and those its init scripts create."
+        },
+        "replicas": {
+          "type": "integer",
+          "description": "The replicas a Kubernetes workload asks for."
+        }
+      },
+      "required": ["platform", "environment", "kind"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "dockerfile",
+    "kind": "attribute",
+    "description": "A Dockerfile of the subject repository; the value is its path. Evidence is its last FROM line, the stage that becomes the image.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "The base image of the last stage, ARG defaults filled in."
+        },
+        "technology": {
+          "type": "string",
+          "description": "The product and version of the base image when Lantern knows it, such as Eclipse Temurin 21."
+        },
+        "exposes": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The ports the last stage exposes."
+        }
+      },
+      "required": ["from"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

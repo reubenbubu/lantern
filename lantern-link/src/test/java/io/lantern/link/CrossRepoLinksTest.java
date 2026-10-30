@@ -12,6 +12,7 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
@@ -253,14 +254,31 @@ class CrossRepoLinksTest {
         1.0);
   }
 
-  /** A Redis image a repository's compose file runs. */
+  /** A container a repository's compose file runs, with the product and version of its image. */
   private void redisImage(String repo, String module, String image, String technology) {
+    String product = technology.replaceFirst(" [0-9.]+$", "");
+    String version = technology.substring(product.length()).strip();
+    container(
+        repo,
+        "redis",
+        "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+            + "\"image\":\""
+            + image
+            + "\",\"product\":\""
+            + product
+            + "\""
+            + (version.isEmpty() ? "" : ",\"version\":\"" + version + "\"")
+            + ",\"hosts\":[\"redis\"]}");
+  }
+
+  /** A container a deployment descriptor of a repository runs (ADR 0082). */
+  private void container(String repo, String name, String attributes) {
     add(
-        RedisExtractor.NAME,
-        "repository:" + repo,
-        RedisExtractor.REDIS_IMAGE,
-        FactObject.string(image),
-        "{\"technology\":\"" + technology + "\",\"service\":\"redis\"}",
+        DeploymentExtractor.NAME,
+        "repo:" + repo,
+        DeploymentExtractor.DEPLOYMENT_CONTAINER,
+        FactObject.string(name),
+        attributes,
         repo + ":compose.yaml#5",
         1.0);
   }
@@ -279,6 +297,7 @@ class CrossRepoLinksTest {
             f -> {
               ObjectNode attributes = f.attributes();
               attributes.remove("facts");
+              attributes.remove("fact");
               attributes.remove("link");
               return f.subject()
                   + " "
@@ -1263,6 +1282,158 @@ class CrossRepoLinksTest {
                 + " reports database (app.reporting.url) 1.0",
             "database:g:main/postgresql:orders display-name orders 1.0",
             "database:g:embedded/postgresql:cache display-name cache 1.0");
+  }
+
+  /** Two units whose datasources leave host, port and database to the environment. */
+  private void unitsWithPlaceholderDatasources() {
+    for (String name : List.of("auth", "main")) {
+      unit(name, name + "-service", name + "-service");
+      config(name, name + "-service", "application.properties", "x.y", "z", null);
+      datasource(
+          name,
+          name + "-service",
+          "application.properties",
+          "jdbc:postgresql://${"
+              + name
+              + ".db.host}:${"
+              + name
+              + ".db.port}/${"
+              + name
+              + ".db.name}",
+          "\"server\":\"${"
+              + name
+              + ".db.host}:${"
+              + name
+              + ".db.port}\","
+              + "\"database\":\"${"
+              + name
+              + ".db.name}\","
+              + "\"unresolved\":[\""
+              + name
+              + ".db.host\",\""
+              + name
+              + ".db.port\",\""
+              + name
+              + ".db.name\"]");
+    }
+  }
+
+  @Test
+  void aDatasourceTheEnvironmentFillsIsNamedAfterTheDatabaseItsServerCreates() {
+    unitsWithPlaceholderDatasources();
+    // Kubernetes: one PostgreSQL whose init script creates both units' databases; the units' host
+    // and port come from a ConfigMap, their database names from a Secret Lantern does not read.
+    container(
+        "deploy",
+        "postgres",
+        "{\"platform\":\"kubernetes\",\"environment\":\"dev\",\"kind\":\"StatefulSet\","
+            + "\"image\":\"postgres:17.5\",\"product\":\"PostgreSQL\",\"version\":\"17.5\","
+            + "\"hosts\":[\"postgres\",\"postgres-service\"],"
+            + "\"databases\":[\"auth_db\",\"main_db\"]}");
+    for (String name : List.of("auth", "main")) {
+      String upper = name.toUpperCase(java.util.Locale.ROOT);
+      container(
+          "deploy",
+          name + "service",
+          "{\"platform\":\"kubernetes\",\"environment\":\"dev\",\"kind\":\"Deployment\","
+              + "\"image\":\"acme/"
+              + name
+              + "-service:1\",\"hosts\":[\""
+              + name
+              + "service\"],\"env\":{\""
+              + upper
+              + "_DB_HOST\":\"postgres-service\",\""
+              + upper
+              + "_DB_PORT\":\"5432\"},\"masked\":[\""
+              + upper
+              + "_DB_NAME\"]}");
+    }
+
+    assertThat(derive("display-name"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth-service/postgresql:g:auth-service display-name auth_db 1.0",
+            "database:g:main-service/postgresql:g:main-service display-name main_db 1.0");
+    assertThat(derive(DeployableUnits.TECHNOLOGY))
+        .filteredOn(l -> l.startsWith("database:"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth-service/postgresql:g:auth-service technology PostgreSQL 17.5 1.0",
+            "database:g:main-service/postgresql:g:main-service technology PostgreSQL 17.5 1.0");
+    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+        .anySatisfy(
+            l ->
+                assertThat(l)
+                    .startsWith("service:g:auth-service USES_DATABASE")
+                    .contains(
+                        "\"deployments\":[{\"address\":\"postgres-service:5432\","
+                            + "\"container\":\"authservice\",\"database\":\"auth_db\","
+                            + "\"environment\":\"Kubernetes (dev)\",\"server\":\"postgres\"}]")
+                    .contains("\"inferred\":")
+                    .endsWith(" 0.8"));
+    assertThat(derive(Deployments.DEPLOYED_IN))
+        .containsExactlyInAnyOrder(
+            "service:g:auth-service deployed-in Kubernetes (dev) {\"container\":\"authservice\","
+                + "\"environment\":\"dev\",\"platform\":\"kubernetes\"} 1.0",
+            "service:g:main-service deployed-in Kubernetes (dev) {\"container\":\"mainservice\","
+                + "\"environment\":\"dev\",\"platform\":\"kubernetes\"} 1.0",
+            "database:g:auth-service/postgresql:g:auth-service deployed-in Kubernetes (dev)"
+                + " {\"container\":\"postgres\",\"environment\":\"dev\","
+                + "\"platform\":\"kubernetes\"} 1.0",
+            "database:g:main-service/postgresql:g:main-service deployed-in Kubernetes (dev)"
+                + " {\"container\":\"postgres\",\"environment\":\"dev\","
+                + "\"platform\":\"kubernetes\"} 1.0");
+  }
+
+  @Test
+  void aComposeVariableTiesAUnitsDatabaseToTheContainerThatCreatesIt() {
+    unitsWithPlaceholderDatasources();
+    // Compose: each unit's database is the container whose POSTGRES_DB is the same variable; the
+    // variables are set in an .env file that is not committed, so only the image is known.
+    for (String name : List.of("auth", "main")) {
+      String upper = name.toUpperCase(java.util.Locale.ROOT);
+      container(
+          "deploy",
+          name + "-db",
+          "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+              + "\"image\":\"postgres:16\",\"product\":\"PostgreSQL\",\"version\":\"16\","
+              + "\"hosts\":[\""
+              + name
+              + "-db\"],\"env\":{\"POSTGRES_DB\":\"${"
+              + upper
+              + "_DB_NAME}\"}}");
+      container(
+          "deploy",
+          name + "-service",
+          "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+              + "\"hosts\":[\""
+              + name
+              + "-service\"],\"env\":{\""
+              + upper
+              + "_DB_HOST\":\"${"
+              + upper
+              + "_DB_HOST}\",\""
+              + upper
+              + "_DB_NAME\":\"${"
+              + upper
+              + "_DB_NAME}\"}}");
+    }
+
+    // Each stays its own database, named by the unit, with the version of its container.
+    assertThat(derive("display-name"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth-service/postgresql:g:auth-service display-name auth-service database"
+                + " 1.0",
+            "database:g:main-service/postgresql:g:main-service display-name main-service database"
+                + " 1.0");
+    assertThat(derive(DeployableUnits.TECHNOLOGY))
+        .filteredOn(l -> l.startsWith("database:"))
+        .containsExactlyInAnyOrder(
+            "database:g:auth-service/postgresql:g:auth-service technology PostgreSQL 16 1.0",
+            "database:g:main-service/postgresql:g:main-service technology PostgreSQL 16 1.0");
+    assertThat(derive(Deployments.DEPLOYED_IN))
+        .filteredOn(l -> l.startsWith("database:g:auth-service"))
+        .singleElement()
+        .asString()
+        .contains("{\"container\":\"auth-db\"");
   }
 
   @Test

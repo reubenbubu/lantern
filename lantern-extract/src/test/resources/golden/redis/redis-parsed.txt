@@ -17,7 +17,5 @@ module:com.example:cache redis-use cache {"configKey":"spring.cache.type","sourc
 module:com.example:cache redis-use client {"api":"spring-boot-starter-data-redis","source":"dependency"} @redis:pom.xml#19-19 1.0
 module:com.example:cache redis-use rate-limiter {"configKey":"spring.cloud.gateway.routes[0].filters[0].args.redis-rate-limiter.replenishRate","source":"config"} @redis:src/main/resources/application.properties#4-4 1.0
 module:com.example:cache redis-use session {"api":"spring-boot-starter-session-data-redis","source":"dependency"} @redis:pom.xml#23-23 1.0
-repo:redis redis-image redis:8.4.0-alpine {"service":"redis","technology":"Redis 8.4.0"} @redis:compose.yaml#5-5 1.0
-repo:redis redis-image valkey/valkey:7 {"service":"sessions","technology":"Valkey 7"} @redis:compose.yaml#9-9 1.0
 type:com.example.cache.RedisConfig redis-use session {"api":"org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession","namespace":"shop","ttl":"1800s"} @redis:src/main/java/com/example/cache/RedisConfig.java#11-11 0.7
 type:com.example.cache.Token redis-use hash {"api":"org.springframework.data.redis.core.RedisHash","hash":"tokens","ttl":"600s"} @redis:src/main/java/com/example/cache/Token.java#6-6 0.7

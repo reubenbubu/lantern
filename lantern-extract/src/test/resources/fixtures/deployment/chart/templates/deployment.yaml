@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-orders
+  labels:
+    {{- include "shop.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  template:
+    metadata:
+      labels:
+        app: orders
+    spec:
+      {{ if .Values.securityContext }}
+      securityContext:
+        runAsNonRoot: true
+      {{ end }}
+      containers:
+        - name: orders
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          env:
+            - name: ORDERS_DB_HOST
+              value: {{ .Values.db.host | quote }}
+            - name: ORDERS_DB_NAME
+              value: {{ .Values.db.name | quote }}
+            - name: PROFILES
+              value: {{ printf "%s,%s" "k8s" .Release.Name }}

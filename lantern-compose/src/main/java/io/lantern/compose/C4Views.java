@@ -14,6 +14,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -65,6 +66,8 @@ final class C4Views {
   static final String PERSON = "person";
   static final String PERSON_BASIS = "person-basis";
   static final String USES = "USES";
+  static final String DEPLOYMENT_CONTAINER = "deployment-container";
+  static final String DEPLOYED_IN = "deployed-in";
 
   /** The kinds of container that are not deployable units: data stores and destinations. */
   static final Set<String> DESTINATIONS = Set.of(DATABASE, TOPIC, QUEUE, EXCHANGE, EXTERNAL_SYSTEM);
@@ -987,7 +990,92 @@ final class C4Views {
     }
     alternativesNote(assembler.id(section, "profiles"), units, false).ifPresent(blocks::add);
     unresolved(section).ifPresent(blocks::add);
+    deployment(section).ifPresent(blocks::add);
     decisions(section).ifPresent(blocks::add);
+  }
+
+  /**
+   * The environments the scope's deployment descriptors define and the containers each runs (ADR
+   * 0082): one row per container, with its image, the product and version the image is, the units
+   * and data stores the linker found running in it, and its ports. Absent when there are none.
+   */
+  private Optional<Table> deployment(String section) {
+    Map<String, SortedSet<EntityId>> running = new TreeMap<>();
+    Map<String, List<Fact>> runningFacts = new TreeMap<>();
+    for (Fact fact : knowledge.withPredicate(DEPLOYED_IN)) {
+      String container = attribute(fact, "fact");
+      if (container != null) {
+        running.computeIfAbsent(container, c -> new TreeSet<>(Knowledge.BY_ID)).add(fact.subject());
+        runningFacts.computeIfAbsent(container, c -> new ArrayList<>()).add(fact);
+      }
+    }
+    List<Fact> containers = new ArrayList<>();
+    for (Fact fact : knowledge.withPredicate(DEPLOYMENT_CONTAINER)) {
+      if (repos.isEmpty() || repos.contains(fact.evidence().repo())) {
+        containers.add(fact);
+      }
+    }
+    if (containers.isEmpty()) {
+      return Optional.empty();
+    }
+    containers.sort(
+        Comparator.comparing(C4Views::environment)
+            .thenComparing(f -> f.object().value())
+            .thenComparing(Fact::id));
+    List<Table.Row> rows = new ArrayList<>();
+    for (Fact fact : containers) {
+      String image = attribute(fact, "image");
+      String build = attribute(fact, "build");
+      String product = attribute(fact, "product");
+      String version = attribute(fact, "version");
+      List<String> runs = new ArrayList<>();
+      for (EntityId entity : running.getOrDefault(fact.id(), new TreeSet<>())) {
+        runs.add(assembler.name(entity));
+      }
+      List<String> ports = strings(fact, "ports");
+      List<Fact> cited = new ArrayList<>(List.of(fact));
+      cited.addAll(runningFacts.getOrDefault(fact.id(), List.of()));
+      rows.add(
+          new Table.Row(
+              null,
+              List.of(
+                  cell(environment(fact)),
+                  cell(fact.object().value()),
+                  cell(image != null ? image : build == null ? null : "built from " + build),
+                  cell(
+                      product == null ? null : version == null ? product : product + " " + version),
+                  cell(String.join(", ", runs)),
+                  cell(String.join(", ", ports))),
+              assembler.facts(cited)));
+    }
+    return Optional.of(
+        new Table(
+            assembler.id(section, "deployment"),
+            "Deployment",
+            List.of(
+                new Table.Column("Environment"),
+                new Table.Column("Container"),
+                new Table.Column("Image"),
+                new Table.Column("Technology"),
+                new Table.Column("Runs"),
+                new Table.Column("Ports")),
+            rows,
+            List.of()));
+  }
+
+  /** A container's environment as documents name it, such as "Docker Compose (local)". */
+  private static String environment(Fact container) {
+    // As the linker names it on deployed-in facts; the composer does not depend on the extractor.
+    String platform = attribute(container, "platform");
+    String environment = attribute(container, "environment");
+    String name =
+        switch (platform == null ? "" : platform) {
+          case "compose" -> "Docker Compose";
+          case "kubernetes" -> "Kubernetes";
+          case "helm" -> "Helm";
+          default -> platform;
+        };
+    return environment == null ? name : name + " (" + environment + ")";
   }
 
   private Diagram containerDiagram(String id, SortedSet<EntityId> shown, String title) {

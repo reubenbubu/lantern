@@ -13,6 +13,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
@@ -225,6 +226,7 @@ class DeployableUnitsTest {
             MessagingExtractor.vocabulary(),
             RedisExtractor.vocabulary(),
             PeopleExtractor.vocabulary(),
+            DeploymentExtractor.vocabulary(),
             GatewayExtractor.vocabulary(),
             DeployableUnits.vocabulary(),
             CrossRepoLinks.vocabulary(),

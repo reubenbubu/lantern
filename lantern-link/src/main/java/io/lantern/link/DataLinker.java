@@ -13,8 +13,10 @@ import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +39,9 @@ final class DataLinker {
 
   /** A display name with the datasource it comes from. */
   private record Named(Fact datasource, String name) {}
+
+  /** A data store's technology with the fact it comes from. */
+  private record Technology(Fact source, String technology) {}
 
   /** A setting naming an infrastructure service: its key, role and technology. */
   private record Setting(String key, String role, String technology) {}
@@ -90,6 +95,7 @@ final class DataLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
+  private final Deployments deployments;
 
   /** The schemas each module holds. */
   private final Map<EntityId, List<EntityId>> schemas = new HashMap<>();
@@ -97,9 +103,10 @@ final class DataLinker {
   /** The tables the schemas declare, by name. */
   private final Map<String, List<Owned>> owned = new TreeMap<>();
 
-  DataLinker(LinkIndex index, FoundLinks out) {
+  DataLinker(LinkIndex index, FoundLinks out, Deployments deployments) {
     this.index = index;
     this.out = out;
+    this.deployments = deployments;
     for (Fact f : index.of(BuiltInTypes.CONTAINS)) {
       if (f.object().kind() != FactObject.Kind.ENTITY) {
         continue;
@@ -120,28 +127,33 @@ final class DataLinker {
   }
 
   void link(Origin origin, Validity validity) {
-    Map<EntityId, Fact> technologies = new TreeMap<>(LinkIndex.BY_TEXT);
+    Map<EntityId, Technology> technologies = new TreeMap<>(LinkIndex.BY_TEXT);
     Map<EntityId, Named> ownNames = new TreeMap<>(LinkIndex.BY_TEXT);
+    Map<EntityId, Set<Deployments.Container>> servers = new TreeMap<>(LinkIndex.BY_TEXT);
     for (String view : index.views()) {
       for (Unit unit : index.units.values()) {
-        databases(unit, view, technologies, ownNames);
+        databases(unit, view, technologies, ownNames, servers);
         brokers(unit, view);
         infrastructure(unit, view);
       }
       access(view);
     }
     technologies.forEach(
-        (database, datasource) ->
+        (database, technology) ->
             out.add(
                 Fact.create(
                     database,
                     DeployableUnits.TECHNOLOGY,
-                    FactObject.string(LinkIndex.text(datasource, "technology")),
+                    FactObject.string(technology.technology()),
                     FactJson.newObject(),
                     origin,
-                    datasource.evidence(),
-                    datasource.confidence(),
+                    technology.source().evidence(),
+                    technology.source().confidence(),
                     validity)));
+    servers.forEach(
+        (database, containers) ->
+            containers.forEach(
+                c -> out.add(Deployments.deployedIn(database, c, origin, validity))));
     ownNames.forEach(
         (database, named) ->
             out.add(
@@ -161,7 +173,11 @@ final class DataLinker {
 
   /** Links a unit to the databases its datasources point to in a view. */
   private void databases(
-      Unit unit, String view, Map<EntityId, Fact> technologies, Map<EntityId, Named> ownNames) {
+      Unit unit,
+      String view,
+      Map<EntityId, Technology> technologies,
+      Map<EntityId, Named> ownNames,
+      Map<EntityId, Set<Deployments.Container>> servers) {
     for (String key : index.configKeys(unit, PersistenceExtractor.DATASOURCE)) {
       Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
       if (f == null || LinkIndex.flag(f, "masked")) {
@@ -171,7 +187,15 @@ final class DataLinker {
       if (database == null) {
         continue;
       }
-      String displayName = ownName(unit, f);
+      List<Deployments.Placed> placed = placed(unit, f);
+      Deployments.Placed named =
+          placed.stream()
+              .filter(p -> p.database() != null)
+              .min(
+                  Comparator.comparing((Deployments.Placed p) -> p.guessed())
+                      .thenComparing(p -> p.unit().fact().id()))
+              .orElse(null);
+      String displayName = ownName(unit, f, named == null ? null : named.database());
       if (displayName != null) {
         ownNames.merge(
             database,
@@ -179,8 +203,26 @@ final class DataLinker {
             (a, b) -> LinkIndex.BY_ID.compare(a.datasource(), b.datasource()) <= 0 ? a : b);
       }
       String technology = LinkIndex.text(f, "technology");
+      List<Deployments.Container> onServers = new ArrayList<>();
+      placed.forEach(
+          p -> {
+            if (p.server() != null && !onServers.contains(p.server())) {
+              onServers.add(p.server());
+            }
+          });
+      if (technology != null && !onServers.isEmpty()) {
+        technology = Deployments.technology(technology, onServers);
+      }
       if (technology != null) {
-        technologies.merge(database, f, (a, b) -> LinkIndex.BY_ID.compare(a, b) <= 0 ? a : b);
+        Technology candidate =
+            new Technology(onServers.isEmpty() ? f : onServers.getFirst().fact(), technology);
+        technologies.merge(
+            database,
+            candidate,
+            (a, b) -> LinkIndex.BY_ID.compare(a.source(), b.source()) <= 0 ? a : b);
+      }
+      if (!onServers.isEmpty()) {
+        servers.computeIfAbsent(database, d -> new LinkedHashSet<>()).addAll(onServers);
       }
       ObjectNode attributes = FactJson.newObject();
       attributes.put("protocol", f.object().value().startsWith("r2dbc:") ? "R2DBC" : "JDBC");
@@ -197,6 +239,37 @@ final class DataLinker {
         ArrayNode array = attributes.putArray("schemas");
         own.forEach(s -> array.add(s.toString()));
       }
+      Set<String> ids = new TreeSet<>(List.of(f.id()));
+      double confidence = f.confidence() * unit.fact().confidence();
+      if (!placed.isEmpty()) {
+        ArrayNode array = attributes.putArray("deployments");
+        for (Deployments.Placed p : placed) {
+          ObjectNode entry = array.addObject();
+          entry.put("environment", p.unit().label());
+          entry.put("container", p.unit().name());
+          if (p.server() != null) {
+            entry.put("server", p.server().name());
+          }
+          if (p.address() != null) {
+            entry.put("address", p.address());
+          }
+          if (p.database() != null) {
+            entry.put("database", p.database());
+          }
+          ids.add(p.unit().fact().id());
+          if (p.server() != null) {
+            ids.add(p.server().fact().id());
+          }
+        }
+        if (named != null && named.guessed()) {
+          attributes.put(
+              "inferred",
+              "The database's name is a placeholder the environment leaves to a secret; of the"
+                  + " databases its server creates, the one whose name shares a word with the unit"
+                  + " or the placeholder is taken.");
+          confidence *= 0.8;
+        }
+      }
       out.add(
           view,
           new Found(
@@ -206,24 +279,28 @@ final class DataLinker {
               FactObject.entity(database),
               attributes,
               f.evidence(),
-              CrossRepoLinks.round(f.confidence() * unit.fact().confidence()),
-              List.of(f.id())));
+              CrossRepoLinks.round(confidence),
+              ids));
     }
   }
 
   /**
    * The display name of a unit's own database (an embedded one, or one whose server or database is
-   * a placeholder no config resolves): its database when that is written out, else "&lt;unit
-   * name&gt; database", with the datasource key in parentheses when that is not the main one. Null
-   * for a database on a server, which is named by its key.
+   * a placeholder no config resolves): its database when that is written out, else the one a
+   * deployment names, else "&lt;unit name&gt; database", with the datasource key in parentheses
+   * when that is not the main one. Null for a database on a server, which is named by its key.
+   *
+   * @param deployed the database's name as a deployment gives it, or null
    */
-  private String ownName(Unit unit, Fact datasource) {
+  private String ownName(Unit unit, Fact datasource, String deployed) {
     String name = LinkIndex.text(datasource, "database");
     boolean unresolved = !LinkIndex.texts(datasource, "unresolved").isEmpty();
     if (!unresolved && (LinkIndex.text(datasource, "server") != null || name == null)) {
       return null;
     }
-    if (name == null || name.contains("${")) {
+    if (deployed != null && (name == null || name.contains("${"))) {
+      name = deployed;
+    } else if (name == null || name.contains("${")) {
       Fact application = index.name(unit.id(), null);
       name = (application == null ? unit.artifactId() : application.object().value()) + " database";
     }
@@ -231,6 +308,29 @@ final class DataLinker {
     return unresolved && key != null && !key.equals("spring.datasource.url")
         ? name + " (" + key + ")"
         : name;
+  }
+
+  /**
+   * Where the deployments put a datasource whose server or database is a placeholder no config
+   * resolves, in each environment that runs the unit; empty for any other datasource.
+   */
+  private List<Deployments.Placed> placed(Unit unit, Fact datasource) {
+    List<String> unresolved = LinkIndex.texts(datasource, "unresolved");
+    if (unresolved.isEmpty()) {
+      return List.of();
+    }
+    List<String> words = new ArrayList<>(unresolved);
+    Fact application = index.name(unit.id(), null);
+    if (application != null) {
+      words.add(application.object().value());
+    }
+    words.add(unit.artifactId());
+    return deployments.place(
+        unit,
+        LinkIndex.text(datasource, "server"),
+        LinkIndex.text(datasource, "database"),
+        LinkIndex.text(datasource, "technology"),
+        words);
   }
 
   /**
