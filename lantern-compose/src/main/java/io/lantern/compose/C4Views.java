@@ -21,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
@@ -305,7 +306,16 @@ final class C4Views {
       case FRONTEND -> frontendApp(entity).map(f -> attribute(f, TECHNOLOGY)).orElse(null);
       case TOPIC -> brokerName(broker) + " topic";
       case QUEUE -> brokerName(broker) + " queue";
-      case EXCHANGE -> brokerName(broker) + " exchange";
+      case EXCHANGE -> {
+        String type =
+            knowledge.relations(entity, ROUTES_TO).stream()
+                .map(f -> attribute(f, "exchangeType"))
+                .filter(Objects::nonNull)
+                .sorted()
+                .findFirst()
+                .orElse(null);
+        yield brokerName(broker) + (type == null ? "" : " " + type) + " exchange";
+      }
       default -> null;
     };
   }
@@ -848,8 +858,11 @@ final class C4Views {
     boolean always;
     final List<Fact> facts = new ArrayList<>();
 
-    /** The intent phrases of the edge's links, used as its label only if every link has one. */
-    final Set<String> phrases = new TreeSet<>();
+    /**
+     * The intent phrases of the edge's links with how many links say each, used as its label only
+     * if every link has one.
+     */
+    final SortedMap<String, Integer> phrases = new TreeMap<>();
 
     boolean unphrased;
 
@@ -876,7 +889,7 @@ final class C4Views {
       if (phrase == null) {
         unphrased = true;
       } else {
-        phrases.add(phrase.text());
+        phrases.merge(phrase.text(), 1, Integer::sum);
         facts.addAll(phrase.facts());
       }
     }
@@ -921,20 +934,18 @@ final class C4Views {
     }
 
     /**
-     * The intent phrases of its links when every link has one, naming two and counting the rest;
-     * else what the links record.
+     * The intent phrase of its links when every link has one: one intent per line, the one most of
+     * its links say (the first alphabetically on a tie); the rest stay with the line's facts. Else
+     * what the links record.
      */
     String label() {
       if (!unphrased && !phrases.isEmpty()) {
-        List<String> named = new ArrayList<>(phrases);
-        StringBuilder text = new StringBuilder(named.getFirst());
-        for (String phrase : named.subList(1, Math.min(NAMED, named.size()))) {
-          text.append("; ").append(lowerFirst(phrase));
-        }
-        if (named.size() > NAMED) {
-          text.append(" and ").append(named.size() - NAMED).append(" more");
-        }
-        return text.toString();
+        return phrases.entrySet().stream()
+            .max(
+                Map.Entry.<String, Integer>comparingByValue()
+                    .thenComparing(Map.Entry.<String, Integer>comparingByKey().reversed()))
+            .orElseThrow()
+            .getKey();
       }
       if (details.isEmpty()) {
         return plain;

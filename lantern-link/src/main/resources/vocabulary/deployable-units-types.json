@@ -38,6 +38,7 @@
       "properties": {
         "framework": { "type": "string", "description": "The application framework, such as Spring Boot." },
         "frameworkVersion": { "type": "string", "description": "The framework's version, from the build's dependencies, if known." },
+        "frameworks": { "type": "array", "items": { "type": "string" }, "description": "Other frameworks the unit is built on, each with its version when the build states one, such as Spring Cloud Gateway or Eureka Server." },
         "java": { "type": "string", "description": "The major Java release the unit compiles for, if known." }
       },
       "additionalProperties": false
