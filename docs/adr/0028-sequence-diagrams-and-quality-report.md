@@ -1,11 +1,11 @@
 # 0028: Sequence diagrams and the quality report in the document model
 
-Status: accepted (#91), amended by ADR 0046 (#163), pending the user's review (#24)
+Status: accepted (#91), amended by ADR 0046 (#163)
 
 ## Context
 
 The design's runtime view is a set of sequence diagrams, and the composer must put the Quality bar
-checks a document fails into the document (`docs/design.md`, Quality bar; Composition, Diagrams and
+checks a document fails into the document (`docs/quality-bar.md`; `docs/design.md`, Composition, Diagrams and
 Sequence diagrams; ADR 0026). ADR 0011 left sequence diagrams out of the document model. The
 report spec `report-specs/c4-model-sequence-diagrams/` is the first target template that draws
 them; more report specs will follow, so Lantern's model stays format-neutral and must be able to

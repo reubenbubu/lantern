@@ -1,6 +1,6 @@
 # 0079: Aspects as components
 
-Status: accepted (#264), extends ADR 0035, pending the user's review (#24)
+Status: accepted (#264), extends ADR 0035
 
 ## Context
 

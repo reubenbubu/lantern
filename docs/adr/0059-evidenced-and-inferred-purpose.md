@@ -1,6 +1,6 @@
 # 0059: Evidenced and inferred purpose in summaries
 
-Status: accepted (#193), amends ADRs 0010 and 0025, amended by ADR 0061 (#77) and ADR 0066 (#192), pending the user's review (#24)
+Status: accepted (#193), amends ADRs 0010 and 0025, amended by ADR 0061 (#77) and ADR 0066 (#192)
 
 ## Context
 

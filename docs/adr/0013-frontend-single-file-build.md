@@ -1,6 +1,6 @@
 # 0013: Frontend skeleton and single-file build
 
-Status: accepted (#14), pending the user's review (#24)
+Status: accepted (#14)
 
 ## Context
 

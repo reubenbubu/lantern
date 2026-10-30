@@ -119,7 +119,11 @@ Ask the user before:
 - anything outside this repository
 - force-pushing, rewriting history, or deleting branches you didn't create
 
-Everything else, decide yourself. Note non-obvious choices in the PR description.
+Everything else, decide yourself, concretely, by following `docs/quality-bar.md` and
+`docs/design.md`. Nothing waits for the user's review: an ADR records the decision and the part of
+the bar or design it follows, and is accepted as written. Only what the bar and design don't settle
+and is on the list above goes to the user, as one direction-level question with your
+recommendation. Note non-obvious choices in the PR description.
 
 ## Doing the work
 

@@ -1,6 +1,6 @@
 # 0023: Configurable Maven repositories for sandbox builds
 
-Status: accepted (#30), amended (#100, #117, #212), pending the user's review (#24)
+Status: accepted (#30), amended (#100, #117, #212)
 
 ## Context
 

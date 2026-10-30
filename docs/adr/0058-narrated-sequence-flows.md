@@ -1,8 +1,7 @@
 # 0058: Narrated sequence flows
 
 Status: accepted (#195), amends ADR 0047 and ADR 0050, amended by ADR 0060 (#196), ADR 0067 (#200)
-and ADR 0047's amendment for #272 (the answer also holds the flow's title), pending the user's
-review (#24)
+and ADR 0047's amendment for #272 (the answer also holds the flow's title), amended for #369
 
 ## Context
 
@@ -79,3 +78,5 @@ a flow of ten steps, at most 1,500 output tokens.
 
 Error flows (ADR 0047); the glossary in the prompt (annotations, Phase 3); a minimal edit of the
 previous text when a flow changes (design, Prose stability).
+
+## Amendment (#369): "at most seven per scope" in the cost estimate no longer holds: the number of flows is not fixed (ADR 0047, amendment for #369), so the estimate counts the flows the LLM keeps.

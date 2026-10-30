@@ -1,6 +1,6 @@
 # 0045: LLM resolver for links left open
 
-Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169), pending the user's review (#24)
+Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169)
 
 ## Context
 

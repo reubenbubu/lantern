@@ -1,6 +1,6 @@
 # 0027: Summary citations are markers, not names in the text
 
-Status: accepted (#70), pending the user's review (#24)
+Status: accepted (#70)
 
 ## Context
 

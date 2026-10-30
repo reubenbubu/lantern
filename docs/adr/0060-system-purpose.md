@@ -1,10 +1,10 @@
 # 0060: The system's purpose
 
-Status: accepted (#196), amends ADR 0044, ADR 0050 and ADR 0058, amended by ADR 0067 (#200), pending the user's review (#24)
+Status: accepted (#196), amends ADR 0044, ADR 0050 and ADR 0058, amended by ADR 0067 (#200), amended for #369
 
 ## Context
 
-`docs/design.md` (Quality bar) wants every document's first paragraph to give the system's purpose,
+`docs/quality-bar.md` (Rubric) wants every document's first paragraph to give the system's purpose,
 and LLM integration, Grounding, lists "a system's purpose" among what the LLM words, while business
 purpose comes from what people wrote where there is any, and otherwise is inferred from the code
 and shown as inferred (ADR 0059). Summaries
@@ -78,3 +78,5 @@ so some 1,000 input tokens for five units and a few claims, at most 1,000 output
 Purposes from annotations and the glossary in the prompt (Phase 3); a purpose for groups (Phase 4);
 the purpose in per-repository documents and the Executive Brief, which open with the repository's
 summary.
+
+## Amendment (#369): the quality bar no longer requires a purpose (`docs/quality-bar.md`, What the code can and cannot tell): the first paragraph says what the system is and its most important fact. The purpose this ADR words stays as built, without further work, and is not scored or judged (`docs/design.md`, Grounding).

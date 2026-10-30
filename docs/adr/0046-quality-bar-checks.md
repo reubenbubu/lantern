@@ -1,10 +1,10 @@
 # 0046: The Quality bar checks the composer makes
 
-Status: accepted (#163), amended by ADR 0048 (#97), ADR 0051 (#159), ADR 0052 (#164), ADR 0062 (#186) and ADR 0063 (#178), pending the user's review (#24)
+Status: accepted (#163), amended by ADR 0048 (#97), ADR 0051 (#159), ADR 0052 (#164), ADR 0062 (#186) and ADR 0063 (#178), amended for #369
 
 ## Context
 
-`docs/design.md` (Quality bar) says the composer checks every check not marked *(review)* on every
+`docs/design.md` (Checking the quality bar) says the composer checks every check not marked *(review)* on every
 document and puts the failures into the document as a quality report block (ADR 0028). ADR 0044
 reported only diagrams above 15 elements, in the containers and components sections. Issue #163
 asks for the rest. Some checks need content Lantern does not compose yet (a glossary, a catalog,
@@ -71,3 +71,8 @@ What would make checks pass: legends in Lantern's templates, a glossary, the rea
 date in the model, the Explorer's start-here list and catalog, sequence flows (#96), intent phrases
 and descriptions (#97), and the Brief's sections (blast radius and technology currency done in
 ADR 0052, quality evidence in ADR 0062).
+
+## Amendment (#369): the check "At most 15 elements" becomes "Readable".
+
+- no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold. The check reports a diagram over any readability threshold.
+- The Architecture Explorer and Executive Brief checks stay as built, but those documents are out of scope for now (`docs/design.md`, Non-goals).

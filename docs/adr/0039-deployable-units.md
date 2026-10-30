@@ -1,6 +1,6 @@
 # 0039: Deployable units
 
-Status: accepted (#93), amended (#265), pending the user's review (#24)
+Status: accepted (#93), amended (#265), amended by ADR 0088 (#276)
 
 ## Context
 

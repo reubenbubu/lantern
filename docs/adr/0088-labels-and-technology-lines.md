@@ -1,7 +1,6 @@
 # 0088: One intent per line, frameworks in the technology line, exchange types
 
-Status: accepted (#276, part of 2C), amends ADR 0039, ADR 0044 and ADR 0050, pending the user's
-review (#24)
+Status: accepted (#276, part of 2C), amends ADR 0039, ADR 0044 and ADR 0050
 
 ## Context
 

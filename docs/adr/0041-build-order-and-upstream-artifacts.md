@@ -1,6 +1,6 @@
 # 0041: Build a snapshot's repositories in dependency order, with each other's artifacts
 
-Status: accepted (#118), pending the user's review (#24)
+Status: accepted (#118)
 
 ## Context
 
@@ -84,7 +84,7 @@ snapshots would pick it up (ADR 0005, 0019).
   the same snapshot, which is already trusted no further than any build.
 - POMs are given as written, so a module whose version is a CI-friendly property (`${revision}`)
   that the flatten plugin would replace gives a POM Maven cannot use; a classifier other than none
-  (OpenWMS's `all`) and packaging such as `war` used as a dependency type are not given. These can
+  (as a dropped test set used, `all`) and packaging such as `war` used as a dependency type are not given. These can
   be added when a test set needs them.
 - The build order reads POMs as written, so a dependency added only by a parent POM outside the
   snapshot is not seen, and such a repository may be built before the one it needs.

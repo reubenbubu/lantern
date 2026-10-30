@@ -1,6 +1,6 @@
 # 0066: Confidence of summaries and wordings, and a unit's fallback description
 
-Status: accepted (#192), amends ADR 0010, ADR 0050, ADR 0059 and ADR 0065, amended by ADR 0068 (#191) and ADR 0069 (#208), pending the user's review (#24)
+Status: accepted (#192), amends ADR 0010, ADR 0050, ADR 0059 and ADR 0065, amended by ADR 0068 (#191) and ADR 0069 (#208)
 
 ## Context
 

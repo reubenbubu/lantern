@@ -1,6 +1,6 @@
 # 0005: Build sandbox
 
-Status: accepted (#7), amended by ADR 0016 (#254), pending the user's review (#24)
+Status: accepted (#7), amended by ADR 0016 (#254), amended by ADR 0030 (#117) and ADR 0041 (#118)
 
 ## Context
 

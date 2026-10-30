@@ -1,6 +1,6 @@
 # 0080: WebSocket and STOMP endpoints and messages
 
-Status: accepted (#262, part of 2B), pending the user's review (#24)
+Status: accepted (#262, part of 2B)
 
 Amends ADR 0077 (a WebSocket route names the endpoint it reaches).
 

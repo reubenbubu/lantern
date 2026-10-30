@@ -1,6 +1,6 @@
 # 0037: Messaging extractor
 
-Status: accepted (#129, part of #92), pending the user's review (#24)
+Status: accepted (#129, part of #92)
 
 ## Context
 

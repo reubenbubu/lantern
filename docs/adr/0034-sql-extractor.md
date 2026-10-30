@@ -1,6 +1,6 @@
 # 0034: SQL extractor
 
-Status: accepted (#113), pending the user's review (#24)
+Status: accepted (#113)
 
 ## Context
 

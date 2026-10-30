@@ -1,7 +1,7 @@
 # 0070: Course correction: measured against references, and the LLM may find
 
 Status: accepted (#250), amends ADRs 0010, 0018, 0026, 0031, 0042, 0043, 0044, 0047 and 0050 and the
-design's Grounding, pending the user's review (#24)
+design's Grounding, amended for #369
 
 ## Context
 
@@ -91,7 +91,7 @@ The user's decisions, recorded here; the design says what follows from them.
   commits stand. Built in #253.
 - **ADR 0026** (amended; one decision superseded): "The LLM words, it never invents" is superseded
   as above. "The rest are judged on the test sets each phase" becomes: measured against hand-made
-  references, scored, and from 2D judged by an LLM (design, Quality bar). "Test sets are generic,
+  references, scored, and from 2D judged by an LLM (design, Checking the quality bar). "Test sets are generic,
   the design names none" becomes: the design names the sets and their roles (development,
   held-out, synthetic), and still no single set shapes it. The rubric, the C4 definitions and the
   stitched sequence diagrams stand.
@@ -126,7 +126,7 @@ The user's decisions, recorded here; the design says what follows from them.
   holds for the Describer only. The Describer still only words what is drawn; an element or line
   Investigate found is drawn from its fact, so the Describer may word it, citing that fact.
 
-The ADRs pending the user's review (#24), these among them, stay the user's to review; this ADR
+The ADRs, these among them, stay the user's to review; this ADR
 does not replace that review.
 
 ## Consequences
@@ -140,3 +140,5 @@ does not replace that review.
 
 The targets are unmeasured until 2A's baseline, and whether Investigate's proposals reach the
 references' recall within the budget is only known from 2D's runs.
+
+## Amendment (#369): the "split above 15" rules of the container and component views are default thresholds, not caps: no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold.

@@ -1,10 +1,10 @@
 # 0064: Test evidence: test classes, architecture tests and coverage tools
 
-Status: accepted (#226), amends ADR 0006 and ADR 0062, pending the user's review (#24)
+Status: accepted (#226), amends ADR 0006 and ADR 0062, amended for #369
 
 ## Context
 
-`docs/design.md` (Quality bar) asks the Executive Brief for quality evidence: tests, architecture
+`docs/design.md` (Checking the quality bar, Other documents) asks the Executive Brief for quality evidence: tests, architecture
 tests and coverage where present. ADR 0062 could only name the test libraries modules declare,
 since no extractor read test sources or build plugins. The design's knowledge model lets new
 entity, relationship and attribute types be added as vocabulary data.
@@ -79,3 +79,5 @@ entity, relationship and attribute types be added as vocabulary data.
 Coverage reports: the sandbox builds with tests skipped (ADR 0005), so no build produces one;
 reading them needs a design decision first (#232). Test sources of Gradle builds, Kotlin and
 Groovy, and test frameworks beyond those above.
+
+## Amendment (#369): the Architecture Explorer and the Executive Brief are out of scope for now (`docs/design.md`, Non-goals; `docs/quality-bar.md`, Scope). What this ADR built stays; it gets no further work until the user brings the document back into scope.

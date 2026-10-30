@@ -1,6 +1,6 @@
 # 0032: Config extractor
 
-Status: accepted (#126, part of #92), pending the user's review (#24)
+Status: accepted (#126, part of #92), amended (#137, #143, #335, #338, #340, #333, #348)
 
 ## Context
 

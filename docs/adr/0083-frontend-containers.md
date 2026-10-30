@@ -1,7 +1,6 @@
 # 0083: Frontend containers
 
-Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, pending the user's
-review (#24)
+Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, amended for #369
 
 ## Context
 
@@ -103,7 +102,7 @@ The flows of the sequence diagrams start in the browser since #331 (ADR 0047).
 
 ## Amendment: browser navigations and the endpoint a call reaches (#331)
 
-Status: accepted, pending the user's review (#24). The flows start in the browser now (ADR 0047,
+Status: accepted. The flows start in the browser now (ADR 0047,
 amendment for #331), which needs the endpoint each call reaches, and project-1's sign-in is a
 navigation of the browser, not a request from the page.
 
@@ -121,3 +120,5 @@ navigation of the browser, not a request from the page.
   link records `reaches` (the endpoint's handler, or the method that registers the WebSocket
   endpoint), `reachesUnit`, `reachesEndpoint` and `throughRoute` (the route's id), and cites the
   endpoint's and the route's facts. A proxy's own link names none.
+
+## Amendment (#369): "which then splits per container" in the Consequences is out of date: the container view is one system view split by concern (ADR 0044, #270), at the readability thresholds of ADR 0046's amendment for #369.

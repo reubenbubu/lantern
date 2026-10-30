@@ -1,10 +1,10 @@
 # 0052: Executive Brief blast radius, technology currency and ranked risks
 
-Status: accepted (#164), pending the user's review (#24)
+Status: accepted (#164), amended for #369
 
 ## Context
 
-`docs/design.md` (Quality bar) asks the Executive Brief for who depends on the repository and what
+`docs/design.md` (Checking the quality bar, Other documents) asks the Executive Brief for who depends on the repository and what
 it depends on (blast radius), runtime and framework versions against their end of life
 (technology currency), and risks ranked by impact, each with its consequence and confidence. ADR
 0015's brief had headline numbers counted from build dependencies, risks with a severity but no
@@ -97,3 +97,5 @@ network call or new dependency is needed. The linker now records the links betwe
 Quality evidence (#186); the Java runtime from Dockerfiles or build images (later extractors);
 end-of-life data for other runtimes, frameworks and libraries; paid extended-support dates; and a
 check that the table is current.
+
+## Amendment (#369): the Architecture Explorer and the Executive Brief are out of scope for now (`docs/design.md`, Non-goals; `docs/quality-bar.md`, Scope). What this ADR built stays; it gets no further work until the user brings the document back into scope.

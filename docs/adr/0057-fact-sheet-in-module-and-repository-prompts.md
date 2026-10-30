@@ -1,6 +1,6 @@
 # 0057: A fact sheet in module and repository prompts
 
-Status: accepted (#197), amends ADR 0010, pending the user's review (#24)
+Status: accepted (#197), amends ADR 0010
 
 ## Context
 

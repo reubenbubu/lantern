@@ -1,6 +1,6 @@
 # 0002: Vocabulary registry details
 
-Status: accepted (#4), amended by ADR 0026 (#86), by #90 and by #156, pending the user's review (#24)
+Status: accepted (#4), amended by ADR 0026 (#86), by #90 and by #156
 
 ## Context
 
@@ -20,7 +20,7 @@ choices.
 - **C4 level** is one of `context`, `container`, `component`, `code`, or absent. **Presentation**
   is a default `shape` and `icon`, each a lowercase token (`box`, `dashed-arrow`) whose meaning the
   renderer defines later. C4 level, shape and icon are inherited from the nearest ancestor that
-  sets them, which is how a new `batch-job` extending `component` renders as a component at once.
+  sets them, which is how a new `batch-job` extending `container` renders as a container at once.
 - **Attribute schema** is a small subset of JSON Schema: `type: "object"`, `properties`, `required`
   and `additionalProperties` (true when left out, as in JSON Schema). Each property has a `type`
   (`string`, `integer`, `number`, `boolean`, `array`, `object`) and optionally a `description`,

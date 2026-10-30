@@ -1,8 +1,7 @@
 # 0044: Context, container and component views, and the system's C4 report
 
 Status: accepted (#95), amended by ADR 0046 (#163), ADR 0048 (#97), ADR 0049 (#176), ADR 0050
-(#181), ADR 0060 (#196), ADR 0070 (#250), #256, ADR 0071 (#253), ADR 0086 (#249) and #270, pending the user's review
-(#24)
+(#181), ADR 0060 (#196), ADR 0070 (#250), #256, ADR 0071 (#253), ADR 0086 (#249) and #270, amended by ADR 0088 (#276), amended for #369
 
 ## Context
 
@@ -142,3 +141,8 @@ pages, showed the whole system on none and sent an element's links to whichever 
 The Quality bar checks (#163); the Brief's blast radius, technology currency and ranked risks
 (#164); sequence flows (#96); intent phrases and descriptions worded for the reader (#97); people
 and external systems from annotations (Phase 3); stored layouts.
+
+## Amendment (#369): no fixed element cap; people.
+
+- no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold.
+- The context diagram's note that "the code names no people" was replaced by ADR 0070 and ADR 0074; since ADR 0074's amendment for #365, people come only from human-facing evidence and entry points nothing reaches are called by an `Unknown caller`.

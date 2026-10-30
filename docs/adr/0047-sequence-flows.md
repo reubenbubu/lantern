@@ -1,8 +1,7 @@
 # 0047: Sequence flows traced from entry points and stitched across containers
 
 Status: accepted (#96), amended by ADR 0049 (#176), ADR 0050 (#181), ADR 0058 (#195), ADR 0070
-(#250), which supersedes its choosing of flows, and the amendments below (#313, #331, #272, #351),
-pending the user's review (#24)
+(#250), which supersedes its choosing of flows, and the amendments below (#313, #331, #272, #351), amended for #369
 
 ## Context
 
@@ -87,7 +86,7 @@ participants, are left for later.
 
 ## Amendment: flows go on into the jobs they schedule (#313)
 
-Status: accepted, pending the user's review (#24). Since #263 a JobRunr or Quartz job is an entry
+Status: accepted. Since #263 a JobRunr or Quartz job is an entry
 point with `scheduledBy`, the methods that schedule it (ADR 0035, amendment for #263), and its flow
 started apart from the request that scheduled it. project-4's task reminder starts at the request
 that creates the task and goes on into the job, so the flows now do too.
@@ -112,7 +111,7 @@ that creates the task and goes on into the job, so the flows now do too.
 
 ## Amendment: flows start in the browser (#331)
 
-Status: accepted, pending the user's review (#24). Since #267 frontends are containers and their
+Status: accepted. Since #267 frontends are containers and their
 calls are `CALLS_HTTP` links from `frontend:` entities (ADR 0083), but the flows still started at the
 backend's entry points with a note naming the trigger. The references start them in the browser:
 project-4's sign-in and real-time notification, project-1's web sign-in.
@@ -163,7 +162,7 @@ chooses by business weight).
 
 ## Amendment: business scenarios, not endpoints (#272)
 
-Status: accepted, pending the user's review (#24). ADR 0070 asked that flows be chosen by
+Status: accepted. ADR 0070 asked that flows be chosen by
 cross-service reach and business weight and titled as scenarios. project-4's report titled flows
 by endpoint, showed one role call where creating an organization makes two, dropped main-service's
 deliveries to its own listeners, and noted fourteen times that one of `CrmException`'s subclasses
@@ -215,7 +214,7 @@ of project-4's sign-up, password reset and resend, the first by ID is shown.
 
 ## Amendment: flows start at the gateway (#351)
 
-Status: accepted, pending the user's review (#24). A flow whose entry point no frontend's call
+Status: accepted. A flow whose entry point no frontend's call
 reaches started at the unit's endpoint, even when a gateway route forwards to it, so its trigger
 was the unit's path, not the one a client calls: project-1's administrator creating a user
 (`POST /profile/profile/admin/users` at the gateway, `POST /api/profile/admin/users` at
@@ -245,3 +244,8 @@ through the discovery locator).
 
 The caller of a request the gateway receives is not known, so no person or client is drawn
 before the gateway; the gateway's own filters are still not traced into the flow.
+
+## Amendment (#369): no fixed number of flows; flows from an unknown caller.
+
+- **Choosing flows.** The fixed counts here ("fewer than seven are shown", "shown only while fewer than three are") are replaced: candidates are ranked as described, then the LLM (role Compose) keeps those that are architecturally meaningful for the system, each with a one-sentence reason, and only those are drawn; it can keep only traced flows, never add one. There is no fixed number (`docs/quality-bar.md`, Sequence diagrams; `docs/design.md`, Sequence diagrams). Built by #272; until then the counts above still apply.
+- **Unknown caller.** Where a flow's entry point is reached by nothing in scope and used by no person, the flow starts at the `Unknown caller` actor (ADR 0074, amendment for #365) instead of a note naming its trigger; a scheduled job's flow still starts with its trigger note. Built by #365.

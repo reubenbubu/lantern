@@ -1,6 +1,6 @@
 # 0036: Persistence extractor
 
-Status: accepted (#130, part of #92), pending the user's review (#24)
+Status: accepted (#130, part of #92)
 
 ## Context
 

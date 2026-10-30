@@ -1,7 +1,6 @@
 # 0086: Documentation pages in the C4 report
 
-Status: accepted (#249), amends ADR 0031, ADR 0044, ADR 0048 and ADR 0082, pending the user's
-review (#24)
+Status: accepted (#249), amends ADR 0031, ADR 0044, ADR 0048 and ADR 0082, amended by ADR 0087 (#229)
 
 ## Context
 

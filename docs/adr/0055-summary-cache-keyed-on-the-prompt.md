@@ -1,6 +1,6 @@
 # 0055: Summary cache keyed on the prompt
 
-Status: accepted (#190), amends ADR 0010, pending the user's review (#24)
+Status: accepted (#190), amends ADR 0010
 
 ## Context
 

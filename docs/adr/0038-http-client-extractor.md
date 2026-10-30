@@ -1,6 +1,6 @@
 # 0038: HTTP client extractor
 
-Status: accepted (#128, part of #92; extended by #145, #149 and #258; amended (#307)), pending the user's review (#24)
+Status: accepted (#128, part of #92; extended by #145, #149 and #258; amended (#307))
 
 ## Context
 

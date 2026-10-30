@@ -1,6 +1,6 @@
 # 0021: Parallel LLM calls with limits and retries
 
-Status: accepted (#44), pending the user's review (#24)
+Status: accepted (#44)
 
 ## Context
 
