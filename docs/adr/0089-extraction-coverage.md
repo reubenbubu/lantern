@@ -1,6 +1,6 @@
 # 0089: Extraction coverage: which reference items the extracted facts back
 
-Status: accepted (#380)
+Status: accepted (#380); amended for #410
 
 ## Context
 
@@ -39,8 +39,9 @@ it needs a measure of extraction alone, taken before and after. The research is 
     sending code
   - a class whose calls or Redis uses back an item cites the whole file
 
-  The first baseline fixed 66 citations of the subagent-written maps this way. Every miss left is
-  a thing no extractor finds.
+  The first baseline fixed 66 citations of the subagent-written maps this way. Some of these
+  fixes followed where an extractor records the thing, which the amendment for #410 no longer
+  allows.
 - **The match.** A need is met when a fact of its area has evidence in the cited file whose lines
   overlap the cited ones. A fact or citation without lines covers its whole file.
   - **Not the fact's content.** The match checks the area and the lines, not that the fact names
@@ -77,3 +78,37 @@ it needs a measure of extraction alone, taken before and after. The research is 
 - The maps were written once from the references' citations and spot-checked. A wrong citation
   shows as a missing need and is fixed in the map, with the reference's `facts/*.md` as the
   authority.
+
+## Amendment for #410: recall only, weak matches, a hand check, and how maps change
+
+The research was redone at high depth (`docs/research/extraction-coverage.md`). Matching by line
+overlap is not new. Bug-detector studies (Habib and Pradel, NIST SATE) match that way and find
+coincidental matches: a fact on the cited lines that is not about the item. CodeQL's expectations
+anchor to a line and check the content too. Coverage stays the overlap restricted to the expected
+area, tightened as follows:
+
+- **Recall only.** Coverage measures how many reference items the facts back, not whether the facts
+  are right. Precision stays with the scorecards.
+- **Weak matches (#411).** A need met only by a fact without lines, or a citation without lines,
+  is weak. The report shows weak needs apart from met ones. They do not count as backed where the
+  area records lines for that kind of file. This is relation extraction's "relaxed" level, which
+  overstates results when mixed with stricter ones.
+- **Line hashes (#411).** The map keeps a hash of each citation's first line, the first 100
+  characters without whitespace, as GitHub's `primaryLocationLineHash` does. `coverage.mjs check`
+  with a checkout compares them, so a pin move flags citations that drifted.
+- **A hand check.** At each baseline and test drop, a sample of backed items, at least the
+  connections and data stores of every development set, is checked by hand. Each is recorded as
+  full, partial or mismatch. The result goes in the baseline's comment or the test drop's README.
+- **How a map changes.** A citation changes only on the authority of the reference's
+  `facts/*.md`, narrowed by the conventions above, and never because an extractor records the
+  thing elsewhere. Each change says why in its PR. A miss means no fact of that area is on the
+  cited lines, not that no extractor could find it.
+- **Held-out sets.** No map is written for project-5 to project-7 before milestone 2D.2, and no
+  extractor is tuned to a map.
+- **Not adopted.**
+  - A strict level that also requires the fact to name the item waits in `Later` (#412). The
+    hand check covers coincidental matches for now.
+  - Oracle linking (facts written from the reference fed to the linker, as in SWE-bench) costs
+    too much for what it adds.
+  - CodeQL-style known-gap markers are not needed while before and after reports are compared
+    whole.
