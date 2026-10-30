@@ -42,11 +42,12 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>It records the framework and its version, the libraries Lantern knows, the image that serves
  * it (the last stage of the Dockerfile in its folder) as a {@code frontend-app} fact; each URL its
  * code calls from the browser (Angular's {@code HttpClient}, {@code fetch}, axios, a WebSocket,
- * SockJS or a STOMP client's {@code brokerURL}) as a {@code frontend-call}, with constants of its
- * file and the values of its environment files filled in; and each path prefix the nginx that
- * serves it or its development server passes on to another server as a {@code frontend-proxy}. The
- * linker matches the URLs with the units they reach. Files are read from git at the commit; nothing
- * is built or run, and the code is read as text, not parsed.
+ * SockJS or a STOMP client's {@code brokerURL}, or a navigation of the browser to a URL) as a
+ * {@code frontend-call}, with constants of its file and the values of its environment files filled
+ * in; and each path prefix the nginx that serves it or its development server passes on to another
+ * server as a {@code frontend-proxy}. The linker matches the URLs with the units they reach. Files
+ * are read from git at the commit; nothing is built or run, and the code is read as text, not
+ * parsed.
  */
 public final class FrontendExtractor {
 
@@ -54,7 +55,7 @@ public final class FrontendExtractor {
   public static final String NAME = "frontend";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "frontend-extractor";
@@ -178,6 +179,17 @@ public final class FrontendExtractor {
   private static final Pattern FETCH = Pattern.compile("(?<![\\w$.])fetch\\s*\\(");
   private static final Pattern SOCKET = Pattern.compile("\\bnew\\s+(WebSocket|SockJS)\\s*\\(");
   private static final Pattern BROKER_URL = Pattern.compile("\\bbrokerURL\\s*:\\s*");
+
+  /**
+   * A navigation of the browser to a URL, which leaves the app for a page the server answers, such
+   * as its sign-in: {@code window.location.href = url}, {@code location.assign(url)}, {@code
+   * location.replace(url)}.
+   */
+  private static final Pattern NAVIGATION =
+      Pattern.compile(
+          "(?:\\b(?:window|document|\\$window)\\s*\\.\\s*|(?<![\\w$.]))location\\s*\\.\\s*"
+              + "(?:href\\s*=(?!=)|assign\\s*\\(|replace\\s*\\()");
+
   private static final Pattern FETCH_METHOD =
       Pattern.compile("\\bmethod\\s*:\\s*['\"`]([A-Za-z]+)['\"`]");
   private static final Pattern BASE_URL = Pattern.compile("\\bbaseURL\\s*:\\s*([^,\\n}]+)");
@@ -797,8 +809,17 @@ public final class FrontendExtractor {
       }
     }
 
-    /** A call site: where it is, its method (null for a WebSocket) and its URL expression. */
-    private record Site(int offset, String method, String expression, String protocol) {}
+    /**
+     * A call site: where it is, its method (null for a WebSocket), its URL expression, and whether
+     * it navigates the browser rather than requesting from the page.
+     */
+    private record Site(
+        int offset, String method, String expression, String protocol, boolean navigation) {
+
+      Site(int offset, String method, String expression, String protocol) {
+        this(offset, method, expression, protocol, false);
+      }
+    }
 
     private int calls(
         EntityId subject, Source source, List<Environment> environments, int remaining) {
@@ -864,6 +885,18 @@ public final class FrontendExtractor {
       m = BROKER_URL.matcher(text);
       while (m.find()) {
         sites.add(new Site(m.start(), null, argument(text, m.end()), WEBSOCKET));
+      }
+      m = NAVIGATION.matcher(text);
+      while (m.find()) {
+        String expression = argument(text, m.end());
+        if (text.charAt(m.end() - 1) == '=') {
+          // An assignment may end at its line, without a semicolon.
+          int newline = expression.indexOf('\n');
+          if (newline >= 0) {
+            expression = expression.substring(0, newline).trim();
+          }
+        }
+        sites.add(new Site(m.start(), "GET", expression, HTTP, true));
       }
       sites.sort(Comparator.comparingInt(Site::offset));
       int added = 0;
@@ -931,6 +964,9 @@ public final class FrontendExtractor {
         alternates.forEach(array::add);
       }
       attributes.put("protocol", site.protocol());
+      if (site.navigation()) {
+        attributes.put("navigation", true);
+      }
       String written = site.expression().replaceAll("\\s+", " ");
       attributes.put("written", written.length() > 200 ? written.substring(0, 200) : written);
       if (!unresolved.isEmpty()) {

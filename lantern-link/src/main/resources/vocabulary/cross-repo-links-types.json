@@ -182,6 +182,26 @@
           "type": "string",
           "description": "For a frontend's link, the path prefix of the proxy it goes through: the nginx that serves the frontend, or its development server."
         },
+        "navigation": {
+          "type": "boolean",
+          "description": "For a frontend's link, true when its code navigates the browser to the URL rather than requesting it from the page."
+        },
+        "reaches": {
+          "type": "string",
+          "description": "For a frontend's call, the method that handles it: the endpoint's handler, or the method that registers the WebSocket endpoint, of the unit in reachesUnit (ADR 0047, amendment for #331)."
+        },
+        "reachesUnit": {
+          "type": "string",
+          "description": "For a frontend's call that reaches an endpoint, the unit that serves it: the linked unit itself, or the unit the gateway route in throughRoute sends it to."
+        },
+        "reachesEndpoint": {
+          "type": "string",
+          "description": "For a frontend's call that reaches an endpoint, the endpoint as that unit serves it, such as POST /api/auth/sign-in, or the WebSocket endpoint's path."
+        },
+        "throughRoute": {
+          "type": "string",
+          "description": "For a frontend's call to a gateway, the id of the gateway route that sends it on to reachesUnit."
+        },
         "route": {
           "type": "string",
           "description": "The id of the gateway route the link is, for a link from a Spring Cloud Gateway route."

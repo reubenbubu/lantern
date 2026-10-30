@@ -35,4 +35,10 @@ export class OrdersService {
       reconnectDelay: 5000
     });
   }
+
+  signIn() {
+    // The browser leaves the app for the server's sign-in; a string's replace is no navigation.
+    const next = this.address.location.replace(',', ' ');
+    window.location.href = `${environment.apiUrl}/login?next=${next}`;
+  }
 }

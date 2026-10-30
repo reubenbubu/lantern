@@ -86,6 +86,10 @@
           "type": "string",
           "description": "HTTP or WebSocket."
         },
+        "navigation": {
+          "type": "boolean",
+          "description": "True when the code navigates the browser to the URL (window.location.href, location.assign or replace), leaving the app for a page the server answers, rather than requesting it from the page."
+        },
         "written": {
           "type": "string",
           "description": "The URL's expression as the code writes it."
