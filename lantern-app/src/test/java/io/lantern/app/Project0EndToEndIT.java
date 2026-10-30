@@ -50,6 +50,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Runs the whole pipeline (register, snapshot, build, extract, summarize, compose, render) over all
@@ -267,6 +268,34 @@ class Project0EndToEndIT {
     AnalysisRun.Rendered system = second.documents().getLast();
     checkSystemReport(system.document());
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
+    checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));
+  }
+
+  /**
+   * Writes the extraction coverage of project-0 to {@code target/project-0} (ADR 0089): the
+   * extracted facts and the report of which of the set's items they back, after checking the set's
+   * coverage map against its items.
+   */
+  private static void checkExtractionCoverage(Path facts) throws IOException, InterruptedException {
+    Path copy = OUT.resolve(ExtractedFacts.FILE);
+    Files.copy(facts, copy, StandardCopyOption.REPLACE_EXISTING);
+    Process coverage =
+        new ProcessBuilder(
+                Path.of("../lantern-web/target/node/node").toAbsolutePath().toString(),
+                "../lantern-web/scripts/coverage.mjs",
+                copy.toString(),
+                "../testsets/project-0",
+                "--out",
+                OUT.resolve("project-0").toString())
+            .redirectErrorStream(true)
+            .start();
+    String output = new String(coverage.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    assertThat(coverage.waitFor()).as(output).isZero();
+    JsonNode card =
+        JsonMapper.builder()
+            .build()
+            .readTree(Files.readString(OUT.resolve("project-0.coverage.json")));
+    assertThat(card.get("categories").get("connections").get("items").asInt()).isPositive();
   }
 
   /**

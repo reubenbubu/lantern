@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
+import { checkMap, coverageItems, parseAt, readCoverageMap, readReference } from '../scripts/coverage.mjs';
 import { reportSpecIssues } from '../scripts/report-spec-check.mjs';
 
 const spec = 'c4-model-sequence-diagrams';
@@ -92,5 +93,30 @@ for (const set of sets) {
 
   test(`${set}: the reference has its verification notes`, () => {
     assert.ok(existsSync(`${dir}verification.md`));
+  });
+}
+
+// The coverage maps (docs/adr/0089-extraction-coverage.md): each maps every item of its set's
+// reference (or, without one, lists its items) to the facts it needs, in a known area, and cites
+// only the set's pinned repositories where the set has a reference.
+const mapped = readdirSync(testsets).filter((name) => existsSync(`${testsets}${name}/coverage.json`));
+
+test('every development set with a reference has a coverage map', () => {
+  for (const set of sets) assert.ok(mapped.includes(set), `${set} has no coverage.json`);
+});
+
+for (const set of mapped) {
+  test(`${set}: its coverage map is sound`, () => {
+    const map = readCoverageMap(`${testsets}${set}`);
+    const reference = readReference(`${testsets}${set}`);
+    assert.deepEqual(checkMap(coverageItems(reference, map), map), []);
+    if (reference) {
+      const repos = new Set(pins(set).map((pin) => pin.name));
+      for (const [key, entry] of Object.entries(map.items)) {
+        for (const need of entry.needs ?? []) {
+          assert.ok(repos.has(parseAt(need.at).repo), `${set}: ${key} cites ${need.at}, not a pinned repository`);
+        }
+      }
+    }
   });
 }

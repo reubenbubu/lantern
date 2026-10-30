@@ -15,9 +15,12 @@ set's repositories as one system named after the set (scripts/launch.sh, which s
 local database), then scores the system report against testsets/<set>/reference with
 lantern-web/scripts/score.mjs. A real model costs money: only with the user's go-ahead.
 
-Writes to <workspace>/scores/<label>/: for each set <set>/_system.c4.html and run.json
-(the run's model for every role, its calls and cost), <set>.scorecard.json and
-<set>.scorecard.md; with --compare-with, <set>.compare.md beside them.
+Writes to <workspace>/scores/<label>/: for each set <set>/_system.c4.html, run.json
+(the run's model for every role, its calls and cost) and extracted.jsonl.gz (the facts
+the extractors found), <set>.scorecard.json and <set>.scorecard.md, the extraction
+coverage <set>.coverage.json and <set>.coverage.md (lantern-web/scripts/coverage.mjs,
+when the set has a testsets/<set>/coverage.json); with --compare-with, <set>.compare.md
+beside them.
 
 Options:
   --llm-properties FILE     Named LLM settings file (docs/adr/0009-llm-configuration.md).
@@ -197,6 +200,15 @@ for set in "${sets[@]}"; do
   fi
   "$node_bin" "$REPO/lantern-web/scripts/score.mjs" "$scores/$set/_system.c4.html" "$REPO/testsets/$set" \
     ${run_args[@]+"${run_args[@]}"} --out "$scores/$set" >&2
+  # Extraction coverage (docs/adr/0089-extraction-coverage.md): which reference items the
+  # extracted facts back, before linking.
+  if [[ -f "$documents/extracted.jsonl.gz" && -f "$REPO/testsets/$set/coverage.json" ]]; then
+    cp "$documents/extracted.jsonl.gz" "$scores/$set/"
+    "$node_bin" "$REPO/lantern-web/scripts/coverage.mjs" "$scores/$set/extracted.jsonl.gz" "$REPO/testsets/$set" \
+      --out "$scores/$set" >&2
+  else
+    info "$set: no extraction coverage (needs extracted.jsonl.gz beside the report and testsets/$set/coverage.json)"
+  fi
   if [[ -n "$compare_with" ]]; then
     earlier="$workspace/scores/$compare_with/$set.scorecard.json"
     if [[ -f "$earlier" ]]; then

@@ -455,6 +455,7 @@ public final class AnalysisRun {
                   callLog.spentByModelSince(started),
                   callLog.conversationsSince(started)));
       LOG.info("Wrote {}", runRecord);
+      LOG.info("Wrote {}", ExtractedFacts.write(out, found));
       return new Result(
           system,
           systemTitle,

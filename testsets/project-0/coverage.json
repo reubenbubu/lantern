@@ -1,0 +1,393 @@
+{
+  "description": "project-0 has no reference report: its items are listed here, the units, data stores, brokers' destinations, external system and connections its cases set up (the system report Project0EndToEndIT checks), each with the facts it needs of extraction (docs/adr/0089-extraction-coverage.md). Components are not listed.",
+  "items": {
+    "storefront-app": {
+      "kind": "container",
+      "name": "storefront-app",
+      "needs": [
+        {
+          "area": "maven",
+          "at": "storefront:storefront-app/pom.xml:13"
+        },
+        {
+          "area": "spring",
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/StorefrontApplication.java:7-9"
+        }
+      ]
+    },
+    "catalog-service": {
+      "kind": "container",
+      "name": "catalog-service",
+      "needs": [
+        {
+          "area": "maven",
+          "at": "catalog:pom.xml:15"
+        },
+        {
+          "area": "spring",
+          "at": "catalog:src/main/java/com/acme/shop/catalog/CatalogApplication.java:6-7"
+        },
+        {
+          "area": "config",
+          "at": "catalog:src/main/resources/bootstrap.yml:3"
+        }
+      ]
+    },
+    "fulfilment": {
+      "kind": "container",
+      "name": "fulfilment",
+      "needs": [
+        {
+          "area": "maven",
+          "at": "fulfilment:pom.xml:15"
+        },
+        {
+          "area": "spring",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/FulfilmentApplication.java:6-7"
+        }
+      ]
+    },
+    "payments": {
+      "kind": "container",
+      "name": "payments",
+      "needs": [
+        {
+          "area": "maven",
+          "at": "payments:pom.xml:15"
+        },
+        {
+          "area": "spring",
+          "at": "payments:src/main/java/com/acme/shop/payments/PaymentsApplication.java:7-9"
+        }
+      ]
+    },
+    "catalog-db": {
+      "kind": "database",
+      "name": "catalog",
+      "needs": [
+        {
+          "area": "config",
+          "at": "catalog:src/main/resources/application.yml:6"
+        },
+        {
+          "area": "sql",
+          "at": "catalog-lib:catalog-lib/src/main/resources/db/changelog/db.changelog-master.yaml:6-7"
+        }
+      ]
+    },
+    "shop-db": {
+      "kind": "database",
+      "name": "shop",
+      "needs": [
+        {
+          "area": "config",
+          "at": "storefront:storefront-app/src/main/resources/application.yml:5"
+        },
+        {
+          "area": "sql",
+          "at": "storefront:storefront-app/src/main/resources/db/migration/V1__create_orders.sql"
+        }
+      ]
+    },
+    "shop.orders": {
+      "kind": "queue",
+      "name": "shop.orders",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "payments:src/main/java/com/acme/shop/payments/RabbitConfig.java:32-38"
+        }
+      ]
+    },
+    "shop.returns": {
+      "kind": "queue",
+      "name": "shop.returns",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnsConfig.java:26-27"
+        }
+      ]
+    },
+    "audit.orders": {
+      "kind": "queue",
+      "name": "audit.orders",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/AuditTrail.java:19"
+        }
+      ]
+    },
+    "shipments.dispatched": {
+      "kind": "queue",
+      "name": "shipments.dispatched",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ShipmentService.java:19"
+        }
+      ]
+    },
+    "payments.completed": {
+      "kind": "queue",
+      "name": "payments.completed",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentCompletedListener.java:15"
+        }
+      ]
+    },
+    "paygate": {
+      "kind": "external",
+      "name": "PayGate",
+      "needs": [
+        {
+          "area": "config",
+          "at": "payments:src/main/resources/application.properties:16"
+        },
+        {
+          "area": "http-client",
+          "at": "payments:src/main/java/com/acme/shop/payments/PaymentGatewayClient.java:23-24"
+        }
+      ]
+    },
+    "storefront-app -> catalog-service": {
+      "kind": "connection",
+      "name": "storefront-app → catalog-service",
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/CatalogClient.java:8-11"
+        }
+      ]
+    },
+    "storefront-app -> payments": {
+      "kind": "connection",
+      "name": "storefront-app → payments",
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/PaymentsClient.java:21"
+        },
+        {
+          "area": "config",
+          "at": "storefront:storefront-app/src/main/resources/application.yml:18"
+        }
+      ]
+    },
+    "storefront-app -> shop-db": {
+      "kind": "connection",
+      "name": "storefront-app → shop-db",
+      "needs": [
+        {
+          "area": "config",
+          "at": "storefront:storefront-app/src/main/resources/application.yml:5"
+        },
+        {
+          "area": "persistence",
+          "at": "storefront:storefront-model/src/main/java/com/acme/shop/storefront/model/OrderRepository.java:5"
+        }
+      ]
+    },
+    "catalog-service -> catalog-db": {
+      "kind": "connection",
+      "name": "catalog-service → catalog-db",
+      "needs": [
+        {
+          "area": "config",
+          "at": "catalog:src/main/resources/application.yml:6"
+        },
+        {
+          "area": "persistence",
+          "at": "catalog-lib:catalog-lib/src/main/java/com/acme/shop/catalog/ProductRepository.java:5"
+        }
+      ]
+    },
+    "payments -> shop-db": {
+      "kind": "connection",
+      "name": "payments → shop-db",
+      "needs": [
+        {
+          "area": "config",
+          "at": "payments:src/main/resources/application.properties:5"
+        }
+      ]
+    },
+    "payments -> paygate": {
+      "kind": "connection",
+      "name": "payments → paygate",
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "payments:src/main/java/com/acme/shop/payments/PaymentGatewayClient.java:23-24"
+        },
+        {
+          "area": "config",
+          "at": "payments:src/main/resources/application.properties:16"
+        }
+      ]
+    },
+    "storefront-app -> shop.orders": {
+      "kind": "connection",
+      "name": "storefront-app → shop.orders",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/OrderEventPublisher.java:16"
+        }
+      ]
+    },
+    "shop.orders -> payments": {
+      "kind": "connection",
+      "name": "shop.orders → payments",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "payments:src/main/java/com/acme/shop/payments/OrderEventsListener.java:15"
+        },
+        {
+          "area": "messaging",
+          "at": "payments:src/main/java/com/acme/shop/payments/RabbitConfig.java:32-33"
+        }
+      ]
+    },
+    "storefront-app -> audit.orders": {
+      "kind": "connection",
+      "name": "storefront-app → audit.orders",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "storefront:storefront-integration/src/main/java/com/acme/shop/storefront/integration/AuditTrail.java:19"
+        }
+      ]
+    },
+    "audit.orders -> fulfilment": {
+      "kind": "connection",
+      "name": "audit.orders → fulfilment",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/AuditListener.java:14"
+        }
+      ]
+    },
+    "payments -> payments.completed": {
+      "kind": "connection",
+      "name": "payments → payments.completed",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "payments:src/main/java/com/acme/shop/payments/PaymentCompletedPublisher.java:20"
+        }
+      ]
+    },
+    "payments.completed -> fulfilment": {
+      "kind": "connection",
+      "name": "payments.completed → fulfilment",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentCompletedListener.java:15"
+        }
+      ]
+    },
+    "fulfilment -> catalog-service": {
+      "kind": "connection",
+      "name": "fulfilment → catalog-service",
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/StockClient.java:20-21"
+        },
+        {
+          "area": "config",
+          "at": "fulfilment:src/main/resources/application.yml:10"
+        }
+      ]
+    },
+    "fulfilment -> shipments.dispatched": {
+      "kind": "connection",
+      "name": "fulfilment → shipments.dispatched",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ShipmentService.java:19"
+        }
+      ]
+    },
+    "shipments.dispatched -> storefront-app": {
+      "kind": "connection",
+      "name": "shipments.dispatched → storefront-app",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ShipmentListener.java:18"
+        }
+      ]
+    },
+    "fulfilment -> shop.returns": {
+      "kind": "connection",
+      "name": "fulfilment → shop.returns",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/ReturnsPublisher.java:19"
+        }
+      ]
+    },
+    "shop.returns -> payments": {
+      "kind": "connection",
+      "name": "shop.returns → payments",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "payments:src/main/java/com/acme/shop/payments/RefundListener.java:10"
+        },
+        {
+          "area": "messaging",
+          "at": "payments:src/main/java/com/acme/shop/payments/ReturnsConfig.java:26-27"
+        }
+      ]
+    },
+    "shop.returns -> storefront-app": {
+      "kind": "connection",
+      "name": "shop.returns → storefront-app",
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnListener.java:10"
+        },
+        {
+          "area": "messaging",
+          "at": "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnsConfig.java:26-27"
+        }
+      ]
+    },
+    "fulfilment -> storefront-app": {
+      "kind": "connection",
+      "name": "fulfilment → storefront-app",
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/OrderClient.java:18"
+        },
+        {
+          "area": "config",
+          "at": "fulfilment:src/main/resources/application.yml:14"
+        }
+      ]
+    },
+    "fulfilment -> payments": {
+      "kind": "connection",
+      "name": "fulfilment → payments",
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentStatusClient.java:19"
+        }
+      ]
+    }
+  }
+}

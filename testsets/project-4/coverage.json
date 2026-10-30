@@ -1,0 +1,1073 @@
+{
+  "description": "project-4: what each reference item needs of extraction (docs/adr/0089-extraction-coverage.md).",
+  "items": {
+    "member": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "CRM-Frontend:src/app/app.routes.ts:32"
+        },
+        {
+          "area": "people",
+          "at": "CRM-Frontend:src/app/app.routes.ts:36-37"
+        }
+      ]
+    },
+    "invitee": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "CRM-Frontend:src/app/app.routes.ts:35"
+        },
+        {
+          "area": "people",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationInvitationController.java:20-23"
+        }
+      ]
+    },
+    "frontend": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "CRM-Frontend:package.json"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.dev.yml:8-17"
+        }
+      ]
+    },
+    "gateway": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Discovery-and-Gateway:api-gateway/pom.xml:12"
+        },
+        {
+          "area": "spring",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/ApiGatewayApplication.java:8-11"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-120"
+        }
+      ]
+    },
+    "eureka": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Discovery-and-Gateway:eureka-service/pom.xml:12"
+        },
+        {
+          "area": "spring",
+          "at": "Discovery-and-Gateway:eureka-service/src/main/java/com/crm/EurekaServerApplication.java:7-9"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.dev.yml:8-84"
+        }
+      ]
+    },
+    "auth": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Auth-Service:pom.xml:14"
+        },
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/AuthServiceApplication.java:8-11"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-159"
+        }
+      ]
+    },
+    "main": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Main-Service:pom.xml:13"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-13"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-191"
+        }
+      ]
+    },
+    "file": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "File-Service:pom.xml:13"
+        },
+        {
+          "area": "spring",
+          "at": "File-Service:src/main/java/com/crm/file/FileServiceApplication.java:7-9"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-221"
+        }
+      ]
+    },
+    "notification": {
+      "needs": [
+        {
+          "area": "maven",
+          "at": "Notification-Service:pom.xml:13"
+        },
+        {
+          "area": "spring",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/NotificationServiceApplication.java:7-9"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-249"
+        }
+      ]
+    },
+    "auth-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Auth-Service:src/main/resources/application.properties:6-8"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-51"
+        }
+      ]
+    },
+    "main-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Main-Service:src/main/resources/application.yml:42-45"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-32"
+        }
+      ]
+    },
+    "file-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "File-Service:src/main/resources/application.properties:6-8"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-70"
+        }
+      ]
+    },
+    "redis": {
+      "needs": [
+        {
+          "area": "redis",
+          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java"
+        },
+        {
+          "area": "redis",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java"
+        },
+        {
+          "area": "deployment",
+          "at": "Deployment:docker-compose.local.yml:10-279"
+        }
+      ]
+    },
+    "x-main-events": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22"
+        }
+      ]
+    },
+    "x-file-events": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "File-Service:src/main/java/com/crm/file/config/RabbitMQConfig.java"
+        },
+        {
+          "area": "messaging",
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38"
+        }
+      ]
+    },
+    "x-auth-event": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/config/RabbitMQConfig.java"
+        },
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20"
+        }
+      ]
+    },
+    "q-send-message": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/RabbitMQConfig.java"
+        },
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20"
+        },
+        {
+          "area": "messaging",
+          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73"
+        }
+      ]
+    },
+    "gmail": {
+      "needs": [
+        {
+          "area": "mail",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35"
+        },
+        {
+          "area": "config",
+          "at": "Notification-Service:src/main/resources/application.properties:10-15"
+        }
+      ]
+    },
+    "gw-routes": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:31-85"
+        }
+      ]
+    },
+    "gw-auth-filter": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/AuthFilter.java:18-19"
+        }
+      ]
+    },
+    "gw-check-access": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/AuthorizeAndCheckAccessFilter.java:22-23"
+        },
+        {
+          "area": "java",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/utils/OrganizationIdExtractor.java:14-15"
+        }
+      ]
+    },
+    "gw-org-files": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/OrganizationFilesFilter.java:22-23"
+        },
+        {
+          "area": "http-client",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/OrganizationFilesClient.java"
+        }
+      ]
+    },
+    "gw-jwt": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/JwtService.java:21-22"
+        },
+        {
+          "area": "identity",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/JwtService.java:59"
+        }
+      ]
+    },
+    "gw-permissions": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/service/UserPermissionService.java:10-12"
+        },
+        {
+          "area": "redis",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java"
+        },
+        {
+          "area": "http-client",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/UserPermissionClient.java"
+        }
+      ]
+    },
+    "gw-composite": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/controllers/TasksCompositeController.java:17-20"
+        },
+        {
+          "area": "http-client",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java"
+        },
+        {
+          "area": "http-client",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/UsersClient.java"
+        }
+      ]
+    },
+    "au-sign-in-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/AuthController.java:15-18"
+        },
+        {
+          "area": "config",
+          "at": "Auth-Service:src/main/resources/application.properties:35"
+        }
+      ]
+    },
+    "au-restore-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/RestorePasswordRequestController.java:16-19"
+        }
+      ]
+    },
+    "au-users-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/UserController.java:15-18"
+        },
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/UserSessionController.java:14-17"
+        }
+      ]
+    },
+    "au-internal-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalAuthController.java:12-15"
+        },
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalRolesController.java:16-19"
+        },
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalUsersController.java:15-18"
+        },
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalUserPermissionsController.java:11-14"
+        }
+      ]
+    },
+    "au-permission-resolver": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/operation/UserPermissionExtractor.java:17-20"
+        },
+        {
+          "area": "http-client",
+          "at": "Auth-Service:src/main/java/com/crm/auth/feign/MainClient.java:9-16"
+        }
+      ]
+    },
+    "au-role-sync": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/consumer/UpdateOrganizationUserPermission.java:19"
+        }
+      ]
+    },
+    "au-permission-cache": {
+      "needs": [
+        {
+          "area": "redis",
+          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java"
+        },
+        {
+          "area": "redis",
+          "at": "Auth-Service:src/main/java/com/crm/auth/config/RedisConfig.java:48-51"
+        }
+      ]
+    },
+    "au-email-producers": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20"
+        },
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendVerificationCodeProducer.java:22"
+        }
+      ]
+    },
+    "ms-org-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationController.java:21-24"
+        }
+      ]
+    },
+    "ms-membership-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationInvitationController.java:20-23"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationUsersController.java:20-23"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationRolesController.java:23-26"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationUserRoleController.java:17-20"
+        }
+      ]
+    },
+    "ms-files-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/OrganizationFileController.java:19-22"
+        }
+      ]
+    },
+    "ms-tasks-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskController.java:23-26"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskPriorityController.java:21-24"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/TaskStatusController.java:21-24"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/service/processor/TaskProcessorService.java:137"
+        }
+      ]
+    },
+    "ms-internal-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/internal/InternalOrganizationUserController.java:12-15"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/controller/internal/InternalOrganizationFilesController.java:15-18"
+        }
+      ]
+    },
+    "ms-access-guard": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/aspect/OrganizationMembershipControlAspect.java:19-22"
+        },
+        {
+          "area": "spring",
+          "at": "crm-shared-lib:rbac/src/main/java/com/crm/sharedlib/rbac/aspectj/PermissionControlAspect.java:19-23"
+        }
+      ]
+    },
+    "ms-auth-client": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Main-Service:src/main/java/com/crm/main/feign/AuthClient.java:17-39"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-11"
+        }
+      ]
+    },
+    "ms-producers": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrgUserRoleChangedProducer.java:42"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/InvitationCreatedProducer.java:25"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/TaskReminderProducer.java:39"
+        },
+        {
+          "area": "messaging",
+          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73"
+        }
+      ]
+    },
+    "ms-consumers": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultPrioritiesConsumer.java:30"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultStatusesConsumer.java:30"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/OrganizationRootDirCreatedConsumer.java:24"
+        }
+      ]
+    },
+    "ms-reminder-job": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/service/jobs/handlers/TaskReminderJobHandler.java:21-23"
+        },
+        {
+          "area": "spring",
+          "at": "Main-Service:src/main/java/com/crm/main/service/processor/TaskProcessorService.java:137"
+        }
+      ]
+    },
+    "fs-api": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "File-Service:src/main/java/com/crm/file/controller/FileController.java:20-23"
+        }
+      ]
+    },
+    "fs-guard": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "crm-shared-lib:rbac/src/main/java/com/crm/sharedlib/rbac/aspectj/PermissionControlAspect.java:19-23"
+        },
+        {
+          "area": "spring",
+          "at": "File-Service:src/main/java/com/crm/file/controller/FileController.java:28"
+        }
+      ]
+    },
+    "fs-service": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "File-Service:src/main/java/com/crm/file/service/FileService.java:26-28"
+        }
+      ]
+    },
+    "fs-repos": {
+      "needs": [
+        {
+          "area": "persistence",
+          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileMetadataRepository.java:9-10"
+        },
+        {
+          "area": "persistence",
+          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileContentRepository.java:9-10"
+        }
+      ]
+    },
+    "fs-root-consumer": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:28"
+        },
+        {
+          "area": "messaging",
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38"
+        }
+      ]
+    },
+    "ns-email-consumers": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/PasswordSenderConsumer.java:24"
+        },
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/VerificationCodeSenderConsumer.java:23"
+        },
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendInvitationOfOrganizationConsumer.java:27"
+        },
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/TaskReminderConsumer.java:27"
+        }
+      ]
+    },
+    "ns-templates": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/TemplateBuilder.java:16-18"
+        }
+      ]
+    },
+    "ns-email": {
+      "needs": [
+        {
+          "area": "spring",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:13-16"
+        },
+        {
+          "area": "mail",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35"
+        },
+        {
+          "area": "config",
+          "at": "Notification-Service:src/main/resources/application.properties:10-15"
+        }
+      ]
+    },
+    "ns-message-consumer": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20"
+        }
+      ]
+    },
+    "ns-sender": {
+      "needs": [
+        {
+          "area": "websocket",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/NotificationSender.java:42"
+        },
+        {
+          "area": "websocket",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/NotificationSender.java:56"
+        }
+      ]
+    },
+    "ns-stomp": {
+      "needs": [
+        {
+          "area": "websocket",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:23-29"
+        },
+        {
+          "area": "websocket",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:38-42"
+        }
+      ]
+    },
+    "ns-interceptor": {
+      "needs": [
+        {
+          "area": "websocket",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:27-29"
+        },
+        {
+          "area": "websocket",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:33-35"
+        }
+      ]
+    },
+    "ns-clients": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/AuthClient.java:10-14"
+        },
+        {
+          "area": "http-client",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/MainClient.java:9-16"
+        },
+        {
+          "area": "http-client",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8"
+        }
+      ]
+    },
+    "member -> frontend": {
+      "needs": [
+        {
+          "area": "people",
+          "at": "CRM-Frontend:src/app/app.routes.ts:32-37"
+        }
+      ]
+    },
+    "frontend -> gateway": {
+      "needs": [
+        {
+          "area": "frontend",
+          "at": "CRM-Frontend:src/environments/environment.ts:2"
+        },
+        {
+          "area": "frontend",
+          "at": "CRM-Frontend:src/app/core/services/auth.service.ts:29"
+        }
+      ]
+    },
+    "gateway -> eureka": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/resources/application.properties:4"
+        }
+      ]
+    },
+    "gateway -> redis": {
+      "needs": [
+        {
+          "area": "redis",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/cache/UserPermissionRepository.java"
+        },
+        {
+          "area": "config",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/resources/application.properties:6-9"
+        }
+      ]
+    },
+    "gateway -> auth": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:46-51"
+        },
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:79-84"
+        },
+        {
+          "area": "http-client",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/UserPermissionClient.java"
+        }
+      ]
+    },
+    "gateway -> main": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:38-45"
+        },
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:52-64"
+        },
+        {
+          "area": "http-client",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/composite/clients/TasksClient.java"
+        }
+      ]
+    },
+    "gateway -> file": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:65-78"
+        }
+      ]
+    },
+    "gateway -> notification": {
+      "needs": [
+        {
+          "area": "gateway",
+          "at": "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:34-37"
+        }
+      ]
+    },
+    "auth -> auth-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Auth-Service:src/main/resources/application.properties:6-8"
+        },
+        {
+          "area": "persistence",
+          "at": "Auth-Service:src/main/java/com/crm/auth/persistance/repository/UserRepository.java:11-12"
+        }
+      ]
+    },
+    "auth -> redis": {
+      "needs": [
+        {
+          "area": "redis",
+          "at": "Auth-Service:src/main/java/com/crm/auth/cache/UserPermissionRepository.java"
+        },
+        {
+          "area": "config",
+          "at": "Auth-Service:src/main/resources/application.properties:29-32"
+        }
+      ]
+    },
+    "auth -> main": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Auth-Service:src/main/java/com/crm/auth/feign/MainClient.java:9-16"
+        },
+        {
+          "area": "http-client",
+          "at": "Auth-Service:src/main/java/com/crm/auth/AuthServiceApplication.java:8-11"
+        }
+      ]
+    },
+    "main -> auth": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Main-Service:src/main/java/com/crm/main/feign/AuthClient.java:17-39"
+        },
+        {
+          "area": "http-client",
+          "at": "Main-Service:src/main/java/com/crm/main/MainServiceApplication.java:9-11"
+        }
+      ]
+    },
+    "main -> main-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "Main-Service:src/main/resources/application.yml:42-45"
+        },
+        {
+          "area": "persistence",
+          "at": "Main-Service:src/main/java/com/crm/main/persistance/repository/OrganizationRepository.java:7-8"
+        }
+      ]
+    },
+    "file -> file-db": {
+      "needs": [
+        {
+          "area": "config",
+          "at": "File-Service:src/main/resources/application.properties:6-8"
+        },
+        {
+          "area": "persistence",
+          "at": "File-Service:src/main/java/com/crm/file/persistance/repository/FileMetadataRepository.java:9-10"
+        }
+      ]
+    },
+    "notification -> auth": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/AuthClient.java:10-14"
+        },
+        {
+          "area": "http-client",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8"
+        }
+      ]
+    },
+    "notification -> main": {
+      "needs": [
+        {
+          "area": "http-client",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/MainClient.java:9-16"
+        },
+        {
+          "area": "http-client",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/config/FeignConfig.java:6-8"
+        }
+      ]
+    },
+    "notification -> gmail": {
+      "needs": [
+        {
+          "area": "mail",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/email/EmailService.java:35"
+        },
+        {
+          "area": "config",
+          "at": "Notification-Service:src/main/resources/application.properties:10-15"
+        }
+      ]
+    },
+    "main -> x-main-events": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrganizationCreatedProducer.java:22"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/OrgUserRoleChangedProducer.java:42"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/InvitationCreatedProducer.java:25"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/producer/TaskReminderProducer.java:39"
+        }
+      ]
+    },
+    "x-main-events -> file": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:84-90"
+        },
+        {
+          "area": "messaging",
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:28"
+        }
+      ]
+    },
+    "x-main-events -> main": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:92-106"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultPrioritiesConsumer.java:30"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultStatusesConsumer.java:30"
+        }
+      ]
+    },
+    "x-main-events -> auth": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:108-114"
+        },
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/consumer/UpdateOrganizationUserPermission.java:19"
+        }
+      ]
+    },
+    "x-main-events -> notification": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:77-82"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/config/RabbitMQConfig.java:116-122"
+        },
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendInvitationOfOrganizationConsumer.java:27"
+        },
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/TaskReminderConsumer.java:27"
+        }
+      ]
+    },
+    "file -> x-file-events": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "File-Service:src/main/java/com/crm/file/service/consumer/CreateRootDirConsumer.java:38"
+        }
+      ]
+    },
+    "x-file-events -> main": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "File-Service:src/main/java/com/crm/file/config/RabbitMQConfig.java:37-43"
+        },
+        {
+          "area": "messaging",
+          "at": "Main-Service:src/main/java/com/crm/main/service/consumer/OrganizationRootDirCreatedConsumer.java:24"
+        }
+      ]
+    },
+    "auth -> x-auth-event": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendPasswordToEmailProducer.java:20"
+        },
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/service/producer/SendVerificationCodeProducer.java:22"
+        }
+      ]
+    },
+    "x-auth-event -> notification": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Auth-Service:src/main/java/com/crm/auth/config/RabbitMQConfig.java:49-65"
+        },
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/PasswordSenderConsumer.java:24"
+        },
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/VerificationCodeSenderConsumer.java:23"
+        }
+      ]
+    },
+    "main -> q-send-message": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "crm-shared-lib:messaging/src/main/java/com/crm/sharedlib/messaging/service/MessagingService.java:73"
+        }
+      ]
+    },
+    "q-send-message -> notification": {
+      "needs": [
+        {
+          "area": "messaging",
+          "at": "Notification-Service:src/main/java/com/crm/notification/notification_service/service/consumer/SendMessageConsumer.java:20"
+        }
+      ]
+    }
+  }
+}

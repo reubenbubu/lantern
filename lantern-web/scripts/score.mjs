@@ -350,6 +350,11 @@ function connections(data, toKey) {
   return [...lines.values()];
 }
 
+/** A report's container connections, keyed by its own element ids: `<from> -> <to>`. */
+export function connectionsOf(data) {
+  return connections(data, (id) => id);
+}
+
 /** Greedy one-to-one matching of texts by subject, best pairs first. */
 function matchSubjects(referenceTexts, reportTexts) {
   const ref = referenceTexts.map(subjectWords);
