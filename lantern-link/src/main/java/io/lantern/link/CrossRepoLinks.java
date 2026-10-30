@@ -38,7 +38,7 @@ public final class CrossRepoLinks implements LinkStep {
   public static final String NAME = "cross-repo-links";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "16";
+  public static final String VERSION = "17";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -156,17 +156,18 @@ public final class CrossRepoLinks implements LinkStep {
     LinkIndex index = new LinkIndex(facts);
     Validity validity = Validity.from(snapshot);
     FoundLinks found = new FoundLinks();
-    HttpLinker http = new HttpLinker(index, found);
+    Deployments deployments = new Deployments(index);
+    Addresses addresses = new Addresses(index, deployments);
+    HttpLinker http = new HttpLinker(index, found, addresses);
     http.link();
-    RouteLinker routes = new RouteLinker(index, found);
+    RouteLinker routes = new RouteLinker(index, found, addresses);
     routes.link();
     new MessageLinker(index, found).link();
-    Deployments deployments = new Deployments(index);
     deployments.link(index, found, ORIGIN, validity);
     new DataLinker(index, found, deployments).link(ORIGIN, validity);
-    new FrontendLinker(index, found, deployments, http, routes).link(ORIGIN, validity);
-    new MailLinker(index, found).link();
-    new IdentityLinker(index, found, deployments).link(ORIGIN, validity);
+    new FrontendLinker(index, found, addresses, http, routes).link(ORIGIN, validity);
+    new MailLinker(index, found, addresses).link();
+    new IdentityLinker(index, found, addresses).link(ORIGIN, validity);
     new RedisLinker(index, found, deployments).link(ORIGIN, validity);
     new PeopleLinker(index, found).link(ORIGIN, validity);
     Map<String, Fact> derived = new LinkedHashMap<>();

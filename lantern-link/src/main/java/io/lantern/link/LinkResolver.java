@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.spring.SpringExtractor;
@@ -191,18 +192,20 @@ public final class LinkResolver implements LinkStep {
   public Result resolve(List<Fact> facts, long snapshot) {
     Objects.requireNonNull(facts, "facts");
     LinkIndex index = new LinkIndex(facts);
-    HttpLinker http = new HttpLinker(index, new FoundLinks());
+    Addresses addresses = new Addresses(index, new Deployments(index));
+    HttpLinker http = new HttpLinker(index, new FoundLinks(), addresses);
+    RouteLinker routes = new RouteLinker(index, new FoundLinks(), addresses);
     Map<String, Fact> byId = new HashMap<>();
     facts.forEach(f -> byId.putIfAbsent(f.id(), f));
     List<Question> questions = new ArrayList<>();
     for (Fact unresolved : index.of(CrossRepoLinks.UNRESOLVED_LINK)) {
       String kind = LinkIndex.text(unresolved, "kind");
       if (LinkIndex.texts(unresolved, "candidates").isEmpty()
-          || !("http".equals(kind) || "message".equals(kind))) {
+          || !("http".equals(kind) || "message".equals(kind) || "route".equals(kind))) {
         // Nothing to pick from: the link stays open, for the questions queue.
         continue;
       }
-      questions.add(question(unresolved, index, http, byId));
+      questions.add(question(unresolved, index, http, routes, byId));
     }
     ModelConfig model = client.model(Role.RESOLVE);
     // Tools only for a model that can use them; the graph is prepared once, if anything is asked.
@@ -280,7 +283,11 @@ public final class LinkResolver implements LinkStep {
   // The question
 
   private static Question question(
-      Fact unresolved, LinkIndex index, HttpLinker http, Map<String, Fact> byId) {
+      Fact unresolved,
+      LinkIndex index,
+      HttpLinker http,
+      RouteLinker routes,
+      Map<String, Fact> byId) {
     String view = LinkIndex.text(unresolved, "profile");
     List<Fact> about = new ArrayList<>();
     unitFacts(index, unresolved.subject(), view, about);
@@ -291,6 +298,11 @@ public final class LinkResolver implements LinkStep {
       }
     }
     boolean isHttp = "http".equals(LinkIndex.text(unresolved, "kind"));
+    Fact route =
+        about.stream()
+            .filter(f -> f.predicate().equals(GatewayExtractor.ROUTE))
+            .findFirst()
+            .orElse(null);
     String call = unresolved.object().value();
     String url = urlOf(call);
     String httpMethod = url.equals(call) ? null : call.substring(0, call.indexOf(' '));
@@ -309,9 +321,11 @@ public final class LinkResolver implements LinkStep {
       List<Fact> code =
           unit == null
               ? List.of()
-              : isHttp
-                  ? http.endpoints(unit, httpMethod, path, view)
-                  : receiving(index, unit, send, unresolved.object().value(), view);
+              : route != null
+                  ? routes.reachedEndpoints(unit, route, view)
+                  : isHttp
+                      ? http.endpoints(unit, httpMethod, path, view)
+                      : receiving(index, unit, send, unresolved.object().value(), view);
       code.stream().limit(MAX_CANDIDATE_FACTS).forEach(shown::add);
       candidates.put(id, shown);
     }
@@ -554,7 +568,8 @@ public final class LinkResolver implements LinkStep {
       long snapshot,
       String system) {
     Fact unresolved = question.unresolved();
-    boolean isHttp = "http".equals(LinkIndex.text(unresolved, "kind"));
+    boolean isRoute = "route".equals(LinkIndex.text(unresolved, "kind"));
+    boolean isHttp = isRoute || "http".equals(LinkIndex.text(unresolved, "kind"));
     String predicate = isHttp ? CrossRepoLinks.CALLS_HTTP : CrossRepoLinks.SENDS_MESSAGES_TO;
     Candidate candidate = question.candidate(resolution.target().toString());
     List<Fact> cited = new ArrayList<>();
@@ -583,7 +598,8 @@ public final class LinkResolver implements LinkStep {
       Fact fact = byId.get(id);
       if (fact != null
           && (fact.predicate().equals(MessagingExtractor.SEND)
-              || fact.predicate().equals(HttpClientExtractor.HTTP_CALL))) {
+              || fact.predicate().equals(HttpClientExtractor.HTTP_CALL)
+              || fact.predicate().equals(GatewayExtractor.ROUTE))) {
         origin = fact;
         break;
       }
@@ -597,7 +613,40 @@ public final class LinkResolver implements LinkStep {
     if (code != null) {
       attributes.put("target", code.subject().toString());
     }
-    if (isHttp) {
+    if (isRoute) {
+      // A route of a gateway, described as the routes static matching links (ADR 0077).
+      if (origin != null) {
+        attributes.put("route", origin.object().value());
+        for (String key : List.of("paths", "methods")) {
+          List<String> values = LinkIndex.texts(origin, key);
+          if (!values.isEmpty()) {
+            ArrayNode array = attributes.putArray(key);
+            values.forEach(array::add);
+          }
+        }
+      }
+      String uri = origin == null ? unresolved.object().value() : LinkIndex.text(origin, "uri");
+      if (uri != null) {
+        attributes.put("url", uri);
+      }
+      String scheme =
+          uri == null ? null : LinkText.parse(uri.replaceFirst("^lb:(//)?", "http://")).scheme();
+      String protocol =
+          "ws".equals(scheme) || "wss".equals(scheme)
+              ? "WebSocket"
+              : "https".equals(scheme) ? "HTTPS" : "HTTP";
+      if (code != null) {
+        attributes.put("endpoint", code.object().value());
+        String controller = LinkIndex.text(code, "controller");
+        if (!protocol.equals("WebSocket")
+            && controller != null
+            && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
+          protocol = "JSON/" + protocol;
+        }
+      }
+      attributes.put("protocol", protocol);
+      attributes.put("matchedBy", "llm");
+    } else if (isHttp) {
       String client = origin == null ? null : LinkIndex.text(origin, "client");
       if (client != null) {
         attributes.put("client", client);

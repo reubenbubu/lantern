@@ -8,6 +8,7 @@ import io.lantern.core.repo.Repo;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
@@ -129,6 +130,7 @@ class Project0LinksIT {
     facts.addAll(new MessagingExtractor().extract(code, 1));
     facts.addAll(new GatewayExtractor().extract(code, 1));
     facts.addAll(new DocsExtractor().extract(repos, 1));
+    facts.addAll(new DeploymentExtractor().extract(repos, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
     facts.addAll(links);
@@ -611,6 +613,61 @@ class Project0LinksIT {
                 + "\"reads\":[\"table:~:storefront-app:orders\"]}");
   }
 
+  /** The one link of the code, with builds and without, that starts as given and comes from it. */
+  private static void assertDeployed(String start, String source, String... parts) {
+    for (List<String> facts : List.of(built, unbuilt)) {
+      assertThat(facts)
+          .filteredOn(l -> l.startsWith(start) && l.contains(source))
+          .singleElement()
+          .asString()
+          .contains(parts);
+    }
+  }
+
+  @Test
+  void dep1AComposeServiceNamedNeitherAsTheApplicationNorAsTheArtifact() {
+    assertDeployed(
+        "service:~:fulfilment CALLS_HTTP service:~:catalog-service",
+        "CatalogAdminClient#product(long)",
+        "\"endpoint\":\"GET /api/products/{id}\"",
+        "\"matchedBy\":\"container-host\"",
+        "\"url\":\"http://catalog-api:8080/api/products/{id}\"");
+  }
+
+  @Test
+  void dep2APrivateAddressIsTheUnitComposePublishesThePortFor() {
+    assertDeployed(
+        "service:~:fulfilment CALLS_HTTP service:~:storefront-app",
+        "OrderLookupClient#order(long)",
+        "\"endpoint\":\"GET /api/orders/{id}\"",
+        "\"matchedBy\":\"published-port\"",
+        "\"url\":\"http://192.168.1.10:8081/api/orders/{id}\"");
+    for (List<String> facts : List.of(built, unbuilt)) {
+      assertThat(facts).noneMatch(l -> l.contains("external-system:192.168."));
+    }
+  }
+
+  @Test
+  void dep3AUrlOnlyTheDeploymentSetsIsFilledFromItsEnvironment() {
+    assertDeployed(
+        "service:~:fulfilment CALLS_HTTP service:~:storefront-app",
+        "ReturnsOrderClient#orderOf(long)",
+        "\"endpoint\":\"GET /api/orders/{id}\"",
+        "\"matchedBy\":\"container-host\"",
+        "\"url\":\"http://shop-web:8080/api/orders/{id}\"");
+  }
+
+  @Test
+  void dep4AMailHostOnlyTheDeploymentSetsIsTheExternalSystemItNames() {
+    for (List<String> facts : List.of(built, unbuilt)) {
+      assertThat(of(facts, "SENDS_MAIL"))
+          .singleElement()
+          .asString()
+          .startsWith("service:~:payments SENDS_MAIL external-system:smtp.mail.example.com")
+          .contains("\"protocol\":\"SMTP\"");
+    }
+  }
+
   @Test
   void everyContainerLinkOfFlow1() {
     for (List<String> facts : List.of(built, unbuilt)) {
@@ -629,9 +686,11 @@ class Project0LinksIT {
           }
         }
       }
-      assertThat(pairs)
+      assertThat(pairs.stream().distinct())
           .containsExactlyInAnyOrder(
               "service:~:fulfilment CALLS_HTTP service:~:catalog-service",
+              // DEP-2 and DEP-3, besides the flow.
+              "service:~:fulfilment CALLS_HTTP service:~:storefront-app",
               "service:~:fulfilment SENDS_MESSAGES_TO service:~:storefront-app",
               "service:~:payments CALLS_HTTP external-system:sandbox.paygate.example.com",
               "service:~:payments CALLS_HTTP external-system:api.paygate.example.com",

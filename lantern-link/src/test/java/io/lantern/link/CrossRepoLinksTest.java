@@ -646,6 +646,433 @@ class CrossRepoLinksTest {
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Addresses: one way to tell where an address leads, for every linker (#473)
+
+  /** A compose container of the default environment that runs the image, as ADR 0082 writes it. */
+  private static String composeService(String image, String hosts, String more) {
+    return "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+        + "\"image\":\""
+        + image
+        + "\",\"hosts\":["
+        + hosts
+        + "]"
+        + (more == null ? "" : "," + more)
+        + "}";
+  }
+
+  /** The units shop (storefront, serving orders) and fulfilment, which calls it. */
+  private void shopAndFulfilment() {
+    unit("f", "fulfilment", "fulfilment");
+    type("f", "fulfilment", "f.Clients");
+    unit("s", "storefront-app", "storefront");
+    type("s", "storefront-app", "s.OrderController");
+    endpoint("s", "s.OrderController", "order(long)", "GET", "/api/orders/{id}");
+  }
+
+  @Test
+  void aComposeServiceNamedOtherThanItsUnitIsThatUnitForCallsAndRoutes() {
+    shopAndFulfilment();
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET http://shop-web:8080/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"url\":\"http://shop-web:8080/api/orders/{id}\"}",
+        5);
+    unit("g", "edge", "edge");
+    type("g", "edge", "gw.Routes");
+    route(
+        "g",
+        "type:gw.Routes",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"http://shop-web:8080\","
+            + "\"paths\":[\"/api/orders/**\"]}");
+    // Named only by its image: storefront's application name is "storefront".
+    container("d", "shop-web", composeService("acme/storefront:1.0", "\"shop-web\"", null));
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactly(
+            "service:g:edge CALLS_HTTP service:g:storefront-app"
+                + " {\"matchedBy\":\"container-host\",\"paths\":[\"/api/orders/**\"],"
+                + "\"protocol\":\"HTTP\",\"route\":\"orders\",\"source\":\"type:gw.Routes\","
+                + "\"url\":\"http://shop-web:8080\"} 0.9",
+            "service:g:fulfilment CALLS_HTTP service:g:storefront-app"
+                + " {\"client\":\"web-client\",\"endpoint\":\"GET /api/orders/{id}\","
+                + "\"httpMethod\":\"GET\",\"matchedBy\":\"container-host\","
+                + "\"path\":\"/api/orders/{id}\",\"protocol\":\"JSON/HTTP\","
+                + "\"source\":\"method:f.Clients#order()\","
+                + "\"target\":\"method:s.OrderController#order(long)\","
+                + "\"url\":\"http://shop-web:8080/api/orders/{id}\"} 0.9");
+  }
+
+  @Test
+  void aRouteWhoseUriIsLeftToTheDeploymentIsFilledFromItOrLeftOpenWithTheUnitsItReaches() {
+    shopAndFulfilment();
+    unit("g", "edge", "edge");
+    type("g", "edge", "gw.Routes");
+    route(
+        "g",
+        "type:gw.Routes",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"${ORDERS_URI}\",\"unresolved\":[\"ORDERS_URI\"],"
+            + "\"paths\":[\"/api/orders/**\"]}");
+
+    assertThat(derive())
+        .filteredOn(l -> l.contains("unresolved-link"))
+        .containsExactly(
+            "service:g:edge unresolved-link ${ORDERS_URI}"
+                + " {\"candidates\":[\"service:g:storefront-app\"],\"kind\":\"route\","
+                + "\"reason\":\"unresolved-placeholder\",\"source\":\"type:gw.Routes\","
+                + "\"unresolved\":[\"ORDERS_URI\"]} 1.0");
+
+    container(
+        "d",
+        "edge",
+        composeService(
+            "acme/edge:1.0", "\"edge\"", "\"env\":{\"ORDERS_URI\":\"http://storefront:8080\"}"));
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactly(
+            "service:g:edge CALLS_HTTP service:g:storefront-app"
+                + " {\"matchedBy\":\"host\",\"paths\":[\"/api/orders/**\"],"
+                + "\"protocol\":\"HTTP\",\"route\":\"orders\",\"source\":\"type:gw.Routes\","
+                + "\"url\":\"http://storefront:8080\"} 0.9");
+  }
+
+  @Test
+  void aPrivateAddressIsTheUnitPublishingItsPortAndNeverAnExternalSystem() {
+    shopAndFulfilment();
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET http://192.168.1.10:8081/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"url\":\"http://192.168.1.10:8081/api/orders/{id}\"}",
+        5);
+    call(
+        "f",
+        "f.Clients#elsewhere()",
+        "GET http://10.1.2.3:9999/reports",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/reports\","
+            + "\"url\":\"http://10.1.2.3:9999/reports\"}",
+        9);
+    container(
+        "d",
+        "shop-web",
+        composeService("acme/storefront:1.0", "\"shop-web\"", "\"ports\":[\"8081:8080\"]"));
+
+    assertThat(derive())
+        .filteredOn(l -> l.contains("CALLS_HTTP") || l.contains("unresolved-link"))
+        .containsExactly(
+            "service:g:fulfilment CALLS_HTTP service:g:storefront-app"
+                + " {\"client\":\"web-client\",\"endpoint\":\"GET /api/orders/{id}\","
+                + "\"httpMethod\":\"GET\",\"matchedBy\":\"published-port\","
+                + "\"path\":\"/api/orders/{id}\",\"protocol\":\"JSON/HTTP\","
+                + "\"source\":\"method:f.Clients#order()\","
+                + "\"target\":\"method:s.OrderController#order(long)\","
+                + "\"url\":\"http://192.168.1.10:8081/api/orders/{id}\"} 0.8",
+            "service:g:fulfilment unresolved-link GET http://10.1.2.3:9999/reports"
+                + " {\"kind\":\"http\",\"reason\":\"no-match\","
+                + "\"source\":\"method:f.Clients#elsewhere()\"} 1.0");
+    assertThat(derive()).noneMatch(l -> l.contains("external-system:"));
+  }
+
+  @Test
+  void aPublicIpAddressIsNotAnExternalSystem() {
+    shopAndFulfilment();
+    call(
+        "f",
+        "f.Clients#report()",
+        "POST http://203.0.113.7/v1/reports",
+        "{\"client\":\"web-client\",\"httpMethod\":\"POST\",\"path\":\"/v1/reports\","
+            + "\"url\":\"http://203.0.113.7/v1/reports\"}",
+        5);
+
+    assertThat(derive())
+        .containsExactly(
+            "service:g:fulfilment unresolved-link POST http://203.0.113.7/v1/reports"
+                + " {\"kind\":\"http\",\"reason\":\"unknown-host\","
+                + "\"source\":\"method:f.Clients#report()\"} 1.0");
+  }
+
+  @Test
+  void aPlaceholderTheDeploymentSetsIsFilledFromTheEnvironmentOfTheUnitsContainer() {
+    shopAndFulfilment();
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET ${ORDERS_URL}/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"unresolved\":[\"ORDERS_URL\"],\"written\":\"${orders.url}/api/orders/{id}\"}",
+        5);
+    config("f", "fulfilment", "application.yml", "orders.url", "${ORDERS_URL}", null);
+    container("d", "shop-web", composeService("acme/storefront:1.0", "\"shop-web\"", null));
+    container(
+        "d",
+        "fulfilment",
+        composeService(
+            "acme/fulfilment:1.0",
+            "\"fulfilment\"",
+            "\"env\":{\"ORDERS_URL\":\"http://shop-web:8080\"}"));
+
+    List<Fact> links =
+        linked().stream().filter(f -> f.predicate().equals(CrossRepoLinks.CALLS_HTTP)).toList();
+    assertThat(links)
+        .singleElement()
+        .satisfies(
+            l -> {
+              assertThat(l.subject().toString()).isEqualTo("service:g:fulfilment");
+              assertThat(l.object().value()).isEqualTo("service:g:storefront-app");
+              assertThat(LinkIndex.text(l, "matchedBy")).isEqualTo("container-host");
+              assertThat(LinkIndex.text(l, "endpoint")).isEqualTo("GET /api/orders/{id}");
+              // The container whose environment filled it in is among the link's facts.
+              String fulfilmentContainer =
+                  facts.stream()
+                      .filter(f -> f.predicate().equals(DeploymentExtractor.DEPLOYMENT_CONTAINER))
+                      .filter(f -> f.object().value().equals("fulfilment"))
+                      .findFirst()
+                      .orElseThrow()
+                      .id();
+              assertThat(LinkIndex.texts(l, "facts")).contains(fulfilmentContainer);
+            });
+  }
+
+  @Test
+  void theDeploymentsValueComesBeforeAPlaceholdersDefault() {
+    shopAndFulfilment();
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET http://localhost:9999/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"url\":\"http://localhost:9999/api/orders/{id}\","
+            + "\"written\":\"${ORDERS_URL:http://localhost:9999}/api/orders/{id}\"}",
+        5);
+    container(
+        "d",
+        "fulfilment",
+        composeService(
+            "acme/fulfilment:1.0",
+            "\"fulfilment\"",
+            "\"env\":{\"ORDERS_URL\":\"http://storefront:8080\"}"));
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:fulfilment CALLS_HTTP service:g:storefront-app")
+        .contains("\"matchedBy\":\"host\"");
+  }
+
+  @Test
+  void anEnvironmentVariableComesBeforeTheValueInTheConfigFiles() {
+    shopAndFulfilment();
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET http://localhost:9999/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"url\":\"http://localhost:9999/api/orders/{id}\","
+            + "\"written\":\"${orders.url}/api/orders/{id}\"}",
+        5);
+    config("f", "fulfilment", "application.yml", "orders.url", "http://localhost:9999", null);
+    container(
+        "d",
+        "fulfilment",
+        composeService(
+            "acme/fulfilment:1.0",
+            "\"fulfilment\"",
+            "\"env\":{\"ORDERS_URL\":\"http://storefront:8080\"}"));
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:fulfilment CALLS_HTTP service:g:storefront-app")
+        .contains("\"matchedBy\":\"host\"")
+        .contains("\"url\":\"http://storefront:8080/api/orders/{id}\"");
+  }
+
+  @Test
+  void aLocalDefaultAndADeploymentThatDisagreeLeaveTheCallOpenNotDecidedByPath() {
+    shopAndFulfilment();
+    unit("p", "payments", "payments");
+    config("p", "payments", "application.yml", "server.port", "8082", null);
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET http://localhost:8082/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"url\":\"http://localhost:8082/api/orders/{id}\","
+            + "\"written\":\"${ORDERS_URL:http://localhost:8082}/api/orders/{id}\"}",
+        5);
+    container(
+        "d",
+        "fulfilment",
+        composeService(
+            "acme/fulfilment:1.0",
+            "\"fulfilment\"",
+            "\"env\":{\"ORDERS_URL\":\"http://storefront:8080\"}"));
+
+    assertThat(derive())
+        .filteredOn(l -> l.contains("CALLS_HTTP") || l.contains("unresolved-link"))
+        .singleElement()
+        .asString()
+        .contains("unresolved-link")
+        .contains("\"candidates\":[\"service:g:payments\",\"service:g:storefront-app\"]")
+        .contains("\"reason\":\"ambiguous\"");
+  }
+
+  @Test
+  void aRouteTheDeploymentGivesALoadBalancedUriGoesByItsName() {
+    shopAndFulfilment();
+    unit("g", "edge", "edge");
+    type("g", "edge", "gw.Routes");
+    route(
+        "g",
+        "type:gw.Routes",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"${ORDERS_URI}\",\"unresolved\":[\"ORDERS_URI\"],"
+            + "\"paths\":[\"/api/orders/**\"]}");
+    container(
+        "d",
+        "edge",
+        composeService(
+            "acme/edge:1.0", "\"edge\"", "\"env\":{\"ORDERS_URI\":\"lb://storefront\"}"));
+
+    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+        .containsExactly(
+            "service:g:edge CALLS_HTTP service:g:storefront-app"
+                + " {\"matchedBy\":\"service-name\",\"paths\":[\"/api/orders/**\"],"
+                + "\"protocol\":\"HTTP\",\"route\":\"orders\",\"source\":\"type:gw.Routes\","
+                + "\"url\":\"lb://storefront\"} 1.0");
+  }
+
+  @Test
+  void deploymentsThatGiveARouteDifferentLoadBalancedUrisLeaveItOpenWithBoth() {
+    shopAndFulfilment();
+    unit("p", "payments", "payments");
+    unit("g", "edge", "edge");
+    type("g", "edge", "gw.Routes");
+    route(
+        "g",
+        "type:gw.Routes",
+        "orders",
+        "{\"definedIn\":\"config\",\"uri\":\"${ORDERS_URI}\",\"unresolved\":[\"ORDERS_URI\"],"
+            + "\"paths\":[\"/api/orders/**\"]}");
+    container(
+        "d",
+        "edge",
+        composeService(
+            "acme/edge:1.0", "\"edge\"", "\"env\":{\"ORDERS_URI\":\"lb://storefront\"}"));
+    container(
+        "d",
+        "edge",
+        "{\"platform\":\"kubernetes\",\"environment\":\"prod\",\"kind\":\"Deployment\","
+            + "\"image\":\"acme/edge:1.0\",\"hosts\":[\"edge\"],"
+            + "\"env\":{\"ORDERS_URI\":\"lb://payments\"}}");
+
+    assertThat(derive())
+        .filteredOn(l -> l.contains("CALLS_HTTP") || l.contains("unresolved-link"))
+        .singleElement()
+        .asString()
+        .contains("unresolved-link")
+        .contains("\"candidates\":[\"service:g:storefront-app\",\"service:g:payments\"]")
+        .contains("\"reason\":\"ambiguous\"");
+  }
+
+  @Test
+  void environmentsThatSendACallToDifferentUnitsLeaveItOpenWithBoth() {
+    shopAndFulfilment();
+    unit("p", "payments", "payments");
+    type("p", "payments", "p.OrderPaymentController");
+    endpoint("p", "p.OrderPaymentController", "payment(long)", "GET", "/api/orders/{id}");
+    call(
+        "f",
+        "f.Clients#order()",
+        "GET ${ORDERS_URL}/api/orders/{id}",
+        "{\"client\":\"web-client\",\"httpMethod\":\"GET\",\"path\":\"/api/orders/{id}\","
+            + "\"unresolved\":[\"ORDERS_URL\"]}",
+        5);
+    container(
+        "d",
+        "fulfilment",
+        composeService(
+            "acme/fulfilment:1.0",
+            "\"fulfilment\"",
+            "\"env\":{\"ORDERS_URL\":\"http://storefront:8080\"}"));
+    container(
+        "d",
+        "fulfilment",
+        "{\"platform\":\"kubernetes\",\"environment\":\"prod\",\"kind\":\"Deployment\","
+            + "\"image\":\"acme/fulfilment:1.0\",\"hosts\":[\"fulfilment\"],"
+            + "\"env\":{\"ORDERS_URL\":\"http://payments.shop.svc.cluster.local\"}}");
+
+    assertThat(derive())
+        .filteredOn(l -> l.contains("CALLS_HTTP") || l.contains("unresolved-link"))
+        .singleElement()
+        .asString()
+        .contains("unresolved-link")
+        .contains("\"candidates\":[\"service:g:payments\",\"service:g:storefront-app\"]")
+        .contains("\"reason\":\"ambiguous\"");
+  }
+
+  @Test
+  void aMailHostTheDeploymentSetsIsTheExternalSystemItNames() {
+    unit("n", "notification", "notification");
+    config(
+        "n",
+        "notification",
+        "application.properties",
+        "spring.mail.host",
+        "${MAIL_HOST}",
+        "\"unresolved\":[\"MAIL_HOST\"]");
+    container(
+        "d",
+        "notification",
+        composeService(
+            "acme/notification:1.0",
+            "\"notification\"",
+            "\"env\":{\"MAIL_HOST\":\"smtp.mail.example.com\"}"));
+    unit("m", "mailer", "mailer");
+    config(
+        "m",
+        "mailer",
+        "application.properties",
+        "spring.mail.host",
+        "${SMTP_HOST}",
+        "\"unresolved\":[\"SMTP_HOST\"]");
+    // A mail container's name is not a system outside.
+    container(
+        "d",
+        "mailer",
+        composeService("acme/mailer:1.0", "\"mailer\"", "\"env\":{\"SMTP_HOST\":\"mailhog\"}"));
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+        .containsExactly(
+            "service:g:notification SENDS_MAIL external-system:smtp.mail.example.com"
+                + " {\"host\":\"smtp.mail.example.com\",\"key\":\"spring.mail.host\","
+                + "\"protocol\":\"SMTP\"} 1.0");
+  }
+
+  @Test
+  void aMailHostTheDeploymentOverridesWithALocalNameIsNoLink() {
+    unit("n", "notification", "notification");
+    config(
+        "n",
+        "notification",
+        "application.properties",
+        "spring.mail.host",
+        "smtp.gmail.com",
+        "\"written\":\"${MAIL_HOST:smtp.gmail.com}\"");
+    container(
+        "d",
+        "notification",
+        composeService(
+            "acme/notification:1.0", "\"notification\"", "\"env\":{\"MAIL_HOST\":\"mailhog\"}"));
+
+    assertThat(derive(CrossRepoLinks.SENDS_MAIL)).isEmpty();
+  }
+
+  // ---------------------------------------------------------------------------------------------
   // Messaging
 
   // ---------------------------------------------------------------------------------------------
@@ -2180,30 +2607,30 @@ class CrossRepoLinksTest {
                 + "\"protocol\":\"JSON/HTTP\",\"reaches\":\"method:a.AuthController#signIn()\","
                 + "\"reachesEndpoint\":\"POST /api/auth/sign-in\","
                 + "\"reachesUnit\":\"service:g:auth-service\",\"throughRoute\":\"auth\","
-                + "\"url\":\"http://localhost:8080/api/auth/sign-in\"} 0.63",
+                + "\"url\":\"http://localhost:8080/api/auth/sign-in\"} 0.72",
             "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
                 + "\"matchedBy\":\"port\",\"path\":\"/api/composite/tasks\","
                 + "\"protocol\":\"JSON/HTTP\","
                 + "\"reaches\":\"method:gw.CompositeController#tasks()\","
                 + "\"reachesEndpoint\":\"POST /api/composite/tasks\","
                 + "\"reachesUnit\":\"service:g:api-gateway\","
-                + "\"url\":\"http://localhost:8080/api/composite/tasks\"} 0.63",
+                + "\"url\":\"http://localhost:8080/api/composite/tasks\"} 0.72",
             "frontend:web CALLS_HTTP service:g:api-gateway {\"matchedBy\":\"port\","
                 + "\"path\":\"/socket/ws-notifications\",\"protocol\":\"WebSocket\","
                 + "\"reaches\":\"method:n.WsConfig#stomp()\","
                 + "\"reachesEndpoint\":\"/ws-notifications\","
                 + "\"reachesUnit\":\"service:g:notification-service\","
                 + "\"throughRoute\":\"notify\","
-                + "\"url\":\"http://localhost:8080/socket/ws-notifications\"} 0.63",
+                + "\"url\":\"http://localhost:8080/socket/ws-notifications\"} 0.72",
             "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"port\",\"path\":\"/elsewhere\",\"protocol\":\"JSON/HTTP\","
-                + "\"url\":\"http://localhost:8080/elsewhere\"} 0.63",
+                + "\"url\":\"http://localhost:8080/elsewhere\"} 0.72",
             "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"host\",\"navigation\":true,\"path\":\"/bff/login\","
                 + "\"protocol\":\"JSON/HTTP\","
                 + "\"proxy\":\"/bff/\",\"reaches\":\"method:b.BffController#login()\","
                 + "\"reachesEndpoint\":\"GET /bff/login\",\"reachesUnit\":\"service:g:bff\","
-                + "\"url\":\"http://bff:8090/bff/login\"} 0.9");
+                + "\"url\":\"http://bff:8090/bff/login\"} 0.81");
   }
 
   @Test
@@ -2233,10 +2660,10 @@ class CrossRepoLinksTest {
         .containsExactlyInAnyOrder(
             "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"host\",\"path\":\"/bff/api/orders\",\"protocol\":\"JSON/HTTP\","
-                + "\"proxy\":\"/bff/\",\"url\":\"http://bff:8081/bff/api/orders\"} 0.9",
+                + "\"proxy\":\"/bff/\",\"url\":\"http://bff:8081/bff/api/orders\"} 0.81",
             "frontend:shop/web-ui CALLS_HTTP service:g:files {\"matchedBy\":\"host\","
                 + "\"protocol\":\"JSON/HTTP\",\"proxy\":\"/media/\",\"url\":\"http://files:8080\"}"
-                + " 0.9");
+                + " 0.81");
     assertThat(derive(Deployments.DEPLOYED_IN))
         .containsExactly(
             "frontend:shop/web-ui deployed-in Docker Compose (default)"
@@ -2803,6 +3230,33 @@ class CrossRepoLinksTest {
         .contains(
             "\"purpose\":\"validates-tokens\","
                 + "\"url\":\"http://keycloak:8080/realms/shop/protocol/openid-connect/certs\"");
+  }
+
+  @Test
+  void anIssuerTheEnvironmentSetsOverALocalDefaultIsTheKeycloakContainer() {
+    unit("s", "orders", "orders");
+    config(
+        "s",
+        "orders",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "http://localhost:8080/realms/shop",
+        "\"written\":\"${ISSUER:http://localhost:8080/realms/shop}\"");
+    container(
+        "s",
+        "orders",
+        "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
+            + "\"build\":\".\",\"hosts\":[\"orders\"],"
+            + "\"env\":{\"ISSUER\":\"http://keycloak:8080/realms/shop\"}}");
+    // Published on another port, so the local default reaches nothing.
+    container("s", "keycloak", KEYCLOAK.replace("8080:8080", "8180:8080"));
+
+    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:orders USES_IDENTITY_PROVIDER external-system:keycloak")
+        .contains("\"matchedBy\":\"container\"")
+        .contains("\"url\":\"http://keycloak:8080/realms/shop\"");
   }
 
   @Test

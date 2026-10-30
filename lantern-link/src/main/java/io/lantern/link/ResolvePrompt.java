@@ -134,9 +134,11 @@ final class ResolvePrompt {
       Fact unresolved, List<Fact> about, Map<EntityId, List<Fact>> candidates) {
     Map<String, Fact> refs = new LinkedHashMap<>();
     StringBuilder user = new StringBuilder();
-    boolean http = "http".equals(LinkIndex.text(unresolved, "kind"));
+    String kind = LinkIndex.text(unresolved, "kind");
+    boolean route = "route".equals(kind);
+    boolean http = route || "http".equals(kind);
     user.append("The ")
-        .append(http ? "HTTP call" : "message send")
+        .append(route ? "HTTP call a gateway route forwards" : http ? "HTTP call" : "message send")
         .append(" that static matching left open: ")
         .append(oneLine(unresolved.object().value()))
         .append('\n');
@@ -155,7 +157,9 @@ final class ResolvePrompt {
     if (!keys.isEmpty()) {
       user.append("; placeholders no config resolves: ").append(String.join(", ", keys));
     }
-    user.append(".\n\nFacts about the ").append(http ? "call" : "send").append(":\n");
+    user.append(".\n\nFacts about the ")
+        .append(route ? "route" : http ? "call" : "send")
+        .append(":\n");
     for (Fact fact : about) {
       String ref = "F" + (refs.size() + 1);
       refs.put(ref, fact);
