@@ -93,8 +93,10 @@ for people, an API is for software. Implemented by #365.
 ## Amendment (#396): account endpoints, role types and more role checks
 
 Research: [`docs/research/extractor-people.md`](../research/extractor-people.md). The extractor
-records each piece of human-facing evidence at the line that declares it; the linker is unchanged
-(#437). `people` version 3 adds two kinds and more role sources:
+records each piece of human-facing evidence at the line that declares it. The linker uses none of
+the new kinds yet (#437); since #365 is still open and the linker still makes a person of each role
+it checks, it leaves out the new role sources that check nothing (`@DeclareRoles`) or check on the
+system's own types (`anyReceiver`) until #437. `people` version 3 adds two kinds and more role sources:
 
 - **`account`**: an endpoint of a controller whose last path segment is a sign-up, sign-in,
   confirmation or password-reset one (`register`, `login`, `confirm`, `reset-password`...).
@@ -110,15 +112,20 @@ records each piece of human-facing evidence at the line that declares it; the li
     implements `UserDetails`.
   - The enum qualifies when it types a field of the account and either the field is named like a
     role field (`role`, `roles`, `authorities`...) or the enum like a role (`*Role*`,
-    `*Authorit*`). A collection field (its element type erased) qualifies when both are.
+    `*Authorit*`). A collection field (its element type erased) qualifies when both are and it is mapped as
+    `@ElementCollection` or `@Enumerated`. Test sources are never looked at.
   - Constants that name software (`SYSTEM`, `SERVICE`, `INTERNAL`, `BOT`, `ANONYMOUS`, `API`) are
     skipped.
   - The linker does not use it yet, so it makes no person.
-- **`role`** also comes from `@DeclareRoles`, from a custom annotation that carries a role check (it
-  records `annotation`), and from `hasRole`, `hasAnyRole`, `isUserInRole` and `isCallerInRole`
-  called on any receiver, the system's own included.
+- **`role`** also comes from `@DeclareRoles` (which declares and guards nothing, so it is no
+  `guard`), from a custom annotation that carries a role check (it records `annotation`), and from
+  `hasRole`, `hasAnyRole`, `isUserInRole` and `isCallerInRole` called on any receiver, the system's
+  own included (`anyReceiver`). A templated role (`'{value}'`) is skipped.
+- A confirmation or reset step counts only for an account: not when a path variable comes before it
+  (`/orders/{id}/confirm`), unless the path names one (`/users/{id}/activate`).
 
 Browser sign-in (`formLogin`, `oauth2Login`...) is the Identity extractor's `http-security` fact
 (ADR 0085, amendment for #395). Not read yet (#438): the role granted when an account is created,
 a realm's default role and which realm roles humans hold, route guards and their roles,
-server-rendered screens, and mail recipients.
+server-rendered screens, mail recipients, `roles.contains("X")` checks, and the type
+`loadUserByUsername` returns as an account.

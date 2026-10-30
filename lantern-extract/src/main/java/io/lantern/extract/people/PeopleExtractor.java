@@ -79,6 +79,10 @@ public final class PeopleExtractor {
   public static final Set<String> SIGN_IN =
       Set.of("sign-in", "signin", "sign_in", "login", "log-in", "authenticate");
 
+  /** Words in a path that say it is about a person's account. */
+  private static final List<String> ACCOUNT_WORDS =
+      List.of("user", "account", "auth", "email", "registration", "signup", "sign-up", "member");
+
   /** The last path segments of endpoints where people confirm an account or reset a password. */
   private static final Map<String, String> ACCOUNT_STEPS =
       Map.ofEntries(
@@ -263,7 +267,9 @@ public final class PeopleExtractor {
     Set<RepoBuild> all = new LinkedHashSet<>(repos);
     for (JavaAnalysis.Module module : code.modules()) {
       for (TypeDecl type : module.structure().types()) {
-        run.types.putIfAbsent(type.binaryName(), type);
+        if (type.where() != null && !type.where().file().path().contains("src/test/")) {
+          run.types.putIfAbsent(type.binaryName(), type);
+        }
       }
     }
     for (JavaAnalysis.Module module : code.modules()) {
@@ -350,9 +356,14 @@ public final class PeopleExtractor {
     return ANY_ROLE_CALLS.contains(method) ? method : null;
   }
 
-  /** What a person does at an endpoint or screen with this path, or null for none of it. */
+  /**
+   * What a person does at an endpoint or screen with this path, or null for none of it. A
+   * confirmation or reset step counts only when it is about an account: no path variable comes
+   * before it ({@code /orders/{id}/confirm} confirms an order), unless the path names an account.
+   */
   static String accountAction(String path) {
-    String[] segments = path.replaceAll("\\{[^}]*}", "").toLowerCase(Locale.ROOT).split("/");
+    String lower = path.toLowerCase(Locale.ROOT);
+    String[] segments = lower.replaceAll("\\{[^}]*}", "").split("/");
     String last = segments.length == 0 ? "" : segments[segments.length - 1];
     if (SIGN_UP.contains(last)) {
       return "sign-up";
@@ -360,7 +371,14 @@ public final class PeopleExtractor {
     if (SIGN_IN.contains(last)) {
       return "sign-in";
     }
-    return ACCOUNT_STEPS.get(last);
+    String step = ACCOUNT_STEPS.get(last);
+    if (step == null) {
+      return null;
+    }
+    String before = lower.substring(0, lower.lastIndexOf(last));
+    boolean variable = before.contains("{");
+    boolean named = ACCOUNT_WORDS.stream().anyMatch(before::contains);
+    return !variable || named ? step : null;
   }
 
   /** The paths a mapping annotation names: {@code value} or {@code path}. */
@@ -400,7 +418,8 @@ public final class PeopleExtractor {
       return;
     }
     String role = prefixed ? name.substring("ROLE_".length()) : name;
-    if (!role.isBlank() && role.length() <= 60 && !roles.contains(role)) {
+    // A templated check (hasRole('{value}')) names its role where the annotation is used.
+    if (!role.isBlank() && role.length() <= 60 && !role.contains("{") && !roles.contains(role)) {
       roles.add(role);
     }
   }
@@ -510,6 +529,9 @@ public final class PeopleExtractor {
 
     /** The roles an annotation checks, directly or through the annotation it carries; or null. */
     private List<String> guardRoles(Annotation a) {
+      if (DECLARE_ROLES.contains(a.type())) {
+        return null; // It declares roles; it guards nothing.
+      }
       List<String> roles = checkedRoles(a);
       if (roles == null) {
         Annotation carried = meta(a);
@@ -614,10 +636,7 @@ public final class PeopleExtractor {
         return;
       }
       String held = null;
-      for (TypeDecl account : types.values()) {
-        if (!account(account)) {
-          continue;
-        }
+      for (TypeDecl account : accounts()) {
         for (Member field : account.members()) {
           if (field.type() == null || !field.id().type().equals(ModuleStructure.FIELD)) {
             continue;
@@ -625,12 +644,19 @@ public final class PeopleExtractor {
           String fieldName = field.id().key().substring(field.id().key().indexOf('#') + 1);
           String enumName = simpleName(type.binaryName());
           boolean named = enumName.contains("Role") || enumName.contains("Authorit");
-          // The field's name or the enum's says it holds roles; a collection's element type is
-          // erased, so then both must.
+          // The field's name or the enum's says it holds roles. A collection's element type is
+          // erased, so then both must, and the field must be mapped as a collection of values.
           boolean typed =
               field.type().equals(type.binaryName()) && (named || ROLE_FIELDS.contains(fieldName));
           boolean collection =
-              named && ROLE_FIELDS.contains(fieldName) && field.type().startsWith("java.util.");
+              named
+                  && ROLE_FIELDS.contains(fieldName)
+                  && field.type().startsWith("java.util.")
+                  && field.annotations().stream()
+                      .anyMatch(
+                          f ->
+                              Set.of("ElementCollection", "Enumerated")
+                                  .contains(simpleName(f.type())));
           if (typed || collection) {
             held = field.id().toString();
             break;
@@ -661,6 +687,16 @@ public final class PeopleExtractor {
       }
     }
 
+    private List<TypeDecl> accounts;
+
+    /** The user accounts among the snapshot's types, found once. */
+    private List<TypeDecl> accounts() {
+      if (accounts == null) {
+        accounts = types.values().stream().filter(Run::account).toList();
+      }
+      return accounts;
+    }
+
     /** Whether a type is a user account the system keeps: it has a password or is UserDetails. */
     private static boolean account(TypeDecl type) {
       boolean kept = type.annotations().stream().anyMatch(a -> KEPT.contains(simpleName(a.type())));
@@ -684,7 +720,8 @@ public final class PeopleExtractor {
       }
       String key = call.callee().key();
       String method = securityMethod(key);
-      if (method == null) {
+      boolean anyReceiver = method == null;
+      if (anyReceiver) {
         method = anyRoleMethod(key);
       }
       if (method == null) {
@@ -694,6 +731,9 @@ public final class PeopleExtractor {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("name", role);
         attributes.put("source", method);
+        if (anyReceiver) {
+          attributes.put("anyReceiver", true);
+        }
         code(m, call.caller(), ROLE, attributes, call.where());
       }
     }

@@ -2482,6 +2482,27 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void declaredRolesAndChecksOnTheSystemsOwnTypesMakeNoPersonYet() {
+    evidence(
+        "type:m.A",
+        "role",
+        "{\"name\":\"AUDITOR\",\"source\":\"DeclareRoles\"}",
+        "m:src/main/java/m/A.java#3");
+    evidence(
+        "method:m.A#pay()",
+        "role",
+        "{\"name\":\"ACTUATOR\",\"source\":\"isUserInRole\",\"anyReceiver\":true}",
+        "m:src/main/java/m/A.java#9");
+    evidence(
+        "method:m.A#reg()",
+        "role",
+        "{\"name\":\"editor\",\"source\":\"PreAuthorize\"}",
+        "m:src/main/java/m/A.java#5");
+
+    assertThat(people().keySet()).containsExactly("editor");
+  }
+
+  @Test
   void aRoleThatGuardsOnlyOperatorEndpointsIsNoPersonButOneGuardingOthersIs() {
     for (String[] role :
         new String[][] {

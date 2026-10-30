@@ -128,6 +128,11 @@ final class PeopleLinker {
   private void roles(List<Fact> evidence, Map<String, Draft> people) {
     Map<String, List<Fact>> byRole = new TreeMap<>();
     for (Fact fact : of(evidence, PeopleExtractor.ROLE)) {
+      // Declared roles and checks on the system's own types wait for the people rule of #437.
+      if (fact.attributes().path("source").asString("").equals("DeclareRoles")
+          || fact.attributes().path("anyReceiver").asBoolean(false)) {
+        continue;
+      }
       byRole
           .computeIfAbsent(
               slug(words(fact.attributes().path("name").asString(""))), r -> new ArrayList<>())
