@@ -9,6 +9,7 @@ import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.link.InvestigationStore;
 import io.lantern.link.ResolutionStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.Role;
@@ -157,7 +158,8 @@ class TestSetScoreIT {
             roles,
             properties.anthropic(),
             properties.monthlyBudgetUsd(),
-            properties.retry());
+            properties.retry(),
+            properties.recordings());
     int sentBefore = fake.sent().size();
     AnalysisRun.Result second;
     try (LlmAccess access =
@@ -205,6 +207,7 @@ class TestSetScoreIT {
             callLog,
             context.getBean(SummaryStore.class),
             context.getBean(ResolutionStore.class),
+            context.getBean(InvestigationStore.class),
             context.getBean(WordingStore.class),
             context.getBean(ViewDefinitionStore.class),
             context.getBean(HtmlRenderer.class),

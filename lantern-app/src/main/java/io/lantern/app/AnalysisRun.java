@@ -37,6 +37,8 @@ import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.extract.test.TestExtractor;
 import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.GraphTools;
+import io.lantern.link.InvestigationStore;
+import io.lantern.link.Investigator;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
 import io.lantern.link.ResolutionStore;
@@ -133,6 +135,7 @@ public final class AnalysisRun {
   private final JdbcLlmCallLog callLog;
   private final SummaryStore summaries;
   private final ResolutionStore resolutions;
+  private final InvestigationStore investigations;
   private final WordingStore wordings;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
@@ -156,6 +159,7 @@ public final class AnalysisRun {
       JdbcLlmCallLog callLog,
       SummaryStore summaries,
       ResolutionStore resolutions,
+      InvestigationStore investigations,
       WordingStore wordings,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
@@ -173,6 +177,7 @@ public final class AnalysisRun {
     this.callLog = Objects.requireNonNull(callLog, "callLog");
     this.summaries = Objects.requireNonNull(summaries, "summaries");
     this.resolutions = Objects.requireNonNull(resolutions, "resolutions");
+    this.investigations = Objects.requireNonNull(investigations, "investigations");
     this.wordings = Objects.requireNonNull(wordings, "wordings");
     this.views = Objects.requireNonNull(views, "views");
     this.renderer = Objects.requireNonNull(renderer, "renderer");
@@ -201,6 +206,9 @@ public final class AnalysisRun {
    *     repository included
    * @param linksAsked how many links static matching left open the LLM was asked about (ADR 0045)
    * @param linksReused how many of their answers came from the cache
+   * @param investigationsAsked how many units, and the system, the Investigate role asked the LLM
+   *     about (ADR 0082)
+   * @param investigationsReused how many of its investigations came from the cache
    * @param summariesGenerated how many summaries the LLM wrote
    * @param summariesReused how many summaries came from the cache
    * @param summariesRejected the units left without a summary because the LLM's answer was rejected
@@ -225,6 +233,8 @@ public final class AnalysisRun {
       int newFacts,
       int linksAsked,
       int linksReused,
+      int investigationsAsked,
+      int investigationsReused,
       int summariesGenerated,
       int summariesReused,
       List<EntityId> summariesRejected,
@@ -330,8 +340,8 @@ public final class AnalysisRun {
       found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));
       found.addAll(new GatewayExtractor().extract(code, snapshot.number()));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
-      // The resolver's tools read files of every repository of the snapshot at its commit there,
-      // carried forward ones included (ADR 0081).
+      // The resolver's and the investigator's tools read files of every repository of the
+      // snapshot at its commit there, carried forward ones included (ADR 0081, ADR 0082).
       GitSourceFiles snapshotSources =
           new GitSourceFiles(
               name ->
@@ -349,7 +359,8 @@ public final class AnalysisRun {
               snapshot.commits().keySet(),
               found,
               client,
-              snapshotFiles);
+              snapshotFiles,
+              snapshot.commits());
       List<Fact> extracted = stored.facts();
       int newFacts = stored.added();
       LOG.info("Extracted {} facts, {} of them new", extracted.size(), newFacts);
@@ -455,6 +466,8 @@ public final class AnalysisRun {
           newFacts,
           stored.linksAsked(),
           stored.linksReused(),
+          stored.investigationsAsked(),
+          stored.investigationsReused(),
           summarized.generated(),
           summarized.reused(),
           summarized.rejected(),
@@ -716,7 +729,8 @@ public final class AnalysisRun {
       Set<String> snapshotRepos,
       List<Fact> found,
       LlmClient client,
-      GraphTools.RepoFiles files) {
+      GraphTools.RepoFiles files,
+      Map<String, String> commits) {
     return transaction.execute(
         status -> {
           Map<String, Fact> unique = new LinkedHashMap<>();
@@ -724,7 +738,10 @@ public final class AnalysisRun {
           // The LLM resolver is the linker's last step: it picks among the candidates of the links
           // the static steps leave open, with cached answers reused (ADR 0045).
           LinkResolver resolver = new LinkResolver(client, resolutions, files);
-          Linker linker = Linker.standard(facts, resolver);
+          // Then the Investigate role proposes what the steps before it missed, each proposal
+          // verified against the files it cites (ADR 0082).
+          Investigator investigator = new Investigator(client, investigations, files, commits);
+          Linker linker = Linker.standard(facts, resolver, investigator);
           // Each origin kind is recorded on its own, so a static analysis closes only the facts of
           // its kind; the docs extractor's facts are of kind readme (ADR 0033).
           Map<Origin.Kind, List<Fact>> byKind = new LinkedHashMap<>();
@@ -769,7 +786,13 @@ public final class AnalysisRun {
           linked.facts().stream()
               .filter(f -> repos.contains(f.evidence().repo()))
               .forEach(stored::add);
-          return new Stored(stored, added + linked.added(), resolver.asked(), resolver.reused());
+          return new Stored(
+              stored,
+              added + linked.added(),
+              resolver.asked(),
+              resolver.reused(),
+              investigator.asked(),
+              investigator.reused());
         });
   }
 
@@ -777,7 +800,13 @@ public final class AnalysisRun {
    * Facts as stored, how many of them were new, and how many open links the LLM was asked about and
    * how many of its answers were reused.
    */
-  private record Stored(List<Fact> facts, int added, int linksAsked, int linksReused) {}
+  private record Stored(
+      List<Fact> facts,
+      int added,
+      int linksAsked,
+      int linksReused,
+      int investigationsAsked,
+      int investigationsReused) {}
 
   /**
    * The repository's three views, the Architecture Explorer document {@code <repo>}, the Executive

@@ -225,6 +225,16 @@ public final class C4ReportRenderer {
           pageAbout.putIfAbsent(section.entity(), target.id);
         }
         first = false;
+      } else if (enclosing == null
+          && !pages.isEmpty()
+          && section.blocks().stream().noneMatch(QualityReport.class::isInstance)) {
+        // A section that is at no C4 level, such as the risks and findings (ADR 0082), goes at the
+        // end of the context page until the spec has documentation pages (#249).
+        target =
+            pages.stream()
+                .filter(p -> p.level.equals("context"))
+                .findFirst()
+                .orElse(pages.getFirst());
       }
       sections.put(section.id(), target == null ? null : new Location(target, null));
       titles.put(section.id(), section.title());

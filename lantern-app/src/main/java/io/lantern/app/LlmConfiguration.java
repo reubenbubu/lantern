@@ -82,6 +82,14 @@ class LlmConfiguration {
       providers.add(anthropic);
       available.add(name);
     }
+    if (properties.recordings().enabled()) {
+      providers.replaceAll(provider -> RecordedRoles.of(provider, properties.recordings()));
+      LOG.info(
+          "Calls of {} use the recordings in {} ({})",
+          properties.recordings().roles(),
+          properties.recordings().directory(),
+          properties.recordings().mode());
+    }
     LlmCallLog slf4j = new Slf4jLlmCallLog();
     LlmCallLog log =
         new LlmCallLog() {

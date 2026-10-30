@@ -59,6 +59,7 @@ JTA,Jakarta Transactions, Java's standard for transactions across several resour
 JVM,Java virtual machine, which runs compiled Java code
 JWT,JSON Web Token: a signed token carrying claims about a user
 KPI,Key performance indicator
+LLM,Large language model, such as the one Lantern asks to word and investigate the code
 LDAP,Lightweight Directory Access Protocol, used for directories of users and groups
 LTS,Long-term support
 MQ,Message queue

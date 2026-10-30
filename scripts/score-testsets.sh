@@ -23,10 +23,13 @@ Options:
   --llm-properties FILE     Named LLM settings file (docs/adr/0009-llm-configuration.md).
                             Default: \$LANTERN_LLM_PROPERTIES.
   --mirror-properties FILE  Optional Maven mirror settings (docs/adr/0030-maven-mirror.md).
-  --role ROLE=MODEL         Serve ROLE (summarize, resolve, infer-intent, name-groups,
-                            propose-rules, compose, translate) with the model named MODEL
+  --role ROLE=MODEL         Serve ROLE (summarize, resolve, investigate, infer-intent,
+                            name-groups, propose-rules, compose, translate) with the model named MODEL
                             under lantern.llm.models, for this run. Repeatable.
   --tier TIER=MODEL         The same for a tier (high-volume, reasoning). Repeatable.
+  --set PROPERTY=VALUE      Set any other app property for the runs, such as
+                            lantern.llm.recordings.directory to answer a role from
+                            recordings (docs/adr/0082-investigate-role.md). Repeatable.
   --label NAME              Names this run's folder of scorecards. Default: the date and
                             time, e.g. 20261029-1830.
   --compare-with LABEL      Also write each set's scorecard side by side with the one of
@@ -92,6 +95,8 @@ while [[ $# -gt 0 ]]; do
     --role=*) override roles "${1#*=}"; shift ;;
     --tier) [[ $# -ge 2 ]] || die "--tier needs TIER=MODEL"; override tiers "$2"; shift 2 ;;
     --tier=*) override tiers "${1#*=}"; shift ;;
+    --set) [[ $# -ge 2 && "$2" == *=* ]] || die "--set needs PROPERTY=VALUE"; overrides+=("--set" "$2"); shift 2 ;;
+    --set=*) [[ "${1#*=}" == *=* ]] || die "--set needs PROPERTY=VALUE"; overrides+=("--set" "${1#*=}"); shift ;;
     --label) [[ $# -ge 2 ]] || die "--label needs a name"; label="$2"; shift 2 ;;
     --label=*) label="${1#*=}"; shift ;;
     --compare-with) [[ $# -ge 2 ]] || die "--compare-with needs a label"; compare_with="$2"; shift 2 ;;
@@ -140,11 +145,13 @@ lantern.llm.models.fake.id=fake-model
 lantern.llm.models.fake.context-window=1000000
 lantern.llm.models.fake.prices.input=0
 lantern.llm.models.fake.prices.output=0
+lantern.llm.models.fake.capabilities=tool-use
 lantern.llm.models.fake-priced.provider=fake
 lantern.llm.models.fake-priced.id=fake-priced
 lantern.llm.models.fake-priced.context-window=1000000
 lantern.llm.models.fake-priced.prices.input=3
 lantern.llm.models.fake-priced.prices.output=15
+lantern.llm.models.fake-priced.capabilities=tool-use
 lantern.llm.tiers.high-volume=fake
 lantern.llm.tiers.reasoning=fake
 PROPERTIES

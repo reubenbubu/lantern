@@ -168,6 +168,7 @@ class AnalyzeCommandTest {
 
     assertThat(printed)
         .contains("Links left open: 2 asked of the LLM, 1 reused\n")
+        .contains("Investigations: 3 asked of the LLM, 2 reused\n")
         .contains("LLM calls: 9 (SUMMARIZE=6, RESOLVE=2, COMPOSE=1), tokens: 100, cost: $0.25\n");
   }
 
@@ -223,6 +224,8 @@ class AnalyzeCommandTest {
         10,
         2,
         1,
+        3,
+        2,
         5,
         0,
         List.of(EntityId.parse("type:com.example.Order")),

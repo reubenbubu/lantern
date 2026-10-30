@@ -18,6 +18,7 @@ import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.link.InvestigationStore;
 import io.lantern.link.ResolutionStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
@@ -126,6 +127,9 @@ class EndToEndIT {
                 if (request.role() == Role.RESOLVE) {
                   return "{\"target\": \"C1\", \"confidence\": \"low\", \"cites\": [\"C1\"],"
                       + " \"rationale\": \"The first candidate.\"}";
+                }
+                if (request.role() == Role.INVESTIGATE) {
+                  return "{\"proposals\": []}";
                 }
                 if (request.role() == Role.COMPOSE) {
                   return "{\"walkthrough\": {\"text\": \"It answers a greeting.\","
@@ -683,6 +687,7 @@ class EndToEndIT {
         context.getBean(JdbcLlmCallLog.class),
         context.getBean(SummaryStore.class),
         context.getBean(ResolutionStore.class),
+        context.getBean(InvestigationStore.class),
         context.getBean(WordingStore.class),
         context.getBean(ViewDefinitionStore.class),
         context.getBean(HtmlRenderer.class),
@@ -748,7 +753,15 @@ class EndToEndIT {
     assertThat(byRole.getOrDefault(Role.COMPOSE, 0L) + byRole.getOrDefault(Role.INFER_INTENT, 0L))
         .as("wordings")
         .isEqualTo(run.wordingsAsked());
-    assertThat(calls).isEqualTo(run.summariesGenerated() + run.linksAsked() + run.wordingsAsked());
+    assertThat(byRole.getOrDefault(Role.INVESTIGATE, 0L))
+        .as("investigations")
+        .isEqualTo(run.investigationsAsked());
+    assertThat(calls)
+        .isEqualTo(
+            run.summariesGenerated()
+                + run.linksAsked()
+                + run.wordingsAsked()
+                + run.investigationsAsked());
   }
 
   /** What two runs over the same commits did. */

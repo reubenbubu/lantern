@@ -1900,6 +1900,24 @@
       "sections" : [ ]
     } ]
   }, {
+    "id" : "findings",
+    "title" : "Risks and findings",
+    "levels" : [ "L0", "L1" ],
+    "entity" : "system:snapshot",
+    "facts" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "findings.none",
+      "variant" : "note",
+      "title" : "No risks found",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "Lantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify."
+      } ],
+      "facts" : [ ]
+    } ],
+    "sections" : [ ]
+  }, {
     "id" : "quality",
     "title" : "Quality report",
     "facts" : [ ],
@@ -1976,7 +1994,7 @@
         "check" : "Acronyms are explained in the glossary",
         "detail" : [ {
           "kind" : "text",
-          "text" : "The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, MVC and REST."
+          "text" : "The document has no glossary; it uses ADR, HTTP, HTTPS, ID, JDBC, JSON, LLM, MVC and REST."
         } ],
         "facts" : [ ]
       }, {

@@ -71,6 +71,7 @@ final class RepoSections {
   private SequenceFlows flows;
   private ExplorerSections explorer;
   private BriefSections brief;
+  private InvestigatedFindings investigated;
   private ClaimContradictions claims;
 
   /**
@@ -179,7 +180,8 @@ final class RepoSections {
                       modules,
                       containers,
                       c -> PackageDependencies.of(knowledge, c))
-                  .callouts(id, brief().currencyRisks(id)));
+                  .callouts(id, brief().currencyRisks(id), investigated().callouts(id)));
+      case FINDINGS -> blocks.addAll(investigated().table(id));
       case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
       case TECHNOLOGY_CURRENCY -> blocks.addAll(brief().technologyCurrency(id));
       case QUALITY_EVIDENCE -> blocks.addAll(brief().qualityEvidence(id));
@@ -187,6 +189,14 @@ final class RepoSections {
           throw new IllegalArgumentException("The glossary is built from the whole document");
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
+  }
+
+  /** The risks the LLM investigator found in scope (ADR 0082), built once per document. */
+  private InvestigatedFindings investigated() {
+    if (investigated == null) {
+      investigated = new InvestigatedFindings(knowledge, assembler, units);
+    }
+    return investigated;
   }
 
   /** The main flows, built once per document: the start-here list and the flows both use them. */

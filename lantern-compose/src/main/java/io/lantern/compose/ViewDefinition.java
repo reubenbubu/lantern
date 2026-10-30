@@ -71,8 +71,9 @@ public record ViewDefinition(
   /**
    * A view of one repository with the sections of the Architecture Explorer, in the order the
    * Quality bar asks: the overview as its orientation, where to start reading, the containers (the
-   * first diagram), context, components, main flows, the catalog, change guidance, the dependencies
-   * and structure (ADR 0048), then the glossary (ADR 0063).
+   * first diagram), context, components, main flows, the risks and findings (ADR 0082), the
+   * catalog, change guidance, the dependencies and structure (ADR 0048), then the glossary (ADR
+   * 0063).
    */
   public static ViewDefinition perRepo(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -88,6 +89,7 @@ public record ViewDefinition(
             SectionKind.CONTEXT,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
+            SectionKind.FINDINGS,
             SectionKind.CATALOG,
             SectionKind.CHANGE_GUIDANCE,
             SectionKind.DEPENDENCIES,
@@ -98,7 +100,7 @@ public record ViewDefinition(
   /**
    * A view of one repository for a C4 report: overview, where to start reading, context,
    * containers, components and main flows, the sections whose diagrams the C4 report spec draws
-   * (ADR 0031), the first two in its introduction.
+   * (ADR 0031), the first two in its introduction; then the risks and findings (ADR 0082).
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -113,12 +115,13 @@ public record ViewDefinition(
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
-            SectionKind.SEQUENCES));
+            SectionKind.SEQUENCES,
+            SectionKind.FINDINGS));
   }
 
   /**
    * A view of the whole system for a C4 report: overview, where to start reading, context,
-   * containers, components and main flows (ADR 0031).
+   * containers, components and main flows (ADR 0031), then the risks and findings (ADR 0082).
    */
   public static ViewDefinition c4System(String id, String title, TemplateRef template) {
     return new ViewDefinition(
@@ -133,7 +136,8 @@ public record ViewDefinition(
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
-            SectionKind.SEQUENCES));
+            SectionKind.SEQUENCES,
+            SectionKind.FINDINGS));
   }
 
   /**
