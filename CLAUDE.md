@@ -17,7 +17,8 @@ changes them. This file covers only how you work.
 - Tasks are GitHub issues in `reubenbubu/lantern`, grouped in milestones. A milestone delivers
   one specific outcome of a phase (named like `2C.2 Flows that tell the story`), and its
   description holds its own "Goal" and "Accepted when"; how many issues it has does not matter.
-  One milestone is in progress at a time, unless the user says otherwise; its issues come first.
+  One milestone is in progress at a time, unless the user says otherwise; work on it
+  before issues of other milestones.
   `Housekeeping` (tooling, build and docs that change no output) and `Later` are standing
   buckets with no test drop and never close; `Later` holds what no milestone has taken yet.
 - Every issue has a milestone and is written to a template in `.github/ISSUE_TEMPLATE/`:
@@ -26,9 +27,9 @@ changes them. This file covers only how you work.
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
   which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
   picks up an issue without one writes it first. A PR runs Lantern on those sets only; the
-  milestone's test drop runs all development sets, and held-out ones only at 2D's acceptance.
+  milestone's test drop runs all development sets, and held-out ones only in milestone 2D.2.
 - Held-out test sets (`docs/design.md`, Test sets) are only pinned: no session reads their code,
-  analyzes them or looks at their output until 2D's acceptance, where they are scored and judged
+  analyzes them or looks at their output until milestone 2D.2, where they are scored and judged
   once.
 - Each chat works on one issue at a time and does the work itself: design, code, tests, PR,
   merge and cleanup.
@@ -90,10 +91,11 @@ changes them. This file covers only how you work.
     only one chat at a time may run it.
 - Each milestone (the standing buckets excepted) ends with one test drop, a short checklist for
   its outcome, which the user tests, tracked by an issue titled "Test drop <milestone>" in that
-  milestone and linked from its description. When the milestone's other
-  issues are merged, the chat that takes the test-drop issue writes the drop to
+  milestone and linked from its description; the chat that finishes the milestone's last other
+  issue opens it. When the milestone's other issues are merged, the chat that takes the
+  test-drop issue writes the drop to
   `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's documents and the
-  reference side by side, the scorecards (from 2D also the judge's verdicts), and a README with
+  reference side by side, the scorecards (from 2D.2 also the judge's verdicts), and a README with
   what the milestone set out to do, a checklist of what to try, the known gaps, the reassessment
   of the test sets (`docs/design.md`, Test sets), and the commits and models used. Its path goes
   on the test-drop issue, and the user is told. The user's verdict, recorded on that issue,
