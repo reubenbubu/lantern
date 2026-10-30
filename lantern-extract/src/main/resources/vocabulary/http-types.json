@@ -10,7 +10,8 @@
         "path": { "type": "string", "description": "The URL's path, starting with /: everything after the scheme and authority, or after a leading placeholder or expression that stands for them. Absent when a placeholder or expression stands for the whole URL." },
         "url": { "type": "string", "description": "The whole URL, when it starts with a scheme." },
         "baseUrl": { "type": "string", "description": "The URL's scheme and authority, such as http://payments:8080, when it starts with a scheme." },
-        "service": { "type": "string", "description": "The client name the request is sent to, matched against a service's spring.application.name: a Feign client's name." },
+        "service": { "type": "string", "description": "The client name the request is sent to, matched against a service's spring.application.name: a Feign client's name, or the host of a load-balanced client's URL or of an lb:// URL." },
+        "loadBalanced": { "type": "boolean", "description": "Present and true when the request goes through a load-balanced client (a @LoadBalanced RestTemplate, RestClient or WebClient bean or builder, or an lb:// URL): its host is a service name resolved through discovery, recorded as service when it is written out (not a placeholder)." },
         "client": { "type": "string", "enum": ["feign", "microprofile-rest-client", "http-interface", "rest-template", "rest-client", "web-client", "jakarta-rest-client", "java-http-client", "okhttp", "apache-http-client"], "description": "What sends the request: a Spring Cloud OpenFeign or MicroProfile REST client interface, a Spring HTTP interface (@HttpExchange), RestTemplate, RestClient, WebClient, the Jakarta (or javax) REST client API, java.net.http, OkHttp or Apache HttpClient." },
         "clientType": { "type": "string", "description": "The binary name of the client interface, for a declarative client; it may differ from the method's own type when the method is inherited." },
         "annotation": { "type": "string", "description": "The binary name of the mapping annotation on a client interface's method, such as org.springframework.web.bind.annotation.GetMapping." },
@@ -64,5 +65,21 @@
       "required": ["member"],
       "additionalProperties": false
     }
+  },
+  {
+    "name": "http-client-bean",
+    "kind": "attribute",
+    "description": "The subject @Bean method makes an HTTP client or a builder of one, which code elsewhere injects to send requests: rest-template (RestTemplate, RestOperations, RestTemplateBuilder), rest-client (RestClient or its builder) or web-client (WebClient or its builder). The object is the client kind.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "description": "The binary name of the type the method returns." },
+        "loadBalanced": { "type": "boolean", "description": "Present and true when the method is @LoadBalanced: the hosts of the URLs its clients send to are service names, resolved through discovery (Spring Cloud LoadBalancer)." },
+        "baseUrl": { "type": "string", "description": "The base URL the method's code sets (baseUrl, rootUri, create), as written, placeholders kept. Absent when none is set." }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]
