@@ -7,7 +7,9 @@
   <!--
     Fixture for the persistence extractor, never built: model has JPA and Spring Data entities and
     repositories (not on Lantern's test classpath, so it is only parsed), app uses Spring JDBC only
-    (on Lantern's test classpath, so a test can compile it) and has the datasource config.
+    (on Lantern's test classpath, so a test can compile it) and has the datasource config; catalog
+    (parsed only) uses MyBatis, MongoDB and Elasticsearch, Cassandra by config, and Hibernate's
+    standard naming; ledger (parsed only) has the other store forms and a naming strategy of its own.
   -->
   <groupId>com.example.shop</groupId>
   <artifactId>shop-parent</artifactId>
@@ -17,5 +19,7 @@
   <modules>
     <module>model</module>
     <module>app</module>
+    <module>catalog</module>
+    <module>ledger</module>
   </modules>
 </project>

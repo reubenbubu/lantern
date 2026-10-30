@@ -23,11 +23,12 @@
   {
     "name": "MAPS_TO",
     "kind": "relationship",
-    "description": "The subject entity class is stored in the object table: a JPA @Entity, with its table named as Spring Boot's default naming makes it, or a Spring Data relational @Table class. The table is keyed by the module that declares the entity; the linker matches it to the tables migrations create by name.",
+    "description": "The subject entity class is stored in the object table: a JPA @Entity, with its table named as Spring Boot's default naming makes it (or as written, when the module's config sets another physical naming strategy), a Spring Data relational @Table class, a MongoDB @Document (its collection) or an Elasticsearch @Document (its index); collection and index names are kept as written. The table is keyed by the module that declares the entity; the linker matches it to the tables migrations create by name.",
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "framework": { "type": "string", "enum": ["jpa", "spring-data-relational"], "description": "Which annotations map it." },
+        "framework": { "type": "string", "enum": ["jpa", "spring-data-relational", "mongodb", "elasticsearch"], "description": "Which annotations map it." },
+        "namingStrategy": { "type": "string", "description": "The physical naming strategy of the code's own that the module's config sets, when it is neither Spring Boot's default nor Hibernate's standard one; the name is then recorded as the entity gives it." },
         "inheritedFrom": { "type": "string", "description": "The binary name of the entity at the top of its single-table inheritance hierarchy, whose table it shares." }
       },
       "required": ["framework"],
@@ -50,12 +51,12 @@
   {
     "name": "READS_TABLE",
     "kind": "relationship",
-    "description": "The subject method (or type, for code outside methods) runs SQL that reads the object table: through JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient or R2DBC's DatabaseClient, or a repository's native @Query. The table is keyed by the module whose code runs the SQL.",
+    "description": "The subject method (or type, for code outside methods) runs SQL that reads the object table: through JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient or R2DBC's DatabaseClient, a repository's native @Query, a MyBatis @Select, @Insert, @Update or @Delete, or a statement of a MyBatis XML mapper (on its mapper interface's method). The table is keyed by the module whose code runs the SQL.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "statement": { "type": "string", "description": "The kind of SQL statement: select, insert, update, delete, merge, upsert or truncate." },
-        "api": { "type": "string", "description": "The binary name of the type whose method takes the SQL, or of the @Query annotation." }
+        "api": { "type": "string", "description": "The binary name of the type whose method takes the SQL, or of the @Query or MyBatis annotation, or org.apache.ibatis.session.SqlSession for an XML mapper's statement." }
       },
       "required": ["statement", "api"],
       "additionalProperties": false
@@ -64,15 +65,35 @@
   {
     "name": "WRITES_TABLE",
     "kind": "relationship",
-    "description": "The subject method (or type, for code outside methods) runs SQL that writes the object table, the target of an insert, update, delete, merge, upsert or truncate: through JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient, R2DBC's DatabaseClient or SimpleJdbcInsert, or a repository's native @Query. The table is keyed by the module whose code runs the SQL.",
+    "description": "The subject method (or type, for code outside methods) runs SQL that writes the object table, the target of an insert, update, delete, merge, upsert or truncate: through JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient, R2DBC's DatabaseClient or SimpleJdbcInsert, a repository's native @Query, a MyBatis @Select, @Insert, @Update or @Delete, or a statement of a MyBatis XML mapper (on its mapper interface's method). The table is keyed by the module whose code runs the SQL.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "statement": { "type": "string", "description": "The kind of SQL statement: insert, update, delete, merge, upsert or truncate." },
-        "api": { "type": "string", "description": "The binary name of the type whose method takes the SQL or the table name, or of the @Query annotation." }
+        "api": { "type": "string", "description": "The binary name of the type whose method takes the SQL or the table name, or of the @Query or MyBatis annotation, or org.apache.ibatis.session.SqlSession for an XML mapper's statement." }
       },
       "required": ["statement", "api"],
       "additionalProperties": false
     }
+  },
+  {
+    "name": "data-store",
+    "kind": "attribute",
+    "description": "A non-relational store the subject module's config connects it to (MongoDB, Elasticsearch, Cassandra, Neo4j or Couchbase), by default or with the attribute profile active: its URI without credentials, or one made of the host, port and database keys (such as mongodb://localhost:27017/shop). Placeholders that cannot be resolved stay as ${KEY}.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "The config key it is read from: the URI's, else the host's or the database's, such as spring.data.mongodb.uri." },
+        "profile": { "type": "string", "description": "The profile active instead of the default one. Absent for the default view; present only where the store differs from it." },
+        "technology": { "type": "string", "enum": ["MongoDB", "Elasticsearch", "Cassandra", "Neo4j", "Couchbase"], "description": "The kind of store." },
+        "server": { "type": "string", "description": "The host and port, the first when the store names several (a MongoDB replica set, a list of Elasticsearch URIs, Cassandra contact points), such as mongo:27017." },
+        "database": { "type": "string", "description": "The database, keyspace or bucket, such as shop." },
+        "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders that could not be resolved." },
+        "masked": { "type": "boolean", "description": "Present and true when a secret was substituted into it, so it is recorded as written, without credentials." }
+      },
+      "required": ["key", "technology"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]
