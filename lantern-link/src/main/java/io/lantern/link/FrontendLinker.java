@@ -8,6 +8,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.frontend.FrontendExtractor;
+import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.Deployments.Container;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
@@ -60,11 +61,20 @@ final class FrontendLinker {
   private final LinkIndex index;
   private final FoundLinks out;
   private final Deployments deployments;
+  private final HttpLinker http;
+  private final RouteLinker routes;
 
-  FrontendLinker(LinkIndex index, FoundLinks out, Deployments deployments) {
+  FrontendLinker(
+      LinkIndex index,
+      FoundLinks out,
+      Deployments deployments,
+      HttpLinker http,
+      RouteLinker routes) {
     this.index = index;
     this.out = out;
     this.deployments = deployments;
+    this.http = http;
+    this.routes = routes;
   }
 
   /**
@@ -390,6 +400,9 @@ final class FrontendLinker {
                 ? FrontendExtractor.WEBSOCKET
                 : "JSON/" + reached.protocol());
     attributes.put("matchedBy", target.matchedBy());
+    if (LinkIndex.flag(from, "navigation")) {
+      attributes.put("navigation", true);
+    }
     if (reached.proxy() != null) {
       attributes.put("proxy", reached.proxy().object().value());
     }
@@ -400,6 +413,26 @@ final class FrontendLinker {
     }
     if (target.fact() != null) {
       facts.add(target.fact().id());
+    }
+    Unit unit = index.units.get(target.to());
+    if (from.predicate().equals(FrontendExtractor.CALL)
+        && unit != null
+        && reached.path() != null
+        && !reached.path().isEmpty()) {
+      boolean socket = reached.protocol().equals(FrontendExtractor.WEBSOCKET);
+      Entry entry = entry(unit, method, reached.path(), socket, view);
+      if (entry != null) {
+        attributes.put("reaches", entry.endpoint().subject().toString());
+        attributes.put("reachesUnit", entry.unit().id().toString());
+        attributes.put(
+            "reachesEndpoint",
+            socket ? LinkIndex.text(entry.endpoint(), "path") : entry.endpoint().object().value());
+        facts.add(entry.endpoint().id());
+        if (entry.route() != null) {
+          attributes.put("throughRoute", entry.route().object().value());
+          facts.add(entry.route().id());
+        }
+      }
     }
     out.add(
         view,
@@ -422,6 +455,56 @@ final class FrontendLinker {
             from.evidence(),
             CrossRepoLinks.round(from.confidence() * target.factor()),
             facts));
+  }
+
+  /**
+   * The endpoint a request from the browser reaches: the unit's own endpoint (or WebSocket
+   * endpoint) for the method and path, else, when the unit is a gateway, the endpoint of the unit
+   * the route that takes the request sends it to, by the path as that unit sees it.
+   *
+   * @param route the route it goes through; null when the unit serves the request itself
+   */
+  private record Entry(Unit unit, Fact endpoint, Fact route) {}
+
+  private Entry entry(Unit unit, String method, String path, boolean socket, String view) {
+    Fact own = endpoint(unit, method, path, socket, view);
+    if (own != null) {
+      return new Entry(unit, own, null);
+    }
+    RouteLinker.Forward forward = routes.forward(unit, view, method, path);
+    if (forward == null) {
+      return null;
+    }
+    Unit to = forward.routed().target();
+    Fact endpoint = endpoint(to, method, forward.path(), socket, view);
+    return endpoint == null ? null : new Entry(to, endpoint, forward.routed().route());
+  }
+
+  /**
+   * The unit's endpoint, or WebSocket endpoint, best matching the method and path; null if none.
+   */
+  private Fact endpoint(Unit unit, String method, String path, boolean socket, String view) {
+    if (!socket) {
+      List<Fact> endpoints = http.endpoints(unit, method, path, view);
+      return endpoints.isEmpty() ? null : endpoints.getFirst();
+    }
+    String prefix = index.servletPrefix(unit, view);
+    Fact best = null;
+    int score = -1;
+    for (Fact endpoint : index.of(WebSocketExtractor.ENDPOINT)) {
+      String template = LinkIndex.text(endpoint, "path");
+      if (template == null
+          || !index.unitsOf(endpoint.subject()).contains(unit)
+          || !index.active(endpoint.subject(), view)) {
+        continue;
+      }
+      int match = LinkText.pathMatch(path, LinkText.join(prefix, template));
+      if (match > score) {
+        best = endpoint;
+        score = match;
+      }
+    }
+    return best;
   }
 
   /**

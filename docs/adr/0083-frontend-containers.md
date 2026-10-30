@@ -1,6 +1,7 @@
 # 0083: Frontend containers
 
-Status: accepted (#267), amends ADR 0042 and ADR 0074, pending the user's review (#24)
+Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, pending the user's
+review (#24)
 
 ## Context
 
@@ -98,4 +99,25 @@ outermost frontend. Kubernetes and Helm containers are not tied to frontends, on
 own repository (a deployment repository that builds `../frontend` is not followed). A call that
 links nothing is dropped, not listed among the links left open. Minified and vendored scripts
 (`*.min.js`, `assets/`, `public/`, `vendor/`) are not read.
-The flows of the sequence diagrams do not start in the browser yet.
+The flows of the sequence diagrams start in the browser since #331 (ADR 0047).
+
+## Amendment: browser navigations and the endpoint a call reaches (#331)
+
+Status: accepted, pending the user's review (#24). The flows start in the browser now (ADR 0047,
+amendment for #331), which needs the endpoint each call reaches, and project-1's sign-in is a
+navigation of the browser, not a request from the page.
+
+- **Navigations** (`frontend`, version 2): `window.location.href = url`, `location.assign(url)`
+  and `location.replace(url)` are a `frontend-call` with the method `GET` and `navigation: true`,
+  their URL evaluated as for other calls. The link keeps `navigation`.
+- **The endpoint reached** (`cross-repo-links`, version 12): a call linked to a unit names the
+  endpoint it reaches, as an HTTP call's URL is matched with endpoints behind the unit's context and
+  servlet paths (a socket with the unit's WebSocket endpoints): the unit's own first, since a
+  gateway's own controllers answer before its routes; else, when the unit is a gateway, the route
+  that takes the request, by its Path and Method predicates (the lowest `order`, then the pattern
+  with most literal segments, then the route's id, since the order of the routes in the code is not
+  kept), and the endpoint of the unit that route sends it to, by the path as that unit sees it
+  through `StripPrefix` and `PrefixPath`. A route that rewrites the path otherwise names none. The
+  link records `reaches` (the endpoint's handler, or the method that registers the WebSocket
+  endpoint), `reachesUnit`, `reachesEndpoint` and `throughRoute` (the route's id), and cites the
+  endpoint's and the route's facts. A proxy's own link names none.
