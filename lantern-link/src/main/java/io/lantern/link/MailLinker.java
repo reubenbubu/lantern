@@ -86,7 +86,10 @@ final class MailLinker {
 
     List<Fact> sends = new ArrayList<>();
     for (Fact send : allSends) {
-      if (index.unitsOf(send.subject()).contains(unit) && index.active(send.subject(), view)) {
+      // Another library or a provider's SDK does not send to the server spring.mail.host names.
+      if (MailExtractor.sendsThroughSpringMail(send)
+          && index.unitsOf(send.subject()).contains(unit)
+          && index.active(send.subject(), view)) {
         sends.add(send);
       }
     }

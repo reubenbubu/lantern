@@ -48,6 +48,20 @@ public final class MailExtractor {
   /** Attribute: the method sends mail. */
   public static final String MAIL_SEND = "mail-send";
 
+  /** The packages of the senders whose server Spring Boot's {@code spring.mail.*} config sets. */
+  private static final List<String> SPRING_CONFIGURED =
+      List.of("org.springframework.mail.", "jakarta.mail.", "javax.mail.");
+
+  /**
+   * Whether a {@link #MAIL_SEND} fact sends through Spring's or Jakarta Mail's API, and so to the
+   * server {@code spring.mail.host} names, rather than through another library or a provider's SDK.
+   */
+  public static boolean sendsThroughSpringMail(Fact send) {
+    String template =
+        send.attributes().has("template") ? send.attributes().get("template").stringValue() : "";
+    return SPRING_CONFIGURED.stream().anyMatch(template::startsWith);
+  }
+
   /** Attribute: the method sets the mail server's host. */
   public static final String MAIL_HOST = "mail-host";
 
@@ -66,8 +80,8 @@ public final class MailExtractor {
   /** The types that send mail, by binary name. */
   private static final Map<String, Sender> SENDERS = senders();
 
-  /** The types and methods that set the mail server's host from their first argument. */
-  private static final Map<String, String> HOST_SETTERS = hostSetters();
+  /** The types, and their methods that set the mail server's host from their first argument. */
+  private static final Map<String, Set<String>> HOST_SETTERS = hostSetters();
 
   private static Map<String, Sender> senders() {
     Map<String, Sender> senders = new LinkedHashMap<>();
@@ -79,10 +93,10 @@ public final class MailExtractor {
             "org.springframework.mail.javamail.JavaMailSenderImpl",
             "io.quarkus.mailer.Mailer",
             "io.quarkus.mailer.reactive.ReactiveMailer",
-            "io.micronaut.email.EmailSender",
-            "io.micronaut.email.AsyncEmailSender")) {
+            "io.micronaut.email.EmailSender")) {
       senders.put(type, library);
     }
+    senders.put("io.micronaut.email.AsyncEmailSender", new Sender(Set.of("sendAsync"), null));
     Sender transport = new Sender(Set.of("send", "sendMessage"), null);
     senders.put("jakarta.mail.Transport", transport);
     senders.put("javax.mail.Transport", transport);
@@ -100,13 +114,19 @@ public final class MailExtractor {
                 "sendRawEmail",
                 "sendTemplatedEmail",
                 "sendBulkTemplatedEmail",
-                "sendBulkEmail"),
+                "sendBulkEmail",
+                "sendEmailAsync",
+                "sendRawEmailAsync",
+                "sendTemplatedEmailAsync",
+                "sendBulkTemplatedEmailAsync",
+                "sendBulkEmailAsync"),
             "Amazon SES");
     for (String type :
         List.of(
             "com.amazonaws.services.simpleemail.AmazonSimpleEmailService",
             "com.amazonaws.services.simpleemail.AmazonSimpleEmailServiceAsync",
             "com.amazonaws.services.simpleemailv2.AmazonSimpleEmailServiceV2",
+            "com.amazonaws.services.simpleemailv2.AmazonSimpleEmailServiceV2Async",
             "software.amazon.awssdk.services.ses.SesClient",
             "software.amazon.awssdk.services.ses.SesAsyncClient",
             "software.amazon.awssdk.services.sesv2.SesV2Client",
@@ -135,13 +155,14 @@ public final class MailExtractor {
     return types;
   }
 
-  private static Map<String, String> hostSetters() {
-    Map<String, String> setters = new LinkedHashMap<>();
-    setters.put("org.springframework.mail.javamail.JavaMailSenderImpl", "setHost");
+  private static Map<String, Set<String>> hostSetters() {
+    Map<String, Set<String>> setters = new LinkedHashMap<>();
+    setters.put("org.springframework.mail.javamail.JavaMailSenderImpl", Set.of("setHost"));
     for (String type : commonsEmailTypes()) {
-      setters.put(type, "setHostName");
+      setters.put(type, Set.of("setHostName"));
     }
-    setters.put("org.simplejavamail.mailer.MailerBuilder", "withSMTPServer");
+    setters.put(
+        "org.simplejavamail.mailer.MailerBuilder", Set.of("withSMTPServer", "withSMTPServerHost"));
     return Map.copyOf(setters);
   }
 
@@ -198,7 +219,8 @@ public final class MailExtractor {
         Sender sender = SENDERS.get(type);
         boolean sends = sender != null && sender.methods().contains(call.method());
         String host =
-            call.method().equals(HOST_SETTERS.get(type)) && !call.arguments().isEmpty()
+            HOST_SETTERS.getOrDefault(type, Set.of()).contains(call.method())
+                    && !call.arguments().isEmpty()
                 ? host(call.arguments().getFirst())
                 : null;
         if (!sends && host == null) {

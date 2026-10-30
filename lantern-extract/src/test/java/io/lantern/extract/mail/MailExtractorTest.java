@@ -168,6 +168,11 @@ class MailExtractorTest {
                     return MailerBuilder.withSMTPServer("smtp.sendgrid.net", 587).buildMailer();
                   }
 
+                  public void viaMicronautAsync(io.micronaut.email.AsyncEmailSender<?, ?> sender,
+                      Object email) {
+                    sender.sendAsync(email);
+                  }
+
                   public void notMail() {
                     ses.listContactLists(null);
                   }
@@ -206,7 +211,9 @@ class MailExtractorTest {
             "viaCommons(java.lang.String) mail-send send",
             "viaCommons(java.lang.String) mail-host smtp.example.com",
             "springSender() mail-host mail.example.org",
-            "simpleMailer() mail-host smtp.sendgrid.net");
+            "simpleMailer() mail-host smtp.sendgrid.net",
+            "viaMicronautAsync(io.micronaut.email.AsyncEmailSender,java.lang.Object) mail-send"
+                + " sendAsync");
   }
 
   @Test
