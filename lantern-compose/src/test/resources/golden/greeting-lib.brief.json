@@ -78,9 +78,9 @@
       "text" : " It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "1595b273c8c5cefce195603681e2e8dca7c054ae1c73bfec162e838e0bfb220c" ]
+      "facts" : [ "c7f53842ef8ecd41bb848a93036ceff1d2a025d658bea8ccddcbb5d6ffbc18b0" ]
     } ],
-    "facts" : [ "058a0d8873d166d80110ee4b7b5ab1b4362c90d7a86ca9f172c589aa9d4a711f" ]
+    "facts" : [ "0d526a217fb6a65dd661052fb997bcdfd26154053dd82500adf914b2d131b369" ]
   }, {
     "id" : "repo:greeting-lib",
     "name" : "greeting-lib",
@@ -164,12 +164,12 @@
       "text" : "It is described by its facts."
     }, {
       "kind" : "citation",
-      "facts" : [ "aacc110eecc1601bd86f6d9a3021aecee818a283399c1cca77bcdafc534f7f41" ]
+      "facts" : [ "a9d58aff36bbe05f07d008b4b3480e7ad2151587cf8a6c78ac22da96354cb397" ]
     } ],
-    "facts" : [ "1595b273c8c5cefce195603681e2e8dca7c054ae1c73bfec162e838e0bfb220c", "a0e6ccbe49028d4558b7f436b17295289da5b065f098c1108cd6b0357a3764b5" ]
+    "facts" : [ "9151f9028b5d4517223be379f70e656e6bb56513c4428aa019bc6b5326c79d63", "c7f53842ef8ecd41bb848a93036ceff1d2a025d658bea8ccddcbb5d6ffbc18b0" ]
   } ],
   "facts" : [ {
-    "id" : "058a0d8873d166d80110ee4b7b5ab1b4362c90d7a86ca9f172c589aa9d4a711f",
+    "id" : "0d526a217fb6a65dd661052fb997bcdfd26154053dd82500adf914b2d131b369",
     "subject" : "module:com.example.greeting:greeting-lib",
     "predicate" : "CONTAINS",
     "object" : {
@@ -180,40 +180,12 @@
     "origin" : {
       "kind" : "static",
       "name" : "java",
-      "version" : "2"
+      "version" : "3"
     },
     "evidence" : {
       "repo" : "greeting-lib",
       "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
       "path" : "src/main/java/com/example/greeting/lib"
-    },
-    "confidence" : 0.7,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
-    "id" : "1595b273c8c5cefce195603681e2e8dca7c054ae1c73bfec162e838e0bfb220c",
-    "subject" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "type:com.example.greeting.lib.Greeter"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "java",
-      "version" : "2"
-    },
-    "evidence" : {
-      "repo" : "greeting-lib",
-      "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
-      "path" : "src/main/java/com/example/greeting/lib/Greeter.java",
-      "lines" : {
-        "start" : 4,
-        "end" : 9
-      },
-      "contentHash" : "199401380654b52e36482f65db19afaeb798627c5ff663bbb77a3c4dbc3113d6"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -378,7 +350,7 @@
       "from" : 1
     }
   }, {
-    "id" : "a0e6ccbe49028d4558b7f436b17295289da5b065f098c1108cd6b0357a3764b5",
+    "id" : "9151f9028b5d4517223be379f70e656e6bb56513c4428aa019bc6b5326c79d63",
     "subject" : "type:com.example.greeting.lib.Greeter",
     "predicate" : "kind",
     "object" : {
@@ -389,7 +361,7 @@
     "origin" : {
       "kind" : "static",
       "name" : "java",
-      "version" : "2"
+      "version" : "3"
     },
     "evidence" : {
       "repo" : "greeting-lib",
@@ -406,7 +378,7 @@
       "from" : 1
     }
   }, {
-    "id" : "aacc110eecc1601bd86f6d9a3021aecee818a283399c1cca77bcdafc534f7f41",
+    "id" : "a9d58aff36bbe05f07d008b4b3480e7ad2151587cf8a6c78ac22da96354cb397",
     "subject" : "type:com.example.greeting.lib.Greeter",
     "predicate" : "CONTAINS",
     "object" : {
@@ -417,7 +389,7 @@
     "origin" : {
       "kind" : "static",
       "name" : "java",
-      "version" : "2"
+      "version" : "3"
     },
     "evidence" : {
       "repo" : "greeting-lib",
@@ -456,6 +428,34 @@
         "end" : 16
       },
       "contentHash" : "5d917e622545428c549b4069f68ac3dae07a0c594938dc321e34d657411264ac"
+    },
+    "confidence" : 0.7,
+    "validity" : {
+      "from" : 1
+    }
+  }, {
+    "id" : "c7f53842ef8ecd41bb848a93036ceff1d2a025d658bea8ccddcbb5d6ffbc18b0",
+    "subject" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib",
+    "predicate" : "CONTAINS",
+    "object" : {
+      "kind" : "entity",
+      "value" : "type:com.example.greeting.lib.Greeter"
+    },
+    "attributes" : { },
+    "origin" : {
+      "kind" : "static",
+      "name" : "java",
+      "version" : "3"
+    },
+    "evidence" : {
+      "repo" : "greeting-lib",
+      "commit" : "a8553bc246fdd45c7f8626c26352128b753e3990",
+      "path" : "src/main/java/com/example/greeting/lib/Greeter.java",
+      "lines" : {
+        "start" : 4,
+        "end" : 9
+      },
+      "contentHash" : "199401380654b52e36482f65db19afaeb798627c5ff663bbb77a3c4dbc3113d6"
     },
     "confidence" : 0.7,
     "validity" : {
@@ -626,7 +626,7 @@
       }, {
         "label" : "Java types",
         "value" : 1,
-        "facts" : [ "1595b273c8c5cefce195603681e2e8dca7c054ae1c73bfec162e838e0bfb220c" ]
+        "facts" : [ "c7f53842ef8ecd41bb848a93036ceff1d2a025d658bea8ccddcbb5d6ffbc18b0" ]
       }, {
         "label" : "Third-party libraries",
         "value" : 0,

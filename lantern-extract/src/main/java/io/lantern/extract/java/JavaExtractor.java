@@ -10,6 +10,7 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.RepoBuild;
+import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Call;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
@@ -60,7 +61,7 @@ public final class JavaExtractor {
   public static final String NAME = "java";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "java-extractor";
@@ -73,6 +74,27 @@ public final class JavaExtractor {
 
   /** Attribute: what sort of type the subject is (class, interface, enum, record, annotation). */
   public static final String KIND = "kind";
+
+  /**
+   * Attribute: the type is generated code, and by what: the generator its {@code @Generated}
+   * annotation names (such as {@code org.mapstruct.ap.MappingProcessor}), else {@code build} for a
+   * type in the build's generated sources.
+   */
+  public static final String GENERATED = "generated";
+
+  /** The {@code @Generated} annotations code generators write on the types they generate. */
+  private static final Set<String> GENERATED_ANNOTATIONS =
+      Set.of(
+          "javax.annotation.Generated",
+          "javax.annotation.processing.Generated",
+          "jakarta.annotation.Generated",
+          "io.grpc.stub.annotations.GrpcGenerated",
+          "com.google.protobuf.Generated");
+
+  /**
+   * The {@code generated} value of a type in the build's generated sources that names no generator.
+   */
+  static final String BUILD = "build";
 
   /** Confidence of facts read through javac. */
   static final double COMPILED_CONFIDENCE = 1.0;
@@ -337,6 +359,10 @@ public final class JavaExtractor {
               confidence);
         }
         fact(type, KIND, FactObject.string(t.kind()), repo, t.where(), confidence);
+        String generator = generator(structure, t);
+        if (generator != null) {
+          fact(type, GENERATED, FactObject.string(generator), repo, t.where(), confidence);
+        }
         for (Supertype s : t.supertypes()) {
           EntityId supertype = ModuleStructure.typeId(s.binaryName());
           if (supertype != null) {
@@ -423,6 +449,33 @@ public final class JavaExtractor {
         return null;
       }
       return call.calleeOfReceiver();
+    }
+
+    /**
+     * What generated a type: the generator its own or an enclosing type's {@code @Generated} names,
+     * else {@link #BUILD} if it is in the build's generated sources, else null.
+     */
+    private static String generator(ModuleStructure structure, TypeDecl t) {
+      for (TypeDecl d = t; d != null; d = d.outer() == null ? null : find(structure, d.outer())) {
+        for (Annotation a : d.annotations()) {
+          if (GENERATED_ANNOTATIONS.contains(a.type())) {
+            List<String> values = a.values().getOrDefault("value", List.of());
+            return values.isEmpty() || values.get(0).isBlank()
+                ? a.type().substring(a.type().lastIndexOf('.') + 1)
+                : values.get(0).strip();
+          }
+        }
+      }
+      return t.where().file().generated() ? BUILD : null;
+    }
+
+    private static TypeDecl find(ModuleStructure structure, String binaryName) {
+      for (TypeDecl d : structure.types) {
+        if (d.binaryName().equals(binaryName)) {
+          return d;
+        }
+      }
+      return null;
     }
 
     private void fact(

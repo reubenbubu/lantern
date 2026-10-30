@@ -111,8 +111,9 @@ import java.util.function.Supplier;
 /**
  * Reads a module's structure by parsing its sources with JavaParser, for degraded mode when the
  * module could not be compiled. Types resolve against the JDK, the sources of the snapshot's
- * repositories and whatever classpath jars the failed build left. Annotation processors do not run,
- * so members Lombok would generate are missing, and calls that do not resolve are left out.
+ * repositories and whatever classpath jars the failed build left. Annotation processors do not run;
+ * of the members Lombok would generate, only its constructors and log field are added here, as
+ * javac with Lombok declares them. Calls that do not resolve are left out.
  *
  * <p>It mirrors {@link JavacAnalyzer}: the same members, including the implicit ones javac adds
  * (default constructors and the members of records), get the same IDs, so a module's entities do
@@ -146,6 +147,42 @@ final class JavaParserAnalyzer {
           "SuperBuilder",
           "AllArgsConstructor",
           "RequiredArgsConstructor");
+
+  /** The names Lombok counts as non-null on a field, whatever their package. */
+  private static final Set<String> NON_NULL = Set.of("NonNull", "Nonnull", "NotNull");
+
+  /** Lombok's annotations this analyzer reads, for names reached through a star import. */
+  private static final Set<String> LOMBOK_NAMES =
+      Set.of(
+          "Value",
+          "Data",
+          "Builder",
+          "AllArgsConstructor",
+          "RequiredArgsConstructor",
+          "NoArgsConstructor",
+          "NonNull",
+          "FieldDefaults",
+          "NonFinal",
+          "Slf4j",
+          "XSlf4j",
+          "Log",
+          "Log4j",
+          "Log4j2",
+          "CommonsLog",
+          "JBossLog",
+          "Flogger");
+
+  /** Lombok's log annotations, with the type of the {@code log} field each adds. */
+  private static final Map<String, String> LOMBOK_LOGS =
+      Map.of(
+          "Slf4j", "org.slf4j.Logger",
+          "XSlf4j", "org.slf4j.ext.XLogger",
+          "Log", "java.util.logging.Logger",
+          "Log4j", "org.apache.log4j.Logger",
+          "Log4j2", "org.apache.logging.log4j.Logger",
+          "CommonsLog", "org.apache.commons.logging.Log",
+          "JBossLog", "org.jboss.logging.Logger",
+          "Flogger", "com.google.common.flogger.FluentLogger");
 
   private final JavaParser parser;
   private final TypeSolver solver;
@@ -366,6 +403,10 @@ final class JavaParserAnalyzer {
           default -> {}
         }
       }
+      if (type instanceof ClassOrInterfaceDeclaration c && !c.isInterface()
+          || type instanceof EnumDeclaration) {
+        lombokMembers(type, binary, members);
+      }
       structure.types.add(
           new TypeDecl(
               binary,
@@ -431,6 +472,163 @@ final class JavaParserAnalyzer {
           add(members, id, where);
         }
       }
+    }
+
+    /**
+     * Adds the constructors and log field Lombok generates for a class, as javac with Lombok
+     * declares them: {@code @NoArgsConstructor}; {@code @RequiredArgsConstructor}, or {@code @Data}
+     * without a constructor of the class's own, with a parameter for each uninitialized {@code
+     * final} or {@code @NonNull} field in order; {@code @AllArgsConstructor}, or {@code @Value} or
+     * {@code @Builder} without another constructor, with one for each uninitialized field (for
+     * {@code @Value} every field is {@code final}); and the {@code log} field of a log annotation.
+     * Each has the annotation's lines. {@code lombok.config} settings (such as another log field
+     * name) and {@code @SuperBuilder} are not followed.
+     */
+    private void lombokMembers(TypeDeclaration<?> type, String binary, List<Member> members) {
+      Map<String, AnnotationExpr> lombok = new LinkedHashMap<>();
+      for (AnnotationExpr annotation : type.getAnnotations()) {
+        if (isLombok(annotation)) {
+          String name = annotation.getNameAsString();
+          lombok.putIfAbsent(name.substring(name.lastIndexOf('.') + 1), annotation);
+        }
+      }
+      if (lombok.isEmpty()) {
+        return;
+      }
+      boolean ownConstructor =
+          type.getMembers().stream().anyMatch(m -> m instanceof ConstructorDeclaration);
+      boolean value = lombok.containsKey("Value");
+      AnnotationExpr defaults = lombok.get("FieldDefaults");
+      boolean makeFinal =
+          defaults instanceof NormalAnnotationExpr n
+              && n.getPairs().stream()
+                  .anyMatch(
+                      p ->
+                          p.getNameAsString().equals("makeFinal")
+                              && p.getValue().toString().equals("true"));
+      List<Type> required = new ArrayList<>();
+      List<Type> all = new ArrayList<>();
+      for (FieldDeclaration f : type.getFields()) {
+        if (f.isStatic()) {
+          continue;
+        }
+        // Lombok counts any annotation named so as non-null, whatever its package.
+        boolean nonNull =
+            f.getAnnotations().stream().anyMatch(a -> NON_NULL.contains(simpleName(a)));
+        boolean nonFinal =
+            f.getAnnotations().stream()
+                .anyMatch(a -> simpleName(a).equals("NonFinal") && isLombok(a));
+        for (VariableDeclarator v : f.getVariables()) {
+          boolean initialized = v.getInitializer().isPresent();
+          boolean isFinal = f.isFinal() || (value || makeFinal) && !nonFinal;
+          if (initialized && isFinal) {
+            continue;
+          }
+          all.add(v.getType());
+          if (!initialized && (isFinal || nonNull)) {
+            required.add(v.getType());
+          }
+        }
+      }
+      Set<EntityId> added = new HashSet<>();
+      if (lombok.containsKey("NoArgsConstructor")) {
+        lombokConstructor(binary, List.of(), lombok.get("NoArgsConstructor"), type, members, added);
+      }
+      if (lombok.containsKey("RequiredArgsConstructor")) {
+        lombokConstructor(
+            binary, required, lombok.get("RequiredArgsConstructor"), type, members, added);
+      } else if (lombok.containsKey("Data")
+          && !ownConstructor
+          && !value
+          && !lombok.containsKey("NoArgsConstructor")
+          && !lombok.containsKey("AllArgsConstructor")
+          && !lombok.containsKey("Builder")) {
+        // @Data skips its constructor if any other constructor exists or is generated.
+        lombokConstructor(binary, required, lombok.get("Data"), type, members, added);
+      }
+      boolean otherConstructor =
+          ownConstructor
+              || lombok.containsKey("NoArgsConstructor")
+              || lombok.containsKey("RequiredArgsConstructor");
+      if (lombok.containsKey("AllArgsConstructor")) {
+        lombokConstructor(binary, all, lombok.get("AllArgsConstructor"), type, members, added);
+      } else if (value && !otherConstructor) {
+        lombokConstructor(binary, all, lombok.get("Value"), type, members, added);
+      } else if (lombok.containsKey("Builder") && !otherConstructor) {
+        lombokConstructor(binary, all, lombok.get("Builder"), type, members, added);
+      }
+      for (Map.Entry<String, String> log : LOMBOK_LOGS.entrySet()) {
+        AnnotationExpr annotation = lombok.get(log.getKey());
+        EntityId id = ModuleStructure.fieldId(binary, "log");
+        boolean declared =
+            type.getFields().stream()
+                .anyMatch(
+                    f ->
+                        f.getVariables().stream().anyMatch(v -> v.getNameAsString().equals("log")));
+        if (annotation != null && id != null && !declared) {
+          members.add(new Member(id, location(annotation), List.of(), log.getValue(), List.of()));
+        }
+      }
+    }
+
+    private void lombokConstructor(
+        String binary,
+        List<Type> parameters,
+        AnnotationExpr annotation,
+        Node context,
+        List<Member> members,
+        Set<EntityId> added) {
+      List<String> types = new ArrayList<>();
+      for (Type t : parameters) {
+        types.add(describe(t, context));
+      }
+      EntityId id = ModuleStructure.methodId(binary, ModuleStructure.CONSTRUCTOR, types);
+      boolean declared = members.stream().anyMatch(m -> m.id().equals(id));
+      if (id != null && !declared && added.add(id)) {
+        add(members, id, location(annotation));
+      }
+    }
+
+    private static String simpleName(AnnotationExpr annotation) {
+      String name = annotation.getNameAsString();
+      return name.substring(name.lastIndexOf('.') + 1);
+    }
+
+    /**
+     * Whether an annotation is Lombok's, by its written name or the imports: a single-type import
+     * of the name decides; a star import of a Lombok package counts only for a name Lombok has.
+     */
+    private boolean isLombok(AnnotationExpr annotation) {
+      String name = annotation.getNameAsString();
+      if (name.startsWith(LOMBOK)) {
+        return true;
+      }
+      if (name.contains(".")) {
+        return false;
+      }
+      for (ImportDeclaration i : unit.getImports()) {
+        if (!i.isStatic() && !i.isAsterisk() && i.getNameAsString().endsWith("." + name)) {
+          return i.getNameAsString().startsWith(LOMBOK);
+        }
+      }
+      if (!LOMBOK_NAMES.contains(name)) {
+        return false;
+      }
+      for (ImportDeclaration i : unit.getImports()) {
+        String imported = i.getNameAsString();
+        if (!i.isStatic()
+            && (i.isAsterisk()
+                ? imported.equals("lombok")
+                    || imported.equals("lombok.extern.slf4j")
+                    || imported.startsWith("lombok.extern.")
+                    || imported.equals("lombok.experimental")
+                : imported.equals("lombok." + name)
+                    || imported.equals("lombok.experimental." + name)
+                    || imported.startsWith("lombok.extern.") && imported.endsWith("." + name))) {
+          return true;
+        }
+      }
+      return false;
     }
 
     /** Whether the type has a Lombok annotation that generates constructors. */

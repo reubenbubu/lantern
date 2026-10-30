@@ -35,8 +35,9 @@ public final class ModuleStructure {
    *     generated source, to the top of the build's work directory
    * @param file where the file was on disk during analysis; it is deleted afterwards
    * @param contentHash the SHA-256 of the file's content
+   * @param generated whether the build generated it, rather than it being in the repository
    */
-  public record SourceFile(String path, Path file, String contentHash) {}
+  public record SourceFile(String path, Path file, String contentHash, boolean generated) {}
 
   /**
    * Where something is: a file and an inclusive range of 1-based lines, or no lines (0) when the
