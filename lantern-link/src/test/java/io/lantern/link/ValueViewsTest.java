@@ -193,6 +193,31 @@ class ValueViewsTest {
     }
   }
 
+  @Test
+  void theEndpointsAndSchedulesAreThoseTheSpringExtractorRecordedBefore() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("spring"), fixture("spring-api"));
+    List<Fact> written = new io.lantern.extract.spring.SpringExtractor().extract(repos, SNAPSHOT);
+    List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+    facts.addAll(written);
+
+    // The extractor's facts but those kept for linking, and what linking records from them and
+    // the config facts, are the extractor's facts of before: its golden file (#519).
+    List<Fact> all = new ArrayList<>();
+    for (Fact f : written) {
+      if (!f.predicate().equals(io.lantern.extract.spring.SpringExtractor.HANDLED_BY)
+          && !f.predicate().equals(io.lantern.extract.spring.SpringExtractor.SCHEDULED_WRITTEN)) {
+        all.add(f);
+      }
+    }
+    for (Fact f : new ValueViews().derive(facts, SNAPSHOT)) {
+      if (f.predicate().equals(io.lantern.extract.spring.SpringExtractor.ENDPOINT)
+          || f.predicate().equals(io.lantern.extract.spring.SpringExtractor.SCHEDULED)) {
+        all.add(f);
+      }
+    }
+    assertThat(sorted(render(all))).isEqualTo(sorted(golden("spring-parsed.txt")));
+  }
+
   /** Moved from the gateway extractor's tests with #558, unchanged. */
   @Test
   void zuulRoutesAndTheDiscoveryLocator() throws IOException {

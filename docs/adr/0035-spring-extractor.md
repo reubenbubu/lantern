@@ -165,3 +165,25 @@ and `JobScheduler` lambdas and the `aJob()` builder (#419); `RouterFunction` bea
 read: access checks on interfaces (Spring Security honours them, no test set has one), and
 Boot 3.5's repeated `@ConditionalOnProperty` and `@ConditionalOnBooleanProperty`. Linking the
 new facts is #421.
+
+## Amendment (#519): endpoints as entities, values as written
+
+The Spring extractor (version 6) reads no config (ADR 0094):
+
+- **An endpoint is an entity**, `http-endpoint:<module>:<HTTP method or *>:<path as written>`, such
+  as `http-endpoint:com.acme:orders:GET:${api.prefix}/orders`. It is `HANDLED_BY` its method, with
+  the controller's and the method's paths as written (`basePath`, `path`), the HTTP method, the
+  controller, the annotation, the framework, and the module whose config resolves the paths.
+- **A schedule** (`@Scheduled`, or JobRunr's `@Recurring` with a cron) is a `scheduled-written`
+  fact on its method, holding its value as written.
+- **Linking's first step** (`ValueViews`) resolves both in each view, through the extractor's own
+  code (`SpringExtractor.resolve`), and records the `endpoint` and `scheduled` facts as before. A
+  path a secret was substituted into, in the controller's part or the method's, is recorded as
+  written and masked.
+- The type is `http-endpoint` because the `endpoint` attribute type, which documents read until
+  #521, keeps its name. The extractor no longer requires the identity extractor.
+- **Evidence.** The extractor's golden file of before still holds through the same function, fed
+  from the config files. `ValueViewsTest` rebuilds the whole file from the config facts.
+  `EndpointsIT` checks the 339 endpoint and scheduled facts of project-0 to 4 and project-8, and
+  that every endpoint has its entity.
+

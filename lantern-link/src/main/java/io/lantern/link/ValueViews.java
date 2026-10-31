@@ -45,8 +45,8 @@ import tools.jackson.databind.node.ObjectNode;
  *       message-listener}, {@code message-binding} or {@code message-destination} facts, and each
  *       module's Spring Cloud Stream functions their bindings', through the messaging extractor's
  *       own resolving, and a STOMP send written in code its {@code stomp-send} fact (#559);
- *   <li>an endpoint the code serves ({@code HANDLED_BY}) and a schedule ({@code
- *       scheduled-written}) give their {@code endpoint} and {@code scheduled} facts (#519).
+ *   <li>an endpoint the code serves ({@code HANDLED_BY}) and a schedule ({@code scheduled-written})
+ *       give their {@code endpoint} and {@code scheduled} facts (#519).
  * </ul>
  *
  * <p>The value resolution rule of #522 replaces this step with {@code RESOLVES_TO} claims.

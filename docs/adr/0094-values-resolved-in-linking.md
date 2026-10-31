@@ -90,7 +90,10 @@ stores are the fourth (ADR 0036, amendment for #560): read in the step from the 
 through the persistence extractor's reading, each a `data-source` entity connected to its address
 as written. The JPA naming strategy and Redis's settings, which join config with code, are the fifth
 (#567): the extractors record what the code says, and the step applies the config. The SQL
-settings stay in extraction (#569, below).
+settings stay in extraction (#569, below). Endpoints and Spring's scheduled values are the last
+(ADR 0035, amendment for #519): an endpoint is an `http-endpoint` entity its method handles, its
+paths as written. With it, no extractor but SQL reads config: `CodeConfig` reads files only in
+the extractors' tests, which resolve through the same functions linking calls.
 
 Extraction coverage counts the step's facts as their extractor's (ADR 0089, amendment for #558; the messaging and STOMP facts from #559).
 
