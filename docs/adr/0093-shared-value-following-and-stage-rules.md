@@ -21,17 +21,23 @@ use the LLM.
   - a field or parameter with `@Value`, directly or through a meta-annotation, gives the
     annotation's text as written, placeholders and all;
   - with the hop, a field without `@Value` gives what its type's constructors and initializers
-    give it, followed without a further hop, when every value given to it reads the same text;
+    give it, followed without a further hop, when every value given to it follows to the same
+    parts (so a constant and a `@Value` with the same text do not agree);
   - anything else stays open, as its expression.
 
   The result is the value's parts in order, the fields and code it was read through, and the code
   whose parameters stayed open. Each extractor keeps only how it writes the parts: the HTTP client
   and gateway write an open part as its source in braces, messaging and identity take a value only
   when nothing stayed open (identity also only a URL). The gateway follows without the hop, as
-  before. The follower also gives the members, parameters and field assignments of the code that
-  the extractors used to index each for themselves.
+  before. The follower also gives the members, parameters and field assignments of the code, and
+  a field's one assignment when every constructor gives it the same expression (`single`), which
+  the extractors that follow values used to index and copy for themselves. The gateway keeps its
+  own ordered member list for finding filters and beans, which is not value following.
 - **Placeholders are not resolved here.** That stays with config for now and moves to the linker's
   value resolution (#519, #522).
+- **The identity extractor's config keys** (`keys()`) walk calls as well, such as
+  `Keys.hmacShaKeyFor(secret.getBytes())`, to find the `@Value` placeholders a secret is read
+  from; that walk stays its own, and follows a field through the follower's `single`.
 - **WebSocket destinations** keep their own reading: they follow formatted strings and fields up to
   three hops with no `@Value`, which is a pattern of destinations, not the value follow; they use
   the follower's field assignments.
@@ -51,6 +57,9 @@ use the LLM.
 - Where the copies disagreed, the shared rule applies. A field given the same expression in two
   constructors whose parameters carry different `@Value`s no longer takes the first one's; fields
   given different expressions that read the same are now followed; HTTP and messaging can follow a
-  field to another `@Value` field or a concatenation. None of this changes the fake-model
+  field to another `@Value` field or a concatenation; WebSocket's relay settings now also find a
+  `@Value` through a meta-annotation, as the others did; the HTTP client reads a URL again at the
+  calls of the code making it also when a field's disagreeing values left that code's parameter
+  open. None of this changes the fake-model
   scorecards on project-0 to project-4 and project-8 (#283's PR).
 - A new extractor that follows values uses `Values` rather than its own copy.

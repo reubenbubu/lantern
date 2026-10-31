@@ -1916,17 +1916,7 @@ public final class HttpClientExtractor implements Extractor {
 
     /** The one value given to a field, if all the values given to it are the same. */
     private Assignment single(Expression.FieldRef f) {
-      List<Assignment> given = code.values().assignments(f);
-      if (given.isEmpty()) {
-        return null;
-      }
-      Assignment first = given.getFirst();
-      for (Assignment a : given) {
-        if (!a.value().equals(first.value())) {
-          return null;
-        }
-      }
-      return first;
+      return code.values().single(f);
     }
 
     private Member field(Expression.FieldRef f) {

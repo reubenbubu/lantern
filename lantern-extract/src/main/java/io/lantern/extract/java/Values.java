@@ -20,7 +20,7 @@ import java.util.Set;
  * concatenations ({@link Expression}); this follows the rest one hop: a field or parameter with
  * {@code @Value} gives the annotation's text as written, placeholders and all, and a field without
  * one gives what its type's constructors and initializer give it, when every value given to it
- * reads the same. Placeholders are not resolved here: that is the linker's.
+ * follows to the same parts. Placeholders are not resolved here: that is the linker's.
  *
  * <p>Made once per code model ({@link JavaAnalysis#values()}) and safe to share between threads.
  */
@@ -70,7 +70,7 @@ public final class Values {
     public Value {
       parts = List.copyOf(parts);
       via = java.util.Collections.unmodifiableSet(new LinkedHashSet<>(via));
-      openParams = Set.copyOf(openParams);
+      openParams = java.util.Collections.unmodifiableSet(new LinkedHashSet<>(openParams));
     }
 
     /** Whether every part was followed to a text. */
@@ -189,7 +189,7 @@ public final class Values {
 
   /**
    * What a field's type's code gives it, followed without another hop: the value when every value
-   * given to it reads the same, else null.
+   * given to it follows to the same parts, else null.
    */
   private Value given(EntityId field, Set<EntityId> open) {
     List<Assignment> all = assignments.getOrDefault(field, List.of());
@@ -210,6 +210,19 @@ public final class Values {
       via.addAll(v.via());
     }
     return agree ? new Value(parts, via, Set.of()) : null;
+  }
+
+  /**
+   * The one value given to a field, when every value given to it is the same expression, else null:
+   * for following an object or a call a field holds, which {@link #follow} does not read.
+   */
+  public Assignment single(Expression.FieldRef f) {
+    List<Assignment> given = assignments(f);
+    if (given.isEmpty()) {
+      return null;
+    }
+    Assignment first = given.getFirst();
+    return given.stream().allMatch(a -> a.value().equals(first.value())) ? first : null;
   }
 
   /** The member with the ID, the first read if several modules declare its type, or null. */

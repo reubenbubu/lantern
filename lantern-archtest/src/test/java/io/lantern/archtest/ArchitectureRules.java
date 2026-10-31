@@ -68,8 +68,7 @@ final class ArchitectureRules {
           .orShould()
           .dependOnClassesThat()
           .haveFullyQualifiedName("io.lantern.core.fact.FactRepository")
-          .because("renderers format the document model and make no content decisions")
-          .allowEmptyShould(true);
+          .because("renderers format the document model and make no content decisions");
 
   /** One stage and the classes in it. */
   record Stage(String name, DescribedPredicate<JavaClass> classes) {

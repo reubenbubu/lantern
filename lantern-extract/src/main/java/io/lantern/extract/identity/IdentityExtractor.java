@@ -777,12 +777,7 @@ public final class IdentityExtractor implements Extractor {
 
     /** The one value given to a field, if all the values given to it are the same. */
     private Assignment single(Expression.FieldRef f) {
-      List<Assignment> given = code.values().assignments(f);
-      if (given.isEmpty()) {
-        return null;
-      }
-      Assignment first = given.getFirst();
-      return given.stream().allMatch(a -> a.value().equals(first.value())) ? first : null;
+      return code.values().single(f);
     }
 
     private static List<String> placeholders(String text) {
