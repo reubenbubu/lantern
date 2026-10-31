@@ -46,7 +46,7 @@ import tools.jackson.databind.node.ObjectNode;
  * entity. Every fact about a unit has its evidence in the unit's own repository, so the unit's
  * facts are derived again whenever that repository is analyzed.
  */
-public final class DeployableUnits implements LinkStep {
+public final class DeployableUnits implements LinkRule.OverFacts {
 
   /** The step's name, recorded as the origin of its facts. */
   public static final String NAME = "deployable-units";
@@ -118,8 +118,23 @@ public final class DeployableUnits implements LinkStep {
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
   @Override
-  public Origin origin() {
-    return ORIGIN;
+  public RuleInfo info() {
+    return RuleInfo.of(ORIGIN);
+  }
+
+  @Override
+  public Set<String> reads() {
+    return Rules.union(Set.of(EXTRACTED), ValueViews.WRITES);
+  }
+
+  @Override
+  public Set<String> writes() {
+    return vocabularyPredicates();
+  }
+
+  /** The predicates of this step's vocabulary types, which it writes. */
+  static Set<String> vocabularyPredicates() {
+    return Rules.predicates(vocabulary());
   }
 
   /** The vocabulary types this step's facts use besides the built-in and extractors' ones. */

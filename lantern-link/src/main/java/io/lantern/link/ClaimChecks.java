@@ -44,7 +44,7 @@ import tools.jackson.databind.node.ObjectNode;
  * NamedClaimChecks}). Every other claim is left alone. A README speaks for the deployable units of
  * its repository, or, when it sits in a folder some of them are in, for those.
  */
-public final class ClaimChecks implements LinkStep {
+public final class ClaimChecks implements LinkRule.OverFacts {
 
   /** The step's name, recorded as the origin of its facts. */
   public static final String NAME = "claim-checks";
@@ -197,8 +197,22 @@ public final class ClaimChecks implements LinkStep {
   private static final Pattern MINIMUM = Pattern.compile("\\b(at least|minimum|min\\.?)\\s*$");
 
   @Override
-  public Origin origin() {
-    return ORIGIN;
+  public RuleInfo info() {
+    return RuleInfo.of(ORIGIN);
+  }
+
+  @Override
+  public Set<String> reads() {
+    return Rules.union(
+        Set.of(EXTRACTED),
+        ValueViews.WRITES,
+        DeployableUnits.vocabularyPredicates(),
+        CrossRepoLinks.vocabularyPredicates());
+  }
+
+  @Override
+  public Set<String> writes() {
+    return Set.of(CLAIM_CONTRADICTION);
   }
 
   /** The vocabulary types this step's facts use besides the built-in and earlier ones. */

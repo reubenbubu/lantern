@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -51,13 +52,36 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>The value resolution rule of #522 replaces this step with {@code RESOLVES_TO} claims.
  */
-public final class ValueViews implements LinkStep {
+public final class ValueViews implements LinkRule.OverFacts {
 
   /** The step's name, recorded as the origin of its facts. */
   public static final String NAME = "values";
 
   /** The step's version. */
   public static final String VERSION = "1";
+
+  /**
+   * The predicates of the facts this step gives: those the extractors gave before they kept values
+   * as written (ADR 0094).
+   */
+  public static final Set<String> WRITES =
+      Set.of(
+          HttpClientExtractor.HTTP_CALL,
+          GatewayExtractor.ROUTE,
+          GatewayExtractor.LOCATOR,
+          MessagingExtractor.SEND,
+          MessagingExtractor.LISTENER,
+          MessagingExtractor.BINDING,
+          MessagingExtractor.DESTINATION,
+          io.lantern.extract.websocket.WebSocketExtractor.SEND,
+          io.lantern.extract.persistence.PersistenceExtractor.DATASOURCE,
+          io.lantern.extract.persistence.PersistenceExtractor.DATA_STORE,
+          io.lantern.extract.persistence.PersistenceExtractor.HAS_DATASOURCE,
+          io.lantern.extract.persistence.PersistenceExtractor.CONNECTS_TO,
+          io.lantern.extract.persistence.PersistenceExtractor.MAPS_TO,
+          io.lantern.extract.redis.RedisExtractor.REDIS_USE,
+          io.lantern.extract.spring.SpringExtractor.ENDPOINT,
+          io.lantern.extract.spring.SpringExtractor.SCHEDULED);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
@@ -66,8 +90,18 @@ public final class ValueViews implements LinkStep {
   private static final String FEIGN = "feign";
 
   @Override
-  public Origin origin() {
-    return ORIGIN;
+  public RuleInfo info() {
+    return RuleInfo.of(ORIGIN);
+  }
+
+  @Override
+  public Set<String> reads() {
+    return Set.of(EXTRACTED);
+  }
+
+  @Override
+  public Set<String> writes() {
+    return WRITES;
   }
 
   @Override

@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.link.JdbcRuleRuns;
 import io.lantern.link.ResolutionStore;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.SandboxSettings;
@@ -71,6 +72,7 @@ class AnalysisConfiguration {
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
       JdbcExtractionCache extractionCache,
+      JdbcRuleRuns ruleRuns,
       @Value("${lantern.version}") String toolVersion,
       @Value("${lantern.workspace}") Path workspace) {
     return new AnalysisRun(
@@ -90,8 +92,14 @@ class AnalysisConfiguration {
         renderer,
         c4Renderer,
         extractionCache,
+        ruleRuns,
         toolVersion,
         absolute(workspace).resolve("documents"));
+  }
+
+  @Bean
+  JdbcRuleRuns ruleRuns(JdbcClient jdbc) {
+    return new JdbcRuleRuns(jdbc);
   }
 
   @Bean

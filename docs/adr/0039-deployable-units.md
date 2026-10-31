@@ -1,6 +1,6 @@
 # 0039: Deployable units
 
-Status: accepted (#93), amended (#265), amended by ADR 0088 (#276)
+Status: accepted (#93), amended (#265), amended by ADR 0088 (#276), amended by ADR 0095 (#573)
 
 ## Context
 
@@ -115,3 +115,9 @@ version its dependency asks for. In project-4 the four services ask for crm-shar
   snapshot without skew gets the same facts as before. The findings page (#273) reads it for its
   version-skew risk.
 - The step's version becomes 2.
+
+## Amendment (#573): steps are link rules
+
+The linker's steps are link rules (ADR 0095): each declares the predicates it reads and writes, is
+handed only those facts, runs after the rules that write what it reads, and is not run again when
+its input and version are those of its last run for the system. Recording is as above.
