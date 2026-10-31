@@ -88,5 +88,13 @@ until #576.
 - **Writes.** Several rules give `deployed-in` (frontends, identity providers, data stores and the
   units' containers), `display-name` and `technology`, each for the entities it makes; on project-0
   to project-4 no fact is given twice.
+- **Retired rules.** A store analyzed before holds facts of origin `cross-repo-links`. The linker
+  lists retired rule names (`Linker.RETIRED`): recording extracted facts leaves them alone, rules
+  never read them, and each link ends them, so a carried-forward repository's old links do not
+  linger beside the new rules' facts.
+- **Links no longer merged across rules.** The step merged a link found by two matchers with the
+  same ends and code into one. Now two rules would each give it. Only data stores and Redis both
+  give `USES_DATABASE`, to databases named differently (`<server>/<database>`, `<server>/redis`), so
+  only a database named `redis` could be given twice.
 - `CrossRepoLinks` keeps the vocabulary and constants, and its `derive(facts, snapshot)` runs the
   seven rules together for tests.
