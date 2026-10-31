@@ -26,6 +26,9 @@ of the snapshot, and ran all of them on every analysis. This record says how the
 - **Typed queries.** `ClaimQuery.all(Class)` and `from(subject, Class)` read facts as the generated
   attribute records (ADR 0090), found by their `TYPE` and `from`. `all(predicate)` and `facts()` give
   facts as they are, for rules without a record and for the steps until they are ported.
+- **`EXTRACTED` covers only extracted facts.** Under it a rule may ask for any extracted
+  predicate, but asking for one another rule writes, without naming it, fails like any undeclared
+  read.
 - **Order.** A rule runs after every other rule that writes a predicate it reads, and otherwise in
   the order the linker is given. A rule never reads its own facts, so a predicate it both reads and
   writes (`technology`, which the units and the cross-repo links both give) is read from the others.
@@ -34,14 +37,23 @@ of the snapshot, and ran all of them on every analysis. This record says how the
 - **The order changes in one place.** The README claim checks read the link predicates the LLM
   resolver also writes, so they now run after it, where the epic puts them (in derivation, 1D),
   rather than before it. With the fake model the resolver picks nothing on the development sets, so
-  no document changes.
+  no document changes. With a real model the claim checks also see the links the LLM picked, as the
+  epic intends, and the resolver's graph tools (ADR 0081) no longer see `claim-contradiction`
+  facts, which they had no use for.
+- **Derived facts in ID order.** The rules after a rule read its facts in ID order, as the store
+  gives facts, rather than in the order it gave them, so a rule not run again hands on the same
+  order a run would. The fake-model scorecards are unchanged by it.
 - **Re-running.** The linker remembers, per system (its sorted repository names) and rule, the
-  rule's version and SHA-256 digests of the facts it read and of those it gave as stored (each
-  fact's ID and confidence), in a new table `link_rule_runs` (`JdbcRuleRuns`), written in the
+  rule's version, the digest of Lantern's code (`LanternCode`, the class-path digest the extraction
+  cache keys on, ADR 0092) and SHA-256 digests of the facts it read and of those it gave as stored
+  (each fact's ID, claim ID and confidence), in a new table `link_rule_runs` (`JdbcRuleRuns`), written in the
   transaction that records the facts. A rule is not run again when its version and input digest are
   those of its last run and the facts of its origin that hold are still those it gave; its facts then
   keep holding, and the rules after it read them as before. A fact's ID covers its evidence and
-  attributes, so a fact added, ended or changed changes the digest. A rule whose facts depend on
+  attributes, so a fact added, ended or changed changes the digest; the claim ID covers a change to
+  a type's key attributes. Versions are not bumped for every change to a rule or the helpers it
+  shares, so the code digest is what keeps a new Lantern from serving an old rule's facts: any new
+  build runs every rule once. A rule whose facts depend on
   more than what it reads says so (`pure()` false) and runs every time: the LLM resolver, whose
   answers and model live outside the facts (it asks the LLM only about links it has no answer for).
   `RuleRuns.NONE` remembers nothing, for the tests that link directly.
@@ -50,7 +62,7 @@ of the snapshot, and ran all of them on every analysis. This record says how the
 
 ## Consequences
 
-- A second analysis of an unchanged system runs only the LLM resolver; one that changes a file
+- A second analysis of an unchanged system with the same build runs only the LLM resolver; one that changes a file
   runs the rules whose input that changes, and those downstream whose input then changes.
-- `Linker.Result` lists the rules that ran.
+- `Linker.Result` lists the rules that ran, and the analysis log names them.
 - The fake-model scorecards on project-1 to project-4 and project-8 are unchanged (#573's PR).

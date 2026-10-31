@@ -232,6 +232,21 @@ class LinkRulesIT {
   }
 
   @Test
+  void aChangeToLanternsCodeRunsEveryRule() {
+    List<LinkRule> rules = List.of(CONTAINS_TO_CALLS, CALLS_TO_IMPLEMENTS, CONFIG_TO_EXTENDS);
+    link(new Linker(facts, rules, new JdbcRuleRuns(jdbc), "code-1"), 1, lib(1, "name", 10));
+
+    assertThat(
+            link(new Linker(facts, rules, new JdbcRuleRuns(jdbc), "code-1"), 2, lib(2, "name", 10))
+                .ran())
+        .isEmpty();
+    assertThat(
+            link(new Linker(facts, rules, new JdbcRuleRuns(jdbc), "code-2"), 3, lib(3, "name", 10))
+                .ran())
+        .containsExactly("calls", "implements", "extends");
+  }
+
+  @Test
   void aRuleWhoseFactsChangedElsewhereRunsAgain() {
     Linker linker = linker(CONTAINS_TO_CALLS, CALLS_TO_IMPLEMENTS, CONFIG_TO_EXTENDS);
     link(linker, 1, lib(1, "name", 10));

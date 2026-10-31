@@ -20,7 +20,7 @@ public final class JdbcRuleRuns implements RuleRuns {
   public Optional<Run> last(String scope, String rule) {
     return jdbc.sql(
             """
-            SELECT version, inputs, outputs, snapshot FROM link_rule_runs
+            SELECT version, code, inputs, outputs, snapshot FROM link_rule_runs
             WHERE scope = :scope AND rule = :rule
             """)
         .param("scope", Objects.requireNonNull(scope, "scope"))
@@ -29,6 +29,7 @@ public final class JdbcRuleRuns implements RuleRuns {
             (rs, n) ->
                 new Run(
                     rs.getString("version"),
+                    rs.getString("code"),
                     rs.getString("inputs"),
                     rs.getString("outputs"),
                     rs.getLong("snapshot")))
@@ -40,14 +41,15 @@ public final class JdbcRuleRuns implements RuleRuns {
     Objects.requireNonNull(run, "run");
     jdbc.sql(
             """
-            INSERT INTO link_rule_runs (scope, rule, version, inputs, outputs, snapshot)
-            VALUES (:scope, :rule, :version, :inputs, :outputs, :snapshot)
-            ON CONFLICT (scope, rule) DO UPDATE SET version = EXCLUDED.version,
+            INSERT INTO link_rule_runs (scope, rule, version, code, inputs, outputs, snapshot)
+            VALUES (:scope, :rule, :version, :code, :inputs, :outputs, :snapshot)
+            ON CONFLICT (scope, rule) DO UPDATE SET version = EXCLUDED.version, code = EXCLUDED.code,
               inputs = EXCLUDED.inputs, outputs = EXCLUDED.outputs, snapshot = EXCLUDED.snapshot
             """)
         .param("scope", Objects.requireNonNull(scope, "scope"))
         .param("rule", Objects.requireNonNull(rule, "rule"))
         .param("version", run.version())
+        .param("code", run.code())
         .param("inputs", run.inputs())
         .param("outputs", run.outputs())
         .param("snapshot", run.snapshot())

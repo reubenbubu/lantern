@@ -117,6 +117,7 @@ class LinkRuleTest {
         new ClaimQuery(
             rule,
             Set.of(CrossRepoLinks.CALLS_HTTP),
+            Set.of(),
             List.of(call(CrossRepoLinks.CALLS_HTTP, "{\"endpoint\":\"GET /a\",\"path\":\"/a\"}")),
             1);
 
@@ -133,9 +134,29 @@ class LinkRuleTest {
   void aQueryOfAPredicateTheRuleDoesNotReadFails() {
     ClaimQuery in =
         new ClaimQuery(
-            new RuleInfo("checks", "1", Origin.Kind.STATIC), Set.of("person"), List.of(), 1);
+            new RuleInfo("checks", "1", Origin.Kind.STATIC),
+            Set.of("person"),
+            Set.of(),
+            List.of(),
+            1);
 
     assertThatThrownBy(() -> in.all(CallsHttpAttributes.class))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("does not declare");
+  }
+
+  @Test
+  void readingEveryExtractedFactDoesNotCoverAnotherRulesPredicates() {
+    ClaimQuery in =
+        new ClaimQuery(
+            new RuleInfo("checks", "1", Origin.Kind.STATIC),
+            Set.of(LinkRule.EXTRACTED),
+            Set.of(CrossRepoLinks.CALLS_HTTP),
+            List.of(),
+            1);
+
+    assertThat(in.all("config-value")).isEmpty();
+    assertThatThrownBy(() -> in.all(CrossRepoLinks.CALLS_HTTP))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("does not declare");
   }

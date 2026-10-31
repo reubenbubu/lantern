@@ -134,13 +134,7 @@ public final class DeployableUnits implements LinkRule.OverFacts {
 
   /** The predicates of this step's vocabulary types, which it writes. */
   static Set<String> vocabularyPredicates() {
-    Set<String> predicates = new java.util.LinkedHashSet<>();
-    for (VocabularyType type : vocabulary()) {
-      if (type.kind().isPredicate()) {
-        predicates.add(type.name());
-      }
-    }
-    return Set.copyOf(predicates);
+    return Rules.predicates(vocabulary());
   }
 
   /** The vocabulary types this step's facts use besides the built-in and extractors' ones. */

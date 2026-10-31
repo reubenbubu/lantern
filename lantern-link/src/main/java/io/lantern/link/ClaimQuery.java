@@ -41,13 +41,20 @@ public final class ClaimQuery {
 
   private final RuleInfo rule;
   private final Set<String> reads;
+  private final Set<String> derived;
   private final List<Fact> facts;
   private final long snapshot;
   private final Map<String, List<Fact>> byPredicate = new HashMap<>();
 
-  ClaimQuery(RuleInfo rule, Set<String> reads, List<Fact> facts, long snapshot) {
+  /**
+   * @param derived the predicates the linker's rules write, which {@link LinkRule#EXTRACTED} does
+   *     not cover
+   */
+  ClaimQuery(
+      RuleInfo rule, Set<String> reads, Set<String> derived, List<Fact> facts, long snapshot) {
     this.rule = Objects.requireNonNull(rule, "rule");
     this.reads = Set.copyOf(reads);
+    this.derived = Set.copyOf(derived);
     this.facts = List.copyOf(facts);
     this.snapshot = snapshot;
     for (Fact f : this.facts) {
@@ -89,7 +96,8 @@ public final class ClaimQuery {
 
   private void check(String predicate) {
     Objects.requireNonNull(predicate, "predicate");
-    if (!reads.contains(predicate) && !reads.contains(LinkRule.EXTRACTED)) {
+    if (!reads.contains(predicate)
+        && !(reads.contains(LinkRule.EXTRACTED) && !derived.contains(predicate))) {
       throw new IllegalStateException(
           "Rule " + rule.name() + " reads " + predicate + ", which it does not declare");
     }

@@ -66,22 +66,22 @@ public final class ValueViews implements LinkRule.OverFacts {
    */
   public static final Set<String> WRITES =
       Set.of(
-          "http-call",
-          "gateway-route",
-          "gateway-discovery-locator",
-          "message-send",
-          "message-listener",
-          "message-binding",
-          "message-destination",
-          "stomp-send",
-          "datasource",
-          "data-store",
-          "HAS_DATASOURCE",
-          "CONNECTS_TO",
-          "MAPS_TO",
-          "redis-use",
-          "endpoint",
-          "scheduled");
+          HttpClientExtractor.HTTP_CALL,
+          GatewayExtractor.ROUTE,
+          GatewayExtractor.LOCATOR,
+          MessagingExtractor.SEND,
+          MessagingExtractor.LISTENER,
+          MessagingExtractor.BINDING,
+          MessagingExtractor.DESTINATION,
+          io.lantern.extract.websocket.WebSocketExtractor.SEND,
+          io.lantern.extract.persistence.PersistenceExtractor.DATASOURCE,
+          io.lantern.extract.persistence.PersistenceExtractor.DATA_STORE,
+          io.lantern.extract.persistence.PersistenceExtractor.HAS_DATASOURCE,
+          io.lantern.extract.persistence.PersistenceExtractor.CONNECTS_TO,
+          io.lantern.extract.persistence.PersistenceExtractor.MAPS_TO,
+          io.lantern.extract.redis.RedisExtractor.REDIS_USE,
+          io.lantern.extract.spring.SpringExtractor.ENDPOINT,
+          io.lantern.extract.spring.SpringExtractor.SCHEDULED);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 

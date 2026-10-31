@@ -3,6 +3,7 @@ package io.lantern.link;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Lineage;
+import io.lantern.extract.LanternCode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -55,6 +56,7 @@ public final class Linker {
   private final FactRepository store;
   private final List<LinkRule> rules;
   private final RuleRuns runs;
+  private final String code;
 
   /**
    * @param store where the facts are read and recorded
@@ -65,9 +67,18 @@ public final class Linker {
    *     in a cycle
    */
   public Linker(FactRepository store, List<? extends LinkRule> rules, RuleRuns runs) {
+    this(store, rules, runs, LanternCode.digest());
+  }
+
+  /**
+   * A linker as {@link #Linker(FactRepository, List, RuleRuns)}, with the digest of the code that
+   * runs it given, so a test can stand for a change to Lantern's code.
+   */
+  public Linker(FactRepository store, List<? extends LinkRule> rules, RuleRuns runs, String code) {
     this.store = Objects.requireNonNull(store, "store");
     this.rules = RuleOrder.of(List.copyOf(rules));
     this.runs = Objects.requireNonNull(runs, "runs");
+    this.code = Objects.requireNonNull(code, "code");
   }
 
   /** A linker that runs every rule every time. */
@@ -145,6 +156,8 @@ public final class Linker {
    */
   public Result link(long snapshot, Set<String> repos) {
     Set<String> origins = origins();
+    Set<String> derivedPredicates = new java.util.HashSet<>();
+    rules.forEach(r -> derivedPredicates.addAll(r.writes()));
     List<Fact> extracted = new ArrayList<>();
     Map<String, List<Fact>> held = new HashMap<>();
     for (Fact fact :
@@ -175,12 +188,16 @@ public final class Linker {
       if (rule.pure()
           && last.isPresent()
           && last.get().version().equals(info.version())
+          && last.get().code().equals(code)
           && last.get().inputs().equals(inputs)
           && last.get().outputs().equals(digest(before))) {
         facts = before;
       } else {
         ClaimSink sink = new ClaimSink(info, rule.writes());
-        rule.derive(new ClaimQuery(info, rule.reads(), input, snapshot), sink, View.DEFAULT);
+        rule.derive(
+            new ClaimQuery(info, rule.reads(), derivedPredicates, input, snapshot),
+            sink,
+            View.DEFAULT);
         // A derived fact's lineage is the claims of the facts it names (ADR 0091).
         List<Fact> found =
             sink.facts().stream()
@@ -190,7 +207,9 @@ public final class Linker {
             store.recordDerived(snapshot, info.origin(), repos, found);
         facts = update.facts();
         runs.record(
-            scope, info.name(), new RuleRuns.Run(info.version(), inputs, digest(facts), snapshot));
+            scope,
+            info.name(),
+            new RuleRuns.Run(info.version(), code, inputs, digest(facts), snapshot));
         ran.add(info.name());
         added += update.added();
         changed += update.changed();
@@ -234,10 +253,13 @@ public final class Linker {
     return input;
   }
 
-  /** A digest of facts: their IDs and confidences, in any order. */
+  /**
+   * A digest of facts: their IDs, claim IDs and confidences, in any order. The claim ID changes
+   * when a type's key attributes do (ADR 0090), which the fact ID does not show.
+   */
   private static String digest(List<Fact> facts) {
     List<String> lines = new ArrayList<>();
-    facts.forEach(f -> lines.add(f.id() + " " + f.confidence()));
+    facts.forEach(f -> lines.add(f.id() + " " + f.claimId() + " " + f.confidence()));
     lines.sort(null);
     try {
       MessageDigest sha = MessageDigest.getInstance("SHA-256");

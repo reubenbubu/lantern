@@ -14,14 +14,16 @@ public interface RuleRuns {
    * A rule's last run.
    *
    * @param version the rule's version
+   * @param code the digest of the code Lantern ran, so a change to it runs the rule again
    * @param inputs the digest of the facts it read
    * @param outputs the digest of the facts it gave, as stored
    * @param snapshot the snapshot it ran for
    */
-  record Run(String version, String inputs, String outputs, long snapshot) {
+  record Run(String version, String code, String inputs, String outputs, long snapshot) {
 
     public Run {
       Objects.requireNonNull(version, "version");
+      Objects.requireNonNull(code, "code");
       Objects.requireNonNull(inputs, "inputs");
       Objects.requireNonNull(outputs, "outputs");
     }

@@ -765,10 +765,11 @@ public final class AnalysisRun {
           // from other systems' facts, nor ending theirs (ADR 0071).
           Linker.Result linked = linker.link(snapshot, snapshotRepos);
           LOG.info(
-              "Linked facts: {} new, {} changed confidence, {} no longer hold",
+              "Linked facts: {} new, {} changed confidence, {} no longer hold; rules run: {}",
               linked.added(),
               linked.changed(),
-              linked.closed());
+              linked.closed(),
+              linked.ran());
           snapshots.markAnalyzed(snapshot, repos);
           // The documents of the analyzed repositories show the linked facts about them.
           linked.facts().stream()
