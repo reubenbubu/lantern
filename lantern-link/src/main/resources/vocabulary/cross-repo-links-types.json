@@ -122,13 +122,15 @@
   {
     "name": "RESOLVES_TO",
     "kind": "relationship",
-    "keyAttributes": ["profile"],
-    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, or the profile named, when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles the profiles it does not hold under, and one for each profile whose config gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used.",
+    "keyAttributes": ["deployment", "profile"],
+    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, the profile named, or the deployment named, whose container's environment overlays the config as Spring Boot's relaxed binding reads it (#588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "profile": { "type": "string", "description": "The profile whose config gives this literal; absent for the default view." },
-        "facts": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the config-value facts the expression was resolved with." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the config-value facts the expression was resolved with and, in a deployment's view, of the deployment-container fact." },
+        "deployment": { "type": "string", "description": "The deployment whose environment gives this literal: <repository>|<platform>|<environment>[|<compose file>]|<container>; absent for the default view and a profile's." },
+        "exceptDeployments": { "type": "array", "items": { "type": "string" }, "description": "On the default view's fact, the deployments whose environment gives another literal or none." },
         "exceptProfiles": { "type": "array", "items": { "type": "string" }, "description": "On the default view's fact, the profiles whose config gives another literal or none." },
         "resolved": { "type": "string", "description": "The expression as config resolved it, when that is not the literal's own key: a URL whose address is its host, or a JDBC URL whose address is its server." }
       },

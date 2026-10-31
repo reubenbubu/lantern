@@ -11,7 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
@@ -214,34 +213,17 @@ final class Addresses {
   }
 
   /**
-   * The address with what a container's environment sets filled in, as Spring Boot resolves it: an
-   * environment variable, by relaxed binding, comes before the unit's config files and a
-   * placeholder's default; a key the environment does not set takes the config's value (resolved
-   * again from what it was written as). Null when the environment sets nothing the address uses, or
-   * a secret goes into it.
+   * The address with what a container's environment sets filled in, as value resolution gives it
+   * ({@link EnvironmentValues#filled}) over the unit's config in the view. Null when the
+   * environment sets nothing the address uses, or a secret goes into it.
    */
   private String filled(Unit unit, String view, Container c, String text, String written) {
-    boolean[] used = {false};
-    boolean[] secret = {false};
-    Function<String, String> lookup =
-        key -> {
-          String value = Deployments.env(c, key);
-          if (value != null && !value.isBlank()) {
-            used[0] = true;
-            return value;
-          }
-          Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
-          if (f == null) {
-            return null;
-          }
-          if (Claims.masked(f)) {
-            secret[0] = true;
-          }
-          String w = Claims.written(f);
-          return w != null ? w : f.object().value();
-        };
-    String filled = LinkText.substitute(written != null ? written : text, lookup);
-    return used[0] && !secret[0] ? filled : null;
+    EnvironmentValues.Filled filled =
+        EnvironmentValues.filled(
+            c,
+            written != null ? written : text,
+            key -> index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key));
+    return filled == null ? null : filled.value();
   }
 
   /**

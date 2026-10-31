@@ -209,6 +209,11 @@ public final class CodeValues {
       return of(r, written, maskedUsed, used);
     }
 
+    /** Whether a key names a secret, whose value no resolved value may take. */
+    public boolean isSecret(String key) {
+      return ConfigExtractor.isSecret(key, known);
+    }
+
     /**
      * Whether a profile sets the list a key is an item of, which Spring then replaces whole: the
      * default's items are not merged with the profile's index by index.

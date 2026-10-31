@@ -152,3 +152,39 @@ The matchers still read the facts above until address resolution (#589) moves th
 claims. On project-0 to project-4 every claim names the destination or host the matchers read in
 that view, every view in which they read a literal has its claim, and every other derived fact is
 unchanged (#587's PR).
+
+## Amendment (#588): deployment environments are views
+
+A deployment that runs a unit is a view of value resolution (epic, section 8, Views): the
+container's environment is a config overlay, an environment variable setting the key it binds to
+as Spring Boot's relaxed binding does (`DB_HOST` sets `db.host`), before the config files and a
+placeholder's default.
+
+- `ValueResolution` now runs after `DeployableUnits` and reads the units, their modules and names
+  (`deployable-unit`, `BUNDLES`, `application-name`) to know which containers run a module's unit
+  (`Deployments`, ADR 0082). It does not read what the protocol rules write about units, which
+  read its facts.
+- For each expression-keyed destination or address and each container that runs its unit, it
+  resolves the expression with the container's environment over the config of the profile the
+  container makes active (`SPRING_PROFILES_ACTIVE`, when it names exactly one of the module's
+  profiles), else the default view. A container that activates several of them falls back to
+  the default view: overlaying them in Spring's order is left until a test set needs it. Where the environment sets nothing the expression uses, the deployment's
+  literal is that profile's.
+- A deployment whose literal is not the default view's gets its own claim, with the key attribute
+  `deployment`: `<repository>|<platform>|<environment>[|<compose file>]|<container>`. The default
+  view's claim lists those deployments in `exceptDeployments`, descriptive like `exceptProfiles`;
+  #590 merges `profile` and `deployment` into `view`, and both lists into `absentIn`.
+- A deployment's claim cites the config values used and the container's `deployment-container`
+  fact, also when the literal comes from the profile the container activates. Deployment
+  environments hold no secrets (the deployment extractor leaves them out), and a value that uses a
+  key naming a secret is not resolved in a deployment's view, as in the others.
+- Filling from an environment lives in one place, `EnvironmentValues`: address matching
+  (`Addresses`, ADR 0042) and the placing of datasources (`Deployments.place`) call it instead of
+  filling placeholders themselves. Until address resolution (#589) moves the matchers onto the
+  claims, they call it per container as before, so every link is unchanged.
+- The rules carried from #516 hold in every view: a list a profile sets replaces the default's
+  whole (`CodeValues`), and no base URL goes before a URL whose start the code computes. On
+  project-8, `Project8ValuesIT` checks #516's routes, bindings, the followed `URI` field and the
+  datasources in every view; the generated client of item 8 exists only after a build, and the
+  real run's facts show its call unchanged in every view (#588's PR).
+

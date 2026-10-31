@@ -29,9 +29,11 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Value resolution, the link rule that runs first, as it reads only extracted facts (epic {@code
+ * Value resolution, the link rule that runs after the deployable units' (epic {@code
  * docs/epics/001-knowledge-build.md}, section 8): the values extractors keep as written, resolved
- * in each view against the config of the module they name ({@link CodeValues}).
+ * in each view against the config of the module they name ({@link CodeValues}). The views are the
+ * default, each profile, and each deployment that runs the module's unit, whose container's
+ * environment overlays the config ({@link EnvironmentValues}, #588).
  *
  * <p>It writes {@code RESOLVES_TO} from each destination and address keyed by its module and the
  * expression its code writes to the literal destination or address that expression resolves to, in
@@ -107,7 +109,13 @@ public final class ValueResolution implements LinkRule.OverFacts {
 
   @Override
   public Set<String> reads() {
-    return Set.of(EXTRACTED);
+    // The units and their names, for the deployments that run them, whose environments are
+    // views (#588); not what the protocol rules write about units, which read this rule's facts.
+    return Set.of(
+        EXTRACTED,
+        DeployableUnits.DEPLOYABLE_UNIT,
+        DeployableUnits.BUNDLES,
+        DeployableUnits.APPLICATION_NAME);
   }
 
   @Override

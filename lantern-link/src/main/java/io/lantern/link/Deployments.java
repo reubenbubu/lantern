@@ -19,15 +19,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The containers the deployment descriptors of a snapshot run (the deployment extractor's {@code
- * deployment-container} facts), tied to the units they run and used to fill in what the units'
- * config leaves to the environment. See {@code docs/adr/0082-deployment-descriptors.md}.
+ * deployment-container} facts), tied to the units they run, whose environments value resolution
+ * applies to the units' config ({@link EnvironmentValues}). See {@code
+ * docs/adr/0082-deployment-descriptors.md}.
  *
  * <p>A container runs a unit when one of its names (compose service, container name, workload,
  * Service, app label or the image's name) is the unit's {@code spring.application.name} or artifact
@@ -79,9 +78,6 @@ final class Deployments {
    */
   record Placed(
       Container unit, Container server, String address, String database, boolean guessed) {}
-
-  /** Placeholders in config as written: {@code ${key}} or {@code ${key:default}}. */
-  private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}:]+)(?::([^}]*))?}");
 
   /** Words a database name shares with any service's config, so they tie nothing. */
   private static final Set<String> GENERIC =
@@ -200,43 +196,6 @@ final class Deployments {
   }
 
   /**
-   * A text of config with each placeholder the container's environment sets replaced by its value;
-   * a value that is itself an unset compose variable ({@code ${NAME}}) is put in as written, so it
-   * still says what it is. Null when the environment sets none of its placeholders.
-   */
-  static String fill(Container container, String text) {
-    if (text == null) {
-      return null;
-    }
-    Matcher m = PLACEHOLDER.matcher(text);
-    StringBuilder b = new StringBuilder();
-    boolean any = false;
-    while (m.find()) {
-      String value = env(container, m.group(1));
-      if (value == null || value.isEmpty()) {
-        value = m.group(2) != null ? m.group(2) : m.group();
-      } else {
-        any = true;
-      }
-      m.appendReplacement(b, Matcher.quoteReplacement(value));
-    }
-    m.appendTail(b);
-    return any ? b.toString() : null;
-  }
-
-  /** The value a container's environment gives a config key, by relaxed binding, or null. */
-  static String env(Container container, String key) {
-    String wanted = key.replace('.', '_').replace("-", "").toUpperCase(Locale.ROOT);
-    for (Map.Entry<String, String> e : container.env().entrySet()) {
-      String name = e.getKey();
-      if (name.equalsIgnoreCase(key) || name.toUpperCase(Locale.ROOT).equals(wanted)) {
-        return e.getValue();
-      }
-    }
-    return null;
-  }
-
-  /**
    * Where a datasource of a unit points in each environment that runs the unit: its server and
    * database filled in from the container's environment, the container the server is (by host name,
    * or by the compose variable that names the database in both), and the database's name when the
@@ -251,8 +210,8 @@ final class Deployments {
       Unit unit, String server, String database, String technology, Collection<String> words) {
     List<Placed> placed = new ArrayList<>();
     for (Container c : running(unit)) {
-      String address = fill(c, server);
-      String name = fill(c, database);
+      String address = EnvironmentValues.fill(c, server);
+      String name = EnvironmentValues.fill(c, database);
       if (address == null && name == null) {
         continue;
       }
