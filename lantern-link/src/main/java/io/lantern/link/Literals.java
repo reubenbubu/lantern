@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedSet;
+import java.util.TreeSet;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -72,6 +73,17 @@ final class Literals {
   private record Literal(EntityId entity, String resolved, SortedSet<String> facts) {}
 
   static List<Fact> of(List<Fact> facts, CodeValues values, Validity validity) {
+    LinkIndex index = new LinkIndex(facts);
+    Deployments deployments = index.units.isEmpty() ? null : new Deployments(index);
+    return of(facts, values, index.units.isEmpty() ? null : index, deployments, validity);
+  }
+
+  private static List<Fact> of(
+      List<Fact> facts,
+      CodeValues values,
+      LinkIndex index,
+      Deployments deployments,
+      Validity validity) {
     Objects.requireNonNull(facts, "facts");
     Map<EntityId, Scoped> scoped = new LinkedHashMap<>();
     Map<EntityId, Fact> sentBy = new HashMap<>();
@@ -146,36 +158,58 @@ final class Literals {
     for (Scoped s : scoped.values()) {
       CodeValues.View config = values.forModule(s.module(), s.repo());
       boolean scheme = feign.contains(s.entity());
+      String written = written(s);
+      if (written == null) {
+        continue;
+      }
+      // The views: the default (null), each profile, then each deployment that runs the unit.
       Map<String, Literal> byView = new LinkedHashMap<>();
       for (String profile : config.views()) {
-        byView.put(profile, literal(s, config, profile, scheme));
+        CodeValues.Value v = config.value(profile, written);
+        byView.put(profile, resolved(v) ? literal(s, v.value(), v.facts(), scheme) : null);
+      }
+      Map<String, Literal> byDeployment = new LinkedHashMap<>();
+      for (Deployments.Container c : running(s.module(), index, deployments)) {
+        String base = activeProfile(c, config);
+        CodeValues.Value inBase = config.value(base, written);
+        EnvironmentValues.Filled filled =
+            EnvironmentValues.filled(c, written, key -> config.facts(base).get(key));
+        Literal literal;
+        if (filled == null) {
+          // The environment sets nothing the value uses: as in the profile it activates.
+          literal = resolved(inBase) ? literal(s, inBase.value(), inBase.facts(), scheme) : null;
+        } else if (filled.value().contains("${") || filled.value().equals(written)) {
+          literal = null;
+        } else {
+          SortedSet<String> used = new TreeSet<>();
+          filled.config().forEach(f -> used.add(f.id()));
+          used.add(c.fact().id());
+          literal = literal(s, filled.value(), used, scheme);
+        }
+        byDeployment.put(view(c), literal);
       }
       Literal byDefault = byView.get(null);
-      for (Map.Entry<String, Literal> e : byView.entrySet()) {
-        String profile = e.getKey();
-        Literal literal = e.getValue();
+      List<InView> all = new ArrayList<>();
+      byView.forEach((profile, literal) -> all.add(new InView(profile, null, literal)));
+      byDeployment.forEach((view, literal) -> all.add(new InView(null, view, literal)));
+      for (InView in : all) {
+        Literal literal = in.literal();
+        boolean byDefaultView = in.profile() == null && in.deployment() == null;
         if (literal == null
-            || (profile != null
+            || (!byDefaultView
                 && byDefault != null
                 && byDefault.entity().equals(literal.entity()))) {
           continue;
         }
         ObjectNode attributes = FactJson.newObject();
-        if (profile != null) {
-          attributes.put("profile", profile);
+        if (in.deployment() != null) {
+          attributes.put("deployment", in.deployment());
+        } else if (in.profile() != null) {
+          attributes.put("profile", in.profile());
         } else {
-          // The default view's literal does not hold under a profile that gives another or none.
-          List<String> except =
-              byView.entrySet().stream()
-                  .filter(v -> v.getKey() != null)
-                  .filter(
-                      v -> v.getValue() == null || !v.getValue().entity().equals(literal.entity()))
-                  .map(Map.Entry::getKey)
-                  .sorted()
-                  .toList();
-          if (!except.isEmpty()) {
-            except.forEach(attributes.putArray("exceptProfiles")::add);
-          }
+          // The default view's literal does not hold in a view that gives another or none.
+          except(attributes, "exceptProfiles", byView, literal);
+          except(attributes, "exceptDeployments", byDeployment, literal);
         }
         if (!literal.resolved().equals(literal.entity().key())) {
           attributes.put("resolved", literal.resolved());
@@ -197,34 +231,91 @@ final class Literals {
     return out;
   }
 
-  /** The literal an expression-keyed entity resolves to in a view, or null. */
-  private static Literal literal(Scoped s, CodeValues.View config, String profile, boolean feign) {
+  /** What an expression resolves to in one view: a profile's, a deployment's or the default. */
+  private record InView(String profile, String deployment, Literal literal) {}
+
+  /** Lists the views (not the default) whose literal is not the default view's. */
+  private static void except(
+      ObjectNode attributes, String name, Map<String, Literal> views, Literal byDefault) {
+    List<String> except =
+        views.entrySet().stream()
+            .filter(v -> v.getKey() != null)
+            .filter(v -> v.getValue() == null || !byDefault.entity().equals(v.getValue().entity()))
+            .map(Map.Entry::getKey)
+            .sorted()
+            .toList();
+    if (!except.isEmpty()) {
+      except.forEach(attributes.putArray(name)::add);
+    }
+  }
+
+  /**
+   * A deployment's view: its environment and the container's name, as {@code
+   * <repository>|<platform>|<environment>[|<compose file>]|<container>}.
+   */
+  static String view(Deployments.Container c) {
+    return c.environment() + "|" + c.name();
+  }
+
+  /** The containers of the deployments that run a module's unit, if the units are known. */
+  private static List<Deployments.Container> running(
+      EntityId module, LinkIndex index, Deployments deployments) {
+    List<Deployments.Container> running = new ArrayList<>();
+    if (index == null) {
+      return running;
+    }
+    for (LinkIndex.Unit unit : index.units.values()) {
+      if (unit.modules().contains(module)) {
+        deployments
+            .running(unit)
+            .forEach(
+                c -> {
+                  if (!running.contains(c)) {
+                    running.add(c);
+                  }
+                });
+      }
+    }
+    return running;
+  }
+
+  /**
+   * The profile whose config a deployment's environment overlays: the one profile of the module it
+   * makes active ({@code SPRING_PROFILES_ACTIVE}), else the default view (null).
+   */
+  private static String activeProfile(Deployments.Container c, CodeValues.View config) {
+    List<String> active =
+        Claims.list(Deployments.container(c.fact()).activeProfiles()).stream()
+            .filter(p -> config.views().contains(p))
+            .toList();
+    return active.size() == 1 ? active.getFirst() : null;
+  }
+
+  /** The expression an entity's key holds, as written: for a destination, its name. */
+  private static String written(Scoped s) {
     String expression = s.entity().key().substring(s.module().key().length() + 1);
+    if (s.kind() == Kind.DESTINATION) {
+      // <broker>:<kind>:<expression>, the broker and kind having no colon.
+      int broker = expression.indexOf(':');
+      int kind = broker < 0 ? -1 : expression.indexOf(':', broker + 1);
+      return kind < 0 ? null : expression.substring(kind + 1);
+    }
+    return s.kind() == Kind.REQUEST_ADDRESS && expression.equals("*") ? null : expression;
+  }
+
+  /** The literal entity a resolved value names, or null. */
+  private static Literal literal(Scoped s, String value, SortedSet<String> facts, boolean feign) {
     switch (s.kind()) {
       case DESTINATION -> {
-        // <broker>:<kind>:<expression>, the broker and kind having no colon.
-        int broker = expression.indexOf(':');
-        int kind = broker < 0 ? -1 : expression.indexOf(':', broker + 1);
-        if (kind < 0) {
+        if (value.isEmpty()) {
           return null;
         }
-        CodeValues.Value v = config.value(profile, expression.substring(kind + 1));
-        if (!resolved(v) || v.value().isEmpty()) {
-          return null;
-        }
-        String key = expression.substring(0, kind + 1) + v.value();
-        return new Literal(
-            new EntityId(MessagingExtractor.DESTINATION_ENTITY, key), key, v.facts());
+        String expression = s.entity().key().substring(s.module().key().length() + 1);
+        String key = expression.substring(0, expression.length() - written(s).length()) + value;
+        return new Literal(new EntityId(MessagingExtractor.DESTINATION_ENTITY, key), key, facts);
       }
       case REQUEST_ADDRESS -> {
-        if (expression.equals("*")) {
-          return null;
-        }
-        CodeValues.Value v = config.value(profile, expression);
-        if (!resolved(v)) {
-          return null;
-        }
-        String url = HttpClientExtractor.clean(v.value());
+        String url = HttpClientExtractor.clean(value);
         if (feign) {
           url = HttpClientExtractor.withScheme(url);
         }
@@ -233,20 +324,16 @@ final class Literals {
           return null;
         }
         String authority = split.base().substring(split.base().indexOf("://") + 3);
-        return host(authority, url, v);
+        return host(authority, url, facts);
       }
       case DATASOURCE_ADDRESS -> {
-        CodeValues.Value v = config.value(profile, expression);
-        if (!resolved(v)) {
-          return null;
-        }
-        String text = v.value().strip();
+        String text = value.strip();
         String lower = text.toLowerCase(Locale.ROOT);
         // A whole URL (jdbc:, r2dbc:, mongodb://) gives its server; else the text is the server.
         boolean url =
             text.contains("://") || lower.startsWith("jdbc:") || lower.startsWith("r2dbc:");
         String server = url ? JdbcUrl.of(text, null).server() : text;
-        return server == null ? null : host(server, text, v);
+        return server == null ? null : host(server, text, facts);
       }
     }
     return null;
@@ -278,14 +365,12 @@ final class Literals {
     return new Evidence(locations);
   }
 
-  private static Literal host(String host, String resolved, CodeValues.Value v) {
+  private static Literal host(String host, String resolved, SortedSet<String> facts) {
     if (host.isEmpty() || host.contains("$") || host.contains("{")) {
       return null;
     }
     return new Literal(
-        new EntityId(HttpClientExtractor.ADDRESS, host.toLowerCase(Locale.ROOT)),
-        resolved,
-        v.facts());
+        new EntityId(HttpClientExtractor.ADDRESS, host.toLowerCase(Locale.ROOT)), resolved, facts);
   }
 
   /**

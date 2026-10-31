@@ -84,7 +84,7 @@ class LinkRuleTest {
   }
 
   @Test
-  void theStandardRulesRunValuesUnitsLinksTheResolverThenClaimChecks() {
+  void theStandardRulesRunUnitsValuesLinksTheResolverThenClaimChecks() {
     Rule resolver =
         new Rule(
             "link-resolver",
@@ -96,8 +96,8 @@ class LinkRuleTest {
 
     assertThat(names(RuleOrder.of(rules)))
         .containsExactly(
-            ValueResolution.NAME,
             DeployableUnits.NAME,
+            ValueResolution.NAME,
             "http-links",
             "messaging-links",
             "deployment-links",

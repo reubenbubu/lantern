@@ -256,3 +256,12 @@ destination as written), so two open links of one module stay two claims, and on
 change is a new claim. The vocabulary keeps `link` declared, described as no longer
 given, so links stored before stay valid. The LLM resolver's `resolves` and the documents' reading of
 it use the claim ID of the link left open.
+
+## Amendment (#588): filling from the deployment is value resolution's
+
+The first step of #473's order, filling an address from the environment of each container that
+runs the unit, is now done by value resolution (`EnvironmentValues`, ADR 0094, amendment for
+#588), which also records it as `RESOLVES_TO` claims per deployment. `Addresses` and
+`Deployments.place` call it rather than substituting placeholders themselves; what they match and
+answer is unchanged. Address resolution as a rule of its own, reading those claims, is #589.
+

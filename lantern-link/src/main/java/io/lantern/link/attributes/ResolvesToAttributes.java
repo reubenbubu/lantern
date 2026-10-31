@@ -9,12 +9,19 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The attributes of a fact of the type {@code RESOLVES_TO}. The subject, a destination or address
  * keyed by its module and the expression its code writes, is the object, the literal destination or
- * address, in a view: the default view, or the profile named, when the module's config resolves
- * every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default
- * view, which names in exceptProfiles the profiles it does not hold under, and one for each profile
- * whose config gives another literal; a placeholder's own default resolves it too. Not given where
- * a placeholder stays unresolved or a secret is used.
+ * address, in a view: the default view, the profile named, or the deployment named, whose
+ * container's environment overlays the config as Spring Boot's relaxed binding reads it (#588),
+ * when the module's config resolves every placeholder of the expression (ADR 0094, amendment for
+ * #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the
+ * views it does not hold in, and one for each profile or deployment that gives another literal; a
+ * placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a
+ * secret is used.
  *
+ * @param deployment Key. The deployment whose environment gives this literal:
+ *     &lt;repository&gt;|&lt;platform&gt;|&lt;environment&gt;[|&lt;compose
+ *     file&gt;]|&lt;container&gt;; absent for the default view and a profile's.
+ * @param exceptDeployments Descriptive. On the default view's fact, the deployments whose
+ *     environment gives another literal or none.
  * @param exceptProfiles Descriptive. On the default view's fact, the profiles whose config gives
  *     another literal or none.
  * @param facts Descriptive. The IDs of the config-value facts the expression was resolved with.
@@ -23,6 +30,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     own key: a URL whose address is its host, or a JDBC URL whose address is its server.
  */
 public record ResolvesToAttributes(
+    String deployment,
+    List<String> exceptDeployments,
     List<String> exceptProfiles,
     List<String> facts,
     String profile,
@@ -32,11 +41,13 @@ public record ResolvesToAttributes(
   public static final String TYPE = "RESOLVES_TO";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("profile");
+  public static final List<String> KEY_ATTRIBUTES = List.of("deployment", "profile");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static ResolvesToAttributes from(ObjectNode attributes) {
     return new ResolvesToAttributes(
+        AttributeValues.string(attributes, "deployment"),
+        AttributeValues.strings(attributes, "exceptDeployments"),
         AttributeValues.strings(attributes, "exceptProfiles"),
         AttributeValues.strings(attributes, "facts"),
         AttributeValues.string(attributes, "profile"),
@@ -46,6 +57,8 @@ public record ResolvesToAttributes(
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "deployment", deployment);
+    AttributeValues.put(attributes, "exceptDeployments", exceptDeployments);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
     AttributeValues.put(attributes, "facts", facts);
     AttributeValues.put(attributes, "profile", profile);
