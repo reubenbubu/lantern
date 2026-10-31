@@ -430,15 +430,24 @@ The architecture model is computed once per snapshot and stored, before any LLM 
 
 A large system or service is drawn at a higher level by bundling related elements into groups. Membership comes from the code; the LLM only names the groups (11.8); people may later pin, rename, merge or split them through annotations (Phase 3). An LLM never decides membership, because a guessed grouping is both unverifiable and unstable across commits.
 
-| Group kind | Members | Signals, strongest first | Group key |
-| --- | --- | --- | --- |
-| Feature area | Components of one unit | 1. Their endpoints share a resource path segment: the first segment after the unit's context path and any `api` or version segment (`/api/v1/orders/**` gives `orders`). 2. Else they read or write the same aggregate entities or tables (Jaccard similarity of the table sets at least 0.5). 3. Packages only break ties | `group:<unit>/area/<segment or table>` |
-| Domain | Deployable units of the system | 1. They use the same database or schema (`USES_DATABASE` to one database entity). 2. Else a gateway routes to them under a shared first path segment. 3. Else they are built from the same repository or share a Maven groupId below the organisation's prefix | `group:<system>/domain/<schema, prefix or repository>` |
+**Feature areas** group the components of one unit, in two passes:
 
-- **One group per kind.** An element belongs to at most one group of each kind. The strongest signal decides; ties go to the group whose key sorts first. An element that no signal groups stays ungrouped.
-- **Stored whatever the view.** Groups are stored for every unit and system, as `group` entities with `CONTAINS` their members and a `basis` attribute naming the signal and the claims behind it. A view decides whether to use them (section 12).
-- **Stable keys.** A group's key comes from its signal, not from its members, so adding an endpoint or a unit to an existing group does not rename it.
-- **Lines between groups.** They are aggregated interactions: one `INTERACTS_WITH` claim per pair of groups and protocol, with lineage to the member lines it stands for.
+1. **By resource path.** An endpoint's resource segment is the first segment of its path after the unit's context path (the `server.servlet.context-path` or `spring.webflux.base-path` config claim, if any), skipping leading segments `api` and `v` followed by digits, repeatedly (`/api/v1/orders/{id}` gives `orders`). A path with no segment left gives none. A component with endpoints joins the segment held by most of its endpoints; ties go to the segment that sorts first. Its key is `group:<unit>/area/<segment>`.
+2. **By tables.** A component without endpoints (a listener, a job, a shared service) joins the segment group whose members' tables overlap most with its own, if the Jaccard similarity of the two table sets is at least 0.5; ties go to the key that sorts first. Components still ungrouped and touching tables are clustered as the connected components of the graph whose edges join two components with table Jaccard of at least 0.5. Each cluster's key is `group:<unit>/area/table-<name>`, where the name is the table with the most accesses in the cluster (ties by name), chosen when the group is first stored and kept while the group exists.
+
+**Domains** group the deployable units of the system. Each signal groups only units the stronger signals left ungrouped:
+
+1. **Shared relational database or schema.** Units with `USES_DATABASE` to one relational database entity. Redis, brokers and other infrastructure do not count. A unit using several databases joins the one holding the most of its tables, ties by key. Key: `group:<system>/domain/db-<database>`.
+2. **Gateway route prefix.** Units a gateway routes to under the same first path segment, after skipping `api` and versions as above. Key: `group:<system>/domain/route-<segment>`.
+3. **Repository or Maven group.** Units built from the same repository. Else, units whose groupId shares the next segment after the longest dotted prefix common to every unit's groupId in the system. Key: `group:<system>/domain/repo-<name>` or `group:<system>/domain/maven-<segment>`.
+
+**Rules for both kinds:**
+
+- **Size.** A group needs at least 2 members. A scope that yields fewer than 2 groups of a kind stores none of that kind, because one group adds nothing. An element no rule groups stays ungrouped.
+- **One group per kind.** An element belongs to at most one group of each kind.
+- **Stored whatever the view.** Groups are stored as `group` entities with `CONTAINS` their members and a `basis` attribute naming the signal and the claims behind it. A view decides whether to use them (section 12).
+- **Stable keys.** A key comes from its signal, never from its membership, so adding an endpoint or a unit to an existing group does not rename it.
+- **Lines.** Lines between groups are aggregated: one `INTERACTS_WITH` claim per ordered pair (source group or ungrouped element, target group or ungrouped element) and protocol, with lineage to the member lines it stands for. Lines inside one group are not aggregated.
 - **Left for later.** Clustering by coupling (Leiden, as `docs/design.md` plans) groups only what the explicit signals leave ungrouped, and only if the test sets show it is needed (#537).
 
 ### What stays in composition
@@ -501,7 +510,7 @@ The research behind this split is in section 4.
 | Describe, element | The element's claims, and the interaction claims shown with it |
 | Flows, significance | Every flow representative shown, with its step claims; the responsibilities shown |
 | Flows, narrative | The flow and its step claims; the responsibility and intent observations shown |
-| Name groups, one group | The group claim and its basis; its members' responsibility observations; the aggregated lines shown |
+| Name groups, one group | The group claim and its basis; its members' responsibility observations; the aggregated lines shown and their member lines' intents. The other groups `[G..]` only orient and are not inputs |
 | Purpose | Everything shown |
 
 For tool-using items, the files read are known only after the conversation. They are recorded with the answer, and a cached answer is reused only while those blobs are unchanged. The gate in section 13 reads accordingly: a one-file change re-asks exactly the items whose fingerprint inputs include that file's blob or a claim observed in it.
@@ -579,7 +588,7 @@ Every answer, batched or agentic, goes through the same checks before anything i
 ### Run modes and cost controls
 
 - **Interactive.** Synchronous requests, for incremental runs where few items miss the cache.
-- **Bulk.** Non-agentic roles (Summarize, Describe, flow significance and narrative, purpose) go through the provider's batch API when that role has more than 50 cache misses in the run, at the batch discount (section 4). Agentic roles always run interactively.
+- **Bulk.** Roles whose run mode is bulk in the 11.0 table (Summarize, Describe, flow narrative, Name groups, the model checks) go through the provider's batch API when that role has more than 50 cache misses in the run, at the batch discount (section 4). Agentic roles always run interactively.
 - **Budget.** The run budget is split by role in configuration, defaulting to Investigate 40%, Describe 20%, Summarize 18%, Name groups 2%, flows and purpose 10%, Resolve 5%, model checks (11.7) 5%. A role that would exceed its share stops planning new items and logs what it skipped. Skipped items are marked `not-asked`, and documents state them as unknown.
 - **Models and thinking.** Set per role in configuration, by tier, as today (section 11 gives the defaults).
 
@@ -681,9 +690,10 @@ Rules for every task:
 | `F` | a fact line | every role |
 | `E` | a code excerpt Lantern supplied | Summarize, Describe |
 | `S` | an accepted summary | Summarize, Describe, Investigate B |
-| `A` | an earlier accepted answer (a responsibility, a risk) | Describe, Flows, Purpose |
+| `A` | an earlier accepted answer (a responsibility, a risk) | Describe, Flows, Purpose, Name groups |
 | `C` | a component of a unit | Describe (as an item key, not a citation) |
-| `R` | an interaction | Describe (as an item key, not a citation) |
+| `R` | an interaction | Describe, Name groups (as an item key, not a citation) |
+| `G` | another group of the same kind | Name groups (as `merge.with`, not a citation) |
 | `K` | a Resolve candidate | Resolve (as the `pick`, not a citation) |
 | `W` | a candidate flow | Flows (as an item key, not a citation) |
 | `I` | an item | every role (as an item key, not a citation) |
@@ -1168,11 +1178,11 @@ Name groups words each derived group (section 9, Grouping) and the lines between
 - **Item.** One group.
 - **Packet.** At most 8 groups of one kind (feature areas of one unit, or the system's domains), a starting size to calibrate.
 - **Content.**
-    - the group's kind and basis, as fact lines
-    - each member with its responsibility as an earlier answer `[A..]`
-    - the aggregated lines leaving the group `[R1…]`, each with its member lines' intents as `[A..]`
-    - the other groups of the same kind `[G1…]`, by key, for merge suggestions
-- **Order.** After Describe, before Flows and Purpose, which may use group names.
+  - the group's kind and basis, as fact lines
+  - each member with its responsibility as an earlier answer `[A..]`
+  - the aggregated lines leaving the group `[R1…]`, each with its member lines' intents as `[A..]`
+  - the other groups of the same kind in the scope `[G1…]`, by key, at most 30 (those sharing the most lines with this group, ties by key), for merge suggestions
+- **Order.** After Describe and before Flows; no later role reads group names yet.
 
 **Role instructions** (block 2):
 
@@ -1201,14 +1211,14 @@ Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citati
               "properties": {"with": {"type": "string"}, "reason": {"$ref": "#/$defs/text"}}}}}}}}
 ```
 
-- **Checks.** The shared pipeline. In addition:
-    - a name has at most 4 words, and is not equal to any member's name after the Form check's tokenising
-    - a name contains no technology from the Names check's list
-    - `merge.with` is one of the item's `[G..]` keys and not the group itself
+- **Checks.** The shared pipeline, with the group's key's last part as the name the Form check compares against. In addition:
+  - a name has at most 4 words, and is not equal to any member's name after the Form check's tokenising
+  - a name contains no protocol word from the Form check's list and no product or framework name from the vocabulary's technology values
+  - `merge.with` is one of the item's `[G..]` keys and not the group itself
 - **Stored.**
-    - `(group, display-name, "c4")` and `(group, responsibility, "c4")`
-    - an intent per aggregated line, keyed as Describe's intents are
-    - a merge suggestion as a finding `finding:group-merge/<group>/<other>` with the reason; it is shown on the findings page and never applied
+  - `(group, display-name, "c4")` and `(group, responsibility, "c4")`
+  - an intent per aggregated line, keyed as Describe's intents are
+  - a merge suggestion as a finding `finding:group-merge/<a>/<b>`, the two keys sorted so a suggestion made from either side is one finding; it is shown on the findings page and never applied
 
 **Failure.** A group without a name is drawn with its key's last part (the path segment, schema or repository) and marked as not named. A line without an intent lists its protocols.
 
@@ -1226,8 +1236,8 @@ The composer stops deriving and stops calling the LLM. It reads the model, choos
 | Diagram | Query, in words |
 | --- | --- |
 | System context | the system, actors with an interaction into it, external systems with an interaction either way; no technology |
-| Container | units, data stores, destinations and external systems in scope, with interactions between them; above the readability threshold, drawn at domain level (section 9, Grouping) with one view per domain, else split by concern |
-| Component | for one unit with more than one component: its components and their interactions, plus interactions leaving the unit; above the readability threshold, drawn at feature-area level with one view per area |
+| Container | units, data stores, destinations and external systems in scope, with interactions between them; above the readability threshold (`docs/design.md`, Readable diagrams), one overview of the domains (section 9, Grouping) with ungrouped units drawn as themselves, plus one view per domain; a domain still above the threshold, or a system with no domains, is split by concern as today |
+| Component | for one unit with more than one component: its components and their interactions, plus interactions leaving the unit; above the readability threshold, one overview of the feature areas plus one view per area; an area still above it is split by groups of entry points as today |
 | Dynamic / sequence | flows significant in scope, in rank order, with their steps and narrative |
 | Deployment | deployment instances of one environment |
 | Landscape | systems and actors, with interactions aggregated from container level |
@@ -1341,7 +1351,7 @@ The single-conversation design, its uncached turns and its separate store are wh
 | Flow significance | Implements #272; amends 0047 |
 | Investigate on the harness | Supersedes 0084 (on the branch) |
 | Purpose and key fact | Amends 0060 |
-| Grouping and Name groups | Amends the design's Auto-grouping (explicit signals first, Leiden later) |
+| Grouping and Name groups | Amends the design's Auto-grouping (explicit signals first, Leiden later) and its Name groups role (members' responsibilities, not summaries) |
 
 One rule to add to `CLAUDE.md`: "The LLM roles' prompts, schemas, checks and limits are specified in their ADRs. Change them only through an issue that shows the effect on the test sets."
 
