@@ -49,7 +49,7 @@ public final class ConfigExtractor implements Extractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "7";
+  public static final String VERSION = "8";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
@@ -150,6 +150,18 @@ public final class ConfigExtractor implements Extractor {
   }
 
   /**
+   * Resolves the {@code ${...}} placeholders in a text as Spring does, with values nesting, for
+   * resolving against config other than a module's files, such as its {@code config-value} facts.
+   *
+   * @param text the text
+   * @param lookup a key's value as written, or null if nothing sets the key
+   */
+  public static Resolution resolve(
+      String text, java.util.function.Function<String, String> lookup) {
+    return Placeholders.resolve(text, lookup);
+  }
+
+  /**
    * Extracts the config facts of a snapshot's repositories.
    *
    * @param repos the repositories of the snapshot, each at its commit with its build, if any
@@ -214,11 +226,16 @@ public final class ConfigExtractor implements Extractor {
           add(facts, config, value, null, validity, known, false);
         }
         for (String profile : config.profiles()) {
-          for (ConfigValue value : config.values(profile).values()) {
+          SortedMap<String, ConfigValue> values = config.values(profile);
+          Set<String> lists = listsSet(defaults, values);
+          for (ConfigValue value : values.values()) {
             ConfigValue byDefault = defaults.get(value.key());
+            String list = listOf(value.key());
             if (byDefault == null
                 || !byDefault.value().equals(value.value())
-                || !byDefault.unresolved().equals(value.unresolved())) {
+                || !byDefault.unresolved().equals(value.unresolved())
+                || !byDefault.written().equals(value.written())
+                || (list != null && lists.contains(list))) {
               add(facts, config, value, profile, validity, known, false);
             }
           }
@@ -238,6 +255,46 @@ public final class ConfigExtractor implements Extractor {
                 .thenComparing(Fact::id))
         .toList();
   }
+
+  /**
+   * The lists a profile sets, which Spring then replaces whole: those with an item the profile's
+   * view does not hold as the default view does (in value, as written, or where). A profile's facts
+   * then hold every item of such a list, so a reader of the facts sees the list the profile has,
+   * not the default's items merged with its own (#556).
+   */
+  private static Set<String> listsSet(
+      SortedMap<String, ConfigValue> defaults, SortedMap<String, ConfigValue> values) {
+    Set<String> lists = new TreeSet<>();
+    Set<String> keys = new TreeSet<>(defaults.keySet());
+    keys.addAll(values.keySet());
+    for (String key : keys) {
+      String list = listOf(key);
+      if (list == null) {
+        continue;
+      }
+      ConfigValue a = defaults.get(key);
+      ConfigValue b = values.get(key);
+      if (a == null
+          || b == null
+          || !a.written().equals(b.written())
+          || !a.where().equals(b.where())) {
+        lists.add(list);
+      }
+    }
+    return lists;
+  }
+
+  /**
+   * The list a key is an item of ({@code a.b} for {@code a.b[0].c}), or null; a key in brackets
+   * that is not a number is a map's, which Spring merges.
+   */
+  private static String listOf(String key) {
+    java.util.regex.Matcher index = LIST_INDEX.matcher(key);
+    return index.find() && index.start() > 0 ? key.substring(0, index.start()) : null;
+  }
+
+  private static final java.util.regex.Pattern LIST_INDEX =
+      java.util.regex.Pattern.compile("\\[\\d+]");
 
   /**
    * The names the modules give their applications, in any profile: {@code spring.application.name}
