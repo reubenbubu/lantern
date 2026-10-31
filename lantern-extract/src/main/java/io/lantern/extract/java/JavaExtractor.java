@@ -9,6 +9,12 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Call;
@@ -55,7 +61,7 @@ import tools.jackson.databind.JsonNode;
  * method or constructor ({@code <init>}), and {@code field:<type>#<name>} for a field or enum
  * constant.
  */
-public final class JavaExtractor {
+public final class JavaExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "java";
@@ -507,5 +513,20 @@ public final class JavaExtractor {
               validity);
       facts.putIfAbsent(fact.id(), fact);
     }
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(extract(context.code(), context.snapshot()));
   }
 }

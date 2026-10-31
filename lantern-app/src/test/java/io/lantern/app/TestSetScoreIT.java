@@ -209,6 +209,7 @@ class TestSetScoreIT {
             context.getBean(ViewDefinitionStore.class),
             context.getBean(HtmlRenderer.class),
             context.getBean(C4ReportRenderer.class),
+            context.getBean(JdbcExtractionCache.class),
             context.getEnvironment().getRequiredProperty("lantern.version"),
             WORKSPACE);
   }

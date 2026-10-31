@@ -19,26 +19,11 @@ import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.repo.SystemTitle;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.extract.ExtractionCache;
+import io.lantern.extract.Extractors;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.deployment.DeploymentExtractor;
-import io.lantern.extract.docs.DocsExtractor;
-import io.lantern.extract.frontend.FrontendExtractor;
-import io.lantern.extract.gateway.GatewayExtractor;
-import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.identity.IdentityExtractor;
-import io.lantern.extract.java.JavaAnalysis;
-import io.lantern.extract.java.JavaExtractor;
-import io.lantern.extract.mail.MailExtractor;
-import io.lantern.extract.maven.MavenExtractor;
-import io.lantern.extract.messaging.MessagingExtractor;
-import io.lantern.extract.people.PeopleExtractor;
-import io.lantern.extract.persistence.PersistenceExtractor;
-import io.lantern.extract.redis.RedisExtractor;
-import io.lantern.extract.spring.SpringExtractor;
-import io.lantern.extract.sql.SqlExtractor;
-import io.lantern.extract.test.TestExtractor;
-import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.GraphTools;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
@@ -147,6 +132,8 @@ public final class AnalysisRun {
    * @param documentsDirectory where rendered documents are written, one directory per system and in
    *     it one per snapshot
    */
+  private final ExtractionCache extractionCache;
+
   public AnalysisRun(
       RepoRegistry registry,
       SystemRegistry systems,
@@ -163,12 +150,14 @@ public final class AnalysisRun {
       ViewDefinitionStore views,
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
+      ExtractionCache extractionCache,
       String toolVersion,
       Path documentsDirectory) {
     this.registry = Objects.requireNonNull(registry, "registry");
     this.systems = Objects.requireNonNull(systems, "systems");
     this.snapshots = Objects.requireNonNull(snapshots, "snapshots");
     this.lock = Objects.requireNonNull(lock, "lock");
+    this.extractionCache = Objects.requireNonNull(extractionCache, "extractionCache");
     this.sandbox = Objects.requireNonNull(sandbox, "sandbox");
     this.facts = Objects.requireNonNull(facts, "facts");
     this.transaction = Objects.requireNonNull(transaction, "transaction");
@@ -312,33 +301,22 @@ public final class AnalysisRun {
 
       // The extractors see the whole snapshot, so whether a dependency or call reaches another
       // repository does not depend on which repositories this run names. Only the named
-      // repositories' facts are recorded.
-      List<Fact> found =
-          new ArrayList<>(new MavenExtractor().extract(repoBuilds, snapshot.number()));
-      // The code is read once, for the Java structure, Spring, persistence, HTTP client,
-      // messaging, WebSocket, mail, Redis, people and gateway extractors.
-      JavaAnalysis code = JavaExtractor.analyze(repoBuilds);
-      found.addAll(new JavaExtractor().extract(code, snapshot.number()));
-      // A config key the code uses as a JWT secret is masked whatever it is called (#335), so the
-      // identity extractor runs before the config extractor.
-      List<Fact> identity = new IdentityExtractor().extract(code, repoBuilds, snapshot.number());
-      Set<String> secretKeys = ConfigExtractor.jwtSecretKeys(identity);
-      found.addAll(new ConfigExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
-      found.addAll(new DocsExtractor().extract(repoBuilds, snapshot.number(), secretKeys));
-      found.addAll(new SqlExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new TestExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new SpringExtractor().extract(code, snapshot.number(), secretKeys));
-      found.addAll(new PersistenceExtractor().extract(code, snapshot.number(), secretKeys));
-      found.addAll(new HttpClientExtractor().extract(code, snapshot.number(), secretKeys));
-      found.addAll(new MessagingExtractor().extract(code, snapshot.number(), secretKeys));
-      found.addAll(new WebSocketExtractor().extract(code, snapshot.number()));
-      found.addAll(new MailExtractor().extract(code, snapshot.number()));
-      found.addAll(identity);
-      found.addAll(new RedisExtractor().extract(code, repoBuilds, snapshot.number()));
-      found.addAll(new PeopleExtractor().extract(code, repoBuilds, snapshot.number()));
-      found.addAll(new DeploymentExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new FrontendExtractor().extract(repoBuilds, snapshot.number()));
-      found.addAll(new GatewayExtractor().extract(code, snapshot.number(), secretKeys));
+      // repositories' facts are recorded. Each extractor's units come from the cache when nothing
+      // they depend on changed (ADR 0092).
+      Extractors.Result extraction =
+          new Extractors(Extractors.load(), extractionCache).run(snapshot.number(), repoBuilds);
+      LOG.info(
+          "Extraction: {} units extracted, {} read from the cache",
+          extraction.extracted(),
+          extraction.cached());
+      int pruned = extractionCache.prune();
+      if (pruned > 0) {
+        LOG.info("Deleted {} extraction cache entries no run used for 30 days", pruned);
+      }
+      List<Fact> found = new ArrayList<>(extraction.facts());
+      // Config keys the code uses as a JWT secret are masked wherever they appear (#335).
+      Set<String> secretKeys =
+          ConfigExtractor.jwtSecretKeys(extraction.facts(IdentityExtractor.NAME));
       found.removeIf(fact -> !registered.containsKey(fact.evidence().repo()));
       // The resolver's tools read files of every repository of the snapshot at its commit there,
       // carried forward ones included (ADR 0081).

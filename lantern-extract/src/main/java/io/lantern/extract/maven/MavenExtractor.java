@@ -10,6 +10,12 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.repo.Git;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,7 +67,7 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code module:<groupId>:<artifactId>} for a module, {@code service:...} or {@code library:...}
  * for what it builds, and {@code artifact:...} for a dependency no analyzed repository builds.
  */
-public final class MavenExtractor {
+public final class MavenExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "maven";
@@ -1375,5 +1381,20 @@ public final class MavenExtractor {
 
   private static String blankToNull(String value) {
     return value == null || value.isBlank() ? null : value;
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(extract(unit.repos(), context.snapshot()));
   }
 }

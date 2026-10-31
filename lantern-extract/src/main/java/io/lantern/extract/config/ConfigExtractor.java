@@ -7,6 +7,12 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +43,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Other extractors use {@link #read} to resolve placeholders against a module's config.
  */
-public final class ConfigExtractor {
+public final class ConfigExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "config";
@@ -444,5 +450,31 @@ public final class ConfigExtractor {
         .replace("-", "")
         .replace("_", "")
         .toLowerCase(Locale.ROOT);
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
+  @Override
+  public Set<String> requires() {
+    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(
+        extract(
+            unit.repos(),
+            context.snapshot(),
+            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
+                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
   }
 }

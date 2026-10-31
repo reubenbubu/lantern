@@ -8,6 +8,12 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
@@ -47,7 +53,7 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}): through
  * javac with the build's classpath, or parsed in degraded mode, with the same confidence.
  */
-public final class WebSocketExtractor {
+public final class WebSocketExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "websocket";
@@ -915,5 +921,20 @@ public final class WebSocketExtractor {
               validity);
       facts.putIfAbsent(fact.id(), fact);
     }
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(extract(context.code(), context.snapshot()));
   }
 }

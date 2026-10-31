@@ -8,6 +8,12 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
@@ -15,6 +21,7 @@ import io.lantern.extract.docs.DecisionRecord.SectionText;
 import io.lantern.extract.docs.DecisionRecord.Value;
 import io.lantern.extract.docs.Markdown.Block;
 import io.lantern.extract.docs.Markdown.Kind;
+import io.lantern.extract.identity.IdentityExtractor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -49,7 +56,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Facts have origin kind {@code readme}: what the documents say, not what the code does.
  */
-public final class DocsExtractor {
+public final class DocsExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "docs";
@@ -199,42 +206,73 @@ public final class DocsExtractor {
     Set<String> known = ConfigExtractor.normalizedKeys(secretKeys);
     Facts facts = new Facts(Validity.from(snapshot));
     for (RepoBuild repo : repos) {
-      List<String> paths = GitFiles.list(repo, "");
-      List<String> generated = generatedRoots(paths);
-      for (String path : paths) {
-        if (ignored(path)) {
-          continue;
-        }
-        boolean decision = isDecision(path);
-        boolean readme = !decision && isReadme(path);
-        boolean document =
-            !decision
-                && !readme
-                && isDocument(path)
-                && generated.stream().noneMatch(path::startsWith);
-        if (!decision && !readme && !document) {
-          continue;
-        }
-        byte[] content = GitFiles.read(repo, path, MAX_FILE_BYTES);
-        if (content == null) {
-          continue;
-        }
-        String text = decode(content);
-        Markdown doc =
-            ASCIIDOC.matcher(name(path)).matches() ? AsciiDoc.parse(text) : Markdown.parse(text);
-        Source source = new Source(repo, path, sha256(content));
-        if (decision) {
-          if (!decision(source, doc, facts) && DecisionRecord.numbered(name(path))) {
-            // A numbered page in plain prose, with no status or sections, does not read as a
-            // record; its text is read as a document's rather than lost.
-            claims(source.id(DOCUMENT), source, doc, facts, known);
-          }
-        } else {
-          claims(source.id(readme ? README : DOCUMENT), source, doc, facts, known);
-        }
+      for (String path : sources(repo)) {
+        extractFile(repo, path, known, facts);
       }
     }
     return facts.result();
+  }
+
+  /**
+   * The documentation files of the repository, in the order they are listed: its decision records,
+   * READMEs and documents, outside directories that hold no documentation of its own and the
+   * folders a code generator wrote.
+   *
+   * @throws IllegalStateException if git fails or times out
+   */
+  public static List<String> sources(RepoBuild repo) {
+    List<String> paths = GitFiles.list(repo, "");
+    List<String> generated = generatedRoots(paths);
+    List<String> sources = new ArrayList<>();
+    for (String path : paths) {
+      if (ignored(path)) {
+        continue;
+      }
+      if (isDecision(path)
+          || isReadme(path)
+          || isDocument(path) && generated.stream().noneMatch(path::startsWith)) {
+        sources.add(path);
+      }
+    }
+    return sources;
+  }
+
+  /** Puts the facts of one documentation file, one of {@link #sources}, into {@code facts}. */
+  private static void extractFile(RepoBuild repo, String path, Set<String> known, Facts facts) {
+    boolean decision = isDecision(path);
+    boolean readme = !decision && isReadme(path);
+    byte[] content = GitFiles.read(repo, path, MAX_FILE_BYTES);
+    if (content == null) {
+      return;
+    }
+    String text = decode(content);
+    Markdown doc =
+        ASCIIDOC.matcher(name(path)).matches() ? AsciiDoc.parse(text) : Markdown.parse(text);
+    Source source = new Source(repo, path, sha256(content));
+    if (decision) {
+      if (!decision(source, doc, facts) && DecisionRecord.numbered(name(path))) {
+        // A numbered page in plain prose, with no status or sections, does not read as a
+        // record; its text is read as a document's rather than lost.
+        claims(source.id(DOCUMENT), source, doc, facts, known);
+      }
+    } else {
+      claims(source.id(readme ? README : DOCUMENT), source, doc, facts, known);
+    }
+  }
+
+  @Override
+  public List<String> files(ExtractionContext context, RepoBuild repo) {
+    return sources(repo);
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    Set<String> known =
+        ConfigExtractor.normalizedKeys(
+            ConfigExtractor.jwtSecretKeys(context.facts(IdentityExtractor.NAME)));
+    Facts facts = new Facts(Validity.from(context.snapshot()));
+    extractFile(unit.repo(), unit.path(), known, facts);
+    sink.emitAll(facts.result());
   }
 
   /**
@@ -542,5 +580,21 @@ public final class DocsExtractor {
                   .thenComparing(Fact::id))
           .toList();
     }
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
+  @Override
+  public Set<String> requires() {
+    return Set.of(IdentityExtractor.NAME);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.FILE;
   }
 }

@@ -9,6 +9,12 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
@@ -57,7 +63,7 @@ import tools.jackson.databind.node.ObjectNode;
  * column:<schema key>:<table>#<column>}, with names as the database folds them: unquoted names in
  * lower case. Every fact points at the migration and lines that last shaped what it says.
  */
-public final class SqlExtractor {
+public final class SqlExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "sql";
@@ -582,5 +588,20 @@ public final class SqlExtractor {
     } catch (IllegalArgumentException e) {
       return null;
     }
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.REPOSITORY;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(extract(unit.repos(), context.snapshot()));
   }
 }

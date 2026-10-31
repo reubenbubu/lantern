@@ -7,6 +7,12 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
@@ -34,7 +40,7 @@ import tools.jackson.databind.node.ObjectNode;
  * SDK (SendGrid, Amazon SES, Mailgun), and the mail server hosts that code sets. A library's server
  * usually comes from the config, which the linker reads; an SDK names its provider.
  */
-public final class MailExtractor {
+public final class MailExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "mail";
@@ -266,5 +272,20 @@ public final class MailExtractor {
     return argument instanceof Expression.Literal(String value) && !value.isBlank()
         ? value.strip()
         : null;
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(extract(context.code(), context.snapshot()));
   }
 }
