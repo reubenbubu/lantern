@@ -26,11 +26,13 @@ changes them. This file covers only how you work.
   must not make for itself. One epic is active at a time; a new one may follow when it is done.
   Its milestones and issues link to the sections they implement and do not copy them. A
   decision the epic fixes changes only through an issue, never by an agent deciding for itself.
-- `docs/design.md` and `docs/quality-bar.md` describe Lantern as it is. An issue that lands part
-  of an epic updates them in the same PR; what is planned but not built stays in the epic, even
-  when a research note recommends it. When the epic's last milestone closes, the chat that
-  closes it adds a closing note at the top of the epic (what was built, what was dropped, the
-  ADRs it led to) and sets its status to closed. The file stays as the record.
+- `docs/quality-bar.md` is the standard Lantern's output aims for, and `docs/design.md` the
+  design that gets there; both are the target, not a description of what is built. An epic is a
+  step toward them and may change the design: where the active epic and the design differ, the
+  epic wins, and each issue that lands part of the epic brings the design in line in the same
+  PR. When the epic's last milestone closes, the chat that closes it adds a closing note at the
+  top of the epic (what was built, what was dropped, the ADRs it led to) and sets its status to
+  closed. The file stays as the record.
 - Every issue has a milestone and is written to a template in `.github/ISSUE_TEMPLATE/`:
   `fix.md` for what Lantern does wrong, `feature.md` for what it cannot do yet, chores and
   foundations (a test drop excepted).
