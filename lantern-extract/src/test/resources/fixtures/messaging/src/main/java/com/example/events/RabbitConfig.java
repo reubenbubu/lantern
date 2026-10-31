@@ -7,6 +7,7 @@ import org.springframework.amqp.core.FanoutExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,6 +48,23 @@ public class RabbitConfig {
   @Bean
   Binding broadcastBinding(Queue refundsQueue, FanoutExchange broadcast) {
     return BindingBuilder.bind(refundsQueue).to(broadcast);
+  }
+
+  @Bean
+  @Qualifier("auditTrail")
+  Queue auditQueue() {
+    return new Queue("audit.events");
+  }
+
+  @Bean
+  Binding qualifiedBinding(
+      @Qualifier("auditQueue") Queue queue, @Qualifier("broadcast") FanoutExchange exchange) {
+    return BindingBuilder.bind(queue).to(exchange);
+  }
+
+  @Bean
+  Binding ownQualifierBinding(@Qualifier("auditTrail") Queue q, TopicExchange ordersExchange) {
+    return BindingBuilder.bind(q).to(ordersExchange).with("audit.#");
   }
 
   @Bean

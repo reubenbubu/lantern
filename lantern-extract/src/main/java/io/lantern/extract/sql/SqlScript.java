@@ -41,6 +41,11 @@ final class SqlScript {
       Pattern.compile(
           "(?is)DROP\\s+TABLE\\s+(IF\\s+EXISTS\\s+)?(.+?)(\\s+(CASCADE|RESTRICT)(\\s+CONSTRAINTS)?)?\\s*");
   private static final Pattern SET_DATA_TYPE = Pattern.compile("(?i)\\bSET\\s+DATA\\s+TYPE\\b");
+  // JSqlParser 5.3 rejects a column's inline REFERENCES with an action other than CASCADE; the
+  // schema facts record no referential action, so it is dropped before parsing.
+  private static final Pattern REFERENTIAL_ACTION =
+      Pattern.compile(
+          "(?i)\\s+ON\\s+(DELETE|UPDATE)\\s+(RESTRICT|CASCADE|NO\\s+ACTION|SET\\s+NULL|SET\\s+DEFAULT)\\b");
   private static final Pattern DROP_FOREIGN_KEY =
       Pattern.compile("(?i)\\bDROP\\s+FOREIGN\\s+KEY\\b");
   private static final Pattern DOLLAR_TAG = Pattern.compile("\\$[A-Za-z_]*\\$");
@@ -238,6 +243,7 @@ final class SqlScript {
     }
     String text = DROP_FOREIGN_KEY.matcher(sql).replaceAll("DROP CONSTRAINT");
     text = SET_DATA_TYPE.matcher(text).replaceAll("TYPE");
+    text = REFERENTIAL_ACTION.matcher(text).replaceAll("");
     Statement statement = parse(text, executor);
     if (statement == null && text.regionMatches(true, 0, "CREATE", 0, 6)) {
       // Table options the parser does not know (PARTITION BY, INHERITS, TABLESPACE, ...) follow

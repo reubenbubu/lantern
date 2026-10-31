@@ -63,7 +63,7 @@ public final class SqlExtractor {
   public static final String NAME = "sql";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "sql-extractor";

@@ -76,6 +76,12 @@ final class DecisionRecord {
     this.sections = sections;
   }
 
+  /** Whether a file is named like a numbered record, such as {@code 0003-shared-read.md}. */
+  static boolean numbered(String fileName) {
+    String stem = fileName.replaceFirst("\\.[^.]*$", "");
+    return FILE_NUMBER.matcher(stem).matches() && !FILE_DATE.matcher(stem).matches();
+  }
+
   /**
    * Reads a decision record.
    *

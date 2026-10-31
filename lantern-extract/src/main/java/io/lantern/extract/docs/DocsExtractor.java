@@ -55,7 +55,7 @@ public final class DocsExtractor {
   public static final String NAME = "docs";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "docs-extractor";
@@ -224,7 +224,11 @@ public final class DocsExtractor {
             ASCIIDOC.matcher(name(path)).matches() ? AsciiDoc.parse(text) : Markdown.parse(text);
         Source source = new Source(repo, path, sha256(content));
         if (decision) {
-          decision(source, doc, facts);
+          if (!decision(source, doc, facts) && DecisionRecord.numbered(name(path))) {
+            // A numbered page in plain prose, with no status or sections, does not read as a
+            // record; its text is read as a document's rather than lost.
+            claims(source.id(DOCUMENT), source, doc, facts, known);
+          }
         } else {
           claims(source.id(readme ? README : DOCUMENT), source, doc, facts, known);
         }
@@ -326,10 +330,11 @@ public final class DocsExtractor {
     return slash < 0 ? List.of() : List.of(path.substring(0, slash).split("/"));
   }
 
-  private static void decision(Source source, Markdown doc, Facts facts) {
+  /** Records a decision record's facts; whether the file reads as one. */
+  private static boolean decision(Source source, Markdown doc, Facts facts) {
     DecisionRecord record = DecisionRecord.read(name(source.path()), doc);
     if (record == null) {
-      return;
+      return false;
     }
     EntityId id = source.id(DECISION);
     put(facts, id, TITLE, FactObject.string(record.title.value()), source, record.title);
@@ -357,6 +362,7 @@ public final class DocsExtractor {
           source.evidence(s.start(), s.end()),
           DECISION_CONFIDENCE);
     }
+    return true;
   }
 
   private static void put(

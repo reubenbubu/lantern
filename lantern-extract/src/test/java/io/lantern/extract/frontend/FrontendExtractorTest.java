@@ -66,6 +66,85 @@ class FrontendExtractorTest {
   }
 
   @Test
+  void aFallbackIsTheValueWhenTheEnvironmentVariableIsNotSet() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("portal"),
+            "portal",
+            Map.of(
+                "package.json",
+                "{\"name\": \"portal\", \"dependencies\": {\"react\": \"^19.2.0\"}}\n",
+                "src/portal.tsx",
+                """
+                const URL = import.meta.env.VITE_BFF_URL ?? 'http://localhost:8085/graphql';
+                const OTHER = import.meta.env.VITE_OTHER || import.meta.env.VITE_UNSET;
+                export const book = () => fetch(URL, { method: 'POST' });
+                export const other = () => fetch(OTHER);
+                """));
+
+    List<String> calls =
+        Fixtures.render(
+                new FrontendExtractor()
+                    .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT))
+            .lines()
+            .filter(l -> l.contains(" frontend-call "))
+            .toList();
+
+    assertThat(calls).hasSize(1);
+    assertThat(calls.getFirst()).contains("frontend-call POST http://localhost:8085/graphql ");
+  }
+
+  @Test
+  void aDockerfileAtTheRootThatCopiesTheFolderServesTheFrontend() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("web"),
+            "web",
+            Map.of(
+                "customer/package.json",
+                "{\"name\": \"customer\", \"dependencies\": {\"react\": \"^19.2.0\"}}\n",
+                "other/package.json",
+                "{\"name\": \"other\", \"dependencies\": {\"react\": \"^19.2.0\"}}\n",
+                "Dockerfile.customer",
+                """
+                FROM node:22 AS build
+                COPY customer/ ./
+                RUN npm run build
+                FROM nginx:1.27.4-alpine
+                COPY --from=build /dist /usr/share/nginx/html/customer
+                COPY nginx.conf /etc/nginx/conf.d/default.conf
+                EXPOSE 80
+                """,
+                "nginx.conf",
+                """
+                server {
+                  location /api/ { proxy_pass http://edge-gateway:8080/api/; }
+                }
+                """));
+
+    List<String> facts =
+        Fixtures.render(
+                new FrontendExtractor()
+                    .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT))
+            .lines()
+            .toList();
+
+    assertThat(facts)
+        .anyMatch(
+            l ->
+                l.startsWith("frontend:web/customer frontend-proxy /api/ ")
+                    && l.contains("\"target\":\"http://edge-gateway:8080/api/\"")
+                    && l.contains("@web:nginx.conf#2-2"))
+        .anyMatch(
+            l ->
+                l.startsWith("frontend:web/customer frontend-app ")
+                    && l.contains("nginx:1.27.4-alpine"))
+        // A folder no Dockerfile copies is not served by it.
+        .noneMatch(l -> l.startsWith("frontend:web/other frontend-proxy"))
+        .noneMatch(l -> l.startsWith("frontend:web/other frontend-app") && l.contains("nginx"));
+  }
+
+  @Test
   void brokenFilesAreSkippedWithoutFailing() throws IOException {
     Repo repo =
         Fixtures.repo(

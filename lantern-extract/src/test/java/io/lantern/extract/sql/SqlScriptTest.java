@@ -50,6 +50,23 @@ class SqlScriptTest {
   }
 
   @Test
+  void aColumnsInlineReferenceWithAnyActionIsRead() {
+    assertThat(
+            schema(
+                """
+                CREATE TABLE invoices (id varchar(64) PRIMARY KEY);
+                CREATE TABLE lines (
+                  invoice_id varchar(64) NOT NULL REFERENCES invoices(id) ON DELETE RESTRICT,
+                  note_id varchar(64) REFERENCES invoices(id) ON UPDATE NO ACTION ON DELETE SET NULL
+                );
+                """))
+        .containsExactly(
+            "invoices(id varchar(64) not null) pk[id]",
+            "lines(invoice_id varchar(64) not null, note_id varchar(64))"
+                + " fk[invoice_id]->invoices[id] fk[note_id]->invoices[id]");
+  }
+
+  @Test
   void splitsAtSemicolonsOutsideQuotesAndComments() {
     List<SqlScript.Part> parts =
         SqlScript.split(

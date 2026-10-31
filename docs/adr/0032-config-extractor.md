@@ -1,6 +1,6 @@
 # 0032: Config extractor
 
-Status: accepted (#126, part of #92), amended (#137, #143, #335, #338, #340, #333, #348, #384)
+Status: accepted (#126, part of #92), amended (#137, #143, #335, #338, #340, #333, #348, #384, #516)
 
 ## Context
 
@@ -33,7 +33,9 @@ what the facts look like and how a secret written in a config file is handled.
   bootstrap before application config; within each, files without a profile before profile files;
   `src/main/resources` before `src/main/resources/config`; `yaml`, `yml`, then `properties`; and
   the documents of a file in the order written. A later value overrides an earlier one. So a name
-  set only in `bootstrap.yml` holds, and one in `application.yml` wins over it.
+  set only in `bootstrap.yml` holds, and one in `application.yml` wins over it. A list a later
+  document sets (`routes[0].id`, ...) replaces the earlier list whole, as Spring binds lists, rather
+  than being merged with it item by item (#516).
 - **One profile at a time.** The default view is what Spring Boot sees with no profile set: the
   `default` profile is active (`application-default.yml` and documents limited to `default`
   apply). A profile view has that one profile active instead. Documents limited by
@@ -224,6 +226,9 @@ Config repository with no Maven module, which the extractor did not read. The re
   compose volume is not needed: project-3's server names a URI other than its clone, and the
   native backend reaches it through a mount. Any repository without a Maven module qualifies (a
   Gradle or frontend repository too), but only files named after an application are read from it.
+  Since #516 a folder of the server's own repository is one too, when its native backend names it
+  with a relative `file:` location (`search-locations: file:./config-repo`, taken from the
+  server module's folder); its files are read as a repository's top files are.
 - **Which files.** The files at its top named `application`, or exactly one of the names the
   snapshot's modules give themselves (`spring.application.name`, and each name of
   `spring.cloud.config.name`), each optionally followed by `-<profile>`, with extension

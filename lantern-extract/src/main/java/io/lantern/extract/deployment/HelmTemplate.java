@@ -14,12 +14,21 @@ import java.util.regex.Pattern;
  * {@code squote}, {@code upper}, {@code lower}, {@code trim}, {@code trunc}, {@code trimSuffix},
  * {@code trimPrefix}, {@code toString}) is replaced by its value; a line holding only control
  * actions ({@code if}, {@code range}, {@code end}, {@code toYaml}, {@code include}, ...) is
- * blanked. Both branches of an {@code if} are kept, and nothing is repeated for a {@code range}.
+ * blanked. Both branches of an {@code if} are kept. A {@code range} at the top of a template over a
+ * map or list of the values ({@code range $name, $service := .Values.services}) gives one rendering
+ * of its body per entry, with its variables, {@code .} and {@code $} bound ({@link #renderAll}); a
+ * {@code range} inside another block, or over anything else, is blanked and its body kept once.
  * Line numbers are kept, so evidence points at the template's lines.
  */
 final class HelmTemplate {
 
   private static final Pattern ACTION = Pattern.compile("\\{\\{-?(.*?)-?}}");
+  private static final Pattern RANGE =
+      Pattern.compile(
+          "\\s*\\{\\{-?\\s*range\\s+(?:(\\$\\w+)\\s*,\\s*)?(\\$\\w+)\\s*:=\\s*(\\S+)\\s*-?}}\\s*");
+  private static final Pattern BLOCK_START =
+      Pattern.compile("\\{\\{-?\\s*(if|range|with|define|block)\\b");
+  private static final Pattern BLOCK_END = Pattern.compile("\\{\\{-?\\s*end\\s*-?}}");
   private static final Pattern TOKEN =
       Pattern.compile("\"((?:[^\"\\\\]|\\\\.)*)\"|'([^']*)'|(\\S+)");
 
@@ -53,7 +62,94 @@ final class HelmTemplate {
    * @param chart the chart's {@code Chart.yaml}
    */
   static String render(String text, Map<String, Object> values, Map<String, Object> chart) {
+    return render(text.split("\n", -1), values, chart, Map.of());
+  }
+
+  /**
+   * The renderings of a template: the template as {@link #render} gives it, with the bodies of the
+   * ranges at its top level that range over values blanked, then for each such range and each of
+   * its entries, a rendering of that body alone, its variables bound. Each rendering has the
+   * template's lines.
+   */
+  static List<String> renderAll(
+      String text, Map<String, Object> values, Map<String, Object> chart) {
     String[] lines = text.split("\n", -1);
+    List<int[]> ranges = new ArrayList<>();
+    List<Object> over = new ArrayList<>();
+    int depth = 0;
+    int start = -1;
+    for (int n = 0; n < lines.length; n++) {
+      Matcher range = RANGE.matcher(lines[n]);
+      if (depth == 0 && range.matches()) {
+        start = n;
+      }
+      depth += count(BLOCK_START, lines[n]) - count(BLOCK_END, lines[n]);
+      if (start >= 0 && depth == 0) {
+        Matcher head = RANGE.matcher(lines[start]);
+        head.matches();
+        Object node = node(head.group(3), values, Map.of());
+        if (node instanceof Map<?, ?> || node instanceof List<?>) {
+          ranges.add(new int[] {start, n});
+          over.add(node);
+        }
+        start = -1;
+      }
+      if (depth < 0) {
+        depth = 0;
+      }
+    }
+    List<String> out = new ArrayList<>();
+    String[] outside = lines.clone();
+    for (int[] r : ranges) {
+      for (int n = r[0]; n <= r[1]; n++) {
+        outside[n] = "";
+      }
+    }
+    out.add(render(outside, values, chart, Map.of()));
+    for (int i = 0; i < ranges.size(); i++) {
+      int[] r = ranges.get(i);
+      Matcher head = RANGE.matcher(lines[r[0]]);
+      head.matches();
+      String keyVar = head.group(1);
+      String valueVar = head.group(2);
+      List<Map.Entry<Object, Object>> entries = new ArrayList<>();
+      if (over.get(i) instanceof Map<?, ?> map) {
+        map.forEach((k, v) -> entries.add(Map.entry(k, v == null ? "" : v)));
+      } else if (over.get(i) instanceof List<?> list) {
+        for (int k = 0; k < list.size(); k++) {
+          entries.add(Map.entry(k, list.get(k) == null ? "" : list.get(k)));
+        }
+      }
+      for (Map.Entry<Object, Object> entry : entries) {
+        String[] body = new String[lines.length];
+        java.util.Arrays.fill(body, "");
+        System.arraycopy(lines, r[0] + 1, body, r[0] + 1, r[1] - r[0] - 1);
+        Map<String, Object> vars = new java.util.HashMap<>();
+        if (keyVar != null) {
+          vars.put(keyVar, String.valueOf(entry.getKey()));
+        }
+        vars.put(valueVar, entry.getValue());
+        vars.put(".", entry.getValue());
+        out.add(render(body, values, chart, vars));
+      }
+    }
+    return out;
+  }
+
+  private static int count(Pattern pattern, String line) {
+    int found = 0;
+    Matcher m = pattern.matcher(line);
+    while (m.find()) {
+      found++;
+    }
+    return found;
+  }
+
+  private static String render(
+      String[] lines,
+      Map<String, Object> values,
+      Map<String, Object> chart,
+      Map<String, Object> vars) {
     List<String> out = new ArrayList<>();
     for (String line : lines) {
       Matcher m = ACTION.matcher(line);
@@ -64,10 +160,10 @@ final class HelmTemplate {
         any = true;
         String action = m.group(1).strip();
         String value = null;
-        if (action.startsWith("/*") || isControl(action)) {
+        if (action.startsWith("/*") || (isControl(action) && !isVariable(action, vars))) {
           control = true;
         } else {
-          value = evaluate(action, values, chart);
+          value = evaluate(action, values, chart, vars);
         }
         m.appendReplacement(b, Matcher.quoteReplacement(value == null ? "" : value));
       }
@@ -75,6 +171,16 @@ final class HelmTemplate {
       out.add(any && control && b.toString().isBlank() ? "" : b.toString());
     }
     return String.join("\n", out);
+  }
+
+  /** Whether an action is a value of a bound variable ({@code $name}, {@code $service.image}). */
+  private static boolean isVariable(String action, Map<String, Object> vars) {
+    String first = action.split("[\\s|]+")[0];
+    if (!first.startsWith("$") || action.contains(":=")) {
+      return false;
+    }
+    String name = first.equals("$") || first.startsWith("$.") ? "$" : first.split("\\.")[0];
+    return name.equals("$") ? !vars.isEmpty() : vars.containsKey(name);
   }
 
   private static boolean isControl(String action) {
@@ -96,7 +202,10 @@ final class HelmTemplate {
 
   /** A pipeline's value, or null when it is not a scalar this reading knows. */
   private static String evaluate(
-      String action, Map<String, Object> values, Map<String, Object> chart) {
+      String action,
+      Map<String, Object> values,
+      Map<String, Object> chart,
+      Map<String, Object> vars) {
     String value = null;
     boolean first = true;
     for (String part : action.split("\\|")) {
@@ -107,7 +216,7 @@ final class HelmTemplate {
       String head = tokens.getFirst();
       List<String> args = new ArrayList<>();
       for (String token : tokens.subList(1, tokens.size())) {
-        args.add(argument(token, values, chart));
+        args.add(argument(token, values, chart, vars));
       }
       if (first) {
         value =
@@ -118,7 +227,7 @@ final class HelmTemplate {
                       ? args.get(1)
                       : args.isEmpty() ? null : args.getFirst();
               case "quote" -> args.isEmpty() ? null : "\"" + nonNull(args.getFirst()) + "\"";
-              default -> argument(head, values, chart);
+              default -> argument(head, values, chart, vars);
             };
         first = false;
         continue;
@@ -151,20 +260,24 @@ final class HelmTemplate {
   }
 
   private static String argument(
-      String token, Map<String, Object> values, Map<String, Object> chart) {
+      String token,
+      Map<String, Object> values,
+      Map<String, Object> chart,
+      Map<String, Object> vars) {
     if (token.startsWith("\u0001")) {
       return token.substring(1);
     }
-    if (token.startsWith(".Values.") || token.equals(".Values")) {
-      Object node = values;
-      for (String key : token.substring(".Values".length()).split("\\.")) {
-        if (key.isEmpty()) {
-          continue;
-        }
-        Map<String, Object> map = Yaml.map(node);
-        node = map == null ? null : map.get(key);
-      }
-      return Yaml.string(node);
+    if (token.startsWith("$.")) {
+      token = token.substring(1);
+    }
+    if (token.startsWith(".Values.") || token.equals(".Values") || token.startsWith("$")) {
+      return Yaml.string(node(token, values, vars));
+    }
+    if (token.startsWith(".")
+        && !token.startsWith(".Chart.")
+        && !token.startsWith(".Release.")
+        && vars.containsKey(".")) {
+      return Yaml.string(path(vars.get("."), token));
     }
     if (token.startsWith(".Chart.")) {
       String key = token.substring(".Chart.".length());
@@ -180,6 +293,35 @@ final class HelmTemplate {
       return token;
     }
     return null;
+  }
+
+  /** What a reference names: {@code .Values.a.b}, {@code $.Values.a}, or {@code $var.a}. */
+  private static Object node(String token, Map<String, Object> values, Map<String, Object> vars) {
+    if (token.startsWith("$.")) {
+      token = token.substring(1);
+    }
+    if (token.startsWith(".Values")) {
+      return path(values, token.substring(".Values".length()));
+    }
+    if (token.startsWith("$")) {
+      int dot = token.indexOf('.');
+      String name = dot < 0 ? token : token.substring(0, dot);
+      return vars.containsKey(name)
+          ? path(vars.get(name), dot < 0 ? "" : token.substring(dot))
+          : null;
+    }
+    return null;
+  }
+
+  private static Object path(Object node, String path) {
+    for (String key : path.split("\\.")) {
+      if (key.isEmpty()) {
+        continue;
+      }
+      Map<String, Object> map = Yaml.map(node);
+      node = map == null ? null : map.get(key);
+    }
+    return node;
   }
 
   private static List<String> tokens(String text) {

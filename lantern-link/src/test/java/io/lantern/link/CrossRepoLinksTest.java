@@ -1506,6 +1506,13 @@ class CrossRepoLinksTest {
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"exchange\",\"routingKey\":\"k\","
             + "\"unknown\":[\"routingKey\"]}",
         12);
+    messaging(
+        "s",
+        "s.Publisher#anyExchange()",
+        MessagingExtractor.SEND,
+        MessagingExtractor.UNKNOWN_EXCHANGE,
+        "{\"broker\":\"rabbitmq\",\"destinationKind\":\"exchange\",\"unknown\":[\"exchange\"]}",
+        13);
     unit("w", "worker", "worker");
     type("w", "worker", "w.Config");
     type("w", "worker", "w.Listener");
@@ -1545,10 +1552,14 @@ class CrossRepoLinksTest {
         .asString()
         .contains("\"destination\":\"exchange:rabbitmq:fanout.x\"");
     assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK))
-        .containsExactly(
+        .containsExactlyInAnyOrder(
             "service:g:shop unresolved-link direct.x {\"candidates\":[\"service:g:worker\"],"
                 + "\"kind\":\"message\",\"reason\":\"unknown-routing-key\","
-                + "\"source\":\"method:s.Publisher#unknown()\"} 1.0");
+                + "\"source\":\"method:s.Publisher#unknown()\"} 1.0",
+            // An exchange the code does not fix: any unit on a bound queue may receive it.
+            "service:g:shop unresolved-link {...} {\"candidates\":[\"service:g:worker\"],"
+                + "\"kind\":\"message\",\"reason\":\"unknown-exchange\","
+                + "\"source\":\"method:s.Publisher#anyExchange()\"} 1.0");
   }
 
   @Test

@@ -226,6 +226,46 @@ class ConfigExtractorTest {
   }
 
   @Test
+  void aProfilesListReplacesTheDefaultListWhole() throws IOException {
+    Repo repo =
+        repo(
+            Map.of(
+                RESOURCES + "application.yml",
+                """
+                gateway:
+                  routes:
+                    - id: a
+                      filters:
+                        - StripPrefix=1
+                    - id: b
+                      filters:
+                        - name: RateLimiter
+                          args:
+                            rate: 8
+                  name: shop
+                """,
+                RESOURCES + "application-staging.yml",
+                """
+                gateway:
+                  routes:
+                    - id: c
+                    - id: a
+                      filters:
+                        - StripPrefix=1
+                """));
+    ModuleConfig config = config(repo);
+
+    assertThat(config.values("staging").keySet())
+        .containsExactly(
+            "gateway.name",
+            "gateway.routes[0].id",
+            "gateway.routes[1].filters[0]",
+            "gateway.routes[1].id");
+    assertThat(config.values(null).get("gateway.routes[1].filters[0].name").value())
+        .isEqualTo("RateLimiter");
+  }
+
+  @Test
   void secretsWrittenInTheFileAreMasked() throws IOException {
     Repo repo =
         repo(
@@ -632,5 +672,57 @@ class ConfigExtractorTest {
     List<Fact> facts = new ConfigExtractor().extract(configServerSystem(false), 1);
 
     assertThat(facts).noneMatch(f -> f.subject().toString().startsWith("repo:"));
+  }
+
+  @Test
+  void aNativeServersFolderInItsOwnRepositoryIsReadAsAConfigRepository() throws IOException {
+    Repo server =
+        Fixtures.repo(
+            temp.resolve("platform-config"),
+            "platform-config",
+            Map.of(
+                "pom.xml",
+                POM,
+                RESOURCES + "application.yml",
+                """
+                spring:
+                  application:
+                    name: config-server
+                  cloud:
+                    config:
+                      server:
+                        native:
+                          search-locations: file:./config-repo, classpath:/shared, file:/etc/x
+                """,
+                "config-repo/orders-service.yml",
+                "orders:\n  mode: served\n",
+                "config-repo/unknown-app.yml",
+                "unknown:\n  read: false\n",
+                "other/orders-service.yml",
+                "orders:\n  mode: elsewhere\n"));
+    Repo orders =
+        Fixtures.repo(
+            temp.resolve("orders"),
+            "orders",
+            Map.of(
+                "pom.xml",
+                POM.replace("<artifactId>app", "<artifactId>orders"),
+                RESOURCES + "application.yml",
+                "spring:\n  application:\n    name: orders-service\n"));
+
+    List<Fact> facts =
+        new ConfigExtractor()
+            .extract(
+                List.of(
+                    new RepoBuild(server, Fixtures.head(server), null),
+                    new RepoBuild(orders, Fixtures.head(orders), null)),
+                1);
+
+    assertThat(Fixtures.render(facts).lines().filter(l -> l.startsWith("repo:platform-config ")))
+        .containsExactly(
+            "repo:platform-config config-value served"
+                + " {\"application\":\"orders-service\",\"key\":\"orders.mode\","
+                + "\"source\":\"config-repository\"}"
+                + " @platform-config:config-repo/orders-service.yml#2-2 1.0");
   }
 }

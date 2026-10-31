@@ -63,7 +63,7 @@ public final class MessagingExtractor {
   public static final String NAME = "messaging";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "5";
+  public static final String VERSION = "6";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
@@ -100,6 +100,7 @@ public final class MessagingExtractor {
   private static final String SEND_TO = "org.springframework.messaging.handler.annotation.SendTo";
   private static final String VALUE_ANNOTATION =
       "org.springframework.beans.factory.annotation.Value";
+  private static final String QUALIFIER = "org.springframework.beans.factory.annotation.Qualifier";
   private static final String BEAN = "org.springframework.context.annotation.Bean";
   private static final String COMPONENT = "org.springframework.stereotype.Component";
 
@@ -319,6 +320,9 @@ public final class MessagingExtractor {
    */
   private record Shape(Text object, Map<String, Text> named, ObjectNode attributes) {}
 
+  /** The object of a RabbitMQ send whose exchange the code does not fix. */
+  public static final String UNKNOWN_EXCHANGE = "{...}";
+
   /** One extraction: the facts so far, the code indexed, and the config of each repository. */
   private static final class Run {
 
@@ -332,7 +336,13 @@ public final class MessagingExtractor {
 
     private JavaAnalysis.Module module;
     private CodeConfig.View config;
+
+    /** The module's {@code @Bean} methods by bean name. */
     private Map<String, EntityId> beans;
+
+    /** The module's {@code @Bean} methods by the {@code @Qualifier} written on them. */
+    private Map<String, EntityId> qualified;
+
     private StreamConfig stream;
 
     Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
@@ -358,11 +368,16 @@ public final class MessagingExtractor {
       this.module = m;
       this.config = configs.forModule(m.repo(), m.directory());
       this.beans = new HashMap<>();
+      this.qualified = new HashMap<>();
       for (TypeDecl type : m.structure().types()) {
         for (Member member : type.members()) {
           String bean = beanName(member);
           if (bean != null) {
             beans.putIfAbsent(bean, member.id());
+            String qualifier = qualifier(member.annotations());
+            if (qualifier != null) {
+              qualified.putIfAbsent(qualifier, member.id());
+            }
           }
         }
       }
@@ -664,6 +679,19 @@ public final class MessagingExtractor {
         ObjectNode common,
         Location where) {
       if (exchange == null) {
+        // An exchange the code does not fix (a getter on the message) is kept, marked unknown,
+        // as a send with an unknown routing key is.
+        ObjectNode attributes = common.deepCopy();
+        attributes.put("destinationKind", "exchange");
+        ArrayNode unknown = attributes.putArray("unknown");
+        unknown.add("exchange");
+        Map<String, Text> named = new LinkedHashMap<>();
+        if (key != null) {
+          named.put("routingKey", key);
+        } else if (keyUnknown) {
+          unknown.add("routingKey");
+        }
+        emit(subject, SEND, Text.literal(UNKNOWN_EXCHANGE), named, attributes, where);
         return;
       }
       emitViews(
@@ -799,7 +827,7 @@ public final class MessagingExtractor {
         }
         case Expression.Param p -> {
           ModuleStructure.Parameter parameter = parameter(context, p.index());
-          EntityId bean = parameter == null ? null : beans.get(parameter.name());
+          EntityId bean = parameter == null ? null : injected(parameter);
           return bean != null && !bean.equals(context)
               ? declaredIn(bean, exchange, depth + 1)
               : null;
@@ -1554,6 +1582,29 @@ public final class MessagingExtractor {
     private ModuleStructure.Parameter parameter(EntityId method, int index) {
       Member m = members.get(method);
       return m == null || index >= m.parameters().size() ? null : m.parameters().get(index);
+    }
+
+    /**
+     * The {@code @Bean} method Spring injects for a parameter of a {@code @Bean} method: the one
+     * its {@code @Qualifier} names (a bean's name, or the qualifier written on a bean), else the
+     * one named as the parameter.
+     */
+    private EntityId injected(ModuleStructure.Parameter parameter) {
+      String qualifier = qualifier(parameter.annotations());
+      if (qualifier != null) {
+        EntityId bean = beans.get(qualifier);
+        return bean != null ? bean : qualified.get(qualifier);
+      }
+      return beans.get(parameter.name());
+    }
+
+    private String qualifier(List<Annotation> annotations) {
+      List<Annotation> path = code.annotationPath(annotations, QUALIFIER);
+      if (path == null) {
+        return null;
+      }
+      List<String> values = path.getLast().values("value");
+      return values.isEmpty() ? null : values.getFirst();
     }
 
     private String valueAnnotation(List<Annotation> annotations) {

@@ -73,7 +73,7 @@ public final class HttpClientExtractor {
   public static final String NAME = "http-client";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "7";
+  public static final String VERSION = "8";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
@@ -1609,7 +1609,7 @@ public final class HttpClientExtractor {
         // exchange(RequestEntity, type): the entity says where to.
         Request entity = requestEntity(args.getFirst(), link.scope());
         if (entity != null) {
-          return new Request(entity.method(), join(base, entity.url()));
+          return new Request(entity.method(), rootJoin(base, entity.url()));
         }
         if (http.isEmpty()) {
           if (args.size() < 2) {
@@ -1617,7 +1617,7 @@ public final class HttpClientExtractor {
           }
           http = httpMethod(args.get(1));
         }
-        return new Request(http, join(base, url(args.getFirst(), link.scope())));
+        return new Request(http, rootJoin(base, url(args.getFirst(), link.scope())));
       }
       return null;
     }
@@ -1803,6 +1803,12 @@ public final class HttpClientExtractor {
      * UriComponentsBuilder} made of one.
      */
     private Text url(Expression e, Scope scope) {
+      // A URI or URL field its class sets once, in a constructor or initializer: what made it.
+      if (e instanceof Expression.FieldRef f
+          && single(f) instanceof Assignment given
+          && given.value() instanceof Expression.Invoke) {
+        return url(given.value(), new Scope(moduleOf(f.owner(), scope.module()), given.in()));
+      }
       if (e instanceof Expression.Invoke invoke) {
         List<Expression.Invoke> chain = invoke.chain();
         Expression.Invoke first = chain.getFirst();
@@ -2213,6 +2219,14 @@ public final class HttpClientExtractor {
   // URLs
 
   /** A base URL and a path joined, unless the path is a whole URL itself. */
+  /**
+   * A RestTemplate's root URI and a URL: as Spring's root URI handler does, the root goes only
+   * before a URL that starts with a slash, so a URL whose start is not known stands alone.
+   */
+  private static Text rootJoin(Text base, Text path) {
+    return base != null && path.text().startsWith("{") ? path : join(base, path);
+  }
+
   private static Text join(Text base, Text path) {
     if (base == null) {
       return path;

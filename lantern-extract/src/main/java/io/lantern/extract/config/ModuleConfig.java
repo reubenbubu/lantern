@@ -176,16 +176,36 @@ public final class ModuleConfig {
     return w == null ? null : w.value();
   }
 
-  /** The values as written that hold with one profile active, the later overriding the earlier. */
+  /**
+   * The values as written that hold with one profile active, the later overriding the earlier. As
+   * in Spring, a list a later document sets ({@code routes[0].id}, ...) replaces the earlier
+   * documents' list whole: their items are not merged with its items index by index.
+   */
   private Map<String, Written> written(String active) {
     Set<String> activeProfiles = Set.of(active);
     Map<String, Written> values = new LinkedHashMap<>();
     for (Document d : documents) {
       if (applies(d, activeProfiles)) {
+        Set<String> lists = new java.util.HashSet<>();
+        for (String key : d.values().keySet()) {
+          String list = listOf(key);
+          if (list != null) {
+            lists.add(list);
+          }
+        }
+        if (!lists.isEmpty()) {
+          values.keySet().removeIf(key -> lists.contains(key) || lists.contains(listOf(key)));
+        }
         values.putAll(d.values());
       }
     }
     return values;
+  }
+
+  /** The list a key is an item of ({@code a.b} for {@code a.b[0].c}), or null. */
+  private static String listOf(String key) {
+    int bracket = key.indexOf('[');
+    return bracket > 0 ? key.substring(0, bracket) : null;
   }
 
   private static boolean applies(Document d, Set<String> active) {
