@@ -111,13 +111,12 @@
   {
     "name": "HAS_DATASOURCE",
     "kind": "relationship",
-    "keyAttributes": ["key", "technology"],
-    "description": "The subject module's config sets up the object datasource, in the default view or a profile; linking records it from the config facts, beside the module's datasource or data-store facts (ADR 0094, #560).",
+    "keyAttributes": ["key"],
+    "description": "The subject module's config sets up the object datasource, in the default view or a profile; linking records it from the config facts, beside the module's datasource or data-store facts, which say its technology in each view (ADR 0094, #560).",
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "key": { "type": "string", "description": "The config key of the datasource's URL, host or database." },
-        "technology": { "type": "string", "description": "The database or store the URL names, when known, as for datasource and data-store." }
+        "key": { "type": "string", "description": "The config key of the datasource's URL, host or database." }
       },
       "required": ["key"],
       "additionalProperties": false

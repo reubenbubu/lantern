@@ -167,13 +167,14 @@ non-relational stores of config:
   (the same reading of config the gateway's routes use, `ModuleValues`). The evidence keeps the
   config files, by blob.
 - **Each datasource and store is an entity**, `data-source:<module>:<key>`, such as
-  `data-source:com.acme:orders:spring.datasource.url`. Its module `HAS_DATASOURCE` it (with the key
-  and technology), and it `CONNECTS_TO` the address of each server its config writes in some view,
+  `data-source:com.acme:orders:spring.datasource.url`. Its module `HAS_DATASOURCE` it (with its key; the
+  `datasource` and `data-store` facts say its technology in each view), and it `CONNECTS_TO` the address of each server its config writes in some view,
   read from the values as written, with the URL as written and without credentials:
   `address:shop-db:5432` for a host written out, or `address:<module>:<server as written>` for one
   config resolves (`address:com.crm.auth:auth-service:${auth.datasource.host}:${auth.datasource.port}`).
-  A URL that is one placeholder (`${DATABASE_URL:jdbc:postgresql://…}`) is its own address, the
-  module's. Addresses are keyed as the HTTP client's are (ADR 0038, amendment for #557), so linking
+  A URL that is one placeholder (`${DATABASE_URL:jdbc:postgresql://…}`,
+  `${MONGODB_URI:mongodb://localhost:27017/…}`) is its own address, the module's, never its
+  default's host. Addresses are keyed as the HTTP client's are (ADR 0038, amendment for #557), so linking
   can resolve both alike. The type is `data-source` because the `datasource` attribute type, which
   documents read until #521, keeps its name.
 - Linking reads every module with config facts; the extractor read only repositories with code.

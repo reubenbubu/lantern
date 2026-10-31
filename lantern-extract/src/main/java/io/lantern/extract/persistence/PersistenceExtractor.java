@@ -1068,9 +1068,13 @@ public final class PersistenceExtractor implements Extractor {
           // The same datasource read from the values as written, for its URL and server as
           // written; a URL whose kind only its value tells is taken whole.
           Datasource d = asWritten.get(resolved.key());
-          if (d != null && !d.attributes().has("server") && resolved.attributes().has("server")) {
-            // A server only the resolved value tells (a URL that is one placeholder): its
-            // address is the text as written, the module's own.
+          ConfigValue main = config.values(view).get(resolved.key());
+          String whole = main == null ? "" : main.written().strip();
+          if (d != null
+              && resolved.attributes().has("server")
+              && (!d.attributes().has("server") || onePlaceholder(whole))) {
+            // A URL that is one placeholder (${MONGODB_URI:mongodb://localhost/shop}): its
+            // address is the text as written, the module's own, never the default's host.
             d = null;
           }
           if (d == null) {
@@ -1097,10 +1101,6 @@ public final class PersistenceExtractor implements Extractor {
           Evidence evidence = evidence(config, d.where());
           ObjectNode has = FactJson.newObject();
           has.put("key", d.key());
-          JsonNode technology = d.attributes().get("technology");
-          if (technology != null) {
-            has.set("technology", technology);
-          }
           if (seen.add(HAS_DATASOURCE + " " + datasource + " " + has))
             add(
                 Fact.create(
@@ -1140,6 +1140,23 @@ public final class PersistenceExtractor implements Extractor {
                     validity));
         }
       }
+    }
+
+    /** Whether a text is one {@code ${...}} placeholder, with or without a default. */
+    private static boolean onePlaceholder(String text) {
+      if (!text.startsWith("${") || !text.endsWith("}")) {
+        return false;
+      }
+      int depth = 0;
+      for (int i = 0; i < text.length(); i++) {
+        if (text.startsWith("${", i)) {
+          depth++;
+          i++;
+        } else if (text.charAt(i) == '}' && --depth == 0) {
+          return i == text.length() - 1;
+        }
+      }
+      return false;
     }
 
     private static Evidence evidence(ModuleValues config, ConfigValue.Where where) {

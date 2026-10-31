@@ -9,34 +9,30 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The attributes of a fact of the type {@code HAS_DATASOURCE}. The subject module's config sets up
  * the object datasource, in the default view or a profile; linking records it from the config
- * facts, beside the module's datasource or data-store facts (ADR 0094, #560).
+ * facts, beside the module's datasource or data-store facts, which say its technology in each view
+ * (ADR 0094, #560).
  *
  * @param key Key. The config key of the datasource's URL, host or database.
- * @param technology Key. The database or store the URL names, when known, as for datasource and
- *     data-store.
  */
 public record HasDatasourceAttributes(
-    String key,
-    String technology) {
+    String key) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "HAS_DATASOURCE";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("key", "technology");
+  public static final List<String> KEY_ATTRIBUTES = List.of("key");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static HasDatasourceAttributes from(ObjectNode attributes) {
     return new HasDatasourceAttributes(
-        AttributeValues.string(attributes, "key"),
-        AttributeValues.string(attributes, "technology"));
+        AttributeValues.string(attributes, "key"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
     AttributeValues.put(attributes, "key", key);
-    AttributeValues.put(attributes, "technology", technology);
     return attributes;
   }
 }

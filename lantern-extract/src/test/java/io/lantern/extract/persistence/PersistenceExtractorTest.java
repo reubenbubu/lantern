@@ -85,6 +85,39 @@ class PersistenceExtractorTest {
   }
 
   @Test
+  void aStoreWhoseUriIsOnePlaceholderIsItsModulesOwnAddress() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("one-placeholder"),
+            "shop",
+            Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>shop</artifactId><version>1</version></project>\n",
+                "src/main/java/com/example/Shop.java",
+                "package com.example;\n\npublic class Shop {}\n",
+                "src/main/resources/application.properties",
+                "spring.data.mongodb.uri=${MONGODB_URI:mongodb://localhost:27017/shop}\n"
+                    + "spring.elasticsearch.uris=${ELASTICSEARCH_URL:http://localhost:9200}\n"
+                    + "spring.datasource.url=${DATABASE_URL:jdbc:postgresql://db:5432/shop}\n"));
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+
+    List<String> connects =
+        Fixtures.render(Resolved.datasources(code, SNAPSHOT, Set.of()))
+            .lines()
+            .filter(l -> l.contains(" CONNECTS_TO "))
+            .toList();
+
+    // Each URL is one placeholder, so its address is the text as written, scoped by the module:
+    // never the default's host, which another module may default to as well.
+    assertThat(connects)
+        .hasSize(3)
+        .allMatch(l -> l.contains(" CONNECTS_TO address:com.example:shop:${"))
+        .noneMatch(l -> l.contains("address:localhost"));
+  }
+
+  @Test
   void aDatasourceUrlAKnownSecretKeyWasSubstitutedIntoIsMasked() throws IOException {
     Repo repo =
         Fixtures.repo(

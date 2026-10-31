@@ -94,13 +94,32 @@ class DatasourcesIT {
       assertThat(linkedOfThose).as(set).isEqualTo(expected);
       compared += expected.size();
 
-      // Every datasource and data store has its entity.
+      // Every datasource and data store has its entity, and every entity an address.
       Set<String> has = new HashSet<>();
+      Set<String> connected = new HashSet<>();
       for (Fact f : linked) {
         if (f.predicate().equals(PersistenceExtractor.HAS_DATASOURCE)) {
           has.add(f.subject() + " " + f.attributes().get("key").stringValue());
         }
+        if (f.predicate().equals(PersistenceExtractor.CONNECTS_TO)) {
+          connected.add(f.subject().toString());
+          // A literal address is a host and port, never a piece of a placeholder.
+          String address = f.object().entityId().key();
+          assertThat(address.contains("${") || !address.contains("}")).as(set + " " + f).isTrue();
+        }
       }
+      for (Fact f : linked) {
+        if (f.predicate().equals(PersistenceExtractor.HAS_DATASOURCE)) {
+          assertThat(connected).as(set + " " + f).contains(f.object().value());
+        }
+      }
+      // Modules of repositories without code, which only linking reads.
+      long others =
+          linked.stream()
+              .filter(f -> !f.predicate().equals(PersistenceExtractor.CONNECTS_TO))
+              .filter(f -> !modules.contains(f.subject().toString()))
+              .count();
+      System.out.println("DatasourcesIT " + set + ": facts of modules without code: " + others);
       for (Fact f : linked) {
         if (f.predicate().equals(PersistenceExtractor.DATASOURCE)
             || f.predicate().equals(PersistenceExtractor.DATA_STORE)) {
