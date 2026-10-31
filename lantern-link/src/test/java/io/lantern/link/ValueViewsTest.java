@@ -94,6 +94,34 @@ class ValueViewsTest {
   }
 
   @Test
+  void datasourcesNameTheirFilesByBlobAsStoredConfigFactsDo() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("persistence"));
+    String blob = "0123456789abcdef0123456789abcdef01234567";
+    List<Fact> facts = new ArrayList<>();
+    for (Fact f : new ConfigExtractor().extract(repos, SNAPSHOT)) {
+      // As the store keeps them: the file's blob, no content hash.
+      facts.add(
+          Fact.create(
+              f.subject(),
+              f.predicate(),
+              f.object(),
+              f.attributes(),
+              f.origin(),
+              f.evidence().map(l -> l.withBlob(blob)),
+              f.confidence(),
+              f.validity()));
+    }
+    facts.addAll(
+        new io.lantern.extract.persistence.PersistenceExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> datasources = new ValueViews().derive(facts, SNAPSHOT);
+
+    assertThat(datasources).hasSize(golden("datasources-parsed.txt").size());
+    assertThat(datasources)
+        .allMatch(f -> blob.equals(f.evidence().blob()) && f.evidence().contentHash() == null);
+  }
+
+  @Test
   void theDatasourcesAreThoseThePersistenceExtractorRecordedBefore() throws IOException {
     List<RepoBuild> repos = List.of(fixture("persistence"));
     List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));

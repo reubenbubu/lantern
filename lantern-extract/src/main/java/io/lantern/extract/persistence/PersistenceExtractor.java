@@ -1034,7 +1034,7 @@ public final class PersistenceExtractor implements Extractor {
               config.repo(),
               where.path(),
               where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
-              where.contentHash());
+              where.contentHash().isEmpty() ? null : where.contentHash());
       add(
           Fact.create(
               config.module(),
@@ -1147,7 +1147,7 @@ public final class PersistenceExtractor implements Extractor {
           config.repo(),
           where.path(),
           where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
-          where.contentHash());
+          where.contentHash().isEmpty() ? null : where.contentHash());
     }
 
     /** A module's config with each value as written: placeholders kept, nothing resolved. */
