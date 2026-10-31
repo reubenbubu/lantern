@@ -1649,7 +1649,9 @@ public final class MessagingExtractor implements Extractor {
       }
       String broker = a.path("broker").stringValue(null);
       if (STREAM.equals(broker)) {
+        // The binding's broker and kind come from config, not from the code.
         base.remove("broker");
+        base.remove("destinationKind");
         if (predicate.equals(LISTENER)) {
           streamInput(subject, src, profile -> object.written(), base);
         } else {

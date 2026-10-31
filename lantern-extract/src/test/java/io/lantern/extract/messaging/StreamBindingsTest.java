@@ -244,6 +244,55 @@ class StreamBindingsTest {
       """;
 
   @Test
+  void aLegacyListenerOnRabbitMqGivesTheBindingItGaveBefore() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("legacy-rabbit"),
+            "orders",
+            Map.of(
+                "pom.xml",
+                POM,
+                "src/main/resources/application.properties",
+                """
+                spring.rabbitmq.host=localhost
+                spring.cloud.stream.bindings.input.destination=orders
+                spring.cloud.stream.bindings.input.group=shop
+                """,
+                "src/main/java/com/example/orders/OrdersHandler.java",
+                """
+                package com.example.orders;
+
+                import org.springframework.cloud.stream.annotation.StreamListener;
+
+                public class OrdersHandler {
+                  @StreamListener("input")
+                  public void handle(String order) {}
+                }
+                """));
+
+    // Not through extract(): the binding also keeps the listener's annotation, as before, which
+    // its type does not declare (#565).
+    List<String> facts =
+        lines(Resolved.facts(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT));
+
+    // The binding's kind as the code names it (a binding) is not the destination's.
+    assertThat(facts)
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "method:com.example.orders.OrdersHandler#handle(java.lang.String)"
+                            + " message-binding orders.shop ")
+                    && l.contains("\"exchange\":\"orders\"")
+                    && !l.contains("destinationKind"))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "method:com.example.orders.OrdersHandler#handle(java.lang.String)"
+                            + " message-listener orders.shop ")
+                    && l.contains("\"destinationKind\":\"queue\""));
+  }
+
+  @Test
   void theOnlyFunctionIsBoundAndTheBinderToldFromTheConfig() throws IOException {
     Repo repo =
         Fixtures.repo(

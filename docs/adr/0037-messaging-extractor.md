@@ -162,5 +162,11 @@ extractor (version 7) reads no config:
 - **Equivalence.** The extractor's tests resolve its facts against the modules' config files, and
   its golden files of before (51 and 19 facts, the Spring Cloud Stream fixture's included) still
   hold unchanged. `ValueViewsTest` checks that linking gives the same lines from the config facts.
+- **Known limits.** A send whose exchange the code does not fix keeps the object `{...}` it had,
+  so such sends of one module meet at one destination, `destination:<module>:rabbitmq:exchange:{...}`;
+  nothing links through it. A name counts as written out unless it holds a `${...}` placeholder, so
+  a SpEL name (`#{...}`), which the extractor never evaluated, is one destination across modules.
+  A Spring Cloud Stream function's bindings exist only once config is read, so a function is a
+  `stream-function` fact rather than a relationship to a destination (ADR 0040, amendment for #559).
 - The extractor no longer requires the identity extractor: linking masks with the JWT secret keys.
 

@@ -247,7 +247,7 @@ public final class ValueViews implements LinkStep {
       @Override
       public java.util.SortedMap<String, ConfigValue> values(String profile) {
         return read.computeIfAbsent(
-            String.valueOf(profile),
+            profile,
             k -> {
               java.util.SortedMap<String, ConfigValue> values = new java.util.TreeMap<>();
               view.facts(profile).forEach((key, f) -> values.put(key, configValue(key, f)));
