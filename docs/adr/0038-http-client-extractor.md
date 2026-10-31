@@ -237,3 +237,33 @@ fact unless a call was followed to it.
   registrar groups (#455); auth, resilience and timeouts per call (#456); `@ConfigurationProperties`
   values (#447).
 - The extractor's version becomes 7.
+
+## Amendment (#557): requests as entities, URLs as written
+
+The knowledge-build epic keeps values as written in extraction and resolves them in linking
+(ADR 0094). The extractor no longer reads config. For each request it found, it records:
+
+- **a `request` entity**: its key is the sending method's (or type's) ID, the client kind, the HTTP
+  method or `*`, and the URL as written. A second identical request in the same code adds `#2`.
+  `SENT_BY` points from the request to that code, at the call or mapping. It carries:
+  - the HTTP method, client, client type and annotation;
+  - the URL and service name as written, placeholders and all, without user information, query or
+    fragment;
+  - `loadBalanced` when the client is;
+  - the unfollowed expressions;
+  - `configModule` and `configRepo`: the module whose config resolves the values. That is the
+    calling code's module, or the module of the client bean or proxy that sets the base URL, as
+    the extractor resolved it before.
+- **`ADDRESSED_TO`**, from the request to an `address`: the authority of a URL whose host is
+  literal (`address:payments:8080`), or the base expression scoped by that module
+  (`address:com.acme:orders:${payments.url}`). A URL without a base has no address yet.
+
+The first link step (`ValueViews`) gives the code's `http-call` facts from these, per view, exactly
+as the extractor recorded them before, with the same evidence and confidence:
+- the URL resolved, Feign's added scheme, the service and its load-balanced host;
+- masking and the unresolved keys;
+- a fact for each profile whose value differs.
+
+So every later step and document reads what it read before. `ValueViewsTest` checks this against the
+extractor's golden calls of before. `Project0HttpIT` moved to the linker unchanged. The extractor no
+longer requires the identity extractor's secret keys; the lookup reads them. The version becomes 9.

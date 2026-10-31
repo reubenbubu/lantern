@@ -112,8 +112,11 @@ class HttpFactsIT {
         .extracting(Fact::predicate)
         .containsExactlyInAnyOrder(
             HttpClientExtractor.HTTP_CLIENT,
-            HttpClientExtractor.HTTP_CALL,
-            HttpClientExtractor.HTTP_CALL,
+            // Each request as written, sent by the code and addressed to its URL's base (#557).
+            HttpClientExtractor.SENT_BY,
+            HttpClientExtractor.ADDRESSED_TO,
+            HttpClientExtractor.SENT_BY,
+            HttpClientExtractor.ADDRESSED_TO,
             HttpClientExtractor.ENABLES,
             HttpClientExtractor.INJECTS,
             HttpClientExtractor.INJECTS);
