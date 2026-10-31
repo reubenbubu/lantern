@@ -53,5 +53,13 @@ class JdbcExtractionCacheIT {
     assertThat(cache.prune()).isEqualTo(1);
     assertThat(cache.get(extractor, "old")).isEmpty();
     assertThat(cache.get(extractor, "k1")).isPresent();
+    // An entry an older Lantern stored, which no longer reads as facts, is extracted again.
+    jdbc.sql("UPDATE extraction_cache SET facts = '[{\"id\":\"0\"}]' WHERE key = 'k1'").update();
+    assertThat(cache.get(extractor, "k1")).isEmpty();
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM extraction_cache WHERE key = 'k1'")
+                .query(Long.class)
+                .single())
+        .isZero();
   }
 }

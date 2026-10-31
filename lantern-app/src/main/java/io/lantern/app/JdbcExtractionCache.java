@@ -23,6 +23,9 @@ public final class JdbcExtractionCache implements ExtractionCache {
   /** How long an entry no run uses is kept. */
   public static final Duration KEPT = Duration.ofDays(30);
 
+  private static final org.slf4j.Logger LOG =
+      org.slf4j.LoggerFactory.getLogger(JdbcExtractionCache.class);
+
   private final JdbcClient jdbc;
 
   public JdbcExtractionCache(JdbcClient jdbc) {
@@ -43,7 +46,21 @@ public final class JdbcExtractionCache implements ExtractionCache {
             .param("version", extractor.version())
             .query(String.class)
             .optional();
-    return stored.map(JdbcExtractionCache::read);
+    if (stored.isEmpty()) {
+      return Optional.empty();
+    }
+    try {
+      return Optional.of(read(stored.get()));
+    } catch (RuntimeException unreadable) {
+      // Facts stored by an older Lantern whose fact format or IDs changed: extracted again.
+      LOG.info(
+          "Extraction cache entry {} of {} is unreadable; extracting again", key, extractor.name());
+      jdbc.sql("DELETE FROM extraction_cache WHERE extractor = :extractor AND key = :key")
+          .param("extractor", extractor.name())
+          .param("key", key)
+          .update();
+      return Optional.empty();
+    }
   }
 
   @Override

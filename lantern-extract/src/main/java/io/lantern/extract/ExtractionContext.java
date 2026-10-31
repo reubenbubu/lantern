@@ -45,14 +45,25 @@ public final class ExtractionContext {
   public static Supplier<JavaAnalysis> memoized(List<RepoBuild> repos) {
     List<RepoBuild> copy = List.copyOf(repos);
     return new Supplier<>() {
-      private JavaAnalysis analysis;
+      private final java.util.concurrent.locks.ReentrantLock lock =
+          new java.util.concurrent.locks.ReentrantLock();
+      private volatile JavaAnalysis analysis;
 
       @Override
-      public synchronized JavaAnalysis get() {
-        if (analysis == null) {
-          analysis = JavaExtractor.analyze(copy);
+      public JavaAnalysis get() {
+        JavaAnalysis built = analysis;
+        if (built != null) {
+          return built;
         }
-        return analysis;
+        lock.lock();
+        try {
+          if (analysis == null) {
+            analysis = JavaExtractor.analyze(copy);
+          }
+          return analysis;
+        } finally {
+          lock.unlock();
+        }
       }
     };
   }

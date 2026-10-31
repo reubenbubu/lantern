@@ -10,11 +10,14 @@ import io.lantern.core.repo.Repo;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.extract.test.TestExtractor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -84,7 +87,9 @@ class ExtractorsTest {
         List.of(
             build(Fixtures.repo("spring", temp.resolve("spring"), "spring")),
             build(Fixtures.repo("docs", temp.resolve("docs"), "docs")),
-            build(Fixtures.repo("deployment", temp.resolve("deployment"), "deployment")));
+            build(Fixtures.repo("deployment", temp.resolve("deployment"), "deployment")),
+            build(Fixtures.repo("sql", temp.resolve("sql"), "sql")),
+            build(Fixtures.repo("frontend", temp.resolve("frontend"), "frontend")));
 
     Extractors.Result result =
         new Extractors(Extractors.load(), ExtractionCache.NONE).run(3, repos);
@@ -98,6 +103,12 @@ class ExtractorsTest {
     assertThat(result.facts("spring")).isEqualTo(new SpringExtractor().extract(code, 3, keys));
     assertThat(result.facts("docs")).isEqualTo(new DocsExtractor().extract(repos, 3, keys));
     assertThat(result.facts("deployment")).isEqualTo(new DeploymentExtractor().extract(repos, 3));
+    assertThat(result.facts("config")).isEqualTo(new ConfigExtractor().extract(repos, 3, keys));
+    assertThat(result.facts("sql")).isEqualTo(new SqlExtractor().extract(repos, 3));
+    assertThat(result.facts("test")).isEqualTo(new TestExtractor().extract(repos, 3));
+    assertThat(result.facts("frontend")).isEqualTo(new FrontendExtractor().extract(repos, 3));
+    assertThat(result.facts("sql")).isNotEmpty();
+    assertThat(result.facts("frontend")).isNotEmpty();
     assertThat(result.facts("docs")).isNotEmpty();
     assertThat(result.facts("deployment")).isNotEmpty();
     assertThat(result.facts("spring")).isNotEmpty();

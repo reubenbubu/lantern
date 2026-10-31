@@ -110,6 +110,7 @@ public final class AnalysisRun {
   private static final List<Origin.Kind> EXTRACTED_KINDS =
       List.of(Origin.Kind.STATIC, Origin.Kind.README);
 
+  private final ExtractionCache extractionCache;
   private final RepoRegistry registry;
   private final SystemRegistry systems;
   private final SnapshotStore snapshots;
@@ -132,8 +133,6 @@ public final class AnalysisRun {
    * @param documentsDirectory where rendered documents are written, one directory per system and in
    *     it one per snapshot
    */
-  private final ExtractionCache extractionCache;
-
   public AnalysisRun(
       RepoRegistry registry,
       SystemRegistry systems,

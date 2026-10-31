@@ -36,8 +36,10 @@ extractor declares.
   with ties broken by name, and refuses a missing requirement or a cycle. Today the only
   requirement is on the identity extractor, whose JWT secret keys mask values. Config, docs,
   Spring, persistence, HTTP client, messaging and gateway require it (ADR 0032, amendment for
-  #335). Extractors whose requirements are met run at the same time, on virtual threads. Their
-  facts are concatenated in the sorted order, so the result does not depend on timing.
+  #335). The extractors run in waves: each wave holds every extractor whose requirements earlier
+  waves met, and runs them at the same time, one platform thread each (git reads its output on
+  virtual threads, which must find a free carrier while extractors wait on the shared code model).
+  Their facts are concatenated in the sorted order, so the result does not depend on timing.
   An extractor's several units are merged in the order the extractor gives the facts of several
   repositories (`Extractor.order()`), so a run gives each extractor's facts exactly as its own call
   over all repositories did.
@@ -53,9 +55,12 @@ extractor declares.
   Extractors move to smaller units as their cross-file inputs go. #519 keeps values as written,
   and the cross-repository decisions move to the linker (#547).
 - **The cache key** is the SHA-256 of the canonical JSON of:
-  - the extractor's name and version, and a digest of its code (the jar or class folder it was
-    loaded from), so a changed extractor never serves old facts even if its version was not bumped;
-  - the unit:
+  - the extractor's name and version, and a digest of the code extraction runs: the JDK's version
+    and every class path entry (a class folder by content, a jar by path, size and modification
+    time; under `java -jar` that is the one application jar). So a change to any of Lantern's code
+    or libraries, not only to an extractor, never serves old facts even if no version was bumped;
+  - the unit (a snapshot unit is keyed on every repository of the snapshot, not only those its
+    extractor applies to):
     - **file**: the repository's name, the path and the file's blob.
     - **repository**: the repository's name, its git tree SHA at the commit, and its build's
       fingerprint.
@@ -69,9 +74,14 @@ extractor declares.
   cached facts are the facts a new extraction would give, valid from the new snapshot.
 - **The store** is the table `extraction_cache` (migration V20): the extractor, its version, the key,
   the facts as envelope JSON, and when the entry was last used. An entry not used for 30 days is
-  deleted after each run. The tests use an in-memory cache. `ExtractionCache.prune()` does the deleting; the JDBC cache answers only for the extractor's current version.
+  deleted after each run. The tests use an in-memory cache. An entry that no longer reads as facts (stored by an older Lantern whose fact format changed) is deleted and its unit extracted again. `ExtractionCache.prune()` does the deleting; the JDBC cache answers only for the extractor's current version.
 - **Carried-forward repositories** are extracted as before: snapshot-unit extractors see them, and
   only the named repositories' facts are recorded.
+
+- **Not built here:** the epic's `ExtractorInfo` also names each extractor's vocabulary resource
+  and key attributes, and its `ClaimSink` builds and validates each fact against the vocabulary.
+  Here the vocabulary stays with `ExtractorVocabularies` and the sink checks only the origin; #551
+  takes the rest.
 
 ## Consequences
 

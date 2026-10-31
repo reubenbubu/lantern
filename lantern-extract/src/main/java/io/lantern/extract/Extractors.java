@@ -123,7 +123,9 @@ public final class Extractors {
     AtomicInteger extracted = new AtomicInteger();
     AtomicInteger cached = new AtomicInteger();
     List<Extractor> pending = new ArrayList<>(extractors);
-    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    // Platform threads, one per extractor of a wave: extractors block on the shared code model and
+    // on git, whose output git reads on virtual threads, which must find a free carrier.
+    try (ExecutorService executor = Executors.newCachedThreadPool()) {
       while (!pending.isEmpty()) {
         List<Extractor> ready =
             pending.stream().filter(e -> done.keySet().containsAll(e.requires())).toList();
@@ -159,7 +161,7 @@ public final class Extractors {
     Map<String, Fact> facts = new LinkedHashMap<>();
     List<ExtractionUnit> units = units(extractor, context);
     for (ExtractionUnit unit : units) {
-      String key = keys.key(extractor, unit, requiredFacts);
+      String key = keys.key(extractor, unit, context.repos(), requiredFacts);
       List<Fact> unitFacts = cache.get(extractor.info(), key).orElse(null);
       if (unitFacts != null) {
         cached.incrementAndGet();

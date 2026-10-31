@@ -9,11 +9,9 @@ import io.lantern.sandbox.BuildResult;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.CodeSource;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -38,13 +36,17 @@ final class UnitKeys {
   private final Map<String, String> builds = new ConcurrentHashMap<>();
 
   /** The key of one unit of the extractor, given the facts of the extractors it requires. */
-  String key(Extractor extractor, ExtractionUnit unit, List<Fact> required) {
+  String key(
+      Extractor extractor, ExtractionUnit unit, List<RepoBuild> snapshot, List<Fact> required) {
     ObjectNode key = FactJson.newObject();
     key.put("extractor", extractor.info().name());
     key.put("version", extractor.info().version());
-    key.put("code", code(extractor.getClass()));
+    key.put("code", code());
     ArrayNode repos = key.putArray("repos");
-    for (RepoBuild repo : unit.repos()) {
+    // A snapshot unit is keyed on every repository of the snapshot, which its extractor can read
+    // through the context, not only those it applies to.
+    List<RepoBuild> keyed = extractor.unit() == CacheUnit.SNAPSHOT ? snapshot : unit.repos();
+    for (RepoBuild repo : keyed) {
       ObjectNode node = repos.addObject();
       node.put("name", repo.repo().name());
       if (unit.path() != null) {
@@ -133,20 +135,37 @@ final class UnitKeys {
     return build.directory().resolve(path);
   }
 
-  /** A digest of the code an extractor was loaded from: its jar, or its class folder. */
-  static String code(Class<?> type) {
-    CodeSource source = type.getProtectionDomain().getCodeSource();
-    if (source == null || source.getLocation() == null) {
-      return "unknown";
-    }
-    Path location;
-    try {
-      location = Path.of(source.getLocation().toURI());
-    } catch (URISyntaxException | IllegalArgumentException e) {
-      return source.getLocation().toString();
-    }
+  /**
+   * A digest of the code extraction runs: the JDK's version and every entry of the class path, a
+   * class folder by its content and a jar by its path, size and modification time. Under {@code
+   * java -jar} the class path is the one application jar, holding every module and library, so any
+   * change to Lantern's code or its libraries changes the key, not only a change to an extractor.
+   */
+  static String code() {
     return CODE.computeIfAbsent(
-        location, l -> Files.isDirectory(l) ? treeDigest(l) : fileDigest(l));
+        Path.of(""),
+        k -> {
+          StringBuilder all = new StringBuilder(Runtime.version().toString()).append('\n');
+          String classPath = System.getProperty("java.class.path", "");
+          for (String entry : classPath.split(java.io.File.pathSeparator)) {
+            if (entry.isBlank()) {
+              continue;
+            }
+            Path path = Path.of(entry);
+            all.append(entry).append('\0');
+            try {
+              if (Files.isDirectory(path)) {
+                all.append(treeDigest(path));
+              } else if (Files.isRegularFile(path)) {
+                all.append(Files.size(path)).append('\0').append(Files.getLastModifiedTime(path));
+              }
+            } catch (IOException | RuntimeException e) {
+              all.append("unreadable");
+            }
+            all.append('\n');
+          }
+          return sha256(all.toString().getBytes(StandardCharsets.UTF_8));
+        });
   }
 
   private static String fileDigest(Path file) {
