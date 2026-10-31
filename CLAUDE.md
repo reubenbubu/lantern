@@ -21,15 +21,16 @@ changes them. This file covers only how you work.
   before issues of other milestones.
   `Housekeeping` (tooling, build and docs that change no output) and `Later` are standing
   buckets with no test drop and never close; `Later` holds what no milestone has taken yet.
-- An epic is a planned effort that spans several milestones, written down before it starts in
-  `docs/epics/NNN-<name>.md`: what is changing, why, and how, down to the decisions an agent must
-  not make for itself. Its milestones and issues link to it. `docs/design.md` and
-  `docs/quality-bar.md` describe Lantern as it is: each issue that lands part of an epic updates
-  them in the same PR, so they never describe what is not built yet. When the epic's last
-  milestone closes, a closing note goes at the top of its file; the file stays as the record of
-  the effort. The active epic is `docs/epics/001-knowledge-build.md` (milestones 1A to 1G); where
-  it fixes a prompt, a schema, a check or a limit of an LLM role, change it only through an issue
-  that shows the effect on the test sets.
+- An epic is the planned effort being worked on now, written down before it starts in
+  `docs/epics/NNN-<name>.md`: what is changing, why, and how, down to the decisions an agent
+  must not make for itself. One epic is active at a time; a new one may follow when it is done.
+  Its milestones and issues link to the sections they implement and do not copy them. A
+  decision the epic fixes changes only through an issue, never by an agent deciding for itself.
+- `docs/design.md` and `docs/quality-bar.md` describe Lantern as it is. An issue that lands part
+  of an epic updates them in the same PR; what is planned but not built stays in the epic, even
+  when a research note recommends it. When the epic's last milestone closes, the chat that
+  closes it adds a closing note at the top of the epic (what was built, what was dropped, the
+  ADRs it led to) and sets its status to closed. The file stays as the record.
 - Every issue has a milestone and is written to a template in `.github/ISSUE_TEMPLATE/`:
   `fix.md` for what Lantern does wrong, `feature.md` for what it cannot do yet, chores and
   foundations (a test drop excepted).
