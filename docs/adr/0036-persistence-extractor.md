@@ -178,12 +178,21 @@ non-relational stores of config:
   can resolve both alike. The type is `data-source` because the `datasource` attribute type, which
   documents read until #521, keeps its name.
 - Linking reads every module with config facts; the extractor read only repositories with code.
-- The configured naming strategy is still read by the extractor; it, Redis's settings and the SQL
-  settings move with #567.
+- The configured naming strategy was still read by the extractor; it moved with #567 (below).
 - The extractor no longer requires the identity extractor: linking masks with the JWT secret keys.
 - `PersistenceExtractorTest` reads the datasources from the fixture's config files through the same
   function, and the golden file of before still holds; `ValueViewsTest` gets the same facts, and the
   entities and addresses, from the config facts. `DatasourcesIT` checks this on project-0 to 4 and
   project-8, where each of the 24 `datasource` and `data-store` facts has its entity, and each of the
   23 entities an address.
+
+## Amendment (#567): JPA tables named in linking
+
+The persistence extractor (version 7) reads no config. A JPA `@Entity` is a `jpa-table` fact on
+its type, holding its name as written (its `@Table`'s, or the inheritance root's, else its
+`@Entity` name, else its simple name), its schema and the entity it inherits its table from.
+Linking's first step names the table as Hibernate does with the physical naming strategy the
+module's config sets (`PersistenceExtractor.tables`, read from the config facts) and records the
+`MAPS_TO` fact as before. `ValueViewsTest` checks that the extractor's facts, without those kept for
+linking, with what linking records, are its whole golden file of before.
 

@@ -78,6 +78,7 @@ test("linking's first step's facts count as the extractor area whose kind they a
   assert.equal(areaOf({ predicate: 'http-call', origin: { name: 'values' } }), 'http-client');
   assert.equal(areaOf({ predicate: 'message-send', origin: { name: 'values' } }), 'messaging');
   assert.equal(areaOf({ predicate: 'datasource', origin: { name: 'values' } }), 'persistence');
+  assert.equal(areaOf({ predicate: 'redis-use', origin: { name: 'values' } }), 'redis');
   assert.equal(areaOf({ predicate: 'message-destination', origin: { name: 'values' } }), 'messaging');
   assert.equal(areaOf({ predicate: 'gateway-route', origin: { name: 'gateway' } }), 'gateway');
   assert.equal(areaOf({ predicate: 'other', origin: { name: 'values' } }), 'values');

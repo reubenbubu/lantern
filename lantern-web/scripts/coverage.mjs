@@ -42,6 +42,8 @@ const VALUE_AREAS = {
   'data-store': 'persistence',
   HAS_DATASOURCE: 'persistence',
   CONNECTS_TO: 'persistence',
+  MAPS_TO: 'persistence',
+  'redis-use': 'redis',
 };
 
 export function areaOf(fact) {

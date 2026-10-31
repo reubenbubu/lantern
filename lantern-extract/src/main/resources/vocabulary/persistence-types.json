@@ -25,7 +25,7 @@
     "name": "MAPS_TO",
     "kind": "relationship",
     "keyAttributes": ["framework", "inheritedFrom", "namingStrategy"],
-    "description": "The subject entity class is stored in the object table: a JPA @Entity, with its table named as Spring Boot's default naming makes it (or as written, when the module's config sets another physical naming strategy), a Spring Data relational @Table class, a MongoDB @Document (its collection) or an Elasticsearch @Document (its index); collection and index names are kept as written. The table is keyed by the module that declares the entity; the linker matches it to the tables migrations create by name.",
+    "description": "The subject entity class is stored in the object table: a JPA @Entity, with its table named as Spring Boot's default naming makes it (or as written, when the module's config sets another physical naming strategy), a Spring Data relational @Table class, a MongoDB @Document (its collection) or an Elasticsearch @Document (its index); collection and index names are kept as written. The table is keyed by the module that declares the entity; the linker matches it to the tables migrations create by name. For a JPA entity linking records it from the jpa-table fact and the naming strategy of the module's config (#567).",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -134,5 +134,22 @@
       },
       "additionalProperties": false
     }
+  },
+  {
+    "name": "jpa-table",
+    "kind": "attribute",
+    "keyAttributes": ["configModule", "inheritedFrom", "schema"],
+    "description": "The subject JPA @Entity is named so in code: the name its @Table gives (or the @Table of the root of its single-table inheritance), else its @Entity name, else its simple name, as written. Linking names its table as Hibernate does with the physical naming strategy the module's config sets, and records the MAPS_TO fact (#567).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string", "description": "The schema its @Table names, as written." },
+        "inheritedFrom": { "type": "string", "description": "The binary name of the entity at the top of its single-table inheritance hierarchy, whose table it shares." },
+        "configModule": { "type": "string", "description": "The entity ID of the module that declares the entity, whose config sets the naming strategy." }
+      },
+      "required": ["configModule"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

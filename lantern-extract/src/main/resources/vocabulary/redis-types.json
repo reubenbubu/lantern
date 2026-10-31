@@ -66,5 +66,84 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "cache-use",
+    "kind": "attribute",
+    "keyAttributes": [
+      "api",
+      "cache",
+      "configModule",
+      "earlierProvider",
+      "key",
+      "operation",
+      "otherManager",
+      "redisManager",
+      "springDataRedis",
+      "structure",
+      "ttl"
+    ],
+    "description": "The subject uses a Spring cache (a cache annotation or a CacheManager call), as the code writes it, with what the module's code and dependencies say of its cache provider. Linking tells from these and the module's config (spring.cache.type) whether the provider is Redis, as Spring Boot picks it, and if so records the redis-use cache fact, with the time to live config sets (#567).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "api": {
+          "type": "string",
+          "description": "The binary name of the type whose method or annotation it is, or the dependency's artifact ID."
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write",
+            "delete",
+            "lock",
+            "other"
+          ],
+          "description": "What the call does with the data."
+        },
+        "structure": {
+          "type": "string",
+          "description": "The Redis data structure the operation is made on: value, hash, list, set, zset, stream, geo or hyperloglog."
+        },
+        "key": {
+          "type": "string",
+          "description": "The key as the code writes it, with * for what it does not write out, such as bff:session:*."
+        },
+        "ttl": {
+          "type": "string",
+          "description": "The time to live written out, such as 600s or 30m."
+        },
+        "cache": {
+          "type": "string",
+          "description": "The Spring cache a cache annotation or call names (constants folded), kept in Redis under <cache>::<key>."
+        },
+        "configModule": {
+          "type": "string",
+          "description": "The entity ID of the module whose code uses the cache, whose config can name its provider."
+        },
+        "redisManager": {
+          "type": "boolean",
+          "description": "Present and true when the module's code builds a Redis cache manager."
+        },
+        "otherManager": {
+          "type": "boolean",
+          "description": "Present and true when the module's code builds a cache manager of another provider."
+        },
+        "springDataRedis": {
+          "type": "boolean",
+          "description": "Present and true when the module depends on Spring Data Redis."
+        },
+        "earlierProvider": {
+          "type": "boolean",
+          "description": "Present and true when the module depends on a cache provider Spring Boot tries before Redis."
+        }
+      },
+      "required": [
+        "configModule"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

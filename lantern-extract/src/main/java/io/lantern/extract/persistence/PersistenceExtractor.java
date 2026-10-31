@@ -18,7 +18,6 @@ import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
-import io.lantern.extract.config.ModuleConfig;
 import io.lantern.extract.config.ModuleValues;
 import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.java.JavaAnalysis;
@@ -77,7 +76,7 @@ public final class PersistenceExtractor implements Extractor {
   public static final String NAME = "persistence";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "6";
+  public static final String VERSION = "7";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "persistence-extractor";
@@ -87,6 +86,12 @@ public final class PersistenceExtractor implements Extractor {
 
   /** Relationship: the subject entity type is stored in the object table. */
   public static final String MAPS_TO = "MAPS_TO";
+
+  /**
+   * Attribute: the subject JPA entity is named so in code, its table named in linking by the
+   * module's configured naming strategy (#567).
+   */
+  public static final String JPA_TABLE = "jpa-table";
 
   /** Relationship: the subject repository interface stores the object entity type. */
   public static final String REPOSITORY_FOR = "REPOSITORY_FOR";
@@ -351,11 +356,6 @@ public final class PersistenceExtractor implements Extractor {
       run.executor = executor;
       Set<RepoBuild> repos = new LinkedHashSet<>();
       code.modules().forEach(m -> repos.add(m.repo()));
-      Map<RepoBuild, List<ModuleConfig>> configs = new LinkedHashMap<>();
-      for (RepoBuild repo : repos) {
-        configs.put(repo, ConfigExtractor.read(repo));
-        configs.get(repo).forEach(run::naming);
-      }
       for (JavaAnalysis.Module module : code.modules()) {
         run.module(module);
       }
@@ -435,23 +435,18 @@ public final class PersistenceExtractor implements Extractor {
           name = simpleName(owner.binaryName());
         }
         String schema = table == null ? null : first(table, "schema");
-        String strategy = namingStrategies.get(m.id());
-        boolean standard = strategy != null && !SNAKE_CASE_NAMING.contains(strategy);
-        String physical = standard ? name : jpaName(name);
-        if (schema != null) {
-          physical = (standard ? schema : jpaName(schema)) + "." + physical;
-        }
+        // The name as the entity gives it; linking names its table by the naming strategy the
+        // module's config sets (#567).
         ObjectNode attributes = FactJson.newObject();
-        attributes.put("framework", JPA);
-        if (standard && !strategy.equals(STANDARD_NAMING)) {
-          // A strategy of the code's own: the name is recorded as the entity gives it.
-          attributes.put("namingStrategy", strategy);
+        if (schema != null) {
+          attributes.put("schema", schema);
         }
         if (inherited) {
           attributes.put("inheritedFrom", root.binaryName());
         }
+        attributes.put("configModule", m.id().toString());
         Location where = located(table != null && !inherited ? table : jpa, type.where());
-        relationship(m, subject, MAPS_TO, table(m, physical), attributes, where);
+        attribute(m, subject, JPA_TABLE, name, attributes, where);
         return;
       }
       Annotation mongo = annotation(type.annotations(), MONGO_DOCUMENT);
@@ -710,10 +705,78 @@ public final class PersistenceExtractor implements Extractor {
               validity));
     }
 
-    /** The table entity for a JPA physical name, folded as {@link SqlExtractor#tableName}. */
-    private static EntityId table(JavaAnalysis.Module m, String physical) {
-      String name = SqlExtractor.tableName(physical);
-      return name == null ? null : tableEntity(m, name);
+    private void attribute(
+        JavaAnalysis.Module m,
+        EntityId subject,
+        String predicate,
+        String object,
+        ObjectNode attributes,
+        Location where) {
+      if (subject == null) {
+        return;
+      }
+      RepoBuild repo = m.repo();
+      Evidence evidence =
+          Evidence.of(
+              repo.repo().name(),
+              where.file().path(),
+              where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
+              where.file().contentHash());
+      add(
+          Fact.create(
+              subject,
+              predicate,
+              FactObject.string(object),
+              attributes,
+              ORIGIN,
+              evidence,
+              m.confidence(),
+              validity));
+    }
+
+    /**
+     * The {@code MAPS_TO} fact of a JPA entity named in code ({@value #JPA_TABLE}): its table named
+     * as Hibernate names it with the naming strategy the module's config sets, Spring Boot's
+     * default (snake case) unless another is set.
+     */
+    void jpaTable(Fact written, Map<EntityId, String> strategies) {
+      JsonNode a = written.attributes();
+      EntityId module = EntityId.parse(a.get("configModule").stringValue());
+      String name = written.object().value();
+      String schema = a.has("schema") ? a.get("schema").stringValue() : null;
+      String strategy = strategies.get(module);
+      boolean standard = strategy != null && !SNAKE_CASE_NAMING.contains(strategy);
+      String physical = standard ? name : jpaName(name);
+      if (schema != null) {
+        physical = (standard ? schema : jpaName(schema)) + "." + physical;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("framework", JPA);
+      if (standard && !strategy.equals(STANDARD_NAMING)) {
+        // A strategy of the code's own: the name is recorded as the entity gives it.
+        attributes.put("namingStrategy", strategy);
+      }
+      if (a.has("inheritedFrom")) {
+        attributes.set("inheritedFrom", a.get("inheritedFrom"));
+      }
+      String folded = SqlExtractor.tableName(physical);
+      EntityId table =
+          folded == null
+              ? null
+              : PersistenceExtractor.entity(SqlExtractor.TABLE, module.key() + ":" + folded);
+      if (table == null) {
+        return;
+      }
+      add(
+          Fact.create(
+              written.subject(),
+              MAPS_TO,
+              FactObject.entity(table),
+              attributes,
+              origin,
+              written.evidence(),
+              written.confidence(),
+              validity));
     }
 
     // -------------------------------------------------------------------------------------------
@@ -904,7 +967,7 @@ public final class PersistenceExtractor implements Extractor {
     }
 
     /** The physical naming strategy a module's config sets, if any, for its entities' names. */
-    void naming(ModuleConfig config) {
+    void naming(ModuleValues config) {
       for (ConfigValue v : config.values(null).values()) {
         String key = v.key().replace("-", "").replace("_", "").toLowerCase(Locale.ROOT);
         if (NAMING_KEYS.contains(key) && !v.value().isBlank()) {
@@ -1338,6 +1401,36 @@ public final class PersistenceExtractor implements Extractor {
       run.datasources(config);
       run.stores(config);
       run.entities(config);
+    }
+    return run.facts.values().stream()
+        .sorted(
+            Comparator.comparing((Fact f) -> f.subject().toString())
+                .thenComparing(Fact::predicate)
+                .thenComparing(f -> f.object().value())
+                .thenComparing(f -> f.attributes().toString())
+                .thenComparing(Fact::id))
+        .toList();
+  }
+
+  /**
+   * The tables linking gives JPA entities (#567): each entity named in code ({@value #JPA_TABLE}),
+   * its table named by the physical naming strategy its module's config sets, as the {@value
+   * #MAPS_TO} fact this extractor recorded before it stopped reading config.
+   *
+   * @param written the snapshot's facts; only {@value #JPA_TABLE} facts are read
+   * @param configs the config of each module
+   * @param origin the origin of the facts
+   * @param snapshot the snapshot number the facts hold from
+   */
+  public static List<Fact> tables(
+      List<Fact> written, List<ModuleValues> configs, Origin origin, long snapshot) {
+    Run run = new Run(null, Validity.from(snapshot), Set.of());
+    run.origin = origin;
+    configs.forEach(run::naming);
+    for (Fact f : written) {
+      if (f.predicate().equals(JPA_TABLE)) {
+        run.jpaTable(f, run.namingStrategies);
+      }
     }
     return run.facts.values().stream()
         .sorted(
