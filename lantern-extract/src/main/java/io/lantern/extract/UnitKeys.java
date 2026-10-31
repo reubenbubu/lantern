@@ -72,6 +72,8 @@ final class UnitKeys {
                 (path, blob) -> {
                   if (extractor.readsElsewhere(path)) {
                     files.add(path + "\0" + blob);
+                  } else if (extractor.readsPathElsewhere(path)) {
+                    files.add(path);
                   }
                 });
         if (extractor.readsOtherBuilds()) {

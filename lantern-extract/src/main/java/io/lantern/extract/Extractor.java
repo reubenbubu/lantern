@@ -42,6 +42,16 @@ public interface Extractor {
   }
 
   /**
+   * For a {@link CacheUnit#REPOSITORY} unit: whether the extractor reads only the existence of this
+   * file of the snapshot's other repositories, not its content, such as Maven counting a module's
+   * sources. Such files' paths join the unit's key, so adding or removing one extracts it again,
+   * but editing one does not. By default none.
+   */
+  default boolean readsPathElsewhere(String path) {
+    return false;
+  }
+
+  /**
    * For a {@link CacheUnit#REPOSITORY} unit: whether the extractor also reads the builds of the
    * snapshot's other repositories; their fingerprints then join the unit's key. By default not.
    */

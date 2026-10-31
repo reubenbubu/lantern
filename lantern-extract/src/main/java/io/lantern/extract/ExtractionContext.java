@@ -117,12 +117,16 @@ public final class ExtractionContext {
    * its own repository's.
    */
   @SuppressWarnings("unchecked")
-  public synchronized <T> T memo(String key, java.util.function.Supplier<T> value) {
-    Object found = memo.get(key);
-    if (found == null) {
-      found = value.get();
-      memo.put(key, found);
+  public <T> T memo(String key, java.util.function.Supplier<T> value) {
+    // Every context of a run shares the map, so the map is the lock: a key is computed once even
+    // when extractors of one wave ask for it at the same time.
+    synchronized (memo) {
+      Object found = memo.get(key);
+      if (found == null) {
+        found = value.get();
+        memo.put(key, found);
+      }
+      return (T) found;
     }
-    return (T) found;
   }
 }

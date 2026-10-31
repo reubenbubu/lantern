@@ -62,7 +62,8 @@ extractor declares.
     extractor applies to):
     - **file**: the repository's name, the path and the file's blob.
     - **repository**: the repository's name, its git tree SHA at the commit, and its build's
-      fingerprint.
+      fingerprint; plus what it declares it reads of the other repositories (amendment
+      for #547).
     - **snapshot**: every repository's name, tree SHA and build fingerprint.
   - the IDs of the required extractors' facts.
 
@@ -105,13 +106,17 @@ plan missed:
 The owner chose the narrower step on #547:
 - **Maven and config are repository units** whose key also covers what they read of the other
   repositories, declared by `Extractor.readsElsewhere(path)` and `readsOtherBuilds()`. The key
-  adds, for each other repository, the blobs of the files it reads (POMs for Maven; POMs and
-  Spring `application` and `bootstrap` files for config) and, for Maven, the build fingerprint,
-  whose effective POM gives other modules' coordinates.
+  adds, for each other repository, the blobs of the files it reads (every XML file for Maven,
+  since a module's POM need not be named `pom.xml`; those and Spring `application` and
+  `bootstrap` files for config), and for Maven the paths, not the contents, of the `.java` files
+  under `src/main/java`, whose count decides which library a service packages
+  (`readsPathElsewhere`), and the build fingerprint, whose effective POM gives other modules'
+  coordinates.
 - **Each unit gives its own repository's facts.** The extractor computes the snapshot's facts once
   per run (`ExtractionContext.memo`) and each unit keeps those whose evidence is in its
   repository; the facts and documents are those of before.
-- **Effect.** A code change in one repository re-extracts only that repository's Maven and config
-  units. A change to a POM or Spring config file re-extracts every repository's units that read it.
+- **Effect.** Editing code in one repository re-extracts only that repository's Maven and config
+  units. Adding or removing a source file re-extracts every repository's Maven units; a change to
+  a POM or Spring config file re-extracts every repository's units that read it.
 - **Java and WebSocket stay snapshot units.** Moving the joins into linking, as the epic intends,
   comes with value resolution (#283).

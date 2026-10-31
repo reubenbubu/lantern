@@ -464,9 +464,9 @@ public final class ConfigExtractor implements Extractor {
   }
 
   /**
-   * Its facts are each repository's, but whether a dependency is another repository's module, and
-   * which config a config server serves, are decided with the other repositories' files it reads
-   * (ADR 0092, amendment for #547).
+   * Its facts are each repository's, but whether any repository sets up a config server, and the
+   * application names a config repository serves, come from the other repositories' Spring config
+   * files and the modules their POMs declare (ADR 0092, amendment for #547).
    */
   @Override
   public CacheUnit unit() {
@@ -475,7 +475,7 @@ public final class ConfigExtractor implements Extractor {
 
   @Override
   public boolean readsElsewhere(String path) {
-    return path.equals("pom.xml") || path.endsWith("/pom.xml") || ConfigReader.isConfigFile(path);
+    return path.endsWith(".xml") || ConfigReader.isConfigFile(path);
   }
 
   @Override

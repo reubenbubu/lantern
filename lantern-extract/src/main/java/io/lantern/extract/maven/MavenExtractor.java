@@ -1389,9 +1389,10 @@ public final class MavenExtractor implements Extractor {
   }
 
   /**
-   * Its facts are each repository's, but whether a dependency is another repository's module, and
-   * which config a config server serves, are decided with the other repositories' files it reads
-   * (ADR 0092, amendment for #547).
+   * Its facts are each repository's, but the other repositories' POMs decide which dependencies are
+   * their modules and what an unbuilt module inherits from a parent there, their builds give their
+   * modules' coordinates, and the number of their modules' sources decides which library a service
+   * packages (ADR 0092, amendment for #547).
    */
   @Override
   public CacheUnit unit() {
@@ -1400,7 +1401,13 @@ public final class MavenExtractor implements Extractor {
 
   @Override
   public boolean readsElsewhere(String path) {
-    return path.equals("pom.xml") || path.endsWith("/pom.xml");
+    // Any XML file: a module's POM need not be named pom.xml ({@code <module>x/foo.xml</module>}).
+    return path.endsWith(".xml");
+  }
+
+  @Override
+  public boolean readsPathElsewhere(String path) {
+    return path.endsWith(".java") && path.contains("src/main/java/");
   }
 
   /** The other repositories' effective POMs decide their modules' coordinates. */

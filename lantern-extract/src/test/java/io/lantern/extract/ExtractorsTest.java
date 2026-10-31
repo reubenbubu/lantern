@@ -210,9 +210,20 @@ class ExtractorsTest {
     commit(libDir, "code", false);
     Extractors.Result code = extractors.run(2, List.of(build(shop), build(lib)));
     Files.writeString(
+        libDir.resolve("src/main/java/com/example/Extra.java"),
+        "package com.example;\nclass Extra {}\n");
+    commit(libDir, "new file", false);
+    Extractors.Result added = extractors.run(3, List.of(build(shop), build(lib)));
+    Files.createDirectories(libDir.resolve("src/main/resources"));
+    Files.writeString(
+        libDir.resolve("src/main/resources/application.yml"),
+        "spring:\n  application:\n    name: lib\n");
+    commit(libDir, "config", false);
+    Extractors.Result config = extractors.run(4, List.of(build(shop), build(lib)));
+    Files.writeString(
         libDir.resolve("pom.xml"), pom.formatted("lib", "<packaging>pom</packaging>"));
     commit(libDir, "pom", false);
-    Extractors.Result pomChanged = extractors.run(3, List.of(build(shop), build(lib)));
+    Extractors.Result pomChanged = extractors.run(5, List.of(build(shop), build(lib)));
 
     // Identity, which config requires, is a snapshot unit: extracted on every change.
     assertThat(first.extracted()).isEqualTo(1 + 4);
@@ -226,6 +237,14 @@ class ExtractorsTest {
     // A code change in lib re-extracts only lib's units.
     assertThat(code.extracted()).isEqualTo(1 + 2);
     assertThat(code.cached()).isEqualTo(2);
+    // A new source file in lib re-extracts lib's units and shop's Maven unit, since Maven compares
+    // modules' source counts across repositories; shop's config unit is read from the cache.
+    assertThat(added.extracted()).isEqualTo(1 + 3);
+    assertThat(added.cached()).isEqualTo(1);
+    // A change to lib's Spring config re-extracts lib's units and shop's config unit, which reads
+    // other repositories' config; shop's Maven unit is read from the cache.
+    assertThat(config.extracted()).isEqualTo(1 + 3);
+    assertThat(config.cached()).isEqualTo(1);
     // A change to lib's POM, which shop's units read, re-extracts both repositories' Maven units;
     // Config reads POMs too.
     assertThat(pomChanged.extracted()).isEqualTo(1 + 4);
