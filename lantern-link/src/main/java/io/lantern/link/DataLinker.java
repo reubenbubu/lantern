@@ -7,6 +7,8 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.attributes.DataStoreAttributes;
+import io.lantern.extract.attributes.DatasourceAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.sql.SqlExtractor;
@@ -180,7 +182,7 @@ final class DataLinker {
       Map<EntityId, Set<Deployments.Container>> servers) {
     for (String key : index.configKeys(unit, PersistenceExtractor.DATASOURCE)) {
       Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
-      if (f == null || LinkIndex.flag(f, "masked")) {
+      if (f == null || Claims.masked(f)) {
         continue;
       }
       EntityId database = database(unit, f);
@@ -202,7 +204,7 @@ final class DataLinker {
             new Named(f, displayName),
             (a, b) -> LinkIndex.BY_ID.compare(a.datasource(), b.datasource()) <= 0 ? a : b);
       }
-      String technology = LinkIndex.text(f, "technology");
+      String technology = Store.of(f).technology();
       List<Deployments.Container> onServers = new ArrayList<>();
       placed.forEach(
           p -> {
@@ -293,9 +295,9 @@ final class DataLinker {
    * @param deployed the database's name as a deployment gives it, or null
    */
   private String ownName(Unit unit, Fact datasource, String deployed) {
-    String name = LinkIndex.text(datasource, "database");
-    boolean unresolved = !LinkIndex.texts(datasource, "unresolved").isEmpty();
-    if (!unresolved && (LinkIndex.text(datasource, "server") != null || name == null)) {
+    String name = Store.of(datasource).database();
+    boolean unresolved = !Claims.unresolved(datasource).isEmpty();
+    if (!unresolved && (Store.of(datasource).server() != null || name == null)) {
       return null;
     }
     if (deployed != null && (name == null || name.contains("${"))) {
@@ -304,7 +306,7 @@ final class DataLinker {
       Fact application = index.name(unit.id(), null);
       name = (application == null ? unit.artifactId() : application.object().value()) + " database";
     }
-    String key = LinkIndex.text(datasource, "key");
+    String key = Claims.key(datasource);
     return unresolved && key != null && !key.equals("spring.datasource.url")
         ? name + " (" + key + ")"
         : name;
@@ -315,7 +317,7 @@ final class DataLinker {
    * resolves, in each environment that runs the unit; empty for any other datasource.
    */
   private List<Deployments.Placed> placed(Unit unit, Fact datasource) {
-    List<String> unresolved = LinkIndex.texts(datasource, "unresolved");
+    List<String> unresolved = Claims.unresolved(datasource);
     if (unresolved.isEmpty()) {
       return List.of();
     }
@@ -327,9 +329,9 @@ final class DataLinker {
     words.add(unit.artifactId());
     return deployments.place(
         unit,
-        LinkIndex.text(datasource, "server"),
-        LinkIndex.text(datasource, "database"),
-        LinkIndex.text(datasource, "technology"),
+        Store.of(datasource).server(),
+        Store.of(datasource).database(),
+        Store.of(datasource).technology(),
         words);
   }
 
@@ -341,10 +343,10 @@ final class DataLinker {
    * when that is not the main one), never shared. Null when the URL does not say.
    */
   private static EntityId database(Unit unit, Fact datasource) {
-    String server = LinkIndex.text(datasource, "server");
-    String name = LinkIndex.text(datasource, "database");
-    if (!LinkIndex.texts(datasource, "unresolved").isEmpty()) {
-      String key = LinkIndex.text(datasource, "key");
+    String server = Store.of(datasource).server();
+    String name = Store.of(datasource).database();
+    if (!Claims.unresolved(datasource).isEmpty()) {
+      String key = Claims.key(datasource);
       String own = name == null || name.contains("${") ? unit.id().key() : name;
       if (key != null && !key.equals("spring.datasource.url")) {
         own += "@" + key;
@@ -364,7 +366,7 @@ final class DataLinker {
    * A unit's own database: {@code <unit>/<technology>:<own>}, the technology as the key writes it.
    */
   private static EntityId ownDatabase(Unit unit, Fact datasource, String own) {
-    String technology = LinkIndex.text(datasource, "technology");
+    String technology = Store.of(datasource).technology();
     return new EntityId(
         CrossRepoLinks.DATABASE,
         unit.id().key()
@@ -463,7 +465,7 @@ final class DataLinker {
     for (String key : keys) {
       Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
       if (f != null) {
-        return LinkIndex.flag(f, "masked") ? null : f;
+        return Claims.masked(f) ? null : f;
       }
     }
     return null;
@@ -630,8 +632,8 @@ final class DataLinker {
       }
       Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
       if (f != null
-          && !LinkIndex.flag(f, "masked")
-          && LinkIndex.texts(f, "unresolved").isEmpty()
+          && !Claims.masked(f)
+          && Claims.unresolved(f).isEmpty()
           && !f.object().value().isBlank()) {
         values.add(f);
       }
@@ -666,5 +668,23 @@ final class DataLinker {
       }
     }
     return a.substring(a.lastIndexOf('@') + 1).toLowerCase(Locale.ROOT);
+  }
+
+  /** What the matching reads of a datasource or data store fact; null where it has none. */
+  private record Store(String server, String database, String technology) {
+
+    static Store of(Fact f) {
+      return switch (f.predicate()) {
+        case PersistenceExtractor.DATASOURCE -> {
+          DatasourceAttributes a = Claims.of(f, DatasourceAttributes.class);
+          yield new Store(a.server(), a.database(), a.technology());
+        }
+        case PersistenceExtractor.DATA_STORE -> {
+          DataStoreAttributes a = Claims.of(f, DataStoreAttributes.class);
+          yield new Store(a.server(), a.database(), a.technology());
+        }
+        default -> new Store(null, null, null);
+      };
+    }
   }
 }

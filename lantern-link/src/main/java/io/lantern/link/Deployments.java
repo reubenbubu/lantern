@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.extract.attributes.DeploymentContainerAttributes;
 import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.link.LinkIndex.Unit;
 import java.util.ArrayList;
@@ -55,7 +56,7 @@ final class Deployments {
       String wanted = host.toLowerCase(Locale.ROOT);
       // A Kubernetes DNS name (postgres.ns.svc.cluster.local) names the Service by its first label.
       String first = wanted.contains(".svc") ? wanted.substring(0, wanted.indexOf('.')) : wanted;
-      return LinkIndex.texts(fact, "hosts").stream()
+      return list(container(fact).hosts()).stream()
           .map(h -> h.toLowerCase(Locale.ROOT))
           .anyMatch(h -> h.equals(wanted) || h.equals(first));
     }
@@ -67,7 +68,7 @@ final class Deployments {
 
     static String label(Fact fact) {
       return DeploymentExtractor.environmentLabel(
-          LinkIndex.text(fact, "platform"), LinkIndex.text(fact, "environment"));
+          container(fact).platform(), container(fact).environment());
     }
   }
 
@@ -121,9 +122,9 @@ final class Deployments {
     for (Fact f : index.of(DeploymentExtractor.DEPLOYMENT_CONTAINER)) {
       Set<String> names = new LinkedHashSet<>();
       names.add(normalized(f.object().value()));
-      LinkIndex.texts(f, "hosts").forEach(h -> names.add(normalized(h)));
-      LinkIndex.texts(f, "aliases").forEach(a -> names.add(normalized(a)));
-      String image = LinkIndex.text(f, "image");
+      list(container(f).hosts()).forEach(h -> names.add(normalized(h)));
+      list(container(f).aliases()).forEach(a -> names.add(normalized(a)));
+      String image = container(f).image();
       if (image != null && !image.contains("${")) {
         String plain = image.contains("@") ? image.substring(0, image.indexOf('@')) : image;
         String last = plain.substring(plain.lastIndexOf('/') + 1);
@@ -131,8 +132,8 @@ final class Deployments {
       }
       names.remove("");
       Map<String, String> env = new TreeMap<>();
-      JsonNode node = f.attributes().get("env");
-      if (node != null && node.isObject()) {
+      JsonNode node = container(f).env();
+      if (node != null) {
         node.properties().forEach(e -> env.put(e.getKey(), e.getValue().asString("")));
       }
       containers.add(
@@ -140,18 +141,16 @@ final class Deployments {
               f,
               f.evidence().repo()
                   + "|"
-                  + LinkIndex.text(f, "platform")
+                  + container(f).platform()
                   + "|"
-                  + LinkIndex.text(f, "environment")
-                  + ("compose".equals(LinkIndex.text(f, "platform"))
-                      ? "|" + f.evidence().path()
-                      : ""),
+                  + container(f).environment()
+                  + ("compose".equals(container(f).platform()) ? "|" + f.evidence().path() : ""),
               f.object().value(),
               names,
               env,
-              LinkIndex.text(f, "product"),
-              LinkIndex.text(f, "version"),
-              LinkIndex.texts(f, "databases")));
+              container(f).product(),
+              container(f).version(),
+              list(container(f).databases())));
     }
     // Ties by name: a container names one unit, or none if it could be several.
     Map<String, Set<Unit>> unitsByName = new HashMap<>();
@@ -161,7 +160,7 @@ final class Deployments {
       }
     }
     for (Container c : containers) {
-      String role = LinkIndex.text(c.fact(), "role");
+      String role = container(c.fact()).role();
       if (role != null && INFRASTRUCTURE.contains(role)) {
         continue;
       }
@@ -376,8 +375,8 @@ final class Deployments {
   static Fact deployedIn(EntityId subject, Container c, Origin origin, Validity validity) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("container", c.name());
-    attributes.put("platform", LinkIndex.text(c.fact(), "platform"));
-    attributes.put("environment", LinkIndex.text(c.fact(), "environment"));
+    attributes.put("platform", container(c.fact()).platform());
+    attributes.put("environment", container(c.fact()).environment());
     attributes.put("fact", c.fact().id());
     return Fact.create(
         subject,
@@ -397,5 +396,14 @@ final class Deployments {
         out.add(deployedIn(unit.id(), c, origin, validity));
       }
     }
+  }
+
+  /** A {@code deployment-container} fact's attributes. */
+  static DeploymentContainerAttributes container(Fact fact) {
+    return Claims.of(fact, DeploymentContainerAttributes.class);
+  }
+
+  private static List<String> list(List<String> values) {
+    return values == null ? List.of() : values;
   }
 }

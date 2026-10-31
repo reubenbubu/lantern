@@ -7,6 +7,8 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.extract.attributes.ConfigValueAttributes;
+import io.lantern.extract.attributes.SentByAttributes;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
@@ -23,7 +25,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -240,12 +241,12 @@ public final class ValueViews implements LinkRule.OverFacts {
 
   /** A config fact as the gateway's reading takes a config value. */
   private static ConfigValue configValue(String key, Fact f) {
-    JsonNode a = f.attributes();
+    ConfigValueAttributes a = Claims.of(f, ConfigValueAttributes.class);
     SortedSet<String> unresolved = new TreeSet<>();
-    if (a.has("unresolved")) {
-      a.get("unresolved").forEach(k -> unresolved.add(k.stringValue()));
+    if (a.unresolved() != null) {
+      unresolved.addAll(a.unresolved());
     }
-    String written = text(a, "written");
+    String written = a.written();
     String value = f.object().value();
     SortedSet<String> used = new TreeSet<>();
     if (value.equals(ConfigExtractor.MASK)) {
@@ -378,14 +379,13 @@ public final class ValueViews implements LinkRule.OverFacts {
    * The {@code http-call} facts of one request: the default view's and each differing profile's.
    */
   private static List<Fact> calls(Fact sent, CodeValues values, Validity validity) {
-    JsonNode a = sent.attributes();
-    String client = text(a, "client");
-    String written = text(a, "url");
-    String service = text(a, "service");
-    String method = text(a, "httpMethod");
-    boolean loadBalanced = a.path("loadBalanced").asBoolean(false);
-    CodeValues.View config =
-        values.forModule(EntityId.parse(text(a, "configModule")), text(a, "configRepo"));
+    SentByAttributes a = Claims.of(sent, SentByAttributes.class);
+    String client = a.client();
+    String written = a.url();
+    String service = a.service();
+    String method = a.httpMethod();
+    boolean loadBalanced = Boolean.TRUE.equals(a.loadBalanced());
+    CodeValues.View config = values.forModule(EntityId.parse(a.configModule()), a.configRepo());
     Recorded byDefault = recorded(config, null, client, written, service, loadBalanced);
     List<Fact> calls = new java.util.ArrayList<>();
     for (String profile : config.views()) {
@@ -404,8 +404,8 @@ public final class ValueViews implements LinkRule.OverFacts {
         attributes.put("httpMethod", method);
       }
       attributes.put("client", client);
-      copy(a, attributes, "clientType");
-      copy(a, attributes, "annotation");
+      io.lantern.core.vocabulary.AttributeValues.put(attributes, "clientType", a.clientType());
+      io.lantern.core.vocabulary.AttributeValues.put(attributes, "annotation", a.annotation());
       String object;
       if (value.masked()) {
         attributes.put("masked", true);
@@ -434,9 +434,7 @@ public final class ValueViews implements LinkRule.OverFacts {
         }
         object = value.url();
       }
-      if (a.has("expressions")) {
-        attributes.set("expressions", a.get("expressions").deepCopy());
-      }
+      io.lantern.core.vocabulary.AttributeValues.put(attributes, "expressions", a.expressions());
       calls.add(
           Fact.create(
               sent.object().entityId(),
@@ -496,16 +494,5 @@ public final class ValueViews implements LinkRule.OverFacts {
     return host.isEmpty() || host.startsWith("[") || host.contains("{") || host.contains("$")
         ? null
         : host;
-  }
-
-  private static void copy(JsonNode from, ObjectNode to, String name) {
-    if (from.has(name)) {
-      to.set(name, from.get(name).deepCopy());
-    }
-  }
-
-  private static String text(JsonNode node, String name) {
-    JsonNode value = node.get(name);
-    return value == null || value.isNull() ? null : value.stringValue();
   }
 }

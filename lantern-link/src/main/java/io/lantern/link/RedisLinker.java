@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.extract.attributes.RedisUseAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.link.FoundLinks.Found;
@@ -317,7 +318,8 @@ final class RedisLinker {
       if (kind.equals(RedisExtractor.CLIENT)) {
         continue;
       }
-      String name = firstText(f, "key", "channel", "hash", "namespace");
+      RedisUseAttributes use = Claims.of(f, RedisUseAttributes.class);
+      String name = firstText(use.key(), use.channel(), use.hash(), use.namespace());
       String id = kind + "|" + (name == null ? "" : name);
       ObjectNode entry =
           byKey.computeIfAbsent(
@@ -327,13 +329,20 @@ final class RedisLinker {
                 node.put("kind", kind);
                 return node;
               });
-      for (String attribute : List.of("key", "channel", "hash", "namespace", "structure", "ttl")) {
-        String value = LinkIndex.text(f, attribute);
-        if (value != null && !entry.has(attribute)) {
-          entry.put(attribute, value);
-        }
-      }
-      String operation = LinkIndex.text(f, "operation");
+      Map<String, String> values = new LinkedHashMap<>();
+      values.put("key", use.key());
+      values.put("channel", use.channel());
+      values.put("hash", use.hash());
+      values.put("namespace", use.namespace());
+      values.put("structure", use.structure());
+      values.put("ttl", use.ttl());
+      values.forEach(
+          (attribute, value) -> {
+            if (value != null && !entry.has(attribute)) {
+              entry.put(attribute, value);
+            }
+          });
+      String operation = use.operation();
       if (operation != null) {
         operations.computeIfAbsent(id, k -> new TreeSet<>()).add(operation);
       }
@@ -354,9 +363,8 @@ final class RedisLinker {
     return array;
   }
 
-  private static String firstText(Fact f, String... attributes) {
-    for (String attribute : attributes) {
-      String value = LinkIndex.text(f, attribute);
+  private static String firstText(String... values) {
+    for (String value : values) {
       if (value != null) {
         return value;
       }
@@ -384,7 +392,7 @@ final class RedisLinker {
       String text = url.object().value();
       secure |= text.toLowerCase(Locale.ROOT).startsWith("rediss://");
       server = withPort(address(text));
-      key = LinkIndex.text(url, "key");
+      key = Claims.key(url);
       evidence = url;
       facts.add(url);
     } else if (!nodes.isEmpty() || !sentinelNodes.isEmpty()) {
@@ -406,7 +414,7 @@ final class RedisLinker {
       server =
           (sentinel ? "sentinel:" + (master == null ? "" : master.object().value()) + "@" : "")
               + String.join(",", addresses);
-      key = LinkIndex.text(list.getFirst(), "key");
+      key = Claims.key(list.getFirst());
       evidence = list.getFirst();
       facts.addAll(list);
       if (master != null) {
@@ -418,7 +426,7 @@ final class RedisLinker {
       server =
           (name.contains(":") ? name.substring(0, name.lastIndexOf(':')) : name) + ":" + number;
       Fact main = host != null ? host : port;
-      key = LinkIndex.text(main, "key");
+      key = Claims.key(main);
       evidence = main;
       if (host != null) {
         facts.add(host);
@@ -434,7 +442,7 @@ final class RedisLinker {
     }
     boolean unresolved = server.contains("${");
     for (Fact f : facts) {
-      unresolved |= !LinkIndex.texts(f, "unresolved").isEmpty();
+      unresolved |= !Claims.unresolved(f).isEmpty();
     }
     return new Connection(
         unresolved ? server : server.toLowerCase(Locale.ROOT),
@@ -477,7 +485,7 @@ final class RedisLinker {
           continue;
         }
         Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
-        if (f != null && !LinkIndex.flag(f, "masked") && !f.object().value().isBlank()) {
+        if (f != null && !Claims.masked(f) && !f.object().value().isBlank()) {
           found.put(k, f);
         }
       }

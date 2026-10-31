@@ -134,7 +134,7 @@ class GatewayRoutesIT {
     List<String> lines = new ArrayList<>();
     List<String> others = new ArrayList<>();
     for (Fact f : links) {
-      String route = LinkIndex.text(f, "route");
+      String route = UntypedReads.text(f, "route");
       String line = f.subject() + " " + f.predicate() + " " + f.object().value();
       if (route != null) {
         lines.add(
@@ -142,19 +142,20 @@ class GatewayRoutesIT {
                 + " route="
                 + route
                 + " "
-                + LinkIndex.text(f, "protocol")
+                + UntypedReads.text(f, "protocol")
                 + " "
-                + LinkIndex.text(f, "matchedBy")
-                + (LinkIndex.text(f, "endpoint") == null
+                + UntypedReads.text(f, "matchedBy")
+                + (UntypedReads.text(f, "endpoint") == null
                     ? ""
-                    : " endpoint=" + LinkIndex.text(f, "endpoint")));
+                    : " endpoint=" + UntypedReads.text(f, "endpoint")));
       } else if (f.predicate().equals(CrossRepoLinks.UNROUTED_ENDPOINT)) {
-        lines.add(line + " on " + LinkIndex.text(f, "target") + calledBy(f));
+        lines.add(line + " on " + UntypedReads.text(f, "target") + calledBy(f));
       } else if (f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK)
-          && "route".equals(LinkIndex.text(f, "kind"))) {
-        lines.add(line + " " + LinkIndex.text(f, "reason"));
+          && "route".equals(UntypedReads.text(f, "kind"))) {
+        lines.add(line + " " + UntypedReads.text(f, "reason"));
       } else if (f.predicate().equals(CrossRepoLinks.CALLS_HTTP)) {
-        others.add(line + " " + LinkIndex.text(f, "protocol") + " " + f.attributes().get("path"));
+        others.add(
+            line + " " + UntypedReads.text(f, "protocol") + " " + f.attributes().get("path"));
       }
     }
     Path out = Path.of("target", "gateway-routes");
@@ -167,7 +168,7 @@ class GatewayRoutesIT {
   }
 
   private static String calledBy(Fact f) {
-    List<String> callers = LinkIndex.texts(f, "calledBy");
+    List<String> callers = UntypedReads.texts(f, "calledBy");
     return callers.isEmpty() ? "" : " calledBy=" + String.join(",", callers);
   }
 

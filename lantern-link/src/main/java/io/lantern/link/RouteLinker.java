@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.attributes.GatewayRouteAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.spring.SpringExtractor;
@@ -17,6 +18,7 @@ import io.lantern.link.Deployments.Container;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.LinkText.Url;
+import io.lantern.link.attributes.CallsHttpAttributes;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -88,9 +90,7 @@ final class RouteLinker {
       for (Unit gateway : index.unitsOf(first.subject())) {
         for (String view : index.views()) {
           Fact fact = LinkIndex.inView(Map.of("", route), view).get("");
-          if (fact == null
-              || !index.active(fact.subject(), view)
-              || LinkIndex.flag(fact, "masked")) {
+          if (fact == null || !index.active(fact.subject(), view) || Claims.masked(fact)) {
             continue;
           }
           Unit target = link(gateway, fact, view);
@@ -100,7 +100,7 @@ final class RouteLinker {
                 .computeIfAbsent(gateway, g -> new LinkedHashMap<>())
                 .computeIfAbsent(view == null ? "" : view, v -> new LinkedHashMap<>())
                 .computeIfAbsent(target, t -> new ArrayList<>())
-                .add(new Reach(fact, patterns(fact), LinkIndex.texts(fact, "methods")));
+                .add(new Reach(fact, patterns(fact), list(route(fact).methods())));
           }
         }
       }
@@ -114,7 +114,7 @@ final class RouteLinker {
 
   /** Links one route in a view; the unit it reaches, or null if it reaches none. */
   private Unit link(Unit gateway, Fact route, String view) {
-    String uri = LinkIndex.text(route, "uri");
+    String uri = route(route).uri();
     if (uri == null) {
       return null;
     }
@@ -234,15 +234,11 @@ final class RouteLinker {
       List<Fact> endpoints = webSocketEndpoints(target.unit(), route, view);
       if (endpoints.size() == 1) {
         Fact endpoint = endpoints.getFirst();
-        attributes.put("endpoint", LinkIndex.text(endpoint, "path"));
+        attributes.put("endpoint", Endpoints.of(endpoint).path());
         attributes.put("target", endpoint.subject().toString());
       } else if (!endpoints.isEmpty()) {
         ArrayNode array = attributes.putArray("endpoints");
-        endpoints.stream()
-            .map(e -> LinkIndex.text(e, "path"))
-            .distinct()
-            .sorted()
-            .forEach(array::add);
+        endpoints.stream().map(e -> Endpoints.of(e).path()).distinct().sorted().forEach(array::add);
       }
       endpoints.forEach(e -> facts.add(e.id()));
     }
@@ -281,7 +277,7 @@ final class RouteLinker {
     }
     String prefix = index.servletPrefix(target, view);
     for (Fact endpoint : index.of(WebSocketExtractor.ENDPOINT)) {
-      String template = LinkIndex.text(endpoint, "path");
+      String template = Endpoints.of(endpoint).path();
       if (template == null
           || !index.unitsOf(endpoint.subject()).contains(target)
           || !index.active(endpoint.subject(), view)) {
@@ -297,7 +293,7 @@ final class RouteLinker {
 
   /** A route's URI as written, without its {@code lb:} prefix, when config changed it. */
   private static String written(Fact route, boolean balanced) {
-    String written = LinkIndex.text(route, "written");
+    String written = Claims.written(route);
     if (written == null) {
       return null;
     }
@@ -307,9 +303,7 @@ final class RouteLinker {
 
   /** Why a route whose URI has no host is left open. */
   private static String reasonWithoutHost(Fact route) {
-    return LinkIndex.texts(route, "unresolved").isEmpty()
-        ? "unknown-url"
-        : "unresolved-placeholder";
+    return Claims.unresolved(route).isEmpty() ? "unknown-url" : "unresolved-placeholder";
   }
 
   /**
@@ -337,11 +331,11 @@ final class RouteLinker {
     if (patterns == null) {
       return found;
     }
-    List<String> methods = LinkIndex.texts(route, "methods");
+    List<String> methods = list(route(route).methods());
     String prefix = index.servletPrefix(unit, view);
     for (Fact endpoint : endpointsOf(unit, view)) {
-      String method = LinkIndex.text(endpoint, "httpMethod");
-      String path = LinkIndex.text(endpoint, "path");
+      String method = Endpoints.of(endpoint).httpMethod();
+      String path = Endpoints.of(endpoint).path();
       if (path == null || (method != null && !methods.isEmpty() && !methods.contains(method))) {
         continue;
       }
@@ -356,7 +350,7 @@ final class RouteLinker {
   private void external(
       Unit gateway, Fact route, String view, EntityId system, String protocol, Set<String> facts) {
     ObjectNode attributes = common(route);
-    attributes.put("url", LinkIndex.text(route, "uri"));
+    attributes.put("url", route(route).uri());
     attributes.put("protocol", protocol);
     attributes.put("matchedBy", "external");
     out.add(
@@ -387,7 +381,7 @@ final class RouteLinker {
     attributes.put("kind", "route");
     attributes.put("reason", reason);
     attributes.put("source", route.subject().toString());
-    List<String> keys = LinkIndex.texts(route, "unresolved");
+    List<String> keys = Claims.unresolved(route);
     if (!keys.isEmpty()) {
       ArrayNode array = attributes.putArray("unresolved");
       keys.forEach(array::add);
@@ -408,7 +402,7 @@ final class RouteLinker {
                 + route.object().value(),
             gateway.id(),
             CrossRepoLinks.UNRESOLVED_LINK,
-            FactObject.string(LinkIndex.text(route, "uri")),
+            FactObject.string(route(route).uri()),
             attributes,
             route.evidence(),
             CrossRepoLinks.round(route.confidence()),
@@ -419,12 +413,12 @@ final class RouteLinker {
   private static ObjectNode common(Fact route) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("route", route.object().value());
-    List<String> paths = LinkIndex.texts(route, "paths");
+    List<String> paths = list(route(route).paths());
     if (!paths.isEmpty()) {
       ArrayNode array = attributes.putArray("paths");
       paths.forEach(array::add);
     }
-    List<String> methods = LinkIndex.texts(route, "methods");
+    List<String> methods = list(route(route).methods());
     if (!methods.isEmpty()) {
       ArrayNode array = attributes.putArray("methods");
       methods.forEach(array::add);
@@ -448,13 +442,13 @@ final class RouteLinker {
       if (!r.gateway().equals(gateway) || !java.util.Objects.equals(r.view(), view)) {
         continue;
       }
-      List<String> methods = LinkIndex.texts(r.route(), "methods");
+      List<String> methods = list(route(r.route()).methods());
       if (method != null
           && !methods.isEmpty()
           && !methods.contains(method.toUpperCase(Locale.ROOT))) {
         continue;
       }
-      List<String> paths = new ArrayList<>(LinkIndex.texts(r.route(), "paths"));
+      List<String> paths = new ArrayList<>(list(route(r.route()).paths()));
       if (paths.isEmpty()) {
         paths.add("/**");
       }
@@ -488,7 +482,7 @@ final class RouteLinker {
   record Forward(Routed routed, String path) {}
 
   private static int order(Fact route) {
-    String order = LinkIndex.text(route, "order");
+    String order = route(route).order();
     if (order == null) {
       return 0;
     }
@@ -518,7 +512,7 @@ final class RouteLinker {
    * another filter rewrites the path.
    */
   static List<String> patterns(Fact route) {
-    List<String> patterns = new ArrayList<>(LinkIndex.texts(route, "paths"));
+    List<String> patterns = new ArrayList<>(list(route(route).paths()));
     if (patterns.isEmpty()) {
       patterns.add("/**");
     }
@@ -535,7 +529,7 @@ final class RouteLinker {
    */
   private static List<String> rewritten(Fact route, List<String> paths, boolean concrete) {
     List<String> patterns = new ArrayList<>(paths);
-    for (String filter : LinkIndex.texts(route, "filters")) {
+    for (String filter : list(route(route).filters())) {
       String name = filterName(filter);
       int eq = filter.indexOf('=');
       String value = eq < 0 ? null : filter.substring(eq + 1);
@@ -596,8 +590,11 @@ final class RouteLinker {
   private void unrouted(Unit gateway, String view, Map<Unit, List<Reach>> targets) {
     Map<String, Set<String>> calledBy = new TreeMap<>();
     for (Found f : out.found(view)) {
-      String target = f.attributes().path("target").asString(null);
-      if (f.predicate().equals(CrossRepoLinks.CALLS_HTTP) && target != null) {
+      if (!f.predicate().equals(CrossRepoLinks.CALLS_HTTP)) {
+        continue;
+      }
+      String target = Claims.read(CallsHttpAttributes.class, f.attributes()).target();
+      if (target != null) {
         calledBy.computeIfAbsent(target, t -> new TreeSet<>()).add(f.subject().toString());
       }
     }
@@ -609,17 +606,17 @@ final class RouteLinker {
       }
       String prefix = index.servletPrefix(target, view);
       for (Fact endpoint : index.of(SpringExtractor.ENDPOINT)) {
-        String controller = LinkIndex.text(endpoint, "controller");
+        String controller = Endpoints.of(endpoint).controller();
         EntityId code =
             controller == null ? endpoint.subject() : new EntityId(BuiltInTypes.TYPE, controller);
-        String template = LinkIndex.text(endpoint, "path");
+        String template = Endpoints.of(endpoint).path();
         if (template == null
             || !index.unitsOf(code).contains(target)
             || !index.active(endpoint.subject(), view)) {
           continue;
         }
         String path = LinkText.join(prefix, template);
-        String method = LinkIndex.text(endpoint, "httpMethod");
+        String method = Endpoints.of(endpoint).httpMethod();
         if (reaches.stream().anyMatch(r -> reaches(r, method, path))) {
           continue;
         }
@@ -747,9 +744,9 @@ final class RouteLinker {
       }
       String prefix = index.servletPrefix(r.target(), r.view());
       for (Fact endpoint : endpointsOf(r.target(), r.view())) {
-        String served = LinkText.join(prefix, LinkIndex.text(endpoint, "path"));
-        String method = LinkIndex.text(endpoint, "httpMethod");
-        List<String> methods = LinkIndex.texts(r.route(), "methods");
+        String served = LinkText.join(prefix, Endpoints.of(endpoint).path());
+        String method = Endpoints.of(endpoint).httpMethod();
+        List<String> methods = list(route(r.route()).methods());
         if (method != null
             && !methods.isEmpty()
             && !methods.contains(method.toUpperCase(Locale.ROOT))) {
@@ -771,7 +768,7 @@ final class RouteLinker {
         ObjectNode attributes = routedAttributes(r.target(), endpoint, method, served);
         attributes.put("route", r.route().object().value());
         attributes.put("source", r.route().subject().toString());
-        String uri = LinkIndex.text(r.route(), "uri");
+        String uri = route(r.route()).uri();
         if (uri != null) {
           attributes.put("url", uri);
         }
@@ -841,8 +838,8 @@ final class RouteLinker {
         if (done.contains(gateway.id() + "|" + view + "|" + endpoint.id())) {
           continue;
         }
-        String served = LinkText.join(prefix, LinkIndex.text(endpoint, "path"));
-        String method = LinkIndex.text(endpoint, "httpMethod");
+        String served = LinkText.join(prefix, Endpoints.of(endpoint).path());
+        String method = Endpoints.of(endpoint).httpMethod();
         String request = LinkText.join("/" + serviceId, served);
         if (forward(gateway, view, method, request) != null) {
           // A route of the gateway takes the request first.
@@ -874,10 +871,10 @@ final class RouteLinker {
   private List<Fact> endpointsOf(Unit unit, String view) {
     List<Fact> found = new ArrayList<>();
     for (Fact endpoint : index.of(SpringExtractor.ENDPOINT)) {
-      String controller = LinkIndex.text(endpoint, "controller");
+      String controller = Endpoints.of(endpoint).controller();
       EntityId code =
           controller == null ? endpoint.subject() : new EntityId(BuiltInTypes.TYPE, controller);
-      if (LinkIndex.text(endpoint, "path") != null
+      if (Endpoints.of(endpoint).path() != null
           && index.unitsOf(code).contains(unit)
           && index.active(endpoint.subject(), view)) {
         found.add(endpoint);
@@ -928,7 +925,7 @@ final class RouteLinker {
 
   /** The protocol a route's URI speaks: HTTP, HTTPS or WebSocket; null for none. */
   private static String protocolOf(Fact route) {
-    String uri = LinkIndex.text(route, "uri");
+    String uri = route(route).uri();
     if (uri == null) {
       return null;
     }
@@ -997,7 +994,7 @@ final class RouteLinker {
   static String reverse(Fact route, String served) {
     // The path's segments before the filters, a null for each segment a StripPrefix removed.
     List<String> path = segments(served);
-    List<String> filters = LinkIndex.texts(route, "filters");
+    List<String> filters = list(route(route).filters());
     for (int i = filters.size() - 1; i >= 0; i--) {
       String filter = filters.get(i);
       String name = filterName(filter);
@@ -1046,7 +1043,7 @@ final class RouteLinker {
         default -> {}
       }
     }
-    List<String> patterns = new ArrayList<>(LinkIndex.texts(route, "paths"));
+    List<String> patterns = new ArrayList<>(list(route(route).paths()));
     if (patterns.isEmpty()) {
       patterns.add("/**");
     }
@@ -1241,5 +1238,14 @@ final class RouteLinker {
       }
     }
     return -1;
+  }
+
+  /** A {@code gateway-route} fact's attributes. */
+  private static GatewayRouteAttributes route(Fact route) {
+    return Claims.of(route, GatewayRouteAttributes.class);
+  }
+
+  private static List<String> list(List<String> values) {
+    return values == null ? List.of() : values;
   }
 }

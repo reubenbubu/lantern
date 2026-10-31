@@ -411,7 +411,7 @@ final class NamedClaimChecks {
       for (String view : links.views()) {
         Fact value = links.config(unit, view, ConfigExtractor.CONFIG_VALUE, SERVER_PORT);
         if (value == null
-            || LinkIndex.flag(value, "masked")
+            || Claims.masked(value)
             || !value.object().value().strip().matches("\\d{1,5}")) {
           return;
         }
@@ -507,14 +507,14 @@ final class NamedClaimChecks {
     List<Served> served = new ArrayList<>();
     Set<EntityId> serving = new HashSet<>();
     for (Fact f : links.of(SpringExtractor.ENDPOINT)) {
-      String controller = LinkIndex.text(f, "controller");
+      String controller = UntypedReads.text(f, "controller");
       EntityId code =
           controller == null ? f.subject() : new EntityId(BuiltInTypes.TYPE, controller);
       for (Unit unit : links.unitsOf(code)) {
         if (!units.contains(unit.id())) {
           continue;
         }
-        String template = LinkIndex.text(f, "path");
+        String template = UntypedReads.text(f, "path");
         if (template == null) {
           return null;
         }
@@ -524,14 +524,14 @@ final class NamedClaimChecks {
           String prefix = "";
           for (String key : List.of(CONTEXT_PATH, SERVLET_PATH)) {
             Fact value = links.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
-            if (value != null && !LinkIndex.flag(value, "masked")) {
+            if (value != null && !Claims.masked(value)) {
               prefix = LinkText.join(prefix, value.object().value());
             }
           }
           paths.add(LinkText.join(prefix, template));
         }
         List<String> lower = paths.stream().map(p -> p.toLowerCase(Locale.ROOT)).toList();
-        served.add(new Served(f, LinkIndex.text(f, "httpMethod"), lower));
+        served.add(new Served(f, UntypedReads.text(f, "httpMethod"), lower));
         serving.add(unit.id());
       }
     }
@@ -654,7 +654,7 @@ final class NamedClaimChecks {
     }
     // A send or listener whose destination the linker could not know may be the named one.
     for (Fact f : index.from(CrossRepoLinks.UNRESOLVED_LINK, units)) {
-      if ("message".equals(LinkIndex.text(f, "kind"))) {
+      if ("message".equals(UntypedReads.text(f, "kind"))) {
         return;
       }
     }
@@ -664,10 +664,10 @@ final class NamedClaimChecks {
       if (links.unitsOf(f.subject()).stream().noneMatch(u -> units.contains(u.id()))) {
         continue;
       }
-      if (LinkIndex.flag(f, "masked") || LinkIndex.text(f, "broker") == null) {
+      if (Claims.masked(f) || UntypedReads.text(f, "broker") == null) {
         return;
       }
-      if ("topic-pattern".equals(LinkIndex.text(f, "destinationKind"))) {
+      if ("topic-pattern".equals(UntypedReads.text(f, "destinationKind"))) {
         patterns.add(f.object().value());
       }
     }
@@ -677,11 +677,11 @@ final class NamedClaimChecks {
         continue;
       }
       destinations.add(f.object().entityId());
-      String key = LinkIndex.text(f, "routingKey");
+      String key = UntypedReads.text(f, "routingKey");
       if (key != null) {
         known.add(key.toLowerCase(Locale.ROOT));
       }
-      String pattern = LinkIndex.text(f, "pattern");
+      String pattern = UntypedReads.text(f, "pattern");
       if (pattern != null) {
         patterns.add(pattern);
       }
@@ -786,7 +786,7 @@ final class NamedClaimChecks {
     called.addAll(only);
     boolean unresolved =
         index.from(CrossRepoLinks.UNRESOLVED_LINK, units).stream()
-            .anyMatch(f -> "http".equals(LinkIndex.text(f, "kind")));
+            .anyMatch(f -> "http".equals(UntypedReads.text(f, "kind")));
     Set<String> found = new TreeSet<>();
     if (!http.isEmpty() && !unresolved) {
       for (EntityId named : called) {

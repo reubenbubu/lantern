@@ -234,10 +234,10 @@ final class Addresses {
           if (f == null) {
             return null;
           }
-          if (LinkIndex.flag(f, "masked")) {
+          if (Claims.masked(f)) {
             secret[0] = true;
           }
-          String w = LinkIndex.text(f, "written");
+          String w = Claims.written(f);
           return w != null ? w : f.object().value();
         };
     String filled = LinkText.substitute(written != null ? written : text, lookup);
@@ -386,7 +386,7 @@ final class Addresses {
         continue;
       }
       Fact fact = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, "server.port");
-      if (fact != null && LinkIndex.flag(fact, "masked")) {
+      if (fact != null && Claims.masked(fact)) {
         continue;
       }
       String value = fact == null ? DEFAULT_PORT : fact.object().value();
