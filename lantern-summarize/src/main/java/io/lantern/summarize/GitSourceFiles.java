@@ -13,18 +13,20 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Reads files from git at the commit the facts were observed in (never the working tree), with
- * {@code git cat-file}. Files larger than 1 MiB are not read. A file that is missing gives nothing;
- * one that cannot be read because git fails or times out gives nothing and logs a warning.
+ * Reads files from git, at a commit or by their blob (never the working tree), with {@code git
+ * cat-file}. Files larger than 1 MiB are not read. A file that is missing gives nothing; one that
+ * cannot be read because git fails or times out gives nothing and logs a warning.
  */
 public final class GitSourceFiles implements SourceFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(GitSourceFiles.class);
   private static final int MAX_BYTES = 1024 * 1024;
+  private static final Pattern BLOB = Pattern.compile("[0-9a-f]{40}|[0-9a-f]{64}");
   private static final long TIMEOUT_SECONDS = 30;
 
   private final Function<String, Optional<Path>> directories;
@@ -59,12 +61,27 @@ public final class GitSourceFiles implements SourceFiles {
 
   @Override
   public Optional<byte[]> read(String repo, String commit, String path) {
+    if (path.startsWith("-") || path.contains(":")) {
+      return Optional.empty();
+    }
+    return cat(repo, commit + ":" + path, path, commit);
+  }
+
+  @Override
+  public Optional<byte[]> blob(String repo, String blob, String path) {
+    if (!BLOB.matcher(blob).matches()) {
+      return Optional.empty();
+    }
+    return cat(repo, blob, path, blob);
+  }
+
+  private Optional<byte[]> cat(String repo, String object, String path, String commit) {
     Optional<Path> dir = directories.apply(repo);
-    if (dir.isEmpty() || path.startsWith("-") || path.contains(":")) {
+    if (dir.isEmpty()) {
       return Optional.empty();
     }
     ProcessBuilder builder =
-        Git.command(dir.get(), "cat-file", "blob", commit + ":" + path)
+        Git.command(dir.get(), "cat-file", "blob", object)
             .redirectError(ProcessBuilder.Redirect.DISCARD);
     Process process;
     try {

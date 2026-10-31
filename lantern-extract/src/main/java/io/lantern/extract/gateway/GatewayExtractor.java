@@ -567,9 +567,8 @@ public final class GatewayExtractor {
         ConfigValue.Where file = fileOf.get(route.getKey());
         Location lines = whereOf.get(route.getKey());
         Evidence evidence =
-            new Evidence(
+            Evidence.of(
                 config.repo().repo().name(),
-                config.repo().commit(),
                 file.path(),
                 lines == null ? null : new Evidence.LineRange(lines.start(), lines.end()),
                 file.contentHash());
@@ -773,9 +772,8 @@ public final class GatewayExtractor {
           end = Math.max(end, v.where().line());
         }
       }
-      return new Evidence(
+      return Evidence.of(
           config.repo().repo().name(),
-          config.repo().commit(),
           file.path(),
           start <= end ? new Evidence.LineRange(start, end) : null,
           file.contentHash());
@@ -1063,9 +1061,8 @@ public final class GatewayExtractor {
     }
 
     private static Evidence evidence(RepoBuild repo, Location where) {
-      return new Evidence(
+      return Evidence.of(
           repo.repo().name(),
-          repo.commit(),
           where.file().path(),
           where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
           where.file().contentHash());

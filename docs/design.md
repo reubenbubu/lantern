@@ -173,17 +173,21 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 
 **Core envelope** (every fact has this shape)
 
+A fact is one **observation** (sighting) of a **claim** (what it states). The claim is the subject, predicate, object and the type's key attributes; the observation is the rest (ADR 0091).
+
 | Field | Meaning |
 | --- | --- |
-| `id` | Content-derived fact ID |
+| `id` | Content-derived observation ID: the hash of everything below but confidence and validity, so a sighting unchanged at a new commit keeps it |
+| `claim` | The claim ID (below), on every fact read from the store |
 | `subject` | Stable entity ID, e.g. `service:orders` |
 | `predicate` | Relationship or attribute type, e.g. `CONSUMES`, `owner` |
 | `object` | Entity ID or typed value |
-| `attributes` | JSONB, validated against the vocabulary's definition for this type |
+| `attributes` | JSONB, validated against the vocabulary's definition for this type; key ones belong to the claim, the others to the observation |
+| `lineage` | The claim IDs the fact was derived from, for derived and LLM facts |
 | `origin` | `static` / `llm` / `human` / `readme` / `rule`, plus extractor, model or user details |
-| `evidence` | Repo, commit, file, line range, file content hash |
+| `evidence` | One or more locations, the first the one the fact is declared in: repo, file, the file's git blob, line range and role (`declared`, `value`, `config`, `cited`). No commit: a snapshot's `repo@commit` pairs give it. A file git does not hold keeps its content hash instead of a blob |
 | `confidence` | 0–1 |
-| `validity` | Snapshot range in which the fact holds |
+| `validity` | Snapshot range in which the observation holds |
 
 **Vocabulary registry** (stored in the database)
 
@@ -212,7 +216,7 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 
 **Typed access:** Java types for the envelope and built-in types are hand-written and kept in line with the JSON Schema by tests; TypeScript types are generated from the schema. Each relationship and attribute type of the extractors and the linker that has attributes has a Java record generated from its attribute schema (`HttpCallAttributes` for `http-call`), committed in its module's `attributes` package and checked against the generator by a test (ADR 0090). Runtime-added types are accessed through a generic API.
 
-**Storage:** PostgreSQL. Facts in one wide table with JSONB attributes and indexes on subject, predicate, object and snapshot range. The graph for analysis is loaded into memory per scope.
+**Storage:** PostgreSQL. Claims in one table (subject, predicate, object, key attributes) and their observations in another (descriptive attributes, evidence, lineage, confidence, validity), with indexes on subject, predicate, object, claim, repository and snapshot range. The versions of one observation never overlap; one origin may hold several observations of a claim at once when they differ, such as a link seen from several call sites. A claim holds in a snapshot while one of its observations does. Recording a snapshot names each evidence file by its git blob at the snapshot's commit (ADR 0091). The graph for analysis is loaded into memory per scope.
 
 ## Versioning and incremental computation
 
@@ -230,8 +234,8 @@ Lantern works like a build system: every derived artifact records its inputs, an
 | Artifact | Keyed by |
 | --- | --- |
 | Build outputs | Repo commit + JDK image + `settings.xml` hash |
-| Static facts | File content hash + extractor name and version |
-| Linked graph | Set of fact IDs in scope + linker version |
+| Static facts | File's git blob (its content hash for a file git does not hold) + extractor name and version |
+| Linked graph | Set of observation IDs in scope + linker version; observation IDs leave the commit out, so an unchanged repository at a new commit keeps them (ADR 0091) |
 | LLM summaries | Hash of the prompt (the facts, source files and child summaries it shows, without fact IDs) + prompt version + model |
 | LLM link resolutions | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
 | LLM wordings of units | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |

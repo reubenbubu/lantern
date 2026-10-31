@@ -114,7 +114,7 @@ class LinkTextTest {
         FactObject.string(value),
         json,
         new Origin(Origin.Kind.STATIC, "config", "1"),
-        new Evidence("r", "a".repeat(40), "src/main/resources/application.yml", null, null),
+        Evidence.of("r", "src/main/resources/application.yml", null, null),
         1.0,
         Validity.from(1));
   }

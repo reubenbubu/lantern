@@ -86,9 +86,8 @@ final class ClaimIdentityCheck {
         fact.object(),
         keys,
         new Origin(fact.origin().kind(), fact.origin().name(), "another-version"),
-        new Evidence(
+        Evidence.of(
             evidence.repo(),
-            "f".repeat(40),
             "moved/" + (evidence.path() == null ? "file" : evidence.path()),
             new Evidence.LineRange(1000, 1001),
             null),

@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -29,18 +30,20 @@ public final class FactJson {
   private static final Set<String> FACT_FIELDS =
       Set.of(
           "id",
+          "claim",
           "subject",
           "predicate",
           "object",
           "attributes",
+          "lineage",
           "origin",
           "evidence",
           "confidence",
           "validity");
   private static final Set<String> OBJECT_FIELDS = Set.of("kind", "value");
   private static final Set<String> ORIGIN_FIELDS = Set.of("kind", "name", "version");
-  private static final Set<String> EVIDENCE_FIELDS =
-      Set.of("repo", "commit", "path", "lines", "contentHash");
+  private static final Set<String> LOCATION_FIELDS =
+      Set.of("repo", "path", "lines", "blob", "contentHash", "role");
   private static final Set<String> LINES_FIELDS = Set.of("start", "end");
   private static final Set<String> VALIDITY_FIELDS = Set.of("from", "to");
 
@@ -69,10 +72,16 @@ public final class FactJson {
   public static ObjectNode toJson(Fact fact) {
     ObjectNode node = MAPPER.createObjectNode();
     node.put("id", fact.id());
+    if (fact.claimId() != null) {
+      node.put("claim", fact.claimId());
+    }
     node.put("subject", fact.subject().toString());
     node.put("predicate", fact.predicate());
     node.set("object", toJson(fact.object()));
     node.set("attributes", fact.attributes());
+    if (!fact.lineage().isEmpty()) {
+      node.set("lineage", lineage(fact.lineage()));
+    }
     node.set("origin", toJson(fact.origin()));
     node.set("evidence", toJson(fact.evidence()));
     node.put("confidence", fact.confidence());
@@ -90,12 +99,27 @@ public final class FactJson {
     if (!confidence.isNumber()) {
       throw new IllegalArgumentException("Fact confidence must be a number");
     }
+    List<String> lineage = new ArrayList<>();
+    JsonNode lineageNode = node.get("lineage");
+    if (lineageNode != null && !lineageNode.isNull()) {
+      if (!lineageNode.isArray()) {
+        throw new IllegalArgumentException("Fact lineage must be a JSON array");
+      }
+      for (JsonNode claim : lineageNode) {
+        if (!claim.isString()) {
+          throw new IllegalArgumentException("Fact lineage must hold claim IDs");
+        }
+        lineage.add(claim.stringValue());
+      }
+    }
     return new Fact(
         requiredString(node, "id"),
+        optionalString(node, "claim"),
         EntityId.parse(requiredString(node, "subject")),
         requiredString(node, "predicate"),
         objectFromJson(required(node, "object")),
         (ObjectNode) attributes,
+        lineage,
         originFromJson(required(node, "origin")),
         evidenceFromJson(required(node, "evidence")),
         confidence.doubleValue(),
@@ -152,26 +176,47 @@ public final class FactJson {
         optionalString(node, "version"));
   }
 
-  public static ObjectNode toJson(Evidence evidence) {
+  /** The evidence as a JSON array of its locations. */
+  public static ArrayNode toJson(Evidence evidence) {
+    ArrayNode array = MAPPER.createArrayNode();
+    evidence.locations().forEach(location -> array.add(toJson(location)));
+    return array;
+  }
+
+  public static ObjectNode toJson(Evidence.Location location) {
     ObjectNode node = MAPPER.createObjectNode();
-    node.put("repo", evidence.repo());
-    node.put("commit", evidence.commit());
-    if (evidence.path() != null) {
-      node.put("path", evidence.path());
+    node.put("repo", location.repo());
+    if (location.path() != null) {
+      node.put("path", location.path());
     }
-    if (evidence.lines() != null) {
+    if (location.lines() != null) {
       ObjectNode lines = node.putObject("lines");
-      lines.put("start", evidence.lines().start());
-      lines.put("end", evidence.lines().end());
+      lines.put("start", location.lines().start());
+      lines.put("end", location.lines().end());
     }
-    if (evidence.contentHash() != null) {
-      node.put("contentHash", evidence.contentHash());
+    if (location.blob() != null) {
+      node.put("blob", location.blob());
     }
+    if (location.contentHash() != null) {
+      node.put("contentHash", location.contentHash());
+    }
+    node.put("role", location.role().jsonName());
     return node;
   }
 
   public static Evidence evidenceFromJson(JsonNode node) {
-    checkObject(node, "evidence", EVIDENCE_FIELDS);
+    if (node == null || !node.isArray()) {
+      throw new IllegalArgumentException("Fact evidence must be a JSON array");
+    }
+    List<Evidence.Location> locations = new ArrayList<>();
+    for (JsonNode location : node) {
+      locations.add(locationFromJson(location));
+    }
+    return new Evidence(locations);
+  }
+
+  public static Evidence.Location locationFromJson(JsonNode node) {
+    checkObject(node, "evidence location", LOCATION_FIELDS);
     Evidence.LineRange lines = null;
     JsonNode linesNode = node.get("lines");
     if (linesNode != null && !linesNode.isNull()) {
@@ -179,12 +224,13 @@ public final class FactJson {
       lines =
           new Evidence.LineRange(requiredInt(linesNode, "start"), requiredInt(linesNode, "end"));
     }
-    return new Evidence(
+    return new Evidence.Location(
         requiredString(node, "repo"),
-        requiredString(node, "commit"),
         optionalString(node, "path"),
         lines,
-        optionalString(node, "contentHash"));
+        optionalString(node, "blob"),
+        optionalString(node, "contentHash"),
+        Evidence.Role.fromJsonName(requiredString(node, "role")));
   }
 
   public static ObjectNode toJson(Validity validity) {
@@ -204,18 +250,34 @@ public final class FactJson {
   }
 
   /**
-   * Derives a fact ID from what the fact claims and where it came from: subject, predicate, object,
-   * attributes, origin and evidence. Confidence and validity are left out, so the same claim keeps
-   * its ID while its validity range grows or its confidence is re-assessed.
-   *
-   * <p>The ID is the SHA-256, as 64 lowercase hex characters, of the canonical JSON of those
-   * fields: object keys sorted, no whitespace, optional fields left out.
+   * The fact ID of a fact without lineage, see {@link #factId(EntityId, String, FactObject,
+   * ObjectNode, List, Origin, Evidence)}.
    */
   public static String factId(
       EntityId subject,
       String predicate,
       FactObject object,
       ObjectNode attributes,
+      Origin origin,
+      Evidence evidence) {
+    return factId(subject, predicate, object, attributes, List.of(), origin, evidence);
+  }
+
+  /**
+   * Derives a fact's observation ID from what it claims and how it was seen: subject, predicate,
+   * object, attributes, lineage, origin and evidence (ADR 0091). Confidence and validity are left
+   * out, so the same sighting keeps its ID while its validity range grows or its confidence is
+   * re-assessed; evidence names no commit, so it keeps it across commits that leave its file alone.
+   *
+   * <p>The ID is the SHA-256, as 64 lowercase hex characters, of the canonical JSON of those
+   * fields: object keys sorted, no whitespace, optional fields (and an empty lineage) left out.
+   */
+  public static String factId(
+      EntityId subject,
+      String predicate,
+      FactObject object,
+      ObjectNode attributes,
+      List<String> lineage,
       Origin origin,
       Evidence evidence) {
     Objects.requireNonNull(subject, "subject");
@@ -229,9 +291,18 @@ public final class FactJson {
     content.put("predicate", predicate);
     content.set("object", toJson(object));
     content.set("attributes", attributes);
+    if (!lineage.isEmpty()) {
+      content.set("lineage", lineage(lineage));
+    }
     content.set("origin", toJson(origin));
     content.set("evidence", toJson(evidence));
     return sha256(canonical(content));
+  }
+
+  private static ArrayNode lineage(List<String> claims) {
+    ArrayNode array = MAPPER.createArrayNode();
+    claims.forEach(array::add);
+    return array;
   }
 
   /**

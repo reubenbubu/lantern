@@ -658,9 +658,8 @@ public final class MavenExtractor {
     /** Evidence pointing at the module's POM, at the element's lines if one is given. */
     Evidence evidence(XmlElement element) {
       RepoBuild repo = written.repo();
-      return new Evidence(
+      return Evidence.of(
           repo.repo().name(),
-          repo.commit(),
           written.path(),
           element == null ? null : new Evidence.LineRange(element.startLine(), element.endLine()),
           written.contentHash());

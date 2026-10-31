@@ -164,7 +164,7 @@ class FactSheetTest {
                         f.object(),
                         f.attributes(),
                         f.origin(),
-                        new Evidence(f.evidence().repo(), "b".repeat(40), "pom.xml", null, null),
+                        Evidence.of(f.evidence().repo(), "pom.xml", null, null),
                         f.confidence(),
                         f.validity()))
             .toList();

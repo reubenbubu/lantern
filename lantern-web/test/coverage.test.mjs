@@ -68,7 +68,7 @@ const fact = (extractor, path, start, end, predicate = 'P') => ({
   predicate,
   object: { kind: 'string', value: 'x' },
   origin: { kind: 'static', name: extractor, version: '1' },
-  evidence: { repo: 'shop', commit: 'a'.repeat(40), path, ...(start ? { lines: { start, end } } : {}) },
+  evidence: [{ repo: 'shop', path, ...(start ? { lines: { start, end } } : {}), role: 'declared' }],
 });
 
 test('a citation names a repository, a path and optionally a line range', () => {

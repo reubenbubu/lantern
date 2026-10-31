@@ -254,12 +254,17 @@ export function readFacts(path) {
     .map((line) => JSON.parse(line));
 }
 
-/** Whether a fact's evidence lies in the cited file and, when both have lines, overlaps them. */
-function covers(fact, at) {
-  const evidence = fact.evidence ?? {};
-  if (evidence.repo !== at.repo || evidence.path !== at.path) return false;
-  if (at.start === null || !evidence.lines) return true;
-  return evidence.lines.start <= at.end && evidence.lines.end >= at.start;
+/** A fact's evidence locations: a list since ADR 0091, a single object in older files. */
+function locations(fact) {
+  const evidence = fact.evidence ?? [];
+  return Array.isArray(evidence) ? evidence : [evidence];
+}
+
+/** Whether an evidence location lies in the cited file and, when both have lines, overlaps them. */
+function covers(location, at) {
+  if (location.repo !== at.repo || location.path !== at.path) return false;
+  if (at.start === null || !location.lines) return true;
+  return location.lines.start <= at.end && location.lines.end >= at.start;
 }
 
 /** A path's kind of file, for which areas record lines: its extension, else its name. */
@@ -285,16 +290,18 @@ export function coverage(facts, items, map) {
   const withLines = new Set();
   for (const fact of facts) {
     const name = fact.origin?.name ?? '?';
-    if (fact.evidence?.lines && fact.evidence.path) withLines.add(`${name} ${fileKind(fact.evidence.path)}`);
     extractors[name] ??= {};
     extractors[name][fact.predicate] = (extractors[name][fact.predicate] ?? 0) + 1;
-    const key = `${fact.evidence?.repo}:${fact.evidence?.path}`;
-    if (!byFile.has(key)) byFile.set(key, []);
-    byFile.get(key).push(fact);
+    for (const location of locations(fact)) {
+      if (location.lines && location.path) withLines.add(`${name} ${fileKind(location.path)}`);
+      const key = `${location.repo}:${location.path}`;
+      if (!byFile.has(key)) byFile.set(key, []);
+      byFile.get(key).push({ fact, location });
+    }
   }
   // The areas of the facts on a need's cited lines: its own area meets it, another one is a fact
   // of the wrong area, which points at a missing rule rather than a file nobody reads.
-  const factsAt = (at) => (byFile.get(`${at.repo}:${at.path}`) ?? []).filter((fact) => covers(fact, at));
+  const factsAt = (at) => (byFile.get(`${at.repo}:${at.path}`) ?? []).filter((seen) => covers(seen.location, at));
 
   const results = items.map((item) => {
     const entry = map.items[item.key] ?? {};
@@ -302,13 +309,13 @@ export function coverage(facts, items, map) {
     const needs = (entry.needs ?? []).map((need) => {
       const at = parseAt(need.at);
       const found = factsAt(at);
-      const own = found.filter((fact) => (fact.origin?.name ?? '?') === need.area);
+      const own = found.filter((seen) => (seen.fact.origin?.name ?? '?') === need.area);
       const { hash, ...shown } = need;
       if (own.length === 0) {
-        const otherAreas = [...new Set(found.map((fact) => fact.origin?.name ?? '?'))].sort();
+        const otherAreas = [...new Set(found.map((seen) => seen.fact.origin?.name ?? '?'))].sort();
         return { ...shown, met: false, otherAreas };
       }
-      if (at.start !== null && own.some((fact) => fact.evidence?.lines)) return { ...shown, met: true };
+      if (at.start !== null && own.some((seen) => seen.location.lines)) return { ...shown, met: true };
       // Weak: no lines on one side. It counts only where the area records no lines for the file.
       const counts = !withLines.has(`${need.area} ${fileKind(at.path)}`);
       return { ...shown, met: counts, weak: true };

@@ -79,7 +79,7 @@ class LinkResolverTest {
             object,
             json,
             new Origin(Origin.Kind.STATIC, extractor, "1"),
-            new Evidence(repo, commit, rest, lines, null),
+            Evidence.of(repo, rest, lines, null),
             1.0,
             Validity.from(1)));
   }
@@ -492,7 +492,8 @@ class LinkResolverTest {
         .satisfies(
             f -> {
               assertThat(f.object()).isEqualTo(first.facts().getFirst().object());
-              assertThat(f.id()).isNotEqualTo(first.facts().getFirst().id());
+              // Evidence names no commit, so it is the same observation (ADR 0091).
+              assertThat(f.id()).isEqualTo(first.facts().getFirst().id());
               assertThat(f.attributes().get("link"))
                   .isEqualTo(first.facts().getFirst().attributes().get("link"));
             });

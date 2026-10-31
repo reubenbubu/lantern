@@ -24,7 +24,7 @@
     "id" : "library:orders-lib",
     "name" : "orders-lib",
     "parent" : "service:orders",
-    "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed", "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+    "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5", "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
   }, {
     "id" : "service:orders",
     "name" : "orders",
@@ -33,12 +33,12 @@
       "text" : "Takes orders."
     }, {
       "kind" : "citation",
-      "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
     } ],
-    "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+    "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
   } ],
   "facts" : [ {
-    "id" : "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed",
+    "id" : "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5",
     "subject" : "library:orders-lib",
     "predicate" : "READS_TABLE",
     "object" : {
@@ -50,16 +50,16 @@
       "kind" : "llm",
       "name" : "resolver"
     },
-    "evidence" : {
+    "evidence" : [ {
       "repo" : "orders",
-      "commit" : "0123456789abcdef0123456789abcdef01234567"
-    },
+      "role" : "declared"
+    } ],
     "confidence" : 0.75,
     "validity" : {
       "from" : 1
     }
   }, {
-    "id" : "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6",
+    "id" : "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4",
     "subject" : "service:orders",
     "predicate" : "CONTAINS",
     "object" : {
@@ -72,16 +72,16 @@
       "name" : "maven",
       "version" : "1"
     },
-    "evidence" : {
+    "evidence" : [ {
       "repo" : "orders",
-      "commit" : "0123456789abcdef0123456789abcdef01234567",
       "path" : "pom.xml",
       "lines" : {
         "start" : 10,
         "end" : 14
       },
-      "contentHash" : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
+      "contentHash" : "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "role" : "declared"
+    } ],
     "confidence" : 1.0,
     "validity" : {
       "from" : 1
@@ -91,7 +91,7 @@
     "id" : "overview",
     "title" : "Overview",
     "levels" : [ "L0", "L1" ],
-    "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ],
+    "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ],
     "blocks" : [ {
       "kind" : "paragraph",
       "id" : "overview-intro",
@@ -117,7 +117,7 @@
         "text" : " packages its library."
       }, {
         "kind" : "citation",
-        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
       }, {
         "kind" : "ref",
         "text" : "orders-lib",
@@ -127,7 +127,7 @@
         },
         "citation" : true
       } ],
-      "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
     }, {
       "kind" : "metrics",
       "id" : "headline",
@@ -140,7 +140,7 @@
         "value" : 72.5,
         "unit" : "%",
         "entity" : "service:orders",
-        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
       } ],
       "facts" : [ ]
     }, {
@@ -159,7 +159,7 @@
       } ],
       "consequence" : "A change to its tables can break another service.",
       "confidence" : 0.9,
-      "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+      "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5" ]
     }, {
       "kind" : "list",
       "id" : "highlights",
@@ -169,7 +169,7 @@
           "kind" : "text",
           "text" : "One deployable."
         } ],
-        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
       }, {
         "content" : [ {
           "kind" : "text",
@@ -211,7 +211,7 @@
             "y" : 10,
             "pinned" : false
           },
-          "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+          "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
         }, {
           "id" : "service:orders",
           "label" : "orders",
@@ -235,14 +235,14 @@
           "technology" : "JDBC",
           "relationship" : "READS_TABLE",
           "profiles" : [ "prod" ],
-          "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+          "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5" ]
         }, {
           "id" : "orders-to-db",
           "from" : "service:orders",
           "to" : "database:orders-db",
           "facts" : [ ]
         } ],
-        "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed", "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5", "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
       }, {
         "kind" : "table",
         "id" : "dependencies",
@@ -265,7 +265,7 @@
             "kind" : "text",
             "text" : "orders-db"
           } ] ],
-          "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+          "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5" ]
         }, {
           "cells" : [ [ {
             "kind" : "text",
@@ -285,7 +285,7 @@
           "children" : [ {
             "label" : "orders-lib",
             "entity" : "library:orders-lib",
-            "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ],
+            "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ],
             "children" : [ ]
           }, {
             "label" : "README.md",
@@ -293,7 +293,7 @@
             "children" : [ ]
           } ]
         } ],
-        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
       }, {
         "kind" : "tree",
         "id" : "no-modules",
@@ -376,7 +376,7 @@
           "icon" : "server",
           "color" : "#1f77b4"
         },
-        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
       }, {
         "id" : "library:orders-lib",
         "label" : "orders-lib",
@@ -400,9 +400,9 @@
           "text" : "Validates the order first."
         }, {
           "kind" : "citation",
-          "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+          "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
         } ],
-        "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+        "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
       }, {
         "kind" : "frame",
         "operator" : "alt",
@@ -422,7 +422,7 @@
             "code" : "INSERT orders",
             "facts" : [ ]
           } ],
-          "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+          "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5" ]
         }, {
           "steps" : [ {
             "kind" : "note",
@@ -431,11 +431,11 @@
               "kind" : "text",
               "text" : "Nothing is saved."
             } ],
-            "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+            "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5" ]
           } ],
           "facts" : [ ]
         } ],
-        "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+        "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5" ]
       }, {
         "kind" : "message",
         "from" : "library:orders-lib",
@@ -460,7 +460,7 @@
         } ],
         "facts" : [ ]
       } ],
-      "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed", "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5", "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
     }, {
       "kind" : "diagram",
       "id" : "no-flow",
@@ -482,7 +482,7 @@
           "kind" : "text",
           "text" : "The line from orders to orders-db has no label."
         } ],
-        "facts" : [ "4f5a3bf58597620f78a338deac9a7d96e5943a4589ad03bac7ce68ebd9b5efed" ]
+        "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5" ]
       }, {
         "check" : "Every element has a responsibility sentence",
         "target" : {
@@ -494,7 +494,7 @@
         "check" : "It states its reader",
         "facts" : [ ]
       } ],
-      "facts" : [ "de687af6623289be0a116c5f48767399aac0a5f1e80ce7344764d0bf860bfac6" ]
+      "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
     }, {
       "kind" : "quality-report",
       "id" : "quality-passed",

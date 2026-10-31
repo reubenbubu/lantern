@@ -11,6 +11,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.Capability;
 import io.lantern.llm.FakeLlmProvider;
@@ -29,11 +30,9 @@ import io.lantern.llm.Thinking;
 import io.lantern.llm.TokenUsage;
 import io.lantern.llm.Tokens;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -233,8 +232,12 @@ class SummarizerTest {
     assertThat(second.summaries().get(repo).key()).isNotEqualTo(first.summaries().get(repo).key());
   }
 
-  /** The facts as observed again at another commit, with nothing else changed. */
-  private static List<Fact> atCommit(List<Fact> facts, String commit) {
+  /**
+   * The facts as observed again with nothing the prompt shows changed, but under new IDs: a newer
+   * version of the extractors that found them. Evidence names no commit (ADR 0091), so a new commit
+   * alone keeps the IDs; a new extractor version, or lineage, still changes them.
+   */
+  private static List<Fact> atAnotherCommit(List<Fact> facts) {
     return facts.stream()
         .map(
             f ->
@@ -243,13 +246,8 @@ class SummarizerTest {
                     f.predicate(),
                     f.object(),
                     f.attributes(),
-                    f.origin(),
-                    new Evidence(
-                        f.evidence().repo(),
-                        commit,
-                        f.evidence().path(),
-                        f.evidence().lines(),
-                        f.evidence().contentHash()),
+                    new Origin(f.origin().kind(), f.origin().name(), "next"),
+                    f.evidence(),
                     f.confidence(),
                     f.validity()))
         .toList();
@@ -265,7 +263,7 @@ class SummarizerTest {
     List<Fact> earlier = TestFacts.shop().list();
     Summarizer.Result first = summarizer().summarize(SummaryTree.fromFacts(earlier));
     int calls = fake.sent().size();
-    List<Fact> later = atCommit(TestFacts.shop().list(), "b".repeat(40));
+    List<Fact> later = atAnotherCommit(TestFacts.shop().list());
 
     Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(later));
 
@@ -313,7 +311,7 @@ class SummarizerTest {
 
     Summary first = summarizer().summarize(SummaryTree.fromFacts(earlier)).summaries().get(module);
     int calls = fake.sent().size();
-    List<Fact> later = atCommit(FactSheetTest.service(2).list(), "b".repeat(40));
+    List<Fact> later = atAnotherCommit(FactSheetTest.service(2).list());
     Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(later));
 
     assertThat(first.citedFacts().stream().map(id -> content(id, earlier))).contains(endpoint);
@@ -344,15 +342,15 @@ class SummarizerTest {
   @Test
   void aCommitThatChangesNothingReusesATypeSummaryCitingItsSourceFile() throws Exception {
     SourceFiles anyCommit =
-        (repo, commit, path) ->
-            repo.equals("r") && path.equals(ExcerptsTest.PATH)
-                ? Optional.of(ExcerptsTest.ORDER.getBytes(StandardCharsets.UTF_8))
-                : Optional.empty();
-    SummaryNode order = orderWithSource(sha256(ExcerptsTest.ORDER));
+        TestFacts.files(
+            (repo, path) ->
+                repo.equals("r") && path.equals(ExcerptsTest.PATH)
+                    ? Optional.of(ExcerptsTest.ORDER)
+                    : Optional.empty());
+    SummaryNode order = orderWithSource(blob(ExcerptsTest.ORDER));
     new Summarizer(client("model-a", fake), store, anyCommit).summarize(List.of(order));
     SummaryNode later =
-        new SummaryNode(
-            order.entity(), order.level(), atCommit(order.facts(), "b".repeat(40)), List.of());
+        new SummaryNode(order.entity(), order.level(), atAnotherCommit(order.facts()), List.of());
 
     Summarizer.Result second =
         new Summarizer(client("model-a", fake), store, anyCommit).summarize(List.of(later));
@@ -512,10 +510,7 @@ class SummarizerTest {
         .isEqualTo(key);
     SummaryNode laterCommit =
         new SummaryNode(
-            order.entity(),
-            order.level(),
-            atCommit(order.facts(), "b".repeat(40)),
-            order.children());
+            order.entity(), order.level(), atAnotherCommit(order.facts()), order.children());
     assertThat(Summarizer.key(laterCommit, List.of(), List.of(child), fake.model("m")))
         .isEqualTo(key);
     SummaryNode fewerFacts =
@@ -947,7 +942,7 @@ class SummarizerTest {
   }
 
   /** Facts about {@code type:p.Order} whose evidence is {@link ExcerptsTest#ORDER}. */
-  private static SummaryNode orderWithSource(String contentHash) {
+  private static SummaryNode orderWithSource(String blob) {
     List<Fact> facts = new ArrayList<>();
     for (Fact fact :
         List.of(
@@ -960,33 +955,35 @@ class SummarizerTest {
               fact.object(),
               fact.attributes(),
               fact.origin(),
-              new Evidence(
-                  fact.evidence().repo(),
-                  fact.evidence().commit(),
-                  fact.evidence().path(),
-                  fact.evidence().lines(),
-                  contentHash),
+              Evidence.of(
+                  new Evidence.Location(
+                      fact.evidence().repo(),
+                      fact.evidence().path(),
+                      fact.evidence().lines(),
+                      blob,
+                      null,
+                      Evidence.Role.DECLARED)),
               fact.confidence(),
               fact.validity()));
     }
     return new SummaryNode(EntityId.parse("type:p.Order"), SummaryLevel.TYPE, facts, List.of());
   }
 
-  private static String sha256(String text) throws Exception {
-    return HexFormat.of()
-        .formatHex(
-            MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
+  /** The git blob SHA of a file with this text. */
+  private static String blob(String text) {
+    return SourceFiles.blobSha(text.getBytes(StandardCharsets.UTF_8), 40);
   }
 
   private static final SourceFiles ORDER_SOURCE =
-      (repo, commit, path) ->
-          repo.equals("r") && commit.equals(TestFacts.COMMIT) && path.equals(ExcerptsTest.PATH)
-              ? Optional.of(ExcerptsTest.ORDER.getBytes(StandardCharsets.UTF_8))
-              : Optional.empty();
+      TestFacts.files(
+          (repo, path) ->
+              repo.equals("r") && path.equals(ExcerptsTest.PATH)
+                  ? Optional.of(ExcerptsTest.ORDER)
+                  : Optional.empty());
 
   @Test
   void typePromptsShowSourceExcerptsCitedAsTheirFacts() throws Exception {
-    SummaryNode order = orderWithSource(sha256(ExcerptsTest.ORDER));
+    SummaryNode order = orderWithSource(blob(ExcerptsTest.ORDER));
 
     Summary summary =
         new Summarizer(client("model-a", fake), store, ORDER_SOURCE)
@@ -1098,7 +1095,7 @@ class SummarizerTest {
 
   @Test
   void aPurposeFromJavadocIsEvidencedAndAPartsEvidencedPurposeCarriesUp() throws Exception {
-    SummaryNode order = orderWithSource(sha256(ExcerptsTest.ORDER));
+    SummaryNode order = orderWithSource(blob(ExcerptsTest.ORDER));
     SummaryNode pkg =
         new SummaryNode(
             EntityId.parse("package:g:a:p"), SummaryLevel.PACKAGE, List.of(), List.of(order));
@@ -1122,7 +1119,7 @@ class SummarizerTest {
 
   @Test
   void anEvidencedPurposeCitingOnlyCodeIsInferred() throws Exception {
-    SummaryNode order = orderWithSource(sha256(ExcerptsTest.ORDER));
+    SummaryNode order = orderWithSource(blob(ExcerptsTest.ORDER));
     fake.answering(request -> "Purpose: evidenced\nAn order. [F1]");
 
     Summary summary =
@@ -1162,9 +1159,8 @@ class SummarizerTest {
         }
         """;
     // The file is checked against the evidence as read, and masked only after.
-    SummaryNode order = orderWithSource(sha256(source));
-    SourceFiles files =
-        (repo, commit, path) -> Optional.of(source.getBytes(StandardCharsets.UTF_8));
+    SummaryNode order = orderWithSource(blob(source));
+    SourceFiles files = TestFacts.files((repo, path) -> Optional.of(source));
 
     new Summarizer(client("model-a", fake), store, files).summarize(List.of(order));
 
@@ -1476,7 +1472,7 @@ class SummarizerTest {
   @Test
   void aSplitTypeShowsItsSourceFileInOnePartAndKeepsItsCitation() throws Exception {
     String source = ExcerptsTest.ORDER + "// filler\n".repeat(500);
-    List<Fact> facts = new ArrayList<>(orderWithSource(sha256(source)).facts());
+    List<Fact> facts = new ArrayList<>(orderWithSource(blob(source)).facts());
     TestFacts methods = new TestFacts();
     for (int i = 0; i < 200; i++) {
       methods.relate("r", "type:p.Order", "CONTAINS", "method:p.Order#method%03d()".formatted(i));
@@ -1484,8 +1480,7 @@ class SummarizerTest {
     facts.addAll(methods.list());
     SummaryNode order =
         new SummaryNode(EntityId.parse("type:p.Order"), SummaryLevel.TYPE, facts, List.of());
-    SourceFiles files =
-        (repo, commit, path) -> Optional.of(source.getBytes(StandardCharsets.UTF_8));
+    SourceFiles files = TestFacts.files((repo, path) -> Optional.of(source));
     fake.answering(request -> citingWhatItSees(request, 0));
 
     Summary summary =
@@ -1528,11 +1523,16 @@ class SummarizerTest {
           }
 
           @Override
+          public Optional<byte[]> blob(String repo, String blob, String path) {
+            return Optional.of(source.getBytes(StandardCharsets.UTF_8));
+          }
+
+          @Override
           public java.util.Set<String> secretKeys() {
             return java.util.Set.of("jwt.key");
           }
         };
-    SummaryNode order = orderWithSource(sha256(source));
+    SummaryNode order = orderWithSource(blob(source));
 
     new Summarizer(client("model-a", fake), store, files).summarize(List.of(order));
 

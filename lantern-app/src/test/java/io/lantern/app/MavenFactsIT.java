@@ -65,11 +65,13 @@ class MavenFactsIT {
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();
-        assertThat(facts.findById(fact.id())).contains(fact);
+        // Stored, it is an observation of its claim (ADR 0091).
+        assertThat(facts.findById(fact.id()).map(Fact::claimId)).isPresent();
+        assertThat(facts.findById(fact.id()).map(f -> f.stored(null, f.validity()))).contains(fact);
       }
     } finally {
       for (Fact fact : extracted) {
-        jdbc.sql("DELETE FROM facts WHERE id = :id").param("id", fact.id()).update();
+        jdbc.sql("DELETE FROM observations WHERE id = :id").param("id", fact.id()).update();
       }
     }
   }

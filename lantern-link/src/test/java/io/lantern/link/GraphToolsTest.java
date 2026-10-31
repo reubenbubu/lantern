@@ -47,7 +47,7 @@ class GraphToolsTest {
             object,
             FactJson.newObject(),
             new Origin(Origin.Kind.STATIC, "test", "1"),
-            new Evidence("a", COMMIT, where, null, null),
+            Evidence.of("a", where, null, null),
             1.0,
             Validity.from(1));
     facts.add(fact);
@@ -269,7 +269,7 @@ class GraphToolsTest {
             FactObject.string("jwt"),
             attributes,
             new Origin(Origin.Kind.STATIC, "test", "1"),
-            new Evidence("a", COMMIT, "src/main/java/o/Jwt.java", null, null),
+            Evidence.of("a", "src/main/java/o/Jwt.java", null, null),
             1.0,
             Validity.from(1)));
     String java = "class Jwt { @Value(\"${jwt.key:literal-secret}\") String k; }";

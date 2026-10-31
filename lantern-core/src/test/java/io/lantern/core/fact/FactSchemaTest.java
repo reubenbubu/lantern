@@ -1,6 +1,5 @@
 package io.lantern.core.fact;
 
-import static io.lantern.core.fact.FactTest.COMMIT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -28,9 +27,24 @@ class FactSchemaTest {
     }
   }
 
-  /** A fact with every optional field set, so its JSON has every property. */
+  /**
+   * A stored fact with every optional field set, so its JSON has every property: its first location
+   * has a blob, its second a content hash.
+   */
   static ObjectNode fullFactJson() {
-    return FactJson.toJson(FactTest.sample());
+    Fact sample = FactTest.sample();
+    Evidence evidence =
+        Evidence.of(
+            sample.evidence().declared().withBlob("b".repeat(40)),
+            new Evidence.Location(
+                "orders",
+                "src/main/resources/application.yml",
+                new Evidence.LineRange(3, 3),
+                null,
+                FactTest.CONTENT_HASH,
+                Evidence.Role.CONFIG));
+    Fact full = sample.withEvidence(evidence).withLineage(List.of("c".repeat(64)));
+    return FactJson.toJson(full.stored("d".repeat(64), new Validity(1, 3L)));
   }
 
   @Test
@@ -39,7 +53,9 @@ class FactSchemaTest {
     ObjectNode json = fullFactJson();
 
     assertThat(names(schema.get("properties"))).isEqualTo(names(json));
-    assertThat(strings(schema.get("required"))).isEqualTo(names(json));
+    // A fact not yet stored has no claim, and one derived from nothing no lineage.
+    assertThat(strings(schema.get("required")))
+        .isEqualTo(names(FactJson.toJson(FactTest.sample())));
     assertThat(schema.get("additionalProperties").booleanValue()).isFalse();
   }
 
@@ -49,10 +65,11 @@ class FactSchemaTest {
     ObjectNode json = fullFactJson();
 
     assertThat(names(defs.get("origin").get("properties"))).isEqualTo(names(json.get("origin")));
-    assertThat(names(defs.get("evidence").get("properties")))
-        .isEqualTo(names(json.get("evidence")));
-    assertThat(names(defs.get("evidence").get("properties").get("lines").get("properties")))
-        .isEqualTo(names(json.get("evidence").get("lines")));
+    Set<String> locations = new HashSet<>();
+    json.get("evidence").forEach(location -> locations.addAll(names(location)));
+    assertThat(names(defs.get("location").get("properties"))).isEqualTo(locations);
+    assertThat(names(defs.get("location").get("properties").get("lines").get("properties")))
+        .isEqualTo(names(json.get("evidence").get(0).get("lines")));
     assertThat(names(defs.get("object").get("properties"))).isEqualTo(names(json.get("object")));
     assertThat(names(defs.get("validity").get("properties")))
         .isEqualTo(Set.of("from", "to"))
@@ -70,13 +87,13 @@ class FactSchemaTest {
                 FactObject.string("team"),
                 FactJson.newObject(),
                 new Origin(Origin.Kind.HUMAN, "user-1", null),
-                new Evidence("orders", COMMIT, null, null, null),
+                Evidence.of("orders", null, null, null),
                 1.0,
                 Validity.from(0)));
 
     assertThat(strings(defs.get("origin").get("required"))).isEqualTo(names(minimal.get("origin")));
-    assertThat(strings(defs.get("evidence").get("required")))
-        .isEqualTo(names(minimal.get("evidence")));
+    assertThat(strings(defs.get("location").get("required")))
+        .isEqualTo(names(minimal.get("evidence").get(0)));
     assertThat(strings(defs.get("validity").get("required")))
         .isEqualTo(names(minimal.get("validity")));
   }
@@ -98,6 +115,12 @@ class FactSchemaTest {
         .isEqualTo(Set.copyOf(originKinds));
     assertThat(strings(defs.get("object").get("properties").get("kind").get("enum")))
         .isEqualTo(Set.copyOf(objectKinds));
+    List<String> roles = new ArrayList<>();
+    for (Evidence.Role role : Evidence.Role.values()) {
+      roles.add(role.jsonName());
+    }
+    assertThat(strings(defs.get("location").get("properties").get("role").get("enum")))
+        .isEqualTo(Set.copyOf(roles));
   }
 
   @ParameterizedTest

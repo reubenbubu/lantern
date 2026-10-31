@@ -40,6 +40,6 @@ class FactStoreConfiguration {
 
   @Bean
   FactRepository factRepository(JdbcClient jdbcClient, VocabularyRegistry vocabularyRegistry) {
-    return new FactRepository(jdbcClient, vocabularyRegistry);
+    return new FactRepository(jdbcClient, vocabularyRegistry, new SnapshotBlobs(jdbcClient));
   }
 }

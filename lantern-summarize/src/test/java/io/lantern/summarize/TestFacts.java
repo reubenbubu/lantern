@@ -13,6 +13,25 @@ import java.util.List;
 /** Facts shaped like the Maven and Java extractors' output, for tests. */
 final class TestFacts {
 
+  /**
+   * Source files that give a file's text by repository and path, at any commit or blob; the
+   * summarizer shows it only where its blob is the evidence's.
+   */
+  static SourceFiles files(
+      java.util.function.BiFunction<String, String, java.util.Optional<String>> text) {
+    return new SourceFiles() {
+      @Override
+      public java.util.Optional<byte[]> read(String repo, String commit, String path) {
+        return text.apply(repo, path).map(t -> t.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      }
+
+      @Override
+      public java.util.Optional<byte[]> blob(String repo, String blob, String path) {
+        return read(repo, blob, path);
+      }
+    };
+  }
+
   static final String COMMIT = "a".repeat(40);
 
   private final List<Fact> facts = new ArrayList<>();
@@ -40,7 +59,7 @@ final class TestFacts {
         object,
         FactJson.newObject(),
         new Origin(Origin.Kind.STATIC, "test", "1"),
-        new Evidence(repo, COMMIT, path, null, null),
+        Evidence.of(repo, path, null, null),
         1.0,
         Validity.from(1));
   }
@@ -57,7 +76,7 @@ final class TestFacts {
         FactObject.string(text),
         FactJson.newObject(),
         new Origin(Origin.Kind.README, "docs", "1"),
-        new Evidence(repo, COMMIT, path, new Evidence.LineRange(line, line), null),
+        Evidence.of(repo, path, new Evidence.LineRange(line, line), null),
         0.5,
         Validity.from(1));
   }

@@ -58,7 +58,8 @@ class LinkerIT {
   @BeforeEach
   @AfterEach
   void clean() {
-    jdbc.sql("DELETE FROM facts").update();
+    jdbc.sql("DELETE FROM observations").update();
+    jdbc.sql("DELETE FROM claims").update();
     linker = Linker.standard(facts);
   }
 
@@ -89,7 +90,7 @@ class LinkerIT {
         object,
         json,
         new Origin(Origin.Kind.STATIC, extractor, "1"),
-        new Evidence(repo, COMMIT, where.substring(where.indexOf(':') + 1), null, null),
+        Evidence.of(repo, where.substring(where.indexOf(':') + 1), null, null),
         1.0,
         Validity.from(snapshot));
   }

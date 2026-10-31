@@ -1,6 +1,6 @@
 # 0017: Fact validity across snapshots
 
-Status: accepted (#23), amended by ADR 0018 (#60) and for #165
+Status: accepted (#23), amended by ADR 0018 (#60), for #165 and by ADR 0091 (#281: validity per observation; versions of one observation never overlap)
 
 ## Context
 

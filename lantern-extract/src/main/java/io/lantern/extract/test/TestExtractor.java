@@ -276,9 +276,8 @@ public final class TestExtractor {
                   FactObject.entity(module.getKey()),
                   attributes,
                   ORIGIN,
-                  new Evidence(
+                  Evidence.of(
                       repo.repo().name(),
-                      repo.commit(),
                       read.path(),
                       new Evidence.LineRange(c.startLine(), c.endLine()),
                       read.hash()),
@@ -309,12 +308,8 @@ public final class TestExtractor {
             FactObject.string(value),
             attributes,
             ORIGIN,
-            new Evidence(
-                repo.repo().name(),
-                repo.commit(),
-                read.path(),
-                new Evidence.LineRange(start, end),
-                read.hash()),
+            Evidence.of(
+                repo.repo().name(), read.path(), new Evidence.LineRange(start, end), read.hash()),
             CONFIDENCE,
             validity);
     facts.putIfAbsent(fact.id(), fact);

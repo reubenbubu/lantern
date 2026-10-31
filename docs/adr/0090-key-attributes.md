@@ -1,6 +1,6 @@
 # 0090: Key attributes, claim IDs, runtime and build parents, generated records
 
-Status: accepted (#518); amends ADR 0002 and ADR 0042
+Status: accepted (#518); amends ADR 0002 and ADR 0042; amended by ADR 0091 (#281: the attributes naming source facts stay until their readers follow lineage)
 
 ## Context
 

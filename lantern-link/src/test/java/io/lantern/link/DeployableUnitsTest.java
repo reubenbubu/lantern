@@ -76,7 +76,7 @@ class DeployableUnitsTest {
       lines = new Evidence.LineRange(line, line);
       rest = rest.substring(0, rest.indexOf('#'));
     }
-    return new Evidence(repo, COMMIT, rest, lines, null);
+    return Evidence.of(repo, rest, lines, null);
   }
 
   /** A module building a service or library, in a repository, with its packaging. */

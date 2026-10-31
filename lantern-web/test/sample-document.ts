@@ -24,12 +24,15 @@ const fact: FactEnvelope = {
   object,
   attributes: {},
   origin: { kind: 'static', name: 'maven', version: '1' },
-  evidence: {
-    repo: 'orders',
-    commit: '0123456789abcdef0123456789abcdef01234567',
-    path: 'pom.xml',
-    lines: { start: 10, end: 14 },
-  },
+  evidence: [
+    {
+      repo: 'orders',
+      path: 'pom.xml',
+      lines: { start: 10, end: 14 },
+      blob: '0123456789abcdef0123456789abcdef01234567',
+      role: 'declared',
+    },
+  ],
   confidence: 1,
   validity: { from: 1 },
 };

@@ -408,10 +408,16 @@ class EndToEndIT {
     assertThat(rebuiltService.status()).isEqualTo(BuildStatus.SUCCEEDED);
     assertThat(rebuiltService.upstream()).containsExactly("greeting-lib@" + failedLib);
     assertThat(rebuiltService.startedAt()).isAfter(serviceBuild.startedAt());
-    // The README and decision facts of the old commit stop holding, and the new commit's claim
-    // holds.
+    // The README's claim of the old commit stops holding, and the new commit's claim holds; the
+    // decision record, unchanged, keeps its facts, which name no commit (ADR 0091).
     List<Fact> movedLib = validIn(moved, "greeting-lib");
-    assertThat(movedLib).doesNotContainAnyElementsOf(readmeFacts);
+    assertThat(movedLib)
+        .doesNotContainAnyElementsOf(
+            readmeFacts.stream().filter(f -> f.predicate().equals(DocsExtractor.CLAIM)).toList())
+        .containsAll(
+            readmeFacts.stream()
+                .filter(f -> f.subject().type().equals(DocsExtractor.DECISION))
+                .toList());
     assertThat(movedLib)
         .filteredOn(
             f ->
@@ -422,7 +428,8 @@ class EndToEndIT {
     for (Fact fact : readmeFacts) {
       assertThat(facts.findById(fact.id()).orElseThrow().validity().to())
           .as("end of %s", fact.id())
-          .isEqualTo(moved.snapshot().number());
+          .isEqualTo(
+              fact.predicate().equals(DocsExtractor.CLAIM) ? moved.snapshot().number() : null);
     }
   }
 

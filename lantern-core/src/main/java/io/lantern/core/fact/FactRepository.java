@@ -2,6 +2,7 @@ package io.lantern.core.fact;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -12,33 +13,55 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Stores facts in the {@code facts} table. Every fact is checked by the {@link FactValidator}
- * before it is written; in the app that is the vocabulary registry, which checks the fact's entity
- * types, predicate, object and attributes against the vocabulary.
+ * Stores facts as claims and their observations, in the {@code claims} and {@code observations}
+ * tables (ADR 0091). Every fact is checked by the {@link FactValidator} before it is written; in
+ * the app that is the vocabulary registry, which checks the fact's entity types, predicate, object
+ * and attributes against the vocabulary and says which attributes are key. A fact's claim holds its
+ * subject, predicate, object and key attributes; its observation the rest.
  *
- * <p>A fact's ID leaves out its validity and confidence, so one fact can be stored as several
- * versions, each a contiguous range of snapshots with one confidence; the versions of a fact never
- * overlap (ADR 0017). Queries by subject, predicate or object return every version.
+ * <p>A fact's ID, its observation's, leaves out its validity and confidence, so one observation can
+ * be stored as several versions, each a contiguous range of snapshots with one confidence; the
+ * versions of an observation never overlap (ADR 0017). Several observations of one claim may hold
+ * at once when they differ (ADR 0091). Queries by subject, predicate or object return every
+ * version.
+ *
+ * <p>Recording a snapshot fills in the git blob of each evidence location from {@link Blobs}, so
+ * evidence that names a file git holds keeps no content hash.
  */
 public class FactRepository {
 
   private static final String COLUMNS =
       """
-      id, subject, predicate, object_kind, object, attributes::text AS attributes,
-      origin::text AS origin, evidence::text AS evidence, confidence,
-      lower(validity) AS valid_from, upper(validity) AS valid_to
+      o.id, o.claim_id, c.subject, c.predicate, c.object_kind, c.object,
+      (c.key_attributes || o.attributes)::text AS attributes,
+      array_to_json(o.lineage)::text AS lineage, o.origin::text AS origin,
+      o.evidence::text AS evidence, o.confidence,
+      lower(o.validity) AS valid_from, upper(o.validity) AS valid_to
       """;
+
+  /** The observations joined with their claims. */
+  private static final String FROM = " FROM observations o JOIN claims c ON c.id = o.claim_id";
 
   private final JdbcClient jdbc;
   private final FactValidator validator;
+  private final Blobs blobs;
 
   public FactRepository(JdbcClient jdbc, FactValidator validator) {
+    this(jdbc, validator, Blobs.NONE);
+  }
+
+  /**
+   * @param blobs finds the blobs of evidence files at a snapshot's commits
+   */
+  public FactRepository(JdbcClient jdbc, FactValidator validator, Blobs blobs) {
     this.jdbc = Objects.requireNonNull(jdbc, "jdbc");
     this.validator = Objects.requireNonNull(validator, "validator");
+    this.blobs = Objects.requireNonNull(blobs, "blobs");
   }
 
   /**
@@ -54,10 +77,13 @@ public class FactRepository {
    * @throws IllegalStateException if a fact with the same ID but a different confidence, or a
    *     validity its latest stored version does not cover, is already stored
    */
-  public boolean save(Fact fact) {
-    Objects.requireNonNull(fact, "fact");
-    validator.validate(fact);
-    if (insert(fact, true)) {
+  public boolean save(Fact given) {
+    Objects.requireNonNull(given, "fact");
+    Fact completed = withBlobs(given.validity().from(), given);
+    validator.validate(completed);
+    Function<Fact, Set<String>> keys = validator.keyAttributes();
+    Fact fact = completed.stored(claimId(keys, completed), completed.validity());
+    if (insert(fact, keys, true)) {
       return true;
     }
     Fact stored =
@@ -226,8 +252,8 @@ public class FactRepository {
 
     /** The SQL conditions selecting the scope's facts, besides the kind and repositories. */
     String originConditions() {
-      return (name == null ? "" : " AND origin->>'name' = :name")
-          + (excluded.isEmpty() ? "" : " AND origin->>'name' NOT IN (:excluded)");
+      return (name == null ? "" : " AND o.origin->>'name' = :name")
+          + (excluded.isEmpty() ? "" : " AND o.origin->>'name' NOT IN (:excluded)");
     }
 
     JdbcClient.StatementSpec bind(JdbcClient.StatementSpec spec) {
@@ -246,11 +272,15 @@ public class FactRepository {
     }
   }
 
-  private SnapshotUpdate record(long snapshot, Scope scope, Collection<Fact> found) {
+  private SnapshotUpdate record(long snapshot, Scope scope, Collection<Fact> given) {
     Origin.Kind kind = scope.kind();
     Set<String> repos = scope.repos();
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> byId = new LinkedHashMap<>();
+    List<Fact> found = new ArrayList<>();
+    for (Fact fact : given) {
+      found.add(withBlobs(snapshot, fact));
+    }
     for (Fact fact : found) {
       if (!fact.validity().equals(validity)) {
         throw new IllegalArgumentException(
@@ -281,14 +311,16 @@ public class FactRepository {
       }
     }
     validator.validateAll(byId.values());
+    Function<Fact, Set<String>> keys = validator.keyAttributes();
+    byId.replaceAll((id, fact) -> fact.stored(claimId(keys, fact), fact.validity()));
     long later =
         scope
             .bind(
                 jdbc.sql(
                         """
-                        SELECT count(*) FROM facts
-                        WHERE (lower(validity) > :snapshot OR upper(validity) > :snapshot)
-                          AND origin->>'kind' = :kind
+                        SELECT count(*) FROM observations o
+                        WHERE (lower(o.validity) > :snapshot OR upper(o.validity) > :snapshot)
+                          AND o.origin->>'kind' = :kind
                         """
                             + scope.originConditions())
                     .param("snapshot", snapshot))
@@ -314,31 +346,39 @@ public class FactRepository {
             .bind(
                 jdbc.sql(
                     """
-                    SELECT id, confidence, lower(validity) AS valid_from FROM facts
-                    WHERE upper_inf(validity) AND origin->>'kind' = :kind
+                    SELECT o.id, o.claim_id, o.confidence, lower(o.validity) AS valid_from
+                    FROM observations o
+                    WHERE upper_inf(o.validity) AND o.origin->>'kind' = :kind
                     """
-                        + (repos == null ? "" : " AND evidence->>'repo' IN (:repos)")
+                        + (repos == null ? "" : " AND o.repo IN (:repos)")
                         + scope.originConditions()))
             .query(
                 (rs, rowNum) ->
                     new OpenVersion(
-                        rs.getString("id"), rs.getDouble("confidence"), rs.getLong("valid_from")))
+                        rs.getString("id"),
+                        rs.getString("claim_id"),
+                        rs.getDouble("confidence"),
+                        rs.getLong("valid_from")))
             .list();
     for (OpenVersion version : open) {
       Fact fact = byId.get(version.id());
-      if (fact != null && fact.confidence() == version.confidence()) {
+      // A type whose key attributes changed puts the same sighting under another claim, which is
+      // a change like a new confidence.
+      if (fact != null
+          && fact.claimId().equals(version.claim())
+          && fact.confidence() == version.confidence()) {
         stored.put(fact.id(), withValidity(fact, Validity.from(version.from())));
         continue;
       }
       if (version.from() == snapshot) {
         // Recorded for this snapshot before: nothing held before it, so nothing to keep.
-        jdbc.sql("DELETE FROM facts WHERE id = :id AND upper_inf(validity)")
+        jdbc.sql("DELETE FROM observations WHERE id = :id AND upper_inf(validity)")
             .param("id", version.id())
             .update();
       } else {
         jdbc.sql(
                 """
-                UPDATE facts SET validity = int8range(lower(validity), :to, '[)')
+                UPDATE observations SET validity = int8range(lower(validity), :to, '[)')
                 WHERE id = :id AND upper_inf(validity)
                 """)
             .param("id", version.id())
@@ -363,11 +403,13 @@ public class FactRepository {
       Optional<Long> reopened =
           jdbc.sql(
                   """
-                  UPDATE facts SET validity = int8range(lower(validity), NULL, '[)')
+                  UPDATE observations SET validity = int8range(lower(validity), NULL, '[)')
                   WHERE id = :id AND upper(validity) = :snapshot AND confidence = :confidence
+                    AND claim_id = :claim
                   RETURNING lower(validity)
                   """)
               .param("id", fact.id())
+              .param("claim", fact.claimId())
               .param("snapshot", snapshot)
               .param("confidence", fact.confidence())
               .query(Long.class)
@@ -375,7 +417,7 @@ public class FactRepository {
       if (reopened.isPresent()) {
         stored.put(fact.id(), withValidity(fact, Validity.from(reopened.get())));
       } else {
-        insert(fact, false);
+        insert(fact, keys, false);
         stored.put(fact.id(), fact);
       }
     }
@@ -383,47 +425,83 @@ public class FactRepository {
         byId.keySet().stream().map(stored::get).toList(), added, changed, closed);
   }
 
-  /** The open version of a stored fact. */
-  private record OpenVersion(String id, double confidence, long from) {}
+  /** The open version of a stored observation. */
+  private record OpenVersion(String id, String claim, double confidence, long from) {}
 
   private static Fact withValidity(Fact fact, Validity validity) {
-    return new Fact(
-        fact.id(),
-        fact.subject(),
-        fact.predicate(),
-        fact.object(),
-        fact.attributes(),
-        fact.origin(),
-        fact.evidence(),
-        fact.confidence(),
-        validity);
+    return fact.stored(fact.claimId(), validity);
+  }
+
+  /** The claim ID of a fact, by the given key attributes. */
+  private static String claimId(Function<Fact, Set<String>> keys, Fact fact) {
+    return ClaimId.of(
+        fact.subject(), fact.predicate(), fact.object(), fact.attributes(), keys.apply(fact));
   }
 
   /**
-   * Inserts the fact as a new version.
+   * The fact with the blob of each evidence file git holds at the snapshot's commit, in place of
+   * its content hash; the fact itself when nothing changes.
+   */
+  private Fact withBlobs(long snapshot, Fact fact) {
+    Evidence evidence = fact.evidence();
+    Evidence completed =
+        evidence.map(
+            location ->
+                location.path() == null || location.blob() != null
+                    ? location
+                    : blobs
+                        .blob(snapshot, location.repo(), location.path())
+                        .map(location::withBlob)
+                        .orElse(location));
+    return completed.equals(evidence) ? fact : fact.withEvidence(completed);
+  }
+
+  /**
+   * Inserts the fact as a new version of its observation, and its claim if it is new. The fact has
+   * its claim ID; its attributes are split into the claim's key ones and the observation's others.
    *
-   * @param onlyIfNew insert nothing if any version of the fact is stored
+   * @param keys the key attributes of facts, by which its claim ID was computed
+   * @param onlyIfNew insert nothing if any version of the observation is stored
    * @return whether it was inserted
    */
-  private boolean insert(Fact fact, boolean onlyIfNew) {
+  private boolean insert(Fact fact, Function<Fact, Set<String>> keys, boolean onlyIfNew) {
+    Objects.requireNonNull(fact.claimId(), "claimId");
+    ObjectNode key = FactJson.newObject();
+    ObjectNode descriptive = FactJson.newObject();
+    Set<String> names = keys.apply(fact);
+    fact.attributes()
+        .properties()
+        .forEach(
+            e -> (names.contains(e.getKey()) ? key : descriptive).set(e.getKey(), e.getValue()));
+    jdbc.sql(
+            """
+            INSERT INTO claims (id, subject, predicate, object_kind, object, key_attributes)
+            VALUES (:id, :subject, :predicate, :objectKind, :object, CAST(:keys AS jsonb))
+            ON CONFLICT (id) DO NOTHING
+            """)
+        .param("id", fact.claimId())
+        .param("subject", fact.subject().toString())
+        .param("predicate", fact.predicate())
+        .param("objectKind", fact.object().kind().jsonName())
+        .param("object", fact.object().value())
+        .param("keys", FactJson.canonical(key))
+        .update();
     int rows =
         jdbc.sql(
                 """
-                INSERT INTO facts (id, subject, predicate, object_kind, object, attributes,
-                                   origin, evidence, confidence, validity)
-                SELECT :id, :subject, :predicate, :objectKind, :object, CAST(:attributes AS jsonb),
-                       CAST(:origin AS jsonb), CAST(:evidence AS jsonb), :confidence,
+                INSERT INTO observations (id, claim_id, origin, attributes, evidence, lineage,
+                                          confidence, validity)
+                SELECT :id, :claim, CAST(:origin AS jsonb), CAST(:attributes AS jsonb),
+                       CAST(:evidence AS jsonb), CAST(:lineage AS text[]), :confidence,
                        int8range(:validFrom, CAST(:validTo AS bigint), '[)')
-                WHERE NOT :onlyIfNew OR NOT EXISTS (SELECT 1 FROM facts WHERE id = :id)
+                WHERE NOT :onlyIfNew OR NOT EXISTS (SELECT 1 FROM observations WHERE id = :id)
                 """)
             .param("id", fact.id())
-            .param("subject", fact.subject().toString())
-            .param("predicate", fact.predicate())
-            .param("objectKind", fact.object().kind().jsonName())
-            .param("object", fact.object().value())
-            .param("attributes", FactJson.canonical(fact.attributes()))
+            .param("claim", fact.claimId())
             .param("origin", FactJson.canonical(FactJson.toJson(fact.origin())))
+            .param("attributes", FactJson.canonical(descriptive))
             .param("evidence", FactJson.canonical(FactJson.toJson(fact.evidence())))
+            .param("lineage", "{" + String.join(",", fact.lineage()) + "}")
             .param("confidence", fact.confidence())
             .param("validFrom", fact.validity().from())
             .param("validTo", fact.validity().to())
@@ -437,7 +515,8 @@ public class FactRepository {
     return jdbc.sql(
             "SELECT "
                 + COLUMNS
-                + " FROM facts WHERE id = :id ORDER BY lower(validity) DESC LIMIT 1")
+                + FROM
+                + " WHERE o.id = :id ORDER BY lower(o.validity) DESC LIMIT 1")
         .param("id", id)
         .query(FactRepository::mapRow)
         .optional();
@@ -447,7 +526,8 @@ public class FactRepository {
     return jdbc.sql(
             "SELECT "
                 + COLUMNS
-                + " FROM facts WHERE subject = :subject ORDER BY id, lower(validity)")
+                + FROM
+                + " WHERE c.subject = :subject ORDER BY o.id, lower(o.validity)")
         .param("subject", subject.toString())
         .query(FactRepository::mapRow)
         .list();
@@ -457,7 +537,8 @@ public class FactRepository {
     return jdbc.sql(
             "SELECT "
                 + COLUMNS
-                + " FROM facts WHERE predicate = :predicate ORDER BY id, lower(validity)")
+                + FROM
+                + " WHERE c.predicate = :predicate ORDER BY o.id, lower(o.validity)")
         .param("predicate", predicate)
         .query(FactRepository::mapRow)
         .list();
@@ -467,7 +548,9 @@ public class FactRepository {
     return jdbc.sql(
             "SELECT "
                 + COLUMNS
-                + " FROM facts WHERE object = :object AND object_kind = :objectKind ORDER BY id, lower(validity)")
+                + FROM
+                + " WHERE c.object = :object AND c.object_kind = :objectKind"
+                + " ORDER BY o.id, lower(o.validity)")
         .param("object", object.value())
         .param("objectKind", object.kind().jsonName())
         .query(FactRepository::mapRow)
@@ -487,8 +570,9 @@ public class FactRepository {
     return jdbc.sql(
             "SELECT "
                 + COLUMNS
-                + " FROM facts WHERE validity @> CAST(:snapshot AS bigint)"
-                + " AND evidence->>'repo' IN (:repos) ORDER BY id")
+                + FROM
+                + " WHERE o.validity @> CAST(:snapshot AS bigint)"
+                + " AND o.repo IN (:repos) ORDER BY o.id")
         .param("snapshot", snapshot)
         .param("repos", names)
         .query(FactRepository::mapRow)
@@ -503,7 +587,8 @@ public class FactRepository {
     return jdbc.sql(
             "SELECT "
                 + COLUMNS
-                + " FROM facts WHERE validity @> CAST(:snapshot AS bigint) ORDER BY id")
+                + FROM
+                + " WHERE o.validity @> CAST(:snapshot AS bigint) ORDER BY o.id")
         .param("snapshot", snapshot)
         .query(FactRepository::mapRow)
         .list();
@@ -512,13 +597,17 @@ public class FactRepository {
   private static Fact mapRow(ResultSet rs, int rowNum) throws SQLException {
     long validTo = rs.getLong("valid_to");
     Long to = rs.wasNull() ? null : validTo;
+    List<String> lineage = new ArrayList<>();
+    FactJson.parse(rs.getString("lineage")).forEach(claim -> lineage.add(claim.stringValue()));
     return new Fact(
         rs.getString("id"),
+        rs.getString("claim_id"),
         EntityId.parse(rs.getString("subject")),
         rs.getString("predicate"),
         new FactObject(
             FactObject.Kind.fromJsonName(rs.getString("object_kind")), rs.getString("object")),
         (ObjectNode) FactJson.parse(rs.getString("attributes")),
+        lineage,
         FactJson.originFromJson(FactJson.parse(rs.getString("origin"))),
         FactJson.evidenceFromJson(FactJson.parse(rs.getString("evidence"))),
         rs.getDouble("confidence"),

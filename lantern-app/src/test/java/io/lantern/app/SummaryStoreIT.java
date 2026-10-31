@@ -67,7 +67,7 @@ class SummaryStoreIT {
         object,
         FactJson.newObject(),
         new Origin(Origin.Kind.STATIC, "test", "1"),
-        new Evidence(repo, "b".repeat(40), "pom.xml", null, null),
+        Evidence.of(repo, "pom.xml", null, null),
         1.0,
         Validity.from(1));
   }

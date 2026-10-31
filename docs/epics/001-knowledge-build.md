@@ -231,6 +231,7 @@ A fact's identity becomes what it claims, not where or when it was seen. Sightin
   - validity as a snapshot range
 
   Observations of one (claim, origin) never overlap in validity, the rule today's `facts_versions_do_not_overlap` constraint enforces (V8). A sighting that is unchanged in a later snapshot extends the open range; it does not start a new row.
+  - **Changed by #281, with the owner.** One origin may hold several observations of a claim at once when they differ, such as a runtime link seen from several call sites, whose call sites, routes and paths the documents show; the versions of one observation never overlap (`observations_versions_do_not_overlap`). The observation's ID is the hash of its content without the commit, so stages that cite facts keep their IDs across an unchanged commit until they move to claim IDs. The attributes that name source facts stay until their readers follow lineage (1C). The migration is V19 (ADR 0091).
 - **When a claim holds.** A claim holds in a snapshot while at least one observation of it holds.
   - Two static origins seeing the same thing (an extractor and a learned rule, say) are two observations of one claim.
   - An LLM proposal that repeats a static claim is dropped (section 10, Conflict), so an `llm` observation only ever stands alone or beside other `llm` observations.

@@ -32,7 +32,7 @@ class ExtractedFactsTest {
         FactObject.string("orders"),
         FactJson.newObject(),
         new Origin(Origin.Kind.STATIC, extractor, "1"),
-        new Evidence("shop", COMMIT, path, new Evidence.LineRange(start, end), null),
+        Evidence.of("shop", path, new Evidence.LineRange(start, end), null),
         1.0,
         Validity.from(3));
   }

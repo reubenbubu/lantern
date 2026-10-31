@@ -47,8 +47,8 @@ import org.slf4j.LoggerFactory;
  * units it contains, so each level builds on the one below.
  *
  * <p>A type's prompt also shows its whole source file (see {@link Excerpts}), read through {@link
- * SourceFiles} and shown only when the file matches the content hash of the fact's evidence, with
- * its secrets masked or removed ({@link io.lantern.extract.config.SourceSecrets}) before it is
+ * SourceFiles} and shown only when the file has the git blob of the fact's evidence (ADR 0091),
+ * with its secrets masked or removed ({@link io.lantern.extract.config.SourceSecrets}) before it is
  * sent. A unit whose inputs do not fit the model's context window is summarized in parts that are
  * then merged (see {@link Prompt}). A module's or repository's prompt also shows its fact sheet
  * ({@link FactSheet}): the entry points, links, data stores and technology of its parts, cited like
@@ -458,10 +458,10 @@ public final class Summarizer {
      * while the file is read.
      */
     private Optional<String> text(Evidence evidence) {
-      if (evidence.path() == null || evidence.contentHash() == null) {
+      if (evidence.path() == null || evidence.blob() == null) {
         return Optional.empty();
       }
-      String file = evidence.repo() + '\u0000' + evidence.commit() + '\u0000' + evidence.path();
+      String file = evidence.repo() + '\u0000' + evidence.blob() + '\u0000' + evidence.path();
       synchronized (files) {
         Optional<String> known = files.get(file);
         if (known != null) {

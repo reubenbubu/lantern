@@ -561,7 +561,8 @@ export function EntityLink({
 }
 
 function describeFact(fact: FactEnvelope): string {
-  const { evidence } = fact;
+  // The first location is the one the fact is declared in (ADR 0091).
+  const evidence = fact.evidence[0];
   const where = [evidence.repo, evidence.path].filter(Boolean).join('/');
   const lines = evidence.lines ? `:${evidence.lines.start}-${evidence.lines.end}` : '';
   return `${fact.subject} ${fact.predicate} ${String(fact.object.value)} (${where}${lines}, ${fact.origin.kind})`;

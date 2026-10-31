@@ -1,8 +1,10 @@
 package io.lantern.compose;
 
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Git;
+import io.lantern.core.repo.GitTree;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.snapshot.Snapshot;
@@ -82,10 +84,11 @@ record FixtureSnapshot(
               new Repo(entry.getKey(), dir.toRealPath(), RepoSettings.DEFAULT), commit, null));
       commits.put(entry.getKey(), commit);
     }
-    List<Fact> facts = new ArrayList<>(new MavenExtractor().extract(repos, NUMBER));
-    facts.addAll(new JavaExtractor().extract(repos, NUMBER));
+    List<Fact> extracted = new ArrayList<>(new MavenExtractor().extract(repos, NUMBER));
+    extracted.addAll(new JavaExtractor().extract(repos, NUMBER));
     Map<String, Path> directories = new TreeMap<>();
     repos.forEach(repo -> directories.put(repo.repo().name(), repo.repo().path()));
+    List<Fact> facts = withBlobs(extracted, directories, commits);
     FakeLlmProvider fake = fake();
     Summarizer summarizer =
         new Summarizer(fakeClient(fake), new InMemorySummaryStore(), sources(directories));
@@ -104,6 +107,33 @@ record FixtureSnapshot(
         List.copyOf(facts),
         summaries,
         fake.sent().stream().map(FakeLlmProvider.Sent::request).toList());
+  }
+
+  /**
+   * The facts as the store records them: each evidence file git holds named by its blob instead of
+   * its content hash (ADR 0091).
+   */
+  static List<Fact> withBlobs(
+      List<Fact> facts, Map<String, Path> directories, Map<String, String> commits) {
+    Map<String, Map<String, String>> trees = new TreeMap<>();
+    commits.forEach(
+        (repo, commit) ->
+            trees.put(repo, GitTree.blobs(directories.get(repo), commit).orElse(Map.of())));
+    List<Fact> stored = new ArrayList<>();
+    for (Fact fact : facts) {
+      Evidence evidence =
+          fact.evidence()
+              .map(
+                  location -> {
+                    String blob =
+                        location.path() == null
+                            ? null
+                            : trees.getOrDefault(location.repo(), Map.of()).get(location.path());
+                    return blob == null ? location : location.withBlob(blob);
+                  });
+      stored.add(evidence.equals(fact.evidence()) ? fact : fact.withEvidence(evidence));
+    }
+    return stored;
   }
 
   /** Reads the fixture repositories' files from git. */

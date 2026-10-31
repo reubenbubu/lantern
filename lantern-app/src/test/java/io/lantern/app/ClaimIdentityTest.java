@@ -334,9 +334,8 @@ class ClaimIdentityTest {
         object,
         attributes,
         new Origin(Origin.Kind.STATIC, "test", String.valueOf(sighting)),
-        new Evidence(
+        Evidence.of(
             "repo-" + sighting,
-            commit,
             "File" + sighting + ".java",
             new Evidence.LineRange(sighting, sighting + 3),
             null),
