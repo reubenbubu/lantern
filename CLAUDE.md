@@ -7,9 +7,18 @@ changes them. This file covers only how you work.
 
 ## Talking to the user
 
-- Short, plain English. Lead with the point. No walls of text, few tables.
+- Write like you are talking to a colleague who has not read the code, the issue or the epic.
+  Short sentences, plain words, the point first. No walls of text.
+- Say what something does before giving its name or number: "the task that stores fewer boxes
+  per service (#271)", not "#271". Never answer with bare issue numbers, milestone codes
+  ("1B", "2E.1") or class names alone.
+- No jargon or internal shorthand in chat (fingerprints, observations, packets, lineage) unless
+  the user used it first; if a term is needed, explain it in a few words the first time.
+- Tables only when comparing several things side by side; otherwise short sentences or a short
+  list.
 - Ask at most one or two questions at a time, each with your recommendation.
-- Report each finished task in two or three lines in chat. Nothing more unless asked.
+- Report each finished task in two or three lines in chat: what changed, in plain words, and
+  anything the user needs to do. Nothing more unless asked.
 - The user does not review code. You are responsible for getting it right.
 
 ## How work is organized
