@@ -29,14 +29,14 @@ class StreamBindingsTest {
   @TempDir Path temp;
 
   private static List<Fact> extract(List<RepoBuild> inputs) throws IOException {
-    List<Fact> facts = new MessagingExtractor().extract(inputs, SNAPSHOT);
+    List<Fact> facts = Resolved.facts(inputs, SNAPSHOT);
     Fixtures.checkEnvelope(
         facts,
         inputs.stream().map(RepoBuild::repo).toList(),
         SNAPSHOT,
         MessagingExtractor.NAME,
         MessagingExtractor.VERSION);
-    assertThat(new MessagingExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
+    assertThat(Resolved.facts(inputs, SNAPSHOT)).isEqualTo(facts);
     return facts;
   }
 
@@ -54,6 +54,14 @@ class StreamBindingsTest {
     List<Fact> facts = extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
     Fixtures.assertGolden("messaging/stream-parsed.txt", facts);
+    // The extractor itself records each value as written, resolving none (ADR 0094, #559).
+    List<Fact> written =
+        new MessagingExtractor()
+            .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT);
+    Fixtures.checkEnvelope(
+        written, List.of(repo), SNAPSHOT, MessagingExtractor.NAME, MessagingExtractor.VERSION);
+    Fixtures.assertGolden("messaging/stream-written.txt", written);
+    assertThat(Fixtures.render(written)).doesNotContain("s3cret").doesNotContain("\"profile\"");
     assertThat(Fixtures.render(facts)).doesNotContain("s3cret");
   }
 
@@ -191,9 +199,8 @@ class StreamBindingsTest {
                 temp, repo, commit, "com.example.stream", "stream", List.of()));
 
     JavaAnalysis code = JavaExtractor.analyze(List.of(built));
-    List<Fact> compiled = new MessagingExtractor().extract(code, SNAPSHOT);
-    List<Fact> parsed =
-        new MessagingExtractor().extract(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT);
+    List<Fact> compiled = Resolved.facts(code, SNAPSHOT);
+    List<Fact> parsed = Resolved.facts(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT);
 
     assertThat(code.modules()).singleElement().matches(JavaAnalysis.Module::compiled);
     List<String> lines = withoutConfidence(compiled);
@@ -235,6 +242,55 @@ class StreamBindingsTest {
         }
       }
       """;
+
+  @Test
+  void aLegacyListenerOnRabbitMqGivesTheBindingItGaveBefore() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("legacy-rabbit"),
+            "orders",
+            Map.of(
+                "pom.xml",
+                POM,
+                "src/main/resources/application.properties",
+                """
+                spring.rabbitmq.host=localhost
+                spring.cloud.stream.bindings.input.destination=orders
+                spring.cloud.stream.bindings.input.group=shop
+                """,
+                "src/main/java/com/example/orders/OrdersHandler.java",
+                """
+                package com.example.orders;
+
+                import org.springframework.cloud.stream.annotation.StreamListener;
+
+                public class OrdersHandler {
+                  @StreamListener("input")
+                  public void handle(String order) {}
+                }
+                """));
+
+    // Not through extract(): the binding also keeps the listener's annotation, as before, which
+    // its type does not declare (#565).
+    List<String> facts =
+        lines(Resolved.facts(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT));
+
+    // The binding's kind as the code names it (a binding) is not the destination's.
+    assertThat(facts)
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "method:com.example.orders.OrdersHandler#handle(java.lang.String)"
+                            + " message-binding orders.shop ")
+                    && l.contains("\"exchange\":\"orders\"")
+                    && !l.contains("destinationKind"))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        "method:com.example.orders.OrdersHandler#handle(java.lang.String)"
+                            + " message-listener orders.shop ")
+                    && l.contains("\"destinationKind\":\"queue\""));
+  }
 
   @Test
   void theOnlyFunctionIsBoundAndTheBinderToldFromTheConfig() throws IOException {
@@ -428,10 +484,8 @@ class StreamBindingsTest {
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
     // Without the code's keys the name alone does not show jwt.key is a secret.
-    assertThat(Fixtures.render(new MessagingExtractor().extract(code, SNAPSHOT)))
-        .contains("literal-test-value");
-    List<Fact> masked =
-        new MessagingExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key"));
+    assertThat(Fixtures.render(Resolved.facts(code, SNAPSHOT))).contains("literal-test-value");
+    List<Fact> masked = Resolved.facts(code, SNAPSHOT, java.util.Set.of("jwt.key"));
     assertThat(Fixtures.render(masked))
         .doesNotContain("literal-test-value")
         .contains("tenant-${jwt.key}");

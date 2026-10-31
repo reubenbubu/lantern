@@ -13,8 +13,8 @@ import tools.jackson.databind.node.ObjectNode;
  * StreamBridge.send or a legacy &#64;Output channel): the topic, destination, exchange or queue it
  * sends to, with constants folded, placeholders resolved and a value followed one hop from a
  * &#64;Value field or parameter. A send through the RabbitMQ default exchange is recorded as a send
- * to the queue its routing key names. Values resolved from config are those of the default view
- * unless profile is set.
+ * to the queue its routing key names. Linking records these facts from the SENDS_TO facts (ADR
+ * 0094, #559); values resolved from config are those of the default view unless profile is set.
  *
  * @param binding Descriptive. The Spring Cloud Stream binding sent through, such as supply-out-0,
  *     or the name given to StreamBridge.send; its config gives the destination, else the name is

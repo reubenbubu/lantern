@@ -11,8 +11,9 @@ import tools.jackson.databind.node.ObjectNode;
  * messages from a broker (&#64;KafkaListener, &#64;JmsListener, &#64;RabbitListener, directly,
  * through a meta-annotation, or on its class with &#64;KafkaHandler or &#64;RabbitHandler; or a
  * Spring Cloud Stream input binding of a function bean or a &#64;StreamListener): the topic, topic
- * pattern, queue or destination it listens on, one fact for each, with placeholders resolved
- * against the config of the method's module.
+ * pattern, queue or destination it listens on, one fact for each, as linking resolves the
+ * LISTENS_ON facts in each view (ADR 0094, #559): placeholders resolved against the config of the
+ * method's module.
  *
  * @param annotation Descriptive. The binary name of the annotation written that makes the method a
  *     listener. Absent for a Spring Cloud Stream function, which none does.

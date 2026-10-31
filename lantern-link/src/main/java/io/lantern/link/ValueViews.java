@@ -12,6 +12,7 @@ import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
+import io.lantern.extract.messaging.MessagingExtractor;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,7 +37,12 @@ import tools.jackson.databind.node.ObjectNode;
  *       one for the default view and one for each profile whose URL differs (#557);
  *   <li>a gateway route built in code ({@code gateway-route-written}) gives its {@code
  *       gateway-route} facts, and each module's config gives the routes, Zuul routes and discovery
- *       locator it defines, through the gateway extractor's own reading (#558).
+ *       locator it defines, through the gateway extractor's own reading (#558);
+ *   <li>a send, listener, binding or declaration written in code ({@code SENDS_TO}, {@code
+ *       LISTENS_ON}, {@code BINDS}, {@code DECLARES}) gives its {@code message-send}, {@code
+ *       message-listener}, {@code message-binding} or {@code message-destination} facts, and each
+ *       module's Spring Cloud Stream functions their bindings', through the messaging extractor's
+ *       own resolving, and a STOMP send written in code its {@code stomp-send} fact (#559).
  * </ul>
  *
  * <p>The value resolution rule of #522 replaces this step with {@code RESOLVES_TO} claims.
@@ -68,6 +74,20 @@ public final class ValueViews implements LinkStep {
     Map<String, Fact> derived = new LinkedHashMap<>();
     for (Fact route : gatewayRoutes(facts, values, snapshot)) {
       derived.putIfAbsent(route.id(), route);
+    }
+    java.util.Set<String> known =
+        ConfigExtractor.normalizedKeys(ConfigExtractor.jwtSecretKeys(facts));
+    for (Fact message :
+        MessagingExtractor.resolve(
+            facts,
+            (module, repo) -> lookup(values.forModule(module, repo), known),
+            ORIGIN,
+            snapshot)) {
+      derived.putIfAbsent(message.id(), message);
+    }
+    for (Fact send :
+        io.lantern.extract.websocket.WebSocketExtractor.sends(facts, ORIGIN, snapshot)) {
+      derived.putIfAbsent(send.id(), send);
     }
     for (Fact f : facts) {
       if (f.predicate().equals(HttpClientExtractor.SENT_BY)
@@ -212,6 +232,45 @@ public final class ValueViews implements LinkStep {
         evidence,
         f.confidence(),
         f.validity());
+  }
+
+  /** A module's config as the messaging extractor resolves its values, from the config facts. */
+  private static io.lantern.extract.config.ValueLookup lookup(
+      CodeValues.View view, java.util.Set<String> known) {
+    Map<String, java.util.SortedMap<String, ConfigValue>> read = new java.util.HashMap<>();
+    return new io.lantern.extract.config.ValueLookup() {
+      @Override
+      public List<String> views() {
+        return view.views();
+      }
+
+      @Override
+      public java.util.SortedMap<String, ConfigValue> values(String profile) {
+        return read.computeIfAbsent(
+            profile,
+            k -> {
+              java.util.SortedMap<String, ConfigValue> values = new java.util.TreeMap<>();
+              view.facts(profile).forEach((key, f) -> values.put(key, configValue(key, f)));
+              return java.util.Collections.unmodifiableSortedMap(values);
+            });
+      }
+
+      @Override
+      public CodeConfig.CodeValue value(String profile, String written) {
+        CodeValues.Value v = view.value(profile, written);
+        return new CodeConfig.CodeValue(v.value(), v.written(), v.unresolved(), v.masked());
+      }
+
+      @Override
+      public CodeConfig.CodeValue value(ConfigValue v) {
+        return CodeConfig.CodeValue.of(v.value(), v.written(), v.unresolved(), v.used(), known);
+      }
+
+      @Override
+      public boolean isSecret(String key) {
+        return ConfigExtractor.isSecret(key, known);
+      }
+    };
   }
 
   /** A module's config as the gateway's reading resolves a route built in code. */

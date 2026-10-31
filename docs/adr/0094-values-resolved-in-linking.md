@@ -77,10 +77,15 @@ a slice changes no document. The facts' IDs change with their origin, so a real 
 again where a prompt cites one; they carry no lineage to the facts they come from until #522. The HTTP client's requests are the first kind
 (ADR 0038, amendment for #557). Gateway routes are the second (ADR 0077, amendment for #558): routes
 built in code are resolved like requests, and the routes config defines are read from the config
-facts, through the gateway extractor's own reading of config. #522 replaces the step's facts with `RESOLVES_TO` claims, and the
-readers move to the entities with #521.
+facts, through the gateway extractor's own reading of config. Message destinations are the third
+(ADR 0037 and ADR 0040, amendments for #559): sends, listeners, bindings and declarations are
+relationships to destination entities with their values as written, Spring Cloud Stream functions
+and bindings are recorded as the code names them, and the step resolves and binds them through the
+messaging extractor's own code, with the module's config read from its facts. STOMP pushes become
+relationships to destinations too (ADR 0080, amendment for #559). #522 replaces the step's facts
+with `RESOLVES_TO` claims, and the readers move to the entities with #521.
 
-Extraction coverage counts the step's facts as their extractor's (ADR 0089, amendment for #558).
+Extraction coverage counts the step's facts as their extractor's (ADR 0089, amendment for #558; the messaging and STOMP facts from #559).
 
 ## Consequences
 

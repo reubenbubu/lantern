@@ -49,7 +49,7 @@ public final class CodeConfig {
   }
 
   /** Config for one module's code, or for none. */
-  public final class View {
+  public final class View implements ValueLookup {
 
     private final ModuleConfig config;
 
@@ -57,7 +57,7 @@ public final class CodeConfig {
       this.config = config;
     }
 
-    /** Whether a key names a secret, by its name or because the code uses it as one. */
+    @Override
     public boolean isSecret(String key) {
       return ConfigExtractor.isSecret(key, known);
     }
@@ -73,7 +73,18 @@ public final class CodeConfig {
       return value(r.value(), written, r.unresolved(), r.used());
     }
 
+    @Override
+    public CodeValue value(String view, String written) {
+      return value(resolve(view, written), written);
+    }
+
+    @Override
+    public CodeValue value(ConfigValue v) {
+      return value(v.value(), v.written(), v.unresolved(), v.used());
+    }
+
     /** The views to resolve placeholders in: the default view (null), then each profile. */
+    @Override
     public List<String> views() {
       List<String> views = new ArrayList<>();
       views.add(null);
@@ -87,6 +98,7 @@ public final class CodeConfig {
      * The config's values with a profile active (null for the default view), empty without config.
      * They are not masked: see {@link ModuleConfig#values}.
      */
+    @Override
     public SortedMap<String, ConfigValue> values(String profile) {
       return config == null ? Collections.emptySortedMap() : config.values(profile);
     }

@@ -1,8 +1,8 @@
 package io.lantern.extract.messaging;
 
 import io.lantern.extract.RepoBuild;
-import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.ConfigValue;
+import io.lantern.extract.config.ValueLookup;
 import io.lantern.sandbox.BuildModule;
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
@@ -45,53 +45,54 @@ final class StreamConfig {
           "spring.cloud.stream.rabbit.", MessagingExtractor.RABBITMQ,
           "spring.rabbitmq.", MessagingExtractor.RABBITMQ);
 
-  private final CodeConfig.View config;
-  private final List<String> jars;
-  private final RepoBuild repo;
-  private final String directory;
-  private List<String> declared;
+  private final ValueLookup config;
+  private final boolean onClasspath;
+  private final Set<String> binders;
+  private final String label;
   private final Set<String> warned = new HashSet<>();
 
   private static final System.Logger LOG = System.getLogger(StreamConfig.class.getName());
 
   /**
    * @param config the module's config
-   * @param repo the module's repository, with its build if any
-   * @param directory the module's directory
+   * @param onClasspath whether Spring Cloud Stream is on the module's classpath ({@link
+   *     #onClasspath(RepoBuild, String)})
+   * @param binders the brokers of the binders on it ({@link #binders(RepoBuild, String)})
+   * @param label the module, as warnings name it
    */
-  StreamConfig(CodeConfig.View config, RepoBuild repo, String directory) {
+  StreamConfig(ValueLookup config, boolean onClasspath, Set<String> binders, String label) {
     this.config = config;
+    this.onClasspath = onClasspath;
+    this.binders = Set.copyOf(binders);
+    this.label = label;
+  }
+
+  /**
+   * The artifacts on a module's build classpath, or when there is no build, the artifact IDs its
+   * POM and its in-repository parents declare.
+   */
+  private static List<String> artifacts(RepoBuild repo, String directory) {
+    if (repo.build() == null) {
+      return PomDependencies.artifactIds(repo, directory);
+    }
     List<String> names = new ArrayList<>();
-    if (repo.build() != null) {
-      for (BuildModule m : repo.build().modules()) {
-        if (m.path().equals(directory)) {
-          for (String entry : m.classpath()) {
-            names.add(entry.substring(entry.lastIndexOf('/') + 1));
-          }
+    for (BuildModule m : repo.build().modules()) {
+      if (m.path().equals(directory)) {
+        for (String entry : m.classpath()) {
+          names.add(entry.substring(entry.lastIndexOf('/') + 1));
         }
       }
     }
-    this.jars = List.copyOf(names);
-    this.repo = repo;
-    this.directory = directory;
-  }
-
-  /** The artifact IDs the module's POM and its in-repository parents declare, read once. */
-  private List<String> declared() {
-    if (declared == null) {
-      declared = PomDependencies.artifactIds(repo, directory);
-    }
-    return declared;
+    return names;
   }
 
   /**
    * The brokers of the binders the build classpath holds, or when there is no build, the binders
    * (or their starters) the POMs declare.
    */
-  private Set<String> binderBrokers() {
+  static Set<String> binders(RepoBuild repo, String directory) {
     Set<String> found = new TreeSet<>();
-    List<String> artifacts = repo.build() != null ? jars : declared();
-    for (String artifact : artifacts) {
+    for (String artifact : artifacts(repo, directory)) {
       if (artifact.startsWith("spring-cloud-stream-binder-kafka")
           || artifact.startsWith("spring-cloud-starter-stream-kafka")) {
         found.add(MessagingExtractor.KAFKA);
@@ -101,6 +102,14 @@ final class StreamConfig {
       }
     }
     return found;
+  }
+
+  /** Whether Spring Cloud Stream is on the build classpath, or without a build, in the POMs. */
+  static boolean onClasspath(RepoBuild repo, String directory) {
+    return artifacts(repo, directory).stream()
+        .anyMatch(
+            a ->
+                a.startsWith("spring-cloud-stream") || a.startsWith("spring-cloud-starter-stream"));
   }
 
   /**
@@ -113,11 +122,7 @@ final class StreamConfig {
         return true;
       }
     }
-    List<String> artifacts = repo.build() != null ? jars : declared();
-    return artifacts.stream()
-        .anyMatch(
-            a ->
-                a.startsWith("spring-cloud-stream") || a.startsWith("spring-cloud-starter-stream"));
+    return onClasspath;
   }
 
   /**
@@ -153,8 +158,7 @@ final class StreamConfig {
     if (v == null) {
       v = values.get("spring.cloud.stream.function.bindings[" + binding + "]");
     }
-    boolean exposes =
-        v == null || config.value(v.value(), v.written(), v.unresolved(), v.used()).masked();
+    boolean exposes = v == null || config.value(v).masked();
     return exposes || v.value().isBlank() ? binding : v.value().trim();
   }
 
@@ -193,10 +197,9 @@ final class StreamConfig {
       LOG.log(
           Level.WARNING,
           "No Kafka or RabbitMQ binder can be told for Spring Cloud Stream binding {0} of {1}"
-              + " ({2}){3}; it gives no messaging facts",
+              + "{2}; it gives no messaging facts",
           binding == null ? "(unknown name)" : binding,
-          repo.repo().name(),
-          directory.isEmpty() ? "top module" : directory,
+          label,
           profile == null ? "" : " in profile " + profile);
     }
     return broker;
@@ -228,7 +231,7 @@ final class StreamConfig {
     if (!configured.isEmpty()) {
       return configured.size() == 1 && !configured.contains("") ? configured.first() : null;
     }
-    Set<String> found = binderBrokers();
+    Set<String> found = new TreeSet<>(binders);
     if (found.isEmpty()) {
       for (String key : config.values(profile).keySet()) {
         HINTS.forEach(
@@ -304,8 +307,7 @@ final class StreamConfig {
   }
 
   private boolean exposesSecret(ConfigValue v) {
-    return config.isSecret(v.key())
-        || config.value(v.value(), v.written(), v.unresolved(), v.used()).masked();
+    return config.isSecret(v.key()) || config.value(v).masked();
   }
 
   private static String camel(String kebab) {

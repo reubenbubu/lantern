@@ -10,14 +10,15 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
+import io.lantern.extract.EntityKeys;
 import io.lantern.extract.ExtractionContext;
 import io.lantern.extract.ExtractionUnit;
 import io.lantern.extract.Extractor;
 import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
-import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.CodeConfig.CodeValue;
 import io.lantern.extract.config.ConfigValue;
+import io.lantern.extract.config.ValueLookup;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -70,7 +71,7 @@ public final class MessagingExtractor implements Extractor {
   public static final String NAME = "messaging";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "6";
+  public static final String VERSION = "7";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
@@ -86,6 +87,68 @@ public final class MessagingExtractor implements Extractor {
 
   /** Attribute: the method declares a queue, exchange or topic. */
   public static final String DESTINATION = "message-destination";
+
+  /** Entity: a destination of a broker, as code names it. */
+  public static final String DESTINATION_ENTITY = "destination";
+
+  /** Relationship: the method sends to the destination (ADR 0094, #559). */
+  public static final String SENDS_TO = "SENDS_TO";
+
+  /** Relationship: the method listens on the destination. */
+  public static final String LISTENS_ON = "LISTENS_ON";
+
+  /** Relationship: the method binds the destination, a RabbitMQ queue, to an exchange. */
+  public static final String BINDS = "BINDS";
+
+  /** Relationship: the method, or a type for a field initializer, declares the destination. */
+  public static final String DECLARES = "DECLARES";
+
+  /** Attribute: the method is a function bean Spring Cloud Stream may bind. */
+  public static final String STREAM_FUNCTION = "stream-function";
+
+  /** The broker of a destination that is a Spring Cloud Stream binding, as code names it. */
+  public static final String STREAM = "stream";
+
+  /** The kind of a destination that is a Spring Cloud Stream binding. */
+  public static final String BINDING_KIND = "binding";
+
+  /**
+   * The brokers of the destinations this extractor records, a Spring Cloud Stream binding's too.
+   */
+  private static final Set<String> BROKERS = Set.of("kafka", "jms", "rabbitmq", STREAM);
+
+  /** The relationship recorded as written for each fact linking records, and back. */
+  private static final Map<String, String> RELATIONS =
+      Map.of(SEND, SENDS_TO, LISTENER, LISTENS_ON, BINDING, BINDS, DESTINATION, DECLARES);
+
+  private static final Map<String, String> PREDICATES =
+      Map.of(SENDS_TO, SEND, LISTENS_ON, LISTENER, BINDS, BINDING, DECLARES, DESTINATION);
+
+  /** The attribute of a written fact holding the destination's name as written. */
+  private static final String NAME_VALUE = "name";
+
+  /** The values besides the name a written fact holds as written, which config may resolve. */
+  private static final List<String> VALUES =
+      List.of(
+          "routingKey",
+          "group",
+          "exchange",
+          "deadLetterExchange",
+          "deadLetterRoutingKey",
+          "binder");
+
+  private static final String FOLLOWED_SUFFIX = "Followed";
+
+  /** The attributes of a written fact that only say where its values come from. */
+  private static final List<String> WRITTEN_ONLY =
+      List.of(
+          NAME_VALUE,
+          "configured",
+          "followed",
+          "configModule",
+          "configRepo",
+          "streamOnClasspath",
+          "binders");
 
   /** Brokers. */
   public static final String KAFKA = "kafka";
@@ -244,32 +307,27 @@ public final class MessagingExtractor implements Extractor {
   }
 
   /**
-   * Extracts the facts of a snapshot's code already read by {@link JavaExtractor#analyze}.
+   * Extracts the facts of a snapshot's code already read by {@link JavaExtractor#analyze}: each
+   * send, listener, binding and declaration as written, a relationship to its destination, and the
+   * functions Spring Cloud Stream may bind. {@link #resolve} gives the facts their values give in
+   * each view.
    *
    * @param code the code of the snapshot's repositories
    * @param snapshot the snapshot number the facts hold from
    * @return the facts, without duplicates, ordered by subject, predicate, object, attributes and ID
-   * @throws IllegalStateException if git fails or times out while reading config
+   * @throws UncheckedIOException if a POM cannot be read
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
-    return extract(code, snapshot, Set.of());
-  }
-
-  /**
-   * As {@link #extract(JavaAnalysis, long)}, masking the values of config keys known to hold a
-   * secret whatever they are called (ADR 0032, amendment for #338).
-   *
-   * @param secretKeys config keys known to hold a secret, such as {@link
-   *     io.lantern.extract.config.ConfigExtractor#jwtSecretKeys}
-   */
-  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Objects.requireNonNull(secretKeys, "secretKeys");
-    Run run = new Run(code, Validity.from(snapshot), secretKeys);
+    Run run = new Run(code, Validity.from(snapshot));
     for (JavaAnalysis.Module module : code.modules()) {
       run.module(module);
     }
-    return run.facts.values().stream()
+    return sorted(run.facts.values());
+  }
+
+  private static List<Fact> sorted(java.util.Collection<Fact> facts) {
+    return facts.stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
                 .thenComparing(Fact::predicate)
@@ -277,6 +335,78 @@ public final class MessagingExtractor implements Extractor {
                 .thenComparing(f -> f.attributes().toString())
                 .thenComparing(Fact::id))
         .toList();
+  }
+
+  /**
+   * The facts linking gives from the values this extractor keeps as written (ADR 0094, #559): each
+   * written send, listener, binding and declaration resolved in each view of its module's config,
+   * and the bindings of each module's Spring Cloud Stream functions, as this extractor recorded
+   * them before: {@value #SEND}, {@value #LISTENER}, {@value #BINDING} and {@value #DESTINATION}
+   * facts, the default view's and each differing profile's. A value a secret was substituted into
+   * is recorded as written, with {@code masked}.
+   *
+   * @param facts the snapshot's facts; only the written ones of this extractor are read
+   * @param config the config of a module, by its entity ID and its repository's name
+   * @param origin the origin of the facts
+   * @param snapshot the snapshot number the facts hold from
+   * @return the facts, ordered as {@link #extract(JavaAnalysis, long)} orders its own
+   */
+  public static List<Fact> resolve(
+      List<Fact> facts,
+      java.util.function.BiFunction<EntityId, String, ValueLookup> config,
+      Origin origin,
+      long snapshot) {
+    Objects.requireNonNull(facts, "facts");
+    Objects.requireNonNull(config, "config");
+    Validity validity = Validity.from(snapshot);
+    Map<String, Fact> out = new LinkedHashMap<>();
+    Map<String, Emitter> emitters = new LinkedHashMap<>();
+    Map<String, Map<String, Emitter.Bound>> functions = new LinkedHashMap<>();
+    for (Fact f : facts) {
+      boolean function = f.predicate().equals(STREAM_FUNCTION);
+      boolean written =
+          PREDICATES.containsKey(f.predicate())
+              && f.object().kind() == FactObject.Kind.ENTITY
+              && f.object().entityId().type().equals(DESTINATION_ENTITY)
+              && BROKERS.contains(f.attributes().path("broker").stringValue(null));
+      if (!function && !written) {
+        continue;
+      }
+      JsonNode a = f.attributes();
+      String module = a.path("configModule").stringValue(null);
+      String repo = a.path("configRepo").stringValue(null);
+      if (module == null || repo == null) {
+        continue;
+      }
+      String key = module + "\0" + repo;
+      Emitter emitter =
+          emitters.computeIfAbsent(
+              key,
+              k -> new Emitter(config.apply(EntityId.parse(module), repo), origin, validity, out));
+      if (function || STREAM.equals(a.path("broker").stringValue(null))) {
+        Set<String> binders = new TreeSet<>();
+        a.path("binders").forEach(b -> binders.add(b.stringValue()));
+        emitter.stream(
+            a.path("streamOnClasspath").asBoolean(false), binders, module + " (" + repo + ")");
+      }
+      Source src = new Source(f.evidence(), f.confidence());
+      if (function) {
+        FunctionKind kind =
+            new FunctionKind(a.path("inputs").asInt(0), a.path("outputs").asInt(0), null);
+        functions
+            .computeIfAbsent(key, k -> new LinkedHashMap<>())
+            .putIfAbsent(f.object().value(), new Emitter.Bound(f.subject(), src, kind));
+      } else {
+        emitter.written(f.subject(), f.predicate(), a, src);
+      }
+    }
+    functions.forEach((key, bound) -> emitters.get(key).functions(bound));
+    return sorted(out.values());
+  }
+
+  /** Whether config may resolve a text: it is read with placeholders and has one. */
+  private static boolean configured(Text t) {
+    return t.placeholders() && t.written().contains("${");
   }
 
   /**
@@ -334,11 +464,15 @@ public final class MessagingExtractor implements Extractor {
     private final JavaAnalysis code;
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
-    private final CodeConfig configs;
     private final Map<EntityId, List<Invocation>> invocationsByCaller = new HashMap<>();
 
     private JavaAnalysis.Module module;
-    private CodeConfig.View config;
+
+    /** Whether Spring Cloud Stream is on the module's classpath, read when first needed. */
+    private Boolean streamOnClasspath;
+
+    /** The brokers of the Spring Cloud Stream binders on the module's classpath. */
+    private Set<String> binders;
 
     /** The module's {@code @Bean} methods by bean name. */
     private Map<String, EntityId> beans;
@@ -346,10 +480,7 @@ public final class MessagingExtractor implements Extractor {
     /** The module's {@code @Bean} methods by the {@code @Qualifier} written on them. */
     private Map<String, EntityId> qualified;
 
-    private StreamConfig stream;
-
-    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
-      this.configs = new CodeConfig(secretKeys);
+    Run(JavaAnalysis code, Validity validity) {
       this.code = code;
       this.validity = validity;
       for (JavaAnalysis.Module m : code.modules()) {
@@ -361,7 +492,8 @@ public final class MessagingExtractor implements Extractor {
 
     void module(JavaAnalysis.Module m) {
       this.module = m;
-      this.config = configs.forModule(m.repo(), m.directory());
+      this.streamOnClasspath = null;
+      this.binders = null;
       this.beans = new HashMap<>();
       this.qualified = new HashMap<>();
       for (TypeDecl type : m.structure().types()) {
@@ -386,7 +518,6 @@ public final class MessagingExtractor implements Extractor {
         binding(i);
         declaration(i);
       }
-      this.stream = new StreamConfig(config, m.repo(), m.directory());
       functions(m);
       for (TypeDecl type : m.structure().types()) {
         streamListeners(type);
@@ -663,8 +794,10 @@ public final class MessagingExtractor implements Extractor {
     }
 
     /**
-     * A RabbitMQ send: to the exchange with the routing key, or, in a view where the exchange is
-     * the default one ({@code ""}), to the queue the routing key names, as the broker routes it.
+     * A RabbitMQ send: to the exchange with the routing key, or, where the exchange is the default
+     * one ({@code ""}), to the queue the routing key names, as the broker routes it. An exchange
+     * config gives is recorded as written; linking tells in each view whether it is the default
+     * one.
      */
     private void rabbitSend(
         EntityId subject,
@@ -673,14 +806,14 @@ public final class MessagingExtractor implements Extractor {
         boolean keyUnknown,
         ObjectNode common,
         Location where) {
+      ObjectNode attributes = common.deepCopy();
+      Map<String, Text> named = new LinkedHashMap<>();
       if (exchange == null) {
         // An exchange the code does not fix (a getter on the message) is kept, marked unknown,
         // as a send with an unknown routing key is.
-        ObjectNode attributes = common.deepCopy();
         attributes.put("destinationKind", "exchange");
         ArrayNode unknown = attributes.putArray("unknown");
         unknown.add("exchange");
-        Map<String, Text> named = new LinkedHashMap<>();
         if (key != null) {
           named.put("routingKey", key);
         } else if (keyUnknown) {
@@ -689,29 +822,20 @@ public final class MessagingExtractor implements Extractor {
         emit(subject, SEND, Text.literal(UNKNOWN_EXCHANGE), named, attributes, where);
         return;
       }
-      emitViews(
-          subject,
-          SEND,
-          where,
-          profile -> {
-            CodeValue resolved = resolve(profile, exchange);
-            ObjectNode attributes = common.deepCopy();
-            if (!resolved.masked() && resolved.value().isEmpty()) {
-              if (key == null) {
-                return null;
-              }
-              attributes.put("destinationKind", "queue");
-              return new Shape(key, Map.of(), attributes);
-            }
-            attributes.put("destinationKind", "exchange");
-            Map<String, Text> named = new LinkedHashMap<>();
-            if (key != null) {
-              named.put("routingKey", key);
-            } else if (keyUnknown) {
-              attributes.putArray("unknown").add("routingKey");
-            }
-            return new Shape(exchange, named, attributes);
-          });
+      if (!configured(exchange) && exchange.written().isEmpty()) {
+        if (key != null) {
+          attributes.put("destinationKind", "queue");
+          emit(subject, SEND, key, named, attributes, where);
+        }
+        return;
+      }
+      attributes.put("destinationKind", "exchange");
+      if (key != null) {
+        named.put("routingKey", key);
+      } else if (keyUnknown) {
+        attributes.putArray("unknown").add("routingKey");
+      }
+      emit(subject, SEND, exchange, named, attributes, where);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -1052,13 +1176,11 @@ public final class MessagingExtractor implements Extractor {
     /** A function bean Spring Cloud Stream may bind: the method that is it, and its kind. */
     private record Bound(EntityId method, Location where, FunctionKind kind) {}
 
-    /** A binding of a function: the method it is on, whether it is an input, and its name. */
-    private record FunctionBinding(EntityId method, Location where, boolean input, String name) {}
-
     /**
-     * The functions' bindings: {@code @Bean} methods returning a {@code Function}, {@code Consumer}
-     * or {@code Supplier} (or their two-input forms), and components implementing one, bound in
-     * each view as the function definition says, or the only one when none is set.
+     * The functions Spring Cloud Stream may bind: {@code @Bean} methods returning a {@code
+     * Function}, {@code Consumer} or {@code Supplier} (or their two-input forms), and components
+     * implementing one, each a {@value #STREAM_FUNCTION} fact named after its bean. Linking binds
+     * them in each view as the module's config says.
      */
     private void functions(JavaAnalysis.Module m) {
       Map<String, Bound> functions = new LinkedHashMap<>();
@@ -1076,73 +1198,14 @@ public final class MessagingExtractor implements Extractor {
           functions.putIfAbsent(componentName(type), component);
         }
       }
-      if (functions.isEmpty()) {
-        return;
-      }
-      Map<String, Set<FunctionBinding>> byView = new HashMap<>();
-      Set<FunctionBinding> all = new LinkedHashSet<>();
-      for (String profile : config.views()) {
-        Set<FunctionBinding> bound = functionBindings(profile, functions);
-        byView.put(profile, bound);
-        all.addAll(bound);
-      }
-      for (FunctionBinding b : all) {
-        Function<String, String> name =
-            profile -> byView.get(profile).contains(b) ? b.name() : null;
-        if (b.input()) {
-          streamInput(b.method(), b.where(), name, FactJson.newObject());
-        } else {
-          streamOutput(
-              b.method(),
-              b.where(),
-              profile -> name.apply(profile) == null ? null : Text.literal(b.name()),
-              null,
-              FactJson.newObject());
-        }
-      }
-    }
-
-    private Set<FunctionBinding> functionBindings(String profile, Map<String, Bound> functions) {
-      Set<FunctionBinding> bindings = new LinkedHashSet<>();
-      if (!stream.inUse(profile)) {
-        return bindings;
-      }
-      List<List<String>> definition = stream.definition(profile);
-      if (definition == null) {
-        // Without a definition, Spring Cloud Stream binds the function if there is only one.
-        definition = functions.size() == 1 ? List.of(List.copyOf(functions.keySet())) : List.of();
-      }
-      for (List<String> composed : definition) {
-        List<Bound> parts = new ArrayList<>();
-        for (String function : composed) {
-          parts.add(functions.get(function));
-        }
-        if (parts.contains(null)) {
-          continue;
-        }
-        // A composition (a|b) is one binding named after all of them: a's input, b's output.
-        String name = String.join("", composed);
-        addBindings(bindings, profile, parts.getFirst(), name, true);
-        addBindings(bindings, profile, parts.getLast(), name, false);
-      }
-      return bindings;
-    }
-
-    private void addBindings(
-        Set<FunctionBinding> to, String profile, Bound function, String name, boolean input) {
-      int count = input ? function.kind().inputs() : function.kind().outputs();
-      if (count == 0) {
-        return;
-      }
-      // More inputs or outputs than the type tells (tuples of reactive streams) show in config.
-      SortedSet<Integer> indexes = stream.indexes(profile, name, input);
-      for (int i = 0; i < count; i++) {
-        indexes.add(i);
-      }
-      for (int i : indexes) {
-        String binding = stream.alias(profile, name + (input ? "-in-" : "-out-") + i);
-        to.add(new FunctionBinding(function.method(), function.where(), input, binding));
-      }
+      functions.forEach(
+          (bean, b) -> {
+            ObjectNode attributes = FactJson.newObject();
+            attributes.put("inputs", b.kind().inputs());
+            attributes.put("outputs", b.kind().outputs());
+            module(attributes, true);
+            fact(b.method(), STREAM_FUNCTION, FactObject.string(bean), attributes, b.where());
+          });
     }
 
     /** A component class implementing a function: its function method, or null if it is none. */
@@ -1202,7 +1265,7 @@ public final class MessagingExtractor implements Extractor {
         common.put("annotation", written.type());
         for (String name : names) {
           if (!name.isBlank()) {
-            streamInput(m.id(), where, profile -> name, common);
+            streamInput(m.id(), where, name, common);
           }
         }
         List<Annotation> sendTo = code.annotationPath(m.annotations(), SEND_TO);
@@ -1220,7 +1283,7 @@ public final class MessagingExtractor implements Extractor {
             streamOutput(
                 m.id(),
                 to.where() != null ? to.where() : m.where(),
-                profile -> Text.literal(name),
+                Text.literal(name),
                 null,
                 attributes);
           }
@@ -1243,7 +1306,7 @@ public final class MessagingExtractor implements Extractor {
       if (LEGACY_OUTPUTS.contains(i.rootType())
           && call.method().equals("output")
           && call.arguments().isEmpty()) {
-        streamOutput(i.caller(), i.where(), profile -> Text.literal("output"), null, attributes);
+        streamOutput(i.caller(), i.where(), Text.literal("output"), null, attributes);
         return;
       }
       List<String> parameters = call.parameterTypes();
@@ -1265,12 +1328,7 @@ public final class MessagingExtractor implements Extractor {
               ? parameters.size() >= 3 && parameters.get(1).equals(STRING)
               : call.arguments().size() >= 3;
       Text binder = named ? text(call.arguments().get(1), i.caller()) : null;
-      streamOutput(
-          i.caller(),
-          i.where(),
-          profile -> binding,
-          binder == null ? null : profile -> name(profile, binder),
-          attributes);
+      streamOutput(i.caller(), i.where(), binding, binder, attributes);
     }
 
     /** A call to a legacy binding interface's {@code @Output} method: a send to that binding. */
@@ -1290,224 +1348,36 @@ public final class MessagingExtractor implements Extractor {
       ObjectNode attributes = FactJson.newObject();
       attributes.put("template", key.substring(0, key.indexOf('#')));
       attributes.put("method", methodName(callee.id()));
-      streamOutput(c.caller(), c.where(), profile -> Text.literal(name), null, attributes);
+      streamOutput(c.caller(), c.where(), Text.literal(name), null, attributes);
     }
 
     /**
-     * A binding's consumer: a listener on its destination, a Kafka topic or, for RabbitMQ, the
-     * queue the binder declares for its group, and that queue's binding to the destination's
-     * exchange.
-     *
-     * @param binding the binding's name in each view, or null in a view it is not bound in
+     * A binding's consumer, the binding named as written: linking reads its destination and group
+     * from config in each view.
      */
-    private void streamInput(
-        EntityId subject, Location where, Function<String, String> binding, ObjectNode common) {
-      emitSlots(subject, LISTENER, where, p -> inputs(p, binding.apply(p), common, false));
-      emitSlots(subject, BINDING, where, p -> inputs(p, binding.apply(p), common, true));
-    }
-
-    private Map<String, Shape> inputs(
-        String profile, String binding, ObjectNode common, boolean bindings) {
-      Map<String, Shape> shapes = new LinkedHashMap<>();
-      String broker = binding == null ? null : stream.broker(profile, binding, null);
-      if (broker == null) {
-        return shapes;
-      }
-      ConfigValue groupValue = stream.property(profile, binding, "group", true);
-      Text group =
-          groupValue == null || groupValue.written().isBlank()
-              ? null
-              : Text.annotated(groupValue.written());
-      List<Text> destinations = destinations(profile, binding);
-      if (destinations == null) {
-        destinations = List.of(Text.literal(binding));
-      }
-      for (int k = 0; k < destinations.size(); k++) {
-        Text destination = destinations.get(k);
-        ObjectNode attributes = common.deepCopy();
-        attributes.put("broker", broker);
-        attributes.put("binding", binding);
-        Map<String, Text> named = new LinkedHashMap<>();
-        String slot = Integer.toString(k);
-        if (broker.equals(KAFKA)) {
-          if (!bindings) {
-            boolean pattern =
-                isTrue(
-                    stream.binderProperty(
-                        profile, "kafka", binding, "consumer", "destination-is-pattern"));
-            attributes.put("destinationKind", pattern ? "topic-pattern" : "topic");
-            if (group != null) {
-              named.put("group", group);
-            }
-            shapes.put(slot, new Shape(destination, named, attributes));
-          }
-          continue;
-        }
-        // RabbitMQ: the destination is a topic exchange, consumed through a queue named after it
-        // and the group, or the group alone; without a group the queue is anonymous, its name
-        // the destination's with a random suffix the code cannot tell.
-        boolean groupOnly =
-            isTrue(
-                stream.binderProperty(
-                    profile, "rabbit", binding, "consumer", "queue-name-group-only"));
-        Text queue =
-            group == null
-                ? Text.concat(List.of(destination, Text.literal(".anonymous")))
-                : groupOnly ? group : Text.concat(List.of(destination, Text.literal("."), group));
-        if (group == null) {
-          attributes.put("anonymous", true);
-        }
-        if (!bindings) {
-          attributes.put("destinationKind", "queue");
-          shapes.put(slot, new Shape(queue, named, attributes));
-          continue;
-        }
-        String type =
-            stream.plain(
-                stream.binderProperty(profile, "rabbit", binding, "consumer", "exchange-type"));
-        String exchangeType = type == null || type.isBlank() ? "topic" : type.trim();
-        attributes.put("exchangeType", exchangeType);
-        named.put("exchange", destination);
-        if (!exchangeType.equals("fanout") && !exchangeType.equals("headers")) {
-          ConfigValue key =
-              stream.binderProperty(profile, "rabbit", binding, "consumer", "binding-routing-key");
-          named.put("routingKey", key == null ? Text.literal("#") : Text.annotated(key.written()));
-        }
-        shapes.put(slot, new Shape(queue, named, attributes));
-      }
-      return shapes;
+    private void streamInput(EntityId subject, Location where, String binding, ObjectNode common) {
+      ObjectNode attributes = common.deepCopy();
+      attributes.put("broker", STREAM);
+      attributes.put("destinationKind", BINDING_KIND);
+      emit(subject, LISTENER, Text.literal(binding), Map.of(), attributes, where);
     }
 
     /**
-     * A binding's producer: a send to its destination, a Kafka topic or a RabbitMQ exchange with
-     * the routing key the binder uses (the destination's name unless configured).
+     * A binding's producer, the binding (or a destination's name) and the binder named in code as
+     * written: linking reads the destination and routing key from config in each view.
      *
-     * @param binding the binding's name, or a destination's, in each view, or null in a view it is
-     *     not bound in
-     * @param binder the binder named in code in each view, or null if none is
+     * @param binder the binder named in code, or null if none is
      */
     private void streamOutput(
-        EntityId subject,
-        Location where,
-        Function<String, Text> binding,
-        Function<String, String> binder,
-        ObjectNode common) {
-      emitSlots(
-          subject,
-          SEND,
-          where,
-          p -> output(p, binding.apply(p), binder == null ? null : binder.apply(p), common));
-    }
-
-    private Map<String, Shape> output(
-        String profile, Text binding, String binder, ObjectNode common) {
-      if (binding == null) {
-        return Map.of();
-      }
-      String name = name(profile, binding);
-      String broker = stream.broker(profile, name, binder);
-      if (broker == null) {
-        return Map.of();
-      }
-      // A name no binding is configured for is the destination itself, as StreamBridge sends.
-      List<Text> configured = name == null ? null : destinations(profile, name);
-      Text destination = binding;
-      if (configured != null) {
-        Text d = configured.getFirst();
-        SortedSet<String> followed = new TreeSet<>(d.followed());
-        followed.addAll(binding.followed());
-        destination = new Text(d.written(), d.placeholders(), followed);
-      }
+        EntityId subject, Location where, Text binding, Text binder, ObjectNode common) {
       ObjectNode attributes = common.deepCopy();
-      attributes.put("broker", broker);
-      if (name != null) {
-        attributes.put("binding", name);
-      }
+      attributes.put("broker", STREAM);
+      attributes.put("destinationKind", BINDING_KIND);
       Map<String, Text> named = new LinkedHashMap<>();
-      if (broker.equals(KAFKA)) {
-        attributes.put("destinationKind", "topic");
-        return Map.of("0", new Shape(destination, named, attributes));
+      if (binder != null) {
+        named.put("binder", binder);
       }
-      attributes.put("destinationKind", "exchange");
-      ConfigValue key =
-          name == null
-              ? null
-              : stream.binderProperty(profile, "rabbit", name, "producer", "routing-key");
-      ConfigValue expression =
-          name == null
-              ? null
-              : stream.binderProperty(
-                  profile, "rabbit", name, "producer", "routing-key-expression");
-      if (key != null) {
-        named.put("routingKey", Text.annotated(key.written()));
-      } else if (expression != null) {
-        // A SpEL string literal is a fixed key; any other expression is decided per message.
-        String spel = stream.plain(expression);
-        Matcher literal = spel == null ? null : SPEL_LITERAL.matcher(spel.trim());
-        if (literal != null && literal.matches()) {
-          named.put("routingKey", Text.literal(literal.group(1)));
-        } else {
-          attributes.putArray("unknown").add("routingKey");
-        }
-      } else {
-        named.put("routingKey", destination);
-      }
-      return Map.of("0", new Shape(destination, named, attributes));
-    }
-
-    /**
-     * A binding's destinations as configured: one, or for a consumer several separated by commas;
-     * null if no destination is configured, so the binding's name is the destination.
-     */
-    private List<Text> destinations(String profile, String binding) {
-      ConfigValue v = stream.property(profile, binding, "destination", false);
-      if (v == null || v.written().isBlank()) {
-        return null;
-      }
-      Text whole = Text.annotated(v.written());
-      CodeValue r = resolve(profile, whole);
-      if (r.masked() || !r.unresolved().isEmpty() || !r.value().contains(",")) {
-        return List.of(whole);
-      }
-      List<Text> parts = new ArrayList<>();
-      for (String part : r.value().split(",")) {
-        if (!part.isBlank()) {
-          parts.add(Text.literal(part.trim()));
-        }
-      }
-      return parts.isEmpty() ? List.of(whole) : parts;
-    }
-
-    /** A text's value in a view when it can be told and recorded, else null. */
-    private String name(String profile, Text text) {
-      CodeValue r = resolve(profile, text);
-      return r.masked() || !r.unresolved().isEmpty() || r.value().isBlank() ? null : r.value();
-    }
-
-    private boolean isTrue(ConfigValue v) {
-      String value = stream.plain(v);
-      return value != null && value.trim().equalsIgnoreCase("true");
-    }
-
-    /**
-     * Records facts whose number may differ by view, such as a binding with several destinations:
-     * each view's shapes by slot, the facts of a slot recorded as {@link #emitViews} does.
-     */
-    private void emitSlots(
-        EntityId subject,
-        String predicate,
-        Location where,
-        Function<String, Map<String, Shape>> byView) {
-      Map<String, Map<String, Shape>> shapes = new HashMap<>();
-      Set<String> slots = new LinkedHashSet<>();
-      for (String profile : config.views()) {
-        Map<String, Shape> s = byView.apply(profile);
-        shapes.put(profile, s);
-        slots.addAll(s.keySet());
-      }
-      for (String slot : slots) {
-        emitViews(subject, predicate, where, profile -> shapes.get(profile).get(slot));
-      }
+      emit(subject, SEND, binding, named, attributes, where);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -1621,13 +1491,545 @@ public final class MessagingExtractor implements Extractor {
     }
 
     // -------------------------------------------------------------------------------------------
-    // Values and facts
+    // Facts as written
+
+    /**
+     * Records a value-bearing fact as written: the subject's {@value #SENDS_TO}, {@value
+     * #LISTENS_ON}, {@value #BINDS} or {@value #DECLARES} relationship to the destination the
+     * object names, with the values as written in code, which config may resolve ({@code
+     * configured}), and the fields or parameters each was followed through.
+     */
+    private void emit(
+        EntityId subject,
+        String predicate,
+        Text object,
+        Map<String, Text> named,
+        ObjectNode attributes,
+        Location where) {
+      String broker = attributes.get("broker").stringValue();
+      String kind =
+          predicate.equals(BINDING) ? "queue" : attributes.get("destinationKind").stringValue();
+      boolean stream = broker.equals(STREAM);
+      if (object.written().isEmpty()) {
+        // An empty name names nothing, as an empty value gave no fact before.
+        return;
+      }
+      boolean scoped = stream || configured(object) || object.written().equals(UNKNOWN_EXCHANGE);
+      ObjectNode a = attributes.deepCopy();
+      if (predicate.equals(BINDING)) {
+        a.remove("destinationKind");
+      }
+      ArrayNode configured = FactJson.newObject().arrayNode();
+      a.put(NAME_VALUE, object.written());
+      if (object.placeholders()) {
+        configured.add(NAME_VALUE);
+      }
+      followed(a, "followed", object.followed());
+      for (Map.Entry<String, Text> e : named.entrySet()) {
+        Text t = e.getValue();
+        a.put(e.getKey(), t.written());
+        if (t.placeholders()) {
+          configured.add(e.getKey());
+        }
+        followed(a, e.getKey() + FOLLOWED_SUFFIX, t.followed());
+      }
+      if (!configured.isEmpty()) {
+        a.set("configured", configured);
+      }
+      module(a, stream);
+      String key = broker + ":" + kind + ":" + object.written();
+      EntityId destination =
+          EntityKeys.of(DESTINATION_ENTITY, scoped ? module.id().key() + ":" + key : key);
+      fact(subject, RELATIONS.get(predicate), FactObject.entity(destination), a, where);
+    }
+
+    private static void followed(ObjectNode a, String name, SortedSet<String> ids) {
+      if (!ids.isEmpty()) {
+        ArrayNode via = a.putArray(name);
+        ids.forEach(via::add);
+      }
+    }
+
+    /** Names the module whose config resolves a fact's values, and for a binding its classpath. */
+    private void module(ObjectNode a, boolean stream) {
+      a.put("configModule", module.id().toString());
+      a.put("configRepo", module.repo().repo().name());
+      if (stream) {
+        if (streamOnClasspath == null) {
+          streamOnClasspath = StreamConfig.onClasspath(module.repo(), module.directory());
+          binders = StreamConfig.binders(module.repo(), module.directory());
+        }
+        if (streamOnClasspath) {
+          a.put("streamOnClasspath", true);
+        }
+        if (!binders.isEmpty()) {
+          ArrayNode found = a.putArray("binders");
+          binders.forEach(found::add);
+        }
+      }
+    }
+
+    private void fact(
+        EntityId subject,
+        String predicate,
+        FactObject object,
+        ObjectNode attributes,
+        Location where) {
+      if (subject == null) {
+        return;
+      }
+      RepoBuild repo = module.repo();
+      Evidence evidence =
+          Evidence.of(
+              repo.repo().name(),
+              where.file().path(),
+              where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
+              where.file().contentHash());
+      Fact fact =
+          Fact.create(
+              subject,
+              predicate,
+              object,
+              attributes,
+              ORIGIN,
+              evidence,
+              module.confidence(),
+              validity);
+      facts.putIfAbsent(fact.id(), fact);
+    }
+  }
+
+  /** Where a fact is recorded from: the evidence and confidence of the fact written in code. */
+  private record Source(Evidence evidence, double confidence) {}
+
+  /**
+   * The facts of one module's values as written, resolved in each view of its config: the {@value
+   * #SEND}, {@value #LISTENER}, {@value #BINDING} and {@value #DESTINATION} facts this extractor
+   * recorded before it kept values as written (ADR 0094, #559).
+   */
+  private static final class Emitter {
+
+    private final ValueLookup config;
+    private final Origin origin;
+    private final Validity validity;
+    private final Map<String, Fact> facts;
+    private StreamConfig stream;
+
+    Emitter(ValueLookup config, Origin origin, Validity validity, Map<String, Fact> facts) {
+      this.config = config;
+      this.origin = origin;
+      this.validity = validity;
+      this.facts = facts;
+    }
+
+    /** Reads the module's Spring Cloud Stream config, once, with what its classpath holds. */
+    void stream(boolean onClasspath, Set<String> binders, String label) {
+      if (stream == null) {
+        stream = new StreamConfig(config, onClasspath, binders, label);
+      }
+    }
+
+    /** The facts of one value-bearing fact written in code: see {@link Run#emit}. */
+    void written(EntityId subject, String relation, JsonNode a, Source src) {
+      String predicate = PREDICATES.get(relation);
+      Text object = value(a, NAME_VALUE);
+      Map<String, Text> named = new LinkedHashMap<>();
+      for (String v : VALUES) {
+        if (a.has(v)) {
+          named.put(v, value(a, v));
+        }
+      }
+      ObjectNode base = ((ObjectNode) a).deepCopy();
+      for (String v : WRITTEN_ONLY) {
+        base.remove(v);
+      }
+      for (String v : VALUES) {
+        base.remove(v);
+        base.remove(v + FOLLOWED_SUFFIX);
+      }
+      String broker = a.path("broker").stringValue(null);
+      if (STREAM.equals(broker)) {
+        // The binding's broker and kind come from config, not from the code.
+        base.remove("broker");
+        base.remove("destinationKind");
+        if (predicate.equals(LISTENER)) {
+          streamInput(subject, src, profile -> object.written(), base);
+        } else {
+          Text binder = named.get("binder");
+          streamOutput(
+              subject,
+              src,
+              profile -> object,
+              binder == null ? null : profile -> name(profile, binder),
+              base);
+        }
+        return;
+      }
+      List<String> unknown = new ArrayList<>();
+      a.path("unknown").forEach(u -> unknown.add(u.stringValue()));
+      if (predicate.equals(SEND)
+          && RABBITMQ.equals(broker)
+          && "exchange".equals(a.path("destinationKind").stringValue(null))
+          && !unknown.contains("exchange")) {
+        base.remove("destinationKind");
+        base.remove("unknown");
+        rabbitSend(
+            subject, object, named.get("routingKey"), unknown.contains("routingKey"), base, src);
+        return;
+      }
+      emit(subject, predicate, object, named, base, src);
+    }
+
+    /** A value of a fact written in code, by its attribute's name. */
+    private static Text value(JsonNode a, String name) {
+      SortedSet<String> followed = new TreeSet<>();
+      String via = name.equals(NAME_VALUE) ? "followed" : name + FOLLOWED_SUFFIX;
+      a.path(via).forEach(id -> followed.add(id.stringValue()));
+      boolean configured = false;
+      for (JsonNode c : a.path("configured")) {
+        configured |= c.stringValue().equals(name);
+      }
+      return new Text(a.get(name).stringValue(), configured, followed);
+    }
+
+    /**
+     * A RabbitMQ send: to the exchange with the routing key, or, in a view where the exchange is
+     * the default one ({@code ""}), to the queue the routing key names, as the broker routes it.
+     */
+    private void rabbitSend(
+        EntityId subject,
+        Text exchange,
+        Text key,
+        boolean keyUnknown,
+        ObjectNode common,
+        Source src) {
+      emitViews(
+          subject,
+          SEND,
+          src,
+          profile -> {
+            CodeValue resolved = resolve(profile, exchange);
+            ObjectNode attributes = common.deepCopy();
+            if (!resolved.masked() && resolved.value().isEmpty()) {
+              if (key == null) {
+                return null;
+              }
+              attributes.put("destinationKind", "queue");
+              return new Shape(key, Map.of(), attributes);
+            }
+            attributes.put("destinationKind", "exchange");
+            Map<String, Text> named = new LinkedHashMap<>();
+            if (key != null) {
+              named.put("routingKey", key);
+            } else if (keyUnknown) {
+              attributes.putArray("unknown").add("routingKey");
+            }
+            return new Shape(exchange, named, attributes);
+          });
+    }
+
+    /** A function bean Spring Cloud Stream may bind: the method that is it, and its kind. */
+    private record Bound(EntityId method, Source src, FunctionKind kind) {}
+
+    /** A binding of a function: the method it is on, whether it is an input, and its name. */
+    private record FunctionBinding(EntityId method, Source src, boolean input, String name) {}
+
+    /**
+     * The bindings of a module's functions ({@value #STREAM_FUNCTION} facts), by bean name: bound
+     * in each view as the function definition says, or the only one when none is set.
+     */
+    void functions(Map<String, Bound> functions) {
+      if (functions.isEmpty() || stream == null) {
+        return;
+      }
+      Map<String, Set<FunctionBinding>> byView = new HashMap<>();
+      Set<FunctionBinding> all = new LinkedHashSet<>();
+      for (String profile : config.views()) {
+        Set<FunctionBinding> bound = functionBindings(profile, functions);
+        byView.put(profile, bound);
+        all.addAll(bound);
+      }
+      for (FunctionBinding b : all) {
+        Function<String, String> name =
+            profile -> byView.get(profile).contains(b) ? b.name() : null;
+        if (b.input()) {
+          streamInput(b.method(), b.src(), name, FactJson.newObject());
+        } else {
+          streamOutput(
+              b.method(),
+              b.src(),
+              profile -> name.apply(profile) == null ? null : Text.literal(b.name()),
+              null,
+              FactJson.newObject());
+        }
+      }
+    }
+
+    private Set<FunctionBinding> functionBindings(String profile, Map<String, Bound> functions) {
+      Set<FunctionBinding> bindings = new LinkedHashSet<>();
+      if (!stream.inUse(profile)) {
+        return bindings;
+      }
+      List<List<String>> definition = stream.definition(profile);
+      if (definition == null) {
+        // Without a definition, Spring Cloud Stream binds the function if there is only one.
+        definition = functions.size() == 1 ? List.of(List.copyOf(functions.keySet())) : List.of();
+      }
+      for (List<String> composed : definition) {
+        List<Bound> parts = new ArrayList<>();
+        for (String function : composed) {
+          parts.add(functions.get(function));
+        }
+        if (parts.contains(null)) {
+          continue;
+        }
+        // A composition (a|b) is one binding named after all of them: a's input, b's output.
+        String name = String.join("", composed);
+        addBindings(bindings, profile, parts.getFirst(), name, true);
+        addBindings(bindings, profile, parts.getLast(), name, false);
+      }
+      return bindings;
+    }
+
+    private void addBindings(
+        Set<FunctionBinding> to, String profile, Bound function, String name, boolean input) {
+      int count = input ? function.kind().inputs() : function.kind().outputs();
+      if (count == 0) {
+        return;
+      }
+      // More inputs or outputs than the type tells (tuples of reactive streams) show in config.
+      SortedSet<Integer> indexes = stream.indexes(profile, name, input);
+      for (int i = 0; i < count; i++) {
+        indexes.add(i);
+      }
+      for (int i : indexes) {
+        String binding = stream.alias(profile, name + (input ? "-in-" : "-out-") + i);
+        to.add(new FunctionBinding(function.method(), function.src(), input, binding));
+      }
+    }
+
+    /**
+     * A binding's consumer: a listener on its destination, a Kafka topic or, for RabbitMQ, the
+     * queue the binder declares for its group, and that queue's binding to the destination's
+     * exchange.
+     *
+     * @param binding the binding's name in each view, or null in a view it is not bound in
+     */
+    private void streamInput(
+        EntityId subject, Source src, Function<String, String> binding, ObjectNode common) {
+      emitSlots(subject, LISTENER, src, p -> inputs(p, binding.apply(p), common, false));
+      emitSlots(subject, BINDING, src, p -> inputs(p, binding.apply(p), common, true));
+    }
+
+    private Map<String, Shape> inputs(
+        String profile, String binding, ObjectNode common, boolean bindings) {
+      Map<String, Shape> shapes = new LinkedHashMap<>();
+      String broker = binding == null ? null : stream.broker(profile, binding, null);
+      if (broker == null) {
+        return shapes;
+      }
+      ConfigValue groupValue = stream.property(profile, binding, "group", true);
+      Text group =
+          groupValue == null || groupValue.written().isBlank()
+              ? null
+              : Text.annotated(groupValue.written());
+      List<Text> destinations = destinations(profile, binding);
+      if (destinations == null) {
+        destinations = List.of(Text.literal(binding));
+      }
+      for (int k = 0; k < destinations.size(); k++) {
+        Text destination = destinations.get(k);
+        ObjectNode attributes = common.deepCopy();
+        attributes.put("broker", broker);
+        attributes.put("binding", binding);
+        Map<String, Text> named = new LinkedHashMap<>();
+        String slot = Integer.toString(k);
+        if (broker.equals(KAFKA)) {
+          if (!bindings) {
+            boolean pattern =
+                isTrue(
+                    stream.binderProperty(
+                        profile, "kafka", binding, "consumer", "destination-is-pattern"));
+            attributes.put("destinationKind", pattern ? "topic-pattern" : "topic");
+            if (group != null) {
+              named.put("group", group);
+            }
+            shapes.put(slot, new Shape(destination, named, attributes));
+          }
+          continue;
+        }
+        // RabbitMQ: the destination is a topic exchange, consumed through a queue named after it
+        // and the group, or the group alone; without a group the queue is anonymous, its name
+        // the destination's with a random suffix the code cannot tell.
+        boolean groupOnly =
+            isTrue(
+                stream.binderProperty(
+                    profile, "rabbit", binding, "consumer", "queue-name-group-only"));
+        Text queue =
+            group == null
+                ? Text.concat(List.of(destination, Text.literal(".anonymous")))
+                : groupOnly ? group : Text.concat(List.of(destination, Text.literal("."), group));
+        if (group == null) {
+          attributes.put("anonymous", true);
+        }
+        if (!bindings) {
+          attributes.put("destinationKind", "queue");
+          shapes.put(slot, new Shape(queue, named, attributes));
+          continue;
+        }
+        String type =
+            stream.plain(
+                stream.binderProperty(profile, "rabbit", binding, "consumer", "exchange-type"));
+        String exchangeType = type == null || type.isBlank() ? "topic" : type.trim();
+        attributes.put("exchangeType", exchangeType);
+        named.put("exchange", destination);
+        if (!exchangeType.equals("fanout") && !exchangeType.equals("headers")) {
+          ConfigValue key =
+              stream.binderProperty(profile, "rabbit", binding, "consumer", "binding-routing-key");
+          named.put("routingKey", key == null ? Text.literal("#") : Text.annotated(key.written()));
+        }
+        shapes.put(slot, new Shape(queue, named, attributes));
+      }
+      return shapes;
+    }
+
+    /**
+     * A binding's producer: a send to its destination, a Kafka topic or a RabbitMQ exchange with
+     * the routing key the binder uses (the destination's name unless configured).
+     *
+     * @param binding the binding's name, or a destination's, in each view, or null in a view it is
+     *     not bound in
+     * @param binder the binder named in code in each view, or null if none is
+     */
+    private void streamOutput(
+        EntityId subject,
+        Source src,
+        Function<String, Text> binding,
+        Function<String, String> binder,
+        ObjectNode common) {
+      emitSlots(
+          subject,
+          SEND,
+          src,
+          p -> output(p, binding.apply(p), binder == null ? null : binder.apply(p), common));
+    }
+
+    private Map<String, Shape> output(
+        String profile, Text binding, String binder, ObjectNode common) {
+      if (binding == null) {
+        return Map.of();
+      }
+      String name = name(profile, binding);
+      String broker = stream.broker(profile, name, binder);
+      if (broker == null) {
+        return Map.of();
+      }
+      // A name no binding is configured for is the destination itself, as StreamBridge sends.
+      List<Text> configured = name == null ? null : destinations(profile, name);
+      Text destination = binding;
+      if (configured != null) {
+        Text d = configured.getFirst();
+        SortedSet<String> followed = new TreeSet<>(d.followed());
+        followed.addAll(binding.followed());
+        destination = new Text(d.written(), d.placeholders(), followed);
+      }
+      ObjectNode attributes = common.deepCopy();
+      attributes.put("broker", broker);
+      if (name != null) {
+        attributes.put("binding", name);
+      }
+      Map<String, Text> named = new LinkedHashMap<>();
+      if (broker.equals(KAFKA)) {
+        attributes.put("destinationKind", "topic");
+        return Map.of("0", new Shape(destination, named, attributes));
+      }
+      attributes.put("destinationKind", "exchange");
+      ConfigValue key =
+          name == null
+              ? null
+              : stream.binderProperty(profile, "rabbit", name, "producer", "routing-key");
+      ConfigValue expression =
+          name == null
+              ? null
+              : stream.binderProperty(
+                  profile, "rabbit", name, "producer", "routing-key-expression");
+      if (key != null) {
+        named.put("routingKey", Text.annotated(key.written()));
+      } else if (expression != null) {
+        // A SpEL string literal is a fixed key; any other expression is decided per message.
+        String spel = stream.plain(expression);
+        Matcher literal = spel == null ? null : SPEL_LITERAL.matcher(spel.trim());
+        if (literal != null && literal.matches()) {
+          named.put("routingKey", Text.literal(literal.group(1)));
+        } else {
+          attributes.putArray("unknown").add("routingKey");
+        }
+      } else {
+        named.put("routingKey", destination);
+      }
+      return Map.of("0", new Shape(destination, named, attributes));
+    }
+
+    /**
+     * A binding's destinations as configured: one, or for a consumer several separated by commas;
+     * null if no destination is configured, so the binding's name is the destination.
+     */
+    private List<Text> destinations(String profile, String binding) {
+      ConfigValue v = stream.property(profile, binding, "destination", false);
+      if (v == null || v.written().isBlank()) {
+        return null;
+      }
+      Text whole = Text.annotated(v.written());
+      CodeValue r = resolve(profile, whole);
+      if (r.masked() || !r.unresolved().isEmpty() || !r.value().contains(",")) {
+        return List.of(whole);
+      }
+      List<Text> parts = new ArrayList<>();
+      for (String part : r.value().split(",")) {
+        if (!part.isBlank()) {
+          parts.add(Text.literal(part.trim()));
+        }
+      }
+      return parts.isEmpty() ? List.of(whole) : parts;
+    }
+
+    /** A text's value in a view when it can be told and recorded, else null. */
+    private String name(String profile, Text text) {
+      CodeValue r = resolve(profile, text);
+      return r.masked() || !r.unresolved().isEmpty() || r.value().isBlank() ? null : r.value();
+    }
+
+    private boolean isTrue(ConfigValue v) {
+      String value = stream.plain(v);
+      return value != null && value.trim().equalsIgnoreCase("true");
+    }
+
+    /**
+     * Records facts whose number may differ by view, such as a binding with several destinations:
+     * each view's shapes by slot, the facts of a slot recorded as {@link #emitViews} does.
+     */
+    private void emitSlots(
+        EntityId subject,
+        String predicate,
+        Source src,
+        Function<String, Map<String, Shape>> byView) {
+      Map<String, Map<String, Shape>> shapes = new HashMap<>();
+      Set<String> slots = new LinkedHashSet<>();
+      for (String profile : config.views()) {
+        Map<String, Shape> s = byView.apply(profile);
+        shapes.put(profile, s);
+        slots.addAll(s.keySet());
+      }
+      for (String slot : slots) {
+        emitViews(subject, predicate, src, profile -> shapes.get(profile).get(slot));
+      }
+    }
 
     private CodeValue resolve(String profile, Text text) {
       if (!text.placeholders()) {
         return new CodeValue(text.written(), text.written(), new TreeSet<>(), false);
       }
-      return config.value(config.resolve(profile, text.written()), text.written());
+      return config.value(profile, text.written());
     }
 
     /** The attributes whose value as written is recorded too, when it differs. */
@@ -1639,9 +2041,9 @@ public final class MessagingExtractor implements Extractor {
         Text object,
         Map<String, Text> named,
         ObjectNode attributes,
-        Location where) {
+        Source src) {
       Shape shape = new Shape(object, named, attributes);
-      emitViews(subject, predicate, where, profile -> shape);
+      emitViews(subject, predicate, src, profile -> shape);
     }
 
     /**
@@ -1653,7 +2055,7 @@ public final class MessagingExtractor implements Extractor {
      * @param shape what the fact holds in a view (null for the default view), or null for none
      */
     private void emitViews(
-        EntityId subject, String predicate, Location where, Function<String, Shape> shape) {
+        EntityId subject, String predicate, Source src, Function<String, Shape> shape) {
       ObjectNode byDefault = null;
       String defaultValue = null;
       for (String profile : config.views()) {
@@ -1706,32 +2108,25 @@ public final class MessagingExtractor implements Extractor {
           attributes.put("profile", profile);
         }
         if (!value.isEmpty()) {
-          fact(subject, predicate, value, attributes, where);
+          fact(subject, predicate, value, attributes, src);
         }
       }
     }
 
     private void fact(
-        EntityId subject, String predicate, String object, ObjectNode attributes, Location where) {
+        EntityId subject, String predicate, String object, ObjectNode attributes, Source src) {
       if (subject == null) {
         return;
       }
-      RepoBuild repo = module.repo();
-      Evidence evidence =
-          Evidence.of(
-              repo.repo().name(),
-              where.file().path(),
-              where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
-              where.file().contentHash());
       Fact fact =
           Fact.create(
               subject,
               predicate,
               FactObject.string(object),
               attributes,
-              ORIGIN,
-              evidence,
-              module.confidence(),
+              origin,
+              src.evidence(),
+              src.confidence(),
               validity);
       facts.putIfAbsent(fact.id(), fact);
     }
@@ -1742,12 +2137,6 @@ public final class MessagingExtractor implements Extractor {
     return new ExtractorInfo(NAME, VERSION);
   }
 
-  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
-  @Override
-  public Set<String> requires() {
-    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
-  }
-
   @Override
   public CacheUnit unit() {
     return CacheUnit.SNAPSHOT;
@@ -1755,11 +2144,6 @@ public final class MessagingExtractor implements Extractor {
 
   @Override
   public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
-    sink.emitAll(
-        extract(
-            context.code(),
-            context.snapshot(),
-            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
-                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
+    sink.emitAll(extract(context.code(), context.snapshot()));
   }
 }

@@ -91,3 +91,24 @@ missing, and a Stream producer cannot be matched with a plain `@KafkaListener` c
   libraries outside the module.
 - `MessagingExtractor.VERSION` is 2. project-0 uses no Spring Cloud Stream, so the cases are in
   the `messaging-stream` fixture.
+
+## Amendment (#559): bindings as written, bound in linking
+
+The messaging extractor no longer reads config (ADR 0037, amendment for #559). What Spring Cloud
+Stream binds is decided by config, so the extractor records what the code says, and linking binds
+it from the config facts, through the extractor's own reading of this ADR's rules (`StreamConfig`):
+
+- A **function** (a `Function`, `Consumer` or `Supplier` bean, or a component implementing one) is
+  a `stream-function` fact on its method, named after its bean, with how many inputs and outputs
+  its type has.
+- A **legacy `@StreamListener`**, a `@SendTo` reply of one, a **`StreamBridge.send`** (with the
+  binder it names) and a legacy **output channel** are `LISTENS_ON` and `SENDS_TO` relationships to
+  the binding as code names it, a destination of broker `stream` and kind `binding` scoped by the
+  module, such as `destination:com.acme:orders:stream:binding:process-in-0`.
+- What the classpath says, which config does not, goes with them: whether Spring Cloud Stream is on
+  the module's build classpath (or declared in its POMs without a build), `streamOnClasspath`, and
+  the brokers of the binders on it, `binders`.
+- Linking binds each module's functions in each view as the function definition says (or the only
+  function), reads each binding's destination, group and binder from config, and records the
+  `message-listener`, `message-binding` and `message-send` facts this ADR describes, unchanged.
+

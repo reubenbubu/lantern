@@ -41,7 +41,7 @@ class MessagingExtractorTest {
   @TempDir Path temp;
 
   private static List<Fact> extract(List<RepoBuild> inputs) throws IOException {
-    List<Fact> facts = new MessagingExtractor().extract(inputs, SNAPSHOT);
+    List<Fact> facts = Resolved.facts(inputs, SNAPSHOT);
     Fixtures.checkEnvelope(
         facts,
         inputs.stream().map(RepoBuild::repo).toList(),
@@ -49,7 +49,7 @@ class MessagingExtractorTest {
         MessagingExtractor.NAME,
         MessagingExtractor.VERSION);
     // Running again on the same input gives the same facts.
-    assertThat(new MessagingExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
+    assertThat(Resolved.facts(inputs, SNAPSHOT)).isEqualTo(facts);
     return facts;
   }
 
@@ -63,6 +63,14 @@ class MessagingExtractorTest {
     List<Fact> facts = extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
     Fixtures.assertGolden("messaging/messaging-parsed.txt", facts);
+    // The extractor itself records each value as written, resolving none (ADR 0094, #559).
+    List<Fact> written =
+        new MessagingExtractor()
+            .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT);
+    Fixtures.checkEnvelope(
+        written, List.of(repo), SNAPSHOT, MessagingExtractor.NAME, MessagingExtractor.VERSION);
+    Fixtures.assertGolden("messaging/messaging-written.txt", written);
+    assertThat(Fixtures.render(written)).doesNotContain("s3cret").doesNotContain("\"profile\"");
     // A secret from the config never reaches a fact.
     assertThat(Fixtures.render(facts)).doesNotContain("s3cret");
   }
@@ -342,9 +350,8 @@ class MessagingExtractorTest {
             repo, commit, build(temp, repo, commit, "com.example.events", "events", List.of()));
 
     JavaAnalysis code = JavaExtractor.analyze(List.of(built));
-    List<Fact> compiled = new MessagingExtractor().extract(code, SNAPSHOT);
-    List<Fact> parsed =
-        new MessagingExtractor().extract(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT);
+    List<Fact> compiled = Resolved.facts(code, SNAPSHOT);
+    List<Fact> parsed = Resolved.facts(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT);
 
     assertThat(code.modules()).singleElement().matches(JavaAnalysis.Module::compiled);
     List<String> lines = withoutConfidence(compiled);

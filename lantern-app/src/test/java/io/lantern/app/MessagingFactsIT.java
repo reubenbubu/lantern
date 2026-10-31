@@ -107,13 +107,14 @@ class MessagingFactsIT {
 
     assertThat(extracted)
         .extracting(Fact::predicate)
-        // The queue and exchange created in the binding are declarations too.
+        // The queue and exchange created in the binding are declarations too; each value is kept
+        // as written, a relationship to its destination (ADR 0094, #559).
         .containsExactlyInAnyOrder(
-            MessagingExtractor.SEND,
-            MessagingExtractor.LISTENER,
-            MessagingExtractor.BINDING,
-            MessagingExtractor.DESTINATION,
-            MessagingExtractor.DESTINATION);
+            MessagingExtractor.SENDS_TO,
+            MessagingExtractor.LISTENS_ON,
+            MessagingExtractor.BINDS,
+            MessagingExtractor.DECLARES,
+            MessagingExtractor.DECLARES);
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();
