@@ -167,8 +167,8 @@ placeholder's default.
 - For each expression-keyed destination or address and each container that runs its unit, it
   resolves the expression with the container's environment over the config of the profile the
   container makes active (`SPRING_PROFILES_ACTIVE`, when it names exactly one of the module's
-  profiles), else the default view. A container that activates several of them falls back to the
-  default view: overlaying them in Spring's order is left until a test set needs it. Where the environment sets nothing the expression uses, the deployment's
+  profiles), else the default view. A container that activates several of them falls back to
+  the default view: overlaying them in Spring's order is left until a test set needs it. Where the environment sets nothing the expression uses, the deployment's
   literal is that profile's.
 - A deployment whose literal is not the default view's gets its own claim, with the key attribute
   `deployment`: `<repository>|<platform>|<environment>[|<compose file>]|<container>`. The default
