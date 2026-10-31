@@ -71,7 +71,8 @@ final class ProtocolLinks implements LinkRule {
             DeployableUnits.TECHNOLOGY),
         (index, found, origin, validity) -> {
           Addresses addresses = new Addresses(index, new Deployments(index));
-          HttpLinker http = new HttpLinker(index, found, addresses);
+          // HTTP calls read where their addresses lead from address resolution's claims (#589).
+          HttpLinker http = new HttpLinker(index, found, new AddressClaims(index));
           http.link();
           RouteLinker routes = new RouteLinker(index, found, addresses);
           routes.link();

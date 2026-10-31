@@ -29,9 +29,9 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Links HTTP calls to the units that serve them, or to external systems (ADR 0042): by a Feign
- * client's name against {@code spring.application.name}, else by the URL as {@link Addresses}
- * resolves it, then the path against the target's endpoints; a call to this machine or a private
- * address that no single unit listens on is linked by its path alone.
+ * client's name against {@code spring.application.name}, else by the URL as address resolution
+ * answers it ({@link AddressAnswers}), then the path against the target's endpoints; a call to this
+ * machine or a private address that no single unit listens on is linked by its path alone.
  */
 final class HttpLinker {
 
@@ -83,13 +83,13 @@ final class HttpLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
-  private final Addresses addresses;
+  private final AddressAnswers addresses;
   private final List<Endpoint> endpoints = new ArrayList<>();
 
   /** The client interfaces each type enables ({@code @EnableFeignClients}). */
   private final Map<EntityId, List<Fact>> enabledBy = new HashMap<>();
 
-  HttpLinker(LinkIndex index, FoundLinks out, Addresses addresses) {
+  HttpLinker(LinkIndex index, FoundLinks out, AddressAnswers addresses) {
     this.index = index;
     this.out = out;
     this.addresses = addresses;
@@ -104,6 +104,28 @@ final class HttpLinker {
     for (Fact f : index.of(HttpClientExtractor.ENABLES)) {
       if (f.object().kind() == FactObject.Kind.ENTITY) {
         enabledBy.computeIfAbsent(f.object().entityId(), c -> new ArrayList<>()).add(f);
+      }
+    }
+  }
+
+  /**
+   * What the calls ask address resolution (#589): for each call, unit making it and view, where its
+   * address leads, and, for a call with a service name, which units that name is.
+   */
+  static void queries(LinkIndex index, AddressResolution.Questions questions) {
+    HttpLinker http = new HttpLinker(index, null, null);
+    for (List<Fact> site : LinkIndex.codeSites(index.of(HttpClientExtractor.HTTP_CALL)).values()) {
+      for (Unit caller : http.callers(site.getFirst())) {
+        for (String view : index.views()) {
+          Call call = http.call(site, caller, view);
+          if (call != null) {
+            questions.address(
+                caller, view, call.address(), call.written(), call.fact(), call.used());
+            if (call.service() != null) {
+              questions.name(call.service(), view, call.fact());
+            }
+          }
+        }
       }
     }
   }

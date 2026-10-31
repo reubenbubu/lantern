@@ -76,4 +76,19 @@ class ArchitectureRulesTest {
     assertThatCode(() -> ArchitectureRules.LINKER_READS_TYPED_FACTS.check(classes))
         .doesNotThrowAnyException();
   }
+
+  @Test
+  void aMatcherThatResolvesAddressesItselfIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(
+                io.lantern.link.archfixture.matchers.HttpLinker.class,
+                io.lantern.link.archfixture.matchers.MailLinker.class,
+                io.lantern.link.archfixture.matchers.Addresses.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.MATCHERS_READ_ADDRESS_CLAIMS.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("HttpLinker.link(java.lang.String)")
+        .hasMessageNotContaining("MailLinker");
+  }
 }

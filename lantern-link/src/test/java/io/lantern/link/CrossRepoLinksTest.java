@@ -287,12 +287,53 @@ class CrossRepoLinksTest {
   }
 
   private List<Fact> linked() {
+    sameAnswersAsAddresses();
     List<Fact> derived = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
     // People are a link rule of their own (#574), read with the links here.
     derived.addAll(new People().derive(facts, 1));
     Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
     derived.forEach(vocabulary::validate);
     return derived;
+  }
+
+  /**
+   * Address resolution's claims give the HTTP matcher the very answers {@link Addresses} gives
+   * (#589), for every question of every test here: deployments filling addresses in, ambiguous,
+   * external and unknown hosts, default ports and service names.
+   */
+  private void sameAnswersAsAddresses() {
+    AddressResolution rule = new AddressResolution();
+    ClaimSink sink = new ClaimSink(rule.info(), rule.writes());
+    rule.derive(
+        new ClaimQuery(rule.info(), rule.reads(), java.util.Set.of(), facts, 1),
+        sink,
+        View.DEFAULT);
+    Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
+    sink.facts().forEach(vocabulary::validate);
+    List<Fact> all = new ArrayList<>(facts);
+    all.addAll(sink.facts());
+    LinkIndex index = new LinkIndex(all);
+    Addresses addresses = new Addresses(index, new Deployments(index));
+    AddressClaims claims = new AddressClaims(index);
+    AddressResolution.Questions questions = new AddressResolution.Questions();
+    HttpLinker.queries(index, questions);
+    questions
+        .addresses
+        .keySet()
+        .forEach(
+            q ->
+                assertThat(claims.answers(q.from(), q.view(), q.text(), q.written()))
+                    .as(q.toString())
+                    .isEqualTo(addresses.answers(q.from(), q.view(), q.text(), q.written())));
+    questions
+        .names
+        .keySet()
+        .forEach(
+            q ->
+                assertThat(claims.byApplicationName(q.name(), q.view(), "service-name", 1.0))
+                    .as(q.toString())
+                    .isEqualTo(
+                        addresses.byApplicationName(q.name(), q.view(), "service-name", 1.0)));
   }
 
   /** One line per fact, without its {@code facts} and {@code link} attributes and its evidence. */
@@ -478,6 +519,51 @@ class CrossRepoLinksTest {
             "service:g:orders unresolved-link GET http://inventory-svc/items"
                 + " {\"candidates\":[\"service:g:inventory\"],\"kind\":\"http\","
                 + "\"reason\":\"unknown-host\",\"source\":\"method:o.Client#items()\"} 1.0");
+  }
+
+  @Test
+  void addressResolutionWritesWhereEachCallsAddressLeadsAsClaims() {
+    unit("a", "orders", "orders");
+    type("a", "orders", "o.Client");
+    call(
+        "a",
+        "o.Client#items()",
+        "GET http://inventory-svc/items",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/items\","
+            + "\"url\":\"http://inventory-svc/items\"}",
+        5);
+    call(
+        "a",
+        "o.Client#stock()",
+        "GET http://inventory/stock",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/stock\","
+            + "\"url\":\"http://inventory/stock\"}",
+        9);
+    unit("i", "inventory", "inventory");
+    type("i", "inventory", "i.ItemController");
+    endpoint("i", "i.ItemController", "items()", "GET", "/items");
+
+    AddressResolution rule = new AddressResolution();
+    ClaimSink sink = new ClaimSink(rule.info(), rule.writes());
+    rule.derive(
+        new ClaimQuery(rule.info(), rule.reads(), java.util.Set.of(), facts, 1),
+        sink,
+        View.DEFAULT);
+    Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
+    sink.facts().forEach(vocabulary::validate);
+
+    // A host that names no unit is unknown; one that is a unit's application name leads to it.
+    assertThat(sink.facts())
+        .extracting(
+            f -> f.subject().toString(),
+            f -> f.object().value(),
+            f -> TestAttributes.text(f, "from"),
+            f -> TestAttributes.text(f, "matchedBy"))
+        .containsExactlyInAnyOrder(
+            org.assertj.core.groups.Tuple.tuple(
+                "address:inventory-svc", "outcome:unknown", "service:g:orders", null),
+            org.assertj.core.groups.Tuple.tuple(
+                "address:inventory", "service:g:inventory", "service:g:orders", "host"));
   }
 
   @Test

@@ -85,12 +85,15 @@ final class LinkIndex {
   /** The profiles the snapshot's facts name, sorted. */
   final List<String> profiles;
 
+  private final Map<String, Fact> byId = new HashMap<>();
+
   LinkIndex(List<Fact> facts) {
     Map<EntityId, Fact> containerOf = new HashMap<>();
     Set<String> profileNames = new TreeSet<>();
     List<Fact> sorted = new ArrayList<>(facts);
     sorted.sort(BY_ID);
     for (Fact f : sorted) {
+      byId.putIfAbsent(f.id(), f);
       byPredicate.computeIfAbsent(f.predicate(), p -> new ArrayList<>()).add(f);
       String profile = Claims.profile(f);
       if (profile != null) {
@@ -184,6 +187,11 @@ final class LinkIndex {
         unitsOfModule.computeIfAbsent(module, m -> new ArrayList<>()).add(u);
       }
     }
+  }
+
+  /** A fact by its ID, or null. */
+  Fact fact(String id) {
+    return id == null ? null : byId.get(id);
   }
 
   /** The facts of a predicate, in ID order. */

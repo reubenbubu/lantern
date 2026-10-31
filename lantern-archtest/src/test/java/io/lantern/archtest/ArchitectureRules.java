@@ -99,6 +99,41 @@ final class ArchitectureRules {
                           && access.getName().equals("attributes")))
           .because("linker code reads typed records through the query layer (ADR 0095)");
 
+  /**
+   * The matchers that read where addresses lead from address resolution's claims (#589), by simple
+   * name; the others join as their slices land (#594, #595, #596).
+   */
+  static final List<String> MATCHERS_READING_ADDRESS_CLAIMS = List.of("HttpLinker");
+
+  /**
+   * Those matchers call no address helper: where an address leads is address resolution's to
+   * decide, and theirs to read (knowledge-build epic, section 8, rule 3; ADR 0042, amendment for
+   * #589).
+   */
+  static final ArchRule MATCHERS_READ_ADDRESS_CLAIMS =
+      noClasses()
+          .that()
+          .resideInAPackage("io.lantern.link..")
+          .and(
+              DescribedPredicate.describe(
+                  "are matchers that read address claims " + MATCHERS_READING_ADDRESS_CLAIMS,
+                  (JavaClass c) ->
+                      MATCHERS_READING_ADDRESS_CLAIMS.contains(
+                          c.getName()
+                              .substring(c.getName().lastIndexOf('.') + 1)
+                              .replaceAll("\\$.*", ""))))
+          .should()
+          .accessTargetWhere(
+              DescribedPredicate.describe(
+                  "Addresses",
+                  (com.tngtech.archunit.core.domain.JavaAccess<?> access) ->
+                      access.getTargetOwner().getSimpleName().equals("Addresses")
+                          && access
+                              .getTargetOwner()
+                              .getPackageName()
+                              .startsWith("io.lantern.link")))
+          .because("address resolution decides where addresses lead; matchers read its claims");
+
   /** One stage and the classes in it. */
   record Stage(String name, DescribedPredicate<JavaClass> classes) {
 

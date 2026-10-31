@@ -22,4 +22,7 @@ class ArchitectureTest {
 
   @ArchTest
   static final ArchRule linkerReadsTypedFacts = ArchitectureRules.LINKER_READS_TYPED_FACTS;
+
+  @ArchTest
+  static final ArchRule matchersReadAddressClaims = ArchitectureRules.MATCHERS_READ_ADDRESS_CLAIMS;
 }

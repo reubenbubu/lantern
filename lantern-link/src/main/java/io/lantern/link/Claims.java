@@ -95,6 +95,29 @@ final class Claims {
     return result;
   }
 
+  /**
+   * A unit an ambiguous address may lead to, as address resolution records it among its {@code
+   * candidates} (#589).
+   */
+  record Candidate(String unit, String fact, String matchedBy, double factor) {}
+
+  /** The candidates of an address resolution claim, in order; none when absent. */
+  static java.util.List<Candidate> candidates(java.util.List<ObjectNode> nodes) {
+    java.util.List<Candidate> candidates = new java.util.ArrayList<>();
+    if (nodes != null) {
+      for (ObjectNode c : nodes) {
+        JsonNode fact = c.get("fact");
+        candidates.add(
+            new Candidate(
+                c.path("unit").asString(),
+                fact == null || !fact.isString() ? null : fact.stringValue(),
+                c.path("matchedBy").asString(),
+                c.path("factor").asDouble()));
+      }
+    }
+    return candidates;
+  }
+
   /** A list attribute a record gives, or none when it is absent. */
   static java.util.List<String> list(java.util.List<String> values) {
     return values == null ? java.util.List.of() : values;

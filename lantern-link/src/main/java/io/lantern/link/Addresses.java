@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
  * Protocol linkers keep their own work: paths and endpoints, load-balanced names, identity provider
  * containers.
  */
-final class Addresses {
+final class Addresses implements AddressAnswers {
 
   /** Confidence factors of the ways a unit is found. */
   static final double BY_SERVICE_NAME = 1.0;
@@ -185,7 +185,8 @@ final class Addresses {
    * @param written the address as written, when config changed it; a placeholder that config does
    *     not set takes the environment's value before its default, as Spring Boot reads it
    */
-  Answer resolve(Unit from, String view, String text, String written) {
+  @Override
+  public Answer resolve(Unit from, String view, String text, String written) {
     return combined(answers(from, view, text, written));
   }
 
@@ -194,7 +195,8 @@ final class Addresses {
    * host, or nothing fills it), then as each deployment container that runs the unit fills it in.
    * Never empty. Parameters as for {@link #resolve}.
    */
-  List<Answer> answers(Unit from, String view, String text, String written) {
+  @Override
+  public List<Answer> answers(Unit from, String view, String text, String written) {
     Answer config = match(from, view, text, null);
     if (from == null) {
       return List.of(config);
@@ -230,7 +232,7 @@ final class Addresses {
    * One answer of the environments' several: the one target they agree on; ambiguous, with every
    * unit, when they lead to different ones; else the first.
    */
-  private static Answer combined(List<Answer> answers) {
+  static Answer combined(List<Answer> answers) {
     Map<String, Answer> decided = new LinkedHashMap<>();
     for (Answer a : answers) {
       if (a.key() != null) {
@@ -324,7 +326,8 @@ final class Addresses {
   }
 
   /** The units whose {@code spring.application.name} in the view is the name. */
-  List<Target> byApplicationName(String name, String view, String matchedBy, double factor) {
+  @Override
+  public List<Target> byApplicationName(String name, String view, String matchedBy, double factor) {
     List<Target> targets = new ArrayList<>();
     for (Unit unit : index.units.values()) {
       Fact fact = index.name(unit.id(), view);

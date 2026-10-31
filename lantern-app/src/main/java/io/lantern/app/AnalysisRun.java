@@ -781,11 +781,7 @@ public final class AnalysisRun {
               .filter(f -> repos.contains(f.evidence().repo()))
               .forEach(stored::add);
           return new Stored(
-              stored,
-              linked.facts(),
-              added + linked.added(),
-              resolver.asked(),
-              resolver.reused());
+              stored, linked.facts(), added + linked.added(), resolver.asked(), resolver.reused());
         });
   }
 

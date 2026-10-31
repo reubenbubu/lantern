@@ -102,7 +102,19 @@ class ClaimIdentityTest {
           Map.entry("claim-contradiction", Set.of("claim", "contradictedBy")),
           // Since #587: the text config resolved an expression to; URLs that differ only in their
           // path are one address.
-          Map.entry("RESOLVES_TO", Set.of("resolved", "exceptDeployments")));
+          Map.entry(
+              "RESOLVES_TO",
+              // Since #589, address resolution's answers: what the unit was found by, and how.
+              Set.of(
+                  "resolved",
+                  "exceptDeployments",
+                  "matched",
+                  "matchedBy",
+                  "factor",
+                  "fact",
+                  "filledBy",
+                  "order",
+                  "candidates")));
 
   /**
    * The key attributes of link claims: the channel attributes, the protocol (#518: a different
