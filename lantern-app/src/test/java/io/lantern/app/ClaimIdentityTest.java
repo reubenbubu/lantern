@@ -96,7 +96,10 @@ class ClaimIdentityTest {
           Map.entry("datasource", Set.of("technology", "server", "database")),
           Map.entry("data-store", Set.of("technology", "server", "database")),
           Map.entry("technology", Set.of("framework", "frameworkVersion", "frameworks", "java")),
-          Map.entry("version-skew", Set.of("pins")));
+          Map.entry("version-skew", Set.of("pins")),
+          // Since #518: references to the facts a claim comes from are lineage, like facts.
+          Map.entry("deployed-in", Set.of("fact")),
+          Map.entry("claim-contradiction", Set.of("claim", "contradictedBy")));
 
   /**
    * The key attributes of link claims: the channel attributes, the protocol (#518: a different
@@ -226,8 +229,33 @@ class ClaimIdentityTest {
           .as("no " + key)
           .isNotEqualTo(vocabulary.claimId(fact));
     }
-    assertThat(vocabulary.claimId(fact(vocabulary, type, "b", attributes, 1)))
-        .as("another subject and object")
+    Fact otherSubject = fact(vocabulary, type, "b", attributes, 1);
+    Fact otherObject = fact(vocabulary, type, "a", attributes, 1);
+    otherSubject =
+        Fact.create(
+            otherSubject.subject(),
+            type,
+            fact.object(),
+            attributes,
+            fact.origin(),
+            fact.evidence(),
+            1.0,
+            fact.validity());
+    otherObject =
+        Fact.create(
+            fact.subject(),
+            type,
+            fact(vocabulary, type, "b", attributes, 1).object(),
+            attributes,
+            fact.origin(),
+            fact.evidence(),
+            1.0,
+            fact.validity());
+    assertThat(vocabulary.claimId(otherSubject))
+        .as("another subject")
+        .isNotEqualTo(vocabulary.claimId(fact));
+    assertThat(vocabulary.claimId(otherObject))
+        .as("another object")
         .isNotEqualTo(vocabulary.claimId(fact));
   }
 

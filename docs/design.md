@@ -176,7 +176,6 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 | Field | Meaning |
 | --- | --- |
 | `id` | Content-derived fact ID |
-| claim ID | Derived, not stored yet: what the fact claims, the same for every sighting of one thing (below) |
 | `subject` | Stable entity ID, e.g. `service:orders` |
 | `predicate` | Relationship or attribute type, e.g. `CONSUMES`, `owner` |
 | `object` | Entity ID or typed value |
@@ -211,7 +210,7 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 
 **Versioning rules:** additive vocabulary changes are always allowed, and so is giving a type another parent (or none), as a new revision that keeps stored facts valid, except that declaring a new attribute or object kind constrains new facts only (ADR 0002). Renames and removals go through deprecation with an alias. Each snapshot and document records the vocabulary revision it used, so older documents stay reproducible. Plugins declare which envelope version range they support.
 
-**Typed access:** Java types for the envelope and built-in types are hand-written and kept in line with the JSON Schema by tests; TypeScript types are generated from the schema. Each relationship and attribute type of the extractors and the linker has a Java record generated from its attribute schema (`HttpCallAttributes` for `http-call`), committed in its module's `attributes` package and checked against the generator by a test (ADR 0090). Runtime-added types are accessed through a generic API.
+**Typed access:** Java types for the envelope and built-in types are hand-written and kept in line with the JSON Schema by tests; TypeScript types are generated from the schema. Each relationship and attribute type of the extractors and the linker that has attributes has a Java record generated from its attribute schema (`HttpCallAttributes` for `http-call`), committed in its module's `attributes` package and checked against the generator by a test (ADR 0090). Runtime-added types are accessed through a generic API.
 
 **Storage:** PostgreSQL. Facts in one wide table with JSONB attributes and indexes on subject, predicate, object and snapshot range. The graph for analysis is loaded into memory per scope.
 

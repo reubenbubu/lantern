@@ -11,6 +11,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -20,12 +22,17 @@ import tools.jackson.databind.node.ObjectNode;
  * <ul>
  *   <li>Every fact seen again, at another commit, lines and file, by another version of its origin,
  *       with another confidence and its descriptive attributes left out, is the same claim.
+ *   <li>No key attribute holds a fact ID, which changes with the evidence: a reference to the facts
+ *       a claim comes from is lineage, so descriptive.
  *   <li>Two facts of one origin that are one claim are one thing: they differ in nothing but their
  *       evidence, or they are a runtime link ({@code INTERACTS_WITH}) seen from several places,
  *       whose call sites and routes are descriptive.
  * </ul>
  */
 final class ClaimIdentityCheck {
+
+  /** A fact ID: 64 lowercase hex digits. */
+  private static final Pattern FACT_ID = Pattern.compile("\\b[0-9a-f]{64}\\b");
 
   private ClaimIdentityCheck() {}
 
@@ -37,6 +44,13 @@ final class ClaimIdentityCheck {
       String claim = vocabulary.claimId(fact);
       if (!claim.equals(vocabulary.claimId(seenAgain(vocabulary, fact)))) {
         problems.add("a sighting of " + fact.id() + " (" + fact.predicate() + ") is another claim");
+      }
+      for (String key : vocabulary.keyAttributes(fact.predicate())) {
+        JsonNode value = fact.attributes().get(key);
+        if (value != null && FACT_ID.matcher(value.toString()).find()) {
+          problems.add(
+              "key attribute " + key + " of a " + fact.predicate() + " fact holds a fact ID");
+        }
       }
       byClaim.computeIfAbsent(claim + " " + fact.origin().name(), k -> new ArrayList<>()).add(fact);
     }

@@ -28,13 +28,18 @@ key-attribute rules are fixed by the epic; this record says how they are built a
 - **Which attributes are key.** The epic's rules (section 6, Key attributes): every attribute is
   key except the global descriptive list, `profile` in extractor types other than `config-value`,
   and the per-type table. A test of the app (`ClaimIdentityTest`) holds the rules and checks every
-  type against them, so a new attribute fails until it is classed. Three choices made on #518:
+  type against them, so a new attribute fails until it is classed. Four choices made on #518:
   - **Link claims also key on `protocol`** (decided with the owner). C4 draws a line per protocol,
     so a frontend's HTTP calls and its WebSocket to the same gateway stay two claims. Call sites,
     routes and paths stay descriptive: they are sightings of one link.
   - **`config-value` keys on `application`** (decided with the owner). A config server's
     repository holds a file per application; with `application` descriptive, three applications
     setting one key to the same (masked) value were one claim, 12 facts on project-3.
+  - **References to source facts are descriptive** (decided with the owner, from the review):
+    `deployed-in`'s `fact` and `claim-contradiction`'s `claim` and `contradictedBy` hold fact IDs,
+    which change with the evidence, so as keys they gave those claims a new ID on every commit.
+    They are lineage, like `facts` and `cites`; #281 moves them into the observation's lineage.
+    Making them descriptive merges nothing on project-1 to project-4 or project-8.
   - **`profile` stands for the view in link-stage types** until 1C introduces `view`. The epic
     makes the view the key of link and derived types; today's link types record it as `profile`,
     so it is key there (all types the linker defines), and descriptive in extractor types.
@@ -70,7 +75,7 @@ key-attribute rules are fixed by the epic; this record says how they are built a
   in the order they are applied; the app's startup, the record tests and the claim tests use them.
 - **Identity on real facts.** `ClaimIdentityCheck` checks the facts of a snapshot: a fact seen again
   (another commit, lines and file, origin version and confidence, descriptive attributes dropped)
-  is the same claim; and facts of one origin that are one claim differ in nothing but evidence,
+  is the same claim; no key attribute holds a fact ID; and facts of one origin that are one claim differ in nothing but evidence,
   unless they are a runtime link seen from several call sites. project-0's end-to-end test runs it
   in every full check, and `ClaimIdentityIT` runs it on any development set.
 
@@ -83,3 +88,6 @@ key-attribute rules are fixed by the epic; this record says how they are built a
   so #281 must keep each sighting's descriptive attributes rather than one set per claim and
   origin.
 - The fake-model scorecards on project-1 to project-4 and project-8 are unchanged (#518's PR).
+- TypeScript types for the attributes, which the epic also names, are not generated: no frontend
+  code reads facts; the frontend reads the document model, whose types are generated already. They
+  come with the first consumer (#542).

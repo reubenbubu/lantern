@@ -20,10 +20,10 @@ import tools.jackson.databind.node.ObjectNode;
  * and they do, or that they call or only call one, and they do not, or call others too). The
  * evidence is the claim's; the code's side is in contradictedBy.
  *
- * @param claim Key. The ID of the claim fact the code contradicts.
- * @param contradictedBy Key. The facts that contradict the claim, each with its fact ID, subject,
- *     predicate, object, profile when it holds only under one, and where it is written: repo, path
- *     and line.
+ * @param claim Descriptive. The ID of the claim fact the code contradicts.
+ * @param contradictedBy Descriptive. The facts that contradict the claim, each with its fact ID,
+ *     subject, predicate, object, profile when it holds only under one, and where it is written:
+ *     repo, path and line.
  * @param facts Descriptive. The IDs of the claim fact, then of the facts that contradict it.
  * @param found Key. What the code shows instead: the technologies, versions, ports, endpoints or
  *     destinations of the units, what they call, or for own-database the other units on the same
@@ -45,7 +45,7 @@ public record ClaimContradictionAttributes(
   public static final String TYPE = "claim-contradiction";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("claim", "contradictedBy", "found", "stated", "units");
+  public static final List<String> KEY_ATTRIBUTES = List.of("found", "stated", "units");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static ClaimContradictionAttributes from(ObjectNode attributes) {

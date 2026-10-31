@@ -16,7 +16,7 @@ import tools.jackson.databind.node.ObjectNode;
  * @param container Key. The container's name, the value of its deployment-container fact.
  * @param environment Key. The environment within its platform, as the deployment-container fact
  *     names it.
- * @param fact Key. The ID of the deployment-container fact.
+ * @param fact Descriptive. The ID of the deployment-container fact.
  * @param platform Key. compose, kubernetes or helm.
  */
 public record DeployedInAttributes(
@@ -29,7 +29,7 @@ public record DeployedInAttributes(
   public static final String TYPE = "deployed-in";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("container", "environment", "fact", "platform");
+  public static final List<String> KEY_ATTRIBUTES = List.of("container", "environment", "platform");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static DeployedInAttributes from(ObjectNode attributes) {

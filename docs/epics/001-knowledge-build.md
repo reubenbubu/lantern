@@ -320,9 +320,11 @@ When in doubt, an attribute is key. Over-splitting yields two claims for one thi
 | `datasource`, `data-store` | `technology`, `server`, `database` |
 | `technology` (unit) | `framework`, `frameworkVersion`, `frameworks`, `java` |
 | `version-skew` | `pins` |
+| `deployed-in` | `fact` |
+| `claim-contradiction` | `claim`, `contradictedBy` |
 | Link claims (`INTERACTS_WITH` family) | everything except the channel attributes (`endpoint`, `destination`, `routingKey`, `bindingKey`, `table`, `host`, `key`), `protocol` and `view` |
 
-- **Changed by #518, with the owner.** `protocol` is a key of link claims, because C4 draws a line per protocol: a frontend's HTTP calls and its WebSocket to one gateway are two claims. `config-value` keys on `application`, because a config server's repository holds a file per application. Until 1C introduces `view`, link-stage types record it as `profile`, which is key there (ADR 0090).
+- **Changed by #518, with the owner.** `protocol` is a key of link claims, because C4 draws a line per protocol: a frontend's HTTP calls and its WebSocket to one gateway are two claims. `config-value` keys on `application`, because a config server's repository holds a file per application. An attribute that holds the IDs of the facts a claim comes from is lineage, so descriptive, like `facts`: fact IDs change with the evidence (`deployed-in`'s `fact`, `claim-contradiction`'s `claim` and `contradictedBy`). Until 1C introduces `view`, link-stage types record it as `profile`, which is key there (ADR 0090).
 - **LLM claims.** Their key is fixed by the role (section 11). Their text is always descriptive, so a rewording is a new observation of the same claim.
 
 ## 7. Extraction
