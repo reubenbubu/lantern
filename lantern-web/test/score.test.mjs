@@ -289,6 +289,21 @@ test('a second report element for the same reference element is extra, as a dupl
   assert.deepEqual(c.extra, ['billing', 'api_gateway (duplicate of API-Gateway)']);
 });
 
+test('a queue and an exchange of the same name are told apart by the technology', () => {
+  const withPair = structuredClone(reference);
+  withPair.elements.ex = { kind: 'queue', name: 'orders.events', parent: 'sys', technology: 'RabbitMQ topic exchange' };
+  withPair.elements.events.technology = 'RabbitMQ queue';
+  withPair.pages[1].sections[0].relationships.push({ from: 'ex', to: 'events', label: 'Routes', technology: 'AMQP' });
+  const pair = structuredClone(report);
+  pair.elements.e.technology = 'RabbitMQ queue';
+  pair.elements.ex = { kind: 'queue', name: 'orders.events', parent: 's', technology: 'RabbitMQ topic exchange' };
+  pair.pages[0].sections[0].relationships.push({ from: 'ex', to: 'e', label: 'Routes', technology: 'AMQP' });
+  const q = score(pair, withPair, aliases).elements.queues;
+  assert.equal(q.matched, 2);
+  assert.deepEqual(q.missing, []);
+  assert.deepEqual(q.extra, ['orders.dead-letters']);
+});
+
 test('commits count as pinned only in the subtitle or revisions', () => {
   const pins = (data) => score(data, reference, aliases).checks.find((c) => c.id === 'pins-snapshot').pass;
   assert.equal(pins(report), true);

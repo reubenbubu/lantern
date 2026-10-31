@@ -82,3 +82,24 @@ author and dates, and that Lantern pins that repository's commit.
   `repo` and `commit` its sources cite is a repository and a prefix of the commit in `pins.txt`,
   and that `notes.md` names each pinned commit in full. Moving a pin therefore fails the build
   until the reference is redone.
+
+## Amendment (#285): project-8, FleetCare
+
+- **The source** is the private repository
+  [`reubenbubu/lantern-test-fleetcare`](https://github.com/reubenbubu/lantern-test-fleetcare), laid
+  out like project-0's: one folder per made-up repository (15), a `setup.sh` that makes each a local
+  git repository with one fixed commit (2026-02-01), and a README that lists every case with its
+  place and exact answer. `testsets/project-8/pins.txt` pins its one commit, and
+  `testsets/project-8/setup.sh` works like project-0's, recording the pin in `.lantern-pin`.
+- **Its expected answers stay in its source.** FleetCare's `expected/reference/` holds the
+  reference in the format of the open-source sets' (amendment for #251: `reference.c4.json`,
+  `aliases.json`, `facts/`, `notes.md`, `verification.md`, `build-data.mjs`), and its citations name
+  the commits its `setup.sh` makes, which are not in `pins.txt`. It is written and checked with the
+  code it describes, so it is not copied into Lantern: `setup.sh` copies it to
+  `<destination>/expected/`, and moving the pin moves code and answers together.
+- **Scoring.** `scripts/score-testsets.sh project-8` analyzes every git repository of the checkout as
+  one system and scores the report against `<destination>/expected` (`score.mjs` reads its
+  `reference/`), after checking the checkout's `.lantern-pin` is the pin. The scorecard of a
+  fake-model run is committed as `testsets/project-8/baseline.scorecard.md`, the baseline no change
+  may lower (`docs/design.md`, Test sets); it is rewritten in the change that moves the pin or
+  changes what Lantern finds on the set.

@@ -1,0 +1,3 @@
+# The git repository the project-8 (FleetCare) test set is made from (docs/adr/0029-synthetic-test-set-project-0.md,
+# amendment for #285), one "<name> <clone URL> <full commit hash>" line. A pin is moved by editing its hash.
+lantern-test-fleetcare https://github.com/reubenbubu/lantern-test-fleetcare.git 8f22823a99e5d668b92137badd9abd71adb1aa39
