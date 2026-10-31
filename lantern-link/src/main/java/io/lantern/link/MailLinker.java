@@ -20,10 +20,10 @@ import tools.jackson.databind.node.ObjectNode;
  * Links units to the mail server their config names (ADR 0076): the {@code spring.mail.host} a unit
  * sees in a view, filled in by the environment of a deployment container that runs it where config
  * leaves it to one, is an external system keyed by the host when it is a public domain ({@link
- * Addresses}), and each method of the unit that sends mail {@code SENDS_MAIL} through it over SMTP.
- * A unit whose config names a host but whose code sends no mail the extractor recognises has one
- * link without a source, since Spring Boot only sets up a {@code JavaMailSender} for a unit that
- * means to use it.
+ * Addresses}, read from address resolution's claims), and each method of the unit that sends mail
+ * {@code SENDS_MAIL} through it over SMTP. A unit whose config names a host but whose code sends no
+ * mail the extractor recognises has one link without a source, since Spring Boot only sets up a
+ * {@code JavaMailSender} for a unit that means to use it.
  */
 final class MailLinker {
 
@@ -33,9 +33,9 @@ final class MailLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
-  private final Addresses addresses;
+  private final AddressAnswers addresses;
 
-  MailLinker(LinkIndex index, FoundLinks out, Addresses addresses) {
+  MailLinker(LinkIndex index, FoundLinks out, AddressAnswers addresses) {
     this.index = index;
     this.out = out;
     this.addresses = addresses;
@@ -58,6 +58,7 @@ final class MailLinker {
     String written = Claims.written(host);
     List<Answer> answers =
         addresses.answers(
+            host,
             unit,
             view,
             "smtp://" + host.object().value().trim(),

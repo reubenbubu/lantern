@@ -36,6 +36,15 @@ interface AddressAnswers {
     return resolve(from, view, text, written);
   }
 
+  /**
+   * As {@link #answers(Unit, String, String, String)}, asked for a fact (an identity provider's
+   * URL, a mail host), which address resolution cites when it records the question.
+   */
+  default List<Answer> answers(
+      io.lantern.core.fact.Fact asking, Unit from, String view, String text, String written) {
+    return answers(from, view, text, written);
+  }
+
   /** As {@link #byApplicationName(String, String, String, double)}, asked for a fact. */
   default List<Target> byApplicationName(
       io.lantern.core.fact.Fact asking, String name, String view, String matchedBy, double factor) {

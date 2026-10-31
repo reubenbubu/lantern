@@ -42,7 +42,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * Each claim cites the fact the unit was found by and the container that filled the address in. The
  * matchers whose addresses it answers so far: HTTP calls (#589), gateway routes and frontends
- * (#594); identity providers and mail hosts, and data stores follow (#595, #596).
+ * (#594), identity providers and mail hosts (#595); data stores follow (#596).
  */
 public final class AddressResolution implements LinkRule {
 
@@ -158,6 +158,12 @@ public final class AddressResolution implements LinkRule {
     }
 
     @Override
+    public List<Answer> answers(Fact asking, Unit from, String view, String text, String written) {
+      questions.address(from, view, text, written, asking, List.of());
+      return addresses.answers(from, view, text, written);
+    }
+
+    @Override
     public List<Target> byApplicationName(
         Fact asking, String name, String view, String matchedBy, double factor) {
       questions.name(name, view, asking);
@@ -169,8 +175,9 @@ public final class AddressResolution implements LinkRule {
   static Questions questions(LinkIndex index, Addresses addresses) {
     Questions questions = new Questions();
     HttpLinker.queries(index, questions);
-    // Gateway routes and frontends ask as they link, a question on an earlier one's answer: run as
-    // the matchers run them, recording what they ask (#594).
+    // Gateway routes and frontends ask as they link, a question on an earlier one's answer, and so
+    // do identity providers and mail hosts: run as the matchers run them, recording what they ask
+    // (#594, #595).
     Recorder recorder = new Recorder(addresses, questions);
     // The links they find here are dropped, and their validity is a placeholder: only the
     // questions are kept. HTTP's own links are not made here; the one read of them, which
@@ -179,8 +186,12 @@ public final class AddressResolution implements LinkRule {
     HttpLinker http = new HttpLinker(index, scratch, addresses);
     RouteLinker routes = new RouteLinker(index, scratch, recorder);
     routes.link();
-    new FrontendLinker(index, scratch, recorder, new Deployments(index), http, routes)
+    Deployments deployments = new Deployments(index);
+    new FrontendLinker(index, scratch, recorder, deployments, http, routes)
         .link(ORIGIN, Validity.from(0));
+    // Identity providers and mail hosts ask as they link too (#595).
+    new IdentityLinker(index, scratch, recorder, deployments).link(ORIGIN, Validity.from(0));
+    new MailLinker(index, scratch, recorder).link();
     return questions;
   }
 

@@ -137,8 +137,9 @@ final class ProtocolLinks implements LinkRule {
             CrossRepoLinks.UNRESOLVED_LINK,
             DataLinker.DISPLAY_NAME,
             DeployableUnits.TECHNOLOGY),
+        // Mail hosts read where they lead from address resolution's claims (#595).
         (index, found, origin, validity) ->
-            new MailLinker(index, found, new Addresses(index, new Deployments(index))).link());
+            new MailLinker(index, found, new AddressClaims(index)).link());
   }
 
   /** Identity providers, and JWT secrets units share. */
@@ -153,8 +154,9 @@ final class ProtocolLinks implements LinkRule {
             DataLinker.DISPLAY_NAME,
             Deployments.DEPLOYED_IN,
             DeployableUnits.TECHNOLOGY),
+        // Identity providers read where their URLs lead from address resolution's claims (#595).
         (index, found, origin, validity) ->
-            new IdentityLinker(index, found, new Addresses(index, new Deployments(index)))
+            new IdentityLinker(index, found, new AddressClaims(index), new Deployments(index))
                 .link(origin, validity));
   }
 
