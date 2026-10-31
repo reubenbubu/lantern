@@ -39,7 +39,7 @@ public final class CrossRepoLinks implements LinkRule.OverFacts {
   public static final String NAME = "cross-repo-links";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "17";
+  public static final String VERSION = "18";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -135,7 +135,11 @@ public final class CrossRepoLinks implements LinkRule.OverFacts {
 
   @Override
   public Set<String> writes() {
-    return Rules.union(vocabularyPredicates(), Set.of(DeployableUnits.TECHNOLOGY));
+    // People are a rule of their own (#574), whose types this step's vocabulary still defines.
+    Set<String> writes = new java.util.HashSet<>(vocabularyPredicates());
+    writes.remove(People.PERSON_BASIS);
+    writes.add(DeployableUnits.TECHNOLOGY);
+    return Set.copyOf(writes);
   }
 
   /** The predicates of this step's vocabulary types, which it writes. */
@@ -186,7 +190,6 @@ public final class CrossRepoLinks implements LinkRule.OverFacts {
     new MailLinker(index, found, addresses).link();
     new IdentityLinker(index, found, addresses).link(ORIGIN, validity);
     new RedisLinker(index, found, deployments).link(ORIGIN, validity);
-    new PeopleLinker(index, found).link(ORIGIN, validity);
     Map<String, Fact> derived = new LinkedHashMap<>();
     found.facts(index.profiles, ORIGIN, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
     return derived.values().stream()

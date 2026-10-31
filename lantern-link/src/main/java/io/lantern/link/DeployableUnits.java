@@ -7,8 +7,11 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.vocabulary.AttributeValues;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.attributes.BuildDependsOnAttributes;
+import io.lantern.extract.attributes.ConfigValueAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.spring.SpringExtractor;
@@ -46,7 +49,7 @@ import tools.jackson.databind.node.ObjectNode;
  * entity. Every fact about a unit has its evidence in the unit's own repository, so the unit's
  * facts are derived again whenever that repository is analyzed.
  */
-public final class DeployableUnits implements LinkRule.OverFacts {
+public final class DeployableUnits implements LinkRule {
 
   /** The step's name, recorded as the origin of its facts. */
   public static final String NAME = "deployable-units";
@@ -122,9 +125,22 @@ public final class DeployableUnits implements LinkRule.OverFacts {
     return RuleInfo.of(ORIGIN);
   }
 
+  /** The extracted predicates the units are made of. */
+  private static final List<String> READS =
+      List.of(
+          BuiltInTypes.CONTAINS,
+          MavenExtractor.BUILD_DEPENDS_ON,
+          MavenExtractor.PACKAGES,
+          MavenExtractor.PACKAGING,
+          MavenExtractor.PARENT,
+          MavenExtractor.JAVA_RELEASE,
+          MavenExtractor.VERSION_ATTRIBUTE,
+          ConfigExtractor.CONFIG_VALUE,
+          SpringExtractor.MAIN_CLASS);
+
   @Override
   public Set<String> reads() {
-    return Rules.union(Set.of(EXTRACTED), ValueViews.WRITES);
+    return Set.copyOf(READS);
   }
 
   @Override
@@ -161,24 +177,30 @@ public final class DeployableUnits implements LinkRule.OverFacts {
    * @param snapshot the snapshot number the facts hold from
    * @return the derived facts, without duplicates, ordered by subject, predicate, object and ID
    */
-  @Override
   public List<Fact> derive(List<Fact> facts, long snapshot) {
     Objects.requireNonNull(facts, "facts");
-    Index index = new Index(facts);
-    Validity validity = Validity.from(snapshot);
+    ClaimSink sink = new ClaimSink(info(), writes());
+    derive(new ClaimQuery(info(), reads(), Set.of(), facts, snapshot), sink, View.DEFAULT);
+    return sink.facts();
+  }
+
+  @Override
+  public void derive(ClaimQuery in, ClaimSink out, View view) {
+    Index index = new Index(in);
+    Validity validity = Validity.from(in.snapshot());
     Map<String, Fact> derived = new LinkedHashMap<>();
     List<Unit> units = units(index);
     for (Unit unit : units) {
       unit.facts(index, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
     }
     versionSkew(units, index, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
-    return derived.values().stream()
+    derived.values().stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
                 .thenComparing(Fact::predicate)
                 .thenComparing(f -> f.object().value())
                 .thenComparing(Fact::id))
-        .toList();
+        .forEach(out::add);
   }
 
   /**
@@ -383,7 +405,7 @@ public final class DeployableUnits implements LinkRule.OverFacts {
                 .filter(
                     m ->
                         index.config.getOrDefault(m, List.of()).stream()
-                            .anyMatch(f -> family.equals(configFamily(f))))
+                            .anyMatch(f -> family.equals(configFamily(f, index.config(f)))))
                 .findFirst()
                 .orElse(null);
         if (provider == null) {
@@ -391,10 +413,10 @@ public final class DeployableUnits implements LinkRule.OverFacts {
         }
         Map<String, Fact> names = new HashMap<>();
         for (Fact f : index.config.get(provider)) {
-          if (family.equals(configFamily(f))
-              && NAME_KEY.equals(text(f, "key"))
-              && !f.attributes().path("masked").asBoolean(false)) {
-            names.put(text(f, "profile"), f);
+          if (family.equals(configFamily(f, index.config(f)))
+              && NAME_KEY.equals(index.config(f).key())
+              && !Boolean.TRUE.equals(index.config(f).masked())) {
+            names.put(index.config(f).profile(), f);
           }
         }
         Fact familyDefault = names.get(null);
@@ -418,9 +440,7 @@ public final class DeployableUnits implements LinkRule.OverFacts {
         if (profile != null) {
           attributes.put("profile", profile);
         }
-        if (name.attributes().has("unresolved")) {
-          attributes.set("unresolved", name.attributes().get("unresolved").deepCopy());
-        }
+        AttributeValues.put(attributes, "unresolved", index.config(name).unresolved());
         facts.add(
             fact(
                 id,
@@ -458,7 +478,7 @@ public final class DeployableUnits implements LinkRule.OverFacts {
           .anyMatch(
               d ->
                   d.object().value().equals("artifact:" + SPRING_BOOT_GROUP + artifactPrefix)
-                      && PACKAGED_SCOPES.contains(text(d, "scope")));
+                      && PACKAGED_SCOPES.contains(index.dep(d).scope()));
     }
 
     private List<String> frameworks(Index index) {
@@ -470,12 +490,12 @@ public final class DeployableUnits implements LinkRule.OverFacts {
         for (EntityId m : modules()) {
           for (Fact dep : index.deps.getOrDefault(m, List.of())) {
             if (dep.object().value().startsWith("artifact:" + framework.artifactPrefix())
-                && PACKAGED_SCOPES.contains(text(dep, "scope"))) {
+                && PACKAGED_SCOPES.contains(index.dep(dep).scope())) {
               // Spring Boot's own starters are at Spring Boot's version, already named.
               String version =
                   framework.artifactPrefix().startsWith(SPRING_BOOT_GROUP)
                       ? null
-                      : text(dep, "version");
+                      : index.dep(dep).version();
               found.put(framework.name(), version == null ? "" : version);
               break;
             }
@@ -514,14 +534,14 @@ public final class DeployableUnits implements LinkRule.OverFacts {
         usesBoot |= !deps.isEmpty();
         boot =
             deps.stream()
-                .filter(d -> text(d, "version") != null)
+                .filter(d -> index.dep(d).version() != null)
                 .min(Comparator.comparing(d -> d.object().value()))
                 .orElse(null);
         if (boot != null) {
           break;
         }
       }
-      String version = boot == null ? null : text(boot, "version");
+      String version = boot == null ? null : index.dep(boot).version();
       Fact bootParent = null;
       if (version == null) {
         // Without a build the dependencies' versions are those Spring Boot's parent POM manages.
@@ -594,9 +614,9 @@ public final class DeployableUnits implements LinkRule.OverFacts {
         EntityId target = dep.object().entityId();
         Fact contains = index.containerOf.get(target);
         if (!target.type().equals(BuiltInTypes.MODULE)
-            || !PACKAGED_SCOPES.contains(text(dep, "scope"))
-            || dep.attributes().has("artifactType")
-            || (step.first() != null && dep.attributes().path("optional").asBoolean(false))
+            || !PACKAGED_SCOPES.contains(index.dep(dep).scope())
+            || index.dep(dep).artifactType() != null
+            || (step.first() != null && Boolean.TRUE.equals(index.dep(dep).optional()))
             || contains == null
             || !contains.subject().type().equals(BuiltInTypes.LIBRARY)
             || !seen.add(target)) {
@@ -623,7 +643,7 @@ public final class DeployableUnits implements LinkRule.OverFacts {
     Map<EntityId, EntityId> moduleOf = new HashMap<>();
     for (Unit unit : units) {
       for (Bundled b : unit.bundled) {
-        if (text(b.reached(), "version") != null) {
+        if (index.dep(b.reached()).version() != null) {
           pins.computeIfAbsent(
                   b.library(), l -> new TreeMap<>(Comparator.comparing(Object::toString)))
               .putIfAbsent(unit.id, b.reached());
@@ -639,7 +659,7 @@ public final class DeployableUnits implements LinkRule.OverFacts {
             return;
           }
           String version = built.object().value();
-          if (byUnit.values().stream().allMatch(f -> version.equals(text(f, "version")))) {
+          if (byUnit.values().stream().allMatch(f -> version.equals(index.dep(f).version()))) {
             return;
           }
           ObjectNode attributes = FactJson.newObject();
@@ -647,7 +667,7 @@ public final class DeployableUnits implements LinkRule.OverFacts {
           Set<String> versions = new TreeSet<>();
           double confidence = built.confidence();
           for (Map.Entry<EntityId, Fact> pin : byUnit.entrySet()) {
-            String pinned = text(pin.getValue(), "version");
+            String pinned = index.dep(pin.getValue()).version();
             byUnitVersion.put(pin.getKey().toString(), pinned);
             versions.add(pinned);
             confidence = Math.min(confidence, pin.getValue().confidence());
@@ -703,7 +723,27 @@ public final class DeployableUnits implements LinkRule.OverFacts {
     /** What contains each package or type, from the Java extractor's {@code CONTAINS} facts. */
     private final Map<EntityId, Set<EntityId>> parents = new HashMap<>();
 
-    Index(List<Fact> facts) {
+    /** The attributes of each {@code BUILD_DEPENDS_ON} fact, by fact ID. */
+    private final Map<String, BuildDependsOnAttributes> depAttributes = new HashMap<>();
+
+    /** The attributes of each {@code config-value} fact, by fact ID. */
+    private final Map<String, ConfigValueAttributes> configAttributes = new HashMap<>();
+
+    BuildDependsOnAttributes dep(Fact dependency) {
+      return depAttributes.get(dependency.id());
+    }
+
+    ConfigValueAttributes config(Fact value) {
+      return configAttributes.get(value.id());
+    }
+
+    Index(ClaimQuery in) {
+      in.all(BuildDependsOnAttributes.class)
+          .forEach(c -> depAttributes.put(c.fact().id(), c.attributes()));
+      in.all(ConfigValueAttributes.class)
+          .forEach(c -> configAttributes.put(c.fact().id(), c.attributes()));
+      List<Fact> facts = new ArrayList<>();
+      READS.forEach(predicate -> facts.addAll(in.all(predicate)));
       for (Fact f : facts) {
         String extractor = f.origin().name();
         boolean entity = f.object().kind() == FactObject.Kind.ENTITY;
@@ -859,7 +899,13 @@ public final class DeployableUnits implements LinkRule.OverFacts {
    * library adds in code, or null.
    */
   static String configFamily(Fact fact) {
-    if (ConfigExtractor.ENVIRONMENT_POST_PROCESSOR.equals(text(fact, ConfigExtractor.SOURCE))) {
+    // The cross-repo linker's index reads its config facts as facts until #575.
+    return configFamily(fact, ConfigValueAttributes.from(fact.attributes()));
+  }
+
+  /** {@link #configFamily(Fact)} of a fact whose attributes are read. */
+  static String configFamily(Fact fact, ConfigValueAttributes config) {
+    if (ConfigExtractor.ENVIRONMENT_POST_PROCESSOR.equals(config.source())) {
       return DEFAULTS;
     }
     String path = fact.evidence().path();
@@ -873,11 +919,6 @@ public final class DeployableUnits implements LinkRule.OverFacts {
       }
     }
     return null;
-  }
-
-  private static String text(Fact fact, String attribute) {
-    JsonNode value = fact.attributes().get(attribute);
-    return value == null || !value.isString() ? null : value.stringValue();
   }
 
   /** The version in a {@code parent} fact's {@code groupId:artifactId:version}. */

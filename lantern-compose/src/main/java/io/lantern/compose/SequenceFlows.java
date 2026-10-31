@@ -1705,7 +1705,7 @@ final class SequenceFlows {
 
   /**
    * The path segments of a request that signs a person in, as ADR 0074 reads them: the same words
-   * as {@code PeopleLinker.SIGN_IN} in lantern-link, which this module does not depend on.
+   * as {@code People.SIGN_IN} in lantern-link, which this module does not depend on.
    */
   private static final Set<String> SIGN_IN =
       Set.of("sign-in", "signin", "sign_in", "login", "log-in", "authenticate");

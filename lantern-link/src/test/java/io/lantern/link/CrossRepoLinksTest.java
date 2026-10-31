@@ -287,7 +287,9 @@ class CrossRepoLinksTest {
   }
 
   private List<Fact> linked() {
-    List<Fact> derived = new CrossRepoLinks().derive(facts, 1);
+    List<Fact> derived = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
+    // People are a link rule of their own (#574), read with the links here.
+    derived.addAll(new People().derive(facts, 1));
     Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
     derived.forEach(vocabulary::validate);
     return derived;
@@ -2862,7 +2864,7 @@ class CrossRepoLinksTest {
 
     Fact member = people().get("organization-member");
 
-    assertThat(member.attributes().get("cites")).hasSize(PeopleLinker.MAX_CITED);
+    assertThat(member.attributes().get("cites")).hasSize(People.MAX_CITED);
     String description = member.attributes().get("description").asString();
     Map<String, Fact> byId = new TreeMap<>();
     facts.forEach(f -> byId.put(f.id(), f));
@@ -3009,7 +3011,7 @@ class CrossRepoLinksTest {
 
   @Test
   void aCodeWithManyRolesMakesPeopleOfTheMostChecked() {
-    for (int n = 0; n < PeopleLinker.MAX_ROLES + 3; n++) {
+    for (int n = 0; n < People.MAX_ROLES + 3; n++) {
       evidence(
           "method:m.A#m" + n + "()",
           "role",
@@ -3022,7 +3024,7 @@ class CrossRepoLinksTest {
         "{\"name\":\"RC\",\"source\":\"Secured\"}",
         "m:src/main/java/m/A.java#99");
 
-    assertThat(people()).hasSize(PeopleLinker.MAX_ROLES).containsKey("rc");
+    assertThat(people()).hasSize(People.MAX_ROLES).containsKey("rc");
   }
 
   @Test

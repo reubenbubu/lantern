@@ -105,6 +105,7 @@ record FixtureSnapshot(
     // golden prompts were written without them.
     facts.addAll(new DeployableUnits().derive(facts, NUMBER));
     facts.addAll(new CrossRepoLinks().derive(facts, NUMBER));
+    facts.addAll(new io.lantern.link.People().derive(facts, NUMBER));
     Snapshot snapshot = new Snapshot(NUMBER, commits, 3, "test", Instant.EPOCH);
     return new FixtureSnapshot(
         snapshot,

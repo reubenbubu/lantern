@@ -121,3 +121,10 @@ version its dependency asks for. In project-4 the four services ask for crm-shar
 The linker's steps are link rules (ADR 0095): each declares the predicates it reads and writes, is
 handed only those facts, runs after the rules that write what it reads, and is not run again when
 its input and version are those of its last run for the system. Recording is as above.
+
+## Amendment (#574): units read typed facts
+
+`DeployableUnits` reads the nine extracted predicates it is made of (`CONTAINS`, `BUILD_DEPENDS_ON`,
+`PACKAGES`, `packaging`, `parent`, `java-release`, `version`, `config-value`, `main-class`) through
+`ClaimQuery`, the dependencies' and config values' attributes as their generated records, and no
+longer every extracted fact. Its facts are unchanged on project-0 to project-4.
