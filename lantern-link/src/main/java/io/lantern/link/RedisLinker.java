@@ -273,7 +273,7 @@ final class RedisLinker {
         source.subject(),
         source.predicate(),
         FactObject.string(technology),
-        source.attributes(),
+        Claims.json(source),
         source.origin(),
         source.evidence(),
         source.confidence(),

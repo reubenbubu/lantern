@@ -27,8 +27,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     server creates in a deployment the one whose name shares a word with the unit or the
  *     placeholder is taken.
  * @param key Key. The config key that sets it.
- * @param link Descriptive. The link's stable ID: the first 16 hex digits of the SHA-256 of its
- *     ends, the code on both and its profile, so it stays the same across snapshots and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
  *     Absent when it holds in the default view.
  * @param protocol Key. The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS,

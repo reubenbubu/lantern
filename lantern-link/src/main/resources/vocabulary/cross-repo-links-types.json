@@ -130,7 +130,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -269,7 +269,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -316,7 +316,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -367,7 +367,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -418,7 +418,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -497,7 +497,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -592,7 +592,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -649,7 +649,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on the subject's side and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -704,7 +704,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, what the subject does with the provider and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -767,7 +767,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -814,7 +814,7 @@
       "properties": {
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -904,7 +904,7 @@
         },
         "link": {
           "type": "string",
-          "description": "The link's stable ID: the first 16 hex digits of the SHA-256 of its ends, the code on both and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -954,7 +954,7 @@
         },
         "link": {
           "type": "string",
-          "description": "The finding's stable ID: the first 16 hex digits of the SHA-256 of the gateway, the endpoint and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -1021,7 +1021,7 @@
         },
         "link": {
           "type": "string",
-          "description": "The fact's stable ID: the first 16 hex digits of the SHA-256 of the gateway, the endpoint, the request and its profile, so it stays the same across snapshots and commits."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -1098,7 +1098,7 @@
         },
         "link": {
           "type": "string",
-          "description": "The finding's stable ID: the first 16 hex digits of the SHA-256 of the unit, the code that makes the key and its profile."
+          "description": "No longer given since #576: the claim ID is the link's stable ID (ADR 0095). Kept so links stored before stay valid."
         },
         "facts": {
           "type": "array",

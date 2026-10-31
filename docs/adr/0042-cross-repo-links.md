@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), amended (#272), amended by ADR 0083 (#267), amended (#473), amended by ADR 0090 (#518: runtime links under `INTERACTS_WITH`, brokers and infrastructure are containers), amended by ADR 0095 (#575: the step is one link rule per protocol)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), amended (#272), amended by ADR 0083 (#267), amended (#473), amended by ADR 0090 (#518: runtime links under `INTERACTS_WITH`, brokers and infrastructure are containers), amended by ADR 0095 (#575: the step is one link rule per protocol), amended by ADR 0095 (#576: the claim ID is the link ID)
 
 ## Context
 
@@ -245,3 +245,11 @@ above: deploy-time values from compose and Kubernetes environments, and service 
 from `spring.application.name` and the artifact ID. Containers are still tied to units by name and
 image (ADR 0082), not by a compose `build` context. project-0 covers it with DEP-1 to DEP-4. The
 step's version becomes 17.
+
+## Amendment (#576): the claim ID is the link ID
+
+Links no longer carry `link`. Their claim ID (ADR 0090), which hashes the ends, the predicate and the
+link's key attributes (channel, protocol, profile) and not the evidence, is the stable ID that stays
+the same across snapshots and commits. The vocabulary keeps `link` declared, described as no longer
+given, so links stored before stay valid. The LLM resolver's `resolves` and the documents' reading of
+it use the claim ID of the link left open.

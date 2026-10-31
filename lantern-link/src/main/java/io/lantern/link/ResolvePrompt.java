@@ -5,6 +5,7 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
+import io.lantern.link.attributes.UnresolvedLinkAttributes;
 import io.lantern.llm.LlmResponse;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -134,7 +135,7 @@ final class ResolvePrompt {
       Fact unresolved, List<Fact> about, Map<EntityId, List<Fact>> candidates) {
     Map<String, Fact> refs = new LinkedHashMap<>();
     StringBuilder user = new StringBuilder();
-    String kind = UntypedReads.text(unresolved, "kind");
+    String kind = Claims.of(unresolved, UnresolvedLinkAttributes.class).kind();
     boolean route = "route".equals(kind);
     boolean http = route || "http".equals(kind);
     user.append("The ")
@@ -152,7 +153,8 @@ final class ResolvePrompt {
       user.append(", with the Spring profile ").append(profile).append(" active");
     }
     user.append(".\n");
-    user.append("Left open because ").append(reason(UntypedReads.text(unresolved, "reason")));
+    user.append("Left open because ")
+        .append(reason(Claims.of(unresolved, UnresolvedLinkAttributes.class).reason()));
     List<String> keys = Claims.unresolved(unresolved);
     if (!keys.isEmpty()) {
       user.append("; placeholders no config resolves: ").append(String.join(", ", keys));
@@ -218,7 +220,7 @@ final class ResolvePrompt {
     } else {
       line.append(object.value());
     }
-    ObjectNode attributes = fact.attributes().deepCopy();
+    ObjectNode attributes = Claims.json(fact);
     List.of("facts", "link", "candidates").forEach(attributes::remove);
     if (!attributes.isEmpty()) {
       line.append(' ').append(attributes);

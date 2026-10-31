@@ -1,6 +1,6 @@
 # 0095: Link rules, their order and re-running on change
 
-Status: accepted (#573, a slice of #521), amended for #575 and #580
+Status: accepted (#573, a slice of #521), amended for #575, #580 and #576
 
 ## Context
 
@@ -115,7 +115,21 @@ values rule read a fact's attributes only through the query layer, `Claims`:
   (calls, proxies).
 - A record read fails on a declared attribute of the wrong JSON type, where a read by name gave
   null. Stored facts are checked against their schema; a matcher's link drafts must match it too.
-- The README claim checks (moving to derivation in 1D) and the LLM resolver's prompt and tools still
-  read by name, through `UntypedReads`, until #576.
+- The README claim checks (moving to derivation in 1D) and the LLM resolver's prompt and tools read
+  typed facts too since #576.
 
 The linker's facts on project-0 to project-4 are unchanged.
+
+## Amendment (#576): the link ID, and an architecture rule
+
+- **The claim ID is the link ID.** Links and links left open no longer carry `link`; their claim ID
+  is their stable ID, and the LLM resolver names the link it resolves by it (ADR 0042 and 0045,
+  amendments for #576).
+- **The rest of the linker reads typed facts.** The README claim checks and the LLM resolver read
+  records through `Claims`; `Claims.ofOrNull` reads a fact that may be of another type, and
+  `Claims.json` gives a copy of a fact's attributes to show or copy whole (a prompt line, a fact
+  rebuilt with other evidence, lineage), never to read one by name.
+- **Architecture rule.** `LINKER_READS_TYPED_FACTS` (`lantern-archtest`) fails any class of
+  `io.lantern.link` but `Claims` and `ClaimQuery` that calls `Fact.attributes()`; a fixture that
+  does is rejected.
+- **Open links** as a rule of their own wait for views (#583, after #522).

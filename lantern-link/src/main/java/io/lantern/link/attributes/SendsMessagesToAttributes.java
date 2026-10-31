@@ -18,8 +18,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     Absent when it holds under every profile.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
- * @param link Descriptive. The link's stable ID: the first 16 hex digits of the SHA-256 of its
- *     ends, the code on both and its profile, so it stays the same across snapshots and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param model Descriptive. The provider and model that picked this link, as provider/model.
  *     Present only on links of origin llm.
  * @param pattern Descriptive. The topic pattern the listener names, when the topic matched it.

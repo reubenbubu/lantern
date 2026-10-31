@@ -26,8 +26,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
  * @param httpMethod Descriptive. The HTTP method, if known.
- * @param link Descriptive. The link's stable ID: the first 16 hex digits of the SHA-256 of its
- *     ends, the code on both and its profile, so it stays the same across snapshots and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param matchedBy Descriptive. How the target was found: service-name (a Feign client's name, or a
  *     gateway route's lb:// name, against spring.application.name), host (the URL's host against
  *     it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by

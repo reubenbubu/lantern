@@ -4,11 +4,16 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.attributes.MessageListenerAttributes;
+import io.lantern.extract.attributes.MessageSendAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.link.ClaimChecks.Contradiction;
 import io.lantern.link.LinkIndex.Unit;
+import io.lantern.link.attributes.ConsumesAttributes;
+import io.lantern.link.attributes.PublishesAttributes;
+import io.lantern.link.attributes.UnresolvedLinkAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -507,14 +512,14 @@ final class NamedClaimChecks {
     List<Served> served = new ArrayList<>();
     Set<EntityId> serving = new HashSet<>();
     for (Fact f : links.of(SpringExtractor.ENDPOINT)) {
-      String controller = UntypedReads.text(f, "controller");
+      String controller = Endpoints.of(f).controller();
       EntityId code =
           controller == null ? f.subject() : new EntityId(BuiltInTypes.TYPE, controller);
       for (Unit unit : links.unitsOf(code)) {
         if (!units.contains(unit.id())) {
           continue;
         }
-        String template = UntypedReads.text(f, "path");
+        String template = Endpoints.of(f).path();
         if (template == null) {
           return null;
         }
@@ -531,7 +536,7 @@ final class NamedClaimChecks {
           paths.add(LinkText.join(prefix, template));
         }
         List<String> lower = paths.stream().map(p -> p.toLowerCase(Locale.ROOT)).toList();
-        served.add(new Served(f, UntypedReads.text(f, "httpMethod"), lower));
+        served.add(new Served(f, Endpoints.of(f).httpMethod(), lower));
         serving.add(unit.id());
       }
     }
@@ -654,7 +659,7 @@ final class NamedClaimChecks {
     }
     // A send or listener whose destination the linker could not know may be the named one.
     for (Fact f : index.from(CrossRepoLinks.UNRESOLVED_LINK, units)) {
-      if ("message".equals(UntypedReads.text(f, "kind"))) {
+      if ("message".equals(Claims.of(f, UnresolvedLinkAttributes.class).kind())) {
         return;
       }
     }
@@ -664,10 +669,10 @@ final class NamedClaimChecks {
       if (links.unitsOf(f.subject()).stream().noneMatch(u -> units.contains(u.id()))) {
         continue;
       }
-      if (Claims.masked(f) || UntypedReads.text(f, "broker") == null) {
+      if (Claims.masked(f) || broker(f) == null) {
         return;
       }
-      if ("topic-pattern".equals(UntypedReads.text(f, "destinationKind"))) {
+      if ("topic-pattern".equals(destinationKind(f))) {
         patterns.add(f.object().value());
       }
     }
@@ -677,11 +682,13 @@ final class NamedClaimChecks {
         continue;
       }
       destinations.add(f.object().entityId());
-      String key = UntypedReads.text(f, "routingKey");
+      PublishesAttributes published = Claims.ofOrNull(f, PublishesAttributes.class);
+      String key = published == null ? null : published.routingKey();
       if (key != null) {
         known.add(key.toLowerCase(Locale.ROOT));
       }
-      String pattern = UntypedReads.text(f, "pattern");
+      ConsumesAttributes consumed = Claims.ofOrNull(f, ConsumesAttributes.class);
+      String pattern = consumed == null ? null : consumed.pattern();
       if (pattern != null) {
         patterns.add(pattern);
       }
@@ -786,7 +793,7 @@ final class NamedClaimChecks {
     called.addAll(only);
     boolean unresolved =
         index.from(CrossRepoLinks.UNRESOLVED_LINK, units).stream()
-            .anyMatch(f -> "http".equals(UntypedReads.text(f, "kind")));
+            .anyMatch(f -> "http".equals(Claims.of(f, UnresolvedLinkAttributes.class).kind()));
     Set<String> found = new TreeSet<>();
     if (!http.isEmpty() && !unresolved) {
       for (EntityId named : called) {
@@ -885,5 +892,25 @@ final class NamedClaimChecks {
       named.add(unit);
     }
     return new Names(named, m.end());
+  }
+
+  /** The broker of a send or listener. */
+  private static String broker(Fact f) {
+    MessageSendAttributes send = Claims.ofOrNull(f, MessageSendAttributes.class);
+    if (send != null) {
+      return send.broker();
+    }
+    MessageListenerAttributes listener = Claims.ofOrNull(f, MessageListenerAttributes.class);
+    return listener == null ? null : listener.broker();
+  }
+
+  /** The kind of destination a send or listener names. */
+  private static String destinationKind(Fact f) {
+    MessageSendAttributes send = Claims.ofOrNull(f, MessageSendAttributes.class);
+    if (send != null) {
+      return send.destinationKind();
+    }
+    MessageListenerAttributes listener = Claims.ofOrNull(f, MessageListenerAttributes.class);
+    return listener == null ? null : listener.destinationKind();
   }
 }

@@ -5,14 +5,10 @@ import java.util.ArrayList;
 import java.util.List;
 import tools.jackson.databind.JsonNode;
 
-/**
- * Attribute reads by name for the code #576 ports to typed facts: the README claim checks, which
- * move to derivation (1D), and the LLM resolver's prompt and tools. No other linker code uses it
- * (ADR 0095, amendment for #580).
- */
-final class UntypedReads {
+/** Attribute reads by name, for tests, which may read facts as they like. */
+final class TestAttributes {
 
-  private UntypedReads() {}
+  private TestAttributes() {}
 
   static String text(Fact fact, String attribute) {
     JsonNode value = fact.attributes().get(attribute);

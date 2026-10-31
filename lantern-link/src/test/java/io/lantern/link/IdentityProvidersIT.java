@@ -122,28 +122,28 @@ class IdentityProvidersIT {
     for (Fact f : new CrossRepoLinks().derive(facts, 1)) {
       String line = f.subject() + " " + f.predicate() + " " + f.object().value();
       if (f.predicate().equals(CrossRepoLinks.USES_IDENTITY_PROVIDER)) {
-        String target = UntypedReads.text(f, "target");
+        String target = TestAttributes.text(f, "target");
         lines.add(
             line
                 + " "
-                + UntypedReads.text(f, "purpose")
+                + TestAttributes.text(f, "purpose")
                 + " "
-                + UntypedReads.text(f, "protocol")
+                + TestAttributes.text(f, "protocol")
                 + " "
-                + UntypedReads.text(f, "matchedBy")
+                + TestAttributes.text(f, "matchedBy")
                 + (target == null ? "" : " target=" + target)
                 + (f.attributes().has("profile")
-                    ? " profile=" + UntypedReads.text(f, "profile")
+                    ? " profile=" + TestAttributes.text(f, "profile")
                     : ""));
       } else if (f.predicate().equals(CrossRepoLinks.SHARED_SECRET)) {
         lines.add(
             line
                 + " basis="
-                + UntypedReads.text(f, "basis")
+                + TestAttributes.text(f, "basis")
                 + " with="
-                + UntypedReads.texts(f, "with")
+                + TestAttributes.texts(f, "with")
                 + " uses="
-                + UntypedReads.texts(f, "uses"));
+                + TestAttributes.texts(f, "uses"));
       } else if (f.subject().type().equals(CrossRepoLinks.EXTERNAL_SYSTEM)) {
         lines.add(line);
       }

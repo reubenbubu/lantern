@@ -279,9 +279,8 @@ class LinkResolverTest {
     assertThat(link.evidence()).isEqualTo(unresolved.evidence());
     ObjectNode attributes = link.attributes().deepCopy();
     assertThat(attributes.remove("facts")).isNotNull();
-    assertThat(attributes.remove("link").asString()).hasSize(16);
-    assertThat(attributes.remove("resolves").asString())
-        .isEqualTo(unresolved.attributes().get("link").asString());
+    // The link left open is named by its claim ID once stored; here, before, by its fact ID.
+    assertThat(attributes.remove("resolves").asString()).isEqualTo(unresolved.id());
     assertThat(attributes.toString())
         .isEqualTo(
             "{\"client\":\"rest-client\",\"endpoint\":\"GET /v2/quotes\",\"httpMethod\":\"GET\","
@@ -494,8 +493,8 @@ class LinkResolverTest {
               assertThat(f.object()).isEqualTo(first.facts().getFirst().object());
               // Evidence names no commit, so it is the same observation (ADR 0091).
               assertThat(f.id()).isEqualTo(first.facts().getFirst().id());
-              assertThat(f.attributes().get("link"))
-                  .isEqualTo(first.facts().getFirst().attributes().get("link"));
+              assertThat(f.attributes().get("resolves"))
+                  .isEqualTo(first.facts().getFirst().attributes().get("resolves"));
             });
   }
 

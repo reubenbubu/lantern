@@ -211,7 +211,7 @@ public final class Linker {
         // A derived fact's lineage is the claims of the facts it names (ADR 0091).
         List<Fact> found =
             sink.facts().stream()
-                .map(f -> f.withLineage(Lineage.of(f.attributes(), claims::get)))
+                .map(f -> f.withLineage(Lineage.of(Claims.json(f), claims::get)))
                 .toList();
         FactRepository.SnapshotUpdate update =
             store.recordDerived(snapshot, info.origin(), repos, found);

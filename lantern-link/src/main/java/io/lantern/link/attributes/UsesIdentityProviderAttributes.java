@@ -22,9 +22,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     the provider, the admin client, and what the provider was found by (a unit's name or port, a
  *     deployment container), in every view it holds in.
  * @param key Key. The config key that names the URL, when it is config.
- * @param link Descriptive. The link's stable ID: the first 16 hex digits of the SHA-256 of its
- *     ends, what the subject does with the provider and its profile, so it stays the same across
- *     snapshots and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param matchedBy Descriptive. How the provider was found: host (a unit's
  *     spring.application.name), port (a unit's server.port, for this machine), container (a
  *     deployment container of an identity provider's image answering the host), published-port (one

@@ -1,6 +1,6 @@
 # 0045: LLM resolver for links left open
 
-Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169), amended by ADR 0095 (#573)
+Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169), amended by ADR 0095 (#573), amended by ADR 0095 (#576)
 
 ## Context
 
@@ -106,3 +106,10 @@ extracted facts, the values', units' and cross-repo links' facts, and whose writ
 and `SENDS_MESSAGES_TO`. It is not pure: its answers and model are outside the facts, so it runs on
 every analysis, asking the LLM only about links it has no answer for. The README claim checks read
 the link predicates it writes, so they now run after it rather than before.
+
+## Amendment (#576): links named by their claim IDs
+
+A pick's `resolves` names the link left open by its claim ID (its fact ID only before it is stored,
+as in tests), and the pick no longer carries `link`: its own claim ID is its stable ID. The answers
+`ResolutionStore.latest` keeps under the old 16-digit IDs are not found again under the claim IDs;
+`find` by the prompt's cache key, which names no link ID, still reuses them.

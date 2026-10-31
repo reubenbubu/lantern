@@ -19,4 +19,7 @@ class ArchitectureTest {
 
   @ArchTest
   static final ArchRule renderersMustNotReadFacts = ArchitectureRules.RENDERERS_MUST_NOT_READ_FACTS;
+
+  @ArchTest
+  static final ArchRule linkerReadsTypedFacts = ArchitectureRules.LINKER_READS_TYPED_FACTS;
 }

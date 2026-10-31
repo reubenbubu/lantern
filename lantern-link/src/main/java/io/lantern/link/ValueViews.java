@@ -301,7 +301,7 @@ public final class ValueViews implements LinkRule.OverFacts {
         f.subject(),
         f.predicate(),
         f.object(),
-        f.attributes(),
+        Claims.json(f),
         f.origin(),
         evidence,
         f.confidence(),

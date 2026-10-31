@@ -20,8 +20,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     holds under every profile.
  * @param facts Descriptive. The IDs of the facts it comes from: the endpoint and the gateway's
  *     routes to the unit, in every view it holds in.
- * @param link Descriptive. The finding's stable ID: the first 16 hex digits of the SHA-256 of the
- *     gateway, the endpoint and its profile, so it stays the same across snapshots and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param profile Key. The Spring profile under which alone it holds. Absent when it holds in the
  *     default view.
  * @param target Key. The entity ID of the unit that serves the endpoint.

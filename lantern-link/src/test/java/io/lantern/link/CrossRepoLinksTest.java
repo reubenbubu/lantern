@@ -825,8 +825,8 @@ class CrossRepoLinksTest {
             l -> {
               assertThat(l.subject().toString()).isEqualTo("service:g:fulfilment");
               assertThat(l.object().value()).isEqualTo("service:g:storefront-app");
-              assertThat(UntypedReads.text(l, "matchedBy")).isEqualTo("container-host");
-              assertThat(UntypedReads.text(l, "endpoint")).isEqualTo("GET /api/orders/{id}");
+              assertThat(TestAttributes.text(l, "matchedBy")).isEqualTo("container-host");
+              assertThat(TestAttributes.text(l, "endpoint")).isEqualTo("GET /api/orders/{id}");
               // The container whose environment filled it in is among the link's facts.
               String fulfilmentContainer =
                   facts.stream()
@@ -835,7 +835,7 @@ class CrossRepoLinksTest {
                       .findFirst()
                       .orElseThrow()
                       .id();
-              assertThat(UntypedReads.texts(l, "facts")).contains(fulfilmentContainer);
+              assertThat(TestAttributes.texts(l, "facts")).contains(fulfilmentContainer);
             });
   }
 
@@ -2437,9 +2437,10 @@ class CrossRepoLinksTest {
 
   @Test
   void linkAndFactIdsStayTheSameWhenOnlyTheCommitChanges() {
+    // A link's stable ID is its claim ID (ADR 0095, amendment for #576).
+    Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
     kafkaSendAndListener();
-    List<String> before =
-        linked().stream().map(f -> f.attributes().get("link").asString()).toList();
+    List<String> before = linked().stream().map(vocabulary::claimId).toList();
     List<String> ids = linked().stream().map(Fact::id).toList();
 
     facts.clear();
@@ -2447,9 +2448,10 @@ class CrossRepoLinksTest {
     kafkaSendAndListener();
     List<Fact> after = linked();
 
-    assertThat(after.stream().map(f -> f.attributes().get("link").asString()))
+    assertThat(after.stream().map(vocabulary::claimId))
         .containsExactlyElementsOf(before)
         .doesNotHaveDuplicates();
+    assertThat(after).noneMatch(f -> f.attributes().has("link"));
     // Evidence names no commit, so the link facts are the same observations (ADR 0091).
     assertThat(after.stream().map(Fact::id)).containsExactlyElementsOf(ids);
     assertThat(after).allSatisfy(f -> assertThat(f.attributes().get("facts").size()).isPositive());

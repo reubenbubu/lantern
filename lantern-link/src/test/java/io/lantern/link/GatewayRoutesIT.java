@@ -134,7 +134,7 @@ class GatewayRoutesIT {
     List<String> lines = new ArrayList<>();
     List<String> others = new ArrayList<>();
     for (Fact f : links) {
-      String route = UntypedReads.text(f, "route");
+      String route = TestAttributes.text(f, "route");
       String line = f.subject() + " " + f.predicate() + " " + f.object().value();
       if (route != null) {
         lines.add(
@@ -142,20 +142,20 @@ class GatewayRoutesIT {
                 + " route="
                 + route
                 + " "
-                + UntypedReads.text(f, "protocol")
+                + TestAttributes.text(f, "protocol")
                 + " "
-                + UntypedReads.text(f, "matchedBy")
-                + (UntypedReads.text(f, "endpoint") == null
+                + TestAttributes.text(f, "matchedBy")
+                + (TestAttributes.text(f, "endpoint") == null
                     ? ""
-                    : " endpoint=" + UntypedReads.text(f, "endpoint")));
+                    : " endpoint=" + TestAttributes.text(f, "endpoint")));
       } else if (f.predicate().equals(CrossRepoLinks.UNROUTED_ENDPOINT)) {
-        lines.add(line + " on " + UntypedReads.text(f, "target") + calledBy(f));
+        lines.add(line + " on " + TestAttributes.text(f, "target") + calledBy(f));
       } else if (f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK)
-          && "route".equals(UntypedReads.text(f, "kind"))) {
-        lines.add(line + " " + UntypedReads.text(f, "reason"));
+          && "route".equals(TestAttributes.text(f, "kind"))) {
+        lines.add(line + " " + TestAttributes.text(f, "reason"));
       } else if (f.predicate().equals(CrossRepoLinks.CALLS_HTTP)) {
         others.add(
-            line + " " + UntypedReads.text(f, "protocol") + " " + f.attributes().get("path"));
+            line + " " + TestAttributes.text(f, "protocol") + " " + f.attributes().get("path"));
       }
     }
     Path out = Path.of("target", "gateway-routes");
@@ -168,7 +168,7 @@ class GatewayRoutesIT {
   }
 
   private static String calledBy(Fact f) {
-    List<String> callers = UntypedReads.texts(f, "calledBy");
+    List<String> callers = TestAttributes.texts(f, "calledBy");
     return callers.isEmpty() ? "" : " calledBy=" + String.join(",", callers);
   }
 
