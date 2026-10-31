@@ -51,6 +51,8 @@ class CodeValuesTest {
           "${missing.key:fallback}/x",
           "${nested.outer}",
           "${list.items[0]}-${list.items[1]}",
+          "${routes[0].id}:${routes[0].uri}:${routes[1].id}",
+          "${same.resolved}",
           "${spring.datasource.password}",
           "${app.jwt.signing}",
           "${with.credentials}",
@@ -98,6 +100,16 @@ class CodeValuesTest {
                       credentials: https://user:pw@example.com/path
                     env:
                       only: ${ENV_ONLY}
+                    routes:
+                      - id: orders
+                        uri: http://orders
+                      - id: payments
+                        uri: http://payments
+                    same:
+                      resolved: ${same.part}
+                      part: "1"
+                    neutral:
+                      url: https://admin:pw@example.com/path
                     ---
                     spring:
                       config:
@@ -105,6 +117,14 @@ class CodeValuesTest {
                           on-profile: docker
                     payments:
                       host: payments-svc
+                    routes:
+                      - id: orders
+                        uri: http://orders-docker
+                      - id: payments
+                        uri: http://payments
+                    same:
+                      resolved: "1"
+                      part: "2"
                     """),
                 Map.entry(
                     "a/src/main/resources/application-local.properties",
@@ -125,7 +145,32 @@ class CodeValuesTest {
                 "src/main/resources/bootstrap.yml",
                 "orders:\n  exchange: from-bootstrap\n"));
     RepoBuild none = repo("none", Map.of("pom.xml", POM.formatted("none", "")));
-    List<RepoBuild> repos = List.of(multi, single, none);
+    // A config server whose repository also holds the files it serves; served files are not the
+    // server module's own config.
+    RepoBuild server =
+        repo(
+            "server",
+            Map.of(
+                "pom.xml",
+                POM.formatted("server", ""),
+                "src/main/resources/application.yml",
+                """
+                spring:
+                  application:
+                    name: server
+                  cloud:
+                    config:
+                      server:
+                        native:
+                          search-locations: file:./served
+                orders:
+                  exchange: server-own
+                """,
+                "served/application.yml",
+                "orders:\n  exchange: served-to-all\n",
+                "served/single.yml",
+                "payments:\n  host: served-to-single\n"));
+    List<RepoBuild> repos = List.of(multi, single, none, server);
     Set<String> secretKeys = Set.of("app.jwt.signing");
 
     List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, 1, secretKeys));
@@ -137,6 +182,7 @@ class CodeValuesTest {
     modules.put("multi", List.of("a", "b", "c"));
     modules.put("single", List.of(""));
     modules.put("none", List.of(""));
+    modules.put("server", List.of(""));
     int compared = 0;
     for (RepoBuild repo : repos) {
       for (String directory : modules.get(repo.repo().name())) {
@@ -161,6 +207,13 @@ class CodeValuesTest {
       }
     }
     assertThat(compared).isGreaterThan(80);
+
+    // The known gap: a URL's credentials are gone from the config facts, so the lookup gives the
+    // URL without them where the extractors' own resolution had them (ADR 0094).
+    CodeValues.Value url =
+        values.forModule(EntityId.parse("module:g:a"), "multi").value(null, "${neutral.url}");
+    assertThat(url.value()).isEqualTo("https://example.com/path");
+    assertThat(url.masked()).isFalse();
   }
 
   @Test

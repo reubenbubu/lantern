@@ -63,12 +63,12 @@ class CodeValuesIT {
               String text = "${" + key + "}";
               CodeConfig.CodeValue want = expected.value(expected.resolve(view, text), text);
               CodeValues.Value got = actual.value(view, text);
-              compared++;
               if (stripped.contains(module.module() + " " + key)) {
                 // The config fact lost part of the value as if it were a URL's credentials.
                 lossy.add(set + " " + module.module() + " " + view + " " + text);
                 continue;
               }
+              compared++;
               if (!got.value().equals(want.value())
                   || !got.unresolved().equals(want.unresolved())
                   || got.masked() != want.masked()) {

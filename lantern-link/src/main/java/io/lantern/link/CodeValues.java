@@ -23,11 +23,14 @@ import java.util.TreeSet;
  *
  * <p>A value a secret was substituted into is kept as written and masked: a key the config
  * extractor names a secret, or the identity extractor finds holding a JWT secret, or a key whose
- * own value the config extractor masked.
+ * own value the config extractor masked whole (which also covers values masked for holding a
+ * credential or a cipher, so it masks a little more than the extractors did).
  *
- * <p>The facts record a profile's value only where it differs from the default view's. So when a
- * profile sets a list to fewer items that all equal the default's first ones, the lookup still sees
- * the default's further items, where Spring would not.
+ * <p>A profile's facts hold a key where its value, as resolved or as written, differs from the
+ * default view's, and every item of a list the profile sets, so the profile's view is the default's
+ * overlaid with the profile's facts, a list the profile sets replacing the default's whole. A
+ * module that has config files but no values has no facts, so its code takes its repository's only
+ * other config.
  *
  * <p>A config value the config extractor recorded with what looked like a URL's credentials
  * removed, rather than masked whole, is used as recorded, so a text using it lacks that part, where
