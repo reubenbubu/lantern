@@ -276,6 +276,29 @@ class ConfigExtractorTest {
   }
 
   @Test
+  void aMaskedValueKeepsItsTextAsWrittenOnlyWhenNoPlaceholderDefaultIsInIt() throws IOException {
+    Repo repo =
+        repo(
+            Map.of(
+                RESOURCES + "application.properties",
+                """
+                api.token=t0k3n-value
+                app.plain=http://h/${api.token}
+                app.defaulted=http://h/${api.token:abc123}
+                """));
+
+    List<String> facts = extract(repo);
+    // The default of a placeholder whose key is secret may be a secret: not kept (#558).
+    assertThat(facts)
+        .anyMatch(
+            l ->
+                l.contains(
+                    "\"key\":\"app.plain\",\"masked\":true,\"written\":\"http://h/${api.token}\""))
+        .anyMatch(l -> l.contains("{\"key\":\"app.defaulted\",\"masked\":true}"))
+        .noneMatch(l -> l.contains("abc123") || l.contains("t0k3n-value"));
+  }
+
+  @Test
   void secretsWrittenInTheFileAreMasked() throws IOException {
     Repo repo =
         repo(
@@ -318,7 +341,10 @@ class ConfigExtractorTest {
             // A secret reached through a placeholder is masked too, in a secret's key or not.
             "module:g:app config-value ****** {\"key\":\"other.datasource.password\","
                 + "\"masked\":true} @app:src/main/resources/application.properties#11-11 1.0",
-            "module:g:app config-value ****** {\"key\":\"db.url\",\"masked\":true}"
+            // Masked for the secret its placeholder brings in; the text as written, without the
+            // query, holds none, so it is kept for linking (ADR 0094).
+            "module:g:app config-value ******"
+                + " {\"key\":\"db.url\",\"masked\":true,\"written\":\"jdbc:postgresql://db/shop\"}"
                 + " @app:src/main/resources/application.properties#12-12 1.0",
             "module:g:app config-value order.created {\"key\":\"shop.routing-key\"}"
                 + " @app:src/main/resources/application.properties#5-5 1.0",

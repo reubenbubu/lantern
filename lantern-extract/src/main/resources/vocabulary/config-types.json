@@ -9,7 +9,7 @@
       "properties": {
         "key": { "type": "string", "description": "The property key as Spring Boot flattens it, such as spring.application.name or shop.hosts[0]." },
         "profile": { "type": "string", "description": "The profile active instead of the default one. Absent for the default view; present only where the value differs from it." },
-        "written": { "type": "string", "description": "The value as written, when it differs from the resolved value." },
+        "written": { "type": "string", "description": "The value as written, when it differs from the resolved value; for a value masked only for the secret its placeholders bring in, the text as written when it holds no secret and no placeholder default (ADR 0032, amendment for #558)." },
         "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of the placeholders that could not be resolved." },
         "source": { "type": "string", "enum": ["environment-post-processor", "config-repository"], "description": "Present when the value is not one of the subject module's own config files: environment-post-processor for a default a library adds in code, through an EnvironmentPostProcessor, which has the lowest precedence in a unit that bundles the library; config-repository for a value a Spring Cloud Config repository serves, whose subject is the repository and which outranks the application's own files." },
         "application": { "type": "string", "description": "For a config-repository value: the application its file is named after, or application for the files every application gets." },

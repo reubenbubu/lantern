@@ -260,3 +260,16 @@ Config repository with no Maven module, which the extractor did not read. The re
   - the files of each of its config names, each with its profile files on top
 
   Config-server values outrank the unit's own files, and in bootstrap mode its environment too.
+
+## Amendment for #558: the text as written of a value masked for its placeholders
+
+Linking now resolves code values and reads gateway routes from the config facts (ADR 0094). It
+needs the text as written of a value that is masked only because a placeholder in it brings in a
+secret, such as `uri: http://edge/${app.secret-token}`. So a masked value keeps `written` when all of
+these hold:
+- its own key is not a secret;
+- the text holds no credential in a URL and no `{cipher}`;
+- no placeholder in it has a default, which may itself be a secret (`${api.token:abc123}`).
+
+Its value stays `******`. A secret's own value, and any other masked value, keeps neither, as before.
+The extractor's version becomes 9.

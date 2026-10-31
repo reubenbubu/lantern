@@ -348,8 +348,9 @@ public final class AnalysisRun {
               .withSecretKeys(secretKeys);
       // The summaries read the facts the extractors recorded before they kept values as written:
       // the first link step's values resolved per view (ADR 0094), derived here as linking will.
+      List<Fact> resolved = new ValueViews().derive(extracted, snapshot.number());
       List<Fact> summarizable = new ArrayList<>(extracted);
-      summarizable.addAll(new ValueViews().derive(extracted, snapshot.number()));
+      summarizable.addAll(resolved);
       Summarizer.Result summarized =
           new Summarizer(client, summaries, sources).summarize(SummaryTree.fromFacts(summarizable));
       LOG.info(
@@ -437,7 +438,11 @@ public final class AnalysisRun {
                   callLog.spentByModelSince(started),
                   callLog.conversationsSince(started)));
       LOG.info("Wrote {}", runRecord);
-      LOG.info("Wrote {}", ExtractedFacts.write(out, found));
+      // With the first link step's facts, the facts extractors recorded before they kept values as
+      // written, which extraction coverage counts as theirs (ADR 0094).
+      List<Fact> written = new ArrayList<>(found);
+      written.addAll(resolved);
+      LOG.info("Wrote {}", ExtractedFacts.write(out, written));
       return new Result(
           system,
           systemTitle,

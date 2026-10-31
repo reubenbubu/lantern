@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { test } from 'vitest';
 import {
+  areaOf,
   checkCitations,
   checkMap,
   composeServices,
@@ -69,6 +70,14 @@ const fact = (extractor, path, start, end, predicate = 'P') => ({
   object: { kind: 'string', value: 'x' },
   origin: { kind: 'static', name: extractor, version: '1' },
   evidence: [{ repo: 'shop', path, ...(start ? { lines: { start, end } } : {}), role: 'declared' }],
+});
+
+test("linking's first step's facts count as the extractor area whose kind they are", () => {
+  // ADR 0094: the step records the facts extractors recorded before they kept values as written.
+  assert.equal(areaOf({ predicate: 'gateway-route', origin: { name: 'values' } }), 'gateway');
+  assert.equal(areaOf({ predicate: 'http-call', origin: { name: 'values' } }), 'http-client');
+  assert.equal(areaOf({ predicate: 'gateway-route', origin: { name: 'gateway' } }), 'gateway');
+  assert.equal(areaOf({ predicate: 'other', origin: { name: 'values' } }), 'values');
 });
 
 test('a citation names a repository, a path and optionally a line range', () => {

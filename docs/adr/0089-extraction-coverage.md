@@ -134,3 +134,15 @@ area, tightened as follows:
   that make a module a service cite no lines when what makes it deployable is inherited from its
   parent, while Maven records lines for POMs elsewhere. That is an extraction gap the weak rule
   exists to show; #510 fixes it in the Maven extractor.
+
+## Amendment for #558: facts of linking's first step
+
+From #557 on, extractors keep values as written, and linking's first step (`ValueViews`, ADR 0094)
+records the facts they recorded before (`http-call`, `gateway-route`, `gateway-discovery-locator`),
+with origin `values`. Routes defined in config are now read there too, from the config facts. These
+facts are what extraction gave before linking joins anything, so:
+- `analyze` writes them into `extracted.jsonl.gz` beside the extracted facts;
+- coverage counts each under the area of the extractor whose kind of fact it is
+  (`areaOf` in `coverage.mjs`).
+
+The maps do not change.
