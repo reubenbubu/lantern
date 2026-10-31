@@ -8,6 +8,7 @@
   {
     "name": "BUILD_DEPENDS_ON",
     "kind": "relationship",
+    "keyAttributes": ["artifactType", "classifier", "coordinates", "optional", "scope", "version"],
     "parent": "DEPENDS_ON",
     "description": "The subject module declares a Maven dependency on the object module or artifact.",
     "attributeSchema": {
@@ -69,6 +70,7 @@
   {
     "name": "coverage-tool",
     "kind": "attribute",
+    "keyAttributes": ["goals", "limits"],
     "description": "A coverage tool the subject module's build runs, by its Maven plugin's groupId:artifactId, such as org.jacoco:jacoco-maven-plugin.",
     "attributeSchema": {
       "type": "object",

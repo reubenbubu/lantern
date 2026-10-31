@@ -2,6 +2,7 @@
   {
     "name": "jwt-secret-key",
     "kind": "attribute",
+    "keyAttributes": ["call", "keys", "library", "uses"],
     "description": "The subject method makes an HMAC key for signing or checking JWTs from a secret in config: jjwt's Keys.hmacShaKeyFor, signWith, setSigningKey or verifyWith, Nimbus's MACSigner or MACVerifier, Spring Security's withSecretKey or java-jwt's Algorithm.HMAC256. The value is the first config key the secret comes from; the secret's value is never recorded (ADR 0085).",
     "attributeSchema": {
       "type": "object",
@@ -41,6 +42,7 @@
   {
     "name": "identity-admin-client",
     "kind": "attribute",
+    "keyAttributes": ["product", "url"],
     "description": "The subject method builds an identity provider's admin client, Keycloak's (KeycloakBuilder.serverUrl, Keycloak.getInstance). The value is the server's URL as written: a @Value text with its placeholders, which the linker resolves through the unit's config, or a literal URL without credentials (ADR 0085).",
     "attributeSchema": {
       "type": "object",
@@ -65,6 +67,7 @@
   {
     "name": "jwt-decoder",
     "kind": "attribute",
+    "keyAttributes": ["call", "keys", "library", "url"],
     "description": "The subject method builds Spring Security's JWT decoder, which checks tokens with an identity provider's keys: NimbusJwtDecoder or NimbusReactiveJwtDecoder withJwkSetUri, withIssuerLocation or withPublicKey, or JwtDecoders and ReactiveJwtDecoders fromIssuerLocation. The value says where the keys come from: jwk-set-uri, issuer or public-key (ADR 0085, amended for #395).",
     "attributeSchema": {
       "type": "object",
@@ -100,6 +103,7 @@
   {
     "name": "http-security",
     "kind": "attribute",
+    "keyAttributes": ["call", "via"],
     "description": "The subject sets up how callers sign in or show a token: a method using Spring Security's HttpSecurity or ServerHttpSecurity DSL, or a type annotated with legacy Spring Security OAuth's @EnableAuthorizationServer, @EnableResourceServer, @EnableOAuth2Sso or @EnableOAuth2Client. The value is one of oauth2-login (users sign in through an OAuth2 or OIDC provider), oauth2-resource-server (callers show a provider's token), oauth2-client, oauth2-authorization-server (the subject's unit issues tokens), form-login, http-basic, saml2-login, x509, one-time-token-login or webauthn (ADR 0085, amended for #395).",
     "attributeSchema": {
       "type": "object",
@@ -124,6 +128,7 @@
   {
     "name": "jwt-key-pair",
     "kind": "attribute",
+    "keyAttributes": ["call", "keys", "library", "use"],
     "description": "The subject method signs or checks JWTs with the key of a key pair: Nimbus's RSASSASigner, RSASSAVerifier, ECDSASigner or ECDSAVerifier. The value is the kind of key, RSA or EC; a key's value is never recorded (ADR 0085, amended for #395).",
     "attributeSchema": {
       "type": "object",
@@ -160,6 +165,7 @@
   {
     "name": "identity-client",
     "kind": "attribute",
+    "keyAttributes": ["bearerOnly", "enabled", "flows", "pkce", "product", "protocol", "public"],
     "description": "A client that a Keycloak realm export in the subject repository registers: an application that signs users in or gets tokens there. The value is its client ID; its secret is never recorded (ADR 0085, amended for #395).",
     "attributeSchema": {
       "type": "object",

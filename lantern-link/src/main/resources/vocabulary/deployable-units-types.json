@@ -2,6 +2,7 @@
   {
     "name": "deployable-unit",
     "kind": "attribute",
+    "keyAttributes": ["mainClass", "packaging"],
     "description": "The subject service is a deployable unit, a container: one runnable application together with the in-set libraries it bundles. The value says what makes it runnable: spring-boot for a Spring Boot application class in its code, war or ear for that packaging, executable-jar for a jar Spring Boot's Maven plugin repackages without such a class.",
     "attributeSchema": {
       "type": "object",
@@ -16,6 +17,7 @@
   {
     "name": "application-name",
     "kind": "attribute",
+    "keyAttributes": ["module", "profile"],
     "description": "The name the subject deployable unit runs under: its spring.application.name, else its Maven artifact ID. Without profile it is the name in the default view; with profile, the name under that profile where it differs.",
     "attributeSchema": {
       "type": "object",
@@ -48,6 +50,7 @@
   {
     "name": "BUNDLES",
     "kind": "relationship",
+    "keyAttributes": ["main", "via"],
     "description": "The subject deployable unit ships the object in-set library in what it deploys, so the library's code runs as part of the unit. A library can be bundled by several units. This is not a dependency between containers: the two are drawn as one container.",
     "attributeSchema": {
       "type": "object",
@@ -61,6 +64,7 @@
   {
     "name": "version-skew",
     "kind": "attribute",
+    "keyAttributes": ["versions"],
     "description": "The units that bundle the subject in-set library ask for versions of it other than the one its repository builds at the snapshot's commit, so the code that runs in them is not the code analyzed. The value is the version the library's module declares at that commit.",
     "attributeSchema": {
       "type": "object",

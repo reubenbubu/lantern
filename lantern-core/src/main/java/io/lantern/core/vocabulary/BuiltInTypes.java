@@ -21,6 +21,7 @@ public final class BuiltInTypes {
 
   // Entity types
   public static final String SYSTEM = "system";
+  public static final String ACTOR = "actor";
   public static final String CONTAINER = "container";
   public static final String COMPONENT = "component";
   public static final String SERVICE = "service";
@@ -28,10 +29,12 @@ public final class BuiltInTypes {
   public static final String MODULE = "module";
   public static final String PACKAGE = "package";
   public static final String TYPE = "type";
+  public static final String REPO = "repo";
 
   // Relationship types
   public static final String CONTAINS = "CONTAINS";
   public static final String DEPENDS_ON = "DEPENDS_ON";
+  public static final String INTERACTS_WITH = "INTERACTS_WITH";
   public static final String CALLS = "CALLS";
   public static final String EXTENDS = "EXTENDS";
   public static final String IMPLEMENTS = "IMPLEMENTS";

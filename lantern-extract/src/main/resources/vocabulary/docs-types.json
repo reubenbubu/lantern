@@ -20,6 +20,7 @@
   {
     "name": "claim",
     "kind": "attribute",
+    "keyAttributes": ["section"],
     "description": "Something the subject document says, one paragraph, list item, table row or quote in its Markdown or AsciiDoc as written. A documented claim, not checked against the code.",
     "attributeSchema": {
       "type": "object",
@@ -33,6 +34,7 @@
   {
     "name": "diagram",
     "kind": "attribute",
+    "keyAttributes": ["language", "section"],
     "description": "A diagram the subject document draws: the source of a code block in a diagram language, or of a plain one drawn as boxes, as written. A documented claim, not checked against the code.",
     "attributeSchema": {
       "type": "object",

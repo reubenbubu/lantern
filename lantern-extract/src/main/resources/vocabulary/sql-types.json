@@ -20,6 +20,7 @@
   {
     "name": "PRIMARY_KEY",
     "kind": "relationship",
+    "keyAttributes": ["columns", "name"],
     "description": "The subject table's primary key includes the object column.",
     "attributeSchema": {
       "type": "object",
@@ -34,6 +35,7 @@
   {
     "name": "UNIQUE_KEY",
     "kind": "relationship",
+    "keyAttributes": ["columns", "name"],
     "description": "A unique key of the subject table includes the object column. A table may have several; the columns attribute tells them apart.",
     "attributeSchema": {
       "type": "object",
@@ -48,6 +50,7 @@
   {
     "name": "REFERENCES",
     "kind": "relationship",
+    "keyAttributes": ["columns", "name", "referencedColumns"],
     "description": "A foreign key of the subject table references the object table. The object may be a table the schema does not create.",
     "attributeSchema": {
       "type": "object",

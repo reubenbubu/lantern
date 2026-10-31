@@ -166,6 +166,11 @@
         <version>${spotless.version}</version>
         <configuration>
           <java>
+            <!-- Records generated from the vocabulary's attribute schemas (ADR 0090); a test of
+                 their module checks them against the generator instead. -->
+            <excludes>
+              <exclude>src/main/java/io/lantern/*/attributes/**</exclude>
+            </excludes>
             <googleJavaFormat>
               <version>${google-java-format.version}</version>
             </googleJavaFormat>

@@ -2,6 +2,7 @@
   {
     "name": "config-value",
     "kind": "attribute",
+    "keyAttributes": ["application", "key", "profile", "source"],
     "description": "A config property of the subject module, from its application and bootstrap files (or of the subject config repository, for the application named in the attribute application), as Spring Boot sees it: by default, or with the attribute profile active. The value has its placeholders resolved; one that cannot be resolved, such as an environment variable no file sets, stays as ${KEY}.",
     "attributeSchema": {
       "type": "object",

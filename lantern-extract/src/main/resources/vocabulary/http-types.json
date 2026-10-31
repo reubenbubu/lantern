@@ -2,6 +2,7 @@
   {
     "name": "http-call",
     "kind": "attribute",
+    "keyAttributes": ["annotation", "baseUrl", "client", "clientType", "httpMethod", "loadBalanced", "path", "service", "url"],
     "description": "The subject method (or type, for code outside methods) sends an HTTP request: the HTTP method and URL, such as POST http://payments:8080/api/payments, or the URL alone when the method is not known. Placeholders are resolved against the config of the code's module; one nothing resolves is kept as written (${TAX_SERVICE_URL}), and an expression the extractor does not follow is shown as its source in braces ({productId}). User information, query and fragment are left out of every URL. A Feign client called by name goes to http://<name>, as Spring Cloud OpenFeign sends it. Values are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
@@ -29,6 +30,7 @@
   {
     "name": "http-client",
     "kind": "attribute",
+    "keyAttributes": ["annotation"],
     "description": "The subject interface is a declarative HTTP client: feign for a Spring Cloud OpenFeign client (@FeignClient), microprofile-rest-client for a MicroProfile REST client (@RegisterRestClient), http-interface for a Spring HTTP interface (@HttpExchange on the interface or its methods). Its methods carry the http-call facts. The code that enables or injects it, not the library that declares it, makes its calls (ENABLES, INJECTS).",
     "attributeSchema": {
       "type": "object",
@@ -43,6 +45,7 @@
   {
     "name": "ENABLES",
     "kind": "relationship",
+    "keyAttributes": ["annotation", "member"],
     "description": "The subject type turns on the object client interface, as @EnableFeignClients does for the clients it lists or that are in its packages, or as code that makes an HTTP interface's proxy does (HttpServiceProxyFactory.createClient), so the application the subject belongs to makes the client's calls.",
     "attributeSchema": {
       "type": "object",
@@ -56,6 +59,7 @@
   {
     "name": "INJECTS",
     "kind": "relationship",
+    "keyAttributes": ["member"],
     "description": "The subject type has the object client interface injected, through a field or a constructor parameter of that type, so its code calls the client.",
     "attributeSchema": {
       "type": "object",
@@ -69,6 +73,7 @@
   {
     "name": "http-client-bean",
     "kind": "attribute",
+    "keyAttributes": ["baseUrl", "loadBalanced", "type"],
     "description": "The subject @Bean method makes an HTTP client or a builder of one, which code elsewhere injects to send requests: rest-template (RestTemplate, RestOperations, RestTemplateBuilder), rest-client (RestClient or its builder) or web-client (WebClient or its builder). The object is the client kind.",
     "attributeSchema": {
       "type": "object",

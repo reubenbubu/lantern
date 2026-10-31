@@ -10,6 +10,7 @@
   {
     "name": "TESTS",
     "kind": "relationship",
+    "keyAttributes": ["architecture", "tests"],
     "description": "The subject test class is in the test sources of the object module, so it tests that module's code.",
     "attributeSchema": {
       "type": "object",
@@ -32,6 +33,7 @@
   {
     "name": "test-container",
     "kind": "attribute",
+    "keyAttributes": ["class", "embedded", "image", "role", "serviceConnection", "technology", "topics"],
     "description": "A container the subject module's tests start: a Testcontainers container or an embedded Kafka broker. The value is its image as written, else its class (EmbeddedKafka for an embedded broker). It shows infrastructure the tests run against, not what production runs. Evidence is its declaration.",
     "attributeSchema": {
       "type": "object",
@@ -74,6 +76,7 @@
   {
     "name": "architecture-rule",
     "kind": "attribute",
+    "keyAttributes": ["access", "because", "checks", "frozen", "ignored", "layers", "slices"],
     "description": "An architecture rule the subject module's tests declare with one of ArchUnit's library rules. The value is its kind: layered, onion or slices. It states what the team intends; Lantern does not run it, so whether the code keeps it is not known. Evidence is the rule's lines.",
     "attributeSchema": {
       "type": "object",

@@ -1,6 +1,6 @@
 # 0002: Vocabulary registry details
 
-Status: accepted (#4), amended by ADR 0026 (#86), by #90 and by #156
+Status: accepted (#4), amended by ADR 0026 (#86), by #90, by #156 and by ADR 0090 (#518: key attributes, `INTERACTS_WITH`, `actor`)
 
 ## Context
 

@@ -2,6 +2,7 @@
   {
     "name": "stereotype",
     "kind": "attribute",
+    "keyAttributes": ["annotation", "rest", "via"],
     "description": "The Spring stereotype of the subject type, a bean class: controller, service, repository, configuration or component, the most specific its annotations carry, directly or through meta-annotations. A Jakarta REST resource (a class with @Path, on it or a supertype) is a controller.",
     "attributeSchema": {
       "type": "object",
@@ -18,6 +19,7 @@
   {
     "name": "main-class",
     "kind": "attribute",
+    "keyAttributes": ["main"],
     "description": "The subject type is an application's main class: spring-boot for a Spring Boot application class (@SpringBootApplication or @EnableAutoConfiguration, directly or through meta-annotations), java for another class with a main(String[]) method.",
     "attributeSchema": {
       "type": "object",
@@ -46,6 +48,7 @@
   {
     "name": "endpoint",
     "kind": "attribute",
+    "keyAttributes": ["httpMethod", "path"],
     "parent": "entry-point",
     "description": "The subject method handles HTTP requests: the HTTP method and path, such as POST /api/orders, or the path alone when it takes any method. The path joins the controller's and the method's mappings, with placeholders resolved against the config of the controller's module.",
     "attributeSchema": {
@@ -64,6 +67,7 @@
   {
     "name": "scheduled",
     "kind": "attribute",
+    "keyAttributes": ["framework", "job", "request", "scheduledBy", "timeUnit", "trigger"],
     "parent": "entry-point",
     "description": "The subject method runs on a schedule (@Scheduled, JobRunr's @Recurring or a request scheduled recurrently, or a Quartz job whose cron was found): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module.",
     "attributeSchema": {
@@ -83,6 +87,7 @@
   {
     "name": "background-job",
     "kind": "attribute",
+    "keyAttributes": ["framework", "job", "kind", "request", "scheduledBy"],
     "parent": "entry-point",
     "description": "The subject method runs as a background job that a library starts, not on a cron, delay or rate: a JobRunr request handler's run method (the job runs when its request is enqueued or scheduled once), an @Job method, a @Recurring interval, or a Quartz job whose cron was not found. The value is the job's name, interval or class.",
     "attributeSchema": {
@@ -101,6 +106,7 @@
   {
     "name": "profile-gate",
     "kind": "attribute",
+    "keyAttributes": ["annotation", "profiles"],
     "description": "The subject bean class or @Bean method is only registered when the profile expression matches the active profiles (@Profile, directly or through a meta-annotation), such as audit, !prod or (a) | (b) for several.",
     "attributeSchema": {
       "type": "object",
@@ -123,6 +129,7 @@
   {
     "name": "aspect",
     "kind": "attribute",
+    "keyAttributes": ["advice", "annotations", "pointcuts"],
     "description": "The subject type is an AspectJ aspect (an @Aspect class) with advice (@Before, @After, @AfterReturning, @AfterThrowing, @Around). It runs around the methods its pointcuts select, which ADVISES lists; an aspect that enforces access (a permission or membership check) is a component of the units whose entry points it advises.",
     "attributeSchema": {
       "type": "object",
@@ -139,6 +146,7 @@
   {
     "name": "ADVISES",
     "kind": "relationship",
+    "keyAttributes": ["advice", "kind", "pointcut"],
     "description": "The subject aspect's advice selects the object method: the aspect runs around its calls. Read from the advice's pointcut (@annotation, @within, @target, within and execution designators, and named pointcuts) against the methods of the analyzed code, including other repositories.",
     "attributeSchema": {
       "type": "object",
@@ -151,11 +159,11 @@
       "additionalProperties": false
     }
   },
-  {"name": "property-gate", "kind": "attribute", "description": "The subject bean class or @Bean method is only registered when the properties named have the value given (@ConditionalOnProperty, directly or through a meta-annotation). The value is the properties joined by & and, when given, =havingValue.", "attributeSchema": {"type": "object", "properties": {"properties": {"type": "array", "items": {"type": "string"}, "description": "The full property keys, the prefix joined to each name."}, "havingValue": {"type": "string", "description": "The value the properties must have; absent when any value but false will do."}, "matchIfMissing": {"type": "boolean", "description": "Present and true when the bean is registered also when the property is not set."}, "annotation": {"type": "string", "description": "The binary name of the custom annotation carrying @ConditionalOnProperty, when it is not written directly."}}, "required": ["properties"], "additionalProperties": false}, "objectKind": "string"},
-  {"name": "discovery-client", "kind": "attribute", "description": "The subject main class registers its unit with service discovery (@EnableDiscoveryClient or the older @EnableEurekaClient). A unit also registers with no annotation, through a discovery client starter alone; joining the two is the linker's. The value is discovery.", "attributeSchema": {"type": "object", "properties": {"annotation": {"type": "string", "description": "The binary name of the annotation."}, "autoRegister": {"type": "boolean", "description": "Present and false when the annotation turns registration off."}}, "required": ["annotation"], "additionalProperties": false}, "objectKind": "string"},
-  {"name": "infrastructure-server", "kind": "attribute", "description": "The subject main class makes its unit an infrastructure server: a Eureka server (@EnableEurekaServer), a config server (@EnableConfigServer) or a Spring Boot Admin server (@EnableAdminServer). The value is eureka, config or admin.", "attributeSchema": {"type": "object", "properties": {"annotation": {"type": "string", "description": "The binary name of the annotation."}}, "required": ["annotation"], "additionalProperties": false}, "objectKind": "string"},
-  {"name": "access-check", "kind": "attribute", "description": "Callers of the subject method, or of every method of the subject class, must pass the access check its method security annotation states: @PreAuthorize, @PostAuthorize, @Secured, @RolesAllowed, @PermitAll or @DenyAll, directly or through a meta-annotation. The value is the expression or roles as written, else the kind. It is enforced only where method security is on (method-security).", "attributeSchema": {"type": "object", "properties": {"kind": {"type": "string", "enum": ["pre-authorize", "post-authorize", "secured", "roles-allowed", "permit-all", "deny-all"], "description": "The kind of check."}, "annotation": {"type": "string", "description": "The binary name of the custom annotation carrying the check, when it is not written directly."}}, "required": ["kind"], "additionalProperties": false}, "objectKind": "string"},
-  {"name": "method-security", "kind": "attribute", "description": "The subject class turns method security on for the units that load it (@EnableMethodSecurity, @EnableReactiveMethodSecurity or the older @EnableGlobalMethodSecurity), so access-check annotations of the kinds it enables are enforced. The value is on.", "attributeSchema": {"type": "object", "properties": {"annotation": {"type": "string", "description": "The binary name of the annotation."}, "prePostEnabled": {"type": "boolean", "description": "Whether @PreAuthorize and @PostAuthorize are enforced."}, "securedEnabled": {"type": "boolean", "description": "Whether @Secured is enforced."}, "jsr250Enabled": {"type": "boolean", "description": "Whether @RolesAllowed, @PermitAll and @DenyAll are enforced."}}, "required": ["annotation", "prePostEnabled", "securedEnabled", "jsr250Enabled"], "additionalProperties": false}, "objectKind": "string"},
-  {"name": "advised-by", "kind": "attribute", "description": "An aspect's advice applies to the subject method because of the annotation at this line, which its pointcut selects by @annotation, @within or @target, such as a custom permission check. The value is the aspect's binary name. The ADVISES relation states the same from the aspect's side, at the advice.", "attributeSchema": {"type": "object", "properties": {"advice": {"type": "string", "description": "The entity ID of the advice method."}, "kind": {"type": "string", "enum": ["before", "after", "after-returning", "after-throwing", "around"], "description": "The kind of advice."}, "annotation": {"type": "string", "description": "The binary name of the selecting annotation."}}, "required": ["advice", "kind", "annotation"], "additionalProperties": false}, "objectKind": "string"},
-  {"name": "SCHEDULES", "kind": "relationship", "description": "The subject method schedules the object job method (JobRunr or Quartz) at the call this fact cites. The job's own fact names its schedulers as scheduledBy.", "attributeSchema": {"type": "object", "properties": {"framework": {"type": "string", "enum": ["jobrunr", "quartz"], "description": "The scheduling framework."}}, "required": ["framework"], "additionalProperties": false}}
+  {"name": "property-gate", "kind": "attribute", "keyAttributes": ["annotation", "havingValue", "matchIfMissing", "properties"], "description": "The subject bean class or @Bean method is only registered when the properties named have the value given (@ConditionalOnProperty, directly or through a meta-annotation). The value is the properties joined by & and, when given, =havingValue.", "attributeSchema": {"type": "object", "properties": {"properties": {"type": "array", "items": {"type": "string"}, "description": "The full property keys, the prefix joined to each name."}, "havingValue": {"type": "string", "description": "The value the properties must have; absent when any value but false will do."}, "matchIfMissing": {"type": "boolean", "description": "Present and true when the bean is registered also when the property is not set."}, "annotation": {"type": "string", "description": "The binary name of the custom annotation carrying @ConditionalOnProperty, when it is not written directly."}}, "required": ["properties"], "additionalProperties": false}, "objectKind": "string"},
+  {"name": "discovery-client", "kind": "attribute", "keyAttributes": ["annotation", "autoRegister"], "description": "The subject main class registers its unit with service discovery (@EnableDiscoveryClient or the older @EnableEurekaClient). A unit also registers with no annotation, through a discovery client starter alone; joining the two is the linker's. The value is discovery.", "attributeSchema": {"type": "object", "properties": {"annotation": {"type": "string", "description": "The binary name of the annotation."}, "autoRegister": {"type": "boolean", "description": "Present and false when the annotation turns registration off."}}, "required": ["annotation"], "additionalProperties": false}, "objectKind": "string"},
+  {"name": "infrastructure-server", "kind": "attribute", "keyAttributes": ["annotation"], "description": "The subject main class makes its unit an infrastructure server: a Eureka server (@EnableEurekaServer), a config server (@EnableConfigServer) or a Spring Boot Admin server (@EnableAdminServer). The value is eureka, config or admin.", "attributeSchema": {"type": "object", "properties": {"annotation": {"type": "string", "description": "The binary name of the annotation."}}, "required": ["annotation"], "additionalProperties": false}, "objectKind": "string"},
+  {"name": "access-check", "kind": "attribute", "keyAttributes": ["annotation", "kind"], "description": "Callers of the subject method, or of every method of the subject class, must pass the access check its method security annotation states: @PreAuthorize, @PostAuthorize, @Secured, @RolesAllowed, @PermitAll or @DenyAll, directly or through a meta-annotation. The value is the expression or roles as written, else the kind. It is enforced only where method security is on (method-security).", "attributeSchema": {"type": "object", "properties": {"kind": {"type": "string", "enum": ["pre-authorize", "post-authorize", "secured", "roles-allowed", "permit-all", "deny-all"], "description": "The kind of check."}, "annotation": {"type": "string", "description": "The binary name of the custom annotation carrying the check, when it is not written directly."}}, "required": ["kind"], "additionalProperties": false}, "objectKind": "string"},
+  {"name": "method-security", "kind": "attribute", "keyAttributes": ["annotation", "jsr250Enabled", "prePostEnabled", "securedEnabled"], "description": "The subject class turns method security on for the units that load it (@EnableMethodSecurity, @EnableReactiveMethodSecurity or the older @EnableGlobalMethodSecurity), so access-check annotations of the kinds it enables are enforced. The value is on.", "attributeSchema": {"type": "object", "properties": {"annotation": {"type": "string", "description": "The binary name of the annotation."}, "prePostEnabled": {"type": "boolean", "description": "Whether @PreAuthorize and @PostAuthorize are enforced."}, "securedEnabled": {"type": "boolean", "description": "Whether @Secured is enforced."}, "jsr250Enabled": {"type": "boolean", "description": "Whether @RolesAllowed, @PermitAll and @DenyAll are enforced."}}, "required": ["annotation", "prePostEnabled", "securedEnabled", "jsr250Enabled"], "additionalProperties": false}, "objectKind": "string"},
+  {"name": "advised-by", "kind": "attribute", "keyAttributes": ["advice", "annotation", "kind"], "description": "An aspect's advice applies to the subject method because of the annotation at this line, which its pointcut selects by @annotation, @within or @target, such as a custom permission check. The value is the aspect's binary name. The ADVISES relation states the same from the aspect's side, at the advice.", "attributeSchema": {"type": "object", "properties": {"advice": {"type": "string", "description": "The entity ID of the advice method."}, "kind": {"type": "string", "enum": ["before", "after", "after-returning", "after-throwing", "around"], "description": "The kind of advice."}, "annotation": {"type": "string", "description": "The binary name of the selecting annotation."}}, "required": ["advice", "kind", "annotation"], "additionalProperties": false}, "objectKind": "string"},
+  {"name": "SCHEDULES", "kind": "relationship", "keyAttributes": ["framework"], "description": "The subject method schedules the object job method (JobRunr or Quartz) at the call this fact cites. The job's own fact names its schedulers as scheduledBy.", "attributeSchema": {"type": "object", "properties": {"framework": {"type": "string", "enum": ["jobrunr", "quartz"], "description": "The scheduling framework."}}, "required": ["framework"], "additionalProperties": false}}
 ]

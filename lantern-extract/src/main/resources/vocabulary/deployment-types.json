@@ -2,6 +2,7 @@
   {
     "name": "deployment-container",
     "kind": "attribute",
+    "keyAttributes": ["databases", "environment", "kind", "platform", "role"],
     "description": "A container that a deployment descriptor of the subject repository runs in one environment: a compose service, or a container of a Kubernetes workload from a kustomize overlay, a Helm chart or a plain manifest. The value is its name: the compose container name or service, or the workload's name (with the container's after a slash when the pod has several). The linker ties it to the deployable unit it runs and to the data stores the units' config leaves open.",
     "attributeSchema": {
       "type": "object",
@@ -124,6 +125,7 @@
   {
     "name": "dockerfile",
     "kind": "attribute",
+    "keyAttributes": ["from"],
     "description": "A Dockerfile of the subject repository; the value is its path. Evidence is its last FROM line, the stage that becomes the image.",
     "attributeSchema": {
       "type": "object",
@@ -176,6 +178,7 @@
   {
     "name": "deployment-route",
     "kind": "attribute",
+    "keyAttributes": ["class", "environment", "gateway", "host", "kind", "name", "path", "pathType", "platform", "port", "rewrite", "service"],
     "description": "A route into the system that a Kubernetes Ingress or Gateway API HTTPRoute of the subject repository declares; the value is its host (or *) and path, such as api.example.com/orders.",
     "attributeSchema": {
       "type": "object",

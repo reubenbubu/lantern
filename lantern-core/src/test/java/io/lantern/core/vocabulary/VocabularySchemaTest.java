@@ -67,7 +67,7 @@ class VocabularySchemaTest {
     ObjectNode json = full().toJson();
 
     Set<String> javaFields = new HashSet<>(names(json));
-    javaFields.addAll(names(attribute().toJson()));
+    javaFields.addAll(names(attribute().withKeyAttributes(Set.of("since")).toJson()));
     assertThat(names(schema.get("properties"))).isEqualTo(javaFields);
     assertThat(schema.get("additionalProperties").booleanValue()).isFalse();
     JsonNode defs = schema.get("$defs");

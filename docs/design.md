@@ -176,6 +176,7 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 | Field | Meaning |
 | --- | --- |
 | `id` | Content-derived fact ID |
+| claim ID | Derived, not stored yet: what the fact claims, the same for every sighting of one thing (below) |
 | `subject` | Stable entity ID, e.g. `service:orders` |
 | `predicate` | Relationship or attribute type, e.g. `CONSUMES`, `owner` |
 | `object` | Entity ID or typed value |
@@ -189,6 +190,8 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 
 - Defines entity types (`service`, `library`, `topic`, `table`, `batch-job`) and relationship types (`CALLS`, `CONSUMES`, `READS_TABLE`).
 - Each type has a **parent type**, an attribute schema, a C4 level, and default presentation (shape, icon). An attribute type can also set the kind of value its facts hold (its object kind).
+- A relationship or attribute type lists its **key attributes**, on top of its parent's: the attributes that are part of what a fact claims; the others are descriptive. The **claim ID** is the SHA-256 of a fact's subject, predicate, object and key attributes, without evidence, origin, confidence or validity, so every sighting of one thing, at any commit, has the same claim ID, and two facts that differ in a key attribute are two claims. When in doubt an attribute is key: two claims for one thing can be merged later, one claim for two things loses a fact (ADR 0090; which attributes are key: epic `docs/epics/001-knowledge-build.md`, section 6, as amended by #518).
+- Runtime relationships (`CALLS`, `CALLS_HTTP`, `PUBLISHES`, `CONSUMES`, `USES_DATABASE`, …) are under the root `INTERACTS_WITH`, drawn as a line; build ones (`BUILD_DEPENDS_ON`, `PACKAGES`) under `DEPENDS_ON`, drawn as a dashed arrow, so a renderer falling back to a parent never draws a build edge as a runtime line. People (`person`) are under the root `actor`, at the context level; message brokers and infrastructure servers are containers.
 - Saving a fact checks it against the vocabulary: its entities' types, its predicate, its object (an entity for a relationship, a value for an attribute, of the kind the attribute type sets) and its attributes (ADR 0002).
 - Parent types mean a new type renders and behaves sensibly before any code knows about it. A new `batch-job` type that extends `container` appears in diagrams and documents as a container immediately.
 - C4 levels follow the definitions under Diagrams in Composition: applications and jobs (deployable units, such as `service`), data stores, and queues and topics (`topic`) are containers; `library`, `module`, `package` and `table` (part of a data store) carry no C4 level; components are found by role, not from a type (#90).
@@ -208,7 +211,7 @@ The schema has two layers: a small, stable **core envelope** that is code and ch
 
 **Versioning rules:** additive vocabulary changes are always allowed, and so is giving a type another parent (or none), as a new revision that keeps stored facts valid, except that declaring a new attribute or object kind constrains new facts only (ADR 0002). Renames and removals go through deprecation with an alias. Each snapshot and document records the vocabulary revision it used, so older documents stay reproducible. Plugins declare which envelope version range they support.
 
-**Typed access:** Java types for the envelope and built-in types are hand-written and kept in line with the JSON Schema by tests; TypeScript types are generated from the schema. Runtime-added types are accessed through a generic API.
+**Typed access:** Java types for the envelope and built-in types are hand-written and kept in line with the JSON Schema by tests; TypeScript types are generated from the schema. Each relationship and attribute type of the extractors and the linker has a Java record generated from its attribute schema (`HttpCallAttributes` for `http-call`), committed in its module's `attributes` package and checked against the generator by a test (ADR 0090). Runtime-added types are accessed through a generic API.
 
 **Storage:** PostgreSQL. Facts in one wide table with JSONB attributes and indexes on subject, predicate, object and snapshot range. The graph for analysis is loaded into memory per scope.
 

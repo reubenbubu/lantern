@@ -318,11 +318,11 @@ When in doubt, an attribute is key. Over-splitting yields two claims for one thi
 | `frontend-app` | `package`, `version`, `libraries`, `image`, `server`, `ports` |
 | `identity-client` | `redirectUris`, `webOrigins`, `realm`, `rootUrl`, `baseUrl` |
 | `datasource`, `data-store` | `technology`, `server`, `database` |
-| `config-value` | `application` |
 | `technology` (unit) | `framework`, `frameworkVersion`, `frameworks`, `java` |
 | `version-skew` | `pins` |
-| Link claims (`INTERACTS_WITH` family) | everything except the channel attributes (`endpoint`, `destination`, `routingKey`, `bindingKey`, `table`, `host`, `key`) and `view` |
+| Link claims (`INTERACTS_WITH` family) | everything except the channel attributes (`endpoint`, `destination`, `routingKey`, `bindingKey`, `table`, `host`, `key`), `protocol` and `view` |
 
+- **Changed by #518, with the owner.** `protocol` is a key of link claims, because C4 draws a line per protocol: a frontend's HTTP calls and its WebSocket to one gateway are two claims. `config-value` keys on `application`, because a config server's repository holds a file per application. Until 1C introduces `view`, link-stage types record it as `profile`, which is key there (ADR 0090).
 - **LLM claims.** Their key is fixed by the role (section 11). Their text is always descriptive, so a rewording is a new observation of the same claim.
 
 ## 7. Extraction

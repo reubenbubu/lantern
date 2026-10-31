@@ -2,6 +2,7 @@
   {
     "name": "person-evidence",
     "kind": "attribute",
+    "keyAttributes": ["action", "annotation", "anyReceiver", "field", "framework", "guard", "name", "path", "scope", "serviceAccountOnly", "source", "type"],
     "description": "The subject (a type, a method or a repository) shows that people use the system in the way the value names: role (a role or authority that Spring Security, Jakarta or a Keycloak realm names), membership (a type about members of something, such as an organization), invitation (a type about invitations people receive), route (a screen of a frontend, by its path), account (an endpoint where people sign up, sign in, confirm an account or reset a password, or a Keycloak realm that lets people register) or role-type (a constant of the enum that types the roles of a user account the system keeps). It records only what the code says; the linker decides which people it makes of it.",
     "attributeSchema": {
       "type": "object",

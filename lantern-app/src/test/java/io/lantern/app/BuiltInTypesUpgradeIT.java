@@ -14,27 +14,6 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.C4Level;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.deployment.DeploymentExtractor;
-import io.lantern.extract.docs.DocsExtractor;
-import io.lantern.extract.frontend.FrontendExtractor;
-import io.lantern.extract.gateway.GatewayExtractor;
-import io.lantern.extract.http.HttpClientExtractor;
-import io.lantern.extract.identity.IdentityExtractor;
-import io.lantern.extract.java.JavaExtractor;
-import io.lantern.extract.mail.MailExtractor;
-import io.lantern.extract.maven.MavenExtractor;
-import io.lantern.extract.messaging.MessagingExtractor;
-import io.lantern.extract.people.PeopleExtractor;
-import io.lantern.extract.persistence.PersistenceExtractor;
-import io.lantern.extract.redis.RedisExtractor;
-import io.lantern.extract.spring.SpringExtractor;
-import io.lantern.extract.sql.SqlExtractor;
-import io.lantern.extract.test.TestExtractor;
-import io.lantern.extract.websocket.WebSocketExtractor;
-import io.lantern.link.ClaimChecks;
-import io.lantern.link.CrossRepoLinks;
-import io.lantern.link.DeployableUnits;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -52,8 +31,8 @@ import tools.jackson.databind.JsonNode;
 /**
  * Starts the app's vocabulary the way {@code FactStoreConfiguration} does, on a database that
  * already holds the built-in types as they were before #90 (library extends container, module and
- * package extend component). It has a database of its own, because the shared test database cannot
- * be rewound to an older revision.
+ * package extend component), with the other sources' types as they were before #518. It has a
+ * database of its own, because the shared test database cannot be rewound to an older revision.
  */
 class BuiltInTypesUpgradeIT {
 
@@ -87,27 +66,15 @@ class BuiltInTypesUpgradeIT {
 
       // The state an existing installation is in: old built-ins, then the extractors' types.
       long oldBuiltInsRevision = registry.apply(BuiltInTypes.SOURCE, oldBuiltIns());
-      registry.apply(MavenExtractor.VOCABULARY_SOURCE, MavenExtractor.vocabulary());
-      registry.apply(JavaExtractor.VOCABULARY_SOURCE, JavaExtractor.vocabulary());
-      registry.apply(ConfigExtractor.VOCABULARY_SOURCE, ConfigExtractor.vocabulary());
-      registry.apply(DocsExtractor.VOCABULARY_SOURCE, DocsExtractor.vocabulary());
-      registry.apply(SqlExtractor.VOCABULARY_SOURCE, SqlExtractor.vocabulary());
-      registry.apply(SpringExtractor.VOCABULARY_SOURCE, SpringExtractor.vocabulary());
-      registry.apply(PersistenceExtractor.VOCABULARY_SOURCE, PersistenceExtractor.vocabulary());
-      registry.apply(HttpClientExtractor.VOCABULARY_SOURCE, HttpClientExtractor.vocabulary());
-      registry.apply(MessagingExtractor.VOCABULARY_SOURCE, MessagingExtractor.vocabulary());
-      registry.apply(MailExtractor.VOCABULARY_SOURCE, MailExtractor.vocabulary());
-      registry.apply(IdentityExtractor.VOCABULARY_SOURCE, IdentityExtractor.vocabulary());
-      registry.apply(RedisExtractor.VOCABULARY_SOURCE, RedisExtractor.vocabulary());
-      registry.apply(PeopleExtractor.VOCABULARY_SOURCE, PeopleExtractor.vocabulary());
-      registry.apply(DeploymentExtractor.VOCABULARY_SOURCE, DeploymentExtractor.vocabulary());
-      registry.apply(FrontendExtractor.VOCABULARY_SOURCE, FrontendExtractor.vocabulary());
-      registry.apply(GatewayExtractor.VOCABULARY_SOURCE, GatewayExtractor.vocabulary());
-      registry.apply(TestExtractor.VOCABULARY_SOURCE, TestExtractor.vocabulary());
-      registry.apply(WebSocketExtractor.VOCABULARY_SOURCE, WebSocketExtractor.vocabulary());
-      registry.apply(DeployableUnits.VOCABULARY_SOURCE, DeployableUnits.vocabulary());
-      registry.apply(CrossRepoLinks.VOCABULARY_SOURCE, CrossRepoLinks.vocabulary());
-      registry.apply(ClaimChecks.VOCABULARY_SOURCE, ClaimChecks.vocabulary());
+      // The extractors' and the linker's types as they were before #518, the oldest kept; today's
+      // need the built-in types #518 added.
+      for (var source : KeyAttributesUpgradeIT.oldTypes().properties()) {
+        if (!source.getKey().equals(BuiltInTypes.SOURCE)) {
+          List<VocabularyType> types = new ArrayList<>();
+          source.getValue().forEach(node -> types.add(VocabularyType.fromJson(node)));
+          registry.apply(source.getKey(), types);
+        }
+      }
       long before = registry.current().revision();
       Fact stored = dependsOn();
       assertThat(facts.save(stored)).isTrue();
@@ -115,10 +82,11 @@ class BuiltInTypesUpgradeIT {
       assertThat(registry.current().c4Level(BuiltInTypes.MODULE)).contains(C4Level.COMPONENT);
       assertThat(registry.current().c4Level(BuiltInTypes.PACKAGE)).contains(C4Level.COMPONENT);
 
-      // Starting the app again: the built-ins change, the extractors' types do not.
+      // Starting the app again: the built-ins change first, in one revision.
       FactStoreConfiguration.loadVocabulary(registry);
 
-      assertThat(registry.current().revision()).isEqualTo(before + 1);
+      long started = registry.current().revision();
+      assertThat(started).isGreaterThan(before);
       assertThat(
               jdbc.sql("SELECT source FROM vocabulary_revisions WHERE revision = :r")
                   .param("r", before + 1)
@@ -146,7 +114,7 @@ class BuiltInTypesUpgradeIT {
 
       // A third start changes nothing.
       FactStoreConfiguration.loadVocabulary(registry);
-      assertThat(registry.current().revision()).isEqualTo(before + 1);
+      assertThat(registry.current().revision()).isEqualTo(started);
     }
   }
 
