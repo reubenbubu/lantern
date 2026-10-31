@@ -1,6 +1,6 @@
 # 0045: LLM resolver for links left open
 
-Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169)
+Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169), amended by ADR 0095 (#573)
 
 ## Context
 
@@ -98,3 +98,11 @@ where the resolver runs.
 Tools to query the graph and read files, with tool use in `LlmRequest` (#169, now ADR 0081), and the questions
 queue for links that stay open (#170, Phase 3). Database links are not asked about: they have no
 candidates.
+
+## Amendment (#573): a link rule that runs every time
+
+The linker's steps became link rules (ADR 0095). `LinkResolver` is a rule whose reads are the
+extracted facts, the values', units' and cross-repo links' facts, and whose writes are `CALLS_HTTP`
+and `SENDS_MESSAGES_TO`. It is not pure: its answers and model are outside the facts, so it runs on
+every analysis, asking the LLM only about links it has no answer for. The README claim checks read
+the link predicates it writes, so they now run after it rather than before.

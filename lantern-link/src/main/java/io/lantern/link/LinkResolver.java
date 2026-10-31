@@ -73,7 +73,7 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>It runs as the last step of the linker, after {@link CrossRepoLinks}, so its facts are
  * recorded for the whole snapshot like the other steps' (ADR 0039).
  */
-public final class LinkResolver implements LinkStep {
+public final class LinkResolver implements LinkRule.OverFacts {
 
   /** The step's name, recorded as the origin of its facts. */
   public static final String NAME = "link-resolver";
@@ -92,6 +92,10 @@ public final class LinkResolver implements LinkStep {
   /** A fact ID, which a cached answer cites a fact a tool showed by. */
   private static final java.util.regex.Pattern FACT_ID =
       java.util.regex.Pattern.compile("[0-9a-f]{64}");
+
+  /** The predicates of the links it picks. */
+  static final Set<String> LINKS =
+      Set.of(CrossRepoLinks.CALLS_HTTP, CrossRepoLinks.SENDS_MESSAGES_TO);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.LLM, NAME, ResolvePrompt.VERSION);
 
@@ -151,8 +155,28 @@ public final class LinkResolver implements LinkStep {
   }
 
   @Override
-  public Origin origin() {
-    return ORIGIN;
+  public RuleInfo info() {
+    return RuleInfo.of(ORIGIN);
+  }
+
+  @Override
+  public Set<String> reads() {
+    return Rules.union(
+        Set.of(EXTRACTED),
+        ValueViews.WRITES,
+        DeployableUnits.vocabularyPredicates(),
+        CrossRepoLinks.vocabularyPredicates());
+  }
+
+  @Override
+  public Set<String> writes() {
+    return LINKS;
+  }
+
+  /** It also consults its answers and the model, so it runs every time. */
+  @Override
+  public boolean pure() {
+    return false;
   }
 
   /**

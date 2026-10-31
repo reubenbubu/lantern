@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -32,7 +33,7 @@ import tools.jackson.databind.JsonNode;
  * that stays the same across snapshots ({@code link}). What static matching cannot decide is
  * recorded as {@code unresolved-link} on the unit, with its candidates, for the LLM resolver.
  */
-public final class CrossRepoLinks implements LinkStep {
+public final class CrossRepoLinks implements LinkRule.OverFacts {
 
   /** The step's name, recorded as the origin of its facts. */
   public static final String NAME = "cross-repo-links";
@@ -122,8 +123,30 @@ public final class CrossRepoLinks implements LinkStep {
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
   @Override
-  public Origin origin() {
-    return ORIGIN;
+  public RuleInfo info() {
+    return RuleInfo.of(ORIGIN);
+  }
+
+  @Override
+  public Set<String> reads() {
+    return Rules.union(
+        Set.of(EXTRACTED), ValueViews.WRITES, DeployableUnits.vocabularyPredicates());
+  }
+
+  @Override
+  public Set<String> writes() {
+    return Rules.union(vocabularyPredicates(), Set.of(DeployableUnits.TECHNOLOGY));
+  }
+
+  /** The predicates of this step's vocabulary types, which it writes. */
+  static Set<String> vocabularyPredicates() {
+    Set<String> predicates = new java.util.LinkedHashSet<>();
+    for (VocabularyType type : vocabulary()) {
+      if (type.kind().isPredicate()) {
+        predicates.add(type.name());
+      }
+    }
+    return Set.copyOf(predicates);
   }
 
   /** The vocabulary types this step's facts use besides the built-in and earlier ones. */

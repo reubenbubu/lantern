@@ -28,6 +28,7 @@ import io.lantern.link.GraphTools;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
 import io.lantern.link.ResolutionStore;
+import io.lantern.link.RuleRuns;
 import io.lantern.link.ValueViews;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildOrder;
@@ -123,6 +124,7 @@ public final class AnalysisRun {
   private final JdbcLlmCallLog callLog;
   private final SummaryStore summaries;
   private final ResolutionStore resolutions;
+  private final RuleRuns ruleRuns;
   private final WordingStore wordings;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
@@ -151,6 +153,7 @@ public final class AnalysisRun {
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
       ExtractionCache extractionCache,
+      RuleRuns ruleRuns,
       String toolVersion,
       Path documentsDirectory) {
     this.registry = Objects.requireNonNull(registry, "registry");
@@ -158,6 +161,7 @@ public final class AnalysisRun {
     this.snapshots = Objects.requireNonNull(snapshots, "snapshots");
     this.lock = Objects.requireNonNull(lock, "lock");
     this.extractionCache = Objects.requireNonNull(extractionCache, "extractionCache");
+    this.ruleRuns = Objects.requireNonNull(ruleRuns, "ruleRuns");
     this.sandbox = Objects.requireNonNull(sandbox, "sandbox");
     this.facts = Objects.requireNonNull(facts, "facts");
     this.transaction = Objects.requireNonNull(transaction, "transaction");
@@ -724,7 +728,8 @@ public final class AnalysisRun {
           // The LLM resolver is the linker's last step: it picks among the candidates of the links
           // the static steps leave open, with cached answers reused (ADR 0045).
           LinkResolver resolver = new LinkResolver(client, resolutions, files);
-          Linker linker = Linker.standard(facts, resolver);
+          // A rule whose input and version are those of its last run is not run again (ADR 0095).
+          Linker linker = Linker.standard(facts, resolver, ruleRuns);
           // Each origin kind is recorded on its own, so a static analysis closes only the facts of
           // its kind; the docs extractor's facts are of kind readme (ADR 0033).
           Map<Origin.Kind, List<Fact>> byKind = new LinkedHashMap<>();
