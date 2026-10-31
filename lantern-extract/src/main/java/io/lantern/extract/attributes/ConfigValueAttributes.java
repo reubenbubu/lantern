@@ -27,7 +27,9 @@ import tools.jackson.databind.node.ObjectNode;
  *     config-repository for a value a Spring Cloud Config repository serves, whose subject is the
  *     repository and which outranks the application's own files.
  * @param unresolved Descriptive. The keys of the placeholders that could not be resolved.
- * @param written Descriptive. The value as written, when it differs from the resolved value.
+ * @param written Descriptive. The value as written, when it differs from the resolved value; for a
+ *     value masked only for the secret its placeholders bring in, the text as written when it holds
+ *     no secret and no placeholder default (ADR 0032, amendment for #558).
  */
 public record ConfigValueAttributes(
     String application,
