@@ -1388,13 +1388,33 @@ public final class MavenExtractor implements Extractor {
     return new ExtractorInfo(NAME, VERSION);
   }
 
+  /**
+   * Its facts are each repository's, but whether a dependency is another repository's module, and
+   * which config a config server serves, are decided with the other repositories' files it reads
+   * (ADR 0092, amendment for #547).
+   */
   @Override
   public CacheUnit unit() {
-    return CacheUnit.SNAPSHOT;
+    return CacheUnit.REPOSITORY;
+  }
+
+  @Override
+  public boolean readsElsewhere(String path) {
+    return path.equals("pom.xml") || path.endsWith("/pom.xml");
+  }
+
+  /** The other repositories' effective POMs decide their modules' coordinates. */
+  @Override
+  public boolean readsOtherBuilds() {
+    return true;
   }
 
   @Override
   public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
-    sink.emitAll(extract(unit.repos(), context.snapshot()));
+    // The snapshot's facts are extracted once per run; each unit takes its own repository's.
+    List<Fact> all =
+        context.memo(NAME + "@" + VERSION, () -> extract(context.repos(), context.snapshot()));
+    String repo = unit.repo().repo().name();
+    sink.emitAll(all.stream().filter(fact -> fact.evidence().repo().equals(repo)).toList());
   }
 }

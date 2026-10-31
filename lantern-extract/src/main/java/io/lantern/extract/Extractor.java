@@ -32,6 +32,23 @@ public interface Extractor {
   /** The unit this extractor's facts are extracted and cached by. */
   CacheUnit unit();
 
+  /**
+   * For a {@link CacheUnit#REPOSITORY} unit: whether the extractor also reads this file of the
+   * snapshot's other repositories, such as their POMs. Each such file's blob joins the unit's key,
+   * so a change to it extracts the unit again; by default none (ADR 0092, amendment for #547).
+   */
+  default boolean readsElsewhere(String path) {
+    return false;
+  }
+
+  /**
+   * For a {@link CacheUnit#REPOSITORY} unit: whether the extractor also reads the builds of the
+   * snapshot's other repositories; their fingerprints then join the unit's key. By default not.
+   */
+  default boolean readsOtherBuilds() {
+    return false;
+  }
+
   /** Whether this extractor reads the repository at all; by default every repository. */
   default boolean appliesTo(RepoBuild repo) {
     return true;

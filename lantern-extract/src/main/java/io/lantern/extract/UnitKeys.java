@@ -57,6 +57,28 @@ final class UnitKeys {
         node.put("build", build(repo));
       }
     }
+    if (extractor.unit() == CacheUnit.REPOSITORY) {
+      // What the extractor reads of the other repositories (ADR 0092, amendment for #547).
+      ArrayNode elsewhere = key.putArray("elsewhere");
+      for (RepoBuild other : snapshot) {
+        if (unit.repos().contains(other)) {
+          continue;
+        }
+        ObjectNode node = elsewhere.addObject();
+        node.put("name", other.repo().name());
+        ArrayNode files = node.putArray("files");
+        new java.util.TreeMap<>(blobs(other))
+            .forEach(
+                (path, blob) -> {
+                  if (extractor.readsElsewhere(path)) {
+                    files.add(path + "\0" + blob);
+                  }
+                });
+        if (extractor.readsOtherBuilds()) {
+          node.put("build", build(other));
+        }
+      }
+    }
     ArrayNode ids = key.putArray("required");
     required.stream().map(Fact::id).sorted().distinct().forEach(ids::add);
     return sha256(key.toString().getBytes(StandardCharsets.UTF_8));
@@ -78,16 +100,18 @@ final class UnitKeys {
 
   /** The file's blob at the repository's commit, or a hash of its absence. */
   private String blob(RepoBuild repo, String path) {
-    Map<String, String> tree =
-        blobs.computeIfAbsent(
-            repo.repo().name() + "@" + repo.commit(),
-            k ->
-                GitTree.blobs(repo.repo().path(), repo.commit())
-                    .orElseThrow(
-                        () ->
-                            new IllegalStateException(
-                                "git ls-tree failed in " + repo.repo().name())));
-    return tree.getOrDefault(path, "none");
+    return blobs(repo).getOrDefault(path, "none");
+  }
+
+  /** Every file's blob at the repository's commit, by path. */
+  private Map<String, String> blobs(RepoBuild repo) {
+    return blobs.computeIfAbsent(
+        repo.repo().name() + "@" + repo.commit(),
+        k ->
+            GitTree.blobs(repo.repo().path(), repo.commit())
+                .orElseThrow(
+                    () ->
+                        new IllegalStateException("git ls-tree failed in " + repo.repo().name())));
   }
 
   /**

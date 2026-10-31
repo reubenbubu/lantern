@@ -62,6 +62,11 @@ final class ConfigReader {
   private static final Pattern FILE =
       Pattern.compile("(bootstrap|application)(?:-([^/]+))?\\.(yaml|yml|properties)");
 
+  /** Whether the path names a Spring config file, {@code application} or {@code bootstrap}. */
+  static boolean isConfigFile(String path) {
+    return FILE.matcher(path.substring(path.lastIndexOf('/') + 1)).matches();
+  }
+
   private static final String APPLICATION = "application";
 
   private static final String ON_PROFILE = "spring.config.activate.on-profile";
