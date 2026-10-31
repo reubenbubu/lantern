@@ -103,3 +103,7 @@ author and dates, and that Lantern pins that repository's commit.
   fake-model run is committed as `testsets/project-8/baseline.scorecard.md`, the baseline no change
   may lower (`docs/design.md`, Test sets); it is rewritten in the change that moves the pin or
   changes what Lantern finds on the set.
+- **Proof.** `lantern-web/test/test-set-references.test.mjs` checks, in every build, that
+  `pins.txt` is well formed and, where project-8 is set up in the default folder, that its
+  `.lantern-pin` is the pin and its reference is valid for the report spec; without the private set
+  it skips that check, as `Project0EndToEndIT` does.

@@ -120,3 +120,14 @@ for (const set of mapped) {
     }
   });
 }
+
+// project-8 (FleetCare) keeps its reference in its source, which testsets/project-8/setup.sh copies
+// beside the checkout (docs/adr/0029, amendment for #285). Where it is set up in the default folder,
+// the checkout must be at the pin and its reference valid; without the private set, this is skipped.
+const project8 = `${process.env.HOME}/workspace/lantern-test-projects/project-8`;
+test.skipIf(!existsSync(`${project8}/.lantern-pin`))('project-8: the checkout is at the pin and its reference is valid', () => {
+  const [pin] = pins('project-8');
+  assert.equal(readFileSync(`${project8}/.lantern-pin`, 'utf8').trim(), pin.commit, 'run testsets/project-8/setup.sh');
+  const data = JSON.parse(readFileSync(`${project8}/expected/reference/reference.c4.json`, 'utf8'));
+  assert.deepEqual(reportSpecIssues(spec, data), []);
+});
