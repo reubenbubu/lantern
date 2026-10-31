@@ -28,7 +28,7 @@ class ExtractedFactsTest {
   private static Fact fact(String extractor, String subject, String path, int start, int end) {
     return Fact.create(
         EntityId.parse(subject),
-        "LISTENS_ON",
+        "SUBSCRIBES_TO",
         FactObject.string("orders"),
         FactJson.newObject(),
         new Origin(Origin.Kind.STATIC, extractor, "1"),

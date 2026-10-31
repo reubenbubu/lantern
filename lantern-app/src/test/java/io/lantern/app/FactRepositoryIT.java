@@ -48,12 +48,13 @@ class FactRepositoryIT {
 
   /**
    * The types these tests use besides the built-in and the app's ones (topic is the linker's).
-   * LISTENS_ON declares one attribute, its key, and allows others; owner's objects must be strings.
+   * SUBSCRIBES_TO declares one attribute, its key, and allows others; owner's objects must be
+   * strings.
    */
   static final List<VocabularyType> TEST_TYPES =
       List.of(
           new VocabularyType(
-                  "LISTENS_ON",
+                  "SUBSCRIBES_TO",
                   TypeKind.RELATIONSHIP,
                   null,
                   null,
@@ -113,7 +114,7 @@ class FactRepositoryIT {
     attributes.put("a-last-but-sorts-first", true);
     return Fact.create(
         subject,
-        "LISTENS_ON",
+        "SUBSCRIBES_TO",
         FactObject.entity(TOPIC),
         attributes,
         ORIGIN,
@@ -593,7 +594,7 @@ class FactRepositoryIT {
     facts.save(owner);
 
     assertThat(findBySubject(ORDERS)).containsExactlyInAnyOrder(current, owner);
-    assertThat(findByPredicate("LISTENS_ON")).containsExactlyInAnyOrder(current, billing);
+    assertThat(findByPredicate("SUBSCRIBES_TO")).containsExactlyInAnyOrder(current, billing);
     assertThat(findByObject(FactObject.entity(TOPIC))).containsExactlyInAnyOrder(current, billing);
     assertThat(findByObject(FactObject.string(TOPIC.toString()))).containsExactly(owner);
     assertThat(findValidAt(2)).containsExactlyInAnyOrder(billing, owner);
@@ -607,7 +608,7 @@ class FactRepositoryIT {
     Fact wrongAttributes =
         Fact.create(
             ORDERS,
-            "LISTENS_ON",
+            "SUBSCRIBES_TO",
             FactObject.entity(TOPIC),
             badGroup,
             ORIGIN,
@@ -634,7 +635,7 @@ class FactRepositoryIT {
     Fact unknownEntityType =
         Fact.create(
             EntityId.parse("mailbox:orders"),
-            "LISTENS_ON",
+            "SUBSCRIBES_TO",
             FactObject.entity(TOPIC),
             FactJson.newObject(),
             ORIGIN,
