@@ -2,6 +2,8 @@
 
 31 Oct 2026 · reubenbubu
 
+**Status: active.** Milestones 1A to 1G. This epic describes where Lantern is going; `docs/design.md` and `docs/quality-bar.md` describe Lantern as it is, and each issue that lands part of this epic updates them. When 1G closes, a closing note goes here.
+
 ## 1. Summary
 
 Lantern should build all of its knowledge, static, derived and LLM-written, into the fact store before it composes any document. Documents then become queries over that store plus a template. Today most LLM output sits in tables outside the fact store, and the composer derives components and flows in memory. The LLM is asked only about what a given report will draw.

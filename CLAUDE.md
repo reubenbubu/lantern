@@ -21,6 +21,15 @@ changes them. This file covers only how you work.
   before issues of other milestones.
   `Housekeeping` (tooling, build and docs that change no output) and `Later` are standing
   buckets with no test drop and never close; `Later` holds what no milestone has taken yet.
+- An epic is a planned effort that spans several milestones, written down before it starts in
+  `docs/epics/NNN-<name>.md`: what is changing, why, and how, down to the decisions an agent must
+  not make for itself. Its milestones and issues link to it. `docs/design.md` and
+  `docs/quality-bar.md` describe Lantern as it is: each issue that lands part of an epic updates
+  them in the same PR, so they never describe what is not built yet. When the epic's last
+  milestone closes, a closing note goes at the top of its file; the file stays as the record of
+  the effort. The active epic is `docs/epics/001-knowledge-build.md` (milestones 1A to 1G); where
+  it fixes a prompt, a schema, a check or a limit of an LLM role, change it only through an issue
+  that shows the effect on the test sets.
 - Every issue has a milestone and is written to a template in `.github/ISSUE_TEMPLATE/`:
   `fix.md` for what Lantern does wrong, `feature.md` for what it cannot do yet, chores and
   foundations (a test drop excepted).
@@ -166,6 +175,7 @@ Every piece of information lives in exactly one place. Link to it; never copy it
 | What to build to meet it | `docs/design.md` |
 | How to work | This file |
 | Tasks, status, progress | GitHub issues (written to `.github/ISSUE_TEMPLATE/`) and milestones |
+| A planned effort across milestones: what changes, why and how | `docs/epics/NNN-<name>.md` |
 | Decisions made while building | `docs/adr/NNNN-title.md` |
 | Research behind a rule of the bar or the design: sources, options, trade-offs, test-set evidence | `docs/research/<topic>.md` |
 | Document templates and specifications | `report-specs/` (one folder per document: template, schema, sample data) |
