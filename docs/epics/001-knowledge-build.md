@@ -2,7 +2,7 @@
 
 31 Oct 2026 · reubenbubu
 
-**Status: active.** Milestones 1A to 1G. This epic describes where Lantern is going; `docs/design.md` and `docs/quality-bar.md` describe Lantern as it is, and each issue that lands part of this epic updates them. When 1G closes, a closing note goes here. The prompts, schemas, checks and limits of the LLM roles (section 11) change only through an issue that shows the effect on the test sets.
+**Status: active.** Milestones 1A to 1G. `docs/quality-bar.md` and `docs/design.md` are the target; this epic is the step toward them being built now. Where this epic and the design differ, this epic wins, and each issue that lands part of it brings the design in line. When 1G closes, a closing note goes here. The prompts, schemas, checks and limits of the LLM roles (section 11) change only through an issue that shows the effect on the test sets.
 
 ## 1. Summary
 
