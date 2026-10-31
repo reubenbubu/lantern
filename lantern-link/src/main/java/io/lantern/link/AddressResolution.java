@@ -41,8 +41,8 @@ import tools.jackson.databind.node.ObjectNode;
  * </ul>
  *
  * Each claim cites the fact the unit was found by and the container that filled the address in. The
- * matchers whose addresses it answers so far: HTTP calls (#589); gateway routes and frontends,
- * identity providers and mail hosts, and data stores follow (#594, #595, #596).
+ * matchers whose addresses it answers so far: HTTP calls (#589), gateway routes and frontends
+ * (#594); identity providers and mail hosts, and data stores follow (#595, #596).
  */
 public final class AddressResolution implements LinkRule {
 
@@ -94,20 +94,94 @@ public final class AddressResolution implements LinkRule {
 
     record Name(String name, String view) {}
 
-    /** Where a question was first asked: the fact asking it, and the config facts it used. */
-    record Asked(Fact source, List<Fact> used) {}
+    /**
+     * Where a question was asked: the facts asking it, the first first, and the config facts they
+     * used.
+     */
+    record Asked(List<Fact> sources, List<Fact> used) {
+
+      Fact source() {
+        return sources.getFirst();
+      }
+
+      void add(Fact source, List<Fact> more) {
+        if (!sources.contains(source)) {
+          sources.add(source);
+        }
+        more.stream().filter(f -> !used.contains(f)).forEach(used::add);
+      }
+    }
 
     final Map<Address, Asked> addresses = new LinkedHashMap<>();
     final Map<Name, Asked> names = new LinkedHashMap<>();
 
     void address(
         Unit from, String view, String text, String written, Fact source, List<Fact> used) {
-      addresses.putIfAbsent(new Address(from, view, text, written), new Asked(source, used));
+      addresses
+          .computeIfAbsent(
+              new Address(from, view, text, written),
+              k -> new Asked(new ArrayList<>(), new ArrayList<>()))
+          .add(source, used);
     }
 
     void name(String name, String view, Fact source) {
-      names.putIfAbsent(new Name(name, view), new Asked(source, List.of()));
+      names
+          .computeIfAbsent(
+              new Name(name, view), k -> new Asked(new ArrayList<>(), new ArrayList<>()))
+          .add(source, List.of());
     }
+  }
+
+  /** Answers as {@link Addresses} does, recording each question asked with the fact asking it. */
+  private record Recorder(Addresses addresses, Questions questions) implements AddressAnswers {
+
+    @Override
+    public Answer resolve(Unit from, String view, String text, String written) {
+      throw new IllegalStateException("A matcher asked about " + text + " for no fact");
+    }
+
+    @Override
+    public List<Answer> answers(Unit from, String view, String text, String written) {
+      throw new IllegalStateException("A matcher asked about " + text + " for no fact");
+    }
+
+    @Override
+    public List<Target> byApplicationName(
+        String name, String view, String matchedBy, double factor) {
+      throw new IllegalStateException("A matcher looked up " + name + " for no fact");
+    }
+
+    @Override
+    public Answer resolve(Fact asking, Unit from, String view, String text, String written) {
+      questions.address(from, view, text, written, asking, List.of());
+      return addresses.resolve(from, view, text, written);
+    }
+
+    @Override
+    public List<Target> byApplicationName(
+        Fact asking, String name, String view, String matchedBy, double factor) {
+      questions.name(name, view, asking);
+      return addresses.byApplicationName(name, view, matchedBy, factor);
+    }
+  }
+
+  /** The questions the matchers ask of the facts an index holds, each with the fact asking it. */
+  static Questions questions(LinkIndex index, Addresses addresses) {
+    Questions questions = new Questions();
+    HttpLinker.queries(index, questions);
+    // Gateway routes and frontends ask as they link, a question on an earlier one's answer: run as
+    // the matchers run them, recording what they ask (#594).
+    Recorder recorder = new Recorder(addresses, questions);
+    // The links they find here are dropped, and their validity is a placeholder: only the
+    // questions are kept. HTTP's own links are not made here; the one read of them, which
+    // endpoints no route reaches, asks no address.
+    FoundLinks scratch = new FoundLinks();
+    HttpLinker http = new HttpLinker(index, scratch, addresses);
+    RouteLinker routes = new RouteLinker(index, scratch, recorder);
+    routes.link();
+    new FrontendLinker(index, scratch, recorder, new Deployments(index), http, routes)
+        .link(ORIGIN, Validity.from(0));
+    return questions;
   }
 
   @Override
@@ -115,8 +189,7 @@ public final class AddressResolution implements LinkRule {
     LinkIndex index = new LinkIndex(in.facts());
     Validity validity = Validity.from(in.snapshot());
     Addresses addresses = new Addresses(index, new Deployments(index));
-    Questions questions = new Questions();
-    HttpLinker.queries(index, questions);
+    Questions questions = questions(index, addresses);
     Map<String, Fact> facts = new LinkedHashMap<>();
     questions.addresses.forEach(
         (q, asked) -> {
@@ -172,7 +245,7 @@ public final class AddressResolution implements LinkRule {
     // Lineage: the call asking, the config that resolved its address, what the unit was found by
     // and the container that filled the address in.
     List<Fact> cited = new ArrayList<>();
-    cited.add(asked.source());
+    cited.addAll(asked.sources());
     cited.addAll(asked.used());
     EntityId object;
     switch (a.kind()) {
@@ -230,7 +303,7 @@ public final class AddressResolution implements LinkRule {
       attributes.put("profile", q.view());
     }
     ArrayNode lineage = attributes.putArray("facts");
-    lineage.add(asked.source().id());
+    asked.sources().forEach(f -> lineage.add(f.id()));
     if (t != null) {
       attributes.put("fact", t.fact().id());
       lineage.add(t.fact().id());

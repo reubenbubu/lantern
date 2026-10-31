@@ -46,17 +46,22 @@ final class FrontendLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
-  private final Addresses addresses;
+  private final AddressAnswers addresses;
   private final Deployments deployments;
   private final HttpLinker http;
   private final RouteLinker routes;
 
   FrontendLinker(
-      LinkIndex index, FoundLinks out, Addresses addresses, HttpLinker http, RouteLinker routes) {
+      LinkIndex index,
+      FoundLinks out,
+      AddressAnswers addresses,
+      Deployments deployments,
+      HttpLinker http,
+      RouteLinker routes) {
     this.index = index;
     this.out = out;
     this.addresses = addresses;
-    this.deployments = addresses.deployments();
+    this.deployments = deployments;
     this.http = http;
     this.routes = routes;
   }
@@ -102,7 +107,7 @@ final class FrontendLinker {
               || (nginx && !FrontendExtractor.NGINX.equals(Claims.source(proxy)))) {
             continue;
           }
-          Reached reached = target(Web.of(proxy).target(), view, proxy);
+          Reached reached = target(Web.of(proxy).target(), view, proxy, proxy);
           if (reached != null && !reachedTargets.contains(reached.target().to())) {
             reachedTargets.add(reached.target().to());
             emit(frontend, proxy, reached, view);
@@ -206,9 +211,9 @@ final class FrontendLinker {
         if (proxy == null) {
           continue;
         }
-        reached = target(through(url, proxy), view, proxy);
+        reached = target(through(url, proxy), view, proxy, call);
       } else {
-        reached = target(url, view, null);
+        reached = target(url, view, null, call);
       }
       if (reached != null) {
         String protocol =
@@ -260,8 +265,11 @@ final class FrontendLinker {
     return (base + rest).replaceAll("(?<!:)//+", "/");
   }
 
-  /** Where an absolute URL goes in a view, or null when it names no unit and no system. */
-  private Reached target(String url, String view, Fact proxy) {
+  /**
+   * Where an absolute URL goes in a view, or null when it names no unit and no system; {@code
+   * asking} is the call or proxy whose URL it is.
+   */
+  private Reached target(String url, String view, Fact proxy, Fact asking) {
     Url parsed = LinkText.parse(url);
     String host = parsed.host();
     String scheme = parsed.scheme();
@@ -274,7 +282,7 @@ final class FrontendLinker {
           case "https" -> "HTTPS";
           default -> FrontendExtractor.HTTP;
         };
-    Answer answer = addresses.resolve(null, view, url, null);
+    Answer answer = addresses.resolve(asking, null, view, url, null);
     Target target =
         switch (answer.kind()) {
           case UNIT -> {

@@ -26,4 +26,19 @@ interface AddressAnswers {
 
   /** The units whose {@code spring.application.name} in the view is the name. */
   List<Target> byApplicationName(String name, String view, String matchedBy, double factor);
+
+  /**
+   * As {@link #resolve(Unit, String, String, String)}, asked for a fact (a route, a frontend's
+   * call), which address resolution cites when it records the question.
+   */
+  default Answer resolve(
+      io.lantern.core.fact.Fact asking, Unit from, String view, String text, String written) {
+    return resolve(from, view, text, written);
+  }
+
+  /** As {@link #byApplicationName(String, String, String, double)}, asked for a fact. */
+  default List<Target> byApplicationName(
+      io.lantern.core.fact.Fact asking, String name, String view, String matchedBy, double factor) {
+    return byApplicationName(name, view, matchedBy, factor);
+  }
 }

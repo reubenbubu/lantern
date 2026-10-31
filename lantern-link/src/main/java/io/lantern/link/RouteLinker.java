@@ -69,10 +69,10 @@ final class RouteLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
-  private final Addresses addresses;
+  private final AddressAnswers addresses;
   private final List<Routed> routed = new ArrayList<>();
 
-  RouteLinker(LinkIndex index, FoundLinks out, Addresses addresses) {
+  RouteLinker(LinkIndex index, FoundLinks out, AddressAnswers addresses) {
     this.index = index;
     this.out = out;
     this.addresses = addresses;
@@ -131,7 +131,7 @@ final class RouteLinker {
     Container filledBy = null;
     if (!balanced && scheme == null && rest.startsWith("${")) {
       // The whole URI is left to a placeholder, which the deployment may set.
-      answer = addresses.resolve(gateway, view, rest, written(route, false));
+      answer = addresses.resolve(route, gateway, view, rest, written(route, false));
       scheme = answer.url().scheme();
       if (answer.kind() == Kind.AMBIGUOUS) {
         // Deployments that fill it differently: left open with each unit they lead to.
@@ -179,7 +179,8 @@ final class RouteLinker {
         return null;
       }
       List<Target> targets =
-          addresses.byApplicationName(url.host(), view, "service-name", Addresses.BY_SERVICE_NAME);
+          addresses.byApplicationName(
+              route, url.host(), view, "service-name", Addresses.BY_SERVICE_NAME);
       if (targets.size() != 1) {
         unresolved(
             gateway,
@@ -192,7 +193,7 @@ final class RouteLinker {
       target = targets.getFirst();
     } else {
       if (answer == null) {
-        answer = addresses.resolve(gateway, view, rest, written(route, balanced));
+        answer = addresses.resolve(route, gateway, view, rest, written(route, balanced));
       }
       if (answer.filledBy() != null) {
         facts.add(answer.filledBy().fact().id());

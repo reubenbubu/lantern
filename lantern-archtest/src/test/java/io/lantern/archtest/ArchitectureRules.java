@@ -101,9 +101,10 @@ final class ArchitectureRules {
 
   /**
    * The matchers that read where addresses lead from address resolution's claims (#589), by simple
-   * name; the others join as their slices land (#594, #595, #596).
+   * name; the others join as their slices land (#595, #596).
    */
-  static final List<String> MATCHERS_READING_ADDRESS_CLAIMS = List.of("HttpLinker");
+  static final List<String> MATCHERS_READING_ADDRESS_CLAIMS =
+      List.of("HttpLinker", "RouteLinker", "FrontendLinker");
 
   /**
    * Those matchers call no address helper: where an address leads is address resolution's to
