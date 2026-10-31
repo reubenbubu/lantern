@@ -135,7 +135,11 @@ name `values`. Besides the facts above, it writes what each expression-keyed ent
   the extractors give a destination or host written out, so a resolved and a literal one are one
   entity.
 - One claim for the default view and one for each profile whose config gives another literal,
-  `profile` its key attribute, as for links until #590 names it `view`.
+  `profile` its key attribute, as for links until #590 names it `view`. The default view's claim
+  lists in `exceptProfiles` the profiles whose config gives another literal or none, as a link's
+  does (#590 names it `absentIn`).
+- A placeholder's own default (`${orders.topic:orders}`) resolves an expression too; that claim
+  cites no config value, and its evidence is only where the expression is written.
 - None where a placeholder stays unresolved, a secret is used, config changes nothing (a STOMP
   destination with a `{}` segment is scoped for that, not for config) or no literal host results.
   Deployment environments as views, which resolve most of what is left, are #588's.
@@ -146,4 +150,5 @@ name `values`. Besides the facts above, it writes what each expression-keyed ent
 
 The matchers still read the facts above until address resolution (#589) moves them onto these
 claims. On project-0 to project-4 every claim names the destination or host the matchers read in
-that view, and every other derived fact is unchanged (#587's PR).
+that view, every view in which they read a literal has its claim, and every other derived fact is
+unchanged (#587's PR).

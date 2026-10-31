@@ -65,6 +65,12 @@ class ValueResolutionTest {
         .containsExactlyInAnyOrder(
             org.assertj.core.groups.Tuple.tuple("address:shipping:8080", null),
             org.assertj.core.groups.Tuple.tuple("address:localhost:8083", "local"));
+    // The default view's literal does not hold under the profile that gives another.
+    assertThat(resolutions)
+        .filteredOn(f -> TestAttributes.text(f, "profile") == null)
+        .singleElement()
+        .satisfies(
+            f -> assertThat(TestAttributes.texts(f, "exceptProfiles")).containsExactly("local"));
     for (Fact f : resolutions) {
       // Cites the config value used, seen where the URL is written and where config sets it.
       List<String> cited = TestAttributes.texts(f, "facts");
@@ -76,6 +82,30 @@ class ValueResolutionTest {
           .isEqualTo(io.lantern.core.fact.Evidence.Role.CONFIG);
       assertThat(f.evidence().locations().get(1).path()).isEqualTo(config.evidence().path());
     }
+  }
+
+  @Test
+  void anAddressADatasourceConnectsToResolvesToItsServer() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("persistence"));
+    List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+    facts.addAll(
+        new io.lantern.extract.persistence.PersistenceExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> resolutions =
+        new ValueResolution()
+            .derive(facts, SNAPSHOT).stream()
+                .filter(f -> f.predicate().equals(ValueResolution.RESOLVES_TO))
+                .toList();
+
+    // The datasources are read from config by this rule; their addresses resolve all the same.
+    assertThat(resolutions)
+        .extracting(f -> f.subject().toString(), f -> f.object().value())
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(
+                "address:com.example.shop:shop-app:${WAREHOUSE_URL:jdbc:oracle:thin:@//wh-db:1521/WH}",
+                "address:wh-db:1521"));
+    // A placeholder's default resolves it, citing no config; ${REPORT_HOST} nothing resolves.
+    assertThat(TestAttributes.texts(resolutions.getFirst(), "facts")).isEmpty();
   }
 
   @Test
@@ -303,7 +333,7 @@ class ValueResolutionTest {
           all.add(f);
         }
       }
-      for (Fact f : new ValueResolution().derive(facts, SNAPSHOT)) {
+      for (Fact f : oldStyle(new ValueResolution().derive(facts, SNAPSHOT))) {
         if (!f.predicate()
                 .equals(io.lantern.extract.persistence.PersistenceExtractor.HAS_DATASOURCE)
             && !f.predicate()

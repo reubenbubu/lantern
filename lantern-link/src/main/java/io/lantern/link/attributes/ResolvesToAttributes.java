@@ -10,16 +10,20 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code RESOLVES_TO}. The subject, a destination or address
  * keyed by its module and the expression its code writes, is the object, the literal destination or
  * address, in a view: the default view, or the profile named, when the module's config resolves
- * every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view
- * and one for each profile whose config gives another literal. Not given where a placeholder stays
- * unresolved or a secret is used.
+ * every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default
+ * view, which names in exceptProfiles the profiles it does not hold under, and one for each profile
+ * whose config gives another literal; a placeholder's own default resolves it too. Not given where
+ * a placeholder stays unresolved or a secret is used.
  *
+ * @param exceptProfiles Descriptive. On the default view's fact, the profiles whose config gives
+ *     another literal or none.
  * @param facts Descriptive. The IDs of the config-value facts the expression was resolved with.
  * @param profile Key. The profile whose config gives this literal; absent for the default view.
  * @param resolved Descriptive. The expression as config resolved it, when that is not the literal's
  *     own key: a URL whose address is its host, or a JDBC URL whose address is its server.
  */
 public record ResolvesToAttributes(
+    List<String> exceptProfiles,
     List<String> facts,
     String profile,
     String resolved) {
@@ -33,6 +37,7 @@ public record ResolvesToAttributes(
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static ResolvesToAttributes from(ObjectNode attributes) {
     return new ResolvesToAttributes(
+        AttributeValues.strings(attributes, "exceptProfiles"),
         AttributeValues.strings(attributes, "facts"),
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "resolved"));
@@ -41,6 +46,7 @@ public record ResolvesToAttributes(
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
     AttributeValues.put(attributes, "facts", facts);
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "resolved", resolved);

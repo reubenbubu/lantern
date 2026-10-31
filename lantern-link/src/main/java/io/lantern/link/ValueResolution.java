@@ -29,7 +29,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Value resolution, the first link rule after the deployable units' (epic {@code
+ * Value resolution, the link rule that runs first, as it reads only extracted facts (epic {@code
  * docs/epics/001-knowledge-build.md}, section 8): the values extractors keep as written, resolved
  * in each view against the config of the module they name ({@link CodeValues}).
  *
@@ -155,7 +155,10 @@ public final class ValueResolution implements LinkRule.OverFacts {
         }
       }
     }
-    for (Fact resolves : Literals.of(facts, values, validity)) {
+    // The datasources this rule reads from config connect to addresses too.
+    List<Fact> withDatasources = new java.util.ArrayList<>(facts);
+    withDatasources.addAll(derived.values());
+    for (Fact resolves : Literals.of(withDatasources, values, validity)) {
       derived.putIfAbsent(resolves.id(), resolves);
     }
     return derived.values().stream()

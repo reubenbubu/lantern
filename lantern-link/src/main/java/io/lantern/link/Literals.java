@@ -45,19 +45,22 @@ import tools.jackson.databind.node.ObjectNode;
  * </ul>
  *
  * One fact for the default view and one for each profile whose config gives another literal, the
- * profile named; none in a view where a placeholder stays unresolved, a secret is used, config
- * changes nothing or no literal host results. Each cites the {@code config-value} facts used.
+ * profile named, the default view's listing in {@code exceptProfiles} the profiles it does not hold
+ * under; a placeholder's own default resolves too, citing no config value; none in a view where a
+ * placeholder stays unresolved, a secret is used, config changes nothing or no literal host
+ * results. Each cites the {@code config-value} facts used.
  */
 final class Literals {
 
   private static final Origin ORIGIN =
       new Origin(Origin.Kind.STATIC, ValueResolution.NAME, ValueResolution.VERSION);
 
+  private static final String FEIGN = "feign";
+
   private Literals() {}
 
   /** An expression-keyed entity, the module whose config resolves it, and how to resolve it. */
-  private record Scoped(
-      EntityId entity, EntityId module, String repo, Kind kind, String client, Fact source) {}
+  private record Scoped(EntityId entity, EntityId module, String repo, Kind kind, Fact source) {}
 
   private enum Kind {
     DESTINATION,
@@ -74,6 +77,7 @@ final class Literals {
     Map<EntityId, Fact> sentBy = new HashMap<>();
     Map<EntityId, Fact> datasourceOf = new HashMap<>();
     Map<String, Fact> byId = new HashMap<>();
+    java.util.Set<EntityId> feign = new java.util.HashSet<>();
     for (Fact f : facts) {
       byId.putIfAbsent(f.id(), f);
       if (f.predicate().equals(HttpClientExtractor.SENT_BY)
@@ -101,8 +105,7 @@ final class Literals {
           if (config[0] != null && within(object, EntityId.parse(config[0]))) {
             scoped.putIfAbsent(
                 object,
-                new Scoped(
-                    object, EntityId.parse(config[0]), config[1], Kind.DESTINATION, null, f));
+                new Scoped(object, EntityId.parse(config[0]), config[1], Kind.DESTINATION, f));
           }
         }
         case HttpClientExtractor.ADDRESSED_TO -> {
@@ -117,8 +120,11 @@ final class Literals {
           EntityId module = EntityId.parse(a.configModule());
           if (within(object, module)) {
             scoped.putIfAbsent(
-                object,
-                new Scoped(object, module, a.configRepo(), Kind.REQUEST_ADDRESS, a.client(), sent));
+                object, new Scoped(object, module, a.configRepo(), Kind.REQUEST_ADDRESS, sent));
+            if (FEIGN.equals(a.client())) {
+              // OpenFeign adds a scheme: an address any Feign client sends to gets one.
+              feign.add(object);
+            }
           }
         }
         case PersistenceExtractor.CONNECTS_TO -> {
@@ -130,8 +136,7 @@ final class Literals {
           if (within(object, module)) {
             scoped.putIfAbsent(
                 object,
-                new Scoped(
-                    object, module, has.evidence().repo(), Kind.DATASOURCE_ADDRESS, null, f));
+                new Scoped(object, module, has.evidence().repo(), Kind.DATASOURCE_ADDRESS, f));
           }
         }
         default -> {}
@@ -140,12 +145,15 @@ final class Literals {
     List<Fact> out = new ArrayList<>();
     for (Scoped s : scoped.values()) {
       CodeValues.View config = values.forModule(s.module(), s.repo());
-      Literal byDefault = null;
+      boolean scheme = feign.contains(s.entity());
+      Map<String, Literal> byView = new LinkedHashMap<>();
       for (String profile : config.views()) {
-        Literal literal = literal(s, config, profile);
-        if (profile == null) {
-          byDefault = literal;
-        }
+        byView.put(profile, literal(s, config, profile, scheme));
+      }
+      Literal byDefault = byView.get(null);
+      for (Map.Entry<String, Literal> e : byView.entrySet()) {
+        String profile = e.getKey();
+        Literal literal = e.getValue();
         if (literal == null
             || (profile != null
                 && byDefault != null
@@ -155,6 +163,19 @@ final class Literals {
         ObjectNode attributes = FactJson.newObject();
         if (profile != null) {
           attributes.put("profile", profile);
+        } else {
+          // The default view's literal does not hold under a profile that gives another or none.
+          List<String> except =
+              byView.entrySet().stream()
+                  .filter(v -> v.getKey() != null)
+                  .filter(
+                      v -> v.getValue() == null || !v.getValue().entity().equals(literal.entity()))
+                  .map(Map.Entry::getKey)
+                  .sorted()
+                  .toList();
+          if (!except.isEmpty()) {
+            except.forEach(attributes.putArray("exceptProfiles")::add);
+          }
         }
         if (!literal.resolved().equals(literal.entity().key())) {
           attributes.put("resolved", literal.resolved());
@@ -177,7 +198,7 @@ final class Literals {
   }
 
   /** The literal an expression-keyed entity resolves to in a view, or null. */
-  private static Literal literal(Scoped s, CodeValues.View config, String profile) {
+  private static Literal literal(Scoped s, CodeValues.View config, String profile, boolean feign) {
     String expression = s.entity().key().substring(s.module().key().length() + 1);
     switch (s.kind()) {
       case DESTINATION -> {
@@ -204,7 +225,7 @@ final class Literals {
           return null;
         }
         String url = HttpClientExtractor.clean(v.value());
-        if ("feign".equals(s.client())) {
+        if (feign) {
           url = HttpClientExtractor.withScheme(url);
         }
         HttpClientExtractor.Split split = HttpClientExtractor.split(url);
@@ -220,7 +241,11 @@ final class Literals {
           return null;
         }
         String text = v.value().strip();
-        String server = text.contains("://") ? JdbcUrl.of(text, null).server() : text;
+        String lower = text.toLowerCase(Locale.ROOT);
+        // A whole URL (jdbc:, r2dbc:, mongodb://) gives its server; else the text is the server.
+        boolean url =
+            text.contains("://") || lower.startsWith("jdbc:") || lower.startsWith("r2dbc:");
+        String server = url ? JdbcUrl.of(text, null).server() : text;
         return server == null ? null : host(server, text, v);
       }
     }
