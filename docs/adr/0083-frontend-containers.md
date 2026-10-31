@@ -26,7 +26,9 @@ environment file, often `localhost` and a port that a compose file publishes.
     name documents show, else the folder's or repository's), the folder, the framework's
     major.minor from the range asked for, the libraries Lantern knows (UI kits, Vite, axios,
     STOMP.js, SockJS...), the last stage's base image of the folder's Dockerfile with the
-    product it is (`nginx`) and its exposed ports, and a technology line such as
+    product it is (`nginx`) and its exposed ports (without one in the folder, the first
+    Dockerfile elsewhere in the repository, `Dockerfile`, `Dockerfile.x` or `x.Dockerfile`, that
+    copies the folder from its own folder as build context: #516), and a technology line such as
     `Angular 19.2 · nginx`.
   - `frontend-call` (value: method and URL) is each request the code makes from the browser:
     Angular's `HttpClient` (`get`, `post`... and `request('PUT', url)` on a field typed or
@@ -34,7 +36,8 @@ environment file, often `localhost` and a port that a compose file publishes.
     `baseURL`), and a socket it opens (`new WebSocket`, `new SockJS`, a STOMP client's
     `brokerURL`). Its URL is evaluated as far as the file says: string and template literals,
     `+`, constants and fields of the file written on one line, and environment values; anything
-    else is `{name}`, and the query is left out. A URL that is only an unknown value is not
+    else is `{name}`, and the query is left out. A `??` or `||` fallback is its right side when the left is
+    only an environment value that is not set (#516). A URL that is only an unknown value is not
     recorded. Comments are blanked out first, keeping offsets, so cited lines stay right.
   - **Environments.** Angular's `environments/environment*.ts` (simple `key: 'value'` entries),
     the default build's being the file that the configuration the folder's Dockerfile builds
@@ -44,7 +47,8 @@ environment file, often `localhost` and a port that a compose file publishes.
     `process.env.X`. A call's URL is the default build's; the others' URLs, where they differ,
     are its `alternates`.
   - `frontend-proxy` (value: the path prefix) is each prefix the frontend's own server passes on:
-    the nginx configs in its folder (`location` prefixes with a `proxy_pass` without variables;
+    the nginx configs in its folder, or that the Dockerfile serving it from outside the folder
+    copies in (`location` prefixes with a `proxy_pass` without variables;
     regular-expression locations are skipped), and its development server (Angular's
     `proxyConfig` file or `proxy.conf.json`, Vite's `server.proxy`, a manifest's `proxy`).
 - **Linking (ADR 0042 amended).** The linker (`cross-repo-links`) makes each call a `CALLS_HTTP`

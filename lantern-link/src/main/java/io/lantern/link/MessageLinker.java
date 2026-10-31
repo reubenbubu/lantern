@@ -185,6 +185,22 @@ final class MessageLinker {
 
   /** What a send publishes to, and a link to each unit listening where it arrives. */
   private void publish(Use send, String view, List<Use> received, List<Use> bound) {
+    if (LinkIndex.texts(send.fact(), "unknown").contains("exchange")) {
+      // The code does not fix the exchange: any unit listening on a bound queue may receive it.
+      List<Unit> candidates = new ArrayList<>();
+      for (Use binding : bound) {
+        for (Use listener : received) {
+          if (MessagingExtractor.RABBITMQ.equals(binding.broker())
+              && MessagingExtractor.RABBITMQ.equals(listener.broker())
+              && listener.destination().equals(binding.destination())
+              && !candidates.contains(listener.unit())) {
+            candidates.add(listener.unit());
+          }
+        }
+      }
+      unresolved(send, view, Set.of(), "unknown-exchange", candidates);
+      return;
+    }
     EntityId destination = destination(send);
     if (destination == null) {
       return;

@@ -33,4 +33,9 @@ public class OrderPublisher {
     // A routing key the caller chooses: the send is recorded, its key unknown.
     rabbit.convertAndSend(Topics.EXCHANGE, key, event);
   }
+
+  public void relayed(String exchange, String event) {
+    // An exchange the caller chooses, as an outbox relay sends: recorded, its exchange unknown.
+    rabbit.convertAndSend(exchange, "order.relayed", event);
+  }
 }

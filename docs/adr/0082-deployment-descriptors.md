@@ -1,6 +1,6 @@
 # 0082: Deployment descriptors
 
-Status: accepted (#266), amends ADR 0042 and ADR 0073, amended by ADR 0086 (#249) and #397
+Status: accepted (#266), amends ADR 0042 and ADR 0073, amended by ADR 0086 (#249), #397 and #516
 
 ## Context
 
@@ -149,3 +149,20 @@ Extractor `deployment` version 2.
   and tying routes to units, is the linker's (#502, #503); images built by Jib or `build-image`
   (#504) and compose override files and `extends` (#505) follow too; this version records the facts
   only, so the report does not change yet.
+
+## Amendment (#516): replicas from kustomize patches, and Helm `range`
+
+project-8 (FleetCare) runs its prod services with 2 replicas through a kustomize patch, and builds
+its Helm chart's Deployments with a `range` over the services in its values; Lantern recorded 1
+replica for each and no Helm container at all.
+
+- **Kustomize patches** of an overlay (`patches`, `patchesJson6902` and `patchesStrategicMerge`,
+  inline or in a file) set `replicas` on the resources their `target` selects (kind, name and a
+  `labelSelector` of `k=v` pairs), or on the resource a strategic merge patch names: a JSON patch's
+  `replace`/`add` of `/spec/replicas`, or a merge patch's `spec.replicas`. Nothing else in a patch is
+  applied.
+- **Helm `range`.** A `range` at a template's top level over a map or list of the values
+  (`range $name, $service := .Values.services`) is rendered once per entry, with its variables,
+  `.` and `$` (`$.Values...`) bound, each rendering keeping the template's line numbers; the rest
+  of the template is rendered once with the range blanked. A `range` inside another block, or over
+  anything else, is still blanked with its body kept once.

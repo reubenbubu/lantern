@@ -70,7 +70,7 @@ public final class PersistenceExtractor {
   public static final String NAME = "persistence";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "persistence-extractor";
@@ -398,7 +398,9 @@ public final class PersistenceExtractor {
 
     void module(JavaAnalysis.Module m) {
       for (TypeDecl type : m.structure().types()) {
-        if (type.kind().equals(ModuleStructure.CLASS)) {
+        // A record can be a document or a mapped row (Spring Data MongoDB, Elasticsearch, JDBC).
+        if (type.kind().equals(ModuleStructure.CLASS)
+            || type.kind().equals(ModuleStructure.RECORD)) {
           entity(m, type);
         } else if (type.kind().equals(ModuleStructure.INTERFACE)) {
           repository(m, type);

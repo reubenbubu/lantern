@@ -218,6 +218,15 @@ class MessagingExtractorTest {
                             + "OrderPublisher#keyed(java.lang.String,java.lang.String)"
                             + " message-send shop.orders ")
                     && l.contains("\"unknown\":[\"routingKey\"]"))
+        // So is an exchange; the routing key is kept.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderPublisher#relayed(java.lang.String,java.lang.String)"
+                            + " message-send {...} ")
+                    && l.contains("\"unknown\":[\"exchange\"]")
+                    && l.contains("\"routingKey\":\"order.relayed\""))
         // @Exchange's type from ExchangeTypes.TOPIC, folded by name when parsed.
         .anyMatch(
             l ->

@@ -80,4 +80,31 @@ class DeploymentExtractorTest {
             chart);
     assertThat(rendered).isEqualTo("\nimage: acme/app:2.0\nname: shop-app\n\n\n");
   }
+
+  @Test
+  void aRangeOverValuesGivesOneRenderingPerEntry() {
+    Map<String, Object> services = new java.util.LinkedHashMap<>();
+    services.put("orders", Map.of("image", "acme/orders:1", "port", 8080));
+    services.put("billing", Map.of("image", "acme/billing:1", "port", 8081));
+    Map<String, Object> values = Map.of("services", services, "replicaCount", 2);
+    List<String> rendered =
+        HelmTemplate.renderAll(
+            """
+            kind: Namespace
+            {{- range $name, $service := .Values.services }}
+            name: {{ $name }}
+            image: {{ $service.image | quote }}
+            port: {{ .port }}
+            replicas: {{ $.Values.replicaCount }}
+            ---
+            {{- end }}
+            """,
+            values,
+            Map.of("name", "shop"));
+    assertThat(rendered)
+        .containsExactly(
+            "kind: Namespace\n\n\n\n\n\n\n\n",
+            "\n\nname: orders\nimage: \"acme/orders:1\"\nport: 8080\nreplicas: 2\n---\n\n",
+            "\n\nname: billing\nimage: \"acme/billing:1\"\nport: 8081\nreplicas: 2\n---\n\n");
+  }
 }

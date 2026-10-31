@@ -89,12 +89,27 @@ final class ConfigReader {
     if (!moduleIds(repo).isEmpty()) {
       return List.of();
     }
+    return readFolder(repo, "", names);
+  }
+
+  /**
+   * The config a folder of a repository serves as a Spring Cloud Config repository, read as {@link
+   * #readRepository} reads a repository's top: the folder a config server's native backend names in
+   * its own repository ({@code search-locations: file:./config-repo}).
+   *
+   * @param folder the folder, relative to the top of the repository, {@code ""} for the top, else
+   *     ending in {@code /}
+   */
+  static List<ModuleConfig> readFolder(RepoBuild repo, String folder, Set<String> names) {
     Set<String> applications = new TreeSet<>(names);
     applications.add(APPLICATION);
     // By application, then profile ("" for none), then extension: the file's path.
     Map<String, Map<String, Map<String, String>>> files = new TreeMap<>();
     for (String path : GitFiles.list(repo, "")) {
-      Matcher m = REPOSITORY_FILE.matcher(path);
+      if (!path.startsWith(folder)) {
+        continue;
+      }
+      Matcher m = REPOSITORY_FILE.matcher(path.substring(folder.length()));
       if (!m.matches()) {
         continue;
       }
@@ -136,7 +151,13 @@ final class ConfigReader {
         }
       }
       if (!documents.isEmpty()) {
-        result.add(new ModuleConfig(repo, "", subject, application.getKey(), documents));
+        result.add(
+            new ModuleConfig(
+                repo,
+                folder.isEmpty() ? "" : folder.substring(0, folder.length() - 1),
+                subject,
+                application.getKey(),
+                documents));
       }
     }
     return result;

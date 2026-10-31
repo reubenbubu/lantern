@@ -43,7 +43,7 @@ public final class ConfigExtractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "6";
+  public static final String VERSION = "7";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
@@ -65,6 +65,10 @@ public final class ConfigExtractor {
 
   /** The prefix of a value Spring Cloud Config Server decrypts before serving it. */
   private static final String CIPHER = "{cipher}";
+
+  /** The key, as a regular expression, of a native config server's search locations. */
+  private static final String NATIVE_LOCATIONS =
+      "spring\\.cloud\\.config\\.server\\.native\\.search-locations";
 
   /** The prefix of the keys that set up a Spring Cloud Config Server. */
   private static final String CONFIG_SERVER_KEYS = "spring.cloud.config.server.";
@@ -194,6 +198,9 @@ public final class ConfigExtractor {
       List<ModuleConfig> configs = new ArrayList<>(modules.get(repo));
       if (configServer) {
         configs.addAll(ConfigReader.readRepository(repo, names));
+        for (String folder : nativeFolders(modules.get(repo))) {
+          configs.addAll(ConfigReader.readFolder(repo, folder, names));
+        }
       }
       for (ModuleConfig config : configs) {
         SortedMap<String, ConfigValue> defaults = config.values(null);
@@ -253,6 +260,42 @@ public final class ConfigExtractor {
       }
     }
     return names;
+  }
+
+  /**
+   * The folders of a repository that its config servers' native backends serve from: each relative
+   * {@code file:} location of {@code spring.cloud.config.server.native.search-locations}, in any
+   * profile, taken from the module's folder (where the server is started), as folders of the
+   * repository ending in {@code /}. Absolute, {@code classpath:} and {@code {application}}
+   * locations are left out.
+   */
+  static Set<String> nativeFolders(List<ModuleConfig> configs) {
+    Set<String> folders = new java.util.TreeSet<>();
+    for (ModuleConfig config : configs) {
+      List<String> profiles = new ArrayList<>();
+      profiles.add(null);
+      profiles.addAll(config.profiles());
+      for (String profile : profiles) {
+        for (ConfigValue value : config.values(profile).values()) {
+          if (!value.key().matches(NATIVE_LOCATIONS + "(\\[\\d+])?")) {
+            continue;
+          }
+          for (String location : value.value().split(",")) {
+            String l = location.strip();
+            if (!l.startsWith("file:") || l.contains("{") || l.contains("$")) {
+              continue;
+            }
+            String path = l.substring("file:".length()).replaceFirst("^\\./", "");
+            if (path.isEmpty() || path.startsWith("/") || path.contains("..")) {
+              continue;
+            }
+            String base = config.directory().isEmpty() ? "" : config.directory() + "/";
+            folders.add(base + (path.endsWith("/") ? path : path + "/"));
+          }
+        }
+      }
+    }
+    return folders;
   }
 
   /** Whether a module sets up a Spring Cloud Config Server, in any profile. */

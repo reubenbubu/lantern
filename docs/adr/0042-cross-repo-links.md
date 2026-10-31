@@ -114,8 +114,8 @@ its path is known, and what is matched when.
   its predicate, both ends, the code on both, and its profile; never a commit.
 - **What stays open** is `unresolved-link` on the unit, with `kind` (`http`, `message`,
   `database`), `reason` (`unresolved-placeholder`, `unknown-url`, `unknown-host`, `ambiguous`,
-  `no-match`, `unknown-routing-key`), the unresolved keys and the `candidates`: units whose endpoints serve the
-  path, or that listen where the exchange routes. HTTP-5's tax service is one. The LLM resolver
+  `no-match`, `unknown-routing-key`, `unknown-exchange`), the unresolved keys and the `candidates`: units whose endpoints serve the
+  path, or that listen where the exchange routes (for an unknown exchange, on any bound queue). HTTP-5's tax service is one. The LLM resolver
   that picks among candidates is ADR 0045; the questions queue is #170.
 - **New vocabulary**, applied by the app on startup after the deployable units', with source
   `cross-repo-links`: entity types `topic`, `queue`, `exchange`, `database`, `message-broker`,

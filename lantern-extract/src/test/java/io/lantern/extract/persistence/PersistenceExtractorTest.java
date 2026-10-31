@@ -179,6 +179,15 @@ class PersistenceExtractorTest {
     String mapper = "method:com.example.shop.catalog.ProductMapper#";
     String table = "table:com.example.shop:shop-catalog:";
     assertThat(lines)
+        // Documents written as records map like classes.
+        .anyMatch(
+            l ->
+                l.startsWith("type:com.example.shop.catalog.ViewEvent MAPS_TO ")
+                    && l.contains("view_events"))
+        .anyMatch(
+            l ->
+                l.startsWith("type:com.example.shop.catalog.SearchSuggestion MAPS_TO ")
+                    && l.contains("suggestions"))
         // MyBatis annotations: the strings of a value are one statement.
         .anyMatch(l -> l.startsWith(mapper + "findById(long) READS_TABLE " + table + "product "))
         .anyMatch(l -> l.startsWith(mapper + "insert(java.lang.Object) WRITES_TABLE " + table))

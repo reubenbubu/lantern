@@ -54,7 +54,7 @@ public final class DeploymentExtractor {
   public static final String NAME = "deployment";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "deployment-extractor";
@@ -899,6 +899,79 @@ public final class DeploymentExtractor {
       }
     }
 
+    /**
+     * Applies what a kustomize patch sets of a workload's replica count to the resources collected
+     * so far: a JSON 6902 {@code replace} or {@code add} of {@code /spec/replicas}, or a strategic
+     * merge patch's {@code spec.replicas}. A patch names its resources by its target (kind, name,
+     * label selector) or, as a strategic merge patch, by its own kind and name. Other changes a
+     * patch makes are not read.
+     */
+    @SuppressWarnings("unchecked")
+    private static void patchReplicas(List<Doc> docs, Map<String, Object> target, String text) {
+      Object loaded = Yaml.load(text);
+      Integer replicas = null;
+      Map<String, Object> select = target;
+      if (loaded instanceof List<?> ops) {
+        for (Object op : ops) {
+          Map<String, Object> o = Yaml.map(op);
+          if (o != null
+              && List.of("replace", "add").contains(Yaml.string(o.get("op")))
+              && "/spec/replicas".equals(Yaml.string(o.get("path")))
+              && o.get("value") instanceof Integer n) {
+            replicas = n;
+          }
+        }
+      } else if (Yaml.map(loaded) instanceof Map<String, Object> merge) {
+        Map<String, Object> spec = Yaml.map(merge.get("spec"));
+        if (spec != null && spec.get("replicas") instanceof Integer n) {
+          replicas = n;
+        }
+        if (select == null) {
+          Map<String, Object> metadata = Yaml.map(merge.get("metadata"));
+          select = new LinkedHashMap<>();
+          select.put("kind", merge.get("kind"));
+          select.put("name", metadata == null ? null : metadata.get("name"));
+        }
+      }
+      if (replicas == null || select == null) {
+        return;
+      }
+      for (Doc doc : docs) {
+        if (selects(select, doc.map()) && doc.map().get("spec") instanceof Map<?, ?> spec) {
+          ((Map<String, Object>) spec).put("replicas", replicas);
+        }
+      }
+    }
+
+    /**
+     * Whether a patch's target (kind, name, label selector of {@code key=value} pairs) is the
+     * resource.
+     */
+    private static boolean selects(Map<String, Object> target, Map<String, Object> resource) {
+      Map<String, Object> metadata = Yaml.map(resource.get("metadata"));
+      String kind = Yaml.string(target.get("kind"));
+      String name = Yaml.string(target.get("name"));
+      if (kind != null && !kind.equals(Yaml.string(resource.get("kind")))) {
+        return false;
+      }
+      if (name != null && (metadata == null || !name.equals(Yaml.string(metadata.get("name"))))) {
+        return false;
+      }
+      String selector = Yaml.string(target.get("labelSelector"));
+      if (selector != null) {
+        Map<String, Object> labels = metadata == null ? null : Yaml.map(metadata.get("labels"));
+        for (String pair : selector.split(",")) {
+          String[] kv = pair.split("=", 2);
+          if (kv.length != 2
+              || labels == null
+              || !kv[1].strip().equals(Yaml.string(labels.get(kv[0].strip())))) {
+            return false;
+          }
+        }
+      }
+      return kind != null || name != null || selector != null;
+    }
+
     private static List<String> resources(Map<String, Object> kustomization) {
       List<String> entries = new ArrayList<>();
       for (String key : List.of("resources", "bases", "components")) {
@@ -919,6 +992,9 @@ public final class DeploymentExtractor {
         return;
       }
       Map<String, Object> k = kustomizations.get(dir);
+      // A kustomization's patches apply to its own resources and its bases', not to what an
+      // overlay that builds on it collected before.
+      int own = docs.size();
       for (String entry : resources(k)) {
         String target = normalize(dir, entry);
         if (kustomizations.containsKey(target)) {
@@ -935,9 +1011,18 @@ public final class DeploymentExtractor {
         for (Object item : Yaml.list(k.get(key))) {
           Map<String, Object> patch = Yaml.map(item);
           String path = patch == null ? Yaml.string(item) : Yaml.string(patch.get("path"));
+          String text = patch == null ? null : Yaml.string(patch.get("patch"));
           if (path != null) {
             // A patch changes resources; it is not one, so it is no manifest of its own.
             used.add(normalize(dir, path));
+            File file = read(normalize(dir, path));
+            text = file == null ? null : String.join("\n", file.lines());
+          }
+          if (text != null) {
+            patchReplicas(
+                docs.subList(own, docs.size()),
+                patch == null ? null : Yaml.map(patch.get("target")),
+                text);
           }
         }
       }
@@ -1032,10 +1117,12 @@ public final class DeploymentExtractor {
               && !name.startsWith("_")) {
             File template = read(path);
             if (template != null) {
-              String rendered = HelmTemplate.render(template.text(), env.getValue(), chart);
-              File file =
-                  new File(path, rendered, List.of(rendered.split("\n", -1)), template.hash());
-              docs.addAll(docs(file));
+              for (String rendered :
+                  HelmTemplate.renderAll(template.text(), env.getValue(), chart)) {
+                File file =
+                    new File(path, rendered, List.of(rendered.split("\n", -1)), template.hash());
+                docs.addAll(docs(file));
+              }
             }
           }
         }

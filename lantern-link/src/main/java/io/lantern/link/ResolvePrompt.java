@@ -198,6 +198,7 @@ final class ResolvePrompt {
       case "no-match" -> "no unit serves it";
       case "unknown-routing-key" ->
           "its routing key is not known, so which binding routes it cannot be told";
+      case "unknown-exchange" -> "its exchange is not known, so where it is routed cannot be told";
       default -> reason;
     };
   }

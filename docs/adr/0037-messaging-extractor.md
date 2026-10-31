@@ -59,7 +59,8 @@ which APIs count.
     told apart by the callee's parameter types (leading `String`s: exchange and routing key, or a
     routing key alone); without types (parsed), by their number, so three arguments read as
     exchange, key and message. A send whose routing key cannot be followed is kept, with `unknown:
-    ["routingKey"]`, rather than dropped; parsed, this is also how `(routingKey, message,
+    ["routingKey"]`, rather than dropped, and so is one whose exchange cannot be followed (a getter
+    on the message, as an outbox relay sends), its object `{...}` with `unknown: ["exchange"]` (#516); parsed, this is also how `(routingKey, message,
     postProcessor)` shows, its key then recorded as the exchange. A send through the default
     exchange (a routing key alone, or an exchange that is `""` in a view, after placeholders are
     resolved, such as `${app.exchange:}`) is recorded in that view as a send to the queue the key

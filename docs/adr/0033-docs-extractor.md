@@ -93,7 +93,9 @@ development sets' references cite such documents, which had no facts. Extractor 
 - **What a document is not.** These are left out:
   - READMEs and decision records, which keep their own types;
   - anything in a hidden folder (`.github`) or a decision record folder, whose other pages index
-    its records;
+    its records; except a numbered page there (`0003-shared-read.md`) that does not read as a
+    record, having no status and no section, which is read as a document rather than lost (#516,
+    extractor `docs` version 4);
   - files about the project's process rather than its architecture: contributing, changelog,
     changes, history, release notes, code of conduct, license, notice, to-do, authors,
     maintainers, support and governance, and the upper-case `SECURITY` policy (a `security.md`

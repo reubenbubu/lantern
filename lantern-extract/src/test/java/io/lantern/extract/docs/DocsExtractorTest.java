@@ -58,6 +58,29 @@ class DocsExtractorTest {
   }
 
   @Test
+  void aNumberedDecisionPageInPlainProseIsReadAsADocument() throws IOException {
+    Repo repo =
+        Fixtures.repo(
+            temp.resolve("orders"),
+            "orders",
+            Map.of(
+                "docs/decisions/0003-shared-read.md",
+                "# Shared read\n\nOrders reads the billing database directly.\n",
+                "docs/decisions/overview.md",
+                "# Overview\n\nThe records below.\n"));
+
+    List<Fact> facts =
+        new DocsExtractor().extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), 1);
+
+    assertThat(Fixtures.render(facts))
+        .contains(
+            "document:orders:docs/decisions/0003-shared-read.md claim"
+                + " Orders reads the billing database directly.")
+        .doesNotContain("decision:")
+        .doesNotContain("overview.md");
+  }
+
+  @Test
   void repositoryWithoutDocsHasNoFacts() throws IOException {
     Repo repo = Fixtures.repo(temp.resolve("orders"), "orders", Map.of("pom.xml", "<project/>\n"));
 

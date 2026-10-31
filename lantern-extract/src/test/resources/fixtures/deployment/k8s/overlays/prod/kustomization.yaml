@@ -10,6 +10,13 @@ configMapGenerator:
       - LOG_LEVEL=info
 patches:
   - path: replicas.yaml
+  - target:
+      kind: StatefulSet
+      labelSelector: tier=data
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
 images:
   - name: example/orders
     newTag: 1.4.0

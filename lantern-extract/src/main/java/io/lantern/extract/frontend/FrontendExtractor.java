@@ -19,6 +19,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -40,14 +41,14 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code frontend} entity. See {@code docs/adr/0083-frontend-containers.md}.
  *
  * <p>It records the framework and its version, the libraries Lantern knows, the image that serves
- * it (the last stage of the Dockerfile in its folder) as a {@code frontend-app} fact; each URL its
- * code calls from the browser (Angular's {@code HttpClient}, {@code fetch}, axios, a WebSocket,
- * SockJS or a STOMP client's {@code brokerURL}, or a navigation of the browser to a URL) as a
- * {@code frontend-call}, with constants of its file and the values of its environment files filled
- * in; and each path prefix the nginx that serves it or its development server passes on to another
- * server as a {@code frontend-proxy}. The linker matches the URLs with the units they reach. Files
- * are read from git at the commit; nothing is built or run, and the code is read as text, not
- * parsed.
+ * it (the last stage of the Dockerfile in its folder, or of one elsewhere in the repository that
+ * copies the folder) as a {@code frontend-app} fact; each URL its code calls from the browser
+ * (Angular's {@code HttpClient}, {@code fetch}, axios, a WebSocket, SockJS or a STOMP client's
+ * {@code brokerURL}, or a navigation of the browser to a URL) as a {@code frontend-call}, with
+ * constants of its file and the values of its environment files filled in; and each path prefix the
+ * nginx that serves it or its development server passes on to another server as a {@code
+ * frontend-proxy}. The linker matches the URLs with the units they reach. Files are read from git
+ * at the commit; nothing is built or run, and the code is read as text, not parsed.
  */
 public final class FrontendExtractor {
 
@@ -55,7 +56,7 @@ public final class FrontendExtractor {
   public static final String NAME = "frontend";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "frontend-extractor";
@@ -223,6 +224,11 @@ public final class FrontendExtractor {
   private static final Pattern FROM =
       Pattern.compile("(?i)^\\s*FROM\\s+(?:--platform=\\S+\\s+)?(\\S+)(?:\\s+AS\\s+(\\S+))?");
   private static final Pattern EXPOSE = Pattern.compile("(?i)^\\s*EXPOSE\\s+(.+)$");
+  private static final Pattern COPY =
+      Pattern.compile("(?i)^\\s*(?:COPY|ADD)((?:\\s+--\\S+)*)\\s+(.+)$");
+  private static final Pattern COPY_FROM = Pattern.compile("--from=(\\S+)");
+  private static final Pattern DOCKERFILE_NAME =
+      Pattern.compile("Dockerfile(\\.[\\w.-]+)?|[\\w.-]+\\.Dockerfile");
 
   /** The configuration an Angular build in a Dockerfile names: {@code ng build -c development}. */
   private static final Pattern BUILD_CONFIGURATION =
@@ -660,14 +666,104 @@ public final class FrontendExtractor {
     }
 
     /**
+     * The Dockerfile that builds the frontend: {@code Dockerfile} in its folder, else the first
+     * Dockerfile elsewhere in the repository ({@code Dockerfile}, {@code Dockerfile.x} or {@code
+     * x.Dockerfile}) that copies the frontend's folder, its build context taken as its own folder;
+     * null when there is none.
+     */
+    private String servingDockerfile(String prefix) {
+      if (paths.contains(prefix + "Dockerfile")) {
+        return prefix + "Dockerfile";
+      }
+      if (prefix.isEmpty()) {
+        return null;
+      }
+      for (String path : paths) {
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        if (!DOCKERFILE_NAME.matcher(name).matches() || path.startsWith(prefix)) {
+          continue;
+        }
+        String context = path.substring(0, path.lastIndexOf('/') + 1);
+        if (prefix.startsWith(context)
+            && copied(path).stream().anyMatch(c -> (c + "/").startsWith(prefix))) {
+          return path;
+        }
+      }
+      return null;
+    }
+
+    /**
+     * What the image a Dockerfile builds holds of its build context (its own folder), as repository
+     * paths: what its last stage copies from the context, and what the earlier stages it is built
+     * on or copies from ({@code COPY --from=build}) copied, and so on. A stage the last one does
+     * not use, such as a build of another app, does not count.
+     */
+    private List<String> copied(String dockerfile) {
+      Source source = read(dockerfile);
+      if (source == null) {
+        return List.of();
+      }
+      String context = dockerfile.substring(0, dockerfile.lastIndexOf('/') + 1);
+      List<String> names = new ArrayList<>();
+      List<List<String>> copies = new ArrayList<>();
+      List<Set<String>> uses = new ArrayList<>();
+      for (String line : source.text().split("\n", -1)) {
+        Matcher from = FROM.matcher(line);
+        if (from.find()) {
+          names.add(from.group(2) == null ? "" : from.group(2).toLowerCase(Locale.ROOT));
+          copies.add(new ArrayList<>());
+          Set<String> used = new HashSet<>();
+          used.add(from.group(1).toLowerCase(Locale.ROOT));
+          uses.add(used);
+          continue;
+        }
+        Matcher copy = COPY.matcher(line);
+        if (!copy.find() || copies.isEmpty()) {
+          continue;
+        }
+        Matcher stage = COPY_FROM.matcher(copy.group(1));
+        if (stage.find()) {
+          uses.getLast().add(stage.group(1).toLowerCase(Locale.ROOT));
+          continue;
+        }
+        String[] parts = copy.group(2).trim().split("\\s+");
+        for (int i = 0; i < parts.length - 1; i++) {
+          String path = parts[i].replaceFirst("^\\./", "").replaceFirst("/$", "");
+          if (!path.isEmpty() && !path.contains("$")) {
+            copies.getLast().add(context + path);
+          }
+        }
+      }
+      List<String> result = new ArrayList<>();
+      if (names.isEmpty()) {
+        return result;
+      }
+      Set<Integer> seen = new HashSet<>();
+      List<Integer> todo = new ArrayList<>(List.of(names.size() - 1));
+      while (!todo.isEmpty()) {
+        int n = todo.removeLast();
+        if (!seen.add(n)) {
+          continue;
+        }
+        result.addAll(copies.get(n));
+        for (String used : uses.get(n)) {
+          for (int k = 0; k < n; k++) {
+            if (names.get(k).equals(used) || used.equals(String.valueOf(k))) {
+              todo.add(k);
+            }
+          }
+        }
+      }
+      return result;
+    }
+
+    /**
      * The last stage's base image of the Dockerfile in the frontend's folder and the ports it
      * exposes, or null when there is none. A stage built on an earlier stage takes its image.
      */
     private String[] dockerfile(String prefix) {
-      if (!paths.contains(prefix + "Dockerfile")) {
-        return null;
-      }
-      Source source = read(prefix + "Dockerfile");
+      String path = servingDockerfile(prefix);
+      Source source = path == null ? null : read(path);
       if (source == null) {
         return null;
       }
@@ -793,8 +889,8 @@ public final class FrontendExtractor {
       Source config =
           paths.contains(prefix + "angular.json") ? read(prefix + "angular.json") : null;
       String built = null;
-      Source dockerfile =
-          paths.contains(prefix + "Dockerfile") ? read(prefix + "Dockerfile") : null;
+      String dockerfilePath = servingDockerfile(prefix);
+      Source dockerfile = dockerfilePath == null ? null : read(dockerfilePath);
       if (dockerfile != null) {
         Matcher m = BUILD_CONFIGURATION.matcher(dockerfile.text());
         if (m.find()) {
@@ -1280,6 +1376,33 @@ public final class FrontendExtractor {
       if (term.isEmpty()) {
         return "";
       }
+      // A ?? or || fallback: the first value the code names, else what follows when that value is
+      // not known (an environment variable no environment file sets falls back at run time).
+      int fallback = fallbackAt(term);
+      if (fallback > 0) {
+        Set<String> firstUnresolved = new LinkedHashSet<>();
+        Set<String> firstUsed = new LinkedHashSet<>();
+        String value =
+            term(
+                term.substring(0, fallback),
+                constants,
+                environment,
+                depth,
+                firstUnresolved,
+                firstUsed);
+        if (!(value.startsWith("{") && value.endsWith("}"))) {
+          unresolved.addAll(firstUnresolved);
+          used.addAll(firstUsed);
+          return value;
+        }
+        String rest =
+            term(term.substring(fallback + 2), constants, environment, depth, unresolved, used);
+        if (rest.startsWith("{") && rest.endsWith("}")) {
+          unresolved.addAll(firstUnresolved);
+          return value;
+        }
+        return rest;
+      }
       char first = term.charAt(0);
       if ((first == '\'' || first == '"') && term.length() >= 2 && term.endsWith("" + first)) {
         return term.substring(1, term.length() - 1);
@@ -1288,8 +1411,7 @@ public final class FrontendExtractor {
         return template(
             term.substring(1, term.length() - 1), constants, environment, depth, unresolved, used);
       }
-      // A ?? or || fallback: the first value that the code names.
-      String name = term.replaceAll("\\s*(\\?\\?|\\|\\|).*$", "").replaceAll("[!?]$", "");
+      String name = term.replaceAll("[!?]$", "");
       if (name.matches("[A-Za-z_$][\\w$]*(\\s*\\??\\.\\s*[A-Za-z_$][\\w$]*)*")) {
         String[] segments = name.replaceAll("\\s|\\?", "").split("\\.");
         String last = segments[segments.length - 1];
@@ -1318,6 +1440,33 @@ public final class FrontendExtractor {
         return "{" + last + "}";
       }
       return "{…}";
+    }
+
+    /** Where a term's first {@code ??} or {@code ||} is, outside quotes and brackets; else -1. */
+    private static int fallbackAt(String term) {
+      char quote = 0;
+      int nesting = 0;
+      for (int i = 0; i + 1 < term.length(); i++) {
+        char c = term.charAt(i);
+        if (quote != 0) {
+          if (c == '\\') {
+            i++;
+          } else if (c == quote) {
+            quote = 0;
+          }
+        } else if (c == '\'' || c == '"' || c == '`') {
+          quote = c;
+        } else if (c == '(' || c == '[' || c == '{') {
+          nesting++;
+        } else if (c == ')' || c == ']' || c == '}') {
+          nesting--;
+        } else if (nesting == 0
+            && ((c == '?' && term.charAt(i + 1) == '?')
+                || (c == '|' && term.charAt(i + 1) == '|'))) {
+          return i;
+        }
+      }
+      return -1;
     }
 
     private static String template(
@@ -1371,6 +1520,19 @@ public final class FrontendExtractor {
                 .matches("(?i)([^/]+/)*[^/]*nginx[^/]*|.*\\.conf(\\.template)?")
             && !path.endsWith(".json")) {
           nginx(subject, path);
+        }
+      }
+      // The nginx config a Dockerfile outside the folder copies in to serve it.
+      String dockerfile = servingDockerfile(prefix);
+      if (dockerfile != null && !dockerfile.startsWith(prefix)) {
+        for (String copied : copied(dockerfile)) {
+          String name = copied.substring(copied.lastIndexOf('/') + 1);
+          if (paths.contains(copied)
+              && !copied.startsWith(prefix)
+              && name.matches("(?i)[^/]*nginx[^/]*|.*\\.conf(\\.template)?")
+              && !name.endsWith(".json")) {
+            nginx(subject, copied);
+          }
         }
       }
       angularProxy(subject, prefix);

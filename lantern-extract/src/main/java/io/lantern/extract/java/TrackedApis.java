@@ -160,11 +160,15 @@ final class TrackedApis {
   }
 
   /**
-   * Whether the values given to a field of this type are recorded: a {@code String}, which may hold
-   * a URL or name, or a tracked type, which may be a client built in a constructor.
+   * Whether the values given to a field of this type are recorded: a {@code String}, {@code URI} or
+   * {@code URL}, which may hold a URL or name, or a tracked type, which may be a client built in a
+   * constructor.
    */
   static boolean isFollowed(String binaryName) {
-    return "java.lang.String".equals(binaryName) || isTracked(binaryName);
+    return "java.lang.String".equals(binaryName)
+        || "java.net.URI".equals(binaryName)
+        || "java.net.URL".equals(binaryName)
+        || isTracked(binaryName);
   }
 
   /** Whether calls on a value of this type are recorded. */

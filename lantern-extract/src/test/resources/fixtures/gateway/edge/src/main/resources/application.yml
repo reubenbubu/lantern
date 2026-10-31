@@ -36,5 +36,8 @@ app:
   secret-token: s3cret
 ---
 spring.config.activate.on-profile: local
+# A list set in a profile replaces the default list whole, as Spring binds it.
+spring.cloud.gateway.routes[0].id: orders
 spring.cloud.gateway.routes[0].uri: http://localhost:9091
+spring.cloud.gateway.routes[0].predicates[0]: Path=/orders/**
 app.ws-path: /socket/**
