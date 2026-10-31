@@ -31,7 +31,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,7 +123,6 @@ public final class WebSocketExtractor implements Extractor {
       "org.springframework.web.socket.server.HandshakeInterceptor";
   private static final String HANDSHAKE_HANDLER =
       "org.springframework.web.socket.server.HandshakeHandler";
-  private static final String VALUE = "org.springframework.beans.factory.annotation.Value";
   private static final Map<String, String> RELAY_SETTINGS =
       Map.of(
           "setRelayHost", "relayHost",
@@ -262,8 +260,6 @@ public final class WebSocketExtractor implements Extractor {
     final Validity validity;
     final Map<String, Fact> facts = new LinkedHashMap<>();
     final Map<String, Endpoint> endpoints = new LinkedHashMap<>();
-    final Map<EntityId, Member> members = new HashMap<>();
-    final Map<EntityId, List<Assignment>> assignments = new HashMap<>();
 
     /** Whether the code configures a STOMP broker or endpoint anywhere. */
     final boolean stompBroker;
@@ -271,16 +267,6 @@ public final class WebSocketExtractor implements Extractor {
     Run(JavaAnalysis code, Validity validity) {
       this.code = code;
       this.validity = validity;
-      for (JavaAnalysis.Module m : code.modules()) {
-        for (TypeDecl t : m.structure().types()) {
-          for (Member member : t.members()) {
-            members.putIfAbsent(member.id(), member);
-          }
-        }
-        for (Assignment a : m.structure().assignments()) {
-          assignments.computeIfAbsent(a.field(), k -> new ArrayList<>()).add(a);
-        }
-      }
       stompBroker =
           code.modules().stream()
               .flatMap(m -> m.structure().invocations().stream())
@@ -809,7 +795,7 @@ public final class WebSocketExtractor implements Extractor {
             return null;
           }
           EntityId field = new EntityId("field", f.owner() + "#" + f.name());
-          List<Assignment> given = assignments.getOrDefault(field, List.of());
+          List<Assignment> given = code.values().assignments(f);
           Text only = null;
           for (Assignment a : given) {
             Text t = text(module, a.value(), depth + 1);
@@ -847,14 +833,8 @@ public final class WebSocketExtractor implements Extractor {
         return l.value();
       }
       if (e instanceof Expression.FieldRef f) {
-        Member field = members.get(new EntityId("field", f.owner() + "#" + f.name()));
-        if (field != null) {
-          for (Annotation a : field.annotations()) {
-            if (a.type().equals(VALUE) && !a.values("value").isEmpty()) {
-              return a.values("value").getFirst();
-            }
-          }
-        }
+        Member field = code.values().field(f);
+        return field == null ? null : code.values().annotated(field.annotations());
       }
       return null;
     }
@@ -863,13 +843,11 @@ public final class WebSocketExtractor implements Extractor {
     private String typeOf(JavaAnalysis.Module module, Expression e) {
       switch (e) {
         case Expression.FieldRef f -> {
-          Member field = members.get(new EntityId("field", f.owner() + "#" + f.name()));
+          Member field = code.values().field(f);
           if (field != null && field.type() != null) {
             return field.type();
           }
-          List<Assignment> given =
-              assignments.getOrDefault(
-                  new EntityId("field", f.owner() + "#" + f.name()), List.of());
+          List<Assignment> given = code.values().assignments(f);
           return given.size() == 1 ? typeOf(module, given.getFirst().value()) : null;
         }
         case Expression.Invoke i when i.method().equals("<init>") -> {

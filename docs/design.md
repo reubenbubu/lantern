@@ -64,6 +64,8 @@ flowchart TD
 
 Only the composer decides what a document says. Renderers just format its output, which keeps new output formats cheap to add.
 
+Architecture tests keep that order: no stage depends on a later one (extract, link, derive, the LLM roles, compose, render), and renderers read no facts from the store and call no stage that makes them (ADR 0093).
+
 ## Ingestion and build sandbox
 
 Repos are cloned onto the service host, and each analysis builds its Maven repos for real in an isolated container, because accurate Java analysis needs the code as it actually compiles.
@@ -127,7 +129,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 | Deployment | Dockerfiles, compose files, Helm charts, kustomize and Kubernetes manifests | Images and the units they run, container instances per environment, published ports, the environment, Spring properties and active profiles each container is started with (command lines and env files included), inbound routes (Ingress, HTTPRoute), infrastructure the system runs with (databases, brokers, gateways, identity providers) and their versions |
 | Frontend | A frontend's package manifest (Angular, React, Vue), in its own repository or a folder of another, its environment files, the Dockerfile that builds it (in its folder or elsewhere in the repository) and the nginx config it copies in, development-server proxies, the HTTP calls, sockets and browser navigations in its code, Angular's interceptors, guards, pages and services, and the URLs its templates and styles load | A frontend container with its technology, the URLs it calls from the browser and the lines they are built from, the path prefixes its server passes on, how it signs requests and guards pages, its Angular pages and services, and the hosts it loads |
 
-**Following values.** Paths, queue, exchange and topic names and routing keys are rarely literals where they are used. Extractors resolve `${...}` placeholders against config per profile, fold constants, and follow a value one hop from a `@Value` field or constructor argument into the template or client call that uses it. A URL that reaches the call as a parameter of the method making it is followed back to where the method's own class calls it, up to three calls. A value that can't be resolved keeps its placeholder key, which still says what it is.
+**Following values.** Paths, queue, exchange and topic names and routing keys are rarely literals where they are used. Extractors resolve `${...}` placeholders against config per profile. The analyzers fold constants, and one shared follower takes a value one hop from a `@Value` field or constructor argument into the template or client call that uses it (ADR 0093). A URL that reaches the call as a parameter of the method making it is followed back to where the method's own class calls it, up to three calls. A value that can't be resolved keeps its placeholder key, which still says what it is.
 
 Later: OpenAPI and AsyncAPI specs, Terraform.
 

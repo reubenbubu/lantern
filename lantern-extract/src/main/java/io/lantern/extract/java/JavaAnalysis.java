@@ -50,6 +50,7 @@ public final class JavaAnalysis {
   private final Map<String, TypeDecl> types = new HashMap<>();
   private final Map<String, Module> declaringModules = new HashMap<>();
   private final Map<String, List<Annotation>> classpathAnnotationTypes = new HashMap<>();
+  private Values values;
 
   JavaAnalysis(List<Module> modules) {
     this.modules = List.copyOf(modules);
@@ -60,6 +61,14 @@ public final class JavaAnalysis {
       }
       m.structure().annotationTypes.forEach(classpathAnnotationTypes::putIfAbsent);
     }
+  }
+
+  /** The values of the code, followed one hop (#283), indexed on first use. */
+  public synchronized Values values() {
+    if (values == null) {
+      values = new Values(this);
+    }
+    return values;
   }
 
   /** The modules, ordered by repository name and commit, then as each repository lists them. */

@@ -1,10 +1,15 @@
 package io.lantern.archtest;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
+import io.lantern.app.archfixture.FactReadingRenderer;
+import io.lantern.compose.archfixture.FakeComposer;
 import io.lantern.extract.archfixture.ExtractorCallingLlm;
+import io.lantern.link.archfixture.FakeLinker;
+import io.lantern.link.archfixture.LinkerReadingComposer;
 import io.lantern.llm.archfixture.FakeLlmClient;
 import org.junit.jupiter.api.Test;
 
@@ -19,5 +24,37 @@ class ArchitectureRulesTest {
     assertThatThrownBy(() -> ArchitectureRules.EXTRACTORS_MUST_NOT_DEPEND_ON_LLM.check(classes))
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("ExtractorCallingLlm");
+  }
+
+  @Test
+  void aStageDependingOnALaterStageIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter().importClasses(LinkerReadingComposer.class, FakeComposer.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.STAGES_DEPEND_ONLY_ON_EARLIER_STAGES.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("LinkerReadingComposer")
+        .hasMessageContaining("the link stage comes before");
+  }
+
+  @Test
+  void aLaterStageMayDependOnAnEarlierOne() {
+    JavaClasses classes =
+        new ClassFileImporter().importClasses(FakeComposer.class, FakeLinker.class);
+
+    assertThatCode(() -> ArchitectureRules.STAGES_DEPEND_ONLY_ON_EARLIER_STAGES.check(classes))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void aRendererReadingFactsIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(FactReadingRenderer.class, FactReadingRenderer.Page.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.RENDERERS_MUST_NOT_READ_FACTS.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("FactReadingRenderer.<init>")
+        .hasMessageContaining("FactReadingRenderer$Page.render()");
   }
 }

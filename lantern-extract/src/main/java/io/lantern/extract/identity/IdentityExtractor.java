@@ -28,6 +28,7 @@ import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.java.Values;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -113,8 +114,6 @@ public final class IdentityExtractor implements Extractor {
   private static final String RESOURCE = "/vocabulary/identity-types.json";
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
-
-  private static final String VALUE = "org.springframework.beans.factory.annotation.Value";
 
   private static final String JJWT = "io.jsonwebtoken.";
   private static final String KEYS = JJWT + "security.Keys";
@@ -288,8 +287,6 @@ public final class IdentityExtractor implements Extractor {
   private static final class Reader {
     private final JavaAnalysis code;
     private final Validity validity;
-    private final Map<EntityId, Member> members = new HashMap<>();
-    private final Map<EntityId, List<Assignment>> assignments = new HashMap<>();
     private final Map<String, Set<String>> usesByType = new HashMap<>();
     private final Map<String, Fact> facts = new LinkedHashMap<>();
 
@@ -297,14 +294,6 @@ public final class IdentityExtractor implements Extractor {
       this.code = code;
       this.validity = validity;
       for (JavaAnalysis.Module module : code.modules()) {
-        for (TypeDecl type : module.structure().types()) {
-          for (Member member : type.members()) {
-            members.putIfAbsent(member.id(), member);
-          }
-        }
-        for (Assignment a : module.structure().assignments()) {
-          assignments.computeIfAbsent(a.field(), f -> new ArrayList<>()).add(a);
-        }
         for (Invocation i : module.structure().invocations()) {
           Set<String> uses = uses(i);
           if (!uses.isEmpty()) {
@@ -372,7 +361,7 @@ public final class IdentityExtractor implements Extractor {
           url = first.arguments().getFirst();
         }
       }
-      String text = url == null ? null : text(url, i.caller(), 0);
+      String text = url == null ? null : text(url, i.caller());
       if (text == null) {
         return;
       }
@@ -397,7 +386,7 @@ public final class IdentityExtractor implements Extractor {
         attributes.put("call", root.substring(root.lastIndexOf('.') + 1) + "." + call.method());
         if (!kind.equals("public-key") && call.arguments().size() == 1) {
           Expression argument = call.arguments().getFirst();
-          String url = text(argument, i.caller(), 0);
+          String url = text(argument, i.caller());
           if (url != null) {
             attributes.put("url", url);
           }
@@ -719,11 +708,11 @@ public final class IdentityExtractor implements Extractor {
       Set<String> keys = new LinkedHashSet<>();
       switch (e) {
         case Expression.FieldRef f -> {
-          Member field = members.get(fieldId(f));
+          Member field = code.values().field(f);
           if (field != null && field.type() != null && !SECRET_TYPES.contains(field.type())) {
             return keys;
           }
-          String value = field == null ? null : value(field.annotations());
+          String value = field == null ? null : code.values().annotated(field.annotations());
           if (value != null) {
             keys.addAll(placeholders(value));
           } else if (depth < 1) {
@@ -734,7 +723,7 @@ public final class IdentityExtractor implements Extractor {
           }
         }
         case Expression.Param p -> {
-          String value = parameterValue(in, p.index());
+          String value = code.values().annotated(code.values().parameter(in, p.index()));
           if (value != null) {
             keys.addAll(placeholders(value));
           }
@@ -762,24 +751,15 @@ public final class IdentityExtractor implements Extractor {
       return keys;
     }
 
-    /** A URL as written: a {@code @Value}'s text with its placeholders, or a literal URL. */
-    private String text(Expression e, EntityId in, int depth) {
-      return switch (e) {
-        case Expression.Literal l -> url(l.value());
-        case Expression.FieldRef f -> {
-          Member field = members.get(fieldId(f));
-          String value = field == null ? null : value(field.annotations());
-          if (value != null) {
-            yield url(value);
-          }
-          Assignment given = depth < 1 ? single(f) : null;
-          yield given == null ? null : text(given.value(), given.in(), depth + 1);
-        }
-        case Expression.Param p -> {
-          String value = parameterValue(in, p.index());
-          yield value == null ? null : url(value);
-        }
-        default -> null;
+    /**
+     * A URL as written: a {@code @Value}'s text with its placeholders, or a literal URL, followed
+     * one hop.
+     */
+    private String text(Expression e, EntityId in) {
+      return switch (code.values().follow(e, in, true).single()) {
+        case Values.Part.Written w -> url(w.text());
+        case Values.Part.Annotated a -> url(a.text());
+        case null, default -> null;
       };
     }
 
@@ -795,27 +775,10 @@ public final class IdentityExtractor implements Extractor {
       return UrlCredentials.withoutCredentials(t);
     }
 
-    private String parameterValue(EntityId method, int index) {
-      Member m = members.get(method);
-      if (m == null || index >= m.parameters().size()) {
-        return null;
-      }
-      return value(m.parameters().get(index).annotations());
-    }
-
-    /** The text of a {@code @Value} annotation among those given, or null. */
-    private String value(List<Annotation> annotations) {
-      List<Annotation> path = code.annotationPath(annotations, VALUE);
-      if (path == null || path.getLast().values("value").isEmpty()) {
-        return null;
-      }
-      return path.getLast().values("value").getFirst();
-    }
-
     /** The one value given to a field, if all the values given to it are the same. */
     private Assignment single(Expression.FieldRef f) {
-      List<Assignment> given = assignments.get(fieldId(f));
-      if (given == null || given.isEmpty()) {
+      List<Assignment> given = code.values().assignments(f);
+      if (given.isEmpty()) {
         return null;
       }
       Assignment first = given.getFirst();
@@ -829,14 +792,6 @@ public final class IdentityExtractor implements Extractor {
         keys.add(m.group(1).strip());
       }
       return keys;
-    }
-
-    private static EntityId fieldId(Expression.FieldRef f) {
-      try {
-        return new EntityId(ModuleStructure.FIELD, f.owner() + "#" + f.name());
-      } catch (IllegalArgumentException e) {
-        return null;
-      }
     }
 
     private static String typeOf(EntityId code) {

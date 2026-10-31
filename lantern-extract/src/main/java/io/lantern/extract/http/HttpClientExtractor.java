@@ -32,6 +32,7 @@ import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.OwnCall;
 import io.lantern.extract.java.ModuleStructure.Supertype;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.java.Values;
 import io.lantern.extract.spring.SpringExtractor;
 import java.io.IOException;
 import java.io.InputStream;
@@ -130,7 +131,6 @@ public final class HttpClientExtractor implements Extractor {
   private static final List<String> REST_PATHS = List.of("jakarta.ws.rs.Path", "javax.ws.rs.Path");
   private static final List<String> REST_HTTP_METHODS =
       List.of("jakarta.ws.rs.HttpMethod", "javax.ws.rs.HttpMethod");
-  private static final String VALUE = SPRING + "beans.factory.annotation.Value";
   private static final String BEAN = SPRING + "context.annotation.Bean";
   private static final String QUALIFIER = SPRING + "beans.factory.annotation.Qualifier";
   private static final String PRIMARY = SPRING + "context.annotation.Primary";
@@ -371,9 +371,6 @@ public final class HttpClientExtractor implements Extractor {
     /** The declarative clients of every module, by binary name. */
     private final Map<String, Client> clients = new LinkedHashMap<>();
 
-    /** The values given to each field, by field, from every module. */
-    private final Map<EntityId, List<Assignment>> assignments = new HashMap<>();
-
     /** Where the proxies of each HTTP interface are made, by the interface's binary name. */
     private final Map<String, List<Proxy>> proxies = new HashMap<>();
 
@@ -408,9 +405,6 @@ public final class HttpClientExtractor implements Extractor {
               clients.putIfAbsent(type.binaryName(), client);
             }
           }
-        }
-        for (Assignment a : m.structure().assignments()) {
-          assignments.computeIfAbsent(a.field(), k -> new ArrayList<>()).add(a);
         }
       }
       for (JavaAnalysis.Module m : code.modules()) {
@@ -1872,67 +1866,23 @@ public final class HttpClientExtractor implements Extractor {
      */
     private Text text(Expression e, Scope scope) {
       List<String> unknown = new ArrayList<>();
-      String text = text(e, scope, unknown, 0);
-      return new Text(text, List.copyOf(unknown));
-    }
-
-    private String text(Expression e, Scope scope, List<String> unknown, int depth) {
-      if (e instanceof Expression.Literal l) {
-        return l.value();
+      Values.Value value = code.values().follow(e, scope.in(), true);
+      if (openIn != null && value.openParams().contains(openIn)) {
+        openParam = true;
       }
-      if (e instanceof Expression.Concat c) {
-        StringBuilder b = new StringBuilder();
-        for (Expression p : c.parts()) {
-          b.append(text(p, scope, unknown, depth));
-        }
-        return b.toString();
-      }
-      if (e instanceof Expression.Param p) {
-        ModuleStructure.Parameter parameter = parameter(scope.in(), p.index());
-        String value = parameter == null ? null : value(parameter.annotations());
-        if (value != null) {
-          return value;
-        }
-        if (scope.in().equals(openIn)) {
-          openParam = true;
-        }
-      }
-      if (e instanceof Expression.FieldRef f) {
-        Member field = field(f);
-        String value = field == null ? null : value(field.annotations());
-        if (value != null) {
-          return value;
-        }
-        Assignment given = single(f);
-        if (depth < 1
-            && given != null
-            && (given.value() instanceof Expression.Param
-                || given.value() instanceof Expression.Literal
-                || given.value() instanceof Expression.Concat)) {
-          List<String> inner = new ArrayList<>();
-          String followed =
-              text(
-                  given.value(),
-                  new Scope(moduleOf(f.owner(), scope.module()), given.in()),
-                  inner,
-                  depth + 1);
-          if (inner.isEmpty()) {
-            return followed;
+      StringBuilder b = new StringBuilder();
+      for (Values.Part part : value.parts()) {
+        switch (part) {
+          case Values.Part.Written w -> b.append(w.text());
+          case Values.Part.Annotated a -> b.append(a.text());
+          case Values.Part.Open o -> {
+            String source = source(o.expression(), scope);
+            unknown.add(source);
+            b.append('{').append(source).append('}');
           }
         }
       }
-      String source = source(e, scope);
-      unknown.add(source);
-      return "{" + source + "}";
-    }
-
-    /** The text of a {@code @Value} annotation among those given, or null. */
-    private String value(List<Annotation> annotations) {
-      List<Annotation> path = code.annotationPath(annotations, VALUE);
-      if (path == null || path.getLast().values("value").isEmpty()) {
-        return null;
-      }
-      return path.getLast().values("value").getFirst();
+      return new Text(b.toString(), List.copyOf(unknown));
     }
 
     /** An expression as Java-like source, for one not followed. */
@@ -1966,9 +1916,8 @@ public final class HttpClientExtractor implements Extractor {
 
     /** The one value given to a field, if all the values given to it are the same. */
     private Assignment single(Expression.FieldRef f) {
-      EntityId id = fieldId(f);
-      List<Assignment> given = id == null ? null : assignments.get(id);
-      if (given == null || given.isEmpty()) {
+      List<Assignment> given = code.values().assignments(f);
+      if (given.isEmpty()) {
         return null;
       }
       Assignment first = given.getFirst();
@@ -1981,17 +1930,7 @@ public final class HttpClientExtractor implements Extractor {
     }
 
     private Member field(Expression.FieldRef f) {
-      TypeDecl type = code.type(f.owner());
-      EntityId id = fieldId(f);
-      if (type == null || id == null) {
-        return null;
-      }
-      for (Member m : type.members()) {
-        if (m.id().equals(id)) {
-          return m;
-        }
-      }
-      return null;
+      return code.values().field(f);
     }
 
     private String fieldType(Expression.FieldRef f) {
@@ -2000,20 +1939,7 @@ public final class HttpClientExtractor implements Extractor {
     }
 
     private ModuleStructure.Parameter parameter(EntityId method, int index) {
-      if (!method.type().equals(ModuleStructure.METHOD)) {
-        return null;
-      }
-      String key = method.key();
-      TypeDecl type = code.type(key.substring(0, key.indexOf('#')));
-      if (type == null) {
-        return null;
-      }
-      for (Member m : type.members()) {
-        if (m.id().equals(method)) {
-          return index < m.parameters().size() ? m.parameters().get(index) : null;
-        }
-      }
-      return null;
+      return code.values().parameter(method, index);
     }
 
     private JavaAnalysis.Module moduleOf(String binaryName, JavaAnalysis.Module fallback) {
@@ -2412,14 +2338,6 @@ public final class HttpClientExtractor implements Extractor {
   private static EntityId typeId(String binaryName) {
     try {
       return new EntityId(BuiltInTypes.TYPE, binaryName);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
-  }
-
-  private static EntityId fieldId(Expression.FieldRef f) {
-    try {
-      return new EntityId(ModuleStructure.FIELD, f.owner() + "#" + f.name());
     } catch (IllegalArgumentException e) {
       return null;
     }
