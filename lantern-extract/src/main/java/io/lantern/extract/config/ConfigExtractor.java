@@ -150,6 +150,18 @@ public final class ConfigExtractor implements Extractor {
   }
 
   /**
+   * Resolves the {@code ${...}} placeholders in a text as Spring does, with values nesting, for
+   * resolving against config other than a module's files, such as its {@code config-value} facts.
+   *
+   * @param text the text
+   * @param lookup a key's value as written, or null if nothing sets the key
+   */
+  public static Resolution resolve(
+      String text, java.util.function.Function<String, String> lookup) {
+    return Placeholders.resolve(text, lookup);
+  }
+
+  /**
    * Extracts the config facts of a snapshot's repositories.
    *
    * @param repos the repositories of the snapshot, each at its commit with its build, if any
