@@ -56,7 +56,7 @@ final class Deployments {
       String wanted = host.toLowerCase(Locale.ROOT);
       // A Kubernetes DNS name (postgres.ns.svc.cluster.local) names the Service by its first label.
       String first = wanted.contains(".svc") ? wanted.substring(0, wanted.indexOf('.')) : wanted;
-      return list(container(fact).hosts()).stream()
+      return Claims.list(container(fact).hosts()).stream()
           .map(h -> h.toLowerCase(Locale.ROOT))
           .anyMatch(h -> h.equals(wanted) || h.equals(first));
     }
@@ -122,8 +122,8 @@ final class Deployments {
     for (Fact f : index.of(DeploymentExtractor.DEPLOYMENT_CONTAINER)) {
       Set<String> names = new LinkedHashSet<>();
       names.add(normalized(f.object().value()));
-      list(container(f).hosts()).forEach(h -> names.add(normalized(h)));
-      list(container(f).aliases()).forEach(a -> names.add(normalized(a)));
+      Claims.list(container(f).hosts()).forEach(h -> names.add(normalized(h)));
+      Claims.list(container(f).aliases()).forEach(a -> names.add(normalized(a)));
       String image = container(f).image();
       if (image != null && !image.contains("${")) {
         String plain = image.contains("@") ? image.substring(0, image.indexOf('@')) : image;
@@ -150,7 +150,7 @@ final class Deployments {
               env,
               container(f).product(),
               container(f).version(),
-              list(container(f).databases())));
+              Claims.list(container(f).databases())));
     }
     // Ties by name: a container names one unit, or none if it could be several.
     Map<String, Set<Unit>> unitsByName = new HashMap<>();
@@ -401,9 +401,5 @@ final class Deployments {
   /** A {@code deployment-container} fact's attributes. */
   static DeploymentContainerAttributes container(Fact fact) {
     return Claims.of(fact, DeploymentContainerAttributes.class);
-  }
-
-  private static List<String> list(List<String> values) {
-    return values == null ? List.of() : values;
   }
 }

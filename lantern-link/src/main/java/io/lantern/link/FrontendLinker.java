@@ -425,7 +425,7 @@ final class FrontendLinker {
     if (!"compose".equals(Deployments.container(container).platform())) {
       return false;
     }
-    for (String written : list(Deployments.container(container).ports())) {
+    for (String written : Claims.list(Deployments.container(container).ports())) {
       String[] parts = written.replaceAll("/(tcp|udp)$", "").split(":");
       if (parts.length == 1) {
         continue;
@@ -457,7 +457,7 @@ final class FrontendLinker {
               Boolean.TRUE.equals(a.navigation()),
               a.url(),
               a.protocol(),
-              list(a.alternates()));
+              Claims.list(a.alternates()));
         }
         case FrontendExtractor.PROXY -> {
           FrontendProxyAttributes a = Claims.of(f, FrontendProxyAttributes.class);
@@ -466,9 +466,5 @@ final class FrontendLinker {
         default -> new Web(null, null, false, null, null, List.of());
       };
     }
-  }
-
-  private static List<String> list(List<String> values) {
-    return values == null ? List.of() : values;
   }
 }

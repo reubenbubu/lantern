@@ -82,6 +82,11 @@ final class Claims {
     return result;
   }
 
+  /** A list attribute a record gives, or none when it is absent. */
+  static java.util.List<String> list(java.util.List<String> values) {
+    return values == null ? java.util.List.of() : values;
+  }
+
   private static String string(Fact fact, String name) {
     JsonNode value = fact.attributes().get(name);
     return value == null || !value.isString() ? null : value.stringValue();

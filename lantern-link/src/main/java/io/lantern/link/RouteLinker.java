@@ -100,7 +100,7 @@ final class RouteLinker {
                 .computeIfAbsent(gateway, g -> new LinkedHashMap<>())
                 .computeIfAbsent(view == null ? "" : view, v -> new LinkedHashMap<>())
                 .computeIfAbsent(target, t -> new ArrayList<>())
-                .add(new Reach(fact, patterns(fact), list(route(fact).methods())));
+                .add(new Reach(fact, patterns(fact), Claims.list(route(fact).methods())));
           }
         }
       }
@@ -331,7 +331,7 @@ final class RouteLinker {
     if (patterns == null) {
       return found;
     }
-    List<String> methods = list(route(route).methods());
+    List<String> methods = Claims.list(route(route).methods());
     String prefix = index.servletPrefix(unit, view);
     for (Fact endpoint : endpointsOf(unit, view)) {
       String method = Endpoints.of(endpoint).httpMethod();
@@ -413,12 +413,12 @@ final class RouteLinker {
   private static ObjectNode common(Fact route) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("route", route.object().value());
-    List<String> paths = list(route(route).paths());
+    List<String> paths = Claims.list(route(route).paths());
     if (!paths.isEmpty()) {
       ArrayNode array = attributes.putArray("paths");
       paths.forEach(array::add);
     }
-    List<String> methods = list(route(route).methods());
+    List<String> methods = Claims.list(route(route).methods());
     if (!methods.isEmpty()) {
       ArrayNode array = attributes.putArray("methods");
       methods.forEach(array::add);
@@ -442,13 +442,13 @@ final class RouteLinker {
       if (!r.gateway().equals(gateway) || !java.util.Objects.equals(r.view(), view)) {
         continue;
       }
-      List<String> methods = list(route(r.route()).methods());
+      List<String> methods = Claims.list(route(r.route()).methods());
       if (method != null
           && !methods.isEmpty()
           && !methods.contains(method.toUpperCase(Locale.ROOT))) {
         continue;
       }
-      List<String> paths = new ArrayList<>(list(route(r.route()).paths()));
+      List<String> paths = new ArrayList<>(Claims.list(route(r.route()).paths()));
       if (paths.isEmpty()) {
         paths.add("/**");
       }
@@ -512,7 +512,7 @@ final class RouteLinker {
    * another filter rewrites the path.
    */
   static List<String> patterns(Fact route) {
-    List<String> patterns = new ArrayList<>(list(route(route).paths()));
+    List<String> patterns = new ArrayList<>(Claims.list(route(route).paths()));
     if (patterns.isEmpty()) {
       patterns.add("/**");
     }
@@ -529,7 +529,7 @@ final class RouteLinker {
    */
   private static List<String> rewritten(Fact route, List<String> paths, boolean concrete) {
     List<String> patterns = new ArrayList<>(paths);
-    for (String filter : list(route(route).filters())) {
+    for (String filter : Claims.list(route(route).filters())) {
       String name = filterName(filter);
       int eq = filter.indexOf('=');
       String value = eq < 0 ? null : filter.substring(eq + 1);
@@ -746,7 +746,7 @@ final class RouteLinker {
       for (Fact endpoint : endpointsOf(r.target(), r.view())) {
         String served = LinkText.join(prefix, Endpoints.of(endpoint).path());
         String method = Endpoints.of(endpoint).httpMethod();
-        List<String> methods = list(route(r.route()).methods());
+        List<String> methods = Claims.list(route(r.route()).methods());
         if (method != null
             && !methods.isEmpty()
             && !methods.contains(method.toUpperCase(Locale.ROOT))) {
@@ -994,7 +994,7 @@ final class RouteLinker {
   static String reverse(Fact route, String served) {
     // The path's segments before the filters, a null for each segment a StripPrefix removed.
     List<String> path = segments(served);
-    List<String> filters = list(route(route).filters());
+    List<String> filters = Claims.list(route(route).filters());
     for (int i = filters.size() - 1; i >= 0; i--) {
       String filter = filters.get(i);
       String name = filterName(filter);
@@ -1043,7 +1043,7 @@ final class RouteLinker {
         default -> {}
       }
     }
-    List<String> patterns = new ArrayList<>(list(route(route).paths()));
+    List<String> patterns = new ArrayList<>(Claims.list(route(route).paths()));
     if (patterns.isEmpty()) {
       patterns.add("/**");
     }
@@ -1243,9 +1243,5 @@ final class RouteLinker {
   /** A {@code gateway-route} fact's attributes. */
   private static GatewayRouteAttributes route(Fact route) {
     return Claims.of(route, GatewayRouteAttributes.class);
-  }
-
-  private static List<String> list(List<String> values) {
-    return values == null ? List.of() : values;
   }
 }

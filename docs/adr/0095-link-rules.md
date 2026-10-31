@@ -113,6 +113,8 @@ values rule read a fact's attributes only through the query layer, `Claims`:
   record: `Endpoints` (HTTP and WebSocket endpoints), `MessageLinker.Message` (sends, listeners,
   bindings, declarations), `DataLinker.Store` (datasources, data stores), `FrontendLinker.Web`
   (calls, proxies).
+- A record read fails on a declared attribute of the wrong JSON type, where a read by name gave
+  null. Stored facts are checked against their schema; a matcher's link drafts must match it too.
 - The README claim checks (moving to derivation in 1D) and the LLM resolver's prompt and tools still
   read by name, through `UntypedReads`, until #576.
 

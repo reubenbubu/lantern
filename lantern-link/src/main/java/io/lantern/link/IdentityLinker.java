@@ -381,7 +381,7 @@ final class IdentityLinker {
       if (!"identity".equals(Deployments.container(c.fact()).role()) || c.product() == null) {
         continue;
       }
-      for (String published : list(Deployments.container(c.fact()).ports())) {
+      for (String published : Claims.list(Deployments.container(c.fact()).ports())) {
         String p =
             published.contains("/") ? published.substring(0, published.indexOf('/')) : published;
         String[] parts = p.split(":");
@@ -531,7 +531,7 @@ final class IdentityLinker {
         attributes.put("library", Claims.of(s.fact(), JwtSecretKeyAttributes.class).library());
         ArrayNode with = attributes.putArray("with");
         units.stream().filter(u -> !u.equals(s.unit().id())).forEach(u -> with.add(u.toString()));
-        List<String> uses = list(Claims.of(s.fact(), JwtSecretKeyAttributes.class).uses());
+        List<String> uses = Claims.list(Claims.of(s.fact(), JwtSecretKeyAttributes.class).uses());
         if (!uses.isEmpty()) {
           ArrayNode array = attributes.putArray("uses");
           uses.forEach(array::add);
@@ -551,7 +551,8 @@ final class IdentityLinker {
                 SHARED_SECRET,
                 FactObject.string(
                     String.join(
-                        ", ", list(Claims.of(s.fact(), JwtSecretKeyAttributes.class).keys()))),
+                        ", ",
+                        Claims.list(Claims.of(s.fact(), JwtSecretKeyAttributes.class).keys()))),
                 attributes,
                 s.fact().evidence(),
                 CrossRepoLinks.round(
@@ -569,7 +570,7 @@ final class IdentityLinker {
    * is masked or no config sets it, the key itself. The value never leaves this method.
    */
   private Secret secret(Unit unit, Fact fact, String view) {
-    List<String> keys = list(Claims.of(fact, JwtSecretKeyAttributes.class).keys());
+    List<String> keys = Claims.list(Claims.of(fact, JwtSecretKeyAttributes.class).keys());
     Set<String> placeholders = new TreeSet<>();
     List<String> values = new ArrayList<>();
     List<Fact> used = new ArrayList<>();
@@ -629,9 +630,5 @@ final class IdentityLinker {
    */
   private static String environmental(String key) {
     return key.toLowerCase(Locale.ROOT).replace("-", "").replace('_', '.');
-  }
-
-  private static List<String> list(List<String> values) {
-    return values == null ? List.of() : values;
   }
 }
