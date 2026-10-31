@@ -80,6 +80,8 @@ built in code are resolved like requests, and the routes config defines are read
 facts, through the gateway extractor's own reading of config. #522 replaces the step's facts with `RESOLVES_TO` claims, and the
 readers move to the entities with #521.
 
+Extraction coverage counts the step's facts as their extractor's (ADR 0089, amendment for #558).
+
 ## Consequences
 
 - The lookup is used from #557 on. The config extractor's extra profile facts are the only output

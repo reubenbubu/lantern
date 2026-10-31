@@ -24,6 +24,22 @@ import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { ELEMENT_CATEGORIES, connectionsOf } from './score.mjs';
 
+/**
+ * The extractor area of a fact: the name its extractor records in its origin; for a fact of
+ * linking's first step, which resolves the values extractors keep as written into the facts they
+ * recorded before (ADR 0094), the area of the extractor whose kind of fact it is.
+ */
+const VALUE_AREAS = {
+  'http-call': 'http-client',
+  'gateway-route': 'gateway',
+  'gateway-discovery-locator': 'gateway',
+};
+
+export function areaOf(fact) {
+  const name = fact.origin?.name ?? '?';
+  return name === 'values' ? (VALUE_AREAS[fact.predicate] ?? name) : name;
+}
+
 /** The extractor areas: the name each static extractor records in its facts' origin. */
 export const AREAS = [
   'maven',
@@ -289,7 +305,7 @@ export function coverage(facts, items, map) {
   // The kinds of file each area records lines for, `<area> <kind>`.
   const withLines = new Set();
   for (const fact of facts) {
-    const name = fact.origin?.name ?? '?';
+    const name = areaOf(fact);
     extractors[name] ??= {};
     extractors[name][fact.predicate] = (extractors[name][fact.predicate] ?? 0) + 1;
     for (const location of locations(fact)) {
@@ -309,10 +325,10 @@ export function coverage(facts, items, map) {
     const needs = (entry.needs ?? []).map((need) => {
       const at = parseAt(need.at);
       const found = factsAt(at);
-      const own = found.filter((seen) => (seen.fact.origin?.name ?? '?') === need.area);
+      const own = found.filter((seen) => areaOf(seen.fact) === need.area);
       const { hash, ...shown } = need;
       if (own.length === 0) {
-        const otherAreas = [...new Set(found.map((seen) => seen.fact.origin?.name ?? '?'))].sort();
+        const otherAreas = [...new Set(found.map((seen) => areaOf(seen.fact)))].sort();
         return { ...shown, met: false, otherAreas };
       }
       if (at.start !== null && own.some((seen) => seen.location.lines)) return { ...shown, met: true };
