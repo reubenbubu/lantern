@@ -99,7 +99,10 @@ class ClaimIdentityTest {
           Map.entry("version-skew", Set.of("pins")),
           // Since #518: references to the facts a claim comes from are lineage, like facts.
           Map.entry("deployed-in", Set.of("fact")),
-          Map.entry("claim-contradiction", Set.of("claim", "contradictedBy")));
+          Map.entry("claim-contradiction", Set.of("claim", "contradictedBy")),
+          // Since #587: the text config resolved an expression to; URLs that differ only in their
+          // path are one address.
+          Map.entry("RESOLVES_TO", Set.of("resolved")));
 
   /**
    * The key attributes of link claims: the channel attributes, the protocol (#518: a different

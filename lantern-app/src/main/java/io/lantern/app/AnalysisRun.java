@@ -29,7 +29,7 @@ import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
 import io.lantern.link.ResolutionStore;
 import io.lantern.link.RuleRuns;
-import io.lantern.link.ValueViews;
+import io.lantern.link.ValueResolution;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildOrder;
 import io.lantern.sandbox.BuildResult;
@@ -352,7 +352,7 @@ public final class AnalysisRun {
               .withSecretKeys(secretKeys);
       // The summaries read the facts the extractors recorded before they kept values as written:
       // the first link step's values resolved per view (ADR 0094), derived here as linking will.
-      List<Fact> resolved = new ValueViews().derive(extracted, snapshot.number());
+      List<Fact> resolved = new ValueResolution().derive(extracted, snapshot.number());
       List<Fact> summarizable = new ArrayList<>(extracted);
       summarizable.addAll(resolved);
       Summarizer.Result summarized =

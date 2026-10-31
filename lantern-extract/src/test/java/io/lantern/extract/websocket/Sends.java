@@ -10,7 +10,8 @@ import java.util.List;
 /**
  * The extractor's facts with each STOMP send as linking records it (ADR 0094, #559): its {@code
  * stomp-send} fact instead of the {@code SENDS_TO} fact written, so the tests check them as they
- * checked the extractor's facts before. {@code ValueViewsTest} checks that linking gives the same.
+ * checked the extractor's facts before. {@code ValueResolutionTest} checks that linking gives the
+ * same.
  */
 final class Sends {
 

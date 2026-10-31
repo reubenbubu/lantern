@@ -75,7 +75,7 @@ class GatewayExtractorTest {
 
   /**
    * Routes config defines, Zuul's and the discovery locator are read in linking from the config
-   * facts ({@code ValueViewsTest} in lantern-link); this extractor reads no config.
+   * facts ({@code ValueResolutionTest} in lantern-link); this extractor reads no config.
    */
   @Test
   void noRouteIsReadFromConfig() throws IOException {

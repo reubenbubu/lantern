@@ -16,8 +16,8 @@ import java.util.Set;
 /**
  * The Spring extractor's facts with its endpoints and schedules as linking records them (ADR 0094,
  * #519), resolved here against each module's config files as the extractor resolved them before, so
- * the tests check them as they checked its facts. {@code ValueViewsTest} checks that linking, from
- * the config facts, gives the same.
+ * the tests check them as they checked its facts. {@code ValueResolutionTest} checks that linking,
+ * from the config facts, gives the same.
  */
 final class Resolved {
 

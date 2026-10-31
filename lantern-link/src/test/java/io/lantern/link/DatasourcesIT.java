@@ -62,7 +62,7 @@ class DatasourcesIT {
       facts.addAll(extracted);
 
       List<Fact> linked =
-          new ValueViews()
+          new ValueResolution()
               .derive(facts, 1).stream().filter(f -> PREDICATES.contains(f.predicate())).toList();
       Files.write(out.resolve(set + ".txt"), sorted(render(linked)));
 
@@ -75,7 +75,7 @@ class DatasourcesIT {
         ConfigExtractor.read(repo).forEach(c -> configs.add(ModuleValues.of(c)));
       }
       List<Fact> fromFiles =
-          PersistenceExtractor.datasources(configs, Set.of(), new ValueViews().origin(), 1);
+          PersistenceExtractor.datasources(configs, Set.of(), new ValueResolution().origin(), 1);
       Set<String> modules = new HashSet<>();
       configs.forEach(c -> modules.add(c.module().toString()));
       List<String> linkedOfThose =

@@ -13,7 +13,7 @@ import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
-import io.lantern.link.ValueViews;
+import io.lantern.link.ValueResolution;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
@@ -92,7 +92,7 @@ record FixtureSnapshot(
     List<Fact> facts = withBlobs(extracted, directories, commits);
     // The values extractors keep as written, resolved as linking's first step does, before
     // summarizing, as the analysis run summarizes them (ADR 0094).
-    facts.addAll(new ValueViews().derive(facts, NUMBER));
+    facts.addAll(new ValueResolution().derive(facts, NUMBER));
     FakeLlmProvider fake = fake();
     Summarizer summarizer =
         new Summarizer(fakeClient(fake), new InMemorySummaryStore(), sources(directories));

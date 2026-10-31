@@ -38,7 +38,7 @@ import java.util.TreeSet;
  * the extractors' own resolution had it (an e-mail address such as {@code noreply@example.com}
  * reads as user info).
  *
- * <p>Deployment environments as views and {@code RESOLVES_TO} claims are #522's.
+ * <p>Deployment environments as views are #588's.
  */
 public final class CodeValues {
 
@@ -49,13 +49,20 @@ public final class CodeValues {
    * @param written the value as written in the code
    * @param unresolved the keys of the placeholders no config resolved; none when masked
    * @param masked whether a secret was substituted into it
+   * @param facts the IDs of the {@code config-value} facts whose values it was resolved with
    */
-  public record Value(String value, String written, SortedSet<String> unresolved, boolean masked) {
+  public record Value(
+      String value,
+      String written,
+      SortedSet<String> unresolved,
+      boolean masked,
+      SortedSet<String> facts) {
 
     public Value {
       Objects.requireNonNull(value, "value");
       Objects.requireNonNull(written, "written");
       unresolved = java.util.Collections.unmodifiableSortedSet(new TreeSet<>(unresolved));
+      facts = java.util.Collections.unmodifiableSortedSet(new TreeSet<>(facts));
     }
   }
 
@@ -175,12 +182,13 @@ public final class CodeValues {
       Objects.requireNonNull(written, "written");
       if (config == null) {
         Resolution r = ConfigExtractor.resolveWithoutConfig(written);
-        return of(r, written, Set.of());
+        return of(r, written, Set.of(), Set.of());
       }
       Map<String, Entry> byDefault = config.views().getOrDefault(null, Map.of());
       Map<String, Entry> inProfile =
           profile == null ? Map.of() : config.views().getOrDefault(profile, Map.of());
       Set<String> maskedUsed = new LinkedHashSet<>();
+      Set<String> used = new TreeSet<>();
       Resolution r =
           ConfigExtractor.resolve(
               written,
@@ -195,9 +203,10 @@ public final class CodeValues {
                 if (e.masked()) {
                   maskedUsed.add(key);
                 }
+                used.add(e.fact().id());
                 return e.written();
               });
-      return of(r, written, maskedUsed);
+      return of(r, written, maskedUsed, used);
     }
 
     /**
@@ -209,12 +218,12 @@ public final class CodeValues {
       return list != null && inProfile.keySet().stream().anyMatch(k -> list.equals(listOf(k)));
     }
 
-    private Value of(Resolution r, String written, Set<String> maskedUsed) {
+    private Value of(Resolution r, String written, Set<String> maskedUsed, Set<String> used) {
       if (!maskedUsed.isEmpty()
           || r.used().stream().anyMatch(k -> ConfigExtractor.isSecret(k, known))) {
-        return new Value(written, written, new TreeSet<>(), true);
+        return new Value(written, written, new TreeSet<>(), true, new TreeSet<>(used));
       }
-      return new Value(r.value(), written, r.unresolved(), false);
+      return new Value(r.value(), written, r.unresolved(), false, new TreeSet<>(used));
     }
   }
 
