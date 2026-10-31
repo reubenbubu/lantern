@@ -9,7 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.function.Function;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionOperations;
 
@@ -189,6 +192,19 @@ public class VocabularyRegistry implements FactValidator {
   public void validateAll(Collection<Fact> facts) {
     Vocabulary vocabulary = current();
     facts.forEach(vocabulary::validate);
+  }
+
+  /**
+   * The key attributes of each fact by the latest revision, looked up once (ADR 0090). A predicate
+   * the revision does not define keys on all its attributes.
+   */
+  @Override
+  public Function<Fact, Set<String>> keyAttributes() {
+    Vocabulary vocabulary = current();
+    return fact ->
+        vocabulary.find(fact.predicate()).isPresent()
+            ? vocabulary.keyAttributes(fact.predicate())
+            : new TreeSet<>(fact.attributes().propertyNames());
   }
 
   private long latestRevision() {

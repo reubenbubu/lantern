@@ -209,7 +209,6 @@ function FactValue({ fact }: { fact: FactEnvelope }) {
 function FactCard({ fact, number }: { fact: FactEnvelope; number: number }) {
   const { entities } = useLookup();
   const { evidence, origin } = fact;
-  const lines = evidence.lines ? `:${evidence.lines.start}-${evidence.lines.end}` : '';
   const attributes = Object.entries(fact.attributes);
   return (
     <li className="fact" value={number}>
@@ -231,14 +230,24 @@ function FactCard({ fact, number }: { fact: FactEnvelope; number: number }) {
           ))}
         </p>
       )}
-      <p className="fact-evidence">
-        <code>
-          {evidence.repo}
-          {evidence.path ? `/${evidence.path}` : ''}
-          {lines}
-        </code>{' '}
-        at <code title={evidence.commit}>{evidence.commit.slice(0, 12)}</code>
-      </p>
+      {evidence.map((location, index) => (
+        // The first location is where the fact is declared; the others what it was resolved from
+        // or cites (ADR 0091). A file git holds is named by its blob.
+        <p className="fact-evidence" key={index}>
+          {index > 0 && <span className="fact-role">{location.role}: </span>}
+          <code>
+            {location.repo}
+            {location.path ? `/${location.path}` : ''}
+            {location.lines ? `:${location.lines.start}-${location.lines.end}` : ''}
+          </code>
+          {location.blob && (
+            <>
+              {' '}
+              blob <code title={location.blob}>{shortCommit(location.blob)}</code>
+            </>
+          )}
+        </p>
+      ))}
       <p className="fact-meta">
         <span className={`badge origin-${origin.kind}`}>
           {origin.kind} · {origin.name}

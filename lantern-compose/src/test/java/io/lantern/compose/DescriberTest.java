@@ -30,12 +30,10 @@ import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelSettings;
 import io.lantern.summarize.SourceFiles;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -951,12 +949,12 @@ class DescriberTest {
                         f.object(),
                         f.attributes(),
                         f.origin(),
-                        new io.lantern.core.fact.Evidence(
+                        // The file changed elsewhere, so the fact is another observation.
+                        io.lantern.core.fact.Evidence.of(
                             f.evidence().repo(),
-                            "b".repeat(40),
                             f.evidence().path(),
                             f.evidence().lines(),
-                            f.evidence().contentHash()),
+                            f.evidence().path() == null ? null : "b".repeat(64)),
                         f.confidence(),
                         f.validity()))
             .toList();
@@ -1055,7 +1053,10 @@ class DescriberTest {
       }
       """;
 
-  /** The type's {@code kind} fact, observed in the file with the content at the commit. */
+  /**
+   * The type's {@code kind} fact, observed in the file with the content, named by its blob; the
+   * commit no longer matters (ADR 0091).
+   */
   private static Fact kind(EntityId type, String path, String content, String commit) {
     return Fact.create(
         type,
@@ -1063,26 +1064,31 @@ class DescriberTest {
         FactObject.string("class"),
         FactJson.newObject(),
         new Origin(Origin.Kind.STATIC, "java", "1"),
-        new Evidence("shop", commit, path, new Evidence.LineRange(1, 10), sha256(content)),
+        Evidence.of(
+            new Evidence.Location(
+                "shop",
+                path,
+                new Evidence.LineRange(1, 10),
+                SourceFiles.blobSha(content.getBytes(StandardCharsets.UTF_8), 40),
+                null,
+                Evidence.Role.DECLARED)),
         1.0,
         Validity.from(1));
   }
 
-  private static String sha256(String content) {
-    try {
-      return HexFormat.of()
-          .formatHex(
-              MessageDigest.getInstance("SHA-256")
-                  .digest(content.getBytes(StandardCharsets.UTF_8)));
-    } catch (java.security.NoSuchAlgorithmException e) {
-      throw new IllegalStateException(e);
-    }
-  }
-
-  /** Reads the files by path, whatever the commit. */
+  /** Reads the files by path, whatever the commit or blob asked for. */
   private static SourceFiles files(Map<String, String> files) {
-    return (repo, commit, path) ->
-        Optional.ofNullable(files.get(path)).map(c -> c.getBytes(StandardCharsets.UTF_8));
+    return new SourceFiles() {
+      @Override
+      public Optional<byte[]> read(String repo, String commit, String path) {
+        return Optional.ofNullable(files.get(path)).map(c -> c.getBytes(StandardCharsets.UTF_8));
+      }
+
+      @Override
+      public Optional<byte[]> blob(String repo, String blob, String path) {
+        return read(repo, blob, path);
+      }
+    };
   }
 
   private static String appPrompt(FakeLlmProvider fake) {

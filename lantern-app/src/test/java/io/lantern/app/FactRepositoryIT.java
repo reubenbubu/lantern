@@ -16,8 +16,10 @@ import io.lantern.core.vocabulary.TypeKind;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,32 +38,34 @@ class FactRepositoryIT {
   static final String COMMIT = "0123456789abcdef0123456789abcdef01234567";
   static final String CONTENT_HASH =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-  static final Evidence BILLING_EVIDENCE = new Evidence("billing", COMMIT, null, null, null);
+  static final Evidence BILLING_EVIDENCE = Evidence.of("billing", null, null, null);
   static final EntityId ORDERS = EntityId.parse("service:orders");
   static final EntityId PAYMENTS = EntityId.parse("service:payments");
   static final EntityId TOPIC = EntityId.parse("topic:kafka:order-created");
   static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, "messaging", "1.0.0");
   static final Evidence EVIDENCE =
-      new Evidence("orders", COMMIT, "src/Foo.java", new Evidence.LineRange(3, 9), CONTENT_HASH);
+      Evidence.of("orders", "src/Foo.java", new Evidence.LineRange(3, 9), CONTENT_HASH);
 
   /**
    * The types these tests use besides the built-in and the app's ones (topic is the linker's).
-   * LISTENS_ON declares one attribute and allows others; owner's objects must be strings.
+   * LISTENS_ON declares one attribute, its key, and allows others; owner's objects must be strings.
    */
   static final List<VocabularyType> TEST_TYPES =
       List.of(
           new VocabularyType(
-              "LISTENS_ON",
-              TypeKind.RELATIONSHIP,
-              null,
-              null,
-              null,
-              null,
-              null,
-              new AttributeSchema(
-                  Map.of("group", AttributeSchema.Property.of(AttributeSchema.ValueType.STRING)),
-                  Set.of(),
-                  true)),
+                  "LISTENS_ON",
+                  TypeKind.RELATIONSHIP,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  new AttributeSchema(
+                      Map.of(
+                          "group", AttributeSchema.Property.of(AttributeSchema.ValueType.STRING)),
+                      Set.of(),
+                      true))
+              .withKeyAttributes(Set.of("group")),
           new VocabularyType(
               "owner",
               TypeKind.ATTRIBUTE,
@@ -87,7 +91,8 @@ class FactRepositoryIT {
 
   @BeforeEach
   void clean() {
-    jdbc.sql("DELETE FROM facts").update();
+    jdbc.sql("DELETE FROM observations").update();
+    jdbc.sql("DELETE FROM claims").update();
     vocabulary.apply("test", TEST_TYPES);
   }
 
@@ -128,7 +133,7 @@ class FactRepositoryIT {
                 FactObject.string("team-payments"),
                 FactJson.newObject(),
                 new Origin(Origin.Kind.HUMAN, "user-42", null),
-                new Evidence("orders", COMMIT, null, null, null),
+                Evidence.of("orders", null, null, null),
                 1.0,
                 new Validity(0, 4L)),
             Fact.create(
@@ -163,7 +168,7 @@ class FactRepositoryIT {
       assertThat(facts.save(fact)).isTrue();
     }
     for (Fact fact : saved) {
-      assertThat(facts.findById(fact.id())).contains(fact);
+      assertThat(findById(fact.id())).contains(fact);
     }
   }
 
@@ -173,7 +178,8 @@ class FactRepositoryIT {
 
     assertThat(facts.save(fact)).isTrue();
     assertThat(facts.save(consumes(ORDERS, Validity.from(1)))).isFalse();
-    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isEqualTo(1L);
+    assertThat(jdbc.sql("SELECT count(*) FROM observations").query(Long.class).single())
+        .isEqualTo(1L);
   }
 
   @Test
@@ -194,8 +200,8 @@ class FactRepositoryIT {
     facts.save(first);
 
     assertThat(facts.save(consumes(ORDERS, Validity.from(2)))).isFalse();
-    assertThat(facts.findById(first.id())).contains(first);
-    assertThat(facts.findValidAt(2)).containsExactly(first);
+    assertThat(findById(first.id())).contains(first);
+    assertThat(findValidAt(2)).containsExactly(first);
   }
 
   static Fact human(Validity validity) {
@@ -205,9 +211,46 @@ class FactRepositoryIT {
         FactObject.string("team-payments"),
         FactJson.newObject(),
         new Origin(Origin.Kind.HUMAN, "user-42", null),
-        new Evidence("orders", COMMIT, null, null, null),
+        Evidence.of("orders", null, null, null),
         1.0,
         validity);
+  }
+
+  /**
+   * A fact as read back, checked to carry its claim ID, without it, so tests compare it with the
+   * fact they stored.
+   */
+  static Fact bare(Fact fact) {
+    assertThat(fact.claimId()).matches("[0-9a-f]{64}");
+    return fact.stored(null, fact.validity());
+  }
+
+  static List<Fact> bare(List<Fact> found) {
+    return found.stream().map(FactRepositoryIT::bare).toList();
+  }
+
+  Optional<Fact> findById(String id) {
+    return facts.findById(id).map(FactRepositoryIT::bare);
+  }
+
+  List<Fact> findValidAt(long snapshot) {
+    return bare(facts.findValidAt(snapshot));
+  }
+
+  List<Fact> findValidAt(long snapshot, Collection<String> repos) {
+    return bare(facts.findValidAt(snapshot, repos));
+  }
+
+  List<Fact> findBySubject(EntityId subject) {
+    return bare(facts.findBySubject(subject));
+  }
+
+  List<Fact> findByPredicate(String predicate) {
+    return bare(facts.findByPredicate(predicate));
+  }
+
+  List<Fact> findByObject(FactObject object) {
+    return bare(facts.findByObject(object));
   }
 
   FactRepository.SnapshotUpdate record(long snapshot, Fact... found) {
@@ -221,13 +264,13 @@ class FactRepositoryIT {
 
     FactRepository.SnapshotUpdate update = record(2, consumes(ORDERS, Validity.from(2)));
 
-    assertThat(update.facts()).containsExactly(orders);
+    assertThat(bare(update.facts())).containsExactly(orders);
     assertThat(update.added()).isZero();
     assertThat(update.changed()).isZero();
     assertThat(update.closed()).isZero();
-    assertThat(facts.findValidAt(1)).containsExactly(orders);
-    assertThat(facts.findValidAt(2)).containsExactly(orders);
-    assertThat(facts.findValidAt(7)).containsExactly(orders);
+    assertThat(findValidAt(1)).containsExactly(orders);
+    assertThat(findValidAt(2)).containsExactly(orders);
+    assertThat(findValidAt(7)).containsExactly(orders);
   }
 
   @Test
@@ -240,9 +283,9 @@ class FactRepositoryIT {
 
     assertThat(update.closed()).isEqualTo(1);
     Fact closed = consumes(PAYMENTS, new Validity(1, 2L));
-    assertThat(facts.findById(payments.id())).contains(closed);
-    assertThat(facts.findValidAt(1)).containsExactlyInAnyOrder(orders, closed);
-    assertThat(facts.findValidAt(2)).containsExactly(orders);
+    assertThat(findById(payments.id())).contains(closed);
+    assertThat(findValidAt(1)).containsExactlyInAnyOrder(orders, closed);
+    assertThat(findValidAt(2)).containsExactly(orders);
   }
 
   @Test
@@ -255,12 +298,12 @@ class FactRepositoryIT {
     Fact before = consumes(ORDERS, new Validity(1, 2L));
     Fact again = consumes(ORDERS, Validity.from(3));
     assertThat(update.added()).isEqualTo(1);
-    assertThat(update.facts()).containsExactly(again);
-    assertThat(facts.findById(again.id())).contains(again);
-    assertThat(facts.findBySubject(ORDERS)).containsExactly(before, again);
-    assertThat(facts.findValidAt(1)).containsExactly(before);
-    assertThat(facts.findValidAt(2)).isEmpty();
-    assertThat(facts.findValidAt(3)).containsExactly(again);
+    assertThat(bare(update.facts())).containsExactly(again);
+    assertThat(findById(again.id())).contains(again);
+    assertThat(findBySubject(ORDERS)).containsExactly(before, again);
+    assertThat(findValidAt(1)).containsExactly(before);
+    assertThat(findValidAt(2)).isEmpty();
+    assertThat(findValidAt(3)).containsExactly(again);
   }
 
   @Test
@@ -273,10 +316,10 @@ class FactRepositoryIT {
     Fact higher = consumes(ORDERS, 0.9, Validity.from(3));
     assertThat(update.changed()).isEqualTo(1);
     assertThat(update.added()).isZero();
-    assertThat(update.facts()).containsExactly(higher);
-    assertThat(facts.findValidAt(2)).containsExactly(lower);
-    assertThat(facts.findValidAt(3)).containsExactly(higher);
-    assertThat(facts.findById(higher.id())).contains(higher);
+    assertThat(bare(update.facts())).containsExactly(higher);
+    assertThat(findValidAt(2)).containsExactly(lower);
+    assertThat(findValidAt(3)).containsExactly(higher);
+    assertThat(findById(higher.id())).contains(higher);
   }
 
   @Test
@@ -287,14 +330,15 @@ class FactRepositoryIT {
     record(2, payments);
 
     record(2, consumes(ORDERS, Validity.from(2)), consumes(PAYMENTS, 0.5, Validity.from(2)));
-    assertThat(facts.findValidAt(1)).containsExactly(orders);
-    assertThat(facts.findValidAt(2))
+    assertThat(findValidAt(1)).containsExactly(orders);
+    assertThat(findValidAt(2))
         .containsExactlyInAnyOrder(orders, consumes(PAYMENTS, 0.5, Validity.from(2)));
 
     record(2, payments);
-    assertThat(facts.findValidAt(1)).containsExactly(consumes(ORDERS, new Validity(1, 2L)));
-    assertThat(facts.findValidAt(2)).containsExactly(payments);
-    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isEqualTo(2L);
+    assertThat(findValidAt(1)).containsExactly(consumes(ORDERS, new Validity(1, 2L)));
+    assertThat(findValidAt(2)).containsExactly(payments);
+    assertThat(jdbc.sql("SELECT count(*) FROM observations").query(Long.class).single())
+        .isEqualTo(2L);
   }
 
   @Test
@@ -305,10 +349,10 @@ class FactRepositoryIT {
 
     FactRepository.SnapshotUpdate update = record(2, consumes(ORDERS, 0.5, Validity.from(2)));
 
-    assertThat(update.facts()).containsExactly(lower);
+    assertThat(bare(update.facts())).containsExactly(lower);
     assertThat(update.changed()).isEqualTo(1);
     assertThat(update.added()).isZero();
-    assertThat(facts.findBySubject(ORDERS)).containsExactly(lower);
+    assertThat(findBySubject(ORDERS)).containsExactly(lower);
   }
 
   @Test
@@ -319,7 +363,7 @@ class FactRepositoryIT {
 
     record(2);
 
-    assertThat(facts.findValidAt(2)).containsExactly(owner);
+    assertThat(findValidAt(2)).containsExactly(owner);
   }
 
   @Test
@@ -332,12 +376,12 @@ class FactRepositoryIT {
         facts.recordSnapshot(2, Origin.Kind.STATIC, Set.of("billing"), List.of(billing));
 
     assertThat(update.closed()).isZero();
-    assertThat(facts.findValidAt(2)).containsExactlyInAnyOrder(orders, billing);
+    assertThat(findValidAt(2)).containsExactlyInAnyOrder(orders, billing);
 
     // Analyzing orders again closes its facts that are gone, and leaves billing's alone.
     update = record(3);
     assertThat(update.closed()).isEqualTo(1);
-    assertThat(facts.findValidAt(3)).containsExactly(billing);
+    assertThat(findValidAt(3)).containsExactly(billing);
   }
 
   @Test
@@ -352,9 +396,9 @@ class FactRepositoryIT {
         facts.recordDerived(2, ORIGIN, Set.of("billing"), List.of(billing));
 
     assertThat(update.closed()).isZero();
-    assertThat(facts.findValidAt(2)).containsExactlyInAnyOrder(orders, billing);
-    assertThat(facts.findValidAt(2, List.of("billing"))).containsExactly(billing);
-    assertThat(facts.findValidAt(2, List.of())).isEmpty();
+    assertThat(findValidAt(2)).containsExactlyInAnyOrder(orders, billing);
+    assertThat(findValidAt(2, List.of("billing"))).containsExactly(billing);
+    assertThat(findValidAt(2, List.of())).isEmpty();
     assertThatThrownBy(
             () ->
                 facts.recordDerived(
@@ -376,7 +420,7 @@ class FactRepositoryIT {
                     List.of(consumes(ORDERS, Validity.from(1)))))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("orders");
-    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isZero();
+    assertThat(jdbc.sql("SELECT count(*) FROM observations").query(Long.class).single()).isZero();
   }
 
   @Test
@@ -403,7 +447,113 @@ class FactRepositoryIT {
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> record(2, human(Validity.from(2))))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isZero();
+    assertThat(jdbc.sql("SELECT count(*) FROM observations").query(Long.class).single()).isZero();
+  }
+
+  @Test
+  void aChangedLineRangeKeepsTheClaimAndStartsANewObservation() {
+    Fact before = consumes(ORDERS, Validity.from(1));
+    Fact moved =
+        consumes(
+            ORDERS,
+            0.9,
+            Evidence.of("orders", "src/Foo.java", new Evidence.LineRange(5, 11), CONTENT_HASH),
+            Validity.from(2));
+    record(1, before);
+
+    FactRepository.SnapshotUpdate update = record(2, moved);
+
+    // Another sighting of the same claim (ADR 0091): the claim keeps its ID, the first
+    // observation ends where the second starts.
+    assertThat(moved.id()).isNotEqualTo(before.id());
+    assertThat(update.facts()).singleElement().extracting(Fact::claimId).isEqualTo(claim(before));
+    assertThat(update.added()).isOne();
+    assertThat(update.closed()).isOne();
+    assertThat(findById(before.id()).orElseThrow().validity()).isEqualTo(new Validity(1, 2L));
+    assertThat(findValidAt(2)).containsExactly(moved);
+    assertThat(jdbc.sql("SELECT count(*) FROM claims").query(Long.class).single()).isOne();
+  }
+
+  @Test
+  void severalSightingsOfOneClaimHoldAtOnce() {
+    Fact first = consumes(ORDERS, Validity.from(1));
+    Fact second =
+        consumes(
+            ORDERS,
+            0.9,
+            Evidence.of("orders", "src/Bar.java", new Evidence.LineRange(1, 2), CONTENT_HASH),
+            Validity.from(1));
+
+    record(1, first, second);
+
+    assertThat(findValidAt(1)).containsExactlyInAnyOrder(first, second);
+    assertThat(facts.findValidAt(1)).extracting(Fact::claimId).containsOnly(claim(first));
+  }
+
+  @Test
+  void theClaimHoldsTheKeyAttributesAndTheObservationTheOthers() {
+    Fact fact = consumes(ORDERS, Validity.from(1));
+    record(1, fact);
+
+    assertThat(jdbc.sql("SELECT key_attributes::text FROM claims").query(String.class).single())
+        .isEqualTo("{\"group\": \"orders-service\"}");
+    assertThat(jdbc.sql("SELECT attributes::text FROM observations").query(String.class).single())
+        .contains("nested")
+        .doesNotContain("group");
+    assertThat(findById(fact.id())).contains(fact);
+  }
+
+  @Test
+  void lineageIsStoredWithTheObservation() {
+    Fact source = consumes(ORDERS, Validity.from(1));
+    record(1, source);
+    Fact derived =
+        Fact.create(
+                ORDERS,
+                "owner",
+                FactObject.string("team"),
+                FactJson.newObject(),
+                ORIGIN,
+                EVIDENCE,
+                1.0,
+                Validity.from(1))
+            .withLineage(List.of(claim(source)));
+
+    record(1, source, derived);
+
+    assertThat(findById(derived.id()).orElseThrow().lineage()).containsExactly(claim(source));
+  }
+
+  @Test
+  void recordingNamesEachFileByItsBlobAtTheSnapshotsCommit() {
+    String blob = "b".repeat(40);
+    FactRepository withBlobs =
+        new FactRepository(
+            jdbc,
+            vocabulary,
+            (snapshot, repo, path) ->
+                repo.equals("orders") && path.equals("src/Foo.java")
+                    ? Optional.of(blob)
+                    : Optional.empty());
+    Fact found = consumes(ORDERS, Validity.from(1));
+
+    FactRepository.SnapshotUpdate first =
+        withBlobs.recordSnapshot(1, Origin.Kind.STATIC, Set.of("orders"), List.of(found));
+    FactRepository.SnapshotUpdate second =
+        withBlobs.recordSnapshot(
+            2, Origin.Kind.STATIC, Set.of("orders"), List.of(consumes(ORDERS, Validity.from(2))));
+
+    Fact stored = first.facts().getFirst();
+    assertThat(stored.evidence().blob()).isEqualTo(blob);
+    assertThat(stored.evidence().contentHash()).isNull();
+    assertThat(stored.claimId()).isEqualTo(claim(found));
+    assertThat(second.added()).isZero();
+    assertThat(second.facts()).containsExactly(stored);
+  }
+
+  /** The claim ID the app's vocabulary gives the fact. */
+  private String claim(Fact fact) {
+    return vocabulary.current().claimId(fact);
   }
 
   @Test
@@ -415,11 +565,10 @@ class FactRepositoryIT {
             () ->
                 jdbc.sql(
                         """
-                        INSERT INTO facts (id, subject, predicate, object_kind, object, origin,
-                                           evidence, confidence, validity)
-                        SELECT id, subject, predicate, object_kind, object, origin, evidence,
-                               confidence, int8range(5, 9)
-                        FROM facts
+                        INSERT INTO observations (id, claim_id, origin, evidence, confidence,
+                                                  validity)
+                        SELECT id, claim_id, origin, evidence, confidence, int8range(5, 9)
+                        FROM observations
                         """)
                     .update())
         .isInstanceOf(DataIntegrityViolationException.class);
@@ -443,14 +592,13 @@ class FactRepositoryIT {
     facts.save(billing);
     facts.save(owner);
 
-    assertThat(facts.findBySubject(ORDERS)).containsExactlyInAnyOrder(current, owner);
-    assertThat(facts.findByPredicate("LISTENS_ON")).containsExactlyInAnyOrder(current, billing);
-    assertThat(facts.findByObject(FactObject.entity(TOPIC)))
-        .containsExactlyInAnyOrder(current, billing);
-    assertThat(facts.findByObject(FactObject.string(TOPIC.toString()))).containsExactly(owner);
-    assertThat(facts.findValidAt(2)).containsExactlyInAnyOrder(billing, owner);
-    assertThat(facts.findValidAt(3)).containsExactlyInAnyOrder(current, owner);
-    assertThat(facts.findValidAt(0)).isEmpty();
+    assertThat(findBySubject(ORDERS)).containsExactlyInAnyOrder(current, owner);
+    assertThat(findByPredicate("LISTENS_ON")).containsExactlyInAnyOrder(current, billing);
+    assertThat(findByObject(FactObject.entity(TOPIC))).containsExactlyInAnyOrder(current, billing);
+    assertThat(findByObject(FactObject.string(TOPIC.toString()))).containsExactly(owner);
+    assertThat(findValidAt(2)).containsExactlyInAnyOrder(billing, owner);
+    assertThat(findValidAt(3)).containsExactlyInAnyOrder(current, owner);
+    assertThat(findValidAt(0)).isEmpty();
   }
 
   @Test
@@ -515,7 +663,7 @@ class FactRepositoryIT {
                     1, Origin.Kind.STATIC, Set.of("orders"), List.of(wrongObjectKind)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must be a string, not an integer");
-    assertThat(jdbc.sql("SELECT count(*) FROM facts").query(Long.class).single()).isZero();
+    assertThat(jdbc.sql("SELECT count(*) FROM observations").query(Long.class).single()).isZero();
   }
 
   @Test
@@ -523,18 +671,20 @@ class FactRepositoryIT {
     Fact fact = consumes(ORDERS, Validity.from(1));
     String insert =
         """
-        INSERT INTO facts (id, subject, predicate, object_kind, object, origin, evidence,
-                           confidence, validity)
-        VALUES (:id, 'service:orders', 'LISTENS_ON', 'string', 'x', CAST(:origin AS jsonb),
-                CAST(:evidence AS jsonb), 1, int8range(1, NULL))
+        INSERT INTO observations (id, claim_id, origin, evidence, confidence, validity)
+        VALUES (:id, :claim, CAST(:origin AS jsonb), CAST(:evidence AS jsonb), 1,
+                int8range(1, NULL))
         """;
+    facts.save(fact);
+    String claim = facts.findById(fact.id()).orElseThrow().claimId();
     String origin = "{\"kind\":\"static\",\"name\":\"messaging\"}";
-    String evidence = "{\"repo\":\"orders\",\"commit\":\"" + COMMIT + "\"}";
+    String evidence = "[{\"repo\":\"orders\",\"role\":\"declared\"}]";
 
     assertThatThrownBy(
             () ->
                 jdbc.sql(insert)
                     .param("id", fact.id())
+                    .param("claim", claim)
                     .param("origin", null)
                     .param("evidence", evidence)
                     .update())
@@ -543,6 +693,7 @@ class FactRepositoryIT {
             () ->
                 jdbc.sql(insert)
                     .param("id", fact.id())
+                    .param("claim", claim)
                     .param("origin", origin)
                     .param("evidence", null)
                     .update())
@@ -551,8 +702,9 @@ class FactRepositoryIT {
             () ->
                 jdbc.sql(insert)
                     .param("id", fact.id())
+                    .param("claim", claim)
                     .param("origin", origin)
-                    .param("evidence", "{}")
+                    .param("evidence", "[]")
                     .update())
         .isInstanceOf(DataIntegrityViolationException.class);
   }
@@ -560,14 +712,16 @@ class FactRepositoryIT {
   @Test
   void queriedColumnsAreIndexed() {
     List<String> indexes =
-        jdbc.sql("SELECT indexdef FROM pg_indexes WHERE tablename = 'facts'")
+        jdbc.sql("SELECT indexdef FROM pg_indexes WHERE tablename IN ('claims', 'observations')")
             .query(String.class)
             .list();
 
     assertThat(indexes)
-        .anyMatch(d -> d.contains("(subject)"))
+        .anyMatch(d -> d.contains("(subject, predicate)"))
         .anyMatch(d -> d.contains("(predicate)"))
         .anyMatch(d -> d.contains("(object, object_kind)"))
+        .anyMatch(d -> d.contains("(claim_id)"))
+        .anyMatch(d -> d.contains("(repo)"))
         .anyMatch(d -> d.contains("gist (validity)"));
   }
 }

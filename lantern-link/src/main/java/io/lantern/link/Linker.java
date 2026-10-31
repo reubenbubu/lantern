@@ -2,9 +2,12 @@ package io.lantern.link;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
+import io.lantern.core.fact.Lineage;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -106,10 +109,17 @@ public final class Linker {
     int added = 0;
     int changed = 0;
     int closed = 0;
+    Map<String, String> claims = new HashMap<>();
+    facts.forEach(f -> claims.put(f.id(), f.claimId()));
     for (LinkStep step : steps) {
+      // A derived fact's lineage is the claims of the facts it names (ADR 0091).
+      List<Fact> found =
+          step.derive(List.copyOf(facts), snapshot).stream()
+              .map(f -> f.withLineage(Lineage.of(f.attributes(), claims::get)))
+              .toList();
       FactRepository.SnapshotUpdate update =
-          store.recordDerived(
-              snapshot, step.origin(), repos, step.derive(List.copyOf(facts), snapshot));
+          store.recordDerived(snapshot, step.origin(), repos, found);
+      update.facts().forEach(f -> claims.put(f.id(), f.claimId()));
       facts.addAll(update.facts());
       derived.addAll(update.facts());
       added += update.added();

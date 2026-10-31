@@ -1787,9 +1787,8 @@ public final class MessagingExtractor {
       }
       RepoBuild repo = module.repo();
       Evidence evidence =
-          new Evidence(
+          Evidence.of(
               repo.repo().name(),
-              repo.commit(),
               where.file().path(),
               where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
               where.file().contentHash());

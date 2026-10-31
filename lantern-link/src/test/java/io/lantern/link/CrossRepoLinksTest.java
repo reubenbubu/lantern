@@ -78,7 +78,7 @@ class CrossRepoLinksTest {
       lines = new Evidence.LineRange(line, line);
       rest = rest.substring(0, rest.indexOf('#'));
     }
-    return new Evidence(repo, commit, rest, lines, null);
+    return Evidence.of(repo, rest, lines, null);
   }
 
   /** A deployable unit {@code service:g:<artifact>} in a repository, named {@code name}. */
@@ -975,7 +975,7 @@ class CrossRepoLinksTest {
         .singleElement()
         .asString()
         .contains("unresolved-link")
-        .contains("\"candidates\":[\"service:g:storefront-app\",\"service:g:payments\"]")
+        .contains("\"candidates\":[\"service:g:payments\",\"service:g:storefront-app\"]")
         .contains("\"reason\":\"ambiguous\"");
   }
 
@@ -1011,7 +1011,7 @@ class CrossRepoLinksTest {
         .singleElement()
         .asString()
         .contains("unresolved-link")
-        .contains("\"candidates\":[\"service:g:payments\",\"service:g:storefront-app\"]")
+        .contains("\"candidates\":[\"service:g:storefront-app\",\"service:g:payments\"]")
         .contains("\"reason\":\"ambiguous\"");
   }
 
@@ -2434,7 +2434,7 @@ class CrossRepoLinksTest {
   // Identity
 
   @Test
-  void linkIdsStayTheSameWhenOnlyTheCommitChanges() {
+  void linkAndFactIdsStayTheSameWhenOnlyTheCommitChanges() {
     kafkaSendAndListener();
     List<String> before =
         linked().stream().map(f -> f.attributes().get("link").asString()).toList();
@@ -2448,7 +2448,8 @@ class CrossRepoLinksTest {
     assertThat(after.stream().map(f -> f.attributes().get("link").asString()))
         .containsExactlyElementsOf(before)
         .doesNotHaveDuplicates();
-    assertThat(after.stream().map(Fact::id)).doesNotContainAnyElementsOf(ids);
+    // Evidence names no commit, so the link facts are the same observations (ADR 0091).
+    assertThat(after.stream().map(Fact::id)).containsExactlyElementsOf(ids);
     assertThat(after).allSatisfy(f -> assertThat(f.attributes().get("facts").size()).isPositive());
   }
 

@@ -656,9 +656,8 @@ public final class RedisExtractor {
       }
       RepoBuild repo = m.repo();
       Evidence evidence =
-          new Evidence(
+          Evidence.of(
               repo.repo().name(),
-              repo.commit(),
               at.file().path(),
               at.start() > 0 ? new Evidence.LineRange(at.start(), at.end()) : null,
               at.file().contentHash());
@@ -699,9 +698,8 @@ public final class RedisExtractor {
       }
       RepoBuild repo = m.repo();
       Evidence evidence =
-          new Evidence(
+          Evidence.of(
               repo.repo().name(),
-              repo.commit(),
               at.file().path(),
               at.start() > 0 ? new Evidence.LineRange(at.start(), at.end()) : null,
               at.file().contentHash());
@@ -761,12 +759,8 @@ public final class RedisExtractor {
             m.id(),
             kind,
             attributes,
-            new Evidence(
-                m.repo().repo().name(),
-                m.repo().commit(),
-                path,
-                new Evidence.LineRange(line, line),
-                sha256(bytes)),
+            Evidence.of(
+                m.repo().repo().name(), path, new Evidence.LineRange(line, line), sha256(bytes)),
             1.0);
       }
     }
@@ -815,9 +809,8 @@ public final class RedisExtractor {
             config.module(),
             kind,
             attributes,
-            new Evidence(
+            Evidence.of(
                 config.repo().repo().name(),
-                config.repo().commit(),
                 where.path(),
                 where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
                 where.contentHash()),

@@ -272,7 +272,7 @@ class C4ViewsTest {
             FactObject.string("route"),
             (ObjectNode) FactJson.parse("{\"path\":\"/registration\",\"framework\":\"angular\"}"),
             new Origin(Origin.Kind.STATIC, "people", "2"),
-            new Evidence("shop", TestFacts.COMMIT, "web/src/app/app.routes.ts", null, null),
+            Evidence.of("shop", "web/src/app/app.routes.ts", null, null),
             0.8,
             Validity.from(1));
     withFrontend.add(route);

@@ -1,14 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:lantern:schema:fact-envelope:1",
+  "$id": "urn:lantern:schema:fact-envelope:2",
   "title": "Fact envelope",
-  "description": "The core envelope every fact has. See docs/design.md, Knowledge model and schema evolution.",
+  "description": "The core envelope every fact has: one observation of a claim. See docs/design.md, Knowledge model and schema evolution, and docs/adr/0091-claims-and-observations.md.",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "subject", "predicate", "object", "attributes", "origin", "evidence", "confidence", "validity"],
   "properties": {
     "id": {
-      "description": "Content-derived fact ID: SHA-256 (lowercase hex) of the canonical JSON of subject, predicate, object, attributes, origin and evidence.",
+      "description": "Content-derived observation ID: SHA-256 (lowercase hex) of the canonical JSON of subject, predicate, object, attributes, lineage (when not empty), origin and evidence.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "claim": {
+      "description": "The ID of the claim this is an observation of: SHA-256 (lowercase hex) of the canonical JSON of subject, predicate, object and the type's key attributes. Present on every fact read from the store.",
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
@@ -22,6 +27,13 @@
     "attributes": {
       "description": "Further attributes, validated against the vocabulary's definition for the predicate.",
       "type": "object"
+    },
+    "lineage": {
+      "description": "The claim IDs the fact was derived from, in order. Absent when empty.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
     },
     "origin": { "$ref": "#/$defs/origin" },
     "evidence": { "$ref": "#/$defs/evidence" },
@@ -83,12 +95,17 @@
       }
     },
     "evidence": {
+      "description": "Where the fact was observed: one or more locations, the first being the one it is declared in. Evidence names no commit; a snapshot's repo@commit pairs give it.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/location" }
+    },
+    "location": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repo", "commit"],
+      "required": ["repo", "role"],
       "properties": {
         "repo": { "type": "string", "pattern": "\\S" },
-        "commit": { "type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$" },
         "path": {
           "description": "File path relative to the repository root. Absent for a repository-wide fact.",
           "type": "string",
@@ -104,15 +121,30 @@
             "end": { "type": "integer", "minimum": 1 }
           }
         },
+        "blob": {
+          "description": "The git blob SHA (lowercase hex) of the file.",
+          "type": "string",
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+        },
         "contentHash": {
-          "description": "SHA-256 (lowercase hex) of the file content.",
+          "description": "SHA-256 (lowercase hex) of the file content, kept only for a file git does not hold, which has no blob.",
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "role": {
+          "description": "What the location shows of the fact: where it is declared, where a value it holds is written, config its value was resolved against, or a place it cites.",
+          "enum": ["declared", "value", "config", "cited"]
         }
       },
       "dependentRequired": {
         "lines": ["path"],
+        "blob": ["path"],
         "contentHash": ["path"]
+      },
+      "not": {
+        "description": "A file with a blob keeps no content hash.",
+        "properties": { "blob": true, "contentHash": true },
+        "required": ["blob", "contentHash"]
       }
     },
     "validity": {

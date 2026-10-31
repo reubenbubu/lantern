@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Reads the files that facts were observed in, so prompts can show excerpts of the code. The
- * summarizer shows an excerpt only when the file's SHA-256 matches the content hash of the fact's
+ * summarizer shows an excerpt only when the file's git blob SHA matches the blob of the fact's
  * evidence, so a reader that returns another version of a file does no harm.
  */
 @FunctionalInterface
@@ -30,6 +30,18 @@ public interface SourceFiles {
   Optional<byte[]> read(String repo, String commit, String path);
 
   /**
+   * The content of a file by its git blob, or empty if it cannot be read. Reads nothing unless
+   * overridden.
+   *
+   * @param repo the repository name, as in the facts' evidence
+   * @param blob the blob SHA
+   * @param path the file's path, for messages
+   */
+  default Optional<byte[]> blob(String repo, String blob, String path) {
+    return Optional.empty();
+  }
+
+  /**
    * The config keys known to hold a secret, such as {@link
    * io.lantern.extract.config.ConfigExtractor#jwtSecretKeys}, whose values {@link #shown} masks
    * whatever the key is called (#348).
@@ -39,29 +51,37 @@ public interface SourceFiles {
   }
 
   /**
-   * The text of the file of a fact's evidence as prompts show it (ADR 0024, ADR 0054): read at the
-   * evidence's commit, only if its SHA-256 matches the evidence's content hash, with its secrets
-   * masked or removed by {@link SourceSecrets}; empty if it has no path or hash, cannot be read or
+   * The text of the file of a fact's evidence as prompts show it (ADR 0024, ADR 0054): read by the
+   * blob of its declared location (ADR 0091), only if the content has that blob SHA, with its
+   * secrets masked or removed by {@link SourceSecrets}; empty if it has no blob, cannot be read or
    * is another version.
    *
    * @param evidence where a fact was observed
    */
   default Optional<String> shown(Evidence evidence) {
-    if (evidence.path() == null || evidence.contentHash() == null) {
+    if (evidence.path() == null || evidence.blob() == null) {
       return Optional.empty();
     }
-    return read(evidence.repo(), evidence.commit(), evidence.path())
-        .filter(content -> sha256(content).equals(evidence.contentHash()))
+    return blob(evidence.repo(), evidence.blob(), evidence.path())
+        .filter(content -> blobSha(content, evidence.blob().length()).equals(evidence.blob()))
         .map(
             content ->
                 SourceSecrets.scrub(new String(content, StandardCharsets.UTF_8), secretKeys()));
   }
 
-  private static String sha256(byte[] bytes) {
+  /**
+   * The git blob SHA of a file's content: the SHA-1 (or, in a SHA-256 repository, SHA-256) of
+   * {@code blob <length>\0} followed by the content.
+   *
+   * @param length the length of the blob SHA in hex characters, 40 or 64
+   */
+  public static String blobSha(byte[] content, int length) {
     try {
-      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+      MessageDigest digest = MessageDigest.getInstance(length == 64 ? "SHA-256" : "SHA-1");
+      digest.update(("blob " + content.length + "\0").getBytes(StandardCharsets.US_ASCII));
+      return HexFormat.of().formatHex(digest.digest(content));
     } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 is not available", e);
+      throw new IllegalStateException("SHA-1 is not available", e);
     }
   }
 }

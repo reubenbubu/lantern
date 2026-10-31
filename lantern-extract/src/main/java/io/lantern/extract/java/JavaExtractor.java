@@ -384,12 +384,7 @@ public final class JavaExtractor {
     List<Fact> result() {
       for (PackageFact p : packages.values()) {
         Evidence evidence =
-            new Evidence(
-                p.repo().repo().name(),
-                p.repo().commit(),
-                p.path().isEmpty() ? null : p.path(),
-                null,
-                null);
+            Evidence.of(p.repo().repo().name(), p.path().isEmpty() ? null : p.path(), null, null);
         put(
             p.module(),
             BuiltInTypes.CONTAINS,
@@ -486,9 +481,8 @@ public final class JavaExtractor {
         Location where,
         double confidence) {
       Evidence evidence =
-          new Evidence(
+          Evidence.of(
               repo.repo().name(),
-              repo.commit(),
               where.file().path(),
               where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
               where.file().contentHash());

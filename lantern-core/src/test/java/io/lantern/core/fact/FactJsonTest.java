@@ -1,6 +1,5 @@
 package io.lantern.core.fact;
 
-import static io.lantern.core.fact.FactTest.COMMIT;
 import static io.lantern.core.fact.FactTest.EVIDENCE;
 import static io.lantern.core.fact.FactTest.OBJECT;
 import static io.lantern.core.fact.FactTest.ORIGIN;
@@ -31,7 +30,7 @@ class FactJsonTest {
             FactObject.string("team-payments"),
             FactJson.newObject(),
             new Origin(Origin.Kind.HUMAN, "user-42", null),
-            new Evidence("orders", COMMIT, null, null, null),
+            Evidence.of("orders", null, null, null),
             1.0,
             new Validity(0, 7L)),
         Fact.create(
@@ -40,7 +39,7 @@ class FactJsonTest {
             FactObject.integer(-120),
             nested,
             new Origin(Origin.Kind.LLM, "summarizer-model", "prompt-3"),
-            new Evidence("orders", COMMIT, "Foo.java", null, null),
+            Evidence.of("orders", "Foo.java", null, null),
             0.0,
             Validity.from(2)),
         Fact.create(
@@ -58,7 +57,7 @@ class FactJsonTest {
             FactObject.bool(true),
             FactJson.newObject(),
             new Origin(Origin.Kind.README, "readme", "1"),
-            new Evidence("orders", COMMIT.repeat(2).substring(0, 64), "README.md", null, null),
+            Evidence.of("orders", "README.md", null, null),
             0.3,
             Validity.from(1)));
   }
@@ -100,9 +99,8 @@ class FactJsonTest {
             FactObject.entity(EntityId.parse("topic:kafka:order-created")),
             second,
             new Origin(Origin.Kind.STATIC, "messaging", "1.0.0"),
-            new Evidence(
+            Evidence.of(
                 EVIDENCE.repo(),
-                EVIDENCE.commit(),
                 EVIDENCE.path(),
                 new Evidence.LineRange(12, 18),
                 EVIDENCE.contentHash()));
@@ -114,7 +112,7 @@ class FactJsonTest {
   void factIdIsPinned() {
     // Guards the canonical form: changing it changes every stored fact ID.
     assertThat(FactTest.sample().id())
-        .isEqualTo("24ad7b33ea63503bf6f2605eab7c3497283f449b956c8e801df0a1bf04fbe4f2");
+        .isEqualTo("3ecf6a1b048a7feed8bcc3829247b86b37b02be823f365c79af26c0817208316");
   }
 
   @Test
@@ -173,8 +171,7 @@ class FactJsonTest {
                 base.object(),
                 base.attributes(),
                 base.origin(),
-                new Evidence(
-                    base.evidence().repo(), base.evidence().commit(), "Other.java", null, null)));
+                Evidence.of(base.evidence().repo(), "Other.java", null, null)));
 
     assertThat(others).doesNotContain(id).doesNotHaveDuplicates();
   }

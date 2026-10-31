@@ -1,6 +1,6 @@
 # 0001: Fact envelope details
 
-Status: accepted (#3)
+Status: accepted (#3); its fact ID rule and evidence shape superseded by ADR 0091 (#281: claims and observations, evidence without a commit)
 
 ## Context
 

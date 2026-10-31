@@ -481,9 +481,8 @@ public final class DocsExtractor {
 
     /** Evidence for lines start to end, or for the whole file when start is 0. */
     Evidence evidence(int start, int end) {
-      return new Evidence(
+      return Evidence.of(
           repo.repo().name(),
-          repo.commit(),
           path,
           start > 0 ? new Evidence.LineRange(start, end) : null,
           contentHash);

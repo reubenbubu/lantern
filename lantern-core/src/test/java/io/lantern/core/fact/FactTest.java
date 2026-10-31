@@ -3,6 +3,7 @@ package io.lantern.core.fact;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -16,9 +17,8 @@ class FactTest {
   static final FactObject OBJECT = FactObject.entity(EntityId.parse("topic:kafka:order-created"));
   static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, "messaging", "1.0.0");
   static final Evidence EVIDENCE =
-      new Evidence(
+      Evidence.of(
           "orders",
-          COMMIT,
           "src/main/java/com/acme/OrderListener.java",
           new Evidence.LineRange(12, 18),
           CONTENT_HASH);
@@ -64,10 +64,12 @@ class FactTest {
             () ->
                 new Fact(
                     sample().id(),
+                    null,
                     SUBJECT,
                     "CONSUMES",
                     OBJECT,
                     FactJson.newObject(),
+                    List.of(),
                     null,
                     EVIDENCE,
                     1.0,
@@ -95,10 +97,12 @@ class FactTest {
             () ->
                 new Fact(
                     sample().id(),
+                    null,
                     SUBJECT,
                     "CONSUMES",
                     OBJECT,
                     FactJson.newObject(),
+                    List.of(),
                     ORIGIN,
                     null,
                     1.0,
@@ -115,10 +119,12 @@ class FactTest {
             () ->
                 new Fact(
                     fact.id(),
+                    null,
                     EntityId.parse("service:billing"),
                     fact.predicate(),
                     fact.object(),
                     fact.attributes(),
+                    List.of(),
                     fact.origin(),
                     fact.evidence(),
                     fact.confidence(),
@@ -177,11 +183,57 @@ class FactTest {
   }
 
   @Test
+  void lineageIsPartOfTheIdAndAnEmptyOneIsNone() {
+    Fact fact = sample();
+    Fact derived = fact.withLineage(List.of("a".repeat(64), "b".repeat(64), "a".repeat(64)));
+
+    assertThat(fact.withLineage(List.of()).id()).isEqualTo(fact.id());
+    assertThat(derived.id()).isNotEqualTo(fact.id());
+    assertThat(derived.lineage()).containsExactly("a".repeat(64), "b".repeat(64));
+    assertThat(FactJson.read(FactJson.write(derived))).isEqualTo(derived);
+    assertThatThrownBy(() -> fact.withLineage(List.of("not a claim")))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void aStoredFactKeepsItsIdAndCarriesItsClaim() {
+    Fact stored = sample().stored("c".repeat(64), new Validity(1, 4L));
+
+    assertThat(stored.id()).isEqualTo(sample().id());
+    assertThat(stored.claimId()).isEqualTo("c".repeat(64));
+    assertThat(FactJson.read(FactJson.write(stored))).isEqualTo(stored);
+  }
+
+  @Test
+  void evidenceNamesNoCommitSoItsIdDoesNotDependOnOne() {
+    // The same sighting at another commit is the same evidence; another file content is not.
+    Fact other =
+        sample()
+            .withEvidence(
+                Evidence.of(EVIDENCE.repo(), EVIDENCE.path(), EVIDENCE.lines(), "e".repeat(64)));
+
+    assertThat(sample().withEvidence(EVIDENCE).id()).isEqualTo(sample().id());
+    assertThat(other.id()).isNotEqualTo(sample().id());
+  }
+
+  @Test
   void rejectsInvalidEvidence() {
-    assertThatThrownBy(() -> new Evidence("orders", "abc123", null, null, null))
+    assertThatThrownBy(() -> Evidence.of(" ", null, null, null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new Evidence(List.of())).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> EVIDENCE.declared().withBlob("a".repeat(40)).withBlob("not a blob"))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(
-            () -> new Evidence("orders", COMMIT, null, new Evidence.LineRange(1, 2), null))
+            () ->
+                new Evidence.Location(
+                    "orders",
+                    "pom.xml",
+                    null,
+                    "a".repeat(40),
+                    CONTENT_HASH,
+                    Evidence.Role.DECLARED))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Evidence.of("orders", null, new Evidence.LineRange(1, 2), null))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new Evidence.LineRange(5, 4))
         .isInstanceOf(IllegalArgumentException.class);

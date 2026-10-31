@@ -48,7 +48,7 @@ class ClaimChecksTest {
             object,
             json,
             new Origin(kind, origin, "1"),
-            new Evidence(repo, COMMIT, path, new Evidence.LineRange(3, 3), null),
+            Evidence.of(repo, path, new Evidence.LineRange(3, 3), null),
             confidence,
             Validity.from(1));
     facts.add(fact);

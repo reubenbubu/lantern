@@ -222,12 +222,7 @@ class SequenceFlowsTest {
         object,
         (ObjectNode) FactJson.parse(json),
         new Origin(Origin.Kind.STATIC, "test", "1"),
-        new Evidence(
-            repo,
-            TestFacts.COMMIT,
-            "Code.java",
-            line == 0 ? null : new Evidence.LineRange(line, line),
-            null),
+        Evidence.of(repo, "Code.java", line == 0 ? null : new Evidence.LineRange(line, line), null),
         1.0,
         Validity.from(1));
   }
@@ -398,8 +393,7 @@ class SequenceFlowsTest {
                         + SERVICE
                         + "\"}"),
             new Origin(Origin.Kind.LLM, "link-resolver", "1"),
-            new Evidence(
-                "front", TestFacts.COMMIT, "Code.java", new Evidence.LineRange(22, 22), null),
+            Evidence.of("front", "Code.java", new Evidence.LineRange(22, 22), null),
             0.28,
             Validity.from(1)));
     List<String> lines = steps(diagram(flows(system(facts)).sections().getFirst()).steps());
@@ -452,10 +446,12 @@ class SequenceFlowsTest {
 
   @Test
   void aFlowStartedByAStompMessageIsTitledByItsDestination() {
-    // A STOMP handler on ship that pushes what it receives to the subscribers.
-    attribute("ship", STATUS, "stomp-mapping", "/parcels/track", "{\"kind\": \"message\"}", 0);
-    attribute(
-        "ship", STATUS, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 4);
+    // A STOMP handler on ship that pushes what it receives to the subscribers. It is a method of
+    // its own: two entry points on one method are one flow, whichever comes first.
+    String track = "method:x.ship.Status#track()";
+    relate("ship", "type:x.ship.Status", "CONTAINS", track, "{}", 0);
+    attribute("ship", track, "stomp-mapping", "/parcels/track", "{\"kind\": \"message\"}", 0);
+    attribute("ship", track, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 4);
 
     assertThat(flows(system(facts)).sections())
         .extracting(SequenceFlowsTest::trigger)
@@ -492,7 +488,7 @@ class SequenceFlowsTest {
             screen.object(),
             screen.attributes(),
             screen.origin(),
-            new Evidence("front", TestFacts.COMMIT, "ui/src/app/app.routes.ts", null, null),
+            Evidence.of("front", "ui/src/app/app.routes.ts", null, null),
             1.0,
             Validity.from(1));
     facts.add(screen);
@@ -779,8 +775,7 @@ class SequenceFlowsTest {
                         + SERVICE
                         + "\"}"),
             new Origin(Origin.Kind.LLM, "link-resolver", "1"),
-            new Evidence(
-                "front", TestFacts.COMMIT, "Code.java", new Evidence.LineRange(22, 22), null),
+            Evidence.of("front", "Code.java", new Evidence.LineRange(22, 22), null),
             0.18,
             Validity.from(1)));
     List<String> lines = steps(diagram(flows(system(facts)).sections().getFirst()).steps());

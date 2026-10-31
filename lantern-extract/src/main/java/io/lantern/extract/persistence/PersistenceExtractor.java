@@ -692,9 +692,8 @@ public final class PersistenceExtractor {
       }
       RepoBuild repo = m.repo();
       Evidence evidence =
-          new Evidence(
+          Evidence.of(
               repo.repo().name(),
-              repo.commit(),
               where.file().path(),
               where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
               where.file().contentHash());
@@ -747,9 +746,8 @@ public final class PersistenceExtractor {
           }
         }
         Evidence evidence =
-            new Evidence(
+            Evidence.of(
                 repo.repo().name(),
-                repo.commit(),
                 st.path(),
                 st.start() > 0 ? new Evidence.LineRange(st.start(), st.end()) : null,
                 st.contentHash());
@@ -1031,9 +1029,8 @@ public final class PersistenceExtractor {
               });
       ConfigValue.Where where = d.where();
       Evidence evidence =
-          new Evidence(
+          Evidence.of(
               config.repo().repo().name(),
-              config.repo().commit(),
               where.path(),
               where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
               where.contentHash());

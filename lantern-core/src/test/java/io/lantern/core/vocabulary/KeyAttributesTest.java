@@ -70,7 +70,7 @@ class KeyAttributesTest {
         FactObject.string("GET /orders"),
         attributes,
         new Origin(Origin.Kind.STATIC, "spring", version),
-        new Evidence("orders", commit, "src/Orders.java", new Evidence.LineRange(line, line), null),
+        Evidence.of("orders", "src/Orders.java", new Evidence.LineRange(line, line), null),
         1.0,
         Validity.from(1));
   }

@@ -118,7 +118,7 @@ class ExplorerSectionsTest {
         object,
         (ObjectNode) FactJson.parse(json),
         new Origin(Origin.Kind.STATIC, "test", "1"),
-        new Evidence("shop", TestFacts.COMMIT, path, null, null),
+        Evidence.of("shop", path, null, null),
         1.0,
         Validity.from(1));
   }

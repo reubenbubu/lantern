@@ -556,9 +556,8 @@ public final class SqlExtractor {
       used.add(where);
     }
     Evidence evidence =
-        new Evidence(
+        Evidence.of(
             repo.repo().name(),
-            repo.commit(),
             where.path(),
             where.start() < 1
                 ? null

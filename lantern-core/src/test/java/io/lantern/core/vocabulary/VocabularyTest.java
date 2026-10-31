@@ -65,7 +65,7 @@ class VocabularyTest {
         object,
         attributes,
         new Origin(Origin.Kind.STATIC, "test", null),
-        new Evidence("orders", COMMIT, null, null, null),
+        Evidence.of("orders", null, null, null),
         1.0,
         Validity.from(1));
   }

@@ -43,7 +43,7 @@ class ExcerptsTest {
         object,
         FactJson.newObject(),
         new Origin(Origin.Kind.STATIC, "test", "1"),
-        new Evidence(repo, TestFacts.COMMIT, path, null, "0".repeat(64)),
+        Evidence.of(repo, path, null, "0".repeat(64)),
         1.0,
         Validity.from(1));
   }

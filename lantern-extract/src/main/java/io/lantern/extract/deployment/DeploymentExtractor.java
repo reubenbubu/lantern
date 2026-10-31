@@ -1753,9 +1753,8 @@ public final class DeploymentExtractor {
               FactObject.string(value),
               attributes,
               ORIGIN,
-              new Evidence(
+              Evidence.of(
                   repo.repo().name(),
-                  repo.commit(),
                   file.path(),
                   line > 0 ? new Evidence.LineRange(line, line) : null,
                   file.hash()),

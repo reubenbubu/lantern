@@ -367,9 +367,8 @@ public final class ConfigExtractor {
     }
     ConfigValue.Where where = value.where();
     Evidence evidence =
-        new Evidence(
+        Evidence.of(
             config.repo().repo().name(),
-            config.repo().commit(),
             where.path(),
             where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
             where.contentHash());

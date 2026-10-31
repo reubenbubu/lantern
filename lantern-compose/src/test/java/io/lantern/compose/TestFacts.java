@@ -133,8 +133,7 @@ final class TestFacts {
       String stated,
       List<String> found,
       List<Fact> contradictedBy) {
-    Evidence readme =
-        new Evidence("shop", COMMIT, "README.md", new Evidence.LineRange(line, line), null);
+    Evidence readme = Evidence.of("shop", "README.md", new Evidence.LineRange(line, line), null);
     Fact claim =
         Fact.create(
             EntityId.parse("readme:shop:README.md"),
@@ -193,7 +192,7 @@ final class TestFacts {
         object,
         attributes,
         new Origin(Origin.Kind.STATIC, "test", "1"),
-        new Evidence(repo, COMMIT, "pom.xml", null, null),
+        Evidence.of(repo, "pom.xml", null, null),
         1.0,
         validity);
   }

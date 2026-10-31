@@ -30,7 +30,7 @@
     "facts": {
       "description": "The facts the document refers to, sorted by ID, so evidence, origin and confidence can be shown without the service.",
       "type": "array",
-      "items": { "$ref": "urn:lantern:schema:fact-envelope:1" }
+      "items": { "$ref": "urn:lantern:schema:fact-envelope:2" }
     },
     "sections": {
       "type": "array",
@@ -49,7 +49,7 @@
     },
     "entityId": {
       "description": "Stable entity ID, as in the fact envelope.",
-      "$ref": "urn:lantern:schema:fact-envelope:1#/$defs/entityId"
+      "$ref": "urn:lantern:schema:fact-envelope:2#/$defs/entityId"
     },
     "factId": {
       "type": "string",

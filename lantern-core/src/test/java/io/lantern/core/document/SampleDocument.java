@@ -40,7 +40,7 @@ final class SampleDocument {
           FactObject.entity(LIB),
           FactJson.newObject(),
           new Origin(Origin.Kind.STATIC, "maven", "1"),
-          new Evidence("orders", COMMIT, "pom.xml", new Evidence.LineRange(10, 14), CONTENT_HASH),
+          Evidence.of("orders", "pom.xml", new Evidence.LineRange(10, 14), CONTENT_HASH),
           1.0,
           Validity.from(1));
   static final Fact READS =
@@ -50,7 +50,7 @@ final class SampleDocument {
           FactObject.entity(DB),
           FactJson.newObject(),
           new Origin(Origin.Kind.LLM, "resolver", null),
-          new Evidence("orders", COMMIT, null, null, null),
+          Evidence.of("orders", null, null, null),
           0.75,
           Validity.from(1));
 

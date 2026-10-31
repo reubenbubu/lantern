@@ -771,9 +771,8 @@ public final class PeopleExtractor {
         JavaAnalysis.Module m, EntityId subject, String kind, ObjectNode attributes, Location at) {
       RepoBuild repo = m.repo();
       Evidence evidence =
-          new Evidence(
+          Evidence.of(
               repo.repo().name(),
-              repo.commit(),
               at.file().path(),
               at.start() > 0 ? new Evidence.LineRange(at.start(), at.end()) : null,
               at.file().contentHash());
@@ -837,9 +836,8 @@ public final class PeopleExtractor {
             subject,
             ACCOUNT,
             attributes,
-            new Evidence(
+            Evidence.of(
                 repo.repo().name(),
-                repo.commit(),
                 path,
                 at > 0 ? new Evidence.LineRange(at, at) : null,
                 sha256(bytes)),
@@ -882,9 +880,8 @@ public final class PeopleExtractor {
             subject,
             ROLE,
             attributes,
-            new Evidence(
+            Evidence.of(
                 repo.repo().name(),
-                repo.commit(),
                 path,
                 at > 0 ? new Evidence.LineRange(at, at) : null,
                 sha256(bytes)),
@@ -925,12 +922,7 @@ public final class PeopleExtractor {
               subject,
               ROUTE,
               attributes,
-              new Evidence(
-                  repo.repo().name(),
-                  repo.commit(),
-                  path,
-                  new Evidence.LineRange(n + 1, n + 1),
-                  hash),
+              Evidence.of(repo.repo().name(), path, new Evidence.LineRange(n + 1, n + 1), hash),
               0.8);
           found++;
         }

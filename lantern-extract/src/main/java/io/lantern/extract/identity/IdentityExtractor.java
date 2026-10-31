@@ -577,9 +577,8 @@ public final class IdentityExtractor {
             .path("webOrigins")
             .forEach(o -> origins.add(UrlCredentials.withoutCredentials(o.asString(""))));
         Evidence evidence =
-            new Evidence(
+            Evidence.of(
                 repo.repo().name(),
-                repo.commit(),
                 path,
                 at > 0 ? new Evidence.LineRange(at, at) : null,
                 sha256(bytes));
@@ -623,9 +622,8 @@ public final class IdentityExtractor {
         ObjectNode attributes) {
       RepoBuild repo = module.repo();
       Evidence evidence =
-          new Evidence(
+          Evidence.of(
               repo.repo().name(),
-              repo.commit(),
               where.file().path(),
               where.start() > 0 ? new Evidence.LineRange(where.start(), where.end()) : null,
               where.file().contentHash());

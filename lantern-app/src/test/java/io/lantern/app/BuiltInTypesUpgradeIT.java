@@ -108,7 +108,8 @@ class BuiltInTypesUpgradeIT {
           .isTrue();
 
       // Stored facts are still there, and new facts are still accepted.
-      assertThat(facts.findById(stored.id())).contains(stored);
+      assertThat(facts.findById(stored.id()).map(f -> f.stored(null, f.validity())))
+          .contains(stored);
       Fact another = dependsOn("module:other");
       assertThat(facts.save(another)).isTrue();
 
@@ -129,7 +130,7 @@ class BuiltInTypesUpgradeIT {
         FactObject.entity(EntityId.parse("library:greeting-lib")),
         FactJson.newObject(),
         new Origin(Origin.Kind.STATIC, "test", null),
-        new Evidence("app", COMMIT, null, null, null),
+        Evidence.of("app", null, null, null),
         1.0,
         Validity.from(1));
   }

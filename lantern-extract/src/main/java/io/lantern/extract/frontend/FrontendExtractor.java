@@ -540,9 +540,8 @@ public final class FrontendExtractor {
     }
 
     private Evidence evidence(Source source, int line) {
-      return new Evidence(
+      return Evidence.of(
           repo.repo().name(),
-          repo.commit(),
           source.path(),
           line > 0 ? new Evidence.LineRange(line, line) : null,
           source.hash());
@@ -1058,9 +1057,8 @@ public final class FrontendExtractor {
     private Evidence evidence(Source source, String text, FrontendCode.Part part) {
       int start = lineOf(text, part.start());
       int end = lineOf(text, Math.max(part.start(), part.end() - 1));
-      return new Evidence(
+      return Evidence.of(
           repo.repo().name(),
-          repo.commit(),
           source.path(),
           new Evidence.LineRange(start, Math.max(start, end)),
           source.hash());

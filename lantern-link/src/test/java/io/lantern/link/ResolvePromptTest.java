@@ -85,7 +85,7 @@ class ResolvePromptTest {
             (ObjectNode)
                 FactJson.parse("{\"kind\":\"http\",\"reason\":\"unresolved-placeholder\"}"),
             new Origin(Origin.Kind.STATIC, "cross-repo-links", "1"),
-            new Evidence("a", "a".repeat(40), "src/main/java/o/TaxClient.java", null, null),
+            Evidence.of("a", "src/main/java/o/TaxClient.java", null, null),
             0.8,
             Validity.from(1));
     Map<EntityId, List<Fact>> ranked = new LinkedHashMap<>();

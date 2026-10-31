@@ -225,7 +225,7 @@ public final class Describer {
     Function<Evidence, Optional<String>> files =
         evidence ->
             read.computeIfAbsent(
-                evidence.repo() + '\u0000' + evidence.commit() + '\u0000' + evidence.path(),
+                evidence.repo() + '\u0000' + evidence.blob() + '\u0000' + evidence.path(),
                 f -> sources.shown(evidence));
     Set<String> documented = new TreeSet<>();
     for (EntityId unit : C4Views.units(knowledge)) {

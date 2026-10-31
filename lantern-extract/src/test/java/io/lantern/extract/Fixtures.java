@@ -185,7 +185,8 @@ public final class Fixtures {
       assertThat(fact.validity().to()).isNull();
       Repo repo =
           repos.stream().filter(r -> r.name().equals(fact.evidence().repo())).findFirst().get();
-      assertThat(fact.evidence().commit()).isEqualTo(head(repo));
+      // Evidence names no commit (ADR 0091); the snapshot's commits give it.
+      assertThat(repo).isNotNull();
       if (fact.evidence().contentHash() != null) {
         assertThat(fact.evidence().contentHash())
             .isEqualTo(sha256(Files.readAllBytes(repo.path().resolve(fact.evidence().path()))));
