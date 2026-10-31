@@ -13,6 +13,7 @@ import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
+import io.lantern.link.ValueViews;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
@@ -99,6 +100,7 @@ record FixtureSnapshot(
     Map<EntityId, Summary> summaries = result.summaries();
     // The linker's deployable units and links, derived after summarizing, as the summarizer's
     // golden prompts were written without them.
+    facts.addAll(new ValueViews().derive(facts, NUMBER));
     facts.addAll(new DeployableUnits().derive(facts, NUMBER));
     facts.addAll(new CrossRepoLinks().derive(facts, NUMBER));
     Snapshot snapshot = new Snapshot(NUMBER, commits, 3, "test", Instant.EPOCH);

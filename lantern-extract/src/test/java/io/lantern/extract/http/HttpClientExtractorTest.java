@@ -83,44 +83,68 @@ class HttpClientExtractorTest {
         .contains("http://alerts:8080/alerts")
         .contains("http://stock:8080/api/stock");
     // A client bean is followed only when the choice is certain: duplicate bean names, and a
-    // qualifier no bean has, give no call a base URL (the beans themselves still have theirs).
-    assertThat(rendered.lines().filter(l -> l.contains(" http-call ")))
-        .noneMatch(l -> l.contains("dup-a") || l.contains("dup-b"));
-    assertThat(rendered.lines().filter(l -> l.contains("AcrossModules#duplicate(")))
+    // qualifier no bean has, give no request a base URL (the beans themselves still have theirs).
+    List<String> sent = sent(rendered);
+    assertThat(sent).noneMatch(l -> l.contains("dup-a") || l.contains("dup-b"));
+    assertThat(
+            sent.stream()
+                .filter(l -> l.contains(" SENT_BY method:" + CLIENTS + "AcrossModules#duplicate(")))
         .singleElement(InstanceOfAssertFactories.STRING)
-        .contains("GET /dup")
-        .doesNotContain("\"url\"");
-    assertThat(rendered.lines().filter(l -> l.contains("ClientCallers#lost(")))
+        .contains("\"httpMethod\":\"GET\",\"url\":\"/dup\"");
+    assertThat(
+            sent.stream().filter(l -> l.contains(" SENT_BY method:" + APP + "ClientCallers#lost(")))
         .singleElement(InstanceOfAssertFactories.STRING)
-        .contains("GET /lost")
-        .doesNotContain("\"url\"");
+        .contains("\"httpMethod\":\"GET\",\"url\":\"/lost\"");
     // A base URL's unfollowed parts are listed only where the base is part of the URL: not for a
     // method whose own URL is a whole URL.
-    assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#quote(")))
+    assertThat(sent.stream().filter(l -> l.contains("QuotesApi#quote(")))
         .singleElement(InstanceOfAssertFactories.STRING)
         .contains("\"expressions\":[\"region()\"]");
     // A URL passed as an argument is followed to each call of the method by its own type's code,
-    // through another method and a lambda: a call per place it is made, none left as {target}.
-    assertThat(rendered.lines().filter(l -> l.contains("ProxyClient#exchange(")))
+    // through another method and a lambda: a request per place it is made, none left as {target}.
+    assertThat(
+            sent.stream()
+                .filter(l -> l.contains(" SENT_BY method:" + CLIENTS + "ProxyClient#exchange(")))
         .hasSize(2)
         .noneMatch(l -> l.contains("{target}"))
-        .anyMatch(l -> l.contains("\"baseUrl\":\"http://proxy:8080\",") && l.contains("{path}"))
-        .anyMatch(l -> l.contains("GET http://proxy:8080/{service}/public"));
+        .anyMatch(l -> l.contains("\"url\":\"${clients.proxy.url}{path}\""))
+        .anyMatch(l -> l.contains("\"url\":\"${clients.proxy.url}/{service}/public\""));
     // A method its own type never calls keeps its parameter.
-    assertThat(rendered.lines().filter(l -> l.contains("ProxyClient#direct(")))
+    assertThat(
+            sent.stream()
+                .filter(l -> l.contains(" SENT_BY method:" + CLIENTS + "ProxyClient#direct(")))
         .singleElement(InstanceOfAssertFactories.STRING)
-        .contains("GET {target}");
-    assertThat(rendered.lines().filter(l -> l.contains("QuotesApi#remove(")))
+        .contains("\"url\":\"{target}\"");
+    assertThat(sent.stream().filter(l -> l.contains("QuotesApi#remove(")))
         .singleElement(InstanceOfAssertFactories.STRING)
         .contains("https://admin.example.com/quotes/{symbol}")
         .doesNotContain("expressions");
+    // Every request goes to the address of its URL as written: a literal host's authority, or the
+    // base expression in the module whose config resolves it; a URL without a base goes nowhere
+    // yet.
+    assertThat(rendered.lines().filter(l -> l.contains(" ADDRESSED_TO ")))
+        .anyMatch(
+            l ->
+                l.contains("LoadBalancedCallers#media(")
+                    && l.contains(" ADDRESSED_TO address:media-service "))
+        .anyMatch(
+            l ->
+                l.contains("LoadBalancedCallers#charge(")
+                    && l.contains(
+                        " ADDRESSED_TO address:com.example.shop:shop-app:${payments.url} "))
+        .noneMatch(l -> l.contains("ClientCallers#lost("));
   }
 
+  /**
+   * The extractor records which requests go through a load-balanced client, and their URLs and
+   * service names as written; linking resolves the service each names ({@code ValueViewsTest} in
+   * lantern-link checks the calls it gives against the facts this extractor recorded before #557).
+   */
   @Test
   void loadBalancedClientsNameTheirService() throws IOException {
     List<String> lines = Fixtures.render(extract(unbuilt(fixture()))).lines().toList();
-    String callers = "method:com.example.shop.app.LoadBalancedCallers#";
-    String beans = "method:com.example.shop.app.LoadBalancedBeans#";
+    String callers = " SENT_BY method:" + APP + "LoadBalancedCallers#";
+    String beans = "method:" + APP + "LoadBalancedBeans#";
 
     assertThat(lines)
         // The beans that make clients, load balanced or not, at the method.
@@ -132,57 +156,38 @@ class HttpClientExtractorTest {
         .anyMatch(
             l ->
                 l.startsWith(beans + "plainRestTemplate() http-client-bean rest-template ")
-                    && !l.contains("loadBalanced"))
-        // Through the @LoadBalanced builder bean: the host is the service.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "media(java.lang.String) http-call ")
-                    && l.contains("\"service\":\"media-service\"")
-                    && l.contains("\"loadBalanced\":true"))
-        // The @LoadBalanced qualifier at the injection point picks the load-balanced bean.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "stock() http-call ")
-                    && l.contains("\"service\":\"inventory-service\""))
-        // The @Primary plain bean: a host, no service.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "external() http-call ")
-                    && !l.contains("service")
-                    && !l.contains("loadBalanced"))
-        // An lb:// URL names its service.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "routed() http-call ")
-                    && l.contains("\"service\":\"billing\"")
-                    && l.contains("\"loadBalanced\":true"))
-        // @LoadBalanced on a field.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "shipping() http-call ")
-                    && l.contains("\"service\":\"shipping\""))
-        // As a qualifier, @LoadBalanced passes over the @Primary bean.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "order() http-call GET http://orders/orders ")
-                    && l.contains("\"service\":\"orders\""))
-        // A bean made from a load-balanced builder.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "items() http-call GET http://catalog/items ")
-                    && l.contains("\"service\":\"catalog\""))
-        // A host from a placeholder: load balanced, no service.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "charge() http-call ")
-                    && l.contains("\"loadBalanced\":true")
-                    && !l.contains("\"service\""))
-        // Credentials in an lb:// URL are neither the service nor recorded.
-        .anyMatch(
-            l ->
-                l.startsWith(callers + "ledger() http-call ")
-                    && l.contains("\"service\":\"ledger\""))
-        .noneMatch(l -> l.contains("t0ps3cret"));
+                    && !l.contains("loadBalanced"));
+    List<String> sent = sent(String.join("\n", lines));
+    // Through the @LoadBalanced builder bean, the @LoadBalanced qualifier at the injection point,
+    // on a field, as a qualifier passing over the @Primary bean, from a load-balanced builder, and
+    // with a host from a placeholder: load balanced.
+    for (String caller :
+        List.of(
+            "media(java.lang.String)", "stock()", "shipping()", "order()", "items()", "charge()")) {
+      assertThat(sent.stream().filter(l -> l.contains(callers + caller + " ")))
+          .as(caller)
+          .singleElement(InstanceOfAssertFactories.STRING)
+          .contains("\"loadBalanced\":true");
+    }
+    // The @Primary plain bean, and an lb:// URL, whose scheme linking reads: not load balanced
+    // here.
+    for (String caller : List.of("external()", "routed()", "ledger()")) {
+      assertThat(sent.stream().filter(l -> l.contains(callers + caller + " ")))
+          .as(caller)
+          .singleElement(InstanceOfAssertFactories.STRING)
+          .doesNotContain("loadBalanced");
+    }
+    // Credentials in an lb:// URL are not recorded.
+    assertThat(lines).noneMatch(l -> l.contains("t0ps3cret"));
+  }
+
+  private static final String APP = "com.example.shop.app.";
+
+  private static final String CLIENTS = "com.example.shop.clients.";
+
+  /** The SENT_BY facts of the requests among the rendered facts. */
+  private static List<String> sent(String rendered) {
+    return rendered.lines().filter(l -> l.contains(" SENT_BY ")).toList();
   }
 
   @Test
@@ -332,7 +337,7 @@ class HttpClientExtractorTest {
   }
 
   @Test
-  void aValueSubstitutedFromAKnownSecretKeyIsMasked() throws IOException {
+  void aUrlIsKeptAsWrittenSoNoConfigValueReachesItsFacts() throws IOException {
     Repo repo =
         Fixtures.repo(
             temp.resolve("jwt"),
@@ -359,12 +364,9 @@ class HttpClientExtractorTest {
     JavaAnalysis code =
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
-    // Without the code's keys the name alone does not show jwt.key is a secret.
-    assertThat(Fixtures.render(new HttpClientExtractor().extract(code, SNAPSHOT)))
-        .contains("literal-test-value");
-    String masked =
-        Fixtures.render(
-            new HttpClientExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key")));
-    assertThat(masked).doesNotContain("literal-test-value").contains("${jwt.key}");
+    // Linking resolves the URL and masks it there (ValueViewsTest); the request keeps it as
+    // written.
+    String rendered = Fixtures.render(new HttpClientExtractor().extract(code, SNAPSHOT));
+    assertThat(rendered).doesNotContain("literal-test-value").contains("http://remote/${jwt.key}");
   }
 }

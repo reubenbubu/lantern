@@ -1,12 +1,12 @@
-package io.lantern.extract.http;
+package io.lantern.link;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
-import io.lantern.extract.Fixtures;
-import io.lantern.extract.Project0;
 import io.lantern.extract.RepoBuild;
+import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.sandbox.BuildSandbox;
@@ -23,10 +23,12 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The HTTP client facts of the synthetic test set project-0 (docs/adr/0029), checked against the
  * cases its README lists, named by id, both ways the code is read: built in the sandbox and read
- * through javac, and parsed without builds (degraded mode). Runs only when {@code
- * lantern.test.project0} names the folder {@code testsets/project-0/setup.sh} set it up in; see
- * Commands in {@code CLAUDE.md}. Needs Docker and Maven Central, or the Maven mirror of the test
- * properties; the builds use the default shared Maven cache directory.
+ * through javac, and parsed without builds (degraded mode). The HTTP client extractor keeps URLs as
+ * written and the first link step resolves them ({@link ValueViews}, ADR 0094), so the calls are
+ * checked as that step gives them; they moved here from the extractors' tests with #557, unchanged.
+ * Runs only when {@code lantern.test.project0} names the folder {@code testsets/project-0/setup.sh}
+ * set it up in; see Commands in {@code CLAUDE.md}. Needs Docker and Maven Central, or the Maven
+ * mirror of the test properties; the builds use the default shared Maven cache directory.
  */
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0HttpIT {
@@ -38,23 +40,26 @@ class Project0HttpIT {
 
   @BeforeAll
   static void extract() throws IOException {
-    BuildSandbox sandbox = new BuildSandbox(Fixtures.sandboxSettings(temp.resolve("builds")));
+    BuildSandbox sandbox =
+        new BuildSandbox(Project0LinksIT.sandboxSettings(temp.resolve("builds")));
     Map<String, Repo> project = Project0.repos();
-    List<Repo> repos = new ArrayList<>(project.values());
     List<RepoBuild> unbuilt = Project0.unbuilt(project);
     List<RepoBuild> built = Project0.built(project, sandbox);
     JavaAnalysis code = JavaExtractor.analyze(built);
     assertThat(code.modules())
         .as("every module with code is read through javac")
         .allMatch(m -> m.compiled() || m.structure().types().isEmpty());
-    compiled = render(new HttpClientExtractor().extract(code, 1), repos);
-    parsed = render(new HttpClientExtractor().extract(unbuilt, 1), repos);
+    compiled = render(new HttpClientExtractor().extract(code, 1), built);
+    parsed = render(new HttpClientExtractor().extract(unbuilt, 1), unbuilt);
   }
 
-  private static List<String> render(List<Fact> facts, List<Repo> repos) throws IOException {
-    Fixtures.checkEnvelope(facts, repos, 1, HttpClientExtractor.NAME, HttpClientExtractor.VERSION);
-    return Fixtures.render(facts)
-        .lines()
+  /** The HTTP client facts with the calls the first link step resolves from them, rendered. */
+  private static List<String> render(List<Fact> http, List<RepoBuild> repos) {
+    List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, 1));
+    facts.addAll(http);
+    List<Fact> all = new ArrayList<>(http);
+    all.addAll(new ValueViews().derive(facts, 1));
+    return ValueViewsTest.render(all).stream()
         .map(line -> line.replaceAll(" [01]\\.[07]$", ""))
         .toList();
   }
