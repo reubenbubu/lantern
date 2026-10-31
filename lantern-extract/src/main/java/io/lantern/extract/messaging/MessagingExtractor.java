@@ -28,6 +28,7 @@ import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.java.Values;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -104,8 +105,6 @@ public final class MessagingExtractor implements Extractor {
   private static final String RABBIT_HANDLER =
       "org.springframework.amqp.rabbit.annotation.RabbitHandler";
   private static final String SEND_TO = "org.springframework.messaging.handler.annotation.SendTo";
-  private static final String VALUE_ANNOTATION =
-      "org.springframework.beans.factory.annotation.Value";
   private static final String QUALIFIER = "org.springframework.beans.factory.annotation.Qualifier";
   private static final String BEAN = "org.springframework.context.annotation.Bean";
   private static final String COMPONENT = "org.springframework.stereotype.Component";
@@ -336,8 +335,6 @@ public final class MessagingExtractor implements Extractor {
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
     private final CodeConfig configs;
-    private final Map<EntityId, Member> members = new HashMap<>();
-    private final Map<EntityId, List<Assignment>> assignments = new HashMap<>();
     private final Map<EntityId, List<Invocation>> invocationsByCaller = new HashMap<>();
 
     private JavaAnalysis.Module module;
@@ -356,14 +353,6 @@ public final class MessagingExtractor implements Extractor {
       this.code = code;
       this.validity = validity;
       for (JavaAnalysis.Module m : code.modules()) {
-        for (TypeDecl t : m.structure().types()) {
-          for (Member member : t.members()) {
-            members.putIfAbsent(member.id(), member);
-          }
-        }
-        for (Assignment a : m.structure().assignments()) {
-          assignments.computeIfAbsent(a.field(), k -> new ArrayList<>()).add(a);
-        }
         for (Invocation i : m.structure().invocations()) {
           invocationsByCaller.computeIfAbsent(i.caller(), k -> new ArrayList<>()).add(i);
         }
@@ -839,8 +828,7 @@ public final class MessagingExtractor implements Extractor {
               : null;
         }
         case Expression.FieldRef f -> {
-          EntityId id = fieldId(f);
-          List<Assignment> given = id == null ? List.of() : assignments.getOrDefault(id, List.of());
+          List<Assignment> given = code.values().assignments(f);
           return given.size() == 1
               ? declared(given.getFirst().value(), given.getFirst().in(), exchange, depth + 1)
               : null;
@@ -1287,7 +1275,7 @@ public final class MessagingExtractor implements Extractor {
 
     /** A call to a legacy binding interface's {@code @Output} method: a send to that binding. */
     private void outputCall(ModuleStructure.Call c) {
-      Member callee = c.callee() == null ? null : members.get(c.callee());
+      Member callee = c.callee() == null ? null : code.values().member(c.callee());
       List<Annotation> path =
           callee == null ? null : code.annotationPath(callee.annotations(), OUTPUT);
       if (path == null) {
@@ -1526,68 +1514,22 @@ public final class MessagingExtractor implements Extractor {
     // Following values
 
     /**
-     * What a value in code is, as a text: a constant as it is, or followed one hop from a field or
-     * parameter with {@code @Value}, or a field given everywhere the same constant or
-     * {@code @Value} constructor parameter, and concatenations of those. Null if it cannot be told.
+     * What a value in code is, as a text, followed by the shared follower ({@link Values}): null if
+     * any part of it cannot be told.
      */
     private Text text(Expression e, EntityId context) {
-      return switch (e) {
-        case Expression.Literal l -> Text.literal(l.value());
-        case Expression.FieldRef f -> field(f);
-        case Expression.Param p -> parameter(context, p.index(), context);
-        case Expression.Concat c -> {
-          List<Text> parts = new ArrayList<>();
-          for (Expression part : c.parts()) {
-            Text t = text(part, context);
-            if (t == null) {
-              yield null;
-            }
-            parts.add(t);
-          }
-          yield Text.concat(parts);
-        }
-        default -> null;
-      };
-    }
-
-    private Text field(Expression.FieldRef f) {
-      EntityId id = fieldId(f);
-      if (id == null) {
+      Values.Value value = code.values().follow(e, context, true);
+      String written = value.text();
+      if (written == null) {
         return null;
       }
-      Member m = members.get(id);
-      if (m != null) {
-        String value = valueAnnotation(m.annotations());
-        if (value != null) {
-          return Text.annotated(value).via(id);
-        }
-      }
-      Set<Text> found = new LinkedHashSet<>();
-      for (Assignment a : assignments.getOrDefault(id, List.of())) {
-        Text t =
-            switch (a.value()) {
-              case Expression.Literal l -> Text.literal(l.value());
-              case Expression.Param p -> parameter(a.in(), p.index(), a.in());
-              default -> null;
-            };
-        if (t == null) {
-          return null;
-        }
-        found.add(t);
-      }
-      return found.size() == 1 ? found.iterator().next().via(id) : null;
-    }
-
-    /** A parameter with {@code @Value}, followed through the method it belongs to. */
-    private Text parameter(EntityId method, int index, EntityId via) {
-      ModuleStructure.Parameter p = parameter(method, index);
-      String value = p == null ? null : valueAnnotation(p.annotations());
-      return value == null ? null : Text.annotated(value).via(via);
+      SortedSet<String> via = new TreeSet<>();
+      value.via().forEach(id -> via.add(id.toString()));
+      return new Text(written, value.annotated(), via);
     }
 
     private ModuleStructure.Parameter parameter(EntityId method, int index) {
-      Member m = members.get(method);
-      return m == null || index >= m.parameters().size() ? null : m.parameters().get(index);
+      return code.values().parameter(method, index);
     }
 
     /**
@@ -1606,15 +1548,6 @@ public final class MessagingExtractor implements Extractor {
 
     private String qualifier(List<Annotation> annotations) {
       List<Annotation> path = code.annotationPath(annotations, QUALIFIER);
-      if (path == null) {
-        return null;
-      }
-      List<String> values = path.getLast().values("value");
-      return values.isEmpty() ? null : values.getFirst();
-    }
-
-    private String valueAnnotation(List<Annotation> annotations) {
-      List<Annotation> path = code.annotationPath(annotations, VALUE_ANNOTATION);
       if (path == null) {
         return null;
       }
@@ -1685,14 +1618,6 @@ public final class MessagingExtractor implements Extractor {
       String key = method.key();
       String list = key.substring(key.indexOf('(') + 1, key.length() - 1);
       return list.isEmpty() ? 0 : list.split(",").length;
-    }
-
-    private static EntityId fieldId(Expression.FieldRef f) {
-      try {
-        return new EntityId(ModuleStructure.FIELD, f.owner() + "#" + f.name());
-      } catch (IllegalArgumentException e) {
-        return null;
-      }
     }
 
     // -------------------------------------------------------------------------------------------

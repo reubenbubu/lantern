@@ -25,12 +25,12 @@ import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.java.ModuleStructure;
-import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.Supertype;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.java.Values;
 import io.lantern.extract.spring.SpringExtractor;
 import java.io.IOException;
 import java.io.InputStream;
@@ -106,7 +106,6 @@ public final class GatewayExtractor implements Extractor {
 
   private static final String SPRING = "org.springframework.";
   private static final String GATEWAY_PACKAGE = SPRING + "cloud.gateway.";
-  private static final String VALUE = SPRING + "beans.factory.annotation.Value";
   private static final String COMPONENT = SPRING + "stereotype.Component";
   private static final String BEAN = SPRING + "context.annotation.Bean";
 
@@ -971,49 +970,16 @@ public final class GatewayExtractor implements Extractor {
      * parameter as its placeholder, and anything else as its source in braces.
      */
     private Text text(Expression e, EntityId in) {
-      return new Text(text(e, in, 0));
-    }
-
-    private String text(Expression e, EntityId in, int depth) {
-      switch (e) {
-        case Expression.Literal l -> {
-          return l.value();
-        }
-        case Expression.Concat c -> {
-          StringBuilder b = new StringBuilder();
-          for (Expression p : c.parts()) {
-            b.append(text(p, in, depth + 1));
-          }
-          return b.toString();
-        }
-        case Expression.FieldRef f -> {
-          Member field = members.get(fieldId(f.owner(), f.name()));
-          String value = field == null ? null : value(field.annotations());
-          if (value != null) {
-            return value;
-          }
-        }
-        case Expression.Param p -> {
-          Member method = members.get(in);
-          if (method != null && p.index() < method.parameters().size()) {
-            String value = value(method.parameters().get(p.index()).annotations());
-            if (value != null) {
-              return value;
-            }
-          }
-        }
-        default -> {}
+      StringBuilder b = new StringBuilder();
+      for (Values.Part part : code.values().follow(e, in, false).parts()) {
+        b.append(
+            switch (part) {
+              case Values.Part.Written w -> w.text();
+              case Values.Part.Annotated a -> a.text();
+              case Values.Part.Open o -> "{" + source(o.expression()) + "}";
+            });
       }
-      return "{" + source(e) + "}";
-    }
-
-    /** The text of a {@code @Value} annotation among those given, or null. */
-    private String value(List<Annotation> annotations) {
-      List<Annotation> path = code.annotationPath(annotations, VALUE);
-      if (path == null || path.getLast().values("value").isEmpty()) {
-        return null;
-      }
-      return path.getLast().values("value").getFirst();
+      return new Text(b.toString());
     }
 
     // -------------------------------------------------------------------------------------------

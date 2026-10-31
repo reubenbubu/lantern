@@ -12,4 +12,11 @@ class ArchitectureTest {
   @ArchTest
   static final ArchRule extractorsMustNotDependOnLlm =
       ArchitectureRules.EXTRACTORS_MUST_NOT_DEPEND_ON_LLM;
+
+  @ArchTest
+  static final ArchRule stagesDependOnlyOnEarlierStages =
+      ArchitectureRules.STAGES_DEPEND_ONLY_ON_EARLIER_STAGES;
+
+  @ArchTest
+  static final ArchRule renderersMustNotReadFacts = ArchitectureRules.RENDERERS_MUST_NOT_READ_FACTS;
 }
