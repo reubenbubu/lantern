@@ -426,6 +426,30 @@ The architecture model is computed once per snapshot and stored, before any LLM 
 - **The trace bound is a safety limit only.** The 40-message bound stays. A flow that hits it is stored with `truncated = true`.
 - **Duplicates are linked, not dropped.** A flow of the same shape as an earlier one carries `SAME_SHAPE_AS`. Documents show the representative only.
 
+### Grouping
+
+A large system or service is drawn at a higher level by bundling related elements into groups. Membership comes from the code; the LLM only names the groups (11.8); people may later pin, rename, merge or split them through annotations (Phase 3). An LLM never decides membership, because a guessed grouping is both unverifiable and unstable across commits.
+
+**Feature areas** group the components of one unit, in two passes:
+
+1. **By resource path.** An endpoint's resource segment is the first segment of its path after the unit's context path (the `server.servlet.context-path` or `spring.webflux.base-path` config claim, if any), skipping leading segments `api` and `v` followed by digits, repeatedly (`/api/v1/orders/{id}` gives `orders`). A path with no segment left gives none. A component with endpoints joins the segment held by most of its endpoints; ties go to the segment that sorts first. Its key is `group:<unit>/area/<segment>`.
+2. **By tables.** A component without endpoints (a listener, a job, a shared service) joins the segment group whose members' tables overlap most with its own, if the Jaccard similarity of the two table sets is at least 0.5; ties go to the key that sorts first. Components still ungrouped and touching tables are clustered as the connected components of the graph whose edges join two components with table Jaccard of at least 0.5. Each cluster's key is `group:<unit>/area/table-<name>`, where the name is the table with the most accesses in the cluster (ties by name), chosen when the group is first stored and kept while the group exists.
+
+**Domains** group the deployable units of the system. Each signal groups only units the stronger signals left ungrouped:
+
+1. **Shared relational database or schema.** Units with `USES_DATABASE` to one relational database entity. Redis, brokers and other infrastructure do not count. A unit using several databases joins the one holding the most of its tables, ties by key. Key: `group:<system>/domain/db-<database>`.
+2. **Gateway route prefix.** Units a gateway routes to under the same first path segment, after skipping `api` and versions as above. Key: `group:<system>/domain/route-<segment>`.
+3. **Repository or Maven group.** Units built from the same repository. Else, units whose groupId shares the next segment after the longest dotted prefix common to every unit's groupId in the system. Key: `group:<system>/domain/repo-<name>` or `group:<system>/domain/maven-<segment>`.
+
+**Rules for both kinds:**
+
+- **Size.** A group needs at least 2 members. A scope that yields fewer than 2 groups of a kind stores none of that kind, because one group adds nothing. An element no rule groups stays ungrouped.
+- **One group per kind.** An element belongs to at most one group of each kind.
+- **Stored whatever the view.** Groups are stored as `group` entities with `CONTAINS` their members and a `basis` attribute naming the signal and the claims behind it. A view decides whether to use them (section 12).
+- **Stable keys.** A key comes from its signal, never from its membership, so adding an endpoint or a unit to an existing group does not rename it.
+- **Lines.** Lines between groups are aggregated: one `INTERACTS_WITH` claim per ordered pair (source group or ungrouped element, target group or ungrouped element) and protocol, with lineage to the member lines it stands for. Lines inside one group are not aggregated.
+- **Left for later.** Clustering by coupling (Leiden, as `docs/design.md` plans) groups only what the explicit signals leave ungrouped, and only if the test sets show it is needed (#537).
+
 ### What stays in composition
 
 - **Readability splits.** Splitting a view above its threshold depends on what the view includes.
@@ -467,9 +491,10 @@ The research behind this split is in section 4.
   3. Summarize (types, packages, modules, repositories, bottom-up)
   4. Investigate (Mode A leads, then Mode B units, then Mode C system)
   5. Describe
-  6. Flow significance, then flow narrative
-  7. Purpose and key fact
-  8. Model checks (11.7) on what the run accepted
+  6. Name groups
+  7. Flow significance, then flow narrative
+  8. Purpose and key fact
+  9. Model checks (11.7) on what the run accepted
 
 **What a fingerprint covers.** Shared context that only orients the model (block 3, the system map) is never a fingerprint input. Changing it re-asks nothing. Everything an answer may cite is.
 
@@ -485,6 +510,7 @@ The research behind this split is in section 4.
 | Describe, element | The element's claims, and the interaction claims shown with it |
 | Flows, significance | Every flow representative shown, with its step claims; the responsibilities shown |
 | Flows, narrative | The flow and its step claims; the responsibility and intent observations shown |
+| Name groups, one group | The group claim and its basis; its members' responsibility observations; the aggregated lines shown and their member lines' intents. The other groups `[G..]` only orient and are not inputs |
 | Purpose | Everything shown |
 
 For tool-using items, the files read are known only after the conversation. They are recorded with the answer, and a cached answer is reused only while those blobs are unchanged. The gate in section 13 reads accordingly: a one-file change re-asks exactly the items whose fingerprint inputs include that file's blob or a claim observed in it.
@@ -562,8 +588,8 @@ Every answer, batched or agentic, goes through the same checks before anything i
 ### Run modes and cost controls
 
 - **Interactive.** Synchronous requests, for incremental runs where few items miss the cache.
-- **Bulk.** Non-agentic roles (Summarize, Describe, flow significance and narrative, purpose) go through the provider's batch API when that role has more than 50 cache misses in the run, at the batch discount (section 4). Agentic roles always run interactively.
-- **Budget.** The run budget is split by role in configuration, defaulting to Investigate 40%, Describe 22%, Summarize 18%, flows and purpose 10%, Resolve 5%, model checks (11.7) 5%. A role that would exceed its share stops planning new items and logs what it skipped. Skipped items are marked `not-asked`, and documents state them as unknown.
+- **Bulk.** Roles whose run mode is bulk in the 11.0 table (Summarize, Describe, flow narrative, Name groups, the model checks) go through the provider's batch API when that role has more than 50 cache misses in the run, at the batch discount (section 4). Agentic roles always run interactively.
+- **Budget.** The run budget is split by role in configuration, defaulting to Investigate 40%, Describe 20%, Summarize 18%, Name groups 2%, flows and purpose 10%, Resolve 5%, model checks (11.7) 5%. A role that would exceed its share stops planning new items and logs what it skipped. Skipped items are marked `not-asked`, and documents state them as unknown.
 - **Models and thinking.** Set per role in configuration, by tier, as today (section 11 gives the defaults).
 
 ### Expected cost on project-4
@@ -619,7 +645,7 @@ The design removes the one leg of the "lethal trifecta" Lantern can remove. Priv
 
 ## 11. LLM roles
 
-Six roles, each specified in full: Resolve, Investigate, Summarize, Describe, Flows and Purpose. Section 11.7 adds the two checks that also use a model. The implementing agent builds them as written. A change to a prompt is a new prompt version, made through an issue that shows its effect on the test sets.
+Seven roles, each specified in full: Resolve, Investigate, Summarize, Describe, Flows, Purpose and Name groups (11.8). Section 11.7 adds the two checks that also use a model. The implementing agent builds them as written. A change to a prompt is a new prompt version, made through an issue that shows its effect on the test sets.
 
 ### 11.0 Conventions shared by every role
 
@@ -664,9 +690,10 @@ Rules for every task:
 | `F` | a fact line | every role |
 | `E` | a code excerpt Lantern supplied | Summarize, Describe |
 | `S` | an accepted summary | Summarize, Describe, Investigate B |
-| `A` | an earlier accepted answer (a responsibility, a risk) | Describe, Flows, Purpose |
+| `A` | an earlier accepted answer (a responsibility, a risk) | Describe, Flows, Purpose, Name groups |
 | `C` | a component of a unit | Describe (as an item key, not a citation) |
-| `R` | an interaction | Describe (as an item key, not a citation) |
+| `R` | an interaction | Describe, Name groups (as an item key, not a citation) |
+| `G` | another group of the same kind | Name groups (as `merge.with`, not a citation) |
 | `K` | a Resolve candidate | Resolve (as the `pick`, not a citation) |
 | `W` | a candidate flow | Flows (as an item key, not a citation) |
 | `I` | an item | every role (as an item key, not a citation) |
@@ -708,6 +735,7 @@ Answer with one JSON object in the same schema, holding only the items you are c
 | Flows, significance | reasoning | Claude Opus 5.5 | Claude Sonnet 5.5 | on, 8,000 tokens | interactive |
 | Flows, narrative | high-volume | Claude Sonnet 5.5 | Claude Haiku 5.5 | off | bulk |
 | Purpose and key fact | reasoning (as today) | Claude Opus 5.5 | Claude Sonnet 5.5 | off | interactive |
+| Name groups | high-volume | Claude Sonnet 5.5 | Claude Haiku 5.5 | off | bulk |
 | Model checks (11.7) | high-volume for the judge; bulk for the screen | Claude Sonnet 5.5; Claude Haiku 5.5 | Claude Haiku 5.5 | off | bulk |
 
 The new `bulk` tier is for the highest-volume role. It may be set to the same model as `high-volume`.
@@ -1143,6 +1171,57 @@ Task: screen repository text. Each item in <items> is a chunk of a file from a c
 - **Checks.** The quote must appear in the cited lines, otherwise the item is stored as not suspected.
 - **Stored.** A finding `finding:injection-suspected/<repo>:<path>` with the line range and quote, shown on the findings page. It does not block the run. The texts that cited that range get `support` checked regardless of the 10% sample.
 
+### 11.8 Name groups
+
+Name groups words each derived group (section 9, Grouping) and the lines between groups, so a view drawn at group level reads as clearly as one at element level. It never changes membership.
+
+- **Item.** One group.
+- **Packet.** At most 8 groups of one kind (feature areas of one unit, or the system's domains), a starting size to calibrate.
+- **Content.**
+  - the group's kind and basis, as fact lines
+  - each member with its responsibility as an earlier answer `[A..]`
+  - the aggregated lines leaving the group `[R1…]`, each with its member lines' intents as `[A..]`
+  - the other groups of the same kind in the scope `[G1…]`, by key, at most 30 (those sharing the most lines with this group, ties by key), for merge suggestions
+- **Order.** After Describe and before Flows; no later role reads group names yet.
+
+**Role instructions** (block 2):
+
+```text
+Task: name groups. Each item in <items> is a group of parts of the system that static analysis bundled together because the code shows they belong together; the item says why (its basis), lists its members with what each does, and lists the group's lines to other groups [R1]... with the intents of the member lines they stand for.
+For each item write:
+- a name of at most 4 words for what the group is about, such as "Orders" or "Billing and invoicing", not a member's name and not a technology;
+- a responsibility sentence of at most 25 words saying what the group as a whole is responsible for, in words a non-engineer understands;
+- for each line [R..], an intent phrase of at most 8 words, starting with a verb, saying what the group does with the other group and why. Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol.
+If two groups in <groups> look like one area of the system, you may say so in merge, with the other group's reference [G..] and a reason of at most 20 words; it is only a suggestion.
+Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citations.
+```
+
+**Answer schema:**
+
+```json
+{"$defs": {"text": {"type": "object", "required": ["text", "cites"], "additionalProperties": false, "properties": {
+   "text": {"type": "string", "maxLength": 240}, "cites": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}},
+ "type": "object", "required": ["items"], "properties": {"items": {"type": "object", "additionalProperties": {
+  "type": "object", "additionalProperties": false,
+  "properties": {
+    "name": {"$ref": "#/$defs/text"},
+    "responsibility": {"$ref": "#/$defs/text"},
+    "lines": {"type": "object", "additionalProperties": {"$ref": "#/$defs/text"}},
+    "merge": {"type": "object", "required": ["with", "reason"], "additionalProperties": false,
+              "properties": {"with": {"type": "string"}, "reason": {"$ref": "#/$defs/text"}}}}}}}}
+```
+
+- **Checks.** The shared pipeline, with the group's key's last part as the name the Form check compares against. In addition:
+  - a name has at most 4 words, and is not equal to any member's name after the Form check's tokenising
+  - a name contains no protocol word from the Form check's list and no product or framework name from the vocabulary's technology values
+  - `merge.with` is one of the item's `[G..]` keys and not the group itself
+- **Stored.**
+  - `(group, display-name, "c4")` and `(group, responsibility, "c4")`
+  - an intent per aggregated line, keyed as Describe's intents are
+  - a merge suggestion as a finding `finding:group-merge/<a>/<b>`, the two keys sorted so a suggestion made from either side is one finding; it is shown on the findings page and never applied
+
+**Failure.** A group without a name is drawn with its key's last part (the path segment, schema or repository) and marked as not named. A line without an intent lists its protocols.
+
 ## 12. Composition as queries
 
 The composer stops deriving and stops calling the LLM. It reads the model, chooses and arranges. A new diagram kind is a new view definition plus a template component, with no new extraction, derivation or prompt unless the model lacks a fact the view needs. When it does lack one, design principle 9 says to add the fact first.
@@ -1157,8 +1236,8 @@ The composer stops deriving and stops calling the LLM. It reads the model, choos
 | Diagram | Query, in words |
 | --- | --- |
 | System context | the system, actors with an interaction into it, external systems with an interaction either way; no technology |
-| Container | units, data stores, destinations and external systems in scope, with interactions between them; split by concern above the readability threshold |
-| Component | for one unit with more than one component: its components and their interactions, plus interactions leaving the unit |
+| Container | units, data stores, destinations and external systems in scope, with interactions between them; above the readability threshold (`docs/design.md`, Readable diagrams), one overview of the domains (section 9, Grouping) with ungrouped units drawn as themselves, plus one view per domain; a domain still above the threshold, or a system with no domains, is split by concern as today |
+| Component | for one unit with more than one component: its components and their interactions, plus interactions leaving the unit; above the readability threshold, one overview of the feature areas plus one view per area; an area still above it is split by groups of entry points as today |
 | Dynamic / sequence | flows significant in scope, in rank order, with their steps and narrative |
 | Deployment | deployment instances of one environment |
 | Landscape | systems and actors, with interactions aggregated from container level |
@@ -1196,6 +1275,7 @@ Every role is tested without a real model, and measured on the development test 
 | Describe | Coverage (share of elements with a responsibility, of interactions with an intent); judge score of wording | Reference catalog; judge (#277) |
 | Flows | Recall and precision of significant flows by trigger and participants | Reference flows |
 | Purpose | Judge score of the key fact; the purpose stays unscored, as the bar says | Reference first paragraph |
+| Grouping and Name groups | Groups against the domains and feature areas project-8's cases name; judge score of group names | project-8 cases; judge (#277) |
 | Harness | Dollars and tokens per run, cold and warm; cache hit rate; calls after a one-file change | Previous scorecard |
 
 - **Acceptance gates.** A milestone that changes a role states targets for its row, as milestones do today. The harness row has two fixed gates:
@@ -1232,7 +1312,7 @@ The work runs in eight steps. Claims and observations come first, because every 
 
 The single-conversation design, its uncached turns and its separate store are what this spec replaces. The real recording's lesson (2 of 7 conversations answered on $4.70) is the reason for Mode A and per-turn caching.
 
-**Milestones.** Decided 31 Oct 2026: the work runs as milestones 1A to 1G, ahead of 2C. 1A Claims and stable identity (#517, #518, #281); 1B Extraction by file (#279, #283, #519, #520); 1C Link rules (#521, #522); 1D Architecture model stored (#523, #524); 1E LLM harness (#525, #526, #527, #42, #349, #357); 1F Roles on the harness (#528, #529, #269, #272, #274, #275); 1G Composer on the model (#530, #280).
+**Milestones.** Decided 31 Oct 2026: the work runs as milestones 1A to 1G, ahead of 2C. 1A Claims and stable identity (#517, #518, #281); 1B Extraction by file (#279, #283, #519, #520); 1C Link rules (#521, #522); 1D Architecture model stored (#523, #524, #535); 1E LLM harness (#525, #526, #527, #42, #349, #357); 1F Roles on the harness (#528, #529, #269, #272, #274, #275, #536); 1G Composer on the model (#530, #280).
 
 **Issues.** Each issue above carries its "Accepted when". Steps 1 to 5 hold the fake-model scorecards on project-0 to project-4 and project-8; step 6 records each role's scoring row from approved recordings.
 
@@ -1271,6 +1351,7 @@ The single-conversation design, its uncached turns and its separate store are wh
 | Flow significance | Implements #272; amends 0047 |
 | Investigate on the harness | Supersedes 0084 (on the branch) |
 | Purpose and key fact | Amends 0060 |
+| Grouping and Name groups | Amends the design's Auto-grouping (explicit signals first, Leiden later) and its Name groups role (members' responsibilities, not summaries) |
 
 One rule to add to `CLAUDE.md`: "The LLM roles' prompts, schemas, checks and limits are specified in their ADRs. Change them only through an issue that shows the effect on the test sets."
 
