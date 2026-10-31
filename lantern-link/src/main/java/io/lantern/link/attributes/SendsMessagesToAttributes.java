@@ -31,8 +31,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     routes to it.
  * @param rationale Descriptive. Why the LLM resolver picked this candidate, in its own words.
  *     Present only on links of origin llm.
- * @param resolves Descriptive. The stable link ID of the unresolved-link the LLM resolver picked
- *     this link for. Present only on links of origin llm.
+ * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
+ *     link for. Present only on links of origin llm.
  * @param routingKey Key. The routing key sent with.
  * @param source Descriptive. The entity ID of the code on the subject's side: the method making the
  *     call, sending or listening, or declaring the binding.

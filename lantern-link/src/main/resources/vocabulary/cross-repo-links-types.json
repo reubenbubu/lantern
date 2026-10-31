@@ -244,7 +244,7 @@
         },
         "resolves": {
           "type": "string",
-          "description": "The stable link ID of the unresolved-link the LLM resolver picked this link for. Present only on links of origin llm."
+          "description": "The claim ID of the unresolved-link the LLM resolver picked this link for. Present only on links of origin llm."
         },
         "rationale": {
           "type": "string",
@@ -472,7 +472,7 @@
         },
         "resolves": {
           "type": "string",
-          "description": "The stable link ID of the unresolved-link the LLM resolver picked this link for. Present only on links of origin llm."
+          "description": "The claim ID of the unresolved-link the LLM resolver picked this link for. Present only on links of origin llm."
         },
         "rationale": {
           "type": "string",
@@ -871,7 +871,7 @@
   {
     "name": "unresolved-link",
     "kind": "attribute",
-    "keyAttributes": ["candidates", "kind", "profile", "reason", "source"],
+    "keyAttributes": ["candidates", "kind", "profile", "reason", "site", "source"],
     "description": "A call, send or datasource of the subject unit that static matching cannot link: a URL or destination with a placeholder nothing resolves, a call that several units could serve, or a routing key not known. The value is the call, destination or URL as far as it is known. The LLM resolver picks among the candidates; what stays open goes to the questions queue.",
     "attributeSchema": {
       "type": "object",
@@ -887,6 +887,10 @@
         "source": {
           "type": "string",
           "description": "The entity ID of the code or module it is written in: for a gateway route, the method that builds it or the module whose config defines it."
+        },
+        "site": {
+          "type": "string",
+          "description": "Which of the code's or module's links it is, where the source alone does not tell: route and the route's id for a gateway route, or the send or listener predicate and the destination as written for a message. Absent for a call or datasource. A key attribute, so two open links of one source are two claims (#576)."
         },
         "unresolved": {
           "type": "array",

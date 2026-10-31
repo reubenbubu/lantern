@@ -381,6 +381,8 @@ final class RouteLinker {
     attributes.put("kind", "route");
     attributes.put("reason", reason);
     attributes.put("source", route.subject().toString());
+    // A module's config defines many routes: which one this is keeps them two claims.
+    attributes.put("site", "route|" + route.object().value());
     List<String> keys = Claims.unresolved(route);
     if (!keys.isEmpty()) {
       ArrayNode array = attributes.putArray("unresolved");

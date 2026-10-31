@@ -250,6 +250,9 @@ step's version becomes 17.
 
 Links no longer carry `link`. Their claim ID (ADR 0090), which hashes the ends, the predicate and the
 link's key attributes (channel, protocol, profile) and not the evidence, is the stable ID that stays
-the same across snapshots and commits. The vocabulary keeps `link` declared, described as no longer
+the same across snapshots and commits while what it claims does. An open link (`unresolved-link`)
+keys also on its candidates, reason and `site` (the gateway route, or the send or listener and the
+destination as written), so two open links of one module stay two claims, and one whose candidates
+change is a new claim. The vocabulary keeps `link` declared, described as no longer
 given, so links stored before stay valid. The LLM resolver's `resolves` and the documents' reading of
 it use the claim ID of the link left open.

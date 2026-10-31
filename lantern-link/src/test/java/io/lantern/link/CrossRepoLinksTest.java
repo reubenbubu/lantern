@@ -724,7 +724,7 @@ class CrossRepoLinksTest {
         .containsExactly(
             "service:g:edge unresolved-link ${ORDERS_URI}"
                 + " {\"candidates\":[\"service:g:storefront-app\"],\"kind\":\"route\","
-                + "\"reason\":\"unresolved-placeholder\",\"source\":\"type:gw.Routes\","
+                + "\"reason\":\"unresolved-placeholder\",\"site\":\"route|orders\",\"source\":\"type:gw.Routes\","
                 + "\"unresolved\":[\"ORDERS_URI\"]} 1.0");
 
     container(
@@ -1220,7 +1220,8 @@ class CrossRepoLinksTest {
     assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK))
         .containsExactly(
             "service:g:edge unresolved-link http://billing:8080 {\"kind\":\"route\","
-                + "\"reason\":\"unknown-host\",\"source\":\"module:g:edge\"} 1.0");
+                + "\"reason\":\"unknown-host\",\"site\":\"route|compose\","
+                + "\"source\":\"module:g:edge\"} 1.0");
     // /orders/** reaches /api/** behind StripPrefix and PrefixPath; the internal endpoint is
     // reached only by another unit's call.
     assertThat(derive(CrossRepoLinks.UNROUTED_ENDPOINT))
@@ -1557,10 +1558,12 @@ class CrossRepoLinksTest {
         .containsExactlyInAnyOrder(
             "service:g:shop unresolved-link direct.x {\"candidates\":[\"service:g:worker\"],"
                 + "\"kind\":\"message\",\"reason\":\"unknown-routing-key\","
+                + "\"site\":\"message-send|direct.x\","
                 + "\"source\":\"method:s.Publisher#unknown()\"} 1.0",
             // An exchange the code does not fix: any unit on a bound queue may receive it.
             "service:g:shop unresolved-link {...} {\"candidates\":[\"service:g:worker\"],"
                 + "\"kind\":\"message\",\"reason\":\"unknown-exchange\","
+                + "\"site\":\"message-send|{...}\","
                 + "\"source\":\"method:s.Publisher#anyExchange()\"} 1.0");
   }
 

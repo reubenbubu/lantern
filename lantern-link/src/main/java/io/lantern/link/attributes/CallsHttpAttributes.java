@@ -60,8 +60,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     as that unit serves it, such as POST /api/auth/sign-in, or the WebSocket endpoint's path.
  * @param reachesUnit Descriptive. For a frontend's call that reaches an endpoint, the unit that
  *     serves it: the linked unit itself, or the unit the gateway route in throughRoute sends it to.
- * @param resolves Descriptive. The stable link ID of the unresolved-link the LLM resolver picked
- *     this link for. Present only on links of origin llm.
+ * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
+ *     link for. Present only on links of origin llm.
  * @param route Descriptive. The id of the gateway route the link is, for a link from a Spring Cloud
  *     Gateway route.
  * @param source Descriptive. The entity ID of the code on the subject's side: the method making the

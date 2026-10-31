@@ -27,6 +27,10 @@ import tools.jackson.databind.node.ObjectNode;
  * @param reason Key. unresolved-placeholder, unknown-url, unknown-host (a host without a domain
  *     that names no unit, such as a compose or discovery name), ambiguous, no-match (a call to this
  *     machine no unit serves) or unknown-routing-key.
+ * @param site Key. Which of the code's or module's links it is, where the source alone does not
+ *     tell: route and the route's id for a gateway route, or the send or listener predicate and the
+ *     destination as written for a message. Absent for a call or datasource. A key attribute, so
+ *     two open links of one source are two claims (#576).
  * @param source Key. The entity ID of the code or module it is written in: for a gateway route, the
  *     method that builds it or the module whose config defines it.
  * @param unresolved Descriptive. The keys of the placeholders nothing resolved.
@@ -39,6 +43,7 @@ public record UnresolvedLinkAttributes(
     String link,
     String profile,
     String reason,
+    String site,
     String source,
     List<String> unresolved) {
 
@@ -46,7 +51,7 @@ public record UnresolvedLinkAttributes(
   public static final String TYPE = "unresolved-link";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("candidates", "kind", "profile", "reason", "source");
+  public static final List<String> KEY_ATTRIBUTES = List.of("candidates", "kind", "profile", "reason", "site", "source");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static UnresolvedLinkAttributes from(ObjectNode attributes) {
@@ -58,6 +63,7 @@ public record UnresolvedLinkAttributes(
         AttributeValues.string(attributes, "link"),
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "reason"),
+        AttributeValues.string(attributes, "site"),
         AttributeValues.string(attributes, "source"),
         AttributeValues.strings(attributes, "unresolved"));
   }
@@ -72,6 +78,7 @@ public record UnresolvedLinkAttributes(
     AttributeValues.put(attributes, "link", link);
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "reason", reason);
+    AttributeValues.put(attributes, "site", site);
     AttributeValues.put(attributes, "source", source);
     AttributeValues.put(attributes, "unresolved", unresolved);
     return attributes;

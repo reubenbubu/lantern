@@ -65,7 +65,8 @@ class ArchitectureRulesTest {
 
     assertThatThrownBy(() -> ArchitectureRules.LINKER_READS_TYPED_FACTS.check(classes))
         .isInstanceOf(AssertionError.class)
-        .hasMessageContaining("LinkerReadingAttributes.path(io.lantern.core.fact.Fact)");
+        .hasMessageContaining("LinkerReadingAttributes.path(io.lantern.core.fact.Fact)")
+        .hasMessageContaining("LinkerReadingAttributes.all(java.util.List)");
   }
 
   @Test

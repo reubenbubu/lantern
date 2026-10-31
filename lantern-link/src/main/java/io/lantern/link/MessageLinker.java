@@ -438,6 +438,12 @@ final class MessageLinker {
     attributes.put("kind", "message");
     attributes.put("reason", reason);
     attributes.put("source", fact.subject().toString());
+    // One method may send to and listen on one destination: which use this is keeps them apart.
+    attributes.put(
+        "site",
+        fact.predicate()
+            + "|"
+            + (Claims.written(fact) != null ? Claims.written(fact) : fact.object().value()));
     if (!unresolved.isEmpty()) {
       ArrayNode keys = attributes.putArray("unresolved");
       unresolved.forEach(keys::add);

@@ -675,7 +675,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
               : "https".equals(scheme) ? "HTTPS" : "HTTP";
       if (code != null) {
         attributes.put("endpoint", code.object().value());
-        String controller = (code == null ? null : Endpoints.of(code).controller());
+        String controller = Endpoints.of(code).controller();
         if (!protocol.equals("WebSocket")
             && controller != null
             && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
@@ -704,7 +704,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
               : "HTTP";
       if (code != null) {
         attributes.put("endpoint", code.object().value());
-        String controller = (code == null ? null : Endpoints.of(code).controller());
+        String controller = Endpoints.of(code).controller();
         if (controller != null
             && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
           protocol = "JSON/" + protocol;

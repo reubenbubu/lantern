@@ -112,4 +112,7 @@ the link predicates it writes, so they now run after it rather than before.
 A pick's `resolves` names the link left open by its claim ID (its fact ID only before it is stored,
 as in tests), and the pick no longer carries `link`: its own claim ID is its stable ID. The answers
 `ResolutionStore.latest` keeps under the old 16-digit IDs are not found again under the claim IDs;
-`find` by the prompt's cache key, which names no link ID, still reuses them.
+`find` by the prompt's cache key, which names no link ID, still reuses them. An open link's
+candidates and reason are key attributes, so when they change it is a new claim, and `latest` no
+longer finds the answer given to the old one; the fallback to the last answer for a link whose
+prompt changed then does not apply.

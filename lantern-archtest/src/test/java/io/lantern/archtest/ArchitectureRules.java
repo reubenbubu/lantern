@@ -91,7 +91,12 @@ final class ArchitectureRules {
           .resideInAPackage("io.lantern.link..")
           .and(DescribedPredicate.not(LINK_QUERY_LAYER))
           .should()
-          .callMethod(io.lantern.core.fact.Fact.class, "attributes")
+          .accessTargetWhere(
+              DescribedPredicate.describe(
+                  "Fact.attributes()",
+                  (com.tngtech.archunit.core.domain.JavaAccess<?> access) ->
+                      access.getTargetOwner().isEquivalentTo(io.lantern.core.fact.Fact.class)
+                          && access.getName().equals("attributes")))
           .because("linker code reads typed records through the query layer (ADR 0095)");
 
   /** One stage and the classes in it. */
