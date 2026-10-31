@@ -142,6 +142,37 @@ class ValueViewsTest {
   }
 
   @Test
+  void configRoutesNameTheirFilesByBlobAsStoredConfigFactsDo() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("gateway"));
+    String blob = "0123456789abcdef0123456789abcdef01234567";
+    List<Fact> facts = new ArrayList<>();
+    for (Fact f : new ConfigExtractor().extract(repos, SNAPSHOT)) {
+      // As the store keeps them: the file's blob, no content hash.
+      facts.add(
+          Fact.create(
+              f.subject(),
+              f.predicate(),
+              f.object(),
+              f.attributes(),
+              f.origin(),
+              f.evidence().map(l -> l.withBlob(blob)),
+              f.confidence(),
+              f.validity()));
+    }
+    facts.addAll(new io.lantern.extract.gateway.GatewayExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> routes =
+        new ValueViews()
+            .derive(facts, SNAPSHOT).stream()
+                .filter(f -> f.attributes().path("definedIn").asString("").equals("config"))
+                .toList();
+
+    assertThat(routes).isNotEmpty();
+    assertThat(routes)
+        .allMatch(f -> blob.equals(f.evidence().blob()) && f.evidence().contentHash() == null);
+  }
+
+  @Test
   void aConfigRouteUsingAKnownSecretKeyIsMasked() throws IOException {
     RepoBuild repo =
         repo(

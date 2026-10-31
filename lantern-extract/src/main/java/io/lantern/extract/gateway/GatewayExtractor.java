@@ -657,7 +657,7 @@ public final class GatewayExtractor implements Extractor {
                 config.repo(),
                 file.path(),
                 lines == null ? null : new Evidence.LineRange(lines.start(), lines.end()),
-                file.contentHash());
+                file.contentHash().isEmpty() ? null : file.contentHash());
         record(config.module(), route.getValue(), CONFIG, evidence, 1.0);
       }
     }
@@ -862,7 +862,7 @@ public final class GatewayExtractor implements Extractor {
           config.repo(),
           file.path(),
           start <= end ? new Evidence.LineRange(start, end) : null,
-          file.contentHash());
+          file.contentHash().isEmpty() ? null : file.contentHash());
     }
 
     private Route configRoute(String id, SortedMap<String, ConfigValue> route, ConfigValue uri) {

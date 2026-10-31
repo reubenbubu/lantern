@@ -90,17 +90,16 @@ public final class ValueViews implements LinkStep {
   // ---------------------------------------------------------------------------------------------
   // Gateway routes
 
-  /** The prefix marking a blob passed where the gateway's reading expects a content hash. */
-  private static final String BLOB = "blob:";
-
   private static List<Fact> gatewayRoutes(List<Fact> facts, CodeValues values, long snapshot) {
     java.util.Set<String> secretKeys = ConfigExtractor.jwtSecretKeys(facts);
+    Map<String, String> blobs = new java.util.HashMap<>();
     List<GatewayExtractor.RouteConfig> configs = new java.util.ArrayList<>();
     for (EntityId module : values.modules()) {
       String repo = values.repoOf(module);
       CodeValues.View view = values.forModule(module, repo);
       configs.add(
           new GatewayExtractor.RouteConfig() {
+            // The blobs of the config files, which the reading's evidence leaves out.
             @Override
             public EntityId module() {
               return module;
@@ -119,7 +118,15 @@ public final class ValueViews implements LinkStep {
             @Override
             public java.util.SortedMap<String, ConfigValue> values(String profile) {
               java.util.SortedMap<String, ConfigValue> read = new java.util.TreeMap<>();
-              view.facts(profile).forEach((key, f) -> read.put(key, configValue(key, f)));
+              view.facts(profile)
+                  .forEach(
+                      (key, f) -> {
+                        read.put(key, configValue(key, f));
+                        Evidence.Location at = f.evidence().declared();
+                        if (at.blob() != null) {
+                          blobs.put(at.repo() + ":" + at.path(), at.blob());
+                        }
+                      });
               return read;
             }
           });
@@ -132,7 +139,7 @@ public final class ValueViews implements LinkStep {
             secretKeys,
             ORIGIN,
             snapshot);
-    return routes.stream().map(ValueViews::withBlobs).toList();
+    return routes.stream().map(f -> withBlobs(f, blobs)).toList();
   }
 
   /** A config fact as the gateway's reading takes a config value. */
@@ -156,7 +163,9 @@ public final class ValueViews implements LinkStep {
       }
     }
     Evidence.Location at = f.evidence().declared();
-    String file = at.blob() != null ? BLOB + at.blob() : at.contentHash();
+    // A stored fact names its file by blob, which withBlobs puts back; only one read from the
+    // extractors directly, in tests, has a content hash.
+    String file = at.contentHash();
     return new ConfigValue(
         key,
         value,
@@ -167,21 +176,31 @@ public final class ValueViews implements LinkStep {
             at.path(), file == null ? "" : file, at.lines() == null ? 0 : at.lines().start()));
   }
 
-  /** A fact whose evidence names a file by its blob, as the config facts it was read from did. */
-  private static Fact withBlobs(Fact f) {
-    boolean marked =
+  /** A fact whose evidence names its files by blob, as the config facts it was read from did. */
+  private static Fact withBlobs(Fact f, Map<String, String> blobs) {
+    boolean missing =
         f.evidence().locations().stream()
-            .anyMatch(l -> l.contentHash() != null && l.contentHash().startsWith(BLOB));
-    if (!marked) {
+            .anyMatch(
+                l ->
+                    l.path() != null
+                        && l.blob() == null
+                        && l.contentHash() == null
+                        && blobs.containsKey(l.repo() + ":" + l.path()));
+    if (!missing) {
       return f;
     }
     Evidence evidence =
         f.evidence()
             .map(
-                l ->
-                    l.contentHash() != null && l.contentHash().startsWith(BLOB)
-                        ? l.withBlob(l.contentHash().substring(BLOB.length()))
-                        : l);
+                l -> {
+                  String blob = blobs.get(l.repo() + ":" + l.path());
+                  return l.path() != null
+                          && l.blob() == null
+                          && l.contentHash() == null
+                          && blob != null
+                      ? l.withBlob(blob)
+                      : l;
+                });
     return Fact.create(
         f.subject(),
         f.predicate(),
