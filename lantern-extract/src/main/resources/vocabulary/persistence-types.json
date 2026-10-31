@@ -2,6 +2,7 @@
   {
     "name": "datasource",
     "kind": "attribute",
+    "keyAttributes": ["key"],
     "description": "A datasource URL in the subject module's config, such as jdbc:postgresql://shop-db:5432/shop, without credentials (no user or password before the host, and no user, password or other secret property), by default or with the attribute profile active. Placeholders that cannot be resolved stay as ${KEY}.",
     "attributeSchema": {
       "type": "object",
@@ -23,6 +24,7 @@
   {
     "name": "MAPS_TO",
     "kind": "relationship",
+    "keyAttributes": ["framework", "inheritedFrom", "namingStrategy"],
     "description": "The subject entity class is stored in the object table: a JPA @Entity, with its table named as Spring Boot's default naming makes it (or as written, when the module's config sets another physical naming strategy), a Spring Data relational @Table class, a MongoDB @Document (its collection) or an Elasticsearch @Document (its index); collection and index names are kept as written. The table is keyed by the module that declares the entity; the linker matches it to the tables migrations create by name.",
     "attributeSchema": {
       "type": "object",
@@ -38,6 +40,7 @@
   {
     "name": "REPOSITORY_FOR",
     "kind": "relationship",
+    "keyAttributes": ["base"],
     "description": "The subject Spring Data repository interface stores the object entity type, its domain type.",
     "attributeSchema": {
       "type": "object",
@@ -51,6 +54,7 @@
   {
     "name": "READS_TABLE",
     "kind": "relationship",
+    "keyAttributes": ["api", "statement"],
     "description": "The subject method (or type, for code outside methods) runs SQL that reads the object table: through JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient or R2DBC's DatabaseClient, a repository's native @Query, a MyBatis @Select, @Insert, @Update or @Delete, or a statement of a MyBatis XML mapper (on its mapper interface's method). The table is keyed by the module whose code runs the SQL.",
     "attributeSchema": {
       "type": "object",
@@ -65,6 +69,7 @@
   {
     "name": "WRITES_TABLE",
     "kind": "relationship",
+    "keyAttributes": ["api", "statement"],
     "description": "The subject method (or type, for code outside methods) runs SQL that writes the object table, the target of an insert, update, delete, merge, upsert or truncate: through JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient, R2DBC's DatabaseClient or SimpleJdbcInsert, a repository's native @Query, a MyBatis @Select, @Insert, @Update or @Delete, or a statement of a MyBatis XML mapper (on its mapper interface's method). The table is keyed by the module whose code runs the SQL.",
     "attributeSchema": {
       "type": "object",
@@ -79,6 +84,7 @@
   {
     "name": "data-store",
     "kind": "attribute",
+    "keyAttributes": ["key"],
     "description": "A non-relational store the subject module's config connects it to (MongoDB, Elasticsearch, Cassandra, Neo4j or Couchbase), by default or with the attribute profile active: its URI without credentials, or one made of the host, port and database keys (such as mongodb://localhost:27017/shop). Placeholders that cannot be resolved stay as ${KEY}.",
     "attributeSchema": {
       "type": "object",

@@ -38,7 +38,8 @@
   {
     "name": "message-broker",
     "kind": "entity",
-    "description": "A message broker server a unit's config connects to, such as a Kafka cluster or a RabbitMQ server. Its key is the broker technology, ':' and its addresses, such as kafka:kafka:9092. It has no C4 level: containers diagrams show its topics, queues and exchanges, never one broker box.",
+    "parent": "container",
+    "description": "A message broker server a unit's config connects to, such as a Kafka cluster or a RabbitMQ server. Its key is the broker technology, ':' and its addresses, such as kafka:kafka:9092. It is a container, a server that runs, though container diagrams show its topics, queues and exchanges, never one broker box.",
     "attributeSchema": {
       "additionalProperties": false
     }
@@ -55,7 +56,7 @@
   {
     "name": "person",
     "kind": "entity",
-    "parent": "system",
+    "parent": "actor",
     "description": "A kind of person who uses the system, as far as the code shows (ADR 0074): a role it checks, the members of something it has members of, those it invites, or the user who signs up and in. Its key is the person's name in lower case with dashes, such as organization-member. Always inferred; never invented beyond what the code names.",
     "attributeSchema": {
       "additionalProperties": false
@@ -64,6 +65,7 @@
   {
     "name": "person-basis",
     "kind": "attribute",
+    "keyAttributes": ["basis", "frontends", "repos"],
     "description": "What a person rests on: the value is role (a role the code checks), member (members of something), invited (those invited) or account (the user who signs up and in). A person is always inferred from the code.",
     "attributeSchema": {
       "type": "object",
@@ -111,7 +113,8 @@
   {
     "name": "infrastructure",
     "kind": "entity",
-    "description": "A service discovery, config or tracing server outside the snapshot that a unit's config connects to. Its key is its host and port, such as config:8888. It has no C4 level: infrastructure is kept apart from the business dependencies.",
+    "parent": "container",
+    "description": "A service discovery, config or tracing server outside the snapshot that a unit's config connects to. Its key is its host and port, such as config:8888. It is a container, a server that runs, though diagrams keep infrastructure apart from the business dependencies.",
     "attributeSchema": {
       "additionalProperties": false
     }
@@ -119,6 +122,7 @@
   {
     "name": "CALLS_HTTP",
     "kind": "relationship",
+    "keyAttributes": ["endpoint", "profile", "protocol"],
     "parent": "CALLS",
     "description": "The subject unit or frontend calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched, one per gateway route that sends requests to it (route set), and for a frontend one per URL its code calls from the browser and one per proxy of its server that no call goes through.",
     "attributeSchema": {
@@ -257,7 +261,8 @@
   {
     "name": "PUBLISHES",
     "kind": "relationship",
-    "parent": "DEPENDS_ON",
+    "keyAttributes": ["profile", "protocol", "routingKey"],
+    "parent": "INTERACTS_WITH",
     "description": "The subject unit sends messages to the object topic, queue or exchange.",
     "attributeSchema": {
       "type": "object",
@@ -303,7 +308,8 @@
   {
     "name": "CONSUMES",
     "kind": "relationship",
-    "parent": "DEPENDS_ON",
+    "keyAttributes": ["profile", "protocol"],
+    "parent": "INTERACTS_WITH",
     "description": "The subject unit listens on the object topic or queue.",
     "attributeSchema": {
       "type": "object",
@@ -353,6 +359,8 @@
   {
     "name": "ROUTES_TO",
     "kind": "relationship",
+    "parent": "INTERACTS_WITH",
+    "keyAttributes": ["bindingKey", "profile", "protocol"],
     "description": "The subject exchange routes messages to the object queue, by a binding declared in a unit's code.",
     "attributeSchema": {
       "type": "object",
@@ -402,6 +410,8 @@
   {
     "name": "SENDS_MESSAGES_TO",
     "kind": "relationship",
+    "parent": "INTERACTS_WITH",
+    "keyAttributes": ["bindingKey", "destination", "profile", "protocol", "routingKey"],
     "description": "Messages the subject unit sends reach a listener of the object unit, asynchronously: the link between containers a queue or topic carries. One fact per send and listener matched.",
     "attributeSchema": {
       "type": "object",
@@ -479,7 +489,8 @@
   {
     "name": "USES_DATABASE",
     "kind": "relationship",
-    "parent": "DEPENDS_ON",
+    "keyAttributes": ["key", "profile", "protocol"],
+    "parent": "INTERACTS_WITH",
     "description": "The subject unit connects to the object database through a datasource in its config.",
     "attributeSchema": {
       "type": "object",
@@ -573,7 +584,8 @@
   {
     "name": "ACCESSES_DATA_OF",
     "kind": "relationship",
-    "parent": "DEPENDS_ON",
+    "keyAttributes": ["profile", "protocol"],
+    "parent": "INTERACTS_WITH",
     "description": "The subject unit's code reads or writes tables that the object unit's schema declares, on a database both use: the two share data, not only a server.",
     "attributeSchema": {
       "type": "object",
@@ -629,6 +641,7 @@
   {
     "name": "SENDS_MAIL",
     "kind": "relationship",
+    "keyAttributes": ["host", "key", "profile", "protocol"],
     "parent": "CALLS",
     "description": "The subject unit sends mail through the object external system, the mail server its config names (spring.mail.host). One fact per method that sends mail; a unit whose config names a mail server but whose code sends none the extractor recognises has one without source.",
     "attributeSchema": {
@@ -683,6 +696,7 @@
   {
     "name": "USES_IDENTITY_PROVIDER",
     "kind": "relationship",
+    "keyAttributes": ["key", "profile", "protocol"],
     "parent": "CALLS",
     "description": "The subject unit uses the object as its identity provider: another unit of the snapshot (an auth service whose JWK set it fetches), or an external system (an issuer on a host with a domain, or one a deployment runs from an identity provider's image, such as Keycloak in compose). Found from spring.security.oauth2.* (resource server issuer-uri and jwk-set-uri, client providers and registrations), keys ending like them (jwk-set-uri, issuer-uri), keycloak.auth-server-url and Keycloak's admin client (ADR 0085). One fact per unit, provider and purpose.",
     "attributeSchema": {
@@ -745,7 +759,8 @@
   {
     "name": "USES_BROKER",
     "kind": "relationship",
-    "parent": "DEPENDS_ON",
+    "keyAttributes": ["key", "profile", "protocol"],
+    "parent": "INTERACTS_WITH",
     "description": "The subject unit's config connects it to the object message broker.",
     "attributeSchema": {
       "type": "object",
@@ -791,7 +806,8 @@
   {
     "name": "USES_INFRASTRUCTURE",
     "kind": "relationship",
-    "parent": "DEPENDS_ON",
+    "keyAttributes": ["key", "profile", "protocol"],
+    "parent": "INTERACTS_WITH",
     "description": "The subject unit uses the object service for infrastructure, not business: service discovery, a config server or tracing.",
     "attributeSchema": {
       "type": "object",
@@ -855,6 +871,7 @@
   {
     "name": "unresolved-link",
     "kind": "attribute",
+    "keyAttributes": ["candidates", "kind", "profile", "reason", "source"],
     "description": "A call, send or datasource of the subject unit that static matching cannot link: a URL or destination with a placeholder nothing resolves, a call that several units could serve, or a routing key not known. The value is the call, destination or URL as far as it is known. The LLM resolver picks among the candidates; what stays open goes to the questions queue.",
     "attributeSchema": {
       "type": "object",
@@ -915,6 +932,7 @@
   {
     "name": "unrouted-endpoint",
     "kind": "attribute",
+    "keyAttributes": ["calledBy", "endpoint", "profile", "target"],
     "description": "An endpoint of a unit the subject gateway routes requests to that none of the gateway's routes to that unit reaches, by path (after StripPrefix and PrefixPath) and HTTP method, so a request to it through the gateway finds no route. The value is the endpoint, such as GET /api/organizations/{id}/preview. Not recorded for a unit a route reaches through a filter that rewrites paths otherwise.",
     "attributeSchema": {
       "type": "object",
@@ -968,6 +986,7 @@
   {
     "name": "routed-endpoint",
     "kind": "attribute",
+    "keyAttributes": ["discoveryLocator", "endpoint", "profile", "route", "served", "source", "target", "url"],
     "description": "An endpoint of a unit the subject gateway routes requests to, with the request as the gateway receives it: the endpoint's path behind the target's context and servlet paths, through the route's StripPrefix, PrefixPath and RewritePath filters in reverse, or, when no route reaches it and the gateway's discovery locator is on, under the target's service ID. The value is the request, such as POST /profile/profile/admin/users. A flow that starts at the endpoint starts at the gateway with it (ADR 0047, amendment for #351).",
     "attributeSchema": {
       "type": "object",
@@ -1035,6 +1054,7 @@
   {
     "name": "shared-secret",
     "kind": "attribute",
+    "keyAttributes": ["algorithm", "basis", "library", "placeholders", "profile", "source", "uses", "with"],
     "description": "The subject unit signs or checks JWTs with an HMAC secret that other units have too (with), for the findings page: their secrets come from the same placeholder nothing resolves (the environment fills one value in for all), the same config value, or, when the value is masked or unset, the same config key. The value is the config keys the unit reads the secret from; the secret's value is never recorded (ADR 0085).",
     "attributeSchema": {
       "type": "object",
@@ -1105,6 +1125,7 @@
   {
     "name": "deployed-in",
     "kind": "attribute",
+    "keyAttributes": ["container", "environment", "platform"],
     "description": "A container a deployment descriptor runs the subject in (a deployable unit, a frontend built from its folder, a data store on a database or Redis container, or an external identity provider on its container); the value names the environment, such as Docker Compose (local). The linker ties a container to a unit by name, and to a data store through the unit's datasource or Redis connection.",
     "attributeSchema": {
       "type": "object",

@@ -88,7 +88,7 @@ class VocabularyTest {
         .containsExactly("batch-job", BuiltInTypes.COMPONENT);
     assertThat(vocabulary.lineage(BuiltInTypes.CALLS))
         .extracting(VocabularyType::name)
-        .containsExactly(BuiltInTypes.CALLS, BuiltInTypes.DEPENDS_ON);
+        .containsExactly(BuiltInTypes.CALLS, BuiltInTypes.INTERACTS_WITH);
     assertThat(vocabulary.lineage(BuiltInTypes.SYSTEM))
         .extracting(VocabularyType::name)
         .containsExactly(BuiltInTypes.SYSTEM);

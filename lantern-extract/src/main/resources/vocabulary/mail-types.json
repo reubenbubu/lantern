@@ -2,6 +2,7 @@
   {
     "name": "mail-send",
     "kind": "attribute",
+    "keyAttributes": ["method", "provider", "template"],
     "description": "The subject method sends mail: through a mail library (Spring's JavaMailSender or MailSender, Jakarta Mail's Transport, Apache Commons Email, Simple Java Mail, Quarkus's or Micronaut's mailer), whose server comes from the config (spring.mail.host) or a mail-host fact, or through a mail provider's SDK (SendGrid, Amazon SES, Mailgun), which names the provider (ADR 0076).",
     "attributeSchema": {
       "type": "object",
@@ -18,6 +19,7 @@
   {
     "name": "mail-host",
     "kind": "attribute",
+    "keyAttributes": ["method", "template"],
     "description": "The subject method sets the mail server's host as a constant, such as smtp.example.com: through JavaMailSenderImpl.setHost, Apache Commons Email's setHostName or Simple Java Mail's MailerBuilder.withSMTPServer (ADR 0076).",
     "attributeSchema": {
       "type": "object",

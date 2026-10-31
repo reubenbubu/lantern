@@ -4,8 +4,11 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -33,6 +36,10 @@ import tools.jackson.databind.node.ObjectNode;
  * @param objectKind for an attribute type, the kind of value its facts' objects must have ({@code
  *     string}, {@code integer}, {@code decimal} or {@code boolean}), or {@code null} to inherit it
  *     (or allow any value); always {@code null} for entity and relationship types
+ * @param keyAttributes for a relationship or attribute type, the attributes of its facts that are
+ *     part of what a fact claims, so that two facts that differ in one of them are two claims (ADR
+ *     0090), on top of the ones the parent type names; the others are descriptive. Each must be
+ *     declared by the type or an ancestor. Sorted; always empty for entity types.
  */
 public record VocabularyType(
     String name,
@@ -43,7 +50,8 @@ public record VocabularyType(
     String icon,
     String description,
     AttributeSchema attributeSchema,
-    FactObject.Kind objectKind) {
+    FactObject.Kind objectKind,
+    SortedSet<String> keyAttributes) {
 
   /** Shape and icon names. */
   private static final Pattern TOKEN = Pattern.compile("[a-z][a-z0-9-]*");
@@ -58,7 +66,8 @@ public record VocabularyType(
           "icon",
           "description",
           "attributeSchema",
-          "objectKind");
+          "objectKind",
+          "keyAttributes");
 
   public VocabularyType {
     Objects.requireNonNull(kind, "kind");
@@ -87,6 +96,37 @@ public record VocabularyType(
       throw new IllegalArgumentException(
           "Object kind of attribute type '" + name + "' must be a value kind, not entity");
     }
+    keyAttributes =
+        Collections.unmodifiableSortedSet(
+            new TreeSet<>(keyAttributes == null ? Set.of() : keyAttributes));
+    if (!keyAttributes.isEmpty() && !kind.isPredicate()) {
+      throw new IllegalArgumentException(
+          "Only relationship and attribute types have key attributes, not entity '" + name + "'");
+    }
+  }
+
+  /** A type with an object kind and no key attributes of its own. */
+  public VocabularyType(
+      String name,
+      TypeKind kind,
+      String parent,
+      C4Level c4Level,
+      String shape,
+      String icon,
+      String description,
+      AttributeSchema attributeSchema,
+      FactObject.Kind objectKind) {
+    this(
+        name,
+        kind,
+        parent,
+        c4Level,
+        shape,
+        icon,
+        description,
+        attributeSchema,
+        objectKind,
+        Collections.emptySortedSet());
   }
 
   /** A type without an object kind of its own. */
@@ -100,6 +140,21 @@ public record VocabularyType(
       String description,
       AttributeSchema attributeSchema) {
     this(name, kind, parent, c4Level, shape, icon, description, attributeSchema, null);
+  }
+
+  /** This type with the given key attributes of its own instead of its current ones. */
+  public VocabularyType withKeyAttributes(Set<String> names) {
+    return new VocabularyType(
+        name,
+        kind,
+        parent,
+        c4Level,
+        shape,
+        icon,
+        description,
+        attributeSchema,
+        objectKind,
+        new TreeSet<>(names));
   }
 
   /** The JSON form; absent optional fields are left out. */
@@ -125,6 +180,9 @@ public record VocabularyType(
     node.set("attributeSchema", attributeSchema.toJson());
     if (objectKind != null) {
       node.put("objectKind", objectKind.jsonName());
+    }
+    if (!keyAttributes.isEmpty()) {
+      keyAttributes.forEach(node.putArray("keyAttributes")::add);
     }
     return node;
   }
@@ -154,7 +212,25 @@ public record VocabularyType(
         optionalString(node, "icon"),
         optionalString(node, "description"),
         AttributeSchema.fromJson(schema),
-        objectKind == null ? null : FactObject.Kind.fromJsonName(objectKind));
+        objectKind == null ? null : FactObject.Kind.fromJsonName(objectKind),
+        keyAttributes(node.get("keyAttributes")));
+  }
+
+  private static SortedSet<String> keyAttributes(JsonNode names) {
+    SortedSet<String> result = new TreeSet<>();
+    if (names == null) {
+      return result;
+    }
+    if (!names.isArray()) {
+      throw new IllegalArgumentException("Field 'keyAttributes' must be an array");
+    }
+    for (JsonNode name : names) {
+      if (!name.isString() || !result.add(name.stringValue())) {
+        throw new IllegalArgumentException(
+            "Field 'keyAttributes' must list distinct attribute names: " + names);
+      }
+    }
+    return result;
   }
 
   private static void checkName(String name, TypeKind kind) {

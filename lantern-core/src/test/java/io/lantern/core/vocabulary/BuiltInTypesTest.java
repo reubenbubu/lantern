@@ -35,7 +35,10 @@ class BuiltInTypesTest {
 
     assertThat(vocabulary.types()).hasSameSizeAs(types);
     for (VocabularyType type : types) {
-      assertThat(vocabulary.shape(type.name())).as(type.name()).isPresent();
+      // A repository is never drawn; it came from the Redis extractor's types unchanged (#518).
+      if (!type.name().equals(BuiltInTypes.REPO)) {
+        assertThat(vocabulary.shape(type.name())).as(type.name()).isPresent();
+      }
       assertThat(type.description()).as(type.name()).isNotNull();
     }
   }
@@ -48,7 +51,12 @@ class BuiltInTypesTest {
     assertThat(vocabulary.find(BuiltInTypes.LIBRARY).orElseThrow().parent()).isNull();
     assertThat(vocabulary.find(BuiltInTypes.MODULE).orElseThrow().parent()).isNull();
     assertThat(vocabulary.find(BuiltInTypes.PACKAGE).orElseThrow().parent()).isNull();
-    assertThat(vocabulary.isA(BuiltInTypes.CALLS, BuiltInTypes.DEPENDS_ON)).isTrue();
+    assertThat(vocabulary.isA(BuiltInTypes.CALLS, BuiltInTypes.INTERACTS_WITH)).isTrue();
+    assertThat(vocabulary.isA(BuiltInTypes.CALLS, BuiltInTypes.DEPENDS_ON)).isFalse();
+    assertThat(vocabulary.find(BuiltInTypes.INTERACTS_WITH).orElseThrow().parent()).isNull();
+    assertThat(vocabulary.find(BuiltInTypes.DEPENDS_ON).orElseThrow().parent()).isNull();
+    assertThat(vocabulary.find(BuiltInTypes.ACTOR).orElseThrow().parent()).isNull();
+    assertThat(vocabulary.c4Level(BuiltInTypes.ACTOR)).contains(C4Level.CONTEXT);
     assertThat(vocabulary.c4Level(BuiltInTypes.TYPE)).contains(C4Level.CODE);
     assertThat(vocabulary.c4Level(BuiltInTypes.SYSTEM)).contains(C4Level.CONTEXT);
   }

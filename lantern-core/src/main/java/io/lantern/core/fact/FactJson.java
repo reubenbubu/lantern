@@ -298,7 +298,7 @@ public final class FactJson {
     return stripped.signum() == 0 ? "0" : stripped.toPlainString();
   }
 
-  private static String sha256(String text) {
+  static String sha256(String text) {
     try {
       byte[] digest =
           MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));

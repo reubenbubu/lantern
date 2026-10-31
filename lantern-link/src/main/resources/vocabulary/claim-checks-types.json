@@ -2,6 +2,7 @@
   {
     "name": "claim-contradiction",
     "kind": "attribute",
+    "keyAttributes": ["found", "stated", "units"],
     "description": "A claim of the subject README that the code contradicts, found by a check of what the claim's words say against the facts of the README's deployable units. The value names the check: synchronous-calls (the claim says the units make no synchronous calls, and they call over HTTP), other-services-data (they never read or write another service's tables, and they do), own-database (they have a database of their own, and another unit uses it too), database-technology, broker-technology, java-version or spring-boot-version (the claim names one, and the units use another), port (the claim states the port they listen on, and server.port is another), endpoint (it names a path they serve, and none of their endpoints serves it), destination (it names a topic, queue or exchange they publish to or consume from, and theirs are others), named-services (it says they never call a named unit, and they do, or that they call or only call one, and they do not, or call others too). The evidence is the claim's; the code's side is in contradictedBy.",
     "attributeSchema": {
       "type": "object",

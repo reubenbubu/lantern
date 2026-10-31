@@ -8,6 +8,14 @@
     "attributeSchema": { "additionalProperties": false }
   },
   {
+    "name": "actor",
+    "kind": "entity",
+    "c4Level": "context",
+    "shape": "person",
+    "description": "Someone or something outside the system that uses it, such as a kind of person, as shown on a C4 system context diagram. Not a software system.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
     "name": "container",
     "kind": "entity",
     "c4Level": "container",
@@ -60,6 +68,12 @@
     "attributeSchema": { "additionalProperties": false }
   },
   {
+    "name": "repo",
+    "kind": "entity",
+    "description": "A repository of the snapshot, the subject of facts about files that belong to no module, such as a compose file in a deployment repository. Its key is the repository's name, as in the summaries. It has no C4 level.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
     "name": "CONTAINS",
     "kind": "relationship",
     "shape": "nested",
@@ -70,13 +84,20 @@
     "name": "DEPENDS_ON",
     "kind": "relationship",
     "shape": "dashed-arrow",
-    "description": "The subject needs the object to build or run.",
+    "description": "The subject needs the object to build: a build dependency or what it packages. Runtime relationships are under INTERACTS_WITH instead.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "INTERACTS_WITH",
+    "kind": "relationship",
+    "shape": "arrow",
+    "description": "The subject interacts with the object at runtime: it calls it, sends it messages, reads or writes its data, or connects to it. The root of every runtime relationship, kept apart from DEPENDS_ON, which is what the build needs, so a renderer falling back to a parent never draws a build edge as a runtime line.",
     "attributeSchema": { "additionalProperties": false }
   },
   {
     "name": "CALLS",
     "kind": "relationship",
-    "parent": "DEPENDS_ON",
+    "parent": "INTERACTS_WITH",
     "shape": "arrow",
     "description": "The subject invokes the object at runtime.",
     "attributeSchema": { "additionalProperties": false }

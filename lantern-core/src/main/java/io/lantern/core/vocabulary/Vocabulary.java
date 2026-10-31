@@ -1,5 +1,6 @@
 package io.lantern.core.vocabulary;
 
+import io.lantern.core.fact.ClaimId;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
@@ -13,7 +14,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 /**
@@ -22,20 +25,22 @@ import java.util.function.Function;
  *
  * <p>A type inherits its C4 level, shape, icon and object kind from the nearest ancestor that sets
  * them, and its attribute schema is its own merged with all its ancestors' (see {@link
- * AttributeSchema#merge}). A type may not set an object kind that differs from one it inherits.
+ * AttributeSchema#merge}). A type may not set an object kind that differs from one it inherits. Its
+ * key attributes are its own and all its ancestors' (ADR 0090).
  */
 public final class Vocabulary {
 
   private final long revision;
   private final Map<String, VocabularyType> types;
   private final Map<String, AttributeSchema> schemas = new HashMap<>();
+  private final Map<String, SortedSet<String>> keyAttributes = new HashMap<>();
 
   /**
    * @param revision the revision these types are the vocabulary of; 0 for the empty vocabulary
    * @param types the types
    * @throws IllegalArgumentException if the types are not consistent: duplicate names, a missing
-   *     parent, a parent of another kind, a cycle of parents, or attribute schemas or object kinds
-   *     that conflict with their parents'
+   *     parent, a parent of another kind, a cycle of parents, attribute schemas or object kinds
+   *     that conflict with their parents', or a key attribute the type's schema does not declare
    */
   public Vocabulary(long revision, Collection<VocabularyType> types) {
     if (revision < 0) {
@@ -67,12 +72,29 @@ public final class Vocabulary {
       for (VocabularyType t : lineage(type.name())) {
         rootFirst.addFirst(t.attributeSchema());
       }
+      AttributeSchema merged;
       try {
-        schemas.put(type.name(), AttributeSchema.merge(rootFirst));
+        merged = AttributeSchema.merge(rootFirst);
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException(
             "Attribute schema of '" + type.name() + "': " + e.getMessage(), e);
       }
+      schemas.put(type.name(), merged);
+      SortedSet<String> keys = new TreeSet<>();
+      for (VocabularyType t : lineage(type.name())) {
+        keys.addAll(t.keyAttributes());
+      }
+      for (String key : keys) {
+        if (!merged.properties().containsKey(key)) {
+          throw new IllegalArgumentException(
+              "Key attribute '"
+                  + key
+                  + "' of '"
+                  + type.name()
+                  + "' is not declared by it or a parent type");
+        }
+      }
+      keyAttributes.put(type.name(), Collections.unmodifiableSortedSet(keys));
       if (type.objectKind() != null && type.parent() != null) {
         FactObject.Kind inherited = objectKind(type.parent()).orElse(null);
         if (inherited != null && inherited != type.objectKind()) {
@@ -172,6 +194,37 @@ public final class Vocabulary {
       throw new IllegalArgumentException("Unknown type: '" + name + "'");
     }
     return schema;
+  }
+
+  /**
+   * The key attributes of facts with this predicate: the type's own and its ancestors' (ADR 0090).
+   * Two facts that differ in one of them are two claims; the other attributes are descriptive.
+   *
+   * @throws IllegalArgumentException if there is no such type
+   */
+  public SortedSet<String> keyAttributes(String name) {
+    SortedSet<String> keys = keyAttributes.get(name);
+    if (keys == null) {
+      throw new IllegalArgumentException("Unknown type: '" + name + "'");
+    }
+    return keys;
+  }
+
+  /**
+   * The ID of the claim a fact makes: its subject, predicate, object and the values of its
+   * predicate's key attributes, without evidence, origin, confidence or validity (ADR 0090), so
+   * every sighting of one thing has the same claim ID. See {@link ClaimId}.
+   *
+   * @throws IllegalArgumentException if the predicate is not in the vocabulary
+   */
+  public String claimId(Fact fact) {
+    Objects.requireNonNull(fact, "fact");
+    return ClaimId.of(
+        fact.subject(),
+        fact.predicate(),
+        fact.object(),
+        fact.attributes(),
+        keyAttributes(fact.predicate()));
   }
 
   /**

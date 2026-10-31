@@ -33,6 +33,12 @@
     "objectKind": {
       "description": "Attribute types only: the kind of value the objects of its facts must have. Inherited from the parent type when absent; any value is allowed if no type in the line sets it.",
       "enum": ["string", "integer", "decimal", "boolean"]
+    },
+    "keyAttributes": {
+      "description": "Relationship and attribute types only: the attributes of its facts that are part of what a fact claims, on top of those the parent type names; the others are descriptive (docs/adr/0090-key-attributes.md). Each must be declared by the type or an ancestor. Absent means none of its own.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/attributeName" }
     }
   },
   "allOf": [
@@ -54,6 +60,10 @@
     {
       "if": { "properties": { "kind": { "const": "attribute" } } },
       "else": { "not": { "required": ["objectKind"] } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "entity" } } },
+      "then": { "not": { "required": ["keyAttributes"] } }
     }
   ],
   "$defs": {

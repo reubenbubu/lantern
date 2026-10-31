@@ -2,6 +2,7 @@
   {
     "name": "websocket-endpoint",
     "kind": "attribute",
+    "keyAttributes": ["allowedOrigins", "handler", "handshakeHandler", "handshakeInterceptors", "nativeWebSocket", "path", "protocol", "sockjs"],
     "description": "The subject method registers a WebSocket endpoint that clients connect to: a STOMP endpoint (registry.addEndpoint, @EnableWebSocketMessageBroker) or a raw WebSocket handler (registry.addHandler, @EnableWebSocket). The object is the path. A path registered twice, once plain and once with SockJS, is one fact.",
     "attributeSchema": {
       "type": "object",
@@ -23,6 +24,7 @@
   {
     "name": "stomp-prefix",
     "kind": "attribute",
+    "keyAttributes": ["kind", "relayHost", "relayPort", "userDestinationBroadcast", "userRegistryBroadcast", "virtualHost"],
     "description": "The subject method configures a STOMP destination prefix of the message broker (configureMessageBroker): the prefixes the simple broker or a broker relay serves, the prefix of destinations handled by @MessageMapping methods, or the prefix of user destinations. The object is the prefix.",
     "attributeSchema": {
       "type": "object",
@@ -42,6 +44,7 @@
   {
     "name": "stomp-mapping",
     "kind": "attribute",
+    "keyAttributes": ["annotation", "defaultSendTo", "kind", "repliesToSubscriber", "sendTo", "sendToUser"],
     "parent": "entry-point",
     "description": "The subject method handles STOMP messages (@MessageMapping) or subscriptions (@SubscribeMapping) sent by a client: the object is the destination, the class's mapping joined with the method's, without the application prefix, which the stomp-prefix facts give.",
     "attributeSchema": {
@@ -62,6 +65,7 @@
   {
     "name": "stomp-send",
     "kind": "attribute",
+    "keyAttributes": ["dynamic", "method", "template", "toUser"],
     "description": "The subject method pushes a message to STOMP subscribers through SimpMessagingTemplate or SimpMessageSendingOperations (convertAndSend, send, convertAndSendToUser): the object is the destination, with constants folded and a part that is not a constant (an id formatted into it) written as {}.",
     "attributeSchema": {
       "type": "object",
@@ -80,6 +84,7 @@
   {
     "name": "stomp-interceptor",
     "kind": "attribute",
+    "keyAttributes": ["channel", "intercepts"],
     "description": "The subject method registers a ChannelInterceptor on the STOMP client channel (configureClientInboundChannel or configureClientOutboundChannel), where connect, subscribe and send checks are made. The object is the interceptor's type.",
     "attributeSchema": {
       "type": "object",
@@ -95,6 +100,7 @@
   {
     "name": "stomp-channel-interceptor",
     "kind": "attribute",
+    "keyAttributes": ["destinations", "headers", "intercepts", "readsDestination", "setsUser"],
     "description": "The subject class intercepts the messages of a STOMP client channel (it implements ChannelInterceptor, directly or through the application's own types), at its declaration; the object is its binary name. stomp-interceptor facts say on which channel it is registered. Inbound interceptors commonly authenticate CONNECT frames and check which destinations a client may subscribe or send to.",
     "attributeSchema": {
       "type": "object",

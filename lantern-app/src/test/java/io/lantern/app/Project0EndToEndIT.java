@@ -9,6 +9,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Git;
+import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.Role;
@@ -181,6 +182,7 @@ class Project0EndToEndIT {
   @Autowired AnalysisRun run;
   @Autowired FakeLlmProvider fake;
   @Autowired FactRepository facts;
+  @Autowired VocabularyRegistry vocabulary;
 
   @AfterAll
   static void cleanUp() {
@@ -215,6 +217,12 @@ class Project0EndToEndIT {
         .containsExactly("catalog-lib@" + commits.get("catalog-lib"));
     assertThat(first.facts()).isPositive();
     assertThat(first.newFacts()).isEqualTo(first.facts());
+    // Claim identity on every fact of the snapshot (ADR 0090).
+    assertThat(
+            ClaimIdentityCheck.problems(
+                vocabulary.current(),
+                facts.findValidAt(first.snapshot().number(), commits.keySet())))
+        .isEmpty();
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.wordingsAsked()).isPositive();
     // The links project-0 leaves open with candidates: HTTP-6, HTTP-7 and MSG-5.

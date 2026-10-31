@@ -2,6 +2,7 @@
   {
     "name": "message-listener",
     "kind": "attribute",
+    "keyAttributes": ["broker", "destinationKind", "group"],
     "parent": "entry-point",
     "description": "The subject method handles messages from a broker (@KafkaListener, @JmsListener, @RabbitListener, directly, through a meta-annotation, or on its class with @KafkaHandler or @RabbitHandler; or a Spring Cloud Stream input binding of a function bean or a @StreamListener): the topic, topic pattern, queue or destination it listens on, one fact for each, with placeholders resolved against the config of the method's module.",
     "attributeSchema": {
@@ -22,6 +23,7 @@
   {
     "name": "message-send",
     "kind": "attribute",
+    "keyAttributes": ["broker", "destinationKind", "routingKey", "unknown"],
     "description": "The subject method sends messages to a broker, through a Kafka, JMS or RabbitMQ template or producer, or as a listener's reply (@SendTo), or through a Spring Cloud Stream output binding (a function bean's, StreamBridge.send or a legacy @Output channel): the topic, destination, exchange or queue it sends to, with constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. A send through the RabbitMQ default exchange is recorded as a send to the queue its routing key names. Values resolved from config are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
@@ -48,6 +50,7 @@
   {
     "name": "message-binding",
     "kind": "attribute",
+    "keyAttributes": ["binding", "broker", "exchange", "exchangeType", "routingKey"],
     "description": "The subject method binds a RabbitMQ queue to an exchange (BindingBuilder, new Binding, or @QueueBinding on a listener; or, for a Spring Cloud Stream input binding, the queue the binder declares for the binding's group, bound to the destination's exchange): the queue's name, with the exchange and the routing key or pattern, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Values resolved from config are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
@@ -74,6 +77,7 @@
   {
     "name": "message-destination",
     "kind": "attribute",
+    "keyAttributes": ["broker", "destinationKind"],
     "description": "The subject method (or type, for a field initializer) declares a destination of a broker, whether or not anything binds, sends to or listens on it: a RabbitMQ queue or exchange (new Queue, QueueBuilder, new TopicExchange and the other exchange classes, ExchangeBuilder, also inside a Declarables or another call's arguments) or a Kafka topic (TopicBuilder.name, new NewTopic). The object is its name, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Values resolved from config are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",

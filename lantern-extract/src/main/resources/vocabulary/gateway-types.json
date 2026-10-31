@@ -2,6 +2,7 @@
   {
     "name": "gateway-route",
     "kind": "attribute",
+    "keyAttributes": ["definedIn", "filterTypes", "filters", "framework", "methods", "order", "paths", "predicates", "uri"],
     "description": "A Spring Cloud Gateway route: requests matching its predicates go, through its filters, to its URI. The value is the route's id. The subject is the method that builds it with RouteLocatorBuilder, or the module whose config (spring.cloud.gateway.routes, or the server.webflux, server.webmvc or mvc forms, or Netflix Zuul's zuul.routes) defines it. Placeholders in the URI are resolved against the config of the module; values are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
@@ -28,6 +29,7 @@
   {
     "name": "gateway-filter",
     "kind": "attribute",
+    "keyAttributes": ["implements"],
     "parent": "entry-point",
     "description": "The subject class filters requests on their way through a Spring Cloud Gateway or WebFlux application, so work starts in it: global (a GlobalFilter, applied to every route), gateway (a GatewayFilter, applied by the routes that name it), factory (a GatewayFilterFactory, named in route config) or web (a WebFilter, applied to every request). Only classes that are beans, or that a route applies, count.",
     "attributeSchema": {
@@ -43,6 +45,7 @@
   {
     "name": "gateway-discovery-locator",
     "kind": "attribute",
+    "keyAttributes": ["enabled", "filters", "includeExpression", "lowerCaseServiceId", "predicates", "routeIdPrefix"],
     "description": "The subject module's config turns on Spring Cloud Gateway's discovery locator (spring.cloud.gateway.discovery.locator.enabled, or under server.webflux): the gateway routes /<service ID>/** to each service its discovery client knows, without that first segment, unless predicates or filters replace those defaults. The value is the URL expression, by default 'lb://'+serviceId. Values are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",

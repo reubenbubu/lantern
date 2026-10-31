@@ -237,6 +237,7 @@ Requires JDK 21, git and Docker with the `docker` CLI on the `PATH` (tests start
 - Quick check while working, without integration tests (under a minute): `./mvnw verify -DskipITs`. It runs the unit and frontend tests and the formatting check.
 - Where `mvnd` (the Maven daemon) is installed, it can replace `./mvnw` in the quick check for speed (about 25 s instead of 36 s), not in the full check, whose parallel Maven processes it does not serve reliably. A daemon keeps the JDK, `java.io.tmpdir` and environment it started with and serves later builds from any folder, so it ignores a task's `TMPDIR` and `MAVEN_OPTS`: tasks running at the same time use `./mvnw`.
 - Fix formatting: `./mvnw spotless:apply`
+- After changing a vocabulary type of the extractors or the linker, regenerate its attribute records (`docs/adr/0090-key-attributes.md`), which a test otherwise fails on: `./mvnw test -pl lantern-link -am -Dtest=AttributeRecordsTest -Dsurefire.failIfNoSpecifiedTests=false -Dlantern.records.write=true`
 - Check formatting only: `./mvnw spotless:check`
 - Test one module: `./mvnw verify -pl <module> -am`
 - With Node 24 installed, regenerate the TypeScript types and run the frontend tests alone: `npm --prefix lantern-web ci && npm --prefix lantern-web test`
