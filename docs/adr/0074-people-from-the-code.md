@@ -133,7 +133,7 @@ server-rendered screens, mail recipients, `roles.contains("X")` checks, and the 
 ## Amendment (#574): people are a link rule of their own
 
 People are no longer a step of `cross-repo-links` but a link rule of their own (`People`, origin
-`people`, ADR 0095). It reads `person-evidence` and `endpoint` as their generated attribute records,
+`persons`, not `people`, the extractor's name, ADR 0095). It reads `person-evidence` and `endpoint` as their generated attribute records,
 not attribute JSON, and writes `person-basis` and `display-name`, whose types the cross-repo links'
 vocabulary still defines. The people are the same on project-0 to project-4; `cross-repo-links`
 goes to version 18.

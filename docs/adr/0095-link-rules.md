@@ -29,6 +29,9 @@ of the snapshot, and ran all of them on every analysis. This record says how the
 - **`EXTRACTED` covers only extracted facts.** Under it a rule may ask for any extracted
   predicate, but asking for one another rule writes, without naming it, fails like any undeclared
   read.
+- **A rule's name is not an extractor's.** The linker tells a rule's facts from the extracted ones
+  by origin name, so a rule named as an extractor would take that extractor's facts for its own
+  (#574: the people rule is `persons`, the extractor `people`); a test checks the standard rules.
 - **Order.** A rule runs after every other rule that writes a predicate it reads, and otherwise in
   the order the linker is given. A rule never reads its own facts, so a predicate it both reads and
   writes (`technology`, which the units and the cross-repo links both give) is read from the others.

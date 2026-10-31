@@ -52,6 +52,18 @@ class LinkRuleTest {
   }
 
   @Test
+  void noRuleIsNamedAsAnExtractor() {
+    // The linker tells its facts from the extractors' by origin name.
+    Set<String> extractors =
+        new java.util.HashSet<>(io.lantern.extract.ExtractorVocabularies.bySource().keySet());
+    extractors.add(io.lantern.extract.people.PeopleExtractor.NAME);
+    List<String> rules = new java.util.ArrayList<>(names(Rules.standard()));
+    rules.add(LinkResolver.NAME);
+
+    assertThat(rules).doesNotContainAnyElementsOf(extractors);
+  }
+
+  @Test
   void aCycleFailsNamingItsRules() {
     Rule a = new Rule("a", Set.of("q"), Set.of("p"));
     Rule b = new Rule("b", Set.of("p"), Set.of("q"));

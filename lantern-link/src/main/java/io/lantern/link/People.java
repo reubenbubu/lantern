@@ -35,8 +35,8 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class People implements LinkRule {
 
-  /** The rule's name, recorded as the origin of its facts. */
-  public static final String NAME = "people";
+  /** The rule's name, recorded as the origin of its facts; not "people", the extractor's. */
+  public static final String NAME = "persons";
 
   /** The rule's version. */
   public static final String VERSION = "1";
