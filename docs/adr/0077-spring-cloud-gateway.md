@@ -179,3 +179,27 @@ becomes 3.
   (#459); the WebMVC `RouterFunction` DSL, `routes-map` and `default-filters` (#458); routes in a
   config server's repository (#461); nginx and Traefik (#460); Kubernetes Ingress and Gateway API
   (#397).
+
+## Amendment (#558): routes as written, resolved in linking
+
+The knowledge-build epic keeps values as written in extraction and resolves them in linking
+(ADR 0094). The gateway extractor no longer reads config:
+
+- **A route built in code** is recorded as written. A `gateway-route-written` fact sits on the
+  method that builds it, with the route id as written as its value. It holds:
+  - the URI, paths, predicates and order as written;
+  - its methods, filters and filter classes;
+  - the module whose config resolves it (`configModule`, `configRepo`).
+- **Linking's first step** (`ValueViews`) gives the `gateway-route` facts from these, per view, as
+  the extractor recorded them before. It also gives the routes, Zuul routes and discovery locator
+  that config defines: it runs the extractor's own reading of them (`GatewayExtractor.routes`) on
+  each module's config, which it reads from the `config-value` facts per view (the profile's facts
+  over the default's, a list the profile sets replacing the default's).
+  - The evidence keeps the config facts' files, by blob.
+  - A config value masked for a secret stands for its secret keys, so what uses it is masked as
+    before. For this, the config extractor (version 9) keeps the text as written of a value it
+    masks only for the secret its placeholders bring in, when that text holds none.
+- `ValueViewsTest` checks that the derived routes and locators on the extractor's `gateway` fixture
+  equal the 21 `gateway-route` and `gateway-discovery-locator` lines of the extractor's golden from
+  before. The Zuul and locator cases and the masking test moved there unchanged.
+- The extractor no longer requires the identity extractor. Its version becomes 5.
