@@ -3,6 +3,7 @@ package io.lantern.link;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Lineage;
+import io.lantern.core.fact.Origin;
 import io.lantern.extract.LanternCode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -52,6 +53,12 @@ public final class Linker {
       ran = List.copyOf(ran);
     }
   }
+
+  /**
+   * The names of rules that are gone (ADR 0095): {@code cross-repo-links}, split into the protocol
+   * rules by #575. Their facts in a store are neither read nor kept: each link ends them.
+   */
+  static final Set<String> RETIRED = Set.of(CrossRepoLinks.NAME);
 
   private final FactRepository store;
   private final List<LinkRule> rules;
@@ -114,10 +121,14 @@ public final class Linker {
     return new Linker(store, rules, runs);
   }
 
-  /** The origin names of the rules' facts. */
+  /**
+   * The origin names of the rules' facts, and of retired rules', which recording the extracted
+   * facts must leave alone.
+   */
   public Set<String> origins() {
     Set<String> names = new LinkedHashSet<>();
     rules.forEach(r -> names.add(r.info().name()));
+    names.addAll(RETIRED);
     return names;
   }
 
@@ -169,6 +180,14 @@ public final class Linker {
     int closed = 0;
     Map<String, String> claims = new HashMap<>();
     extracted.forEach(f -> claims.put(f.id(), f.claimId()));
+    for (String retired : RETIRED) {
+      // A retired rule's facts stop holding, as a rule's do that it no longer gives.
+      closed +=
+          store
+              .recordDerived(
+                  snapshot, new Origin(Origin.Kind.STATIC, retired, null), repos, List.of())
+              .closed();
+    }
     for (LinkRule rule : rules) {
       RuleInfo info = rule.info();
       List<Fact> input = input(rule, extracted, derivedBy);

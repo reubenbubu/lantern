@@ -1,6 +1,7 @@
 package io.lantern.link;
 
 import io.lantern.core.vocabulary.VocabularyType;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,11 +34,10 @@ final class Rules {
 
   /** The static rules of this version of Lantern, without the LLM resolver. */
   static List<LinkRule> standard() {
-    return List.of(
-        new ValueViews(),
-        new DeployableUnits(),
-        new CrossRepoLinks(),
-        new People(),
-        new ClaimChecks());
+    List<LinkRule> rules = new ArrayList<>(List.of(new ValueViews(), new DeployableUnits()));
+    rules.addAll(ProtocolLinks.all());
+    rules.add(new People());
+    rules.add(new ClaimChecks());
+    return List.copyOf(rules);
   }
 }

@@ -91,19 +91,21 @@ class LinkRuleTest {
             Set.of(CrossRepoLinks.UNRESOLVED_LINK),
             Set.of(CrossRepoLinks.CALLS_HTTP, CrossRepoLinks.SENDS_MESSAGES_TO));
 
-    assertThat(
-            names(
-                RuleOrder.of(
-                    List.of(
-                        new ValueViews(),
-                        new DeployableUnits(),
-                        new CrossRepoLinks(),
-                        new ClaimChecks(),
-                        resolver))))
+    List<LinkRule> rules = new java.util.ArrayList<>(Rules.standard());
+    rules.add(resolver);
+
+    assertThat(names(RuleOrder.of(rules)))
         .containsExactly(
             ValueViews.NAME,
             DeployableUnits.NAME,
-            CrossRepoLinks.NAME,
+            "http-links",
+            "messaging-links",
+            "deployment-links",
+            "data-links",
+            "mail-links",
+            "identity-links",
+            "redis-links",
+            People.NAME,
             "link-resolver",
             ClaimChecks.NAME);
   }

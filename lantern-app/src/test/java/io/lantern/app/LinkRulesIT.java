@@ -247,6 +247,31 @@ class LinkRulesIT {
   }
 
   @Test
+  void aRetiredRulesFactsAreNeitherReadNorKept() {
+    Linker linker = linker(CONTAINS_TO_CALLS, CALLS_TO_IMPLEMENTS, CONFIG_TO_EXTENDS);
+    // A link the cross-repo links step recorded before #575 split it.
+    Fact old =
+        Fact.create(
+            EntityId.parse("module:g:lib"),
+            BuiltInTypes.CALLS,
+            FactObject.entity(EntityId.parse("type:g.Old")),
+            FactJson.newObject(),
+            new Origin(Origin.Kind.STATIC, "cross-repo-links", "18"),
+            Evidence.of("lib", "pom.xml", null, null),
+            1.0,
+            Validity.from(1));
+    facts.recordDerived(1, old.origin(), Set.of("lib"), List.of(old));
+
+    link(linker, 2, lib(2, "name", 10));
+
+    assertThat(derivedAt(2))
+        .containsExactly(
+            "calls: CALLS type:g.App",
+            "extends: EXTENDS type:g.name",
+            "implements: IMPLEMENTS type:g.App");
+  }
+
+  @Test
   void aRuleWhoseFactsChangedElsewhereRunsAgain() {
     Linker linker = linker(CONTAINS_TO_CALLS, CALLS_TO_IMPLEMENTS, CONFIG_TO_EXTENDS);
     link(linker, 1, lib(1, "name", 10));
