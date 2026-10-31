@@ -30,6 +30,13 @@ class ValueViewsTest {
 
   private static final long SNAPSHOT = 5;
 
+  private static final java.util.Set<String> DATASOURCE_FACTS =
+      java.util.Set.of(
+          io.lantern.extract.persistence.PersistenceExtractor.DATASOURCE,
+          io.lantern.extract.persistence.PersistenceExtractor.DATA_STORE,
+          io.lantern.extract.persistence.PersistenceExtractor.HAS_DATASOURCE,
+          io.lantern.extract.persistence.PersistenceExtractor.CONNECTS_TO);
+
   @TempDir Path temp;
 
   @Test
@@ -52,7 +59,11 @@ class ValueViewsTest {
     List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
     facts.addAll(new io.lantern.extract.gateway.GatewayExtractor().extract(repos, SNAPSHOT));
 
-    List<Fact> routes = new ValueViews().derive(facts, SNAPSHOT);
+    List<Fact> routes =
+        new ValueViews()
+            .derive(facts, SNAPSHOT).stream()
+                .filter(f -> f.predicate().startsWith("gateway-"))
+                .toList();
 
     assertThat(sorted(render(routes))).isEqualTo(sorted(golden("gateway-routes-parsed.txt")));
   }
@@ -114,7 +125,11 @@ class ValueViewsTest {
     facts.addAll(
         new io.lantern.extract.persistence.PersistenceExtractor().extract(repos, SNAPSHOT));
 
-    List<Fact> datasources = new ValueViews().derive(facts, SNAPSHOT);
+    List<Fact> datasources =
+        new ValueViews()
+            .derive(facts, SNAPSHOT).stream()
+                .filter(f -> DATASOURCE_FACTS.contains(f.predicate()))
+                .toList();
 
     assertThat(datasources).hasSize(golden("datasources-parsed.txt").size());
     assertThat(datasources)
@@ -128,7 +143,11 @@ class ValueViewsTest {
     facts.addAll(
         new io.lantern.extract.persistence.PersistenceExtractor().extract(repos, SNAPSHOT));
 
-    List<Fact> datasources = new ValueViews().derive(facts, SNAPSHOT);
+    List<Fact> datasources =
+        new ValueViews()
+            .derive(facts, SNAPSHOT).stream()
+                .filter(f -> DATASOURCE_FACTS.contains(f.predicate()))
+                .toList();
 
     // The facts of before, and the datasource entities with their addresses (#560).
     assertThat(sorted(render(datasources))).isEqualTo(sorted(golden("datasources-parsed.txt")));
@@ -140,6 +159,38 @@ class ValueViewsTest {
             f ->
                 f.evidence().declared().contentHash() != null
                     || f.evidence().declared().blob() != null);
+  }
+
+  @Test
+  void thePersistenceAndRedisFactsAreThoseTheirExtractorsRecordedBefore() throws IOException {
+    for (String set : List.of("persistence", "redis")) {
+      List<RepoBuild> repos = List.of(fixture(set));
+      List<Fact> written =
+          set.equals("persistence")
+              ? new io.lantern.extract.persistence.PersistenceExtractor().extract(repos, SNAPSHOT)
+              : new io.lantern.extract.redis.RedisExtractor().extract(repos, SNAPSHOT);
+      List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+      facts.addAll(written);
+
+      // The extractor's facts but those kept for linking, and what linking records from them and
+      // the config facts, are the extractor's facts of before: its golden file (#560, #567).
+      List<Fact> all = new ArrayList<>();
+      for (Fact f : written) {
+        if (!f.predicate().equals(io.lantern.extract.persistence.PersistenceExtractor.JPA_TABLE)
+            && !f.predicate().equals(io.lantern.extract.redis.RedisExtractor.CACHE_USE)) {
+          all.add(f);
+        }
+      }
+      for (Fact f : new ValueViews().derive(facts, SNAPSHOT)) {
+        if (!f.predicate()
+                .equals(io.lantern.extract.persistence.PersistenceExtractor.HAS_DATASOURCE)
+            && !f.predicate()
+                .equals(io.lantern.extract.persistence.PersistenceExtractor.CONNECTS_TO)) {
+          all.add(f);
+        }
+      }
+      assertThat(sorted(render(all))).as(set).isEqualTo(sorted(golden(set + "-parsed.txt")));
+    }
   }
 
   /** Moved from the gateway extractor's tests with #558, unchanged. */

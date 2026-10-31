@@ -132,6 +132,11 @@ public final class ValueViews implements LinkStep {
             configs, secretKeys, ORIGIN, snapshot);
     List<Fact> all = new java.util.ArrayList<>(routes);
     all.addAll(datasources);
+    all.addAll(
+        io.lantern.extract.persistence.PersistenceExtractor.tables(
+            facts, configs, ORIGIN, snapshot));
+    all.addAll(
+        io.lantern.extract.redis.RedisExtractor.fromConfig(facts, configs, ORIGIN, snapshot));
     return all.stream().map(f -> withBlobs(f, blobs)).toList();
   }
 

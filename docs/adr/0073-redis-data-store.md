@@ -119,3 +119,15 @@ Not read yet, each with a project-0 case first:
 
 Deciding the provider per view, and not linking a unit on a client dependency alone, are the
 linker's (#426).
+
+## Amendment (#567): config read in linking
+
+The Redis extractor (version 4) reads no config. Each Spring or JCache cache use is a `cache-use`
+fact as the code writes it, with what the module's code and POM say of its cache provider (a Redis
+or other cache manager built in code, Spring Data Redis, a provider Spring Boot tries first).
+Linking's first step (`RedisExtractor.fromConfig`, from the config facts) records the `redis-use`
+facts config shows (Spring Session, the rate limiter, `spring.cache.type: redis`) and decides each
+module's cache provider as before, with `spring.cache.type` and the time to live. The Redis server a
+unit connects to was already read in linking from the config facts. `ValueViewsTest` checks that
+the extractor's facts with what linking records are its whole golden file of before.
+

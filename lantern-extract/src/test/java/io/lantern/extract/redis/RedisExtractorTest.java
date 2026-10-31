@@ -29,16 +29,60 @@ class RedisExtractorTest {
     Repo repo = Fixtures.repo("redis", temp.resolve("redis"), "redis");
     List<RepoBuild> inputs = List.of(new RepoBuild(repo, Fixtures.head(repo), null));
 
-    List<Fact> facts = new RedisExtractor().extract(inputs, SNAPSHOT);
+    List<Fact> facts = resolved(inputs);
 
     Fixtures.checkEnvelope(
         facts, List.of(repo), SNAPSHOT, RedisExtractor.NAME, RedisExtractor.VERSION);
-    assertThat(new RedisExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
+    assertThat(resolved(inputs)).isEqualTo(facts);
     Fixtures.assertGolden("redis/redis-parsed.txt", facts);
+    // The extractor itself reads no config (#567): cache uses are as written, decided in linking.
+    List<Fact> written = new RedisExtractor().extract(inputs, SNAPSHOT);
+    assertThat(written)
+        .noneMatch(f -> f.attributes().path("source").stringValue("").equals("config"))
+        .anyMatch(f -> f.predicate().equals(RedisExtractor.CACHE_USE));
     // Neither a password nor a managed or test-only dependency reaches a fact.
     assertThat(Fixtures.render(facts))
         .doesNotContain("secret", "redisson", "jedis", "lettuce", "\"spring-data-redis\"")
         .doesNotContain("ScanOptions", "some-plugin");
+  }
+
+  /**
+   * The extractor's facts with what linking records from the modules' config (#567), read here from
+   * their files: its cache uses decided, and the uses config names. {@code ValueViewsTest} checks
+   * that linking, from the config facts, gives the same.
+   */
+  private static List<Fact> resolved(List<RepoBuild> repos) {
+    List<Fact> written = new RedisExtractor().extract(repos, SNAPSHOT);
+    List<Fact> facts = new java.util.ArrayList<>();
+    for (Fact f : written) {
+      if (!f.predicate().equals(RedisExtractor.CACHE_USE)) {
+        facts.add(f);
+      }
+    }
+    List<io.lantern.extract.config.ModuleValues> configs = new java.util.ArrayList<>();
+    for (RepoBuild repo : repos) {
+      io.lantern.extract.config.ConfigExtractor.read(repo)
+          .forEach(c -> configs.add(io.lantern.extract.config.ModuleValues.of(c)));
+    }
+    facts.addAll(
+        RedisExtractor.fromConfig(
+            written,
+            configs,
+            new io.lantern.core.fact.Origin(
+                io.lantern.core.fact.Origin.Kind.STATIC,
+                RedisExtractor.NAME,
+                RedisExtractor.VERSION),
+            SNAPSHOT));
+    return facts.stream()
+        .sorted(
+            java.util.Comparator.comparing((Fact f) -> f.subject().toString())
+                .thenComparing(Fact::predicate)
+                .thenComparing(f -> f.object().value())
+                .thenComparing(f -> f.evidence().path())
+                .thenComparing(f -> f.evidence().lines() == null ? 0 : f.evidence().lines().start())
+                .thenComparing(f -> f.attributes().toString())
+                .thenComparing(Fact::id))
+        .toList();
   }
 
   @Test
@@ -175,9 +219,7 @@ class RedisExtractorTest {
                   }
                 }
                 """));
-    return Fixtures.render(
-        new RedisExtractor()
-            .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT));
+    return Fixtures.render(resolved(List.of(new RepoBuild(repo, Fixtures.head(repo), null))));
   }
 
   @Test

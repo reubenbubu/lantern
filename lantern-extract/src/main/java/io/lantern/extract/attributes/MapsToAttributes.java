@@ -13,7 +13,8 @@ import tools.jackson.databind.node.ObjectNode;
  * relational &#64;Table class, a MongoDB &#64;Document (its collection) or an Elasticsearch
  * &#64;Document (its index); collection and index names are kept as written. The table is keyed by
  * the module that declares the entity; the linker matches it to the tables migrations create by
- * name.
+ * name. For a JPA entity linking records it from the jpa-table fact and the naming strategy of the
+ * module's config (#567).
  *
  * @param framework Key. Which annotations map it.
  * @param inheritedFrom Key. The binary name of the entity at the top of its single-table

@@ -68,7 +68,13 @@ class PersistenceExtractorTest {
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
     assertThat(new PersistenceExtractor().extract(code, SNAPSHOT))
         .noneMatch(f -> f.predicate().equals(PersistenceExtractor.DATASOURCE))
-        .noneMatch(f -> f.predicate().equals(PersistenceExtractor.DATA_STORE));
+        .noneMatch(f -> f.predicate().equals(PersistenceExtractor.DATA_STORE))
+        // A JPA entity's name is as written; linking names its table (#567).
+        .noneMatch(
+            f ->
+                f.predicate().equals(PersistenceExtractor.MAPS_TO)
+                    && f.attributes().path("framework").stringValue("").equals("jpa"))
+        .anyMatch(f -> f.predicate().equals(PersistenceExtractor.JPA_TABLE));
     List<Fact> entities =
         Resolved.datasources(code, SNAPSHOT, Set.of()).stream()
             .filter(

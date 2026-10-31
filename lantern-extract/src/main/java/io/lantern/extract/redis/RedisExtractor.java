@@ -16,9 +16,8 @@ import io.lantern.extract.Extractor;
 import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
-import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
-import io.lantern.extract.config.ModuleConfig;
+import io.lantern.extract.config.ModuleValues;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.ModuleStructure;
@@ -66,13 +65,23 @@ public final class RedisExtractor implements Extractor {
   public static final String NAME = "redis";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "redis-extractor";
 
   /** Attribute: the subject uses Redis; its value is the kind of use. */
   public static final String REDIS_USE = "redis-use";
+
+  /**
+   * Attribute: the subject uses a Spring cache, with what its module's code says of the cache
+   * provider; linking tells from the module's config whether the cache is Redis (#567).
+   */
+  public static final String CACHE_USE = "cache-use";
+
+  /** The attributes of a cache use that say what the module's code says of the provider. */
+  private static final List<String> PROVIDER_SIGNALS =
+      List.of("redisManager", "otherManager", "springDataRedis", "earlierProvider");
 
   /** The kinds of use, as the value of {@link #REDIS_USE}. */
   public static final String TEMPLATE = "template";
@@ -347,9 +356,39 @@ public final class RedisExtractor implements Extractor {
       run.code(module);
       run.dependencies(module);
     }
-    for (RepoBuild repo : all) {
-      for (ModuleConfig config : ConfigExtractor.read(repo)) {
-        run.config(config);
+    run.cacheUses();
+    return run.facts.values().stream()
+        .sorted(
+            Comparator.comparing((Fact f) -> f.subject().toString())
+                .thenComparing(Fact::predicate)
+                .thenComparing(f -> f.object().value())
+                .thenComparing(f -> f.evidence().path())
+                .thenComparing(f -> f.evidence().lines() == null ? 0 : f.evidence().lines().start())
+                .thenComparing(f -> f.attributes().toString())
+                .thenComparing(Fact::id))
+        .toList();
+  }
+
+  /**
+   * The facts linking gives from each module's config (#567), as this extractor recorded them
+   * before it stopped reading config: Spring Session, the rate limiter and the cache that config
+   * names, and the cache uses written in code ({@value #CACHE_USE}) of the modules whose cache
+   * provider, told from the code and the config ({@code spring.cache.type}), is Redis, with the
+   * time to live config sets.
+   *
+   * @param written the snapshot's facts; only {@value #CACHE_USE} facts are read
+   * @param configs the config of each module
+   * @param origin the origin of the facts
+   * @param snapshot the snapshot number the facts hold from
+   */
+  public static List<Fact> fromConfig(
+      List<Fact> written, List<ModuleValues> configs, Origin origin, long snapshot) {
+    Run run = new Run(Validity.from(snapshot));
+    run.origin = origin;
+    configs.forEach(run::config);
+    for (Fact f : written) {
+      if (f.predicate().equals(CACHE_USE)) {
+        run.cacheUse(f);
       }
     }
     run.caches();
@@ -378,8 +417,59 @@ public final class RedisExtractor implements Extractor {
       return caching.computeIfAbsent(module, k -> new Caching());
     }
 
+    private Origin origin = ORIGIN;
+
     Run(Validity validity) {
       this.validity = validity;
+    }
+
+    /** Each module's cache uses as written, with what its code says of the cache provider. */
+    void cacheUses() {
+      caching.forEach(
+          (module, c) -> {
+            for (CacheUse use : c.uses) {
+              ObjectNode attributes = use.attributes().deepCopy();
+              attributes.put("configModule", module.toString());
+              if (c.redisManager) {
+                attributes.put("redisManager", true);
+              }
+              if (c.otherManager) {
+                attributes.put("otherManager", true);
+              }
+              if (c.springDataRedis) {
+                attributes.put("springDataRedis", true);
+              }
+              if (c.earlierProvider) {
+                attributes.put("earlierProvider", true);
+              }
+              Fact fact =
+                  Fact.create(
+                      use.subject(),
+                      CACHE_USE,
+                      FactObject.string(CACHE),
+                      attributes,
+                      origin,
+                      use.evidence(),
+                      use.confidence(),
+                      validity);
+              facts.putIfAbsent(fact.id(), fact);
+            }
+          });
+    }
+
+    /** A cache use written in code, kept until its module's cache provider is known. */
+    void cacheUse(Fact written) {
+      JsonNode a = written.attributes();
+      Caching c = caching(EntityId.parse(a.get("configModule").stringValue()));
+      c.redisManager |= a.path("redisManager").asBoolean(false);
+      c.otherManager |= a.path("otherManager").asBoolean(false);
+      c.springDataRedis |= a.path("springDataRedis").asBoolean(false);
+      c.earlierProvider |= a.path("earlierProvider").asBoolean(false);
+      ObjectNode attributes = ((ObjectNode) a).deepCopy();
+      attributes.remove("configModule");
+      PROVIDER_SIGNALS.forEach(attributes::remove);
+      c.uses.add(
+          new CacheUse(written.subject(), attributes, written.evidence(), written.confidence()));
     }
 
     // -------------------------------------------------------------------------------------------
@@ -772,7 +862,7 @@ public final class RedisExtractor implements Extractor {
     }
 
     /** Spring Session, the rate limiter and the cache named in a module's config. */
-    void config(ModuleConfig config) {
+    void config(ModuleValues config) {
       SortedMap<String, ConfigValue> values = config.values(null);
       boolean limiter = false;
       boolean session = false;
@@ -816,10 +906,10 @@ public final class RedisExtractor implements Extractor {
             kind,
             attributes,
             Evidence.of(
-                config.repo().repo().name(),
+                config.repo(),
                 where.path(),
                 where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
-                where.contentHash()),
+                where.contentHash().isEmpty() ? null : where.contentHash()),
             1.0);
       }
     }
@@ -853,7 +943,7 @@ public final class RedisExtractor implements Extractor {
               REDIS_USE,
               FactObject.string(kind),
               attributes,
-              ORIGIN,
+              origin,
               evidence,
               confidence,
               validity);
