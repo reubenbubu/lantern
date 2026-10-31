@@ -4,7 +4,7 @@
     "kind": "attribute",
     "keyAttributes": ["broker", "destinationKind", "group"],
     "parent": "entry-point",
-    "description": "The subject method handles messages from a broker (@KafkaListener, @JmsListener, @RabbitListener, directly, through a meta-annotation, or on its class with @KafkaHandler or @RabbitHandler; or a Spring Cloud Stream input binding of a function bean or a @StreamListener): the topic, topic pattern, queue or destination it listens on, one fact for each, with placeholders resolved against the config of the method's module.",
+    "description": "The subject method handles messages from a broker (@KafkaListener, @JmsListener, @RabbitListener, directly, through a meta-annotation, or on its class with @KafkaHandler or @RabbitHandler; or a Spring Cloud Stream input binding of a function bean or a @StreamListener): the topic, topic pattern, queue or destination it listens on, one fact for each, as linking resolves the LISTENS_ON facts in each view (ADR 0094, #559): placeholders resolved against the config of the method's module.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -24,7 +24,7 @@
     "name": "message-send",
     "kind": "attribute",
     "keyAttributes": ["broker", "destinationKind", "routingKey", "unknown"],
-    "description": "The subject method sends messages to a broker, through a Kafka, JMS or RabbitMQ template or producer, or as a listener's reply (@SendTo), or through a Spring Cloud Stream output binding (a function bean's, StreamBridge.send or a legacy @Output channel): the topic, destination, exchange or queue it sends to, with constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. A send through the RabbitMQ default exchange is recorded as a send to the queue its routing key names. Values resolved from config are those of the default view unless profile is set.",
+    "description": "The subject method sends messages to a broker, through a Kafka, JMS or RabbitMQ template or producer, or as a listener's reply (@SendTo), or through a Spring Cloud Stream output binding (a function bean's, StreamBridge.send or a legacy @Output channel): the topic, destination, exchange or queue it sends to, with constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. A send through the RabbitMQ default exchange is recorded as a send to the queue its routing key names. Linking records these facts from the SENDS_TO facts (ADR 0094, #559); values resolved from config are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -51,7 +51,7 @@
     "name": "message-binding",
     "kind": "attribute",
     "keyAttributes": ["binding", "broker", "exchange", "exchangeType", "routingKey"],
-    "description": "The subject method binds a RabbitMQ queue to an exchange (BindingBuilder, new Binding, or @QueueBinding on a listener; or, for a Spring Cloud Stream input binding, the queue the binder declares for the binding's group, bound to the destination's exchange): the queue's name, with the exchange and the routing key or pattern, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Values resolved from config are those of the default view unless profile is set.",
+    "description": "The subject method binds a RabbitMQ queue to an exchange (BindingBuilder, new Binding, or @QueueBinding on a listener; or, for a Spring Cloud Stream input binding, the queue the binder declares for the binding's group, bound to the destination's exchange): the queue's name, with the exchange and the routing key or pattern, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Linking records these facts from the BINDS facts (ADR 0094, #559); values resolved from config are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -78,7 +78,7 @@
     "name": "message-destination",
     "kind": "attribute",
     "keyAttributes": ["broker", "destinationKind"],
-    "description": "The subject method (or type, for a field initializer) declares a destination of a broker, whether or not anything binds, sends to or listens on it: a RabbitMQ queue or exchange (new Queue, QueueBuilder, new TopicExchange and the other exchange classes, ExchangeBuilder, also inside a Declarables or another call's arguments) or a Kafka topic (TopicBuilder.name, new NewTopic). The object is its name, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Values resolved from config are those of the default view unless profile is set.",
+    "description": "The subject method (or type, for a field initializer) declares a destination of a broker, whether or not anything binds, sends to or listens on it: a RabbitMQ queue or exchange (new Queue, QueueBuilder, new TopicExchange and the other exchange classes, ExchangeBuilder, also inside a Declarables or another call's arguments) or a Kafka topic (TopicBuilder.name, new NewTopic). The object is its name, constants folded, placeholders resolved and a value followed one hop from a @Value field or parameter. Linking records these facts from the DECLARES facts (ADR 0094, #559); values resolved from config are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -95,6 +95,138 @@
         "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave a value, when a value was followed from one." }
       },
       "required": ["broker", "destinationKind"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "destination",
+    "kind": "entity",
+    "description": "A destination of a broker as code names it (ADR 0094, #559). A name written out is one destination wherever it is used: broker, ':', kind and ':' the name, such as kafka:topic:orders.created. A name config resolves (one with placeholders), an exchange the code does not fix ({...}), a STOMP destination with a part that is not a constant ({}) and a Spring Cloud Stream binding are scoped by the module whose config resolves them: the module's key, ':', then as before, such as com.acme:orders:rabbitmq:exchange:${orders.exchange} or com.acme:orders:stream:binding:process-in-0. Linking resolves a destination in each view. The broker is kafka, jms, rabbitmq, stomp or stream (a binding); the kind topic, topic-pattern, queue, exchange, destination (JMS or STOMP) or binding. Whitespace is written %20.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "SENDS_TO",
+    "kind": "relationship",
+    "keyAttributes": ["binder", "binderFollowed", "binders", "broker", "configModule", "configRepo", "configured", "destinationKind", "dynamic", "method", "name", "routingKey", "routingKeyFollowed", "streamOnClasspath", "template", "toUser", "unknown"],
+    "description": "The subject method sends messages to the object destination, as the code writes it: through a Kafka, JMS or RabbitMQ template or producer, a listener's reply (@SendTo), StreamBridge.send or a legacy @Output channel; or to STOMP subscribers through SimpMessagingTemplate (the WebSocket extractor's). Its values are as written; linking resolves them in each view against the config of configModule, and records the message-send facts, or for STOMP the stomp-send fact (ADR 0094, #559). A send through the RabbitMQ default exchange is to the queue its routing key names; one whose exchange config gives is to that exchange, which linking may find is the default one.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "broker": { "type": "string", "enum": ["kafka", "jms", "rabbitmq", "stream", "stomp"], "description": "Which messaging API the send uses; stream for a Spring Cloud Stream binding, whose binder config tells; stomp for a STOMP send to WebSocket subscribers." },
+        "destinationKind": { "type": "string", "enum": ["topic", "queue", "exchange", "destination", "binding"], "description": "What the name names." },
+        "routingKey": { "type": "string", "description": "The routing key of a send to a RabbitMQ exchange, as written. Absent when it is not known." },
+        "binder": { "type": "string", "description": "The binder StreamBridge.send names, as written." },
+        "template": { "type": "string", "description": "The binary name of the type whose method sends, the legacy binding interface whose @Output channel is used, or the @SendTo annotation for a reply." },
+        "method": { "type": "string", "description": "The name of the method called, such as convertAndSend. Absent for @SendTo." },
+        "toUser": { "type": "boolean", "description": "For STOMP, present and true when the message goes to one user's destination (convertAndSendToUser)." },
+        "dynamic": { "type": "boolean", "description": "For STOMP, present and true when part of the destination is not a constant, written as {}; the destination is then the module's own." },
+        "unknown": { "type": "array", "items": { "type": "string" }, "description": "The values the send has that could not be told, exchange or routingKey, when the code passes one that cannot be followed." },
+        "name": { "type": "string", "description": "The destination's name as written: constants folded and a value followed one hop from a @Value field or parameter, its placeholders kept." },
+        "configured": { "type": "array", "items": { "type": "string" }, "description": "The values whose ${...} placeholders config resolves, by attribute name (name for the destination's): those written in an annotation, a @Value or config. A string passed to a template is used as it is." },
+        "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave the name." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config resolves the values: the code's." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." },
+        "streamOnClasspath": { "type": "boolean", "description": "For a Spring Cloud Stream binding, present and true when Spring Cloud Stream is on the module's build classpath, or declared in its POMs without a build." },
+        "binders": { "type": "array", "items": { "type": "string" }, "description": "For a Spring Cloud Stream binding, the brokers of the binders on the module's build classpath (or declared in its POMs without a build), kafka or rabbitmq." },
+        "routingKeyFollowed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave routingKey." },
+        "binderFollowed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave binder." }
+      },
+      "required": ["broker", "destinationKind", "name", "configModule", "configRepo"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "LISTENS_ON",
+    "kind": "relationship",
+    "keyAttributes": ["annotation", "binders", "broker", "configModule", "configRepo", "configured", "destinationKind", "group", "groupFollowed", "name", "streamOnClasspath"],
+    "description": "The subject method handles messages from the object destination, as the code writes it (@KafkaListener, @JmsListener, @RabbitListener, directly, through a meta-annotation, or on its class with @KafkaHandler or @RabbitHandler; or a legacy @StreamListener's binding). Its values are as written; linking resolves them in each view against the config of configModule, and records the message-listener facts (ADR 0094, #559).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "broker": { "type": "string", "enum": ["kafka", "jms", "rabbitmq", "stream"], "description": "Which messaging API the listener uses; stream for a Spring Cloud Stream binding." },
+        "destinationKind": { "type": "string", "enum": ["topic", "topic-pattern", "queue", "destination", "binding"], "description": "What the name names." },
+        "group": { "type": "string", "description": "The Kafka consumer group as written: groupId, or else the listener's id. Absent when none is written." },
+        "annotation": { "type": "string", "description": "The binary name of the annotation written that makes the method a listener." },
+        "name": { "type": "string", "description": "The destination's name as written: constants folded and a value followed one hop from a @Value field or parameter, its placeholders kept." },
+        "configured": { "type": "array", "items": { "type": "string" }, "description": "The values whose ${...} placeholders config resolves, by attribute name (name for the destination's): those written in an annotation, a @Value or config. A string passed to a template is used as it is." },
+        "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave the name." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config resolves the values: the code's." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." },
+        "streamOnClasspath": { "type": "boolean", "description": "For a Spring Cloud Stream binding, present and true when Spring Cloud Stream is on the module's build classpath, or declared in its POMs without a build." },
+        "binders": { "type": "array", "items": { "type": "string" }, "description": "For a Spring Cloud Stream binding, the brokers of the binders on the module's build classpath (or declared in its POMs without a build), kafka or rabbitmq." },
+        "groupFollowed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave group." }
+      },
+      "required": ["broker", "destinationKind", "name", "configModule", "configRepo"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "BINDS",
+    "kind": "relationship",
+    "keyAttributes": ["broker", "configModule", "configRepo", "configured", "exchange", "exchangeFollowed", "exchangeType", "name", "routingKey", "routingKeyFollowed"],
+    "description": "The subject method binds the object destination, a RabbitMQ queue, to an exchange (BindingBuilder, new Binding, or @QueueBinding on a listener), as the code writes it. Its values are as written; linking resolves them in each view against the config of configModule, and records the message-binding facts (ADR 0094, #559).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "broker": { "type": "string", "enum": ["rabbitmq"], "description": "Which broker the binding is for." },
+        "exchange": { "type": "string", "description": "The exchange the queue is bound to, as written." },
+        "exchangeType": { "type": "string", "description": "The exchange's type, such as topic, direct, fanout or headers, when known." },
+        "routingKey": { "type": "string", "description": "The binding's routing key or pattern as written. Absent for a fanout or headers exchange, or when not known." },
+        "name": { "type": "string", "description": "The destination's name as written: constants folded and a value followed one hop from a @Value field or parameter, its placeholders kept." },
+        "configured": { "type": "array", "items": { "type": "string" }, "description": "The values whose ${...} placeholders config resolves, by attribute name (name for the destination's): those written in an annotation, a @Value or config. A string passed to a template is used as it is." },
+        "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave the name." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config resolves the values: the code's." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." },
+        "exchangeFollowed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave exchange." },
+        "routingKeyFollowed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave routingKey." }
+      },
+      "required": ["broker", "exchange", "name", "configModule", "configRepo"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "DECLARES",
+    "kind": "relationship",
+    "keyAttributes": ["broker", "configModule", "configRepo", "configured", "deadLetterExchange", "deadLetterExchangeFollowed", "deadLetterRoutingKey", "deadLetterRoutingKeyFollowed", "destinationKind", "durable", "exchangeType", "name"],
+    "description": "The subject method (or type, for a field initializer) declares the object destination, whether or not anything binds, sends to or listens on it: a RabbitMQ queue or exchange, or a Kafka topic, as for message-destination, as the code writes it. Its values are as written; linking resolves them in each view against the config of configModule, and records the message-destination facts (ADR 0094, #559).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "broker": { "type": "string", "enum": ["rabbitmq", "kafka"], "description": "Which broker the destination is declared on." },
+        "destinationKind": { "type": "string", "enum": ["queue", "exchange", "topic"], "description": "What is declared." },
+        "exchangeType": { "type": "string", "description": "For an exchange, its type, such as topic, direct, fanout or headers, when known." },
+        "durable": { "type": "boolean", "description": "For RabbitMQ, whether the queue or exchange survives a broker restart, when the declaration tells." },
+        "deadLetterExchange": { "type": "string", "description": "For a queue, the exchange its rejected and expired messages go to, as written; empty for the default exchange." },
+        "deadLetterRoutingKey": { "type": "string", "description": "For a queue, the routing key its dead letters are sent with, as written." },
+        "name": { "type": "string", "description": "The destination's name as written: constants folded and a value followed one hop from a @Value field or parameter, its placeholders kept." },
+        "configured": { "type": "array", "items": { "type": "string" }, "description": "The values whose ${...} placeholders config resolves, by attribute name (name for the destination's): those written in an annotation, a @Value or config. A string passed to a template is used as it is." },
+        "followed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave the name." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config resolves the values: the code's." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." },
+        "deadLetterExchangeFollowed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave deadLetterExchange." },
+        "deadLetterRoutingKeyFollowed": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the fields or parameters whose @Value or assignment gave deadLetterRoutingKey." }
+      },
+      "required": ["broker", "destinationKind", "name", "configModule", "configRepo"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "stream-function",
+    "kind": "attribute",
+    "keyAttributes": ["binders", "configModule", "configRepo", "inputs", "outputs", "streamOnClasspath"],
+    "description": "The subject method is a function Spring Cloud Stream may bind: a @Bean method returning a Function, Consumer or Supplier (or their two-input forms), or the function method of a component implementing one. The object is its bean name. Linking binds it in each view as the module's config says (the function definition, or the only function when none is set) and records its bindings' message-listener, message-binding and message-send facts (ADR 0094, #559).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "inputs": { "type": "integer", "description": "How many inputs the function's type has." },
+        "outputs": { "type": "integer", "description": "How many outputs the function's type has." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config binds it." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." },
+        "streamOnClasspath": { "type": "boolean", "description": "For a Spring Cloud Stream binding, present and true when Spring Cloud Stream is on the module's build classpath, or declared in its POMs without a build." },
+        "binders": { "type": "array", "items": { "type": "string" }, "description": "For a Spring Cloud Stream binding, the brokers of the binders on the module's build classpath (or declared in its POMs without a build), kafka or rabbitmq." }
+      },
+      "required": ["inputs", "outputs", "configModule", "configRepo"],
       "additionalProperties": false
     },
     "objectKind": "string"

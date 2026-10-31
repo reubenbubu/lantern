@@ -41,14 +41,15 @@ class WebSocketExtractorTest {
   @TempDir Path temp;
 
   private static List<Fact> extract(List<RepoBuild> inputs) throws IOException {
-    List<Fact> facts = new WebSocketExtractor().extract(inputs, SNAPSHOT);
+    List<Fact> facts = Sends.resolved(new WebSocketExtractor().extract(inputs, SNAPSHOT), SNAPSHOT);
     Fixtures.checkEnvelope(
         facts,
         inputs.stream().map(RepoBuild::repo).toList(),
         SNAPSHOT,
         WebSocketExtractor.NAME,
         WebSocketExtractor.VERSION);
-    assertThat(new WebSocketExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
+    assertThat(Sends.resolved(new WebSocketExtractor().extract(inputs, SNAPSHOT), SNAPSHOT))
+        .isEqualTo(facts);
     return facts;
   }
 
@@ -62,6 +63,11 @@ class WebSocketExtractorTest {
     List<Fact> facts = extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
     Fixtures.assertGolden("websocket/websocket-parsed.txt", facts);
+    // The extractor itself records each STOMP send as written, a relationship to its destination.
+    List<Fact> written =
+        new WebSocketExtractor()
+            .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT);
+    Fixtures.assertGolden("websocket/websocket-written.txt", written);
   }
 
   @Test
@@ -309,9 +315,12 @@ class WebSocketExtractorTest {
     RepoBuild built = new RepoBuild(repo, commit, build(temp, repo, commit));
 
     JavaAnalysis code = JavaExtractor.analyze(List.of(built));
-    List<Fact> compiled = new WebSocketExtractor().extract(code, SNAPSHOT);
+    List<Fact> compiled =
+        Sends.resolved(new WebSocketExtractor().extract(code, SNAPSHOT), SNAPSHOT);
     List<Fact> parsed =
-        new WebSocketExtractor().extract(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT);
+        Sends.resolved(
+            new WebSocketExtractor().extract(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT),
+            SNAPSHOT);
 
     assertThat(code.modules()).singleElement().matches(JavaAnalysis.Module::compiled);
     assertThat(withoutConfidence(compiled)).isNotEmpty().isEqualTo(withoutConfidence(parsed));

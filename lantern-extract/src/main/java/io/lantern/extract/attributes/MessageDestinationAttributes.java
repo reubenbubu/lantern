@@ -13,7 +13,8 @@ import tools.jackson.databind.node.ObjectNode;
  * the other exchange classes, ExchangeBuilder, also inside a Declarables or another call's
  * arguments) or a Kafka topic (TopicBuilder.name, new NewTopic). The object is its name, constants
  * folded, placeholders resolved and a value followed one hop from a &#64;Value field or parameter.
- * Values resolved from config are those of the default view unless profile is set.
+ * Linking records these facts from the DECLARES facts (ADR 0094, #559); values resolved from config
+ * are those of the default view unless profile is set.
  *
  * @param broker Key. Which broker the destination is declared on.
  * @param deadLetterExchange Descriptive. For a queue, the exchange its rejected and expired

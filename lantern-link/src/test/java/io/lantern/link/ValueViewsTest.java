@@ -8,6 +8,7 @@ import io.lantern.core.repo.RepoSettings;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
+import io.lantern.extract.messaging.MessagingExtractor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -54,6 +55,42 @@ class ValueViewsTest {
     List<Fact> routes = new ValueViews().derive(facts, SNAPSHOT);
 
     assertThat(sorted(render(routes))).isEqualTo(sorted(golden("gateway-routes-parsed.txt")));
+  }
+
+  @Test
+  void theMessagingFactsAreThoseTheMessagingExtractorRecordedBefore() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("messaging"));
+    List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+    facts.addAll(new MessagingExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> messages = new ValueViews().derive(facts, SNAPSHOT);
+
+    assertThat(sorted(render(messages))).isEqualTo(sorted(golden("messages-parsed.txt")));
+    assertThat(String.join("\n", render(messages))).doesNotContain("s3cret");
+  }
+
+  @Test
+  void theSpringCloudStreamBindingsAreThoseTheMessagingExtractorRecordedBefore()
+      throws IOException {
+    List<RepoBuild> repos = List.of(fixture("messaging-stream", "stream"));
+    List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+    facts.addAll(new MessagingExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> messages = new ValueViews().derive(facts, SNAPSHOT);
+
+    assertThat(sorted(render(messages))).isEqualTo(sorted(golden("stream-messages-parsed.txt")));
+    assertThat(String.join("\n", render(messages))).doesNotContain("s3cret");
+  }
+
+  @Test
+  void theStompSendsAreThoseTheWebSocketExtractorRecordedBefore() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("websocket"));
+    List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+    facts.addAll(new io.lantern.extract.websocket.WebSocketExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> sends = new ValueViews().derive(facts, SNAPSHOT);
+
+    assertThat(sorted(render(sends))).isEqualTo(sorted(golden("stomp-sends-parsed.txt")));
   }
 
   /** Moved from the gateway extractor's tests with #558, unchanged. */
@@ -334,8 +371,13 @@ class ValueViewsTest {
 
   /** A git repository holding a copy of one of the extractors' fixtures, committed. */
   private RepoBuild fixture(String name) throws IOException {
+    return fixture(name, name);
+  }
+
+  /** The extractors' fixture of that name, as a repository of the given name. */
+  private RepoBuild fixture(String name, String repo) throws IOException {
     Path source = Path.of(System.getProperty("lantern.test.fixtures")).resolve(name);
-    Path target = temp.resolve(name);
+    Path target = temp.resolve(repo);
     try (Stream<Path> paths = Files.walk(source)) {
       for (Path from : paths.toList()) {
         Path to = target.resolve(source.relativize(from).toString());
@@ -346,7 +388,7 @@ class ValueViewsTest {
         }
       }
     }
-    return commit(target, name);
+    return commit(target, repo);
   }
 
   private static RepoBuild commit(Path target, String name) throws IOException {

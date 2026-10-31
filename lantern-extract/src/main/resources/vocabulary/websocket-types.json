@@ -66,7 +66,7 @@
     "name": "stomp-send",
     "kind": "attribute",
     "keyAttributes": ["dynamic", "method", "template", "toUser"],
-    "description": "The subject method pushes a message to STOMP subscribers through SimpMessagingTemplate or SimpMessageSendingOperations (convertAndSend, send, convertAndSendToUser): the object is the destination, with constants folded and a part that is not a constant (an id formatted into it) written as {}.",
+    "description": "The subject method pushes a message to STOMP subscribers through SimpMessagingTemplate or SimpMessageSendingOperations (convertAndSend, send, convertAndSendToUser): the object is the destination, with constants folded and a part that is not a constant (an id formatted into it) written as {}. Linking records it from the SENDS_TO fact of the send (ADR 0094, #559).",
     "attributeSchema": {
       "type": "object",
       "properties": {

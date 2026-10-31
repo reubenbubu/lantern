@@ -33,6 +33,11 @@ const VALUE_AREAS = {
   'http-call': 'http-client',
   'gateway-route': 'gateway',
   'gateway-discovery-locator': 'gateway',
+  'message-send': 'messaging',
+  'message-listener': 'messaging',
+  'message-binding': 'messaging',
+  'message-destination': 'messaging',
+  'stomp-send': 'websocket',
 };
 
 export function areaOf(fact) {

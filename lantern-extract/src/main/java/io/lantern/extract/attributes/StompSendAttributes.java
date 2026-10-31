@@ -10,7 +10,8 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code stomp-send}. The subject method pushes a message to
  * STOMP subscribers through SimpMessagingTemplate or SimpMessageSendingOperations (convertAndSend,
  * send, convertAndSendToUser): the object is the destination, with constants folded and a part that
- * is not a constant (an id formatted into it) written as {}.
+ * is not a constant (an id formatted into it) written as {}. Linking records it from the SENDS_TO
+ * fact of the send (ADR 0094, #559).
  *
  * @param dynamic Key. Present and true when part of the destination is not a constant, written as
  *     {}.

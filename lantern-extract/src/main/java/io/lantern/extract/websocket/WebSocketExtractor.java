@@ -10,6 +10,7 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
+import io.lantern.extract.EntityKeys;
 import io.lantern.extract.ExtractionContext;
 import io.lantern.extract.ExtractionUnit;
 import io.lantern.extract.Extractor;
@@ -25,6 +26,7 @@ import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
+import io.lantern.extract.messaging.MessagingExtractor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -58,7 +60,7 @@ public final class WebSocketExtractor implements Extractor {
   public static final String NAME = "websocket";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "websocket-extractor";
@@ -742,7 +744,25 @@ public final class WebSocketExtractor implements Extractor {
         ArrayNode array = attributes.putArray("followed");
         text.followed().forEach(array::add);
       }
-      fact(module, i.caller(), SEND, text.value(), attributes, i.where());
+      // The destination as written, a relationship to its entity (ADR 0094, #559); linking records
+      // the stomp-send fact. A destination with a part that is not a constant is the module's own.
+      attributes.put("broker", STOMP);
+      attributes.put("destinationKind", "destination");
+      attributes.put("name", text.value());
+      attributes.put("configModule", module.id().toString());
+      attributes.put("configRepo", module.repo().repo().name());
+      String key = STOMP + ":destination:" + text.value();
+      EntityId to =
+          EntityKeys.of(
+              MessagingExtractor.DESTINATION_ENTITY,
+              text.dynamic() ? module.id().key() + ":" + key : key);
+      fact(
+          module,
+          i.caller(),
+          MessagingExtractor.SENDS_TO,
+          FactObject.entity(to),
+          attributes,
+          i.where());
     }
 
     /**
@@ -880,6 +900,16 @@ public final class WebSocketExtractor implements Extractor {
         String object,
         ObjectNode attributes,
         Location where) {
+      fact(module, subject, predicate, FactObject.string(object), attributes, where);
+    }
+
+    void fact(
+        JavaAnalysis.Module module,
+        EntityId subject,
+        String predicate,
+        FactObject object,
+        ObjectNode attributes,
+        Location where) {
       RepoBuild repo = module.repo();
       Evidence evidence =
           Evidence.of(
@@ -891,7 +921,7 @@ public final class WebSocketExtractor implements Extractor {
           Fact.create(
               subject,
               predicate,
-              FactObject.string(object),
+              object,
               attributes,
               ORIGIN,
               evidence,
@@ -899,6 +929,43 @@ public final class WebSocketExtractor implements Extractor {
               validity);
       facts.putIfAbsent(fact.id(), fact);
     }
+  }
+
+  /** The attributes of a STOMP send written in code that its {@value #SEND} fact leaves out. */
+  private static final List<String> WRITTEN_ONLY =
+      List.of("broker", "destinationKind", "name", "configModule", "configRepo");
+
+  /**
+   * The {@value #SEND} facts linking records (ADR 0094, #559): one for each STOMP send written in
+   * code, a {@code SENDS_TO} fact to its destination, as this extractor recorded it before.
+   *
+   * @param facts the snapshot's facts; only the STOMP sends written in code are read
+   * @param origin the origin of the facts
+   * @param snapshot the snapshot number the facts hold from
+   */
+  public static List<Fact> sends(List<Fact> facts, Origin origin, long snapshot) {
+    Validity validity = Validity.from(snapshot);
+    List<Fact> sends = new ArrayList<>();
+    for (Fact f : facts) {
+      if (!f.predicate().equals(MessagingExtractor.SENDS_TO)
+          || f.object().kind() != FactObject.Kind.ENTITY
+          || !STOMP.equals(f.attributes().path("broker").stringValue(null))) {
+        continue;
+      }
+      ObjectNode attributes = ((ObjectNode) f.attributes()).deepCopy();
+      WRITTEN_ONLY.forEach(attributes::remove);
+      sends.add(
+          Fact.create(
+              f.subject(),
+              SEND,
+              FactObject.string(f.attributes().path("name").stringValue("")),
+              attributes,
+              origin,
+              f.evidence(),
+              f.confidence(),
+              validity));
+    }
+    return sends;
   }
 
   @Override

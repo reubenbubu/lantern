@@ -30,7 +30,8 @@ class Project4WebSocketIT {
     Git.Result head = Git.run(repo.path(), "rev-parse", "HEAD");
     assertThat(head.ok()).isTrue();
     List<Fact> facts =
-        new WebSocketExtractor().extract(List.of(new RepoBuild(repo, head.out(), null)), 1);
+        Sends.resolved(
+            new WebSocketExtractor().extract(List.of(new RepoBuild(repo, head.out(), null)), 1), 1);
     Fixtures.checkEnvelope(
         facts, List.of(repo), 1, WebSocketExtractor.NAME, WebSocketExtractor.VERSION);
     List<String> lines = Fixtures.render(facts).lines().toList();

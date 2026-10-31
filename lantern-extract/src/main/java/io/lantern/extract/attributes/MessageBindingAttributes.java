@@ -12,8 +12,8 @@ import tools.jackson.databind.node.ObjectNode;
  * Spring Cloud Stream input binding, the queue the binder declares for the binding's group, bound
  * to the destination's exchange): the queue's name, with the exchange and the routing key or
  * pattern, constants folded, placeholders resolved and a value followed one hop from a &#64;Value
- * field or parameter. Values resolved from config are those of the default view unless profile is
- * set.
+ * field or parameter. Linking records these facts from the BINDS facts (ADR 0094, #559); values
+ * resolved from config are those of the default view unless profile is set.
  *
  * @param anonymous Descriptive. Present and true when the queue is a Spring Cloud Stream binding's
  *     anonymous one, named as the destination with .anonymous; its real name ends in a random
