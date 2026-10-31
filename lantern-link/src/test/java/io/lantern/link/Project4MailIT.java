@@ -59,7 +59,7 @@ class Project4MailIT {
     facts.addAll(new HttpClientExtractor().extract(code, 1));
     facts.addAll(new MessagingExtractor().extract(code, 1));
     facts.addAll(new MailExtractor().extract(code, 1));
-    facts.addAll(new ValueViews().derive(facts, 1));
+    facts.addAll(new ValueResolution().derive(facts, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<String> mail =
         new CrossRepoLinks()

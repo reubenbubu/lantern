@@ -120,3 +120,30 @@ is one, ADR 0034) as part of one reading of the migrations, cached per snapshot.
 variant as written and choosing in linking, or building the schema in linking, were the options
 set aside: both are large, and the second breaks caching per file.
 
+## Amendment (#587): value resolution writes RESOLVES_TO
+
+The first link step becomes the value resolution rule of the knowledge-build epic
+(`docs/epics/001-knowledge-build.md`, sections 7 and 8), `ValueResolution`, still under the origin
+name `values`. Besides the facts above, it writes what each expression-keyed entity is:
+
+- `RESOLVES_TO` from a destination keyed by its module and expression
+  (`destination:<module>:<broker>:<kind>:<expression>`) to the literal destination
+  (`destination:<broker>:<kind>:<name>`), and from an address so keyed
+  (`address:<module>:<expression>`) to the literal address, `address:<host>`: the host and port of
+  the URL a request's expression resolves to (with `http://` first for a Feign client, as
+  OpenFeign adds it), or the server of the JDBC URL a datasource's resolves to. These are the keys
+  the extractors give a destination or host written out, so a resolved and a literal one are one
+  entity.
+- One claim for the default view and one for each profile whose config gives another literal,
+  `profile` its key attribute, as for links until #590 names it `view`.
+- None where a placeholder stays unresolved, a secret is used, config changes nothing (a STOMP
+  destination with a `{}` segment is scoped for that, not for config) or no literal host results.
+  Deployment environments as views, which resolve most of what is left, are #588's.
+- `resolved`, the text config gave (a URL or a JDBC URL), is descriptive: URLs that differ only
+  in their path are one address (epic, Key attributes).
+- Lineage: `facts` lists the `config-value` facts used, so the claim's lineage is their claims;
+  the evidence is where the expression is written, then each config value used (role `config`).
+
+The matchers still read the facts above until address resolution (#589) moves them onto these
+claims. On project-0 to project-4 every claim names the destination or host the matchers read in
+that view, and every other derived fact is unchanged (#587's PR).

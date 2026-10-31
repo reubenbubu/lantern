@@ -24,7 +24,7 @@ import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
-import io.lantern.link.ValueViews;
+import io.lantern.link.ValueResolution;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,7 +63,7 @@ class GatewayComponentsIT {
     facts.addAll(new HttpClientExtractor().extract(code, 1));
     facts.addAll(new MessagingExtractor().extract(code, 1));
     facts.addAll(new GatewayExtractor().extract(code, 1));
-    facts.addAll(new ValueViews().derive(facts, 1));
+    facts.addAll(new ValueResolution().derive(facts, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     facts.addAll(new CrossRepoLinks().derive(facts, 1));
     facts.addAll(new io.lantern.link.People().derive(facts, 1));

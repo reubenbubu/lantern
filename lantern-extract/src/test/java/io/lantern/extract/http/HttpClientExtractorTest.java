@@ -153,8 +153,9 @@ class HttpClientExtractorTest {
 
   /**
    * The extractor records which requests go through a load-balanced client, and their URLs and
-   * service names as written; linking resolves the service each names ({@code ValueViewsTest} in
-   * lantern-link checks the calls it gives against the facts this extractor recorded before #557).
+   * service names as written; linking resolves the service each names ({@code ValueResolutionTest}
+   * in lantern-link checks the calls it gives against the facts this extractor recorded before
+   * #557).
    */
   @Test
   void loadBalancedClientsNameTheirService() throws IOException {
@@ -386,7 +387,7 @@ class HttpClientExtractorTest {
     JavaAnalysis code =
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
-    // Linking resolves the URL and masks it there (ValueViewsTest); the request keeps it as
+    // Linking resolves the URL and masks it there (ValueResolutionTest); the request keeps it as
     // written.
     String rendered = Fixtures.render(new HttpClientExtractor().extract(code, SNAPSHOT));
     assertThat(rendered).doesNotContain("literal-test-value").contains("http://remote/${jwt.key}");

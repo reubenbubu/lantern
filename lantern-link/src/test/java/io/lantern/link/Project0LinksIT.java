@@ -131,7 +131,7 @@ class Project0LinksIT {
     facts.addAll(new GatewayExtractor().extract(code, 1));
     facts.addAll(new DocsExtractor().extract(repos, 1));
     facts.addAll(new DeploymentExtractor().extract(repos, 1));
-    facts.addAll(new ValueViews().derive(facts, 1));
+    facts.addAll(new ValueResolution().derive(facts, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
     facts.addAll(links);

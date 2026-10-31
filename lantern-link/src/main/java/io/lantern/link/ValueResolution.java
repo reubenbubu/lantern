@@ -29,10 +29,18 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The first link step: the values extractors keep as written, resolved in each view against the
- * config of the module they name ({@link CodeValues}), as the facts each extractor recorded before
- * it kept them as written (ADR 0094). So every later step reads the facts it read before, one kind
- * at a time as the slices of #519 land:
+ * Value resolution, the first link rule after the deployable units' (epic {@code
+ * docs/epics/001-knowledge-build.md}, section 8): the values extractors keep as written, resolved
+ * in each view against the config of the module they name ({@link CodeValues}).
+ *
+ * <p>It writes {@code RESOLVES_TO} from each destination and address keyed by its module and the
+ * expression its code writes to the literal destination or address that expression resolves to, in
+ * the default view and in each profile whose config gives another, citing the {@code config-value}
+ * facts used (ADR 0094, amendment for #587). Where a placeholder stays unresolved or a secret is
+ * used, it writes none.
+ *
+ * <p>Until the matchers read those claims (#589), it also gives the facts each extractor recorded
+ * before it kept values as written (ADR 0094), so every later rule reads the facts it read before:
  *
  * <ul>
  *   <li>a {@code request} sent by code ({@code SENT_BY}) gives the code's {@code http-call} facts,
@@ -50,16 +58,17 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>an endpoint the code serves ({@code HANDLED_BY}) and a schedule ({@code scheduled-written})
  *       give their {@code endpoint} and {@code scheduled} facts (#519).
  * </ul>
- *
- * <p>The value resolution rule of #522 replaces this step with {@code RESOLVES_TO} claims.
  */
-public final class ValueViews implements LinkRule.OverFacts {
+public final class ValueResolution implements LinkRule.OverFacts {
 
   /** The step's name, recorded as the origin of its facts. */
   public static final String NAME = "values";
 
   /** The step's version. */
   public static final String VERSION = "1";
+
+  /** The predicate from an expression-keyed destination or address to its literal one. */
+  public static final String RESOLVES_TO = "RESOLVES_TO";
 
   /**
    * The predicates of the facts this step gives: those the extractors gave before they kept values
@@ -82,7 +91,8 @@ public final class ValueViews implements LinkRule.OverFacts {
           io.lantern.extract.persistence.PersistenceExtractor.MAPS_TO,
           io.lantern.extract.redis.RedisExtractor.REDIS_USE,
           io.lantern.extract.spring.SpringExtractor.ENDPOINT,
-          io.lantern.extract.spring.SpringExtractor.SCHEDULED);
+          io.lantern.extract.spring.SpringExtractor.SCHEDULED,
+          RESOLVES_TO);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
@@ -144,6 +154,9 @@ public final class ValueViews implements LinkRule.OverFacts {
           derived.putIfAbsent(call.id(), call);
         }
       }
+    }
+    for (Fact resolves : Literals.of(facts, values, validity)) {
+      derived.putIfAbsent(resolves.id(), resolves);
     }
     return derived.values().stream()
         .sorted(

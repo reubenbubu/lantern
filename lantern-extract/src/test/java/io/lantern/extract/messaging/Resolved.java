@@ -14,8 +14,8 @@ import java.util.Set;
 /**
  * The messaging facts linking records (ADR 0094, #559), resolved here against each module's config
  * files as the extractor resolved them before it kept values as written, so the tests check them as
- * they checked its facts. {@code ValueViewsTest} checks that linking, from the config facts, gives
- * the same.
+ * they checked its facts. {@code ValueResolutionTest} checks that linking, from the config facts,
+ * gives the same.
  */
 final class Resolved {
 

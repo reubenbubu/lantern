@@ -40,7 +40,7 @@ final class ProtocolLinks implements LinkRule {
     Set<String> reads =
         new java.util.HashSet<>(
             Rules.union(
-                Set.of(EXTRACTED), ValueViews.WRITES, DeployableUnits.vocabularyPredicates()));
+                Set.of(EXTRACTED), ValueResolution.WRITES, DeployableUnits.vocabularyPredicates()));
     reads.remove(DeployableUnits.TECHNOLOGY);
     return Set.copyOf(reads);
   }

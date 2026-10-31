@@ -24,11 +24,12 @@ import org.junit.jupiter.api.io.TempDir;
  * The HTTP client facts of the synthetic test set project-0 (docs/adr/0029), checked against the
  * cases its README lists, named by id, both ways the code is read: built in the sandbox and read
  * through javac, and parsed without builds (degraded mode). The HTTP client extractor keeps URLs as
- * written and the first link step resolves them ({@link ValueViews}, ADR 0094), so the calls are
- * checked as that step gives them; they moved here from the extractors' tests with #557, unchanged.
- * Runs only when {@code lantern.test.project0} names the folder {@code testsets/project-0/setup.sh}
- * set it up in; see Commands in {@code CLAUDE.md}. Needs Docker and Maven Central, or the Maven
- * mirror of the test properties; the builds use the default shared Maven cache directory.
+ * written and the first link step resolves them ({@link ValueResolution}, ADR 0094), so the calls
+ * are checked as that step gives them; they moved here from the extractors' tests with #557,
+ * unchanged. Runs only when {@code lantern.test.project0} names the folder {@code
+ * testsets/project-0/setup.sh} set it up in; see Commands in {@code CLAUDE.md}. Needs Docker and
+ * Maven Central, or the Maven mirror of the test properties; the builds use the default shared
+ * Maven cache directory.
  */
 @EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
 class Project0HttpIT {
@@ -58,8 +59,8 @@ class Project0HttpIT {
     List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, 1));
     facts.addAll(http);
     List<Fact> all = new ArrayList<>(http);
-    all.addAll(new ValueViews().derive(facts, 1));
-    return ValueViewsTest.render(all).stream()
+    all.addAll(new ValueResolution().derive(facts, 1));
+    return ValueResolutionTest.render(all).stream()
         .map(line -> line.replaceAll(" [01]\\.[07]$", ""))
         .toList();
   }

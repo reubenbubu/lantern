@@ -16,8 +16,8 @@ import java.util.Set;
 /**
  * The persistence extractor's facts with the datasources and data stores linking records (ADR 0094,
  * #560), read here from the modules' config files as the extractor read them before, so the tests
- * check them as they checked its facts. {@code ValueViewsTest} checks that linking, from the config
- * facts, gives the same.
+ * check them as they checked its facts. {@code ValueResolutionTest} checks that linking, from the
+ * config facts, gives the same.
  */
 final class Resolved {
 

@@ -96,7 +96,7 @@ class LinkRuleTest {
 
     assertThat(names(RuleOrder.of(rules)))
         .containsExactly(
-            ValueViews.NAME,
+            ValueResolution.NAME,
             DeployableUnits.NAME,
             "http-links",
             "messaging-links",

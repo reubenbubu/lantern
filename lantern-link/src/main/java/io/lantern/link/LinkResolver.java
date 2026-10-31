@@ -168,7 +168,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
   public Set<String> reads() {
     return Rules.union(
         Set.of(EXTRACTED),
-        ValueViews.WRITES,
+        ValueResolution.WRITES,
         DeployableUnits.vocabularyPredicates(),
         CrossRepoLinks.vocabularyPredicates());
   }

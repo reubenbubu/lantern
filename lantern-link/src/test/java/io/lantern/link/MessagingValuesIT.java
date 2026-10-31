@@ -81,7 +81,7 @@ class MessagingValuesIT {
       List<String> linked =
           sorted(
               render(
-                  new ValueViews()
+                  new ValueResolution()
                       .derive(facts, 1).stream()
                           .filter(f -> MESSAGE_FACTS.contains(f.predicate()))
                           .toList()));
@@ -112,7 +112,7 @@ class MessagingValuesIT {
   }
 
   private static Origin origin() {
-    return new ValueViews().origin();
+    return new ValueResolution().origin();
   }
 
   private static List<String> render(List<Fact> facts) {

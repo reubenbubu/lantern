@@ -61,7 +61,7 @@ class EndpointsIT {
         assertThat(f.attributes().has("profile")).as(set + " " + f).isFalse();
       }
       List<Fact> linked =
-          new ValueViews()
+          new ValueResolution()
               .derive(facts, 1).stream().filter(f -> SPRING_FACTS.contains(f.predicate())).toList();
       // Every endpoint has its entity, handled by the endpoint's method.
       Set<String> handled = new java.util.HashSet<>();
@@ -103,7 +103,7 @@ class EndpointsIT {
   }
 
   private static Origin origin() {
-    return new ValueViews().origin();
+    return new ValueResolution().origin();
   }
 
   private static List<String> render(List<Fact> facts) {

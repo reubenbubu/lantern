@@ -48,8 +48,8 @@ class RedisExtractorTest {
 
   /**
    * The extractor's facts with what linking records from the modules' config (#567), read here from
-   * their files: its cache uses decided, and the uses config names. {@code ValueViewsTest} checks
-   * that linking, from the config facts, gives the same.
+   * their files: its cache uses decided, and the uses config names. {@code ValueResolutionTest}
+   * checks that linking, from the config facts, gives the same.
    */
   private static List<Fact> resolved(List<RepoBuild> repos) {
     List<Fact> written = new RedisExtractor().extract(repos, SNAPSHOT);
