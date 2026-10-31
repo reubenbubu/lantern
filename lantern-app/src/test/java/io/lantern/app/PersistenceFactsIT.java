@@ -89,13 +89,13 @@ class PersistenceFactsIT {
 
     RepoBuild build = new RepoBuild(repo, commit, null);
     List<Fact> extracted = new ArrayList<>(new PersistenceExtractor().extract(List.of(build), 1));
-    // The datasource, its entity and its address come from linking's reading of config (#560).
-    extracted.addAll(
-        PersistenceExtractor.datasources(
-            ConfigExtractor.read(build).stream().map(ModuleValues::of).toList(),
-            Set.of(),
-            new Origin(Origin.Kind.STATIC, "values", "1"),
-            1));
+    // The datasource, its entity and its address, and the entity's table, come from linking's
+    // reading of config (#560, #567).
+    List<ModuleValues> configs =
+        ConfigExtractor.read(build).stream().map(ModuleValues::of).toList();
+    Origin values = new Origin(Origin.Kind.STATIC, "values", "1");
+    extracted.addAll(PersistenceExtractor.datasources(configs, Set.of(), values, 1));
+    extracted.addAll(PersistenceExtractor.tables(List.copyOf(extracted), configs, values, 1));
 
     assertThat(extracted)
         .extracting(Fact::predicate)
@@ -103,6 +103,7 @@ class PersistenceFactsIT {
             PersistenceExtractor.DATASOURCE,
             PersistenceExtractor.HAS_DATASOURCE,
             PersistenceExtractor.CONNECTS_TO,
+            PersistenceExtractor.JPA_TABLE,
             PersistenceExtractor.MAPS_TO,
             PersistenceExtractor.REPOSITORY_FOR,
             PersistenceExtractor.WRITES_TABLE);
