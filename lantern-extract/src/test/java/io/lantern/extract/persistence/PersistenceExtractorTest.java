@@ -39,7 +39,7 @@ class PersistenceExtractorTest {
   @TempDir Path temp;
 
   private static List<Fact> extract(List<RepoBuild> inputs) throws IOException {
-    List<Fact> facts = new PersistenceExtractor().extract(inputs, SNAPSHOT);
+    List<Fact> facts = Resolved.facts(inputs, SNAPSHOT);
     Fixtures.checkEnvelope(
         facts,
         inputs.stream().map(RepoBuild::repo).toList(),
@@ -47,7 +47,7 @@ class PersistenceExtractorTest {
         PersistenceExtractor.NAME,
         PersistenceExtractor.VERSION);
     // Running again on the same input gives the same facts.
-    assertThat(new PersistenceExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
+    assertThat(Resolved.facts(inputs, SNAPSHOT)).isEqualTo(facts);
     return facts;
   }
 
@@ -62,6 +62,23 @@ class PersistenceExtractorTest {
     List<Fact> facts = extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
     Fixtures.assertGolden("persistence/persistence-parsed.txt", facts);
+    // The extractor itself reads no config (ADR 0094, #560): its datasources and data stores, with
+    // their entities and addresses, are what linking gives from the config.
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+    assertThat(new PersistenceExtractor().extract(code, SNAPSHOT))
+        .noneMatch(f -> f.predicate().equals(PersistenceExtractor.DATASOURCE))
+        .noneMatch(f -> f.predicate().equals(PersistenceExtractor.DATA_STORE));
+    List<Fact> entities =
+        Resolved.datasources(code, SNAPSHOT, Set.of()).stream()
+            .filter(
+                f ->
+                    f.predicate().equals(PersistenceExtractor.HAS_DATASOURCE)
+                        || f.predicate().equals(PersistenceExtractor.CONNECTS_TO))
+            .toList();
+    Fixtures.assertGolden("persistence/persistence-datasources.txt", entities);
+    assertThat(Fixtures.render(entities))
+        .doesNotContain("s3cret", "hunter2", "tiger", "scott", "user=sa", "shop@");
     // No credential from the config reaches a fact.
     assertThat(Fixtures.render(facts))
         .doesNotContain("s3cret", "hunter2", "tiger", "scott", "user=sa", "shop@");
@@ -85,10 +102,8 @@ class PersistenceExtractorTest {
     JavaAnalysis code =
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
-    assertThat(Fixtures.render(new PersistenceExtractor().extract(code, SNAPSHOT)))
-        .contains("literal-test-value");
-    String masked =
-        Fixtures.render(new PersistenceExtractor().extract(code, SNAPSHOT, Set.of("jwt.key")));
+    assertThat(Fixtures.render(Resolved.facts(code, SNAPSHOT))).contains("literal-test-value");
+    String masked = Fixtures.render(Resolved.facts(code, SNAPSHOT, Set.of("jwt.key")));
     assertThat(masked).doesNotContain("literal-test-value").contains("\"masked\":true");
   }
 

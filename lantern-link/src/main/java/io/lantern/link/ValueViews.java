@@ -37,7 +37,9 @@ import tools.jackson.databind.node.ObjectNode;
  *       one for the default view and one for each profile whose URL differs (#557);
  *   <li>a gateway route built in code ({@code gateway-route-written}) gives its {@code
  *       gateway-route} facts, and each module's config gives the routes, Zuul routes and discovery
- *       locator it defines, through the gateway extractor's own reading (#558);
+ *       locator it defines, through the gateway extractor's own reading (#558), and the datasources
+ *       and data stores it connects to, with their entities and addresses, through the persistence
+ *       extractor's (#560);
  *   <li>a send, listener, binding or declaration written in code ({@code SENDS_TO}, {@code
  *       LISTENS_ON}, {@code BINDS}, {@code DECLARES}) gives its {@code message-send}, {@code
  *       message-listener}, {@code message-binding} or {@code message-destination} facts, and each
@@ -116,12 +118,35 @@ public final class ValueViews implements LinkStep {
   private static List<Fact> gatewayRoutes(List<Fact> facts, CodeValues values, long snapshot) {
     java.util.Set<String> secretKeys = ConfigExtractor.jwtSecretKeys(facts);
     Map<String, String> blobs = new java.util.HashMap<>();
-    List<GatewayExtractor.RouteConfig> configs = new java.util.ArrayList<>();
+    List<io.lantern.extract.config.ModuleValues> configs = configs(values, blobs);
+    List<Fact> routes =
+        GatewayExtractor.routes(
+            facts,
+            (module, repo) -> resolver(values.forModule(module, repo)),
+            configs,
+            secretKeys,
+            ORIGIN,
+            snapshot);
+    List<Fact> datasources =
+        io.lantern.extract.persistence.PersistenceExtractor.datasources(
+            configs, secretKeys, ORIGIN, snapshot);
+    List<Fact> all = new java.util.ArrayList<>(routes);
+    all.addAll(datasources);
+    return all.stream().map(f -> withBlobs(f, blobs)).toList();
+  }
+
+  /**
+   * Each module's config as the readings of config in linking take it, from the config facts; the
+   * blobs of the files read are put in {@code blobs}, by repository and path.
+   */
+  private static List<io.lantern.extract.config.ModuleValues> configs(
+      CodeValues values, Map<String, String> blobs) {
+    List<io.lantern.extract.config.ModuleValues> configs = new java.util.ArrayList<>();
     for (EntityId module : values.modules()) {
       String repo = values.repoOf(module);
       CodeValues.View view = values.forModule(module, repo);
       configs.add(
-          new GatewayExtractor.RouteConfig() {
+          new io.lantern.extract.config.ModuleValues() {
             // The blobs of the config files, which the reading's evidence leaves out.
             @Override
             public EntityId module() {
@@ -138,31 +163,30 @@ public final class ValueViews implements LinkStep {
               return view.views().subList(1, view.views().size());
             }
 
+            private final Map<String, java.util.SortedMap<String, ConfigValue>> read =
+                new java.util.HashMap<>();
+
             @Override
             public java.util.SortedMap<String, ConfigValue> values(String profile) {
-              java.util.SortedMap<String, ConfigValue> read = new java.util.TreeMap<>();
-              view.facts(profile)
-                  .forEach(
-                      (key, f) -> {
-                        read.put(key, configValue(key, f));
-                        Evidence.Location at = f.evidence().declared();
-                        if (at.blob() != null) {
-                          blobs.put(at.repo() + ":" + at.path(), at.blob());
-                        }
-                      });
-              return read;
+              return read.computeIfAbsent(
+                  profile,
+                  p -> {
+                    java.util.SortedMap<String, ConfigValue> values = new java.util.TreeMap<>();
+                    view.facts(p)
+                        .forEach(
+                            (key, f) -> {
+                              values.put(key, configValue(key, f));
+                              Evidence.Location at = f.evidence().declared();
+                              if (at.blob() != null) {
+                                blobs.put(at.repo() + ":" + at.path(), at.blob());
+                              }
+                            });
+                    return java.util.Collections.unmodifiableSortedMap(values);
+                  });
             }
           });
     }
-    List<Fact> routes =
-        GatewayExtractor.routes(
-            facts,
-            (module, repo) -> resolver(values.forModule(module, repo)),
-            configs,
-            secretKeys,
-            ORIGIN,
-            snapshot);
-    return routes.stream().map(f -> withBlobs(f, blobs)).toList();
+    return configs;
   }
 
   /** A config fact as the gateway's reading takes a config value. */

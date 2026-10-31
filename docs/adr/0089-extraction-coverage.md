@@ -139,7 +139,8 @@ area, tightened as follows:
 
 From #557 on, extractors keep values as written, and linking's first step (`ValueViews`, ADR 0094)
 records the facts they recorded before (`http-call`, `gateway-route`, `gateway-discovery-locator`;
-from #559 the `message-*` facts and `stomp-send`),
+from #559 the `message-*` facts and `stomp-send`; from #560 `datasource`, `data-store`,
+`HAS_DATASOURCE` and `CONNECTS_TO`),
 with origin `values`. Routes defined in config are now read there too, from the config facts. These
 facts are what extraction gave before linking joins anything, so:
 - `analyze` writes them into `extracted.jsonl.gz` beside the extracted facts;

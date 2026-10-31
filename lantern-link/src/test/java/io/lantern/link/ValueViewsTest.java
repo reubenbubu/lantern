@@ -93,6 +93,27 @@ class ValueViewsTest {
     assertThat(sorted(render(sends))).isEqualTo(sorted(golden("stomp-sends-parsed.txt")));
   }
 
+  @Test
+  void theDatasourcesAreThoseThePersistenceExtractorRecordedBefore() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("persistence"));
+    List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+    facts.addAll(
+        new io.lantern.extract.persistence.PersistenceExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> datasources = new ValueViews().derive(facts, SNAPSHOT);
+
+    // The facts of before, and the datasource entities with their addresses (#560).
+    assertThat(sorted(render(datasources))).isEqualTo(sorted(golden("datasources-parsed.txt")));
+    assertThat(String.join("\n", render(datasources)))
+        .doesNotContain("s3cret", "hunter2", "tiger", "scott", "user=sa", "shop@");
+    // The evidence names the config files by blob, as the stored config facts do.
+    assertThat(datasources)
+        .allMatch(
+            f ->
+                f.evidence().declared().contentHash() != null
+                    || f.evidence().declared().blob() != null);
+  }
+
   /** Moved from the gateway extractor's tests with #558, unchanged. */
   @Test
   void zuulRoutesAndTheDiscoveryLocator() throws IOException {

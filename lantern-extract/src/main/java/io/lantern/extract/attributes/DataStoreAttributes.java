@@ -11,7 +11,8 @@ import tools.jackson.databind.node.ObjectNode;
  * module's config connects it to (MongoDB, Elasticsearch, Cassandra, Neo4j or Couchbase), by
  * default or with the attribute profile active: its URI without credentials, or one made of the
  * host, port and database keys (such as mongodb://localhost:27017/shop). Placeholders that cannot
- * be resolved stay as ${KEY}.
+ * be resolved stay as ${KEY}. Linking records it from the config facts, through the persistence
+ * extractor's reading of config (ADR 0094, #560).
  *
  * @param database Descriptive. The database, keyspace or bucket, such as shop.
  * @param key Key. The config key it is read from: the URI's, else the host's or the database's,
