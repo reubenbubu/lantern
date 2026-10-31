@@ -115,3 +115,16 @@ Research: [`docs/research/extractor-websocket.md`](../research/extractor-websock
   placeholder, kept as written rather than resolved against the configuration, or from a `@Value`
   constructor parameter; RSocket controllers, still read as `stomp-mapping`; and how documents show
   the new facts (#445), which resolves the relay's placeholders to name its broker.
+
+## Amendment (#559): a push is a relationship to its destination
+
+A destination is an entity (ADR 0037, amendment for #559). The WebSocket extractor (version 3)
+records each push to STOMP subscribers (`SimpMessagingTemplate.convertAndSend`, `send`,
+`convertAndSendToUser`) as a `SENDS_TO` relationship from the method to its destination, broker
+`stomp`, such as `destination:stomp:destination:/topic/audit`. A destination with a part that is
+not a constant (`/topic/rooms/{}`) is the module's own, scoped like a messaging name config
+resolves. The relationship keeps the `stomp-send` fact's attributes and the destination as
+written (`name`). It resolves nothing, since STOMP destinations take no config; linking's first
+step (`ValueViews`) records the `stomp-send` fact from it unchanged, which sequence diagrams read
+as before. `ValueViewsTest` checks the five `stomp-send` lines of the extractor's golden of before.
+

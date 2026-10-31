@@ -131,3 +131,36 @@ Research: [`docs/research/extractor-messaging.md`](../research/extractor-messagi
   (#451); queue arguments other than `Map.of(...)` written in place (a map built over statements
   or held in a field), and dead-letter routing set by a broker policy, which code does not show;
   and how documents show declared destinations and dead-letter routes (#452).
+
+## Amendment (#559): destinations as entities, values as written
+
+The knowledge-build epic makes the things other facts join on entities, and keeps values as
+written in extraction for linking to resolve (epic sections 6 and 7; ADR 0094). The messaging
+extractor (version 7) reads no config:
+
+- **A destination is an entity** (`destination`). A name written out is one destination wherever
+  it is used, `destination:<broker>:<kind>:<name>`, such as `destination:kafka:topic:orders`. A
+  name with a placeholder config resolves, an exchange the code does not fix (`{...}`) and a
+  Spring Cloud Stream binding are scoped by the code's module,
+  `destination:<module>:<broker>:<kind>:<name>`, such as
+  `destination:com.acme:orders:rabbitmq:exchange:${orders.exchange}`, so two modules with the same
+  placeholder and different config stay apart until linking resolves them.
+- **Each send, listener, binding and declaration is a relationship** from the method (or type) to
+  its destination, as written: `SENDS_TO` with the routing key, `LISTENS_ON` with the group,
+  `BINDS` (the queue) with the exchange and routing key, and `DECLARES`. Each holds the name and
+  its other values as written (`name`, `routingKey`, `group`, `exchange`, the dead-letter routing,
+  a `StreamBridge` binder), which of them config may resolve (`configured`: those read with
+  placeholders, as annotations and `@Value`s are), the fields each was followed through, and the
+  module whose config resolves them (`configModule`, `configRepo`). A RabbitMQ send whose exchange
+  is written as the default one (`""`) is to the queue its routing key names; one whose exchange
+  config gives is to that exchange, and linking tells in each view whether it is the default one.
+- **Linking's first step** (`ValueViews`) records the `message-send`, `message-listener`,
+  `message-binding` and `message-destination` facts from these, per view, as the extractor
+  recorded them before, through the extractor's own resolving (`MessagingExtractor.resolve`), fed
+  each module's config from its `config-value` facts. Every later step and the composer read those
+  facts as before; they move to the entities with #521, and #522 replaces the step.
+- **Equivalence.** The extractor's tests resolve its facts against the modules' config files, and
+  its golden files of before (51 and 19 facts, the Spring Cloud Stream fixture's included) still
+  hold unchanged. `ValueViewsTest` checks that linking gives the same lines from the config facts.
+- The extractor no longer requires the identity extractor: linking masks with the JWT secret keys.
+
