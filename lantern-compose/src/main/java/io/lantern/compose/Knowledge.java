@@ -68,8 +68,9 @@ final class Knowledge {
 
   /**
    * Whether a link the linker left open ({@code unresolved-link}) was resolved: a link of the LLM
-   * resolver names it in {@code resolves}, by its stable {@code link} ID or, without one, its fact
-   * ID (ADR 0045). The link is drawn, so it is not also listed as not linked.
+   * resolver names it in {@code resolves}, by its claim ID, its stable link ID, or, before it is
+   * stored, its fact ID (ADR 0045, ADR 0095 amendment for #576). The link is drawn, so it is not
+   * also listed as not linked.
    */
   boolean resolved(Fact unresolved) {
     return resolution(unresolved) != null;
@@ -81,8 +82,7 @@ final class Knowledge {
     if (byId != null) {
       return byId;
     }
-    JsonNode link = unresolved.attributes().get("link");
-    return link != null && link.isString() ? resolvedLinks.get(link.asString()) : null;
+    return unresolved.claimId() == null ? null : resolvedLinks.get(unresolved.claimId());
   }
 
   /** The fact with the ID, or {@code null}. */

@@ -9,6 +9,7 @@ import io.lantern.app.archfixture.FactReadingRenderer;
 import io.lantern.compose.archfixture.FakeComposer;
 import io.lantern.extract.archfixture.ExtractorCallingLlm;
 import io.lantern.link.archfixture.FakeLinker;
+import io.lantern.link.archfixture.LinkerReadingAttributes;
 import io.lantern.link.archfixture.LinkerReadingComposer;
 import io.lantern.llm.archfixture.FakeLlmClient;
 import org.junit.jupiter.api.Test;
@@ -56,5 +57,23 @@ class ArchitectureRulesTest {
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("FactReadingRenderer.<init>")
         .hasMessageContaining("FactReadingRenderer$Page.render()");
+  }
+
+  @Test
+  void linkerCodeReadingAttributesByNameIsRejected() {
+    JavaClasses classes = new ClassFileImporter().importClasses(LinkerReadingAttributes.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.LINKER_READS_TYPED_FACTS.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("LinkerReadingAttributes.path(io.lantern.core.fact.Fact)")
+        .hasMessageContaining("LinkerReadingAttributes.all(java.util.List)");
+  }
+
+  @Test
+  void linkerCodeWithoutAttributeReadsIsAccepted() {
+    JavaClasses classes = new ClassFileImporter().importClasses(FakeLinker.class);
+
+    assertThatCode(() -> ArchitectureRules.LINKER_READS_TYPED_FACTS.check(classes))
+        .doesNotThrowAnyException();
   }
 }

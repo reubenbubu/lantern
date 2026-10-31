@@ -7,6 +7,11 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.attributes.GatewayRouteAttributes;
+import io.lantern.extract.attributes.HttpCallAttributes;
+import io.lantern.extract.attributes.MessageBindingAttributes;
+import io.lantern.extract.attributes.MessageListenerAttributes;
+import io.lantern.extract.attributes.MessageSendAttributes;
 import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
@@ -15,6 +20,7 @@ import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.ResolvePrompt.Answer;
 import io.lantern.link.ResolvePrompt.Candidate;
 import io.lantern.link.ResolvePrompt.Question;
+import io.lantern.link.attributes.UnresolvedLinkAttributes;
 import io.lantern.llm.Capability;
 import io.lantern.llm.Conversation;
 import io.lantern.llm.LlmClient;
@@ -45,7 +51,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -223,8 +228,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
     facts.forEach(f -> byId.putIfAbsent(f.id(), f));
     List<Question> questions = new ArrayList<>();
     for (Fact unresolved : index.of(CrossRepoLinks.UNRESOLVED_LINK)) {
-      String kind = UntypedReads.text(unresolved, "kind");
-      if (UntypedReads.texts(unresolved, "candidates").isEmpty()
+      String kind = unresolved(unresolved).kind();
+      if (Claims.list(unresolved(unresolved).candidates()).isEmpty()
           || !("http".equals(kind) || "message".equals(kind) || "route".equals(kind))) {
         // Nothing to pick from: the link stays open, for the questions queue.
         continue;
@@ -315,13 +320,13 @@ public final class LinkResolver implements LinkRule.OverFacts {
     String view = Claims.profile(unresolved);
     List<Fact> about = new ArrayList<>();
     unitFacts(index, unresolved.subject(), view, about);
-    for (String id : UntypedReads.texts(unresolved, "facts")) {
+    for (String id : Claims.list(unresolved(unresolved).facts())) {
       Fact fact = byId.get(id);
       if (fact != null && !about.contains(fact)) {
         about.add(fact);
       }
     }
-    boolean isHttp = "http".equals(UntypedReads.text(unresolved, "kind"));
+    boolean isHttp = "http".equals(unresolved(unresolved).kind());
     Fact route =
         about.stream()
             .filter(f -> f.predicate().equals(GatewayExtractor.ROUTE))
@@ -337,7 +342,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
             .findFirst()
             .orElse(null);
     Map<EntityId, List<Fact>> candidates = new LinkedHashMap<>();
-    for (String text : UntypedReads.texts(unresolved, "candidates")) {
+    for (String text : Claims.list(unresolved(unresolved).candidates())) {
       EntityId id = EntityId.parse(text);
       List<Fact> shown = new ArrayList<>();
       unitFacts(index, id, view, shown);
@@ -375,19 +380,21 @@ public final class LinkResolver implements LinkRule.OverFacts {
    */
   private static List<Fact> receiving(
       LinkIndex index, Unit unit, Fact send, String destination, String view) {
-    String broker = send == null ? null : UntypedReads.text(send, "broker");
+    MessageSendAttributes sent = Claims.ofOrNull(send, MessageSendAttributes.class);
+    String broker = sent == null ? null : sent.broker();
     List<Fact> listeners = new ArrayList<>();
     for (Fact listener : index.of(MessagingExtractor.LISTENER)) {
       if (index.unitsOf(listener.subject()).contains(unit)
           && index.active(listener.subject(), view)
-          && (broker == null || broker.equals(UntypedReads.text(listener, "broker")))) {
+          && (broker == null
+              || broker.equals(Claims.of(listener, MessageListenerAttributes.class).broker()))) {
         listeners.add(listener);
       }
     }
     List<Fact> bindings = new ArrayList<>();
     List<Fact> bound = new ArrayList<>();
     for (Fact binding : index.of(MessagingExtractor.BINDING)) {
-      if (!destination.equals(UntypedReads.text(binding, "exchange"))) {
+      if (!destination.equals(Claims.of(binding, MessageBindingAttributes.class).exchange())) {
         continue;
       }
       for (Fact listener : listeners) {
@@ -437,7 +444,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     Fact unresolved = question.unresolved();
     String purpose =
         "resolve "
-            + UntypedReads.text(unresolved, "kind")
+            + unresolved(unresolved).kind()
             + " link "
             + unresolved.object().value().replace('\n', ' ')
             + " of "
@@ -572,9 +579,12 @@ public final class LinkResolver implements LinkRule.OverFacts {
   // ---------------------------------------------------------------------------------------------
   // The link
 
+  /**
+   * The stable ID of a link left open: its claim ID, which stays the same across snapshots and
+   * commits (ADR 0095, amendment for #576); its fact ID before it is stored.
+   */
   private static String linkOf(Fact unresolved) {
-    String link = UntypedReads.text(unresolved, "link");
-    return link == null ? unresolved.id() : link;
+    return unresolved.claimId() != null ? unresolved.claimId() : unresolved.id();
   }
 
   /**
@@ -590,8 +600,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
       long snapshot,
       String system) {
     Fact unresolved = question.unresolved();
-    boolean isRoute = "route".equals(UntypedReads.text(unresolved, "kind"));
-    boolean isHttp = isRoute || "http".equals(UntypedReads.text(unresolved, "kind"));
+    boolean isRoute = "route".equals(unresolved(unresolved).kind());
+    boolean isHttp = isRoute || "http".equals(unresolved(unresolved).kind());
     String predicate = isHttp ? CrossRepoLinks.CALLS_HTTP : CrossRepoLinks.SENDS_MESSAGES_TO;
     Candidate candidate = question.candidate(resolution.target().toString());
     List<Fact> cited = new ArrayList<>();
@@ -616,7 +626,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
       code = ends.getFirst();
     }
     Fact origin = null;
-    for (String id : UntypedReads.texts(unresolved, "facts")) {
+    for (String id : Claims.list(unresolved(unresolved).facts())) {
       Fact fact = byId.get(id);
       if (fact != null
           && (fact.predicate().equals(MessagingExtractor.SEND)
@@ -639,15 +649,21 @@ public final class LinkResolver implements LinkRule.OverFacts {
       // A route of a gateway, described as the routes static matching links (ADR 0077).
       if (origin != null) {
         attributes.put("route", origin.object().value());
-        for (String key : List.of("paths", "methods")) {
-          List<String> values = UntypedReads.texts(origin, key);
-          if (!values.isEmpty()) {
-            ArrayNode array = attributes.putArray(key);
-            values.forEach(array::add);
-          }
-        }
+        GatewayRouteAttributes route = Claims.ofOrNull(origin, GatewayRouteAttributes.class);
+        Map<String, List<String>> lists = new LinkedHashMap<>();
+        lists.put("paths", route == null ? List.of() : Claims.list(route.paths()));
+        lists.put("methods", route == null ? List.of() : Claims.list(route.methods()));
+        lists.forEach(
+            (key, values) -> {
+              if (!values.isEmpty()) {
+                ArrayNode array = attributes.putArray(key);
+                values.forEach(array::add);
+              }
+            });
       }
-      String uri = origin == null ? unresolved.object().value() : UntypedReads.text(origin, "uri");
+      GatewayRouteAttributes routed = Claims.ofOrNull(origin, GatewayRouteAttributes.class);
+      String uri =
+          origin == null ? unresolved.object().value() : routed == null ? null : routed.uri();
       if (uri != null) {
         attributes.put("url", uri);
       }
@@ -659,7 +675,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
               : "https".equals(scheme) ? "HTTPS" : "HTTP";
       if (code != null) {
         attributes.put("endpoint", code.object().value());
-        String controller = UntypedReads.text(code, "controller");
+        String controller = Endpoints.of(code).controller();
         if (!protocol.equals("WebSocket")
             && controller != null
             && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
@@ -669,15 +685,16 @@ public final class LinkResolver implements LinkRule.OverFacts {
       attributes.put("protocol", protocol);
       attributes.put("matchedBy", "llm");
     } else if (isHttp) {
-      String client = origin == null ? null : UntypedReads.text(origin, "client");
+      HttpCallAttributes call = Claims.ofOrNull(origin, HttpCallAttributes.class);
+      String client = call == null ? null : call.client();
       if (client != null) {
         attributes.put("client", client);
       }
-      String httpMethod = origin == null ? null : UntypedReads.text(origin, "httpMethod");
+      String httpMethod = call == null ? null : call.httpMethod();
       if (httpMethod != null) {
         attributes.put("httpMethod", httpMethod);
       }
-      String path = origin == null ? null : UntypedReads.text(origin, "path");
+      String path = call == null ? null : call.path();
       if (path != null) {
         attributes.put("path", path);
       }
@@ -687,7 +704,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
               : "HTTP";
       if (code != null) {
         attributes.put("endpoint", code.object().value());
-        String controller = UntypedReads.text(code, "controller");
+        String controller = Endpoints.of(code).controller();
         if (controller != null
             && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
           protocol = "JSON/" + protocol;
@@ -696,27 +713,22 @@ public final class LinkResolver implements LinkRule.OverFacts {
       attributes.put("protocol", protocol);
       attributes.put("matchedBy", "llm");
     } else {
-      String broker = origin == null ? null : UntypedReads.text(origin, "broker");
+      MessageSendAttributes send = Claims.ofOrNull(origin, MessageSendAttributes.class);
+      String broker = send == null ? null : send.broker();
       attributes.put("protocol", protocol(broker));
     }
     String profile = Claims.profile(unresolved);
     if (profile != null) {
       attributes.put("profile", profile);
     }
-    JsonNode except = unresolved.attributes().get("exceptProfiles");
-    if (except != null && except.isArray()) {
-      attributes.set("exceptProfiles", except.deepCopy());
-    }
+    io.lantern.core.vocabulary.AttributeValues.put(
+        attributes, "exceptProfiles", unresolved(unresolved).exceptProfiles());
     attributes.put("resolves", linkOf(unresolved));
     attributes.put("rationale", resolution.rationale());
     attributes.put("model", resolution.provider() + "/" + resolution.model());
-    attributes.put(
-        "link",
-        FoundLinks.linkId(
-            predicate + "|resolves=" + linkOf(unresolved) + "|" + resolution.target(), null));
     Set<String> ids = new TreeSet<>();
     ids.add(unresolved.id());
-    ids.addAll(UntypedReads.texts(unresolved, "facts"));
+    ids.addAll(Claims.list(unresolved(unresolved).facts()));
     cited.forEach(f -> ids.add(f.id()));
     ArrayNode array = attributes.putArray("facts");
     ids.forEach(array::add);
@@ -751,5 +763,10 @@ public final class LinkResolver implements LinkRule.OverFacts {
       case MessagingExtractor.JMS -> "JMS";
       default -> "AMQP";
     };
+  }
+
+  /** An {@code unresolved-link} fact's attributes. */
+  private static UnresolvedLinkAttributes unresolved(Fact unresolved) {
+    return Claims.of(unresolved, UnresolvedLinkAttributes.class);
   }
 }

@@ -26,8 +26,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
  * @param httpMethod Descriptive. The HTTP method, if known.
- * @param link Descriptive. The link's stable ID: the first 16 hex digits of the SHA-256 of its
- *     ends, the code on both and its profile, so it stays the same across snapshots and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param matchedBy Descriptive. How the target was found: service-name (a Feign client's name, or a
  *     gateway route's lb:// name, against spring.application.name), host (the URL's host against
  *     it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by
@@ -60,8 +60,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     as that unit serves it, such as POST /api/auth/sign-in, or the WebSocket endpoint's path.
  * @param reachesUnit Descriptive. For a frontend's call that reaches an endpoint, the unit that
  *     serves it: the linked unit itself, or the unit the gateway route in throughRoute sends it to.
- * @param resolves Descriptive. The stable link ID of the unresolved-link the LLM resolver picked
- *     this link for. Present only on links of origin llm.
+ * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
+ *     link for. Present only on links of origin llm.
  * @param route Descriptive. The id of the gateway route the link is, for a link from a Spring Cloud
  *     Gateway route.
  * @param source Descriptive. The entity ID of the code on the subject's side: the method making the

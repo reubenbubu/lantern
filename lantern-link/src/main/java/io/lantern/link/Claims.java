@@ -39,6 +39,19 @@ final class Claims {
     return read(record, type, fact.attributes());
   }
 
+  /** A fact's attributes as a record, or null when there is no fact or it is of another type. */
+  static <R extends Record> R ofOrNull(Fact fact, Class<R> record) {
+    return fact == null || !fact.predicate().equals(type(record).type()) ? null : of(fact, record);
+  }
+
+  /**
+   * A copy of a fact's attributes as JSON, to show or copy whole (a prompt line, a fact rebuilt
+   * with other evidence, lineage); never to read one attribute by name.
+   */
+  static ObjectNode json(Fact fact) {
+    return fact.attributes().deepCopy();
+  }
+
   /** The type a record is the attributes of. */
   static String typeOf(Class<? extends Record> record) {
     return type(record).type();

@@ -6,12 +6,8 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -146,7 +142,6 @@ final class FoundLinks {
     if (profile != null) {
       attributes.put("profile", profile);
     }
-    attributes.put("link", linkId(found.identity(), profile));
     ArrayNode facts = attributes.putArray("facts");
     ids.forEach(facts::add);
     return Fact.create(
@@ -158,17 +153,5 @@ final class FoundLinks {
         found.evidence(),
         found.confidence(),
         validity);
-  }
-
-  /** The first 16 hex digits of the SHA-256 of the identity and profile. */
-  static String linkId(String identity, String profile) {
-    String text = profile == null ? identity : identity + "|profile=" + profile;
-    try {
-      byte[] hash =
-          MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
-      return HexFormat.of().formatHex(hash, 0, 8);
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 is not available", e);
-    }
   }
 }

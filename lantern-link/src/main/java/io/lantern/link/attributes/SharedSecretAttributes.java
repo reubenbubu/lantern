@@ -22,8 +22,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @param facts Descriptive. The IDs of the facts it comes from: the jwt-secret-key facts of every
  *     unit with the secret and the unit's config values, in every view it holds in.
  * @param library Key. The JWT library the method uses.
- * @param link Descriptive. The finding's stable ID: the first 16 hex digits of the SHA-256 of the
- *     unit, the code that makes the key and its profile.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param placeholders Key. For basis placeholder: the placeholders, as relaxed binding reads them
  *     (auth.token.signing.key for AUTH_TOKEN_SIGNING_KEY).
  * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.

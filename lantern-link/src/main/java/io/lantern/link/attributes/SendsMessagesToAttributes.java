@@ -18,8 +18,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     Absent when it holds under every profile.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
- * @param link Descriptive. The link's stable ID: the first 16 hex digits of the SHA-256 of its
- *     ends, the code on both and its profile, so it stays the same across snapshots and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param model Descriptive. The provider and model that picked this link, as provider/model.
  *     Present only on links of origin llm.
  * @param pattern Descriptive. The topic pattern the listener names, when the topic matched it.
@@ -31,8 +31,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     routes to it.
  * @param rationale Descriptive. Why the LLM resolver picked this candidate, in its own words.
  *     Present only on links of origin llm.
- * @param resolves Descriptive. The stable link ID of the unresolved-link the LLM resolver picked
- *     this link for. Present only on links of origin llm.
+ * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
+ *     link for. Present only on links of origin llm.
  * @param routingKey Key. The routing key sent with.
  * @param source Descriptive. The entity ID of the code on the subject's side: the method making the
  *     call, sending or listening, or declaring the binding.

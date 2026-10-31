@@ -724,7 +724,7 @@ class CrossRepoLinksTest {
         .containsExactly(
             "service:g:edge unresolved-link ${ORDERS_URI}"
                 + " {\"candidates\":[\"service:g:storefront-app\"],\"kind\":\"route\","
-                + "\"reason\":\"unresolved-placeholder\",\"source\":\"type:gw.Routes\","
+                + "\"reason\":\"unresolved-placeholder\",\"site\":\"route|orders\",\"source\":\"type:gw.Routes\","
                 + "\"unresolved\":[\"ORDERS_URI\"]} 1.0");
 
     container(
@@ -825,8 +825,8 @@ class CrossRepoLinksTest {
             l -> {
               assertThat(l.subject().toString()).isEqualTo("service:g:fulfilment");
               assertThat(l.object().value()).isEqualTo("service:g:storefront-app");
-              assertThat(UntypedReads.text(l, "matchedBy")).isEqualTo("container-host");
-              assertThat(UntypedReads.text(l, "endpoint")).isEqualTo("GET /api/orders/{id}");
+              assertThat(TestAttributes.text(l, "matchedBy")).isEqualTo("container-host");
+              assertThat(TestAttributes.text(l, "endpoint")).isEqualTo("GET /api/orders/{id}");
               // The container whose environment filled it in is among the link's facts.
               String fulfilmentContainer =
                   facts.stream()
@@ -835,7 +835,7 @@ class CrossRepoLinksTest {
                       .findFirst()
                       .orElseThrow()
                       .id();
-              assertThat(UntypedReads.texts(l, "facts")).contains(fulfilmentContainer);
+              assertThat(TestAttributes.texts(l, "facts")).contains(fulfilmentContainer);
             });
   }
 
@@ -1220,7 +1220,8 @@ class CrossRepoLinksTest {
     assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK))
         .containsExactly(
             "service:g:edge unresolved-link http://billing:8080 {\"kind\":\"route\","
-                + "\"reason\":\"unknown-host\",\"source\":\"module:g:edge\"} 1.0");
+                + "\"reason\":\"unknown-host\",\"site\":\"route|compose\","
+                + "\"source\":\"module:g:edge\"} 1.0");
     // /orders/** reaches /api/** behind StripPrefix and PrefixPath; the internal endpoint is
     // reached only by another unit's call.
     assertThat(derive(CrossRepoLinks.UNROUTED_ENDPOINT))
@@ -1557,10 +1558,12 @@ class CrossRepoLinksTest {
         .containsExactlyInAnyOrder(
             "service:g:shop unresolved-link direct.x {\"candidates\":[\"service:g:worker\"],"
                 + "\"kind\":\"message\",\"reason\":\"unknown-routing-key\","
+                + "\"site\":\"message-send|direct.x\","
                 + "\"source\":\"method:s.Publisher#unknown()\"} 1.0",
             // An exchange the code does not fix: any unit on a bound queue may receive it.
             "service:g:shop unresolved-link {...} {\"candidates\":[\"service:g:worker\"],"
                 + "\"kind\":\"message\",\"reason\":\"unknown-exchange\","
+                + "\"site\":\"message-send|{...}\","
                 + "\"source\":\"method:s.Publisher#anyExchange()\"} 1.0");
   }
 
@@ -2437,9 +2440,10 @@ class CrossRepoLinksTest {
 
   @Test
   void linkAndFactIdsStayTheSameWhenOnlyTheCommitChanges() {
+    // A link's stable ID is its claim ID (ADR 0095, amendment for #576).
+    Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
     kafkaSendAndListener();
-    List<String> before =
-        linked().stream().map(f -> f.attributes().get("link").asString()).toList();
+    List<String> before = linked().stream().map(vocabulary::claimId).toList();
     List<String> ids = linked().stream().map(Fact::id).toList();
 
     facts.clear();
@@ -2447,9 +2451,10 @@ class CrossRepoLinksTest {
     kafkaSendAndListener();
     List<Fact> after = linked();
 
-    assertThat(after.stream().map(f -> f.attributes().get("link").asString()))
+    assertThat(after.stream().map(vocabulary::claimId))
         .containsExactlyElementsOf(before)
         .doesNotHaveDuplicates();
+    assertThat(after).noneMatch(f -> f.attributes().has("link"));
     // Evidence names no commit, so the link facts are the same observations (ADR 0091).
     assertThat(after.stream().map(Fact::id)).containsExactlyElementsOf(ids);
     assertThat(after).allSatisfy(f -> assertThat(f.attributes().get("facts").size()).isPositive());

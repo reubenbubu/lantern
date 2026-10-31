@@ -19,9 +19,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     config values, in every view it holds in.
  * @param host Key. The mail server's host, from spring.mail.host.
  * @param key Key. The config key that names the host.
- * @param link Descriptive. The link's stable ID: the first 16 hex digits of the SHA-256 of its
- *     ends, the code on the subject's side and its profile, so it stays the same across snapshots
- *     and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param port Descriptive. The mail server's port, from spring.mail.port, if set.
  * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
  *     Absent when it holds in the default view.

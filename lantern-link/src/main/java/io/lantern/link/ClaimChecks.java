@@ -8,6 +8,13 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.link.attributes.AccessesDataOfAttributes;
+import io.lantern.link.attributes.ConsumesAttributes;
+import io.lantern.link.attributes.PublishesAttributes;
+import io.lantern.link.attributes.TechnologyAttributes;
+import io.lantern.link.attributes.UnresolvedLinkAttributes;
+import io.lantern.link.attributes.UsesBrokerAttributes;
+import io.lantern.link.attributes.UsesDatabaseAttributes;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -351,7 +358,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     }
     List<Fact> calls = new ArrayList<>(index.from(CrossRepoLinks.CALLS_HTTP, units));
     for (Fact f : index.from(CrossRepoLinks.UNRESOLVED_LINK, units)) {
-      if ("http".equals(UntypedReads.text(f, "kind"))) {
+      if ("http".equals(Claims.of(f, UnresolvedLinkAttributes.class).kind())) {
         calls.add(f);
       }
     }
@@ -387,8 +394,12 @@ public final class ClaimChecks implements LinkRule.OverFacts {
         index.from(CrossRepoLinks.ACCESSES_DATA_OF, units).stream()
             .filter(
                 f ->
-                    (anyRead && !UntypedReads.texts(f, "reads").isEmpty())
-                        || (anyWrite && !UntypedReads.texts(f, "writes").isEmpty()))
+                    (anyRead
+                            && !Claims.list(Claims.of(f, AccessesDataOfAttributes.class).reads())
+                                .isEmpty())
+                        || (anyWrite
+                            && !Claims.list(Claims.of(f, AccessesDataOfAttributes.class).writes())
+                                .isEmpty()))
             .toList();
     if (!access.isEmpty()) {
       out.add(new Contradiction(OTHER_SERVICES_DATA, null, Set.of(), sorted(access)));
@@ -435,7 +446,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     List<Fact> uses = index.from(CrossRepoLinks.USES_DATABASE, units);
     Set<String> found = new TreeSet<>();
     for (Fact f : uses) {
-      String technology = UntypedReads.text(f, "technology");
+      String technology = Claims.of(f, UsesDatabaseAttributes.class).technology();
       if (technology == null || technology.equalsIgnoreCase(stated)) {
         return;
       }
@@ -462,9 +473,12 @@ public final class ClaimChecks implements LinkRule.OverFacts {
         List.of(CrossRepoLinks.PUBLISHES, CrossRepoLinks.CONSUMES, CrossRepoLinks.USES_BROKER)) {
       for (Fact f : index.from(predicate, units)) {
         String kind =
-            predicate.equals(CrossRepoLinks.USES_BROKER)
-                ? UntypedReads.text(f, "technology")
-                : UntypedReads.text(f, "protocol");
+            switch (predicate) {
+              case CrossRepoLinks.USES_BROKER ->
+                  Claims.of(f, UsesBrokerAttributes.class).technology();
+              case CrossRepoLinks.PUBLISHES -> Claims.of(f, PublishesAttributes.class).protocol();
+              default -> Claims.of(f, ConsumesAttributes.class).protocol();
+            };
         if (kind == null || accepted.contains(kind.toLowerCase(Locale.ROOT))) {
           return;
         }
@@ -488,7 +502,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
         JAVA_VERSION,
         "Java " + stated.text(),
         stated,
-        "java",
+        TechnologyAttributes::java,
         "Java ",
         units,
         index,
@@ -507,7 +521,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
         SPRING_BOOT_VERSION,
         "Spring Boot " + stated.text(),
         stated,
-        "frameworkVersion",
+        TechnologyAttributes::frameworkVersion,
         "Spring Boot ",
         units,
         index,
@@ -519,7 +533,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
       String check,
       String statedText,
       Version stated,
-      String attribute,
+      java.util.function.Function<TechnologyAttributes, String> attribute,
       String prefix,
       Set<EntityId> units,
       Index index,
@@ -529,7 +543,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     List<Fact> contradicting = new ArrayList<>();
     Set<String> found = new TreeSet<>();
     for (Fact f : technologies) {
-      String value = UntypedReads.text(f, attribute);
+      String value = attribute.apply(Claims.of(f, TechnologyAttributes.class));
       if (value == null) {
         continue;
       }

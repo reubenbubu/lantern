@@ -17,8 +17,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @param exchangeType Descriptive. The exchange's type, if known: topic, direct, fanout or headers.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
- * @param link Descriptive. The link's stable ID: the first 16 hex digits of the SHA-256 of its
- *     ends, the code on both and its profile, so it stays the same across snapshots and commits.
+ * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
+ *     0095). Kept so links stored before stay valid.
  * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
  *     Absent when it holds in the default view.
  * @param protocol Key. The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS,

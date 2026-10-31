@@ -70,6 +70,35 @@ final class ArchitectureRules {
           .haveFullyQualifiedName("io.lantern.core.fact.FactRepository")
           .because("renderers format the document model and make no content decisions");
 
+  /**
+   * The linker's query layer: the classes that read a fact's attributes (ADR 0095, amendments for
+   * #580 and #576).
+   */
+  static final DescribedPredicate<JavaClass> LINK_QUERY_LAYER =
+      DescribedPredicate.describe(
+          "the query layer (Claims, ClaimQuery)",
+          c ->
+              List.of("io.lantern.link.Claims", "io.lantern.link.ClaimQuery")
+                  .contains(c.getName().replaceAll("\\$.*", "")));
+
+  /**
+   * Linker code reads facts as their typed records, through the query layer, never attribute JSON
+   * by name (knowledge-build epic, section 8, Rules).
+   */
+  static final ArchRule LINKER_READS_TYPED_FACTS =
+      noClasses()
+          .that()
+          .resideInAPackage("io.lantern.link..")
+          .and(DescribedPredicate.not(LINK_QUERY_LAYER))
+          .should()
+          .accessTargetWhere(
+              DescribedPredicate.describe(
+                  "Fact.attributes()",
+                  (com.tngtech.archunit.core.domain.JavaAccess<?> access) ->
+                      access.getTargetOwner().isEquivalentTo(io.lantern.core.fact.Fact.class)
+                          && access.getName().equals("attributes")))
+          .because("linker code reads typed records through the query layer (ADR 0095)");
+
   /** One stage and the classes in it. */
   record Stage(String name, DescribedPredicate<JavaClass> classes) {
 
