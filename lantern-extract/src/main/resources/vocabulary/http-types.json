@@ -3,7 +3,7 @@
     "name": "http-call",
     "kind": "attribute",
     "keyAttributes": ["annotation", "baseUrl", "client", "clientType", "httpMethod", "loadBalanced", "path", "service", "url"],
-    "description": "The subject method (or type, for code outside methods) sends an HTTP request: the HTTP method and URL, such as POST http://payments:8080/api/payments, or the URL alone when the method is not known. Placeholders are resolved against the config of the code's module; one nothing resolves is kept as written (${TAX_SERVICE_URL}), and an expression the extractor does not follow is shown as its source in braces ({productId}). User information, query and fragment are left out of every URL. A Feign client called by name goes to http://<name>, as Spring Cloud OpenFeign sends it. Values are those of the default view unless profile is set.",
+    "description": "The subject method (or type, for code outside methods) sends an HTTP request, as linking resolves a request's URL in one view (ADR 0094): the HTTP method and URL, such as POST http://payments:8080/api/payments, or the URL alone when the method is not known. Placeholders are resolved against the config of the code's module; one nothing resolves is kept as written (${TAX_SERVICE_URL}), and an expression the extractor does not follow is shown as its source in braces ({productId}). User information, query and fragment are left out of every URL. A Feign client called by name goes to http://<name>, as Spring Cloud OpenFeign sends it. Values are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -26,6 +26,47 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "request",
+    "kind": "entity",
+    "description": "One HTTP request some code sends, as the code writes it. Its key is the sending method's (or type's) entity ID, ':', the client kind, ':', the HTTP method or *, ':' and the URL as written, with placeholders and with expressions not followed in braces; a second identical request in the same code adds #2, #3 and so on. Whitespace in the URL is written %20.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "address",
+    "kind": "entity",
+    "description": "Where requests go: the authority of a URL whose host is written literally, such as payments:8080, or, when the base of the URL is a placeholder or expression, the key of the module whose config resolves it, ':' and the base as written, such as com.acme:orders:${payments.url}. Linking resolves an address in each view.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "SENT_BY",
+    "kind": "relationship",
+    "keyAttributes": ["annotation", "client", "clientType", "configModule", "configRepo", "httpMethod", "loadBalanced", "service", "url"],
+    "description": "The subject request is sent by the object method, or type for code outside methods, at the call or mapping this fact cites. Its values are as written; linking resolves them in each view against the config of configModule (ADR 0094, #557).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "httpMethod": { "type": "string", "description": "The HTTP method, such as GET. Absent when the code does not say which." },
+        "client": { "type": "string", "description": "The client kind, as for http-call." },
+        "clientType": { "type": "string", "description": "The binary name of a declarative client interface." },
+        "annotation": { "type": "string", "description": "The binary name of the mapping annotation of a declarative client's method." },
+        "url": { "type": "string", "description": "The URL as written, with its placeholders, without user information, query or fragment." },
+        "service": { "type": "string", "description": "The service name a client names, as written (Feign's name), when it has one." },
+        "loadBalanced": { "type": "boolean", "description": "Present and true when the client is load-balanced, so its host is a service name." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config resolves the values: the calling code's, or that of the module declaring the client bean or proxy that sets the base URL." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." },
+        "expressions": { "type": "array", "items": { "type": "string" }, "description": "The sources of the parts of the URL not followed, in order." }
+      },
+      "required": ["client", "url", "configModule", "configRepo"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ADDRESSED_TO",
+    "kind": "relationship",
+    "description": "The subject request goes to the object address, the base of its URL as written.",
+    "attributeSchema": { "type": "object", "properties": {}, "additionalProperties": false }
   },
   {
     "name": "http-client",

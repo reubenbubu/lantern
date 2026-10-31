@@ -8,13 +8,13 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The attributes of a fact of the type {@code http-call}. The subject method (or type, for code
- * outside methods) sends an HTTP request: the HTTP method and URL, such as POST
- * http://payments:8080/api/payments, or the URL alone when the method is not known. Placeholders
- * are resolved against the config of the code's module; one nothing resolves is kept as written
- * (${TAX_SERVICE_URL}), and an expression the extractor does not follow is shown as its source in
- * braces ({productId}). User information, query and fragment are left out of every URL. A Feign
- * client called by name goes to http://&lt;name&gt;, as Spring Cloud OpenFeign sends it. Values are
- * those of the default view unless profile is set.
+ * outside methods) sends an HTTP request, as linking resolves a request's URL in one view (ADR
+ * 0094): the HTTP method and URL, such as POST http://payments:8080/api/payments, or the URL alone
+ * when the method is not known. Placeholders are resolved against the config of the code's module;
+ * one nothing resolves is kept as written (${TAX_SERVICE_URL}), and an expression the extractor
+ * does not follow is shown as its source in braces ({productId}). User information, query and
+ * fragment are left out of every URL. A Feign client called by name goes to http://&lt;name&gt;, as
+ * Spring Cloud OpenFeign sends it. Values are those of the default view unless profile is set.
  *
  * @param annotation Key. The binary name of the mapping annotation on a client interface's method,
  *     such as org.springframework.web.bind.annotation.GetMapping.

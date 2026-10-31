@@ -16,9 +16,6 @@ import io.lantern.extract.ExtractionUnit;
 import io.lantern.extract.Extractor;
 import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
-import io.lantern.extract.config.CodeConfig;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.config.Resolution;
 import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
@@ -52,8 +49,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
@@ -71,8 +66,10 @@ import tools.jackson.databind.node.ObjectNode;
  * docs/adr/0038-http-client-extractor.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}). URLs are
- * followed one hop from a {@code @Value} field or constructor argument, and their placeholders
- * resolved through the config extractor, per profile, as the Spring extractor resolves its own.
+ * followed one hop from a {@code @Value} field or constructor argument and kept as written, with
+ * their placeholders: each request is a {@code request} entity sent by the code that makes it
+ * ({@code SENT_BY}) and addressed to an {@code address} ({@code ADDRESSED_TO}), and linking
+ * resolves its URL against the config of the module named in it, per profile (ADR 0094, #557).
  */
 public final class HttpClientExtractor implements Extractor {
 
@@ -80,13 +77,25 @@ public final class HttpClientExtractor implements Extractor {
   public static final String NAME = "http-client";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "8";
+  public static final String VERSION = "9";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
 
   /** Attribute: the subject sends an HTTP request. */
   public static final String HTTP_CALL = "http-call";
+
+  /** Entity type: one request some code sends, its URL as written. */
+  public static final String REQUEST = "request";
+
+  /** Entity type: where a request goes, the base of its URL as written. */
+  public static final String ADDRESS = "address";
+
+  /** Relationship: a request is sent by the method, or the type for code outside methods. */
+  public static final String SENT_BY = "SENT_BY";
+
+  /** Relationship: a request goes to an address. */
+  public static final String ADDRESSED_TO = "ADDRESSED_TO";
 
   /** Attribute: the subject interface is a declarative HTTP client. */
   public static final String HTTP_CLIENT = "http-client";
@@ -323,23 +332,10 @@ public final class HttpClientExtractor implements Extractor {
    * @param code the code of the snapshot's repositories
    * @param snapshot the snapshot number the facts hold from
    * @return the facts, without duplicates, ordered by subject, predicate, object, attributes and ID
-   * @throws IllegalStateException if git fails or times out while reading config
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
-    return extract(code, snapshot, Set.of());
-  }
-
-  /**
-   * As {@link #extract(JavaAnalysis, long)}, with config keys known to hold a secret: a value
-   * substituted from one is masked as for a key whose name says it is secret.
-   *
-   * @param secretKeys config keys known to hold a secret, such as {@link
-   *     ConfigExtractor#jwtSecretKeys}
-   */
-  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Objects.requireNonNull(secretKeys, "secretKeys");
-    Run run = new Run(code, Validity.from(snapshot), secretKeys);
+    Run run = new Run(code, Validity.from(snapshot));
     run.findClients();
     for (JavaAnalysis.Module module : code.modules()) {
       run.module(module);
@@ -366,7 +362,6 @@ public final class HttpClientExtractor implements Extractor {
     private final JavaAnalysis code;
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
-    private final CodeConfig configs;
 
     /** The declarative clients of every module, by binary name. */
     private final Map<String, Client> clients = new LinkedHashMap<>();
@@ -378,7 +373,12 @@ public final class HttpClientExtractor implements Extractor {
     private final List<GroupBase> groupBases = new ArrayList<>();
 
     private JavaAnalysis.Module module;
-    private CodeConfig.View config;
+
+    /** The module whose config resolves the current module's requests: the module itself. */
+    private JavaAnalysis.Module config;
+
+    /** The positions of the requests with one key, so identical requests get an ordinal. */
+    private final Map<String, List<String>> requestSites = new HashMap<>();
 
     /** The calls of each module's methods by their own type's code, by module, made when needed. */
     private final Map<JavaAnalysis.Module, Map<EntityId, List<OwnCall>>> ownCalls =
@@ -389,8 +389,7 @@ public final class HttpClientExtractor implements Extractor {
 
     private boolean openParam;
 
-    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
-      this.configs = new CodeConfig(secretKeys);
+    Run(JavaAnalysis code, Validity validity) {
       this.code = code;
       this.validity = validity;
     }
@@ -444,7 +443,7 @@ public final class HttpClientExtractor implements Extractor {
 
     void module(JavaAnalysis.Module m) {
       this.module = m;
-      this.config = configs.forModule(m.repo(), m.directory());
+      this.config = m;
       for (TypeDecl type : m.structure().types()) {
         Client client =
             type.kind().equals(ModuleStructure.INTERFACE) ? clients.get(type.binaryName()) : null;
@@ -1073,7 +1072,7 @@ public final class HttpClientExtractor implements Extractor {
     }
 
     /** A base URL a declarative client's calls go to, resolved in the config of its module. */
-    private record Base(Text url, CodeConfig.View config) {}
+    private record Base(Text url, JavaAnalysis.Module config) {}
 
     private void declarative(TypeDecl type, Client client) {
       Annotation written = client.annotation().getFirst();
@@ -1089,10 +1088,7 @@ public final class HttpClientExtractor implements Extractor {
       List<Base> bases = new ArrayList<>();
       if (client.kind().equals(HTTP_INTERFACE)) {
         for (Proxy p : proxies.getOrDefault(type.binaryName(), List.of())) {
-          Base b =
-              new Base(
-                  p.base() == null ? new Text("", List.of()) : p.base(),
-                  configs.forModule(p.module().repo(), p.module().directory()));
+          Base b = new Base(p.base() == null ? new Text("", List.of()) : p.base(), p.module());
           if (!bases.contains(b)) {
             bases.add(b);
           }
@@ -1433,7 +1429,7 @@ public final class HttpClientExtractor implements Extractor {
     private record Sent(
         String kind,
         Request request,
-        CodeConfig.View view,
+        JavaAnalysis.Module view,
         boolean openParam,
         boolean loadBalanced) {}
 
@@ -1450,10 +1446,8 @@ public final class HttpClientExtractor implements Extractor {
       boolean loadBalanced = spring && injectedLoadBalanced(chain, expression, scope, 0);
       Text injected = bean == null ? null : bean.base();
       // The bean's placeholders resolve in its own module's config, unless the call sets its base.
-      CodeConfig.View view =
-          bean != null && bean.module() != module && baseOf(chain) == null
-              ? configs.forModule(bean.module().repo(), bean.module().directory())
-              : config;
+      JavaAnalysis.Module view =
+          bean != null && bean.module() != module && baseOf(chain) == null ? bean.module() : config;
       EntityId outer = openIn;
       boolean outerOpen = openParam;
       openIn = scope.in();
@@ -1965,124 +1959,104 @@ public final class HttpClientExtractor implements Extractor {
         JavaAnalysis.Module source,
         boolean loadBalanced) {}
 
-    private void call(Call call, CodeConfig.View config) {
-      Recorded byDefault = recorded(config, null, call);
-      for (String profile : config.views()) {
-        Recorded value = profile == null ? byDefault : recorded(config, profile, call);
-        if (profile != null && value.equals(byDefault)) {
-          continue;
-        }
-        ObjectNode attributes = FactJson.newObject();
-        if (profile != null) {
-          attributes.put("profile", profile);
-        }
-        if (call.method() != null) {
-          attributes.put("httpMethod", call.method());
-        }
-        attributes.put("client", call.client());
-        if (call.clientType() != null) {
-          attributes.put("clientType", call.clientType());
-        }
-        if (call.annotation() != null) {
-          attributes.put("annotation", call.annotation());
-        }
-        String object;
-        if (value.masked()) {
-          attributes.put("masked", true);
-          object = value.written();
-        } else {
-          Split split = split(value.url());
-          if (split.path() != null) {
-            attributes.put("path", split.path());
-          }
-          if (split.absolute()) {
-            attributes.put("url", value.url());
-            attributes.put("baseUrl", split.base());
-          }
-          if (value.service() != null) {
-            attributes.put("service", value.service());
-          }
-          if (value.loadBalanced()) {
-            attributes.put("loadBalanced", true);
-          }
-          if (!value.written().equals(value.url())) {
-            attributes.put("written", value.written());
-          }
-          if (!value.unresolved().isEmpty()) {
-            ArrayNode keys = attributes.putArray("unresolved");
-            value.unresolved().forEach(keys::add);
-          }
-          object = value.url();
-        }
-        if (!call.url().unknown().isEmpty()) {
-          ArrayNode expressions = attributes.putArray("expressions");
-          call.url().unknown().forEach(x -> expressions.add(UrlCredentials.withoutCredentials(x)));
-        }
-        fact(
-            call.subject(),
-            HTTP_CALL,
-            call.method() == null ? object : call.method() + " " + object,
-            attributes,
+    /**
+     * Records a request as written: a {@code request} entity sent by the calling code, addressed to
+     * the base of its URL, with what linking needs to resolve it in each view: the URL and service
+     * name as written, and the module whose config resolves them.
+     */
+    private void call(Call call, JavaAnalysis.Module config) {
+      if (call.subject() == null) {
+        return;
+      }
+      String url = clean(call.url().text());
+      String key =
+          call.subject()
+              + ":"
+              + call.client()
+              + ":"
+              + (call.method() == null ? "*" : call.method())
+              + ":"
+              + url
+              // A request resolved in another module's config (a proxy's or a bean's base URL) is
+              // another request than the same text resolved in the caller's.
+              + (config == call.source() ? "" : "@" + config.id().key());
+      List<String> sites = requestSites.computeIfAbsent(key, k -> new ArrayList<>());
+      String site =
+          call.source().repo().repo().name()
+              + ":"
+              + call.where().file().path()
+              + "#"
+              + call.where().start()
+              + "-"
+              + call.where().end();
+      int ordinal = sites.indexOf(site);
+      if (ordinal < 0) {
+        sites.add(site);
+        ordinal = sites.size() - 1;
+      }
+      EntityId request = entityId(REQUEST, ordinal == 0 ? key : key + "#" + (ordinal + 1));
+      ObjectNode attributes = FactJson.newObject();
+      if (call.method() != null) {
+        attributes.put("httpMethod", call.method());
+      }
+      attributes.put("client", call.client());
+      if (call.clientType() != null) {
+        attributes.put("clientType", call.clientType());
+      }
+      if (call.annotation() != null) {
+        attributes.put("annotation", call.annotation());
+      }
+      attributes.put("url", url);
+      if (call.service() != null) {
+        attributes.put("service", call.service());
+      }
+      if (call.loadBalanced()) {
+        attributes.put("loadBalanced", true);
+      }
+      attributes.put("configModule", config.id().toString());
+      attributes.put("configRepo", config.repo().repo().name());
+      if (!call.url().unknown().isEmpty()) {
+        ArrayNode expressions = attributes.putArray("expressions");
+        call.url().unknown().forEach(x -> expressions.add(UrlCredentials.withoutCredentials(x)));
+      }
+      put(
+          request,
+          SENT_BY,
+          FactObject.entity(call.subject()),
+          attributes,
+          call.where(),
+          call.source());
+      EntityId address = address(url, call.client(), config);
+      if (address != null) {
+        put(
+            request,
+            ADDRESSED_TO,
+            FactObject.entity(address),
+            FactJson.newObject(),
             call.where(),
             call.source());
       }
     }
 
-    /** A call's URL and service name resolved in one view, as they may be recorded. */
-    private record Recorded(
-        String url,
-        String written,
-        String service,
-        SortedSet<String> unresolved,
-        boolean masked,
-        boolean loadBalanced) {}
-
-    private Recorded recorded(CodeConfig.View config, String profile, Call call) {
-      String written = clean(call.url().text());
-      Resolution url = config.resolve(profile, written);
-      SortedSet<String> unresolved = new TreeSet<>(url.unresolved());
-      SortedSet<String> used = new TreeSet<>(url.used());
-      String resolved = clean(url.value());
-      if (call.client().equals(FEIGN)) {
-        // Spring Cloud OpenFeign adds http:// to a url without a scheme, once resolved.
-        resolved = withScheme(resolved);
+    /**
+     * The address a URL as written goes to: {@code address:<host>} for a literal host, or the base
+     * expression scoped by the module whose config resolves it, {@code
+     * address:<module>:<expression>}: the leading placeholder or expression, or {@code *} for a URL
+     * that writes no base (a relative path, sent to a base set elsewhere).
+     */
+    private static EntityId address(String url, String client, JavaAnalysis.Module config) {
+      Split split = split(client.equals(FEIGN) ? withScheme(url) : url);
+      if (split.base() == null || split.base().isEmpty()) {
+        String lead = leading(url);
+        return entityId(ADDRESS, config.id().key() + ":" + (lead != null ? lead : "*"));
       }
-      String service = null;
-      if (call.service() != null) {
-        Resolution s = config.resolve(profile, call.service());
-        unresolved.addAll(s.unresolved());
-        used.addAll(s.used());
-        service = s.value();
+      if (split.absolute()) {
+        String authority = split.base().substring(split.base().indexOf("://") + 3);
+        if (!authority.isEmpty() && !authority.contains("$") && !authority.contains("{")) {
+          return entityId(ADDRESS, authority.toLowerCase(java.util.Locale.ROOT));
+        }
       }
-      CodeConfig.CodeValue value = config.value(resolved, written, unresolved, used);
-      // A load-balanced client's host, and an lb:// URL's, is a service name, not a DNS name.
-      boolean loadBalanced = call.loadBalanced() || value.value().startsWith("lb://");
-      if (service == null && loadBalanced) {
-        service = host(value.value());
-      }
-      return new Recorded(
-          value.value(),
-          value.written(),
-          value.masked() ? null : service,
-          value.unresolved(),
-          value.masked(),
-          loadBalanced && !value.masked());
-    }
-
-    /** The host of an absolute URL without placeholders in it, or null. */
-    private static String host(String url) {
-      Matcher m = ABSOLUTE.matcher(url);
-      if (!m.find()) {
-        return null;
-      }
-      String host = m.group(2);
-      int at = host.lastIndexOf('@');
-      host = at < 0 ? host : host.substring(at + 1);
-      int colon = host.indexOf(':');
-      host = colon < 0 ? host : host.substring(0, colon);
-      return host.isEmpty() || host.startsWith("[") || host.contains("{") || host.contains("$")
-          ? null
-          : host;
+      return entityId(ADDRESS, config.id().key() + ":" + split.base());
     }
 
     private void fact(
@@ -2191,7 +2165,7 @@ public final class HttpClientExtractor implements Extractor {
    * A URL without what must not be recorded or does not say where a request goes: the query, the
    * fragment and the credentials of any URL in it ({@link UrlCredentials}).
    */
-  static String clean(String url) {
+  public static String clean(String url) {
     String cut = url;
     int depth = 0;
     for (int i = 0; i < url.length(); i++) {
@@ -2209,7 +2183,7 @@ public final class HttpClientExtractor implements Extractor {
   }
 
   /** A URL with {@code http://} in front if it names a host without a scheme. */
-  static String withScheme(String url) {
+  public static String withScheme(String url) {
     if (url.isEmpty()
         || ABSOLUTE.matcher(url).find()
         || url.startsWith("$")
@@ -2224,9 +2198,9 @@ public final class HttpClientExtractor implements Extractor {
    * A URL's base (scheme and authority, or a leading placeholder or expression) and path; the path
    * is null when a placeholder or expression stands for the whole URL.
    */
-  record Split(String base, String path, boolean absolute) {}
+  public record Split(String base, String path, boolean absolute) {}
 
-  static Split split(String url) {
+  public static Split split(String url) {
     Matcher m = ABSOLUTE.matcher(url);
     if (m.find()) {
       int end = m.end(1) + authorityLength(url.substring(m.end(1)));
@@ -2325,6 +2299,52 @@ public final class HttpClientExtractor implements Extractor {
         Math.max(binaryName.lastIndexOf('.'), binaryName.lastIndexOf('$')) + 1);
   }
 
+  /**
+   * The leading placeholder or expression of a URL ({@code ${base}} of {@code ${base}{path}}), or
+   * null if it starts with neither.
+   */
+  private static String leading(String url) {
+    if (!url.startsWith("${") && !url.startsWith("{")) {
+      return null;
+    }
+    int depth = 0;
+    for (int i = 0; i < url.length(); i++) {
+      char c = url.charAt(i);
+      if (c == '{') {
+        depth++;
+      } else if (c == '}' && --depth == 0) {
+        return url.substring(0, i + 1);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * An entity ID whose key is text as written, each character an entity key may not hold
+   * (whitespace, control and invisible characters) percent-encoded as UTF-8.
+   */
+  static EntityId entityId(String type, String key) {
+    StringBuilder b = new StringBuilder();
+    key.codePoints()
+        .forEach(
+            cp -> {
+              String c = new String(Character.toChars(cp));
+              if (NOT_IN_KEY.matcher(c).matches()) {
+                for (byte x : c.getBytes(StandardCharsets.UTF_8)) {
+                  b.append('%').append(String.format("%02X", x & 0xff));
+                }
+              } else {
+                b.append(c);
+              }
+            });
+    return new EntityId(type, b.toString());
+  }
+
+  /** The characters an entity key may not hold, as {@link EntityId} refuses them. */
+  private static final Pattern NOT_IN_KEY =
+      Pattern.compile(
+          "[\\u0000-\\u0020\\u007f-\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]");
+
   private static EntityId typeId(String binaryName) {
     try {
       return new EntityId(BuiltInTypes.TYPE, binaryName);
@@ -2338,12 +2358,6 @@ public final class HttpClientExtractor implements Extractor {
     return new ExtractorInfo(NAME, VERSION);
   }
 
-  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
-  @Override
-  public Set<String> requires() {
-    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
-  }
-
   @Override
   public CacheUnit unit() {
     return CacheUnit.SNAPSHOT;
@@ -2351,11 +2365,6 @@ public final class HttpClientExtractor implements Extractor {
 
   @Override
   public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
-    sink.emitAll(
-        extract(
-            context.code(),
-            context.snapshot(),
-            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
-                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
+    sink.emitAll(extract(context.code(), context.snapshot()));
   }
 }

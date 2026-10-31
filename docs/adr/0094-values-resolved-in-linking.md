@@ -66,6 +66,18 @@ step against. The owner set the order #519, #521, #522 on 2026-10-31.
   - `RESOLVES_TO` claims with lineage to the config facts used;
   - an architecture rule that only it resolves placeholders.
 
+## Amendment (#557): the first link step
+
+Each slice adds its kind to one link step, `ValueViews`, which runs before every other. It resolves
+the values its kind's facts keep as written, through the lookup, and records the facts the
+extractor recorded before: the same subject, predicate, object, attributes, evidence and
+confidence, with origin `values`. Every later link step and the composer read those facts as before,
+and the analysis run gives the summarizer the step's facts too (it summarizes before linking), so
+a slice changes no document. The facts' IDs change with their origin, so a real run asks the LLM
+again where a prompt cites one; they carry no lineage to the facts they come from until #522. The HTTP client's requests are the first kind
+(ADR 0038, amendment for #557). #522 replaces the step's facts with `RESOLVES_TO` claims, and the
+readers move to the entities with #521.
+
 ## Consequences
 
 - The lookup is used from #557 on. The config extractor's extra profile facts are the only output

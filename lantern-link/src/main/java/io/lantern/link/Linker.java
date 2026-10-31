@@ -53,12 +53,13 @@ public final class Linker {
   }
 
   /**
-   * The linker of this version of Lantern: deployable units, the links between them, then the
-   * README claims they contradict.
+   * The linker of this version of Lantern: values kept as written resolved per view (ADR 0094),
+   * deployable units, the links between them, then the README claims they contradict.
    */
   public static Linker standard(FactRepository store) {
     return new Linker(
-        store, List.of(new DeployableUnits(), new CrossRepoLinks(), new ClaimChecks()));
+        store,
+        List.of(new ValueViews(), new DeployableUnits(), new CrossRepoLinks(), new ClaimChecks()));
   }
 
   /**
@@ -67,7 +68,13 @@ public final class Linker {
    */
   public static Linker standard(FactRepository store, LinkResolver resolver) {
     return new Linker(
-        store, List.of(new DeployableUnits(), new CrossRepoLinks(), new ClaimChecks(), resolver));
+        store,
+        List.of(
+            new ValueViews(),
+            new DeployableUnits(),
+            new CrossRepoLinks(),
+            new ClaimChecks(),
+            resolver));
   }
 
   /** The origin names of the steps' facts. */

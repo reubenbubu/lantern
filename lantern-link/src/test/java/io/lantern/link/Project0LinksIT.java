@@ -131,6 +131,7 @@ class Project0LinksIT {
     facts.addAll(new GatewayExtractor().extract(code, 1));
     facts.addAll(new DocsExtractor().extract(repos, 1));
     facts.addAll(new DeploymentExtractor().extract(repos, 1));
+    facts.addAll(new ValueViews().derive(facts, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
     facts.addAll(links);
@@ -254,7 +255,7 @@ class Project0LinksIT {
   }
 
   /** The sandbox settings of the extractors' tests, with the Maven mirror if one is set. */
-  private static SandboxSettings sandboxSettings(Path buildsDirectory) {
+  static SandboxSettings sandboxSettings(Path buildsDirectory) {
     String file = System.getProperty("lantern.test.properties");
     if (file == null || file.isBlank()) {
       file = System.getenv("LANTERN_TEST_PROPERTIES");

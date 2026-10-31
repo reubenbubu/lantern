@@ -28,6 +28,7 @@ import io.lantern.link.GraphTools;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
 import io.lantern.link.ResolutionStore;
+import io.lantern.link.ValueViews;
 import io.lantern.llm.LlmClient;
 import io.lantern.sandbox.BuildOrder;
 import io.lantern.sandbox.BuildResult;
@@ -345,8 +346,12 @@ public final class AnalysisRun {
       GitSourceFiles sources =
           new GitSourceFiles(name -> Optional.ofNullable(registered.get(name)).map(Repo::path))
               .withSecretKeys(secretKeys);
+      // The summaries read the facts the extractors recorded before they kept values as written:
+      // the first link step's values resolved per view (ADR 0094), derived here as linking will.
+      List<Fact> summarizable = new ArrayList<>(extracted);
+      summarizable.addAll(new ValueViews().derive(extracted, snapshot.number()));
       Summarizer.Result summarized =
-          new Summarizer(client, summaries, sources).summarize(SummaryTree.fromFacts(extracted));
+          new Summarizer(client, summaries, sources).summarize(SummaryTree.fromFacts(summarizable));
       LOG.info(
           "Summaries: {} written by the LLM, {} reused",
           summarized.generated(),

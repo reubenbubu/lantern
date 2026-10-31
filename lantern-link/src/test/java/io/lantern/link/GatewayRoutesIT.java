@@ -128,6 +128,7 @@ class GatewayRoutesIT {
     facts.addAll(new HttpClientExtractor().extract(code, 1));
     facts.addAll(new GatewayExtractor().extract(code, 1));
     facts.addAll(new WebSocketExtractor().extract(code, 1));
+    facts.addAll(new ValueViews().derive(facts, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<Fact> links = new CrossRepoLinks().derive(facts, 1);
     List<String> lines = new ArrayList<>();
