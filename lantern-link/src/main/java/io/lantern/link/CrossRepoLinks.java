@@ -2,8 +2,6 @@ package io.lantern.link;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
-import io.lantern.core.fact.Origin;
-import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,9 +9,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
@@ -25,21 +21,23 @@ import tools.jackson.databind.JsonNode;
  * providers, and JWT secrets units share; and ties the containers deployment descriptors run to the
  * units and data stores in them. See {@code docs/adr/0042-cross-repo-links.md}.
  *
- * <p>It runs after {@link DeployableUnits} and reads its facts with the extractors'. Each link is
- * found in every view (the default one and each profile the facts name, one profile active at a
- * time) and recorded once if it holds in the default view, else once per profile it holds under,
- * marked with that {@code profile}. Every link names the facts on both ends ({@code facts}), the
- * code on each end where there is code ({@code source}, {@code target}), its protocol and a link ID
- * that stays the same across snapshots ({@code link}). What static matching cannot decide is
- * recorded as {@code unresolved-link} on the unit, with its candidates, for the LLM resolver.
+ * <p>Since #575 this class holds the step's vocabulary and constants, and the links are made by the
+ * protocol rules of {@link ProtocolLinks}, which run after {@link DeployableUnits} and read its
+ * facts with the extractors'. Each link is found in every view (the default one and each profile
+ * the facts name, one profile active at a time) and recorded once if it holds in the default view,
+ * else once per profile it holds under, marked with that {@code profile}. Every link names the
+ * facts on both ends ({@code facts}), the code on each end where there is code ({@code source},
+ * {@code target}), its protocol and a link ID that stays the same across snapshots ({@code link}).
+ * What static matching cannot decide is recorded as {@code unresolved-link} on the unit, with its
+ * candidates, for the LLM resolver.
  */
-public final class CrossRepoLinks implements LinkRule.OverFacts {
+public final class CrossRepoLinks {
 
-  /** The step's name, recorded as the origin of its facts. */
+  /**
+   * The step's name, the origin of its facts until #575 split it into the protocol rules ({@link
+   * ProtocolLinks}).
+   */
   public static final String NAME = "cross-repo-links";
-
-  /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "18";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "cross-repo-links";
@@ -120,29 +118,7 @@ public final class CrossRepoLinks implements LinkRule.OverFacts {
 
   private static final String RESOURCE = "/vocabulary/cross-repo-links-types.json";
 
-  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
-
-  @Override
-  public RuleInfo info() {
-    return RuleInfo.of(ORIGIN);
-  }
-
-  @Override
-  public Set<String> reads() {
-    return Rules.union(
-        Set.of(EXTRACTED), ValueViews.WRITES, DeployableUnits.vocabularyPredicates());
-  }
-
-  @Override
-  public Set<String> writes() {
-    // People are a rule of their own (#574), whose types this step's vocabulary still defines.
-    Set<String> writes = new java.util.HashSet<>(vocabularyPredicates());
-    writes.remove(People.PERSON_BASIS);
-    writes.add(DeployableUnits.TECHNOLOGY);
-    return Set.copyOf(writes);
-  }
-
-  /** The predicates of this step's vocabulary types, which it writes. */
+  /** The predicates of this step's vocabulary types, which the protocol rules write. */
   static Set<String> vocabularyPredicates() {
     return Rules.predicates(vocabulary());
   }
@@ -165,34 +141,23 @@ public final class CrossRepoLinks implements LinkRule.OverFacts {
   }
 
   /**
-   * Derives the links of a snapshot from its facts.
+   * The links of a snapshot's facts as the protocol rules ({@link ProtocolLinks}) give them
+   * together, for tests and callers that link without the linker.
    *
    * @param facts the facts that hold in the snapshot, the deployable units' included
    * @param snapshot the snapshot number the facts hold from
-   * @return the derived facts, without duplicates, ordered by subject, predicate, object and ID
+   * @return the derived facts, ordered by subject, predicate, object and ID
    */
-  @Override
   public List<Fact> derive(List<Fact> facts, long snapshot) {
     Objects.requireNonNull(facts, "facts");
-    LinkIndex index = new LinkIndex(facts);
-    Validity validity = Validity.from(snapshot);
-    FoundLinks found = new FoundLinks();
-    Deployments deployments = new Deployments(index);
-    Addresses addresses = new Addresses(index, deployments);
-    HttpLinker http = new HttpLinker(index, found, addresses);
-    http.link();
-    RouteLinker routes = new RouteLinker(index, found, addresses);
-    routes.link();
-    new MessageLinker(index, found).link();
-    deployments.link(index, found, ORIGIN, validity);
-    new DataLinker(index, found, deployments).link(ORIGIN, validity);
-    new FrontendLinker(index, found, addresses, http, routes).link(ORIGIN, validity);
-    new MailLinker(index, found, addresses).link();
-    new IdentityLinker(index, found, addresses).link(ORIGIN, validity);
-    new RedisLinker(index, found, deployments).link(ORIGIN, validity);
-    Map<String, Fact> derived = new LinkedHashMap<>();
-    found.facts(index.profiles, ORIGIN, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
-    return derived.values().stream()
+    List<Fact> derived = new ArrayList<>();
+    for (ProtocolLinks rule : ProtocolLinks.all()) {
+      ClaimSink sink = new ClaimSink(rule.info(), rule.writes());
+      rule.derive(
+          new ClaimQuery(rule.info(), rule.reads(), Set.of(), facts, snapshot), sink, View.DEFAULT);
+      derived.addAll(sink.facts());
+    }
+    return derived.stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
                 .thenComparing(Fact::predicate)

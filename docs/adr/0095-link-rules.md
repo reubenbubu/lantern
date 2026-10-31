@@ -1,6 +1,6 @@
 # 0095: Link rules, their order and re-running on change
 
-Status: accepted (#573, a slice of #521)
+Status: accepted (#573, a slice of #521), amended for #575
 
 ## Context
 
@@ -69,3 +69,24 @@ of the snapshot, and ran all of them on every analysis. This record says how the
   runs the rules whose input that changes, and those downstream whose input then changes.
 - `Linker.Result` lists the rules that ran, and the analysis log names them.
 - The fake-model scorecards on project-1 to project-4 and project-8 are unchanged (#573's PR).
+
+## Amendment (#575): one rule per protocol
+
+The cross-repo links step is split into seven rules (`ProtocolLinks`), each with its own origin:
+`http-links` (HTTP calls, gateway routes and frontend calls, kept together because the routes read
+the HTTP links found before them and frontend calls reuse the HTTP and route matching),
+`messaging-links`, `deployment-links` (the containers units run in), `data-links`, `mail-links`,
+`identity-links` and `redis-links`. Each builds its own index of what it reads and finds its links
+in every view as the step did. A link left open stays the `unresolved-link` of the rule that left it
+until #576.
+
+- **Reads.** Until views are explicit (#522), each rule reads what the step read, every extracted
+  fact and the values' and units' facts, because the profiles a rule links in are those every fact
+  names. The units' `technology` is left out: several protocol rules give `technology` too (of
+  brokers, databases, frontends), no matcher reads it, and reading it would make the rules wait on
+  each other in a cycle.
+- **Writes.** Several rules give `deployed-in` (frontends, identity providers, data stores and the
+  units' containers), `display-name` and `technology`, each for the entities it makes; on project-0
+  to project-4 no fact is given twice.
+- `CrossRepoLinks` keeps the vocabulary and constants, and its `derive(facts, snapshot)` runs the
+  seven rules together for tests.
