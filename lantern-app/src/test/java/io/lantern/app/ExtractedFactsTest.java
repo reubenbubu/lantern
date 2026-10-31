@@ -58,4 +58,31 @@ class ExtractedFactsTest {
     assertThat(lines).hasSize(2);
     assertThat(lines.stream().map(FactJson::read).toList()).isEqualTo(facts);
   }
+
+  @Test
+  void writesTheLinkersFactsToTheirOwnFileBesideTheExtractedOnes() throws IOException {
+    Fact link =
+        Fact.create(
+            EntityId.parse("service:orders"),
+            "CALLS_HTTP",
+            FactObject.entity(EntityId.parse("service:billing")),
+            FactJson.newObject(),
+            new Origin(Origin.Kind.STATIC, "cross-repo-links", "17"),
+            Evidence.of("shop", "src/main/java/Orders.java", new Evidence.LineRange(20, 20), null),
+            0.9,
+            Validity.from(3));
+    Path folder = directory.resolve("shop/3");
+
+    Path extracted =
+        ExtractedFacts.write(folder, List.of(fact("messaging", "service:orders", "a.java", 1, 1)));
+    Path linked = ExtractedFacts.write(folder, ExtractedFacts.LINKED_FILE, List.of(link, link));
+
+    assertThat(linked.getFileName().toString()).isEqualTo("linked.jsonl.gz");
+    assertThat(linked.getParent()).isEqualTo(extracted.getParent());
+    String text;
+    try (InputStream in = new GZIPInputStream(Files.newInputStream(linked))) {
+      text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    }
+    assertThat(text.lines().map(FactJson::read).toList()).containsExactly(link);
+  }
 }
