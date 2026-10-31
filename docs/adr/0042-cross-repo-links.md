@@ -307,10 +307,14 @@ every link is unchanged (#589's PR).
 `RouteLinker` and `FrontendLinker` now read where their addresses lead from address
 resolution's claims too, and the architecture rule covers them. Their questions cannot be listed
 before they link: a route whose whole URI is a placeholder asks where it leads, and when a
-deployment fills it with a load-balanced URI, asks which unit that name is. So address resolution
-runs these two matchers itself, as the HTTP rule does, against `Addresses` through a recorder that
-notes each question with the fact asking it (the route, or the frontend's call or proxy), and
-writes the answers as claims; the links it finds there are dropped. The frontend's address claims
+deployment fills it with a load-balanced URI, asks which unit that name is. So, where the HTTP
+calls' questions are listed ahead (`HttpLinker.queries`), address resolution runs these two
+matchers itself against `Addresses` through a recorder that notes each question with the fact
+asking it (the route, or the frontend's call or proxy), and writes the answers as claims; the
+links it finds there are dropped. It does not make the HTTP links there; the one read of them,
+which endpoints no route reaches, asks no address, so the questions are the matchers' own. A
+question several facts ask cites them all. The routes and frontends are linked twice per run,
+once for their questions. The frontend's address claims
 have no `from` and are keyed `address:frontend:<address>` where the host is not written out. Every
 link test checks the answers read back equal `Addresses`' for these questions too; on project-0 to
 project-4 and project-8 every link is unchanged (#594's PR).

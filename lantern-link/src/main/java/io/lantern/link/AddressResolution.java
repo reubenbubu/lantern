@@ -94,19 +94,41 @@ public final class AddressResolution implements LinkRule {
 
     record Name(String name, String view) {}
 
-    /** Where a question was first asked: the fact asking it, and the config facts it used. */
-    record Asked(Fact source, List<Fact> used) {}
+    /**
+     * Where a question was asked: the facts asking it, the first first, and the config facts they
+     * used.
+     */
+    record Asked(List<Fact> sources, List<Fact> used) {
+
+      Fact source() {
+        return sources.getFirst();
+      }
+
+      void add(Fact source, List<Fact> more) {
+        if (!sources.contains(source)) {
+          sources.add(source);
+        }
+        more.stream().filter(f -> !used.contains(f)).forEach(used::add);
+      }
+    }
 
     final Map<Address, Asked> addresses = new LinkedHashMap<>();
     final Map<Name, Asked> names = new LinkedHashMap<>();
 
     void address(
         Unit from, String view, String text, String written, Fact source, List<Fact> used) {
-      addresses.putIfAbsent(new Address(from, view, text, written), new Asked(source, used));
+      addresses
+          .computeIfAbsent(
+              new Address(from, view, text, written),
+              k -> new Asked(new ArrayList<>(), new ArrayList<>()))
+          .add(source, used);
     }
 
     void name(String name, String view, Fact source) {
-      names.putIfAbsent(new Name(name, view), new Asked(source, List.of()));
+      names
+          .computeIfAbsent(
+              new Name(name, view), k -> new Asked(new ArrayList<>(), new ArrayList<>()))
+          .add(source, List.of());
     }
   }
 
@@ -150,6 +172,9 @@ public final class AddressResolution implements LinkRule {
     // Gateway routes and frontends ask as they link, a question on an earlier one's answer: run as
     // the matchers run them, recording what they ask (#594).
     Recorder recorder = new Recorder(addresses, questions);
+    // The links they find here are dropped, and their validity is a placeholder: only the
+    // questions are kept. HTTP's own links are not made here; the one read of them, which
+    // endpoints no route reaches, asks no address.
     FoundLinks scratch = new FoundLinks();
     HttpLinker http = new HttpLinker(index, scratch, addresses);
     RouteLinker routes = new RouteLinker(index, scratch, recorder);
@@ -220,7 +245,7 @@ public final class AddressResolution implements LinkRule {
     // Lineage: the call asking, the config that resolved its address, what the unit was found by
     // and the container that filled the address in.
     List<Fact> cited = new ArrayList<>();
-    cited.add(asked.source());
+    cited.addAll(asked.sources());
     cited.addAll(asked.used());
     EntityId object;
     switch (a.kind()) {
@@ -278,7 +303,7 @@ public final class AddressResolution implements LinkRule {
       attributes.put("profile", q.view());
     }
     ArrayNode lineage = attributes.putArray("facts");
-    lineage.add(asked.source().id());
+    asked.sources().forEach(f -> lineage.add(f.id()));
     if (t != null) {
       attributes.put("fact", t.fact().id());
       lineage.add(t.fact().id());
