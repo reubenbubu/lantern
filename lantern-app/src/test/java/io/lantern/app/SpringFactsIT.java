@@ -117,8 +117,9 @@ class SpringFactsIT {
             SpringExtractor.STEREOTYPE,
             SpringExtractor.STEREOTYPE,
             SpringExtractor.PROFILE_GATE,
-            SpringExtractor.ENDPOINT,
-            SpringExtractor.SCHEDULED,
+            // The endpoint and the schedule as written; linking resolves them (#519).
+            SpringExtractor.HANDLED_BY,
+            SpringExtractor.SCHEDULED_WRITTEN,
             SpringExtractor.BEAN);
     try {
       for (Fact fact : extracted) {

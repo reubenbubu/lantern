@@ -42,7 +42,7 @@ class SpringExtractorTest {
   @TempDir Path temp;
 
   private static List<Fact> extract(List<RepoBuild> inputs) throws IOException {
-    List<Fact> facts = new SpringExtractor().extract(inputs, SNAPSHOT);
+    List<Fact> facts = Resolved.facts(inputs, SNAPSHOT);
     Fixtures.checkEnvelope(
         facts,
         inputs.stream().map(RepoBuild::repo).toList(),
@@ -50,7 +50,18 @@ class SpringExtractorTest {
         SpringExtractor.NAME,
         SpringExtractor.VERSION);
     // Running again on the same input gives the same facts.
-    assertThat(new SpringExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
+    assertThat(Resolved.facts(inputs, SNAPSHOT)).isEqualTo(facts);
+    // The extractor itself keeps endpoints and schedules as written, resolving none (#519).
+    List<Fact> written = new SpringExtractor().extract(inputs, SNAPSHOT);
+    Fixtures.checkEnvelope(
+        written,
+        inputs.stream().map(RepoBuild::repo).toList(),
+        SNAPSHOT,
+        SpringExtractor.NAME,
+        SpringExtractor.VERSION);
+    assertThat(written)
+        .noneMatch(f -> f.predicate().equals(SpringExtractor.ENDPOINT))
+        .noneMatch(f -> f.attributes().has("profile"));
     return facts;
   }
 
@@ -166,8 +177,8 @@ class SpringExtractorTest {
     inputs.set(0, new RepoBuild(spring, commit, build(spring, commit)));
 
     JavaAnalysis code = JavaExtractor.analyze(inputs);
-    List<Fact> compiled = new SpringExtractor().extract(code, SNAPSHOT);
-    List<Fact> parsed = new SpringExtractor().extract(unbuilt(repos), SNAPSHOT);
+    List<Fact> compiled = Resolved.facts(code, SNAPSHOT);
+    List<Fact> parsed = Resolved.facts(unbuilt(repos), SNAPSHOT);
 
     assertThat(code.modules())
         .extracting(m -> m.repo().repo().name() + ":" + m.directory() + " " + m.compiled())
@@ -297,10 +308,8 @@ class SpringExtractorTest {
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
 
     // Without the code's keys the name alone does not show jwt.key is a secret.
-    assertThat(Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT)))
-        .contains("literal-test-value");
-    String masked =
-        Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key")));
+    assertThat(Fixtures.render(Resolved.facts(code, SNAPSHOT))).contains("literal-test-value");
+    String masked = Fixtures.render(Resolved.facts(code, SNAPSHOT, java.util.Set.of("jwt.key")));
     assertThat(masked).doesNotContain("literal-test-value").contains("/items/${jwt.key}");
   }
 
@@ -385,7 +394,7 @@ class SpringExtractorTest {
                 """));
     JavaAnalysis code =
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
-    String facts = Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT));
+    String facts = Fixtures.render(Resolved.facts(code, SNAPSHOT));
     assertThat(facts.lines())
         .contains(
             "type:com.example.App discovery-client discovery"
@@ -560,7 +569,7 @@ public class Features {}
     Repo repo = Fixtures.repo(temp.resolve("other"), "shop", files);
     JavaAnalysis code =
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
-    String facts = Fixtures.render(new SpringExtractor().extract(code, SNAPSHOT));
+    String facts = Fixtures.render(Resolved.facts(code, SNAPSHOT));
     // The negated @annotation(Skip) does not select owner(); @annotation(Audit) does, also
     // through the named pointcut audit() after another term.
     assertThat(facts.lines())

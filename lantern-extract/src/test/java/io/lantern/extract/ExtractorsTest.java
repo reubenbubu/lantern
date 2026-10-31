@@ -100,7 +100,7 @@ class ExtractorsTest {
     assertThat(result.facts("maven")).isEqualTo(new MavenExtractor().extract(repos, 3));
     assertThat(result.facts("java")).isEqualTo(new JavaExtractor().extract(code, 3));
     assertThat(result.facts("identity")).isEqualTo(identity);
-    assertThat(result.facts("spring")).isEqualTo(new SpringExtractor().extract(code, 3, keys));
+    assertThat(result.facts("spring")).isEqualTo(new SpringExtractor().extract(code, 3));
     assertThat(result.facts("docs")).isEqualTo(new DocsExtractor().extract(repos, 3, keys));
     assertThat(result.facts("deployment")).isEqualTo(new DeploymentExtractor().extract(repos, 3));
     assertThat(result.facts("config")).isEqualTo(new ConfigExtractor().extract(repos, 3, keys));

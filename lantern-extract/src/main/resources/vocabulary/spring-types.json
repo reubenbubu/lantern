@@ -50,7 +50,7 @@
     "kind": "attribute",
     "keyAttributes": ["httpMethod", "path"],
     "parent": "entry-point",
-    "description": "The subject method handles HTTP requests: the HTTP method and path, such as POST /api/orders, or the path alone when it takes any method. The path joins the controller's and the method's mappings, with placeholders resolved against the config of the controller's module.",
+    "description": "The subject method handles HTTP requests: the HTTP method and path, such as POST /api/orders, or the path alone when it takes any method. The path joins the controller's and the method's mappings, with placeholders resolved against the config of the controller's module; linking records it from the HANDLED_BY fact of the http-endpoint (ADR 0094, #519).",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -69,7 +69,7 @@
     "kind": "attribute",
     "keyAttributes": ["framework", "job", "request", "scheduledBy", "timeUnit", "trigger"],
     "parent": "entry-point",
-    "description": "The subject method runs on a schedule (@Scheduled, JobRunr's @Recurring or a request scheduled recurrently, or a Quartz job whose cron was found): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module.",
+    "description": "The subject method runs on a schedule (@Scheduled, JobRunr's @Recurring or a request scheduled recurrently, or a Quartz job whose cron was found): the cron expression, or the delay or rate, with placeholders resolved against the config of the method's module; for @Scheduled and @Recurring linking records it from the scheduled-written fact (ADR 0094, #519).",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -165,5 +165,51 @@
   {"name": "access-check", "kind": "attribute", "keyAttributes": ["annotation", "kind"], "description": "Callers of the subject method, or of every method of the subject class, must pass the access check its method security annotation states: @PreAuthorize, @PostAuthorize, @Secured, @RolesAllowed, @PermitAll or @DenyAll, directly or through a meta-annotation. The value is the expression or roles as written, else the kind. It is enforced only where method security is on (method-security).", "attributeSchema": {"type": "object", "properties": {"kind": {"type": "string", "enum": ["pre-authorize", "post-authorize", "secured", "roles-allowed", "permit-all", "deny-all"], "description": "The kind of check."}, "annotation": {"type": "string", "description": "The binary name of the custom annotation carrying the check, when it is not written directly."}}, "required": ["kind"], "additionalProperties": false}, "objectKind": "string"},
   {"name": "method-security", "kind": "attribute", "keyAttributes": ["annotation", "jsr250Enabled", "prePostEnabled", "securedEnabled"], "description": "The subject class turns method security on for the units that load it (@EnableMethodSecurity, @EnableReactiveMethodSecurity or the older @EnableGlobalMethodSecurity), so access-check annotations of the kinds it enables are enforced. The value is on.", "attributeSchema": {"type": "object", "properties": {"annotation": {"type": "string", "description": "The binary name of the annotation."}, "prePostEnabled": {"type": "boolean", "description": "Whether @PreAuthorize and @PostAuthorize are enforced."}, "securedEnabled": {"type": "boolean", "description": "Whether @Secured is enforced."}, "jsr250Enabled": {"type": "boolean", "description": "Whether @RolesAllowed, @PermitAll and @DenyAll are enforced."}}, "required": ["annotation", "prePostEnabled", "securedEnabled", "jsr250Enabled"], "additionalProperties": false}, "objectKind": "string"},
   {"name": "advised-by", "kind": "attribute", "keyAttributes": ["advice", "annotation", "kind"], "description": "An aspect's advice applies to the subject method because of the annotation at this line, which its pointcut selects by @annotation, @within or @target, such as a custom permission check. The value is the aspect's binary name. The ADVISES relation states the same from the aspect's side, at the advice.", "attributeSchema": {"type": "object", "properties": {"advice": {"type": "string", "description": "The entity ID of the advice method."}, "kind": {"type": "string", "enum": ["before", "after", "after-returning", "after-throwing", "around"], "description": "The kind of advice."}, "annotation": {"type": "string", "description": "The binary name of the selecting annotation."}}, "required": ["advice", "kind", "annotation"], "additionalProperties": false}, "objectKind": "string"},
-  {"name": "SCHEDULES", "kind": "relationship", "keyAttributes": ["framework"], "description": "The subject method schedules the object job method (JobRunr or Quartz) at the call this fact cites. The job's own fact names its schedulers as scheduledBy.", "attributeSchema": {"type": "object", "properties": {"framework": {"type": "string", "enum": ["jobrunr", "quartz"], "description": "The scheduling framework."}}, "required": ["framework"], "additionalProperties": false}}
+  {"name": "SCHEDULES", "kind": "relationship", "keyAttributes": ["framework"], "description": "The subject method schedules the object job method (JobRunr or Quartz) at the call this fact cites. The job's own fact names its schedulers as scheduledBy.", "attributeSchema": {"type": "object", "properties": {"framework": {"type": "string", "enum": ["jobrunr", "quartz"], "description": "The scheduling framework."}}, "required": ["framework"], "additionalProperties": false}},
+  {
+    "name": "http-endpoint",
+    "kind": "entity",
+    "description": "An HTTP endpoint a module's code serves, as the code writes it (ADR 0094, #519): the module's key, ':', the HTTP method or * when the mapping takes any, ':' and the path as written, the controller's and the method's joined, with their placeholders, such as com.acme:orders:POST:/api/orders or com.acme:orders:GET:${api.prefix}/orders. Linking resolves its path in each view and records the endpoint facts. (The endpoint attribute type, which documents read until #521, keeps that name.)",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "HANDLED_BY",
+    "kind": "relationship",
+    "keyAttributes": ["annotation", "basePath", "configModule", "configRepo", "controller", "framework", "httpMethod", "path"],
+    "description": "The subject endpoint is handled by the object method, at the mapping this fact cites. Its paths are as written; linking resolves them in each view against the config of configModule (ADR 0094, #519).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "httpMethod": { "type": "string", "description": "The HTTP method, such as POST. Absent when the mapping takes any." },
+        "basePath": { "type": "string", "description": "The controller's path as written, empty when it has none." },
+        "path": { "type": "string", "description": "The method's path as written, empty when it has none." },
+        "controller": { "type": "string", "description": "The binary name of the controller class." },
+        "annotation": { "type": "string", "description": "The binary name of the mapping annotation written on the method." },
+        "framework": { "type": "string", "description": "spring-mvc or jakarta-rest, as for endpoint." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config resolves the paths: the code's." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." }
+      },
+      "required": ["basePath", "path", "controller", "annotation", "framework", "configModule", "configRepo"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "scheduled-written",
+    "kind": "attribute",
+    "keyAttributes": ["configModule", "configRepo", "framework", "timeUnit", "trigger"],
+    "description": "The subject method runs on a schedule written so in code (@Scheduled, or JobRunr's @Recurring with a cron): the cron, delay or rate as written, with its placeholders. Linking resolves it in each view against the config of configModule and records the scheduled facts (ADR 0094, #519).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "trigger": { "type": "string", "enum": ["cron", "fixed-delay", "fixed-rate"], "description": "What the value is." },
+        "timeUnit": { "type": "string", "description": "The time unit written for a delay or rate." },
+        "framework": { "type": "string", "description": "jobrunr for a @Recurring method; absent for Spring's @Scheduled." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config resolves the value: the code's." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." }
+      },
+      "required": ["trigger", "configModule", "configRepo"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
 ]
