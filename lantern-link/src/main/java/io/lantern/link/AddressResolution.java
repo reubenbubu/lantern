@@ -15,7 +15,6 @@ import io.lantern.link.LinkIndex.Unit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -95,15 +94,19 @@ public final class AddressResolution implements LinkRule {
 
     record Name(String name, String view) {}
 
-    final Set<Address> addresses = new LinkedHashSet<>();
-    final Set<Name> names = new LinkedHashSet<>();
+    /** Where a question was first asked: the fact asking it, and the config facts it used. */
+    record Asked(Fact source, List<Fact> used) {}
 
-    void address(Unit from, String view, String text, String written) {
-      addresses.add(new Address(from, view, text, written));
+    final Map<Address, Asked> addresses = new LinkedHashMap<>();
+    final Map<Name, Asked> names = new LinkedHashMap<>();
+
+    void address(
+        Unit from, String view, String text, String written, Fact source, List<Fact> used) {
+      addresses.putIfAbsent(new Address(from, view, text, written), new Asked(source, used));
     }
 
-    void name(String name, String view) {
-      names.add(new Name(name, view));
+    void name(String name, String view, Fact source) {
+      names.putIfAbsent(new Name(name, view), new Asked(source, List.of()));
     }
   }
 
@@ -115,21 +118,29 @@ public final class AddressResolution implements LinkRule {
     Questions questions = new Questions();
     HttpLinker.queries(index, questions);
     Map<String, Fact> facts = new LinkedHashMap<>();
-    for (Questions.Address q : questions.addresses) {
-      List<Answer> answers = addresses.answers(q.from(), q.view(), q.text(), q.written());
-      for (int i = 0; i < answers.size(); i++) {
-        Fact f = answer(q, answers.get(i), i, index, validity);
-        facts.putIfAbsent(f.id(), f);
-      }
-    }
-    for (Questions.Name q : questions.names) {
-      for (Target t :
-          addresses.byApplicationName(
-              q.name(), q.view(), "service-name", Addresses.BY_SERVICE_NAME)) {
-        Fact f = name(q, t, validity);
-        facts.putIfAbsent(f.id(), f);
-      }
-    }
+    questions.addresses.forEach(
+        (q, asked) -> {
+          List<Answer> answers = addresses.answers(q.from(), q.view(), q.text(), q.written());
+          for (int i = 0; i < answers.size(); i++) {
+            Fact f = answer(q, asked, answers.get(i), i, validity);
+            facts.putIfAbsent(f.id(), f);
+          }
+        });
+    questions.names.forEach(
+        (q, asked) -> {
+          List<Target> targets =
+              addresses.byApplicationName(
+                  q.name(), q.view(), "service-name", Addresses.BY_SERVICE_NAME);
+          if (targets.isEmpty()) {
+            // Asked, and no unit has the name: recorded, so a matcher tells it from not asked.
+            Fact f = name(q, asked, null, validity);
+            facts.putIfAbsent(f.id(), f);
+          }
+          for (Target t : targets) {
+            Fact f = name(q, asked, t, validity);
+            facts.putIfAbsent(f.id(), f);
+          }
+        });
     facts.values().stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
@@ -140,7 +151,7 @@ public final class AddressResolution implements LinkRule {
 
   /** The claim of one answer an address has. */
   private static Fact answer(
-      Questions.Address q, Answer a, int order, LinkIndex index, Validity validity) {
+      Questions.Address q, Questions.Asked asked, Answer a, int order, Validity validity) {
     ObjectNode attributes = FactJson.newObject();
     if (q.from() != null) {
       attributes.put("from", q.from().id().toString());
@@ -158,10 +169,11 @@ public final class AddressResolution implements LinkRule {
     }
     attributes.put("order", order);
     attributes.put("matched", a.address());
-    if (a.split()) {
-      attributes.put("split", true);
-    }
+    // Lineage: the call asking, the config that resolved its address, what the unit was found by
+    // and the container that filled the address in.
     List<Fact> cited = new ArrayList<>();
+    cited.add(asked.source());
+    cited.addAll(asked.used());
     EntityId object;
     switch (a.kind()) {
       case UNIT -> {
@@ -196,13 +208,8 @@ public final class AddressResolution implements LinkRule {
     }
     ArrayNode lineage = attributes.putArray("facts");
     cited.stream().map(Fact::id).distinct().sorted().forEach(lineage::add);
-    Evidence evidence =
-        !cited.isEmpty()
-            ? cited.getFirst().evidence()
-            : q.from() != null ? q.from().fact().evidence() : null;
-    if (evidence == null && a.kind() == Addresses.Kind.UNIT) {
-      evidence = a.target().unit().fact().evidence();
-    }
+    // Seen where the address is used.
+    Evidence evidence = asked.source().evidence();
     return Fact.create(
         subject(q.from(), q.text()),
         ValueResolution.RESOLVES_TO,
@@ -214,31 +221,37 @@ public final class AddressResolution implements LinkRule {
         validity);
   }
 
-  /** The claim of one unit a service name names. */
-  private static Fact name(Questions.Name q, Target t, Validity validity) {
+  /** The claim of one unit a service name names, or of none ({@code t} null). */
+  private static Fact name(Questions.Name q, Questions.Asked asked, Target t, Validity validity) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("by", BY_NAME);
     attributes.put("address", q.name());
     if (q.view() != null) {
       attributes.put("profile", q.view());
     }
-    attributes.put("fact", t.fact().id());
-    attributes.putArray("facts").add(t.fact().id());
+    ArrayNode lineage = attributes.putArray("facts");
+    lineage.add(asked.source().id());
+    if (t != null) {
+      attributes.put("fact", t.fact().id());
+      lineage.add(t.fact().id());
+    }
     return Fact.create(
         EntityKeys.of(HttpClientExtractor.ADDRESS, q.name().toLowerCase(Locale.ROOT)),
         ValueResolution.RESOLVES_TO,
-        FactObject.entity(t.unit().id()),
+        FactObject.entity(t == null ? UNKNOWN : t.unit().id()),
         attributes,
         ORIGIN,
-        t.fact().evidence(),
+        asked.source().evidence(),
         1.0,
         validity);
   }
 
   /**
    * The address entity a question is about: {@code address:<host>} for an address whose host is
-   * written out, as the HTTP client extractor keys one, else the address keyed by the unit using
-   * it.
+   * written out, as the HTTP client extractor keys one, else the address as the unit using it sees
+   * it, keyed by that unit. The latter is the extractor's entity only where the unit's key is its
+   * module's and the URL is its own base; the claim's {@code from} and {@code address} say which
+   * question it answers either way.
    */
   static EntityId subject(Unit from, String text) {
     LinkText.Url url = LinkText.parse(text);

@@ -18,7 +18,8 @@ import tools.jackson.databind.node.ObjectNode;
  * secret is used. Address resolution (#589) also writes it for each address a matcher asks about,
  * with from naming the unit that uses it: to the unit it leads to, the external system, or
  * outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each
- * deployment that fills the address in; and with by: name, to each unit a service name names.
+ * deployment that fills the address in; and with by: name, to each unit a service name names, or
+ * outcome:unknown when none does.
  *
  * @param address Key. Address resolution: the address asked about, as the unit's config resolved
  *     it, or the service name asked about.
@@ -51,8 +52,6 @@ import tools.jackson.databind.node.ObjectNode;
  * @param profile Key. The profile whose config gives this literal; absent for the default view.
  * @param resolved Descriptive. The expression as config resolved it, when that is not the literal's
  *     own key: a URL whose address is its host, or a JDBC URL whose address is its server.
- * @param split Descriptive. Address resolution: the config and the deployments disagree, so no one
- *     URL stands for the address.
  * @param written Descriptive. Address resolution: the address as written, when config changed it.
  */
 public record ResolvesToAttributes(
@@ -72,7 +71,6 @@ public record ResolvesToAttributes(
     Long order,
     String profile,
     String resolved,
-    Boolean split,
     String written) {
 
   /** The vocabulary type these are the attributes of. */
@@ -100,7 +98,6 @@ public record ResolvesToAttributes(
         AttributeValues.integer(attributes, "order"),
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "resolved"),
-        AttributeValues.bool(attributes, "split"),
         AttributeValues.string(attributes, "written"));
   }
 
@@ -123,7 +120,6 @@ public record ResolvesToAttributes(
     AttributeValues.put(attributes, "order", order);
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "resolved", resolved);
-    AttributeValues.put(attributes, "split", split);
     AttributeValues.put(attributes, "written", written);
     return attributes;
   }

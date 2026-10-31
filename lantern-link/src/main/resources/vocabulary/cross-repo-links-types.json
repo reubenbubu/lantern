@@ -122,8 +122,14 @@
   {
     "name": "RESOLVES_TO",
     "kind": "relationship",
-    "keyAttributes": ["address", "by", "deployment", "from", "profile"],
-    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, the profile named, or the deployment named, whose container's environment overlays the config as Spring Boot's relaxed binding reads it (#588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used. Address resolution (#589) also writes it for each address a matcher asks about, with from naming the unit that uses it: to the unit it leads to, the external system, or outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each deployment that fills the address in; and with by: name, to each unit a service name names.",
+    "keyAttributes": [
+      "address",
+      "by",
+      "deployment",
+      "from",
+      "profile"
+    ],
+    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, the profile named, or the deployment named, whose container's environment overlays the config as Spring Boot's relaxed binding reads it (#588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used. Address resolution (#589) also writes it for each address a matcher asks about, with from naming the unit that uses it: to the unit it leads to, the external system, or outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each deployment that fills the address in; and with by: name, to each unit a service name names, or outcome:unknown when none does.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -198,10 +204,6 @@
         "filledBy": {
           "type": "string",
           "description": "Address resolution: the ID of the deployment-container fact whose environment filled the address in."
-        },
-        "split": {
-          "type": "boolean",
-          "description": "Address resolution: the config and the deployments disagree, so no one URL stands for the address."
         },
         "order": {
           "type": "integer",

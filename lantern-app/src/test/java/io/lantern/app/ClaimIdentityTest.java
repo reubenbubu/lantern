@@ -113,7 +113,6 @@ class ClaimIdentityTest {
                   "factor",
                   "fact",
                   "filledBy",
-                  "split",
                   "order",
                   "candidates")));
 

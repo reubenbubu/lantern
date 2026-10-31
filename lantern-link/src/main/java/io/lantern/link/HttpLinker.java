@@ -119,9 +119,10 @@ final class HttpLinker {
         for (String view : index.views()) {
           Call call = http.call(site, caller, view);
           if (call != null) {
-            questions.address(caller, view, call.address(), call.written());
+            questions.address(
+                caller, view, call.address(), call.written(), call.fact(), call.used());
             if (call.service() != null) {
-              questions.name(call.service(), view);
+              questions.name(call.service(), view, call.fact());
             }
           }
         }

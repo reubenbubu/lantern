@@ -220,6 +220,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
    */
   public Result resolve(List<Fact> facts, long snapshot) {
     Objects.requireNonNull(facts, "facts");
+    // Address resolution's answers are the matchers' (#589), not what the model looks through.
+    facts = facts.stream().filter(f -> !f.origin().name().equals(AddressResolution.NAME)).toList();
     LinkIndex index = new LinkIndex(facts);
     Addresses addresses = new Addresses(index, new Deployments(index));
     HttpLinker http = new HttpLinker(index, new FoundLinks(), addresses);

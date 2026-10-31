@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Where addresses lead, as address resolution's {@code RESOLVES_TO} claims say (#589): what a
@@ -69,10 +68,18 @@ final class AddressClaims implements AddressAnswers {
 
   @Override
   public List<Target> byApplicationName(String name, String view, String matchedBy, double factor) {
+    List<Fact> claims = names.get(nameKey(name, view));
+    if (claims == null) {
+      throw new IllegalStateException(
+          "Address resolution did not look up the name " + name + " in view " + view);
+    }
     List<Target> targets = new ArrayList<>();
-    for (Fact f : names.getOrDefault(nameKey(name, view), List.of())) {
+    for (Fact f : claims) {
+      if (f.object().entityId().equals(AddressResolution.UNKNOWN)) {
+        continue; // asked, and no unit has the name
+      }
       ResolvesToAttributes a = Claims.of(f, ResolvesToAttributes.class);
-      targets.add(new Target(unit(f.object().entityId()), index.fact(a.fact()), matchedBy, factor));
+      targets.add(new Target(unit(f.object().entityId()), fact(a.fact()), matchedBy, factor));
     }
     // In the units' order, as the lookup gives them.
     targets.sort(Comparator.comparing(t -> t.unit().id(), LinkIndex.BY_TEXT));
@@ -83,29 +90,36 @@ final class AddressClaims implements AddressAnswers {
     ResolvesToAttributes a = Claims.of(f, ResolvesToAttributes.class);
     EntityId object = f.object().entityId();
     Container filledBy = a.filledBy() == null ? null : containers.get(a.filledBy());
-    boolean split = Boolean.TRUE.equals(a.split());
     LinkText.Url url = LinkText.parse(a.matched());
     if (object.equals(AddressResolution.AMBIGUOUS)) {
       List<Target> candidates = new ArrayList<>();
-      for (ObjectNode c : a.candidates() == null ? List.<ObjectNode>of() : a.candidates()) {
+      for (Claims.Candidate c : Claims.candidates(a.candidates())) {
         candidates.add(
-            new Target(
-                unit(EntityId.parse(c.path("unit").asString())),
-                index.fact(c.path("fact").asString(null)),
-                c.path("matchedBy").asString(),
-                c.path("factor").asDouble()));
+            new Target(unit(EntityId.parse(c.unit())), fact(c.fact()), c.matchedBy(), c.factor()));
       }
-      return new Answer(Kind.AMBIGUOUS, candidates, null, a.matched(), url, filledBy, split);
+      return new Answer(Kind.AMBIGUOUS, candidates, null, a.matched(), url, filledBy, false);
     }
     if (object.equals(AddressResolution.UNKNOWN)) {
-      return new Answer(Kind.UNKNOWN, List.of(), null, a.matched(), url, filledBy, split);
+      return new Answer(Kind.UNKNOWN, List.of(), null, a.matched(), url, filledBy, false);
     }
     if (object.type().equals(CrossRepoLinks.EXTERNAL_SYSTEM)) {
-      return new Answer(Kind.EXTERNAL, List.of(), object, a.matched(), url, filledBy, split);
+      return new Answer(Kind.EXTERNAL, List.of(), object, a.matched(), url, filledBy, false);
     }
     Target target =
-        new Target(unit(object), index.fact(a.fact()), a.matchedBy(), a.factor().doubleValue());
-    return new Answer(Kind.UNIT, List.of(target), null, a.matched(), url, filledBy, split);
+        new Target(unit(object), fact(a.fact()), a.matchedBy(), a.factor().doubleValue());
+    return new Answer(Kind.UNIT, List.of(target), null, a.matched(), url, filledBy, false);
+  }
+
+  /** The fact an answer names by ID, or null when it names none. */
+  private Fact fact(String id) {
+    if (id == null) {
+      return null;
+    }
+    Fact fact = index.fact(id);
+    if (fact == null) {
+      throw new IllegalStateException("Address resolution names a fact not read: " + id);
+    }
+    return fact;
   }
 
   private Unit unit(EntityId id) {

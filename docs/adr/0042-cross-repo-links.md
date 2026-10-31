@@ -277,17 +277,25 @@ rule 3). It decides as #473's order does (`Addresses`), and writes each answer a
   attributes: `from` (the unit using it), `profile` (the view), `address`, and `deployment` for
   the answer of a deployment whose environment fills it in; one claim for the config's answer and
   one per such deployment, in `order`. The claim keeps what the matchers used before: how the unit
-  was found (`matchedBy`, `factor`, `fact`), the address as matched (`matched`), the container
-  that filled it (`filledBy`) and whether the answers disagree (`split`).
+  was found (`matchedBy`, `factor`, `fact`), the address as matched (`matched`) and the container
+  that filled it (`filledBy`); the matcher combines the answers as before. The subject is the
+  address as the unit using it sees it; it is the extractor's own `address:` entity where the
+  host is written out, or where the URL is its own base and the unit's key is its module's.
 - For a service name (`by: name`): one claim to each unit whose `spring.application.name` in the
-  view it is.
+  view it is, or one to `outcome:unknown` when none is.
+- Lineage and evidence: each claim cites the call asking, the config values that resolved its
+  address, the fact the unit was found by and the container that filled it, and is seen where the
+  call is.
 - Unknown is an answer too, as an `outcome:unknown` claim: a matcher still decides such a call by
   its path, and needs the address as a deployment filled it.
 
 The questions are the matchers' own: address resolution enumerates each matcher's calls with the
-matcher's code (`HttpLinker.queries`), so every address a matcher asks about has its claims; one
-without them fails the run rather than leading nowhere. A matcher reads them through
-`AddressClaims`, which gives the same answers `Addresses` gave.
+matcher's code (`HttpLinker.queries`), so every address and name a matcher asks about has its
+claims; one without them, or a claim naming a fact the matcher does not read, fails the run
+rather than leading nowhere. A matcher reads them through `AddressClaims`, which gives the same
+answers `Addresses` gave; every link test checks that for each of its questions. The LLM resolver
+does not see these claims: they are the matchers' answers, not facts for the model to look
+through.
 
 In this slice the HTTP matcher reads them; an architecture rule keeps the matchers that do from
 calling `Addresses`. Gateway routes and frontends (#594), identity providers and mail hosts
