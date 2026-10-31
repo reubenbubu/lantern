@@ -17,8 +17,7 @@ import io.lantern.extract.Extractor;
 import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.config.Resolution;
+import io.lantern.extract.config.ValueLookup;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -68,7 +67,7 @@ public final class SpringExtractor implements Extractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "5";
+  public static final String VERSION = "6";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -87,6 +86,15 @@ public final class SpringExtractor implements Extractor {
 
   /** Attribute: the method runs on a schedule. */
   public static final String SCHEDULED = "scheduled";
+
+  /** Entity: an HTTP endpoint a module's code serves, its path as written (#519). */
+  public static final String HTTP_ENDPOINT = "http-endpoint";
+
+  /** Relationship: the subject endpoint is handled by the object method. */
+  public static final String HANDLED_BY = "HANDLED_BY";
+
+  /** Attribute: the method runs on a schedule written so; linking resolves it (#519). */
+  public static final String SCHEDULED_WRITTEN = "scheduled-written";
 
   /**
    * Attribute: the method runs as a background job that is not on a schedule of {@code trigger}'s
@@ -280,20 +288,8 @@ public final class SpringExtractor implements Extractor {
    * @throws IllegalStateException if git fails or times out while reading config
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
-    return extract(code, snapshot, Set.of());
-  }
-
-  /**
-   * As {@link #extract(JavaAnalysis, long)}, with config keys known to hold a secret: a value
-   * substituted from one is masked as for a key whose name says it is secret.
-   *
-   * @param secretKeys config keys known to hold a secret, such as {@link
-   *     ConfigExtractor#jwtSecretKeys}
-   */
-  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Objects.requireNonNull(secretKeys, "secretKeys");
-    Run run = new Run(code, Validity.from(snapshot), secretKeys);
+    Run run = new Run(code, Validity.from(snapshot));
     for (JavaAnalysis.Module module : code.modules()) {
       run.module(module);
     }
@@ -317,25 +313,21 @@ public final class SpringExtractor implements Extractor {
     private final JavaAnalysis code;
     private final Validity validity;
     private final Map<String, Fact> facts = new LinkedHashMap<>();
-    private final CodeConfig configs;
 
     private JavaAnalysis.Module module;
-    private CodeConfig.View config;
 
     /** Job classes found in the modules read so far, and where jobs are scheduled. */
     private final List<JobClass> jobClasses = new ArrayList<>();
 
     private final List<Scheduling> schedulings = new ArrayList<>();
 
-    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
-      this.configs = new CodeConfig(secretKeys);
+    Run(JavaAnalysis code, Validity validity) {
       this.code = code;
       this.validity = validity;
     }
 
     void module(JavaAnalysis.Module m) {
       this.module = m;
-      this.config = configs.forModule(m.repo(), m.directory());
       for (TypeDecl type : m.structure().types()) {
         if (type.kind().equals(ModuleStructure.ANNOTATION)) {
           continue;
@@ -549,35 +541,31 @@ public final class SpringExtractor implements Extractor {
         String basePath,
         String path,
         String httpMethod) {
-      Resolved byDefault = path(null, basePath, path);
-      for (String profile : views()) {
-        Resolved value = profile == null ? byDefault : path(profile, basePath, path);
-        if (profile != null && value.equals(byDefault)) {
-          continue;
-        }
-        ObjectNode attributes = value.attributes(profile);
-        if (httpMethod != null) {
-          attributes.put("httpMethod", httpMethod);
-        }
-        attributes.put("path", value.value());
-        attributes.put("controller", controller.binaryName());
-        attributes.put("annotation", written.type());
-        attributes.put("framework", framework);
-        String object = httpMethod == null ? value.value() : httpMethod + " " + value.value();
-        fact(method.id(), ENDPOINT, object, attributes, written.where(), source);
+      // The endpoint as written, an entity its method handles; linking resolves its path in each
+      // view against the module's config and records the endpoint facts (ADR 0094, #519).
+      String text = joinWritten(basePath, path);
+      EntityId endpoint =
+          io.lantern.extract.EntityKeys.of(
+              HTTP_ENDPOINT,
+              module.id().key() + ":" + (httpMethod == null ? "*" : httpMethod) + ":" + text);
+      ObjectNode attributes = FactJson.newObject();
+      if (httpMethod != null) {
+        attributes.put("httpMethod", httpMethod);
       }
-    }
-
-    /** A controller's and a method's paths, each resolved, then joined. */
-    private Resolved path(String profile, String basePath, String path) {
-      Resolution base = resolve(profile, basePath);
-      Resolution own = resolve(profile, path);
-      SortedSet<String> unresolved = new TreeSet<>(base.unresolved());
-      unresolved.addAll(own.unresolved());
-      SortedSet<String> used = new TreeSet<>(base.used());
-      used.addAll(own.used());
-      return Resolved.of(
-          config, join(base.value(), own.value()), joinWritten(basePath, path), unresolved, used);
+      attributes.put("basePath", basePath);
+      attributes.put("path", path);
+      attributes.put("controller", controller.binaryName());
+      attributes.put("annotation", written.type());
+      attributes.put("framework", framework);
+      attributes.put("configModule", module.id().toString());
+      attributes.put("configRepo", module.repo().repo().name());
+      fact(
+          endpoint,
+          HANDLED_BY,
+          FactObject.entity(method.id()),
+          attributes,
+          written.where(),
+          source);
     }
 
     /** A Spring request mapping written on an element, directly or through a composed one. */
@@ -724,21 +712,16 @@ public final class SpringExtractor implements Extractor {
         Location where,
         Annotation annotation,
         Map<String, String> extra) {
-      Resolved byDefault = Resolved.of(config, resolve(null, written), written);
-      for (String profile : views()) {
-        Resolved value =
-            profile == null ? byDefault : Resolved.of(config, resolve(profile, written), written);
-        if (profile != null && value.equals(byDefault)) {
-          continue;
-        }
-        ObjectNode attributes = value.attributes(profile);
-        attributes.put("trigger", trigger);
-        if (!annotation.values("timeUnit").isEmpty() && !trigger.equals("cron")) {
-          attributes.put("timeUnit", annotation.values("timeUnit").getFirst());
-        }
-        extra.forEach(attributes::put);
-        fact(method.id(), SCHEDULED, value.value(), attributes, where);
+      // As written; linking resolves it in each view and records the scheduled facts (#519).
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("trigger", trigger);
+      if (!annotation.values("timeUnit").isEmpty() && !trigger.equals("cron")) {
+        attributes.put("timeUnit", annotation.values("timeUnit").getFirst());
       }
+      extra.forEach(attributes::put);
+      attributes.put("configModule", module.id().toString());
+      attributes.put("configRepo", module.repo().repo().name());
+      fact(method.id(), SCHEDULED_WRITTEN, written, attributes, where);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -1449,14 +1432,6 @@ public final class SpringExtractor implements Extractor {
     // -------------------------------------------------------------------------------------------
     // Values and facts
 
-    private List<String> views() {
-      return config.views();
-    }
-
-    private Resolution resolve(String profile, String text) {
-      return config.resolve(profile, text);
-    }
-
     private void fact(
         EntityId subject, String predicate, String object, ObjectNode attributes, Location where) {
       fact(subject, predicate, object, attributes, where, module);
@@ -1502,6 +1477,16 @@ public final class SpringExtractor implements Extractor {
         ObjectNode attributes,
         Location where,
         JavaAnalysis.Module source) {
+      fact(subject, predicate, FactObject.string(object), attributes, where, source);
+    }
+
+    private void fact(
+        EntityId subject,
+        String predicate,
+        FactObject object,
+        ObjectNode attributes,
+        Location where,
+        JavaAnalysis.Module source) {
       if (subject == null) {
         return;
       }
@@ -1516,7 +1501,7 @@ public final class SpringExtractor implements Extractor {
           Fact.create(
               subject,
               predicate,
-              FactObject.string(object),
+              object,
               attributes,
               ORIGIN,
               evidence,
@@ -1533,18 +1518,26 @@ public final class SpringExtractor implements Extractor {
   private record Resolved(
       String value, String written, SortedSet<String> unresolved, boolean masked) {
 
-    static Resolved of(CodeConfig.View config, Resolution r, String written) {
-      return of(config, r.value(), written, r.unresolved(), r.used());
+    /** A text from code resolved in a view of its module's config. */
+    static Resolved of(ValueLookup config, String view, String written) {
+      CodeConfig.CodeValue v = config.value(view, written);
+      return new Resolved(v.value(), v.written(), v.unresolved(), v.masked());
     }
 
-    static Resolved of(
-        CodeConfig.View config,
-        String value,
-        String written,
-        SortedSet<String> unresolved,
-        SortedSet<String> used) {
-      CodeConfig.CodeValue v = config.value(value, written, unresolved, used);
-      return new Resolved(v.value(), v.written(), v.unresolved(), v.masked());
+    /**
+     * A controller's and a method's paths, each resolved, then joined; masked, as written, if a
+     * secret was substituted into either.
+     */
+    static Resolved path(ValueLookup config, String view, String basePath, String path) {
+      CodeConfig.CodeValue base = config.value(view, basePath);
+      CodeConfig.CodeValue own = config.value(view, path);
+      String written = joinWritten(basePath, path);
+      if (base.masked() || own.masked()) {
+        return new Resolved(written, written, new TreeSet<>(), true);
+      }
+      SortedSet<String> unresolved = new TreeSet<>(base.unresolved());
+      unresolved.addAll(own.unresolved());
+      return new Resolved(join(base.value(), own.value()), written, unresolved, false);
     }
 
     ObjectNode attributes(String profile) {
@@ -1565,6 +1558,103 @@ public final class SpringExtractor implements Extractor {
       }
       return attributes;
     }
+  }
+
+  /**
+   * The facts linking gives from the values this extractor keeps as written (ADR 0094, #519): each
+   * endpoint its code serves ({@value #HANDLED_BY}) and each schedule ({@value #SCHEDULED_WRITTEN})
+   * resolved in each view of its module's config, as this extractor recorded them before: {@value
+   * #ENDPOINT} and {@value #SCHEDULED} facts, the default view's and each differing profile's.
+   *
+   * @param facts the snapshot's facts; only the written ones of this extractor are read
+   * @param config the config of a module, by its entity ID and its repository's name
+   * @param origin the origin of the facts
+   * @param snapshot the snapshot number the facts hold from
+   */
+  public static List<Fact> resolve(
+      List<Fact> facts,
+      java.util.function.BiFunction<EntityId, String, ValueLookup> config,
+      Origin origin,
+      long snapshot) {
+    Validity validity = Validity.from(snapshot);
+    Map<String, ValueLookup> lookups = new HashMap<>();
+    Map<String, Fact> out = new LinkedHashMap<>();
+    for (Fact f : facts) {
+      boolean endpoint =
+          f.predicate().equals(HANDLED_BY) && f.subject().type().equals(HTTP_ENDPOINT);
+      boolean scheduled = f.predicate().equals(SCHEDULED_WRITTEN);
+      if (!endpoint && !scheduled) {
+        continue;
+      }
+      JsonNode a = f.attributes();
+      String module = a.get("configModule").stringValue();
+      String repo = a.get("configRepo").stringValue();
+      ValueLookup lookup =
+          lookups.computeIfAbsent(
+              module + "\0" + repo, k -> config.apply(EntityId.parse(module), repo));
+      Resolved byDefault = null;
+      for (String view : lookup.views()) {
+        Resolved value =
+            endpoint
+                ? Resolved.path(
+                    lookup, view, a.get("basePath").stringValue(), a.get("path").stringValue())
+                : Resolved.of(lookup, view, f.object().value());
+        if (view == null) {
+          byDefault = value;
+        } else if (value.equals(byDefault)) {
+          continue;
+        }
+        ObjectNode attributes = value.attributes(view);
+        EntityId subject;
+        String predicate;
+        String object;
+        if (endpoint) {
+          String httpMethod = a.has("httpMethod") ? a.get("httpMethod").stringValue() : null;
+          if (httpMethod != null) {
+            attributes.put("httpMethod", httpMethod);
+          }
+          attributes.put("path", value.value());
+          attributes.set("controller", a.get("controller"));
+          attributes.set("annotation", a.get("annotation"));
+          attributes.set("framework", a.get("framework"));
+          subject = f.object().entityId();
+          predicate = ENDPOINT;
+          object = httpMethod == null ? value.value() : httpMethod + " " + value.value();
+        } else {
+          a.properties()
+              .forEach(
+                  e -> {
+                    if (!e.getKey().equals("configModule") && !e.getKey().equals("configRepo")) {
+                      attributes.set(e.getKey(), e.getValue());
+                    }
+                  });
+          subject = f.subject();
+          predicate = SCHEDULED;
+          object = value.value();
+        }
+        Fact fact =
+            Fact.create(
+                subject,
+                predicate,
+                FactObject.string(object),
+                attributes,
+                origin,
+                f.evidence(),
+                f.confidence(),
+                validity);
+        out.putIfAbsent(fact.id(), fact);
+      }
+    }
+    return out.values().stream()
+        .sorted(
+            Comparator.comparing((Fact f) -> f.subject().toString())
+                .thenComparing(Fact::predicate)
+                .thenComparing(f -> f.object().value())
+                .thenComparing(f -> f.attributes().toString())
+                .thenComparing(f -> f.evidence().path())
+                .thenComparing(f -> f.evidence().lines() == null ? 0 : f.evidence().lines().start())
+                .thenComparing(Fact::id))
+        .toList();
   }
 
   /** A path joined as Spring and Jakarta REST join a class's and a method's: one slash between. */
@@ -1616,12 +1706,6 @@ public final class SpringExtractor implements Extractor {
     return new ExtractorInfo(NAME, VERSION);
   }
 
-  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
-  @Override
-  public Set<String> requires() {
-    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
-  }
-
   @Override
   public CacheUnit unit() {
     return CacheUnit.SNAPSHOT;
@@ -1629,11 +1713,6 @@ public final class SpringExtractor implements Extractor {
 
   @Override
   public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
-    sink.emitAll(
-        extract(
-            context.code(),
-            context.snapshot(),
-            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
-                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
+    sink.emitAll(extract(context.code(), context.snapshot()));
   }
 }

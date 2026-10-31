@@ -47,8 +47,8 @@ class Project0SpringIT {
     assertThat(code.modules())
         .as("every module with code is read through javac")
         .allMatch(m -> m.compiled() || m.structure().types().isEmpty());
-    compiled = render(new SpringExtractor().extract(code, 1), repos);
-    parsed = render(new SpringExtractor().extract(unbuilt, 1), repos);
+    compiled = render(Resolved.facts(code, 1), repos);
+    parsed = render(Resolved.facts(unbuilt, 1), repos);
   }
 
   private static List<String> render(List<Fact> facts, List<Repo> repos) throws IOException {

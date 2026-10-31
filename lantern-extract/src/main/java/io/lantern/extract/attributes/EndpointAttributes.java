@@ -10,7 +10,8 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code endpoint}. The subject method handles HTTP requests:
  * the HTTP method and path, such as POST /api/orders, or the path alone when it takes any method.
  * The path joins the controller's and the method's mappings, with placeholders resolved against the
- * config of the controller's module.
+ * config of the controller's module; linking records it from the HANDLED_BY fact of the
+ * http-endpoint (ADR 0094, #519).
  *
  * @param annotation Descriptive. The binary name of the mapping annotation on the method, such as
  *     org.springframework.web.bind.annotation.GetMapping.

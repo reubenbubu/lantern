@@ -10,7 +10,8 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code scheduled}. The subject method runs on a schedule
  * (&#64;Scheduled, JobRunr's &#64;Recurring or a request scheduled recurrently, or a Quartz job
  * whose cron was found): the cron expression, or the delay or rate, with placeholders resolved
- * against the config of the method's module.
+ * against the config of the method's module; for &#64;Scheduled and &#64;Recurring linking records
+ * it from the scheduled-written fact (ADR 0094, #519).
  *
  * @param framework Key. The job library, for a job of JobRunr or Quartz. Absent for &#64;Scheduled.
  * @param job Key. A Quartz job's class, the binary name.

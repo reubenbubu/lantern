@@ -44,6 +44,8 @@ const VALUE_AREAS = {
   CONNECTS_TO: 'persistence',
   MAPS_TO: 'persistence',
   'redis-use': 'redis',
+  endpoint: 'spring',
+  scheduled: 'spring',
 };
 
 export function areaOf(fact) {
