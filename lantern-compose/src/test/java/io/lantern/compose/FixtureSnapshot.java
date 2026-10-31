@@ -90,6 +90,9 @@ record FixtureSnapshot(
     Map<String, Path> directories = new TreeMap<>();
     repos.forEach(repo -> directories.put(repo.repo().name(), repo.repo().path()));
     List<Fact> facts = withBlobs(extracted, directories, commits);
+    // The values extractors keep as written, resolved as linking's first step does, before
+    // summarizing, as the analysis run summarizes them (ADR 0094).
+    facts.addAll(new ValueViews().derive(facts, NUMBER));
     FakeLlmProvider fake = fake();
     Summarizer summarizer =
         new Summarizer(fakeClient(fake), new InMemorySummaryStore(), sources(directories));
@@ -100,7 +103,6 @@ record FixtureSnapshot(
     Map<EntityId, Summary> summaries = result.summaries();
     // The linker's deployable units and links, derived after summarizing, as the summarizer's
     // golden prompts were written without them.
-    facts.addAll(new ValueViews().derive(facts, NUMBER));
     facts.addAll(new DeployableUnits().derive(facts, NUMBER));
     facts.addAll(new CrossRepoLinks().derive(facts, NUMBER));
     Snapshot snapshot = new Snapshot(NUMBER, commits, 3, "test", Instant.EPOCH);

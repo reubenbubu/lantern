@@ -1976,7 +1976,10 @@ public final class HttpClientExtractor implements Extractor {
               + ":"
               + (call.method() == null ? "*" : call.method())
               + ":"
-              + url;
+              + url
+              // A request resolved in another module's config (a proxy's or a bean's base URL) is
+              // another request than the same text resolved in the caller's.
+              + (config == call.source() ? "" : "@" + config.id().key());
       List<String> sites = requestSites.computeIfAbsent(key, k -> new ArrayList<>());
       String site =
           call.source().repo().repo().name()
@@ -2038,12 +2041,14 @@ public final class HttpClientExtractor implements Extractor {
     /**
      * The address a URL as written goes to: {@code address:<host>} for a literal host, or the base
      * expression scoped by the module whose config resolves it, {@code
-     * address:<module>:<expression>}; null for a URL without a base.
+     * address:<module>:<expression>}: the leading placeholder or expression, or {@code *} for a URL
+     * that writes no base (a relative path, sent to a base set elsewhere).
      */
     private static EntityId address(String url, String client, JavaAnalysis.Module config) {
       Split split = split(client.equals(FEIGN) ? withScheme(url) : url);
       if (split.base() == null || split.base().isEmpty()) {
-        return null;
+        String lead = leading(url);
+        return entityId(ADDRESS, config.id().key() + ":" + (lead != null ? lead : "*"));
       }
       if (split.absolute()) {
         String authority = split.base().substring(split.base().indexOf("://") + 3);
@@ -2294,10 +2299,51 @@ public final class HttpClientExtractor implements Extractor {
         Math.max(binaryName.lastIndexOf('.'), binaryName.lastIndexOf('$')) + 1);
   }
 
-  /** An entity ID whose key is text as written, its whitespace written {@code %20}. */
-  private static EntityId entityId(String type, String key) {
-    return new EntityId(type, key.replaceAll("\\s", "%20"));
+  /**
+   * The leading placeholder or expression of a URL ({@code ${base}} of {@code ${base}{path}}), or
+   * null if it starts with neither.
+   */
+  private static String leading(String url) {
+    if (!url.startsWith("${") && !url.startsWith("{")) {
+      return null;
+    }
+    int depth = 0;
+    for (int i = 0; i < url.length(); i++) {
+      char c = url.charAt(i);
+      if (c == '{') {
+        depth++;
+      } else if (c == '}' && --depth == 0) {
+        return url.substring(0, i + 1);
+      }
+    }
+    return null;
   }
+
+  /**
+   * An entity ID whose key is text as written, each character an entity key may not hold
+   * (whitespace, control and invisible characters) percent-encoded as UTF-8.
+   */
+  static EntityId entityId(String type, String key) {
+    StringBuilder b = new StringBuilder();
+    key.codePoints()
+        .forEach(
+            cp -> {
+              String c = new String(Character.toChars(cp));
+              if (NOT_IN_KEY.matcher(c).matches()) {
+                for (byte x : c.getBytes(StandardCharsets.UTF_8)) {
+                  b.append('%').append(String.format("%02X", x & 0xff));
+                }
+              } else {
+                b.append(c);
+              }
+            });
+    return new EntityId(type, b.toString());
+  }
+
+  /** The characters an entity key may not hold, as {@link EntityId} refuses them. */
+  private static final Pattern NOT_IN_KEY =
+      Pattern.compile(
+          "[\\u0000-\\u0020\\u007f-\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]");
 
   private static EntityId typeId(String binaryName) {
     try {

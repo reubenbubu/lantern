@@ -256,7 +256,11 @@ The knowledge-build epic keeps values as written in extraction and resolves them
     the extractor resolved it before.
 - **`ADDRESSED_TO`**, from the request to an `address`: the authority of a URL whose host is
   literal (`address:payments:8080`), or the base expression scoped by that module
-  (`address:com.acme:orders:${payments.url}`). A URL without a base has no address yet.
+  (`address:com.acme:orders:${payments.url}`); for a URL that writes no base, such as a relative
+  path sent to a base set elsewhere, `*` in that module (`address:com.acme:orders:*`).
+- A request resolved in another module's config than its code's (a proxy's or a bean's base URL)
+  adds `@<module>` to its key, so one request has one address. Characters an entity key may not
+  hold are percent-encoded.
 
 The first link step (`ValueViews`) gives the code's `http-call` facts from these, per view, exactly
 as the extractor recorded them before, with the same evidence and confidence:

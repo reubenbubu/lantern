@@ -120,8 +120,7 @@ class HttpClientExtractorTest {
         .contains("https://admin.example.com/quotes/{symbol}")
         .doesNotContain("expressions");
     // Every request goes to the address of its URL as written: a literal host's authority, or the
-    // base expression in the module whose config resolves it; a URL without a base goes nowhere
-    // yet.
+    // base expression in the module whose config resolves it, or * there for a URL with no base.
     assertThat(rendered.lines().filter(l -> l.contains(" ADDRESSED_TO ")))
         .anyMatch(
             l ->
@@ -132,7 +131,24 @@ class HttpClientExtractorTest {
                 l.contains("LoadBalancedCallers#charge(")
                     && l.contains(
                         " ADDRESSED_TO address:com.example.shop:shop-app:${payments.url} "))
-        .noneMatch(l -> l.contains("ClientCallers#lost("));
+        .anyMatch(
+            l ->
+                l.contains("ClientCallers#lost(")
+                    && l.contains(" ADDRESSED_TO address:com.example.shop:shop-app:* "))
+        .anyMatch(
+            l ->
+                l.contains("ProxyClient#exchange(")
+                    && l.contains(
+                        " ADDRESSED_TO address:com.example.shop:shop-clients:${clients.proxy.url} "));
+    // Every request has its address.
+    assertThat(
+            rendered
+                .lines()
+                .filter(l -> l.contains(" ADDRESSED_TO "))
+                .map(l -> l.substring(0, l.indexOf(' ')))
+                .distinct()
+                .count())
+        .isEqualTo(sent.stream().map(l -> l.substring(0, l.indexOf(' '))).distinct().count());
   }
 
   /**
@@ -179,6 +195,12 @@ class HttpClientExtractorTest {
     }
     // Credentials in an lb:// URL are not recorded.
     assertThat(lines).noneMatch(l -> l.contains("t0ps3cret"));
+  }
+
+  @Test
+  void anEntityKeyEncodesWhatAKeyMayNotHold() {
+    assertThat(HttpClientExtractor.entityId("request", "a b\u00a0c\u0007d\ufeffe").key())
+        .isEqualTo("a%20b%C2%A0c%07d%EF%BB%BFe");
   }
 
   private static final String APP = "com.example.shop.app.";
