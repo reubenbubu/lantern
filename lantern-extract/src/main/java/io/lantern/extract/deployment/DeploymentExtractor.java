@@ -992,6 +992,9 @@ public final class DeploymentExtractor {
         return;
       }
       Map<String, Object> k = kustomizations.get(dir);
+      // A kustomization's patches apply to its own resources and its bases', not to what an
+      // overlay that builds on it collected before.
+      int own = docs.size();
       for (String entry : resources(k)) {
         String target = normalize(dir, entry);
         if (kustomizations.containsKey(target)) {
@@ -1016,7 +1019,10 @@ public final class DeploymentExtractor {
             text = file == null ? null : String.join("\n", file.lines());
           }
           if (text != null) {
-            patchReplicas(docs, patch == null ? null : Yaml.map(patch.get("target")), text);
+            patchReplicas(
+                docs.subList(own, docs.size()),
+                patch == null ? null : Yaml.map(patch.get("target")),
+                text);
           }
         }
       }

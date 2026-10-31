@@ -12,6 +12,8 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.core.env.Profiles;
 
 /**
@@ -202,11 +204,16 @@ public final class ModuleConfig {
     return values;
   }
 
-  /** The list a key is an item of ({@code a.b} for {@code a.b[0].c}), or null. */
+  /**
+   * The list a key is an item of ({@code a.b} for {@code a.b[0].c}), or null; a key in brackets
+   * that is not a number ({@code cors-configurations[/**]}) is a map's, which Spring merges.
+   */
   private static String listOf(String key) {
-    int bracket = key.indexOf('[');
-    return bracket > 0 ? key.substring(0, bracket) : null;
+    Matcher index = LIST_INDEX.matcher(key);
+    return index.find() && index.start() > 0 ? key.substring(0, index.start()) : null;
   }
+
+  private static final Pattern LIST_INDEX = Pattern.compile("\\[\\d+]");
 
   private static boolean applies(Document d, Set<String> active) {
     if (d.activation() == null) {

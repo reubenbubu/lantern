@@ -115,6 +115,14 @@ class FrontendExtractorTest {
                 COPY nginx.conf /etc/nginx/conf.d/default.conf
                 EXPOSE 80
                 """,
+                "Dockerfile",
+                """
+                FROM node:22 AS ui
+                COPY other/package.json ./
+                RUN npm ci
+                FROM eclipse-temurin:21-jre
+                EXPOSE 8080
+                """,
                 "nginx.conf",
                 """
                 server {
@@ -139,7 +147,7 @@ class FrontendExtractorTest {
             l ->
                 l.startsWith("frontend:web/customer frontend-app ")
                     && l.contains("nginx:1.27.4-alpine"))
-        // A folder no Dockerfile copies is not served by it.
+        // A folder only an unused build stage copies is not served by the image.
         .noneMatch(l -> l.startsWith("frontend:web/other frontend-proxy"))
         .noneMatch(l -> l.startsWith("frontend:web/other frontend-app") && l.contains("nginx"));
   }

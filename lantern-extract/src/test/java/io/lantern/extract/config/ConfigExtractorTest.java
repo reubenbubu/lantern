@@ -243,6 +243,10 @@ class ConfigExtractorTest {
                           args:
                             rate: 8
                   name: shop
+                cors:
+                  '[/**]':
+                    allowed-origins: '*'
+                    allowed-methods: GET
                 """,
                 RESOURCES + "application-staging.yml",
                 """
@@ -252,11 +256,17 @@ class ConfigExtractorTest {
                     - id: a
                       filters:
                         - StripPrefix=1
+                cors:
+                  '[/**]':
+                    allowed-origins: https://shop
                 """));
     ModuleConfig config = config(repo);
 
+    // A key in brackets that is no number is a map's: Spring merges maps.
     assertThat(config.values("staging").keySet())
         .containsExactly(
+            "cors[/**].allowed-methods",
+            "cors[/**].allowed-origins",
             "gateway.name",
             "gateway.routes[0].id",
             "gateway.routes[1].filters[0]",

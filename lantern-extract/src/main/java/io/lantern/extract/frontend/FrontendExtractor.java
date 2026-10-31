@@ -19,6 +19,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -225,6 +226,7 @@ public final class FrontendExtractor {
   private static final Pattern EXPOSE = Pattern.compile("(?i)^\\s*EXPOSE\\s+(.+)$");
   private static final Pattern COPY =
       Pattern.compile("(?i)^\\s*(?:COPY|ADD)((?:\\s+--\\S+)*)\\s+(.+)$");
+  private static final Pattern COPY_FROM = Pattern.compile("--from=(\\S+)");
   private static final Pattern DOCKERFILE_NAME =
       Pattern.compile("Dockerfile(\\.[\\w.-]+)?|[\\w.-]+\\.Dockerfile");
 
@@ -691,8 +693,10 @@ public final class FrontendExtractor {
     }
 
     /**
-     * What a Dockerfile copies from its build context (its own folder), as repository paths; not
-     * what it copies from an earlier stage.
+     * What the image a Dockerfile builds holds of its build context (its own folder), as repository
+     * paths: what its last stage copies from the context, and what the earlier stages it is built
+     * on or copies from ({@code COPY --from=build}) copied, and so on. A stage the last one does
+     * not use, such as a build of another app, does not count.
      */
     private List<String> copied(String dockerfile) {
       Source source = read(dockerfile);
@@ -700,17 +704,53 @@ public final class FrontendExtractor {
         return List.of();
       }
       String context = dockerfile.substring(0, dockerfile.lastIndexOf('/') + 1);
-      List<String> result = new ArrayList<>();
+      List<String> names = new ArrayList<>();
+      List<List<String>> copies = new ArrayList<>();
+      List<Set<String>> uses = new ArrayList<>();
       for (String line : source.text().split("\n", -1)) {
+        Matcher from = FROM.matcher(line);
+        if (from.find()) {
+          names.add(from.group(2) == null ? "" : from.group(2).toLowerCase(Locale.ROOT));
+          copies.add(new ArrayList<>());
+          Set<String> used = new HashSet<>();
+          used.add(from.group(1).toLowerCase(Locale.ROOT));
+          uses.add(used);
+          continue;
+        }
         Matcher copy = COPY.matcher(line);
-        if (!copy.find() || copy.group(1).contains("--from")) {
+        if (!copy.find() || copies.isEmpty()) {
+          continue;
+        }
+        Matcher stage = COPY_FROM.matcher(copy.group(1));
+        if (stage.find()) {
+          uses.getLast().add(stage.group(1).toLowerCase(Locale.ROOT));
           continue;
         }
         String[] parts = copy.group(2).trim().split("\\s+");
         for (int i = 0; i < parts.length - 1; i++) {
-          String source1 = parts[i].replaceFirst("^\\./", "").replaceFirst("/$", "");
-          if (!source1.isEmpty() && !source1.contains("$")) {
-            result.add(context + source1);
+          String path = parts[i].replaceFirst("^\\./", "").replaceFirst("/$", "");
+          if (!path.isEmpty() && !path.contains("$")) {
+            copies.getLast().add(context + path);
+          }
+        }
+      }
+      List<String> result = new ArrayList<>();
+      if (names.isEmpty()) {
+        return result;
+      }
+      Set<Integer> seen = new HashSet<>();
+      List<Integer> todo = new ArrayList<>(List.of(names.size() - 1));
+      while (!todo.isEmpty()) {
+        int n = todo.removeLast();
+        if (!seen.add(n)) {
+          continue;
+        }
+        result.addAll(copies.get(n));
+        for (String used : uses.get(n)) {
+          for (int k = 0; k < n; k++) {
+            if (names.get(k).equals(used) || used.equals(String.valueOf(k))) {
+              todo.add(k);
+            }
           }
         }
       }

@@ -66,10 +66,11 @@ public final class ConfigExtractor {
   /** The prefix of a value Spring Cloud Config Server decrypts before serving it. */
   private static final String CIPHER = "{cipher}";
 
-  /** The prefix of the keys that set up a Spring Cloud Config Server. */
+  /** The key, as a regular expression, of a native config server's search locations. */
   private static final String NATIVE_LOCATIONS =
       "spring\\.cloud\\.config\\.server\\.native\\.search-locations";
 
+  /** The prefix of the keys that set up a Spring Cloud Config Server. */
   private static final String CONFIG_SERVER_KEYS = "spring.cloud.config.server.";
 
   /** Attribute: a config value of the subject module. */
@@ -261,7 +262,6 @@ public final class ConfigExtractor {
     return names;
   }
 
-  /** Whether a module sets up a Spring Cloud Config Server, in any profile. */
   /**
    * The folders of a repository that its config servers' native backends serve from: each relative
    * {@code file:} location of {@code spring.cloud.config.server.native.search-locations}, in any
@@ -298,6 +298,7 @@ public final class ConfigExtractor {
     return folders;
   }
 
+  /** Whether a module sets up a Spring Cloud Config Server, in any profile. */
   private static boolean hasConfigServer(Collection<List<ModuleConfig>> modules) {
     for (List<ModuleConfig> configs : modules) {
       for (ModuleConfig config : configs) {

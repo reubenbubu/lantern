@@ -2218,7 +2218,6 @@ public final class HttpClientExtractor {
   // ---------------------------------------------------------------------------------------------
   // URLs
 
-  /** A base URL and a path joined, unless the path is a whole URL itself. */
   /**
    * A RestTemplate's root URI and a URL: as Spring's root URI handler does, the root goes only
    * before a URL that starts with a slash, so a URL whose start is not known stands alone.
@@ -2227,6 +2226,7 @@ public final class HttpClientExtractor {
     return base != null && path.text().startsWith("{") ? path : join(base, path);
   }
 
+  /** A base URL and a path joined, unless the path is a whole URL itself. */
   private static Text join(Text base, Text path) {
     if (base == null) {
       return path;
