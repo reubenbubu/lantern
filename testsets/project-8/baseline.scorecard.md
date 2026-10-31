@@ -1,14 +1,14 @@
 # Scorecard: project-8
 
-- Report: `workspace/scores/project-8-baseline/project-8/_system.c4.html` (project-8)
+- Report: `workspace/scores/after-281/project-8/_system.c4.html` (project-8)
 - Reference: `~/workspace/lantern-test-projects/project-8/expected/reference/reference.c4.json`
-- Run: 2 LLM calls, 2535 tokens, $0
-  - SUMMARIZE: fake/fake-model (2 calls, $0)
-  - RESOLVE: fake/fake-model (0 calls, $0)
-  - INFER_INTENT: fake/fake-model (0 calls, $0)
+- Run: 785 LLM calls, 1731744 tokens, $0
+  - SUMMARIZE: fake/fake-model (731 calls, $0)
+  - RESOLVE: fake/fake-model (3 calls, $0); 3 conversations, 3 turns (at most 1), tool calls: none; ended: ANSWERED 3
+  - INFER_INTENT: fake/fake-model (34 calls, $0)
   - NAME_GROUPS: fake/fake-model (0 calls, $0)
   - PROPOSE_RULES: fake/fake-model (0 calls, $0)
-  - COMPOSE: fake/fake-model (0 calls, $0)
+  - COMPOSE: fake/fake-model (17 calls, $0)
   - TRANSLATE: fake/fake-model (0 calls, $0)
 
 ## Counts
@@ -27,7 +27,7 @@
 | Glossary terms | 5/14 (36%) | 5/18 (28%) | same |
 
 Connections by protocol (matched/reference, report): person 0/1, 0; HTTP 7/14, 20; other 0/8, 0; data store 6/12, 9; messaging 13/39, 25; email 0/1, 0.
-Components (report/reference): 119/40; Staff web app 0/3, Customer web app 0/2, Edge gateway 4/1, Customer portal BFF 3/2, Platform discovery 0/1, Platform config 0/1, Work order service 47/19, Technician service 10/1, Parts inventory 6/2, Telematics ingest 5/1, Billing service 32/4, Notification service 12/2, Fleet audit 0/1, Keycloak 0/0, PostgreSQL server 0/0.
+Components (report/reference): 119/132; Staff web app 0/3, Customer web app 0/2, Edge gateway 4/3, Customer portal BFF 3/3, Platform discovery 0/0, Platform config 0/0, Work order service 47/59, Technician service 10/10, Parts inventory 6/7, Telematics ingest 5/7, Billing service 32/30, Notification service 12/8, Fleet audit 0/0, Keycloak 0/0, PostgreSQL server 0/0.
 
 ## Flows found
 
