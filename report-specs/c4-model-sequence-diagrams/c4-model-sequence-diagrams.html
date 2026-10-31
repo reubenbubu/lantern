@@ -342,6 +342,21 @@ svg.dim .boundary{opacity:.6}
 .npill:hover rect{fill:var(--k);stroke:var(--k)}
 .npill:hover text{fill:var(--on-accent)} .npill:hover path{stroke:var(--on-accent);opacity:1}
 body.editing svg[data-key]:not([data-key=""]) .npill{pointer-events:none}
+.rule-ov{display:none;pointer-events:none}
+body.editing svg[data-key]:not([data-key=""]) .rule-ov{display:block}
+.rule-ov .rl path{fill:none;stroke-width:1.8;stroke-linecap:round}
+.rule-ov .rl .shaft{stroke-dasharray:6 5}
+.rule-ov .rl.s path{stroke:var(--bad)} .rh-s{fill:var(--bad)}
+.rule-ov .rl.f path{stroke:var(--warn)} .rh-f{fill:var(--warn)}
+.rule-ov .rl .tick{stroke-width:2.4;stroke-dasharray:none}
+.rule-ov .rl.miss path{stroke-width:3}
+svg.dragmode .rule-ov{opacity:.35}
+.eb-legend{display:flex;flex-direction:column;gap:5px;padding:2px 4px 4px;font-size:11.5px;color:var(--muted)}
+.eb-legend span{display:flex;align-items:center;gap:8px}
+.eb-legend svg{width:34px;height:10px;flex:none;overflow:visible}
+.eb-legend path{fill:none;stroke-width:1.8;stroke-linecap:round}
+.npills .nphead{font:600 9.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;fill:var(--muted)}
+.npills .npsep{stroke:color-mix(in srgb,var(--k) 28%,transparent);stroke-width:1}
 
 /* edit mode */
 .node .ed{display:none;cursor:pointer}
@@ -659,6 +674,11 @@ body.sb-collapsed .mx{left:0}
     <svg class="eb-grip" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
     <span class="eb-dot"></span>
     <div class="eb-text"><b>Layout edit mode</b><span>Drag onto another element's edge to place · click for rules · Ctrl/⌘-click to pick several</span></div>
+  </div>
+  <div class="eb-legend" aria-label="Rule lines">
+    <span><svg viewBox="0 0 34 10"><path d="M2,1 V9" style="stroke:var(--bad);stroke-width:2.4"/><path d="M2,5 H27" style="stroke:var(--bad);stroke-dasharray:5 4"/><path d="M26,1 L33,5 L26,9 z" style="fill:var(--bad);stroke:none"/></svg>Must · reference ⟶ placed</span>
+    <span><svg viewBox="0 0 34 10"><path d="M2,1 V9" style="stroke:var(--warn);stroke-width:2.4"/><path d="M2,5 H27" style="stroke:var(--warn);stroke-dasharray:5 4"/><path d="M26,1 L33,5 L26,9 z" style="fill:var(--warn);stroke:none"/></svg>Should ideally</span>
+    <span><svg viewBox="0 0 34 10"><path d="M2,5 H27" style="stroke:var(--bad);stroke-width:3;stroke-dasharray:5 4"/><path d="M26,1 L33,5 L26,9 z" style="fill:var(--bad);stroke:none"/></svg>Couldn't be met</span>
   </div>
   <label class="eb-toggle" title="Re-lay out the whole diagram while you drag, and hold changes until you commit them">
     <input type="checkbox" id="ebLive"><span class="eb-switch"></span>
@@ -4426,13 +4446,20 @@ function linkFor(id, key){
 
 /* Every deeper diagram scoped to this element (e.g. a system's container pages), in page order. */
 function drillTargets(id, key){
-  return Object.keys(DIAGRAMS).filter(k => k !== key && DIAGRAMS[k].boundary?.id === id)
+  const seen = new Set();
+  return Object.keys(DIAGRAMS).filter(k => k !== key && DIAGRAMS[k].boundary?.id === id && pageOf(k) !== pageOf(key || '') && !seen.has(pageOf(k)) && seen.add(pageOf(k)))
     .map(k => ({key:k, href:'#/' + k, title:PAGE[pageOf(k)].title, level:LEVEL[PAGE[pageOf(k)].level]}));
 }
 /* An element with two or more deeper diagrams gets a row of pills, one per diagram. */
-const PILL = {h:22, gap:8, pad:14, w: t => Math.min(210, Math.min(t.length, 26)*6.5 + 40)};
+/* Drill-down links inside a node wrap into a small grid (rows of up to 2–3), so many links make the
+   box a bit taller rather than very wide; a very wide box pushes the whole layout out of shape. */
+const PILL = {h:24, gap:8, rowGap:8, pad:18, head:22, maxChars:34, w: t => Math.min(t.length, 34)*6.5 + 40};
+function pillGrid(pills, maxW = Infinity){
+  const n = pills.length, cols = n <= 3 ? n : n <= 8 ? 2 : 3, rows = Math.ceil(n/cols);
+  const pw = Math.max(60, Math.min(Math.max(...pills.map(p => PILL.w(p.title))), (maxW - (cols-1)*PILL.gap)/cols));
+  return {cols, rows, pw, w: cols*pw + (cols-1)*PILL.gap, h: PILL.head + rows*PILL.h + (rows-1)*PILL.rowGap};
+}
 function pillsFor(id, key){ const t = drillTargets(id, key); return t.length >= 2 ? t : []; }
-function pillRowWidth(pills){ return pills.reduce((s, p) => s + PILL.w(p.title), 0) + PILL.gap*(pills.length-1); }
 
 /* Validation — reported once in the console so mistakes in the JSON are easy to find. */
 (function validate(){
@@ -4508,6 +4535,30 @@ function md(s){
 /* ==========================================================================
    C4 RENDERER
    ========================================================================== */
+
+/* Box text that must stay inside its box. A box widens to fit its name and technology line (up to a cap);
+   past the cap the text wraps onto even lines, breaking long dotted names after . - / _ :, and ends with "…". */
+const NODE_TEXT = {nm:7.9, nmHero:10.6, tc:6.4, ds:6.05, cap:320, capHero:460};
+const sidePad = k => k === 'queue' ? 56 : k === 'person' ? 36 : 30;
+function fitText(text, maxPx, perChar, maxLines){
+  text = String(text ?? '').trim(); if (!text) return [];
+  const max = Math.max(4, Math.floor(maxPx / perChar));
+  if (text.length <= max) return [text];
+  const parts = [];
+  text.split(/\s+/).forEach((w, wi) => (w.length > max ? w.split(/(?<=[.\-\/_:])/) : [w]).forEach((p, pi) => parts.push({t:p, sp: wi > 0 && pi === 0})));
+  const greedy = width => { const out = []; let cur = '';
+    for (const p of parts){ const next = cur ? cur + (p.sp ? ' ' : '') + p.t : p.t;
+      if (cur && next.length > width){ out.push(cur); cur = p.t; } else cur = next; }
+    if (cur) out.push(cur); return out; };
+  let lines = greedy(max);
+  const want = Math.min(lines.length, maxLines);
+  for (let width = Math.ceil(text.length / want); width < max; width++){ const r = greedy(width); if (r.length <= want && r.every(l => l.length <= max)){ lines = r; break; } }
+  lines = lines.map(l => l.length > max ? l.slice(0, max - 1) + '…' : l);
+  if (lines.length > maxLines){ lines.length = maxLines; const l = lines[maxLines-1];
+    lines[maxLines-1] = (l.length >= max ? l.slice(0, max - 1) : l).replace(/[\s,.;:·]*$/, '') + '…'; }
+  return lines;
+}
+
 function nodeSVG(n, view, uid, ruled=false){
   const e = EL[n.id], k = e.kind, {x,y,w,h} = n, cx = x + w/2;
   const lk = linkFor(n.id, view);
@@ -4531,12 +4582,14 @@ function nodeSVG(n, view, uid, ruled=false){
   const hero = !!n.hero;
   const tag = tagOf(e);
   const descLines = h >= 300 ? 6 : h >= 140 ? 3 : h >= 100 ? 2 : 1;
-  const desc = e.desc ? wrap(e.desc, Math.floor((w-(hero?60:26))/(hero?6.6:6.05)), descLines) : [];
-  const nameH = hero ? 24 : 18, tech = e.tech;
+  const desc = e.desc ? wrap(e.desc, Math.floor((w-(hero?60:sidePad(k)))/(hero?6.6:NODE_TEXT.ds)), descLines) : [];
+  const nmL = fitText(e.name, w - sidePad(k), hero ? NODE_TEXT.nmHero : NODE_TEXT.nm, 2), tcL = fitText(e.tech, w - sidePad(k), NODE_TEXT.tc, 2);
+  const nameH = nmL.length*(hero ? 24 : 18), tech = e.tech, techH = tcL.length ? 16 + (tcL.length - 1)*13 : 0;
   const pills = view ? pillsFor(n.id, view) : [];
-  const pillArea = pills.length ? PILL.h + 14 : 0;
+  const grid = pills.length ? pillGrid(pills, w - 2*PILL.pad) : null;
+  const pillArea = grid ? grid.h + 18 : 0;
   const bottomPad = (k === 'database' ? 9 : 0) + pillArea;
-  const calcH = () => 18 + 8 + nameH + (tech?16:0) + (desc.length ? 4 + desc.length*(hero?17:13.5) : 0);
+  const calcH = () => 18 + 8 + nameH + techH + (desc.length ? 4 + desc.length*(hero?17:13.5) : 0);
   while (desc.length && calcH() > h - topPad - bottomPad - 12) desc.pop();
   if (desc.length && e.desc && wrap(e.desc, 999, 1)[0] !== desc.join(' ') && !desc[desc.length-1].endsWith('…')) desc[desc.length-1] = desc[desc.length-1].replace(/[\s,.;:]*$/,'') + '…';
   const blockH = calcH();
@@ -4545,20 +4598,23 @@ function nodeSVG(n, view, uid, ruled=false){
   let t = `<rect class="tagbg" x="${cx-tagW/2}" y="${ty}" width="${tagW}" height="18" rx="9"/>
            <text class="tag" x="${cx}" y="${ty+12.6}" text-anchor="middle">${esc(tag)}</text>`;
   ty += 26;
-  t += `<text class="nm" x="${cx}" y="${ty+(hero?18:13.5)}" text-anchor="middle">${esc(e.name)}</text>`;
+  nmL.forEach((l, i) => t += `<text class="nm" x="${cx}" y="${ty+(hero?18:13.5)+i*(hero?24:18)}" text-anchor="middle">${esc(l)}</text>`);
   ty += nameH;
-  if (tech){ t += `<text class="tc" x="${cx}" y="${ty+11.5}" text-anchor="middle">${esc(tech)}</text>`; ty += 16; }
+  tcL.forEach((l, i) => t += `<text class="tc" x="${cx}" y="${ty+11.5+i*13}" text-anchor="middle">${esc(l)}</text>`);
+  ty += techH;
   desc.forEach((d,i)=> t += `<text class="ds" x="${cx}" y="${ty+4+11.5+i*(hero?17:13.5)}" text-anchor="middle" ${hero?'style="font-size:13px"':''}>${esc(d)}</text>`);
-  if (pills.length){
-    let px = cx - pillRowWidth(pills)/2;
-    const py = y + h - PILL.h - 12 - (k === 'database' ? 9 : 0);
-    t += `<g class="npills">` + pills.map(pl => {
-      const pw = PILL.w(pl.title), label = pl.title.length > 26 ? pl.title.slice(0,25) + '…' : pl.title;
-      const out = `<g class="npill" data-href="${pl.href}" data-tip="Open ${esc(pl.level.label.toLowerCase().replace(/s$/,''))} view" data-sub="${pl.level.badge} · ${esc(pl.title)}">
+  if (grid){
+    const {cols, pw} = grid, chars = Math.floor((pw - 40)/6.5);
+    const top = y + h - grid.h - 14 - (k === 'database' ? 9 : 0);
+    t += `<g class="npills"><line class="npsep" x1="${x+PILL.pad}" x2="${x+w-PILL.pad}" y1="${top-6}" y2="${top-6}"/>
+      <text class="nphead" x="${cx}" y="${top+12}" text-anchor="middle">${esc(pills[0].level.label)} · ${pills.length} views</text>` + pills.map((pl, i) => {
+      const r = Math.floor(i/cols), c = i % cols, inRow = Math.min(cols, pills.length - r*cols);
+      const px = cx - (inRow*pw + (inRow-1)*PILL.gap)/2 + c*(pw + PILL.gap), py = top + PILL.head + r*(PILL.h + PILL.rowGap);
+      const label = pl.title.length > chars ? pl.title.slice(0, chars-1) + '…' : pl.title;
+      return `<g class="npill" data-href="${pl.href}" data-tip="Open ${esc(pl.level.label.toLowerCase().replace(/s$/,''))} view" data-sub="${pl.level.badge} · ${esc(pl.title)}">
         <rect x="${px}" y="${py}" width="${pw}" height="${PILL.h}" rx="${PILL.h/2}"/>
-        <text x="${px + pw/2 - 6}" y="${py + 15}" text-anchor="middle">${esc(label)}</text>
-        <path d="M${px+pw-17},${py+14} l5,-5 M${px+pw-15.5},${py+9} h3.5 v3.5"/></g>`;
-      px += pw + PILL.gap; return out;
+        <text x="${px + pw/2 - 6}" y="${py + 16}" text-anchor="middle">${esc(label)}</text>
+        <path d="M${px+pw-17},${py+15} l5,-5 M${px+pw-15.5},${py+10} h3.5 v3.5"/></g>`;
     }).join('') + `</g>`;
   }
   let icon = '';
@@ -4973,7 +5029,7 @@ function layoutDiagram(spec){
   const pillInfo = spec._key ? [...spec._ids].map(id => [id, pillsFor(id, spec._key).map(p => p.title)]).filter(x => x[1].length) : [];
   const key = JSON.stringify([spec.edges, spec.boundary, spec.nodes, spec.constraints, pillInfo, spec.groupByKind !== false]);
   if (LAYOUT_CACHE.has(key)) return LAYOUT_CACHE.get(key);
-  const pkey = 'arc-layout-v9-' + hashStr(key).toString(36);
+  const pkey = 'arc-layout-v15-' + hashStr(key).toString(36);
   try { const hit = JSON.parse(localStorage.getItem(pkey)); if (hit){ const out = {...spec, ...hit}; LAYOUT_CACHE.set(key, out); return out; } } catch(e){}
   const t0 = performance.now();
   const G = prepareGraph(spec);
@@ -4999,8 +5055,15 @@ function layoutDiagram(spec){
     const ext = m.ext ?? (G.hasB && !G.isIn[i] && !['person','external'].includes(k));
     const hero = m.hero ?? (k === 'system' && !G.hasB);
     let [w,h] = NODE_SIZE[k]; if (hero){ w = 300; h = 150; }
+    { // widen to fit the name and technology line; past the cap they wrap and the box grows taller
+      const e = EL[id], per = hero ? NODE_TEXT.nmHero : NODE_TEXT.nm;
+      const need = Math.max(e.name.length*per, (e.tech || '').length*NODE_TEXT.tc, tagOf(e).length*6.5 + 16) + sidePad(k);
+      w = Math.max(w, Math.min(hero ? NODE_TEXT.capHero : NODE_TEXT.cap, need));
+      const nl = fitText(e.name, w - sidePad(k), per, 2).length, tl = fitText(e.tech, w - sidePad(k), NODE_TEXT.tc, 2).length;
+      h += Math.max(0, nl - 1)*(hero ? 24 : 18) + Math.max(0, tl - 1)*13;
+    }
     const pills = spec._key ? pillsFor(id, spec._key) : [];
-    if (pills.length){ w = Math.max(w, pillRowWidth(pills) + 2*PILL.pad); h += PILL.h + 14; }
+    if (pills.length){ const g = pillGrid(pills); w = Math.max(w, g.w + 2*PILL.pad); h += g.h + 18; }
     return {id, w, h, ext, hero, col:cMap.get(ev.c0[i]), col1:cMap.get(ev.c1[i]), row:rMap.get(ev.r0[i]), row1:rMap.get(ev.r1[i])};
   });
   const nC = cMap.size, nR = rMap.size;
@@ -5009,9 +5072,12 @@ function layoutDiagram(spec){
   // grid-space routes tell us which gaps carry labels
   const gb = nodes.map(n => ({x:n.col-.32, y:n.row-.28, w:n.col1-n.col+.64, h:n.row1-n.row+.56}));
   const gapX = new Array(nC).fill(70), gapY = new Array(nR).fill(46);
-  const lblW = e => Math.max(e.l.length*6.4, (e.tech||'').length*6.2) + 18;
+  const lblW = e => labelBox(e).w;
   const pairKey = e => [e.f,e.t].sort().join('|');
   const groups = {}; spec.edges.forEach(e => (groups[pairKey(e)] = groups[pairKey(e)] || []).push(e));
+  // labels sitting in the same gap at roughly the same spot (within a grid cell) would collide,
+  // so the gap must hold all of them end to end, not just the biggest one
+  const inGap = {x:[], y:[]};
   spec.edges.forEach(e => {
     const grp = groups[pairKey(e)];
     const a = NI[e.f], b = NI[e.t], r = orthoRoute(gb[ids.indexOf(e.f)], gb[ids.indexOf(e.t)], gb, .05);
@@ -5019,9 +5085,15 @@ function layoutDiagram(spec){
     let L = 0, s = null;
     for (let i=1;i<r.pts.length;i++){ const d = Math.abs(r.pts[i][0]-r.pts[i-1][0]) + Math.abs(r.pts[i][1]-r.pts[i-1][1]); if (d > L){ L = d; s = [r.pts[i-1], r.pts[i]]; } }
     if (!s) return;
-    if (Math.abs(s[0][1]-s[1][1]) < 1e-6){ const c = Math.floor((s[0][0]+s[1][0])/2); if (c >= 0 && c < nC-1 && Math.abs(s[0][0]-s[1][0]) < 1.01) gapX[c] = Math.max(gapX[c], grp.reduce((t,g)=>t+lblW(g)+8,0)+18); }
-    else { const rr = Math.floor((s[0][1]+s[1][1])/2); if (rr >= 0 && rr < nR-1 && Math.abs(s[0][1]-s[1][1]) < 1.01) gapY[rr] = Math.max(gapY[rr], grp.reduce((t,g)=>t+(g.tech?34:22)+8,0)+22); }
+    if (grp[0] !== e) return;   // parallel edges are sized once, as a group
+    if (Math.abs(s[0][1]-s[1][1]) < 1e-6){ const c = Math.floor((s[0][0]+s[1][0])/2); if (c >= 0 && c < nC-1 && Math.abs(s[0][0]-s[1][0]) < 1.01) inGap.x.push({gap:c, at:s[0][1], size:grp.reduce((t,g)=>t+lblW(g)+8,0)}); }
+    else { const rr = Math.floor((s[0][1]+s[1][1])/2); if (rr >= 0 && rr < nR-1 && Math.abs(s[0][1]-s[1][1]) < 1.01) inGap.y.push({gap:rr, at:s[0][0], size:grp.reduce((t,g)=>t+labelBox(g).h+8,0)}); }
   });
+  const fill = (list, gaps, pad) => list.forEach(a => {
+    const total = list.filter(b => b.gap === a.gap && Math.abs(b.at - a.at) < .9).reduce((t,b) => t + b.size, 0);
+    gaps[a.gap] = Math.max(gaps[a.gap], total + pad);
+  });
+  fill(inGap.x, gapX, 18); fill(inGap.y, gapY, 22);
   // room for the boundary frame & its label
   let bb = null;
   if (G.hasB){
@@ -5037,6 +5109,13 @@ function layoutDiagram(spec){
   // pixel tracks
   const colW = new Array(nC).fill(150), rowH = new Array(nR).fill(96);
   nodes.forEach(n => { if (n.col === n.col1) colW[n.col] = Math.max(colW[n.col], n.w); if (n.row === n.row1) rowH[n.row] = Math.max(rowH[n.row], n.h); });
+  // a box stretched over several columns / rows still needs room for its own content (e.g. a grid of links):
+  // widen the tracks it covers until the stretched box is at least its natural size
+  const growSpan = (tracks, gaps, a, b, need) => {
+    let have = 0; for (let i=a;i<=b;i++) have += tracks[i] + (i < b ? gaps[i] : 0);
+    if (have < need){ const add = (need - have)/(b - a + 1); for (let i=a;i<=b;i++) tracks[i] += add; }
+  };
+  nodes.forEach(n => { if (n.col !== n.col1) growSpan(colW, gapX, n.col, n.col1, n.w); if (n.row !== n.row1) growSpan(rowH, gapY, n.row, n.row1, n.h); });
   const M = 44, cx = [], cy = [];
   let x = M; for (let c=0;c<nC;c++){ cx[c] = x + colW[c]/2; x += colW[c] + gapX[c]; }
   let y = M + 18; for (let r=0;r<nR;r++){ cy[r] = y + rowH[r]/2; y += rowH[r] + gapY[r]; }
@@ -5108,21 +5187,22 @@ function spreadPorts(edges, routes, map, pairCount){
 
 /* Geometry for one edge: final polyline, label size, and the default label spot
    (middle of the longest segment; parallel edges spread their labels along it). */
-function edgeGeom(e, pts, a, b, k=0, n=1){
+function edgeGeom(e, pts, a, b, k=0, n=1, lane=null){
   const shift = k - (n-1)/2;
   const horizLine = pts.length === 2 && pts[0][1] === pts[1][1];
-  if (n > 1 && pts.length === 2){ const o = shift*14; if (horizLine){ pts[0][1] += o; pts[1][1] += o; } else { pts[0][0] += o; pts[1][0] += o; } }
+  if (n > 1 && pts.length === 2 && !(lane && lane.fan)){ const o = lane ? lane.off : shift*14; if (horizLine){ pts[0][1] += o; pts[1][1] += o; } else { pts[0][0] += o; pts[1][0] += o; } }
   // persons have a head above the box
   const last = pts.length-1;
   if (EL[e.t].kind === 'person' && pts[last][1] === b.y) pts[last][1] -= 17;
   if (EL[e.f].kind === 'person' && pts[0][1] === a.y) pts[0][1] -= 17;
   let best = -1, si = 1;
   for (let i=1;i<pts.length;i++){ const L = Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); if (L > best){ best = L; si = i; } }
+  if (lane && lane.si) si = lane.si;   // a fanned-out line keeps its label on its own lane
   const p = pts[si-1], q = pts[si];
-  const w = Math.max(e.l.length*6.4, (e.tech||'').length*6.2) + 18, h = e.tech ? 34 : 22;
+  const {w, h} = labelBox(e);
   let mx = (p[0]+q[0])/2, my = (p[1]+q[1])/2;
   const horiz = Math.abs(p[1]-q[1]) < .5;
-  if (n > 1){ if (horiz) mx += shift*(w+8); else my += shift*(h+8); }
+  if (n > 1 && !lane){ if (horiz) mx += shift*(w+8); else my += shift*(h+8); }   // no room for lanes: stagger labels along the line
   return {e, pts, w, h, mx, my, seg:[p, q], horiz, headSeg: si === pts.length-1};
 }
 
@@ -5156,19 +5236,132 @@ function placeLabels(geoms, nodes){
         const x = ax === 0 ? v : g.mx, y = ax === 1 ? v : g.my, n = clashes(g, x, y);
         if (n < bestN){ bestN = n; bx = x; by = y; if (!n) break; }
       }
+      // still crowded: let the label step to one side of its line, its edge just touching it
+      if (bestN > 0){
+        const side = (g.horiz ? g.h : g.w)/2 + 4;
+        for (const v of [start, ...tries]) for (const sgn of [1, -1]){
+          const x = ax === 0 ? v : g.mx + sgn*side, y = ax === 1 ? v : g.my + sgn*side, n = clashes(g, x, y);
+          if (n < bestN){ bestN = n; bx = x; by = y; }
+          if (!bestN) break;
+        }
+      }
     }
     g.moved = bx !== g.mx || by !== g.my; g.mx = bx; g.my = by;
     placed.push(rectOf(g, bx, by));
   }
 }
 
+
+/* Line labels: wrapped to a capped width with balanced lines, so a long label becomes a compact block
+   (two or three even lines) instead of a long strip that pushes boxes apart in a busy diagram. */
+const LBL = {maxW:196, cw:6.4, tw:6.2, lh:13.5, th:12, pad:18};
+function greedyWrap(words, width){
+  const out = []; let cur = '';
+  for (const w of words){ if (cur && (cur + ' ' + w).length > width){ out.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w; }
+  if (cur) out.push(cur); return out;
+}
+function balancedWrap(text, maxChars){
+  text = String(text ?? '').trim(); if (!text) return [];
+  if (text.length <= maxChars) return [text];
+  const words = text.split(/\s+/), lines = Math.ceil(text.length / maxChars);
+  // narrowest width that still fits in the minimum number of lines → even lines, no one-word tail
+  for (let width = Math.ceil(text.length / lines); width <= maxChars; width++){
+    const r = greedyWrap(words, width);
+    if (r.length <= lines) return r;
+  }
+  return greedyWrap(words, maxChars);
+}
+const labelCache = new Map();
+function labelBox(e){
+  const k = e.l + '\u0000' + (e.tech || '');
+  if (labelCache.has(k)) return labelCache.get(k);
+  const L = balancedWrap(String(e.l ?? '').replace(/`/g, ''), Math.floor((LBL.maxW - LBL.pad)/LBL.cw)), T = balancedWrap(String(e.tech ?? '').replace(/`/g, ''), Math.floor((LBL.maxW - LBL.pad)/LBL.tw));
+  const w = Math.max(0, ...L.map(l => l.length*LBL.cw), ...T.map(l => l.length*LBL.tw)) + LBL.pad;
+  const h = 8 + L.length*LBL.lh + T.length*LBL.th + (T.length ? 2 : 0);
+  const box = {L, T, w, h}; labelCache.set(k, box); return box;
+}
+
+
+/* The last stretch into an arrowhead is kept at least APPROACH long, so a line never turns right
+   next to the arrow. In order of preference: move the line's start along its source box, slide the
+   middle stretch back, or add a small step partway along so the final turn sits well before the arrow. */
+const APPROACH = 40;
+function ensureApproach(pts, a){
+  const n = pts.length; if (n < 3) return pts;
+  const E = pts[n-1], K = pts[n-2], ax = Math.abs(E[0] - K[0]) > .5 ? 0 : 1, o = 1 - ax;
+  const len = Math.abs(E[ax] - K[ax]); if (len >= APPROACH) return pts;
+  const dir = Math.sign(E[ax] - K[ax]) || 1, want = E[ax] - dir*APPROACH;
+  const out = pts.map(p => p.slice()), mk = (ov, av) => { const q = []; q[o] = ov; q[ax] = av; return q; };
+  if (n === 3){
+    const S = out[0], lo = ax === 0 ? a.x + 10 : a.y + 10, hi = ax === 0 ? a.x + a.w - 10 : a.y + a.h - 10;
+    if (want >= lo && want <= hi){ S[ax] = out[1][ax] = want; return out; }     // start a little further along the source box
+    const M = (S[o] + E[o]) / 2;
+    if (Math.abs(E[o] - M) < 14) return pts;                                     // no room for a step
+    return [S, mk(M, S[ax]), mk(M, want), mk(E[o], want), E];                    // step partway along instead
+  }
+  const P = out[n-3], Q = out[n-4], before = Math.sign(P[ax] - Q[ax]);
+  if (Math.abs(want - Q[ax]) < 10 || (before && Math.sign(want - Q[ax]) !== before)) return pts;   // would fold the line back
+  P[ax] = out[n-2][ax] = want; return out;
+}
+
 function edgeSVG(g, uid){
-  const {e, pts, w, h, mx, my} = g;
-  return `<g class="edge" data-f="${e.f}" data-t="${e.t}">
-    <path class="ln" d="${polyPath(pts)}" marker-end="url(#ar-${uid})"/>
-    <g class="lbl"><rect x="${mx-w/2}" y="${my-h/2}" width="${w}" height="${h}" rx="7"/>
-      <text class="t1" x="${mx}" y="${my+(e.tech?-2.5:4)}" text-anchor="middle">${esc(e.l)}</text>
-      ${e.tech?`<text class="t2" x="${mx}" y="${my+11.5}" text-anchor="middle">${esc(e.tech)}</text>`:''}</g></g>`;
+  const {e, pts} = g;
+  return `<g class="edge" data-f="${e.f}" data-t="${e.t}"><path class="ln" d="${polyPath(pts)}" marker-end="url(#ar-${uid})"/></g>`;
+}
+/* Labels are drawn after every line so no line ever runs through a label. */
+function edgeLabelSVG(g){
+  const {e, w, h, mx, my} = g;
+  return `<g class="edge elbl" data-f="${e.f}" data-t="${e.t}"><g class="lbl"><rect x="${mx-w/2}" y="${my-h/2}" width="${w}" height="${h}" rx="7"/>
+      ${(() => { const {L, T} = labelBox(e), top = my - h/2;
+        return L.map((l,i) => `<text class="t1" x="${mx}" y="${top + 14.5 + i*LBL.lh}" text-anchor="middle">${esc(l)}</text>`).join('')
+          + T.map((l,j) => `<text class="t2" x="${mx}" y="${top + 15.5 + L.length*LBL.lh + j*LBL.th}" text-anchor="middle">${esc(l)}</text>`).join(''); })()}</g></g>`;
+}
+
+
+/* Edit mode: each placement rule drawn as   reference |-----> placed element
+   (red dashed = must, amber dashed = should ideally, thicker = a rule the layout couldn't meet). */
+function ruleOverlaySVG(spec, map, uid, src){
+  const rules = specRules(src); if (!rules.length) return '';
+  const missed = new Set(spec._violations || []), B = spec.boundary;
+  const box = id => {
+    if (B && id === B.id) return {x:B.x, y:B.y, w:B.w, h:B.h, top:B.y};
+    const n = map[id]; if (!n) return null;
+    return {x:n.x, y:n.y, w:n.w, h:n.h, top:n.y - (EL[id].kind === 'person' ? 20 : 0)};
+  };
+  const cx = b => b.x + b.w/2, cy = b => b.y + b.h/2, bot = b => b.y + b.h, rt = b => b.x + b.w;
+  const clampX = (b, v) => clamp(v, b.x + 14, rt(b) - 14), clampY = (b, v) => clamp(v, b.top + 14, bot(b) - 14);
+  const pairN = {};
+  return `<g class="rule-ov">` + rules.map(r => {
+    const A = box(r.a), R = box(r.b); if (!A || !R) return '';
+    let p, q;   // p = reference end (pipe), q = placed element end (arrow)
+    switch (r.rel){
+      case 'above': case 'higherThan':  { const x = r.rel === 'above' ? cx(A) : clampX(R, cx(A)); p = [x, R.top]; q = [cx(A), bot(A)]; break; }
+      case 'below': case 'lowerThan':   { const x = r.rel === 'below' ? cx(A) : clampX(R, cx(A)); p = [x, bot(R)]; q = [cx(A), A.top]; break; }
+      case 'leftOf':  p = [R.x, clampY(R, cy(A))]; q = [rt(A), cy(A)]; break;
+      case 'rightOf': p = [rt(R), clampY(R, cy(A))]; q = [A.x, cy(A)]; break;
+      case 'alignRow': { const l = cx(A) < cx(R); p = [l ? R.x : rt(R), cy(R)]; q = [l ? rt(A) : A.x, cy(R)]; break; }
+      case 'alignCol': { const u = cy(A) < cy(R); p = [cx(R), u ? R.top : bot(R)]; q = [cx(R), u ? bot(A) : A.top]; break; }
+      case 'near': { const dx = cx(A) - cx(R), dy = cy(A) - cy(R);
+        if (Math.abs(dx) > Math.abs(dy)){ p = [dx > 0 ? rt(R) : R.x, cy(R)]; q = [dx > 0 ? A.x : rt(A), cy(A)]; }
+        else { p = [cx(R), dy > 0 ? bot(R) : R.top]; q = [cx(A), dy > 0 ? A.top : bot(A)]; } break; }
+      default: {   // inside-the-boundary placements: from the named boundary edge(s) to the element
+        const t = /Top/.test(r.rel), bo = /Bottom/.test(r.rel), l = /Left/.test(r.rel), ri = /Right/.test(r.rel);
+        const px = l ? R.x : ri ? rt(R) : cx(A), py = t ? R.y : bo ? bot(R) : cy(A);
+        const qx = l ? A.x : ri ? rt(A) : cx(A), qy = t ? A.top : bo ? bot(A) : cy(A);
+        p = [px, py]; q = [qx, qy];
+      }
+    }
+    // spread several rules between the same two elements so they don't sit on top of each other
+    const k = [r.a, r.b].sort().join('|'), i = pairN[k] = (pairN[k] || 0) + 1;
+    let dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy);
+    if (len < 4){ dx = 0; dy = 1; len = 1; }
+    const ux = dx/len, uy = dy/len, nx = -uy, ny = ux, off = (i % 2 ? 1 : -1) * (7 + 10*Math.floor((i - 1)/2));   // beside the centre line, where connector lines usually run
+    p = [p[0] + nx*off, p[1] + ny*off]; q = [q[0] + nx*off, q[1] + ny*off];
+    const strict = r.strict !== false, miss = missed.has(`${r.a} ${r.rel} ${r.b}${strict ? '' : ' (soft)'}`);
+    const cls = `rl ${strict ? 's' : 'f'}${miss ? ' miss' : ''}`;
+    return `<g class="${cls}"><path class="tick" d="M${p[0] - nx*7},${p[1] - ny*7} L${p[0] + nx*7},${p[1] + ny*7}"/>`
+      + `<path class="shaft" d="M${p[0]},${p[1]} L${q[0]},${q[1]}" marker-end="url(#${strict ? 'rs' : 'rf'}-${uid})"/></g>`;
+  }).join('') + `</g>`;
 }
 
 function c4SVG(raw, view, key=''){
@@ -5181,11 +5374,14 @@ function c4SVG(raw, view, key=''){
    <defs>
      <marker id="ar-${uid}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path class="arrow" d="M0,1 L9.5,5 L0,9 L2.2,5 z"/></marker>
      <marker id="arh-${uid}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse"><path class="arrow-hl" d="M0,1 L9.5,5 L0,9 L2.2,5 z"/></marker>
+     <marker id="rs-${uid}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="rh-s" d="M0,1 L9.5,5 L0,9 z"/></marker>
+     <marker id="rf-${uid}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="rh-f" d="M0,1 L9.5,5 L0,9 z"/></marker>
    </defs>`;
   const pk = e => [e.f,e.t].sort().join('|'), cnt = {}, seen = {};
   spec.edges.forEach(e => cnt[pk(e)] = (cnt[pk(e)]||0) + 1);
   const routes = spec.edges.map(e => orthoRoute(map[e.f], map[e.t], boxes, 12).pts.map(p => p.slice()));
   spreadPorts(spec.edges, routes, map, cnt);
+  routes.forEach((pts, i) => routes[i] = ensureApproach(pts, map[spec.edges[i].f]));
   if (spec.boundary){
     const b = spec.boundary, e = EL[b.id];
     const line2 = `[${KIND[e.kind].label}${e.tech ? ': ' + e.tech : ''}]`;
@@ -5208,10 +5404,86 @@ function c4SVG(raw, view, key=''){
       <text class="bn" x="${tx}" y="${spot.y+16}" text-anchor="${spot.anchor}">${esc(e.name)}</text>
       <text class="bt" x="${tx}" y="${spot.y+33}" text-anchor="${spot.anchor}">${esc(line2)}</text></g>`;
   }
-  const geoms = spec.edges.map((e, i) => { const k = pk(e); seen[k] = (seen[k]||0) + 1; return edgeGeom(e, routes[i], map[e.f], map[e.t], seen[k]-1, cnt[k]); });
+  // Parallel straight lines between the same two boxes: when the boxes face each other over enough
+  // room, give each line its own lane, spaced so every label sits centred on its own line, clear of the
+  // neighbouring lines. Otherwise they stay tightly bundled and their labels are staggered instead.
+  const lanes = {}, members = {};
+  /* Fan-out for a bundle whose boxes are too small to hold every lane: each line leaves its box in the
+     tight bundle, steps out to its own lane in the open space between the boxes (where its label sits),
+     and steps back in before the target. Outer lanes turn first so no two lines cross. Skipped if a lane
+     or its label would run into another box. */
+  function fanOut(idx, vertical, a, b, size, pos, span){
+    const u = vertical ? 1 : 0, v = 1 - u, n = idx.length;
+    const first = spec.edges[idx[0]], base = routes[idx[0]];
+    const P0 = base[0], P1 = base[1], dir = Math.sign(P1[u] - P0[u]) || 1, gapLen = Math.abs(P1[u] - P0[u]);
+    if (gapLen < 2*(APPROACH + 12*n) + Math.max(...idx.map(i => vertical ? labelBox(spec.edges[i]).h : labelBox(spec.edges[i]).w)) + 24) return;
+    const c0 = P0[v], laneV = pos.map(pp => c0 - span/2 + pp);
+    const order = laneV.map((_, j) => j).sort((x, y) => Math.abs(laneV[y] - c0) - Math.abs(laneV[x] - c0));
+    const jog = []; order.forEach((j, r) => jog[j] = APPROACH + 12*r);
+    const others = spec.nodes.filter(nd => nd !== a && nd !== b);
+    const mk = (uu, vv) => { const q = []; q[u] = uu; q[v] = vv; return q; };
+    const built = [];
+    for (let j=0;j<n;j++){
+      const att = c0 + (j - (n-1)/2)*14;
+      const pts = [mk(P0[u], att), mk(P0[u] + dir*jog[j], att), mk(P0[u] + dir*jog[j], laneV[j]),
+                   mk(P1[u] - dir*jog[j], laneV[j]), mk(P1[u] - dir*jog[j], att), mk(P1[u], att)];
+      const L = labelBox(spec.edges[idx[j]]), mid = (P0[u] + P1[u])/2;
+      const lbl = vertical ? {x:laneV[j] - L.w/2, y:mid - L.h/2, w:L.w, h:L.h} : {x:mid - L.w/2, y:laneV[j] - L.h/2, w:L.w, h:L.h};
+      for (const o of others){
+        const ob = {x:o.x - 6, y:o.y - (EL[o.id].kind === 'person' ? 26 : 6), w:o.w + 12, h:o.h + 12 + (EL[o.id].kind === 'person' ? 20 : 0)};
+        for (let m=1;m<pts.length;m++) if (segHitsBox(pts[m-1], pts[m], ob)) return;
+        if (lbl.x < ob.x + ob.w && lbl.x + lbl.w > ob.x && lbl.y < ob.y + ob.h && lbl.y + lbl.h > ob.y) return;
+      }
+      built.push(pts);
+    }
+    idx.forEach((i, j) => {
+      const e = spec.edges[i], same = e.f === first.f;
+      routes[i] = same ? built[j] : built[j].slice().reverse();
+      lanes[i] = {fan:true, si:3};
+    });
+  }
+
+  spec.edges.forEach((e, i) => (members[pk(e)] = members[pk(e)] || []).push(i));
+  for (const [k, idx] of Object.entries(members)){
+    if (idx.length < 2) continue;
+    const pts = routes[idx[0]]; if (pts.length !== 2) continue;
+    const vertical = Math.abs(pts[0][0] - pts[1][0]) < .5, a = map[spec.edges[idx[0]].f], b = map[spec.edges[idx[0]].t];
+    const lo = vertical ? Math.max(a.x, b.x) + 18 : Math.max(a.y, b.y) + 14, hi = vertical ? Math.min(a.x+a.w, b.x+b.w) - 18 : Math.min(a.y+a.h, b.y+b.h) - 14;
+    const size = idx.map(i => { const L = labelBox(spec.edges[i]); return vertical ? L.w : L.h; });
+    const pos = [0]; for (let j=1;j<idx.length;j++) pos.push(pos[j-1] + (size[j-1] + size[j])/2 + 12);
+    const span = pos[pos.length-1], c0 = vertical ? pts[0][0] : pts[0][1];
+    if (span > hi - lo){ fanOut(idx, vertical, a, b, size, pos, span); continue; }   // boxes too small to hold the lanes
+    // slide the whole group across the facing stretch to the spot where no other line runs through a label
+    const ax = vertical ? 0 : 1, gap = vertical ? [Math.min(a.y+a.h, b.y+b.h), Math.max(a.y, b.y)] : [Math.min(a.x+a.w, b.x+b.w), Math.max(a.x, b.x)];
+    const foreign = [];
+    routes.forEach((r, i) => { if (idx.includes(i)) return;
+      for (let m=1;m<r.length;m++){ const P = r[m-1], Q = r[m];
+        if (Math.abs(P[ax] - Q[ax]) > .5) continue;   // only lines running the same way as the group
+        const s0 = Math.min(P[1-ax], Q[1-ax]), s1 = Math.max(P[1-ax], Q[1-ax]);
+        if (s1 > gap[0] + 4 && s0 < gap[1] - 4) foreign.push(P[ax]); } });
+    // pack the lanes from a starting point, letting any other line pass through the space between two labels
+    const pack = from => { const out = []; let prev = null;
+      for (let j=0;j<idx.length;j++){
+        let m = prev == null ? from + size[j]/2 : out[j-1] + (size[j-1] + size[j])/2 + 12;
+        for (let guard=0; guard<foreign.length+1; guard++){
+          const hit = foreign.find(f => Math.abs(f - m) < size[j]/2 + 8); if (hit == null) break;
+          m = hit + size[j]/2 + 9; }
+        out.push(m); prev = m; }
+      return out; };
+    let lanesAt = null, bestD = Infinity;
+    for (let from = lo; from <= hi; from += 6){
+      const ms = pack(from); if (ms[ms.length-1] + size[size.length-1]/2 > hi) break;
+      const d = Math.abs((ms[0] + ms[ms.length-1])/2 - c0);
+      if (d < bestD){ bestD = d; lanesAt = ms; } }
+    if (lanesAt){ idx.forEach((i, j) => lanes[i] = {off: lanesAt[j] - c0}); continue; }
+    const c = clamp(c0, lo + span/2, hi - span/2);
+    idx.forEach((i, j) => lanes[i] = {off: c - span/2 + pos[j] - c0});
+  }
+  const geoms = spec.edges.map((e, i) => { const k = pk(e); seen[k] = (seen[k]||0) + 1; return edgeGeom(e, routes[i], map[e.f], map[e.t], seen[k]-1, cnt[k], lanes[i]); });
   placeLabels(geoms, spec.nodes);
-  s += geoms.map(g => edgeSVG(g, uid)).join('');
+  s += geoms.map(g => edgeSVG(g, uid)).join('') + geoms.map(edgeLabelSVG).join('');
   s += spec.nodes.map(n => nodeSVG(n, view, uid, ruled.has(n.id))).join('');
+  s += ruleOverlaySVG(spec, map, uid, key && DIAGRAMS[key] ? DIAGRAMS[key] : raw);
   return s + '</svg>';
 }
 
@@ -5234,7 +5506,7 @@ function legendHTML(kinds, opts={}){
    ========================================================================== */
 function seqSVG(spec, view){
   const uid = ++UID;
-  const P = spec.p, n = P.length, W = 1240, padX = 100;
+  const P = spec.p, n = P.length, padX = 100, W = Math.max(1240, 2*padX + (n-1)*165);   // wider with many participants, so each header keeps room for its name
   const gap = (W - 2*padX)/(n-1), X = {};
   P.forEach((id,i)=> X[id] = padX + i*gap);
   const boxW = Math.min(gap - 22, 172), headY = 22, headH = 62;
@@ -5296,13 +5568,14 @@ function seqSVG(spec, view){
   P.forEach(id => {
     const e = EL[id], x = X[id] - boxW/2, lk = linkFor(id, view);
     const tag = tagOf(e);
-    const tagW = tag.length*6.3 + 14;
+    const tagW = Math.min(tag.length*6.3 + 14, boxW - 12);
     let head = '';
     s += `<g class="node k-${e.kind}${lk?' link':''}" data-id="${id}"${lk?` data-href="${lk.href}" data-tip="${esc(lk.tip)}" data-sub="${esc(lk.sub)}"`:''}>
       <rect class="shape" x="${x}" y="${headY}" width="${boxW}" height="${headH}" rx="11"/>
       <rect class="tagbg" x="${X[id]-tagW/2}" y="${headY+11}" width="${tagW}" height="17" rx="8.5"/>
-      <text class="tag" x="${X[id]}" y="${headY+23.2}" text-anchor="middle" style="font-size:9px">${esc(tag)}</text>
-      <text class="nm" x="${X[id]}" y="${headY+47}" text-anchor="middle" style="font-size:13.5px">${esc(e.name)}</text>
+      <text class="tag" x="${X[id]}" y="${headY+23.2}" text-anchor="middle" style="font-size:9px">${esc(fitText(tag, boxW - 26, 6.3, 1)[0])}</text>
+      ${(() => { const room = boxW - 22, fs = clamp(13.5*room/(e.name.length*7.6), 10.5, 13.5), nm = fitText(e.name, room, 7.6*fs/13.5, 1)[0];
+        return `<text class="nm" x="${X[id]}" y="${headY+47}" text-anchor="middle" style="font-size:${fs.toFixed(1)}px">${esc(nm)}</text>`; })()}
       ${lk?`<g class="lk" transform="translate(${x+boxW-12},${headY+12})"><circle r="6.5"/><path d="M-2,2 L2,-2 M-0.8,-2 H2 V0.8" style="stroke-width:1.3"/></g>`:''}</g>`;
   });
 
@@ -5403,7 +5676,7 @@ function attachViewer(svg, signal){
     $$('.edge', svg).forEach(ed => {
       const on = ed.dataset.f === id || ed.dataset.t === id;
       ed.classList.toggle('hl', on);
-      ed.querySelector('.ln').setAttribute('marker-end', `url(#${on?'arh':'ar'}-${uid})`);
+      ed.querySelector('.ln')?.setAttribute('marker-end', `url(#${on?'arh':'ar'}-${uid})`);
       if (on) $$(`.node[data-id="${ed.dataset.f===id?ed.dataset.t:ed.dataset.f}"]`, svg).forEach(x => x.classList.add('hl'));
     });
     if (svg.classList.contains('seq')) svg.classList.remove('dim');
