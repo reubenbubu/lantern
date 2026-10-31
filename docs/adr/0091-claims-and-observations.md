@@ -11,8 +11,8 @@ evidence, commit included, so every new commit gives every fact of its repositor
 nothing that keys on a fact ID (link facts that list their source facts, LLM answers, caches)
 survives a commit. #518 gave every type its key attributes and the claim ID (ADR 0090). This record
 says how the store keeps claims and their sightings, how the envelope changes, and how stored
-facts are migrated. The epic's sketch fixes the tables; the choices below are those it leaves open,
-and one rule the owner changed.
+facts are migrated. The epic sketches the tables; the choices below are those it leaves open, the
+ways the tables differ from the sketch, and one rule the owner changed.
 
 ## Decisions
 
@@ -20,6 +20,12 @@ and one rule the owner changed.
   and key attributes. `observations` holds the sightings: one row per version of a sighting, with
   its claim, origin, descriptive attributes, evidence, lineage, confidence and validity. Migration
   V19 creates them and replaces `facts` (V18 is kept for the Investigate branch, as the epic says).
+- **Where the tables differ from the epic's sketch.** An observation's `id` is its content hash
+  (below), not a `bigserial`, because one observation is stored as several version rows, each with
+  one confidence, and documents cite it; the rows of one ID never overlap. A claim keeps its
+  object as `object_kind` and `object` text, as `facts` did, so its indexes and queries are those
+  of before. `observations.repo`, generated from the first location, indexes the repository a fact
+  belongs to.
 - **A `Fact` is one observation joined with its claim**, the read view every stage keeps using:
   its attributes are the claim's key attributes and the observation's descriptive ones together,
   and it gains `claimId` (set on every fact read from the store, absent on one not yet stored) and
@@ -61,7 +67,10 @@ and one rule the owner changed.
   repository's registered folder, and a fact whose file cannot be read keeps its content hash and
   has no blob; lineage is the claim IDs of the facts its lineage attributes name. Facts that become
   the same observation (the same sighting at two commits) are joined into one row per run of
-  adjacent or overlapping snapshots with one confidence. The tables of summaries, wordings and
+  adjacent or overlapping snapshots with one confidence. The facts are read a batch at a time, by
+  repository and commit, so one git tree is held at a time. The attributes that name source facts
+  keep the old IDs, which no observation has any more, until the next analysis links the snapshot
+  again; the lineage already names the claims. The tables of summaries, wordings and
   link resolutions keep the fact IDs they cite: they never relied on them surviving a commit
   (their cache keys leave fact IDs out, ADR 0055), and their own stores are replaced in 1G.
 

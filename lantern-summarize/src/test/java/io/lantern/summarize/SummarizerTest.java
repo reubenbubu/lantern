@@ -11,6 +11,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.Capability;
 import io.lantern.llm.FakeLlmProvider;
@@ -232,11 +233,24 @@ class SummarizerTest {
   }
 
   /**
-   * The facts as observed again at another commit, with nothing else changed: the same facts, since
-   * evidence names no commit (ADR 0091).
+   * The facts as observed again with nothing the prompt shows changed, but under new IDs: a newer
+   * version of the extractors that found them. Evidence names no commit (ADR 0091), so a new commit
+   * alone keeps the IDs; a new extractor version, or lineage, still changes them.
    */
   private static List<Fact> atAnotherCommit(List<Fact> facts) {
-    return List.copyOf(facts);
+    return facts.stream()
+        .map(
+            f ->
+                Fact.create(
+                    f.subject(),
+                    f.predicate(),
+                    f.object(),
+                    f.attributes(),
+                    new Origin(f.origin().kind(), f.origin().name(), "next"),
+                    f.evidence(),
+                    f.confidence(),
+                    f.validity()))
+        .toList();
   }
 
   /** A fact as the prompt shows it, the same at every commit. */

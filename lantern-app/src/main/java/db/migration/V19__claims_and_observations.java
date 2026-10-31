@@ -23,6 +23,7 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +108,15 @@ public class V19__claims_and_observations extends BaseJavaMigration {
   /** One version of a migrated observation. */
   private record Version(Fact fact, long from, Long to) {}
 
+  /** Rows read and inserted at a time. */
+  private static final int BATCH = 1000;
+
+  private static final String COLUMNS =
+      """
+      id, subject, predicate, object_kind, object, attributes::text, origin::text,
+      evidence::text, confidence, lower(validity), upper(validity)
+      """;
+
   @Override
   public void migrate(Context context) throws Exception {
     Connection connection = context.getConnection();
@@ -121,67 +131,78 @@ public class V19__claims_and_observations extends BaseJavaMigration {
         folders.put(rs.getString(1), Path.of(rs.getString(2)));
       }
     }
-    List<Row> rows = rows(connection);
+    Map<String, String> claimOf = referencedClaims(connection, vocabulary);
 
-    Map<String, String> claimOf = new HashMap<>();
-    for (Row row : rows) {
-      claimOf.put(
-          row.id(),
-          ClaimId.of(
-              row.subject(),
-              row.predicate(),
-              row.object(),
-              row.attributes(),
-              keys(vocabulary, row.predicate(), row.attributes())));
-    }
-
-    Map<String, Optional<Map<String, String>>> trees = new HashMap<>();
+    // The facts are read a batch at a time, by repository and commit, so one git tree is held at
+    // a time; what is kept is one fact per observation and its versions.
     Map<String, List<Version>> versions = new LinkedHashMap<>();
-    for (Row row : rows) {
-      Fact fact =
-          Fact.create(
-                  row.subject(),
-                  row.predicate(),
-                  row.object(),
-                  row.attributes(),
-                  FactJson.originFromJson(row.origin()),
-                  evidence(row.evidence(), folders, trees),
-                  row.confidence(),
-                  new Validity(row.from(), row.to()))
-              .withLineage(Lineage.of(row.attributes(), claimOf::get));
-      fact = fact.stored(claimOf.get(row.id()), fact.validity());
-      versions
-          .computeIfAbsent(fact.id(), id -> new ArrayList<>())
-          .add(new Version(fact, row.from(), row.to()));
-    }
-
-    List<Version> joined = new ArrayList<>();
-    versions.values().forEach(all -> joined.addAll(joined(all)));
-    Map<String, Fact> claims = new LinkedHashMap<>();
-    joined.forEach(v -> claims.putIfAbsent(v.fact().claimId(), v.fact()));
+    Set<String> claims = new HashSet<>();
+    String treeKey = null;
+    Optional<Map<String, String>> tree = Optional.empty();
     try (PreparedStatement claim =
-        connection.prepareStatement(
-            """
-            INSERT INTO claims (id, subject, predicate, object_kind, object, key_attributes)
-            VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb))
-            """)) {
-      for (Fact fact : claims.values()) {
-        claim.setString(1, fact.claimId());
-        claim.setString(2, fact.subject().toString());
-        claim.setString(3, fact.predicate());
-        claim.setString(4, fact.object().kind().jsonName());
-        claim.setString(5, fact.object().value());
-        claim.setString(
-            6,
-            json(
-                split(
-                    fact.attributes(),
-                    keys(vocabulary, fact.predicate(), fact.attributes()),
-                    true)));
-        claim.addBatch();
+            connection.prepareStatement(
+                """
+                INSERT INTO claims (id, subject, predicate, object_kind, object, key_attributes)
+                VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb))
+                """);
+        Statement statement = connection.createStatement()) {
+      statement.setFetchSize(BATCH);
+      int pending = 0;
+      try (ResultSet rs =
+          statement.executeQuery(
+              "SELECT "
+                  + COLUMNS
+                  + " FROM facts ORDER BY evidence->>'repo', evidence->>'commit', id,"
+                  + " lower(validity)")) {
+        while (rs.next()) {
+          Row row = row(rs);
+          String key = row.evidence().path("repo").asString() + "@" + commit(row.evidence());
+          if (!key.equals(treeKey)) {
+            treeKey = key;
+            tree =
+                GitTree.blobs(
+                    folders.get(row.evidence().path("repo").asString()), commit(row.evidence()));
+          }
+          Fact fact =
+              Fact.create(
+                      row.subject(),
+                      row.predicate(),
+                      row.object(),
+                      row.attributes(),
+                      FactJson.originFromJson(row.origin()),
+                      evidence(row.evidence(), tree),
+                      row.confidence(),
+                      new Validity(row.from(), row.to()))
+                  .withLineage(Lineage.of(row.attributes(), claimOf::get));
+          fact = fact.stored(claimId(vocabulary, fact), fact.validity());
+          List<Version> known = versions.computeIfAbsent(fact.id(), id -> new ArrayList<>());
+          // Versions of one observation share its content; one fact of it is enough.
+          Fact first = known.isEmpty() ? fact : known.getFirst().fact();
+          known.add(new Version(first, row.from(), row.to()));
+          if (claims.add(fact.claimId())) {
+            claim.setString(1, fact.claimId());
+            claim.setString(2, fact.subject().toString());
+            claim.setString(3, fact.predicate());
+            claim.setString(4, fact.object().kind().jsonName());
+            claim.setString(5, fact.object().value());
+            claim.setString(
+                6,
+                json(
+                    split(
+                        fact.attributes(),
+                        keys(vocabulary, fact.predicate(), fact.attributes()),
+                        true)));
+            claim.addBatch();
+            if (++pending == BATCH) {
+              claim.executeBatch();
+              pending = 0;
+            }
+          }
+        }
       }
       claim.executeBatch();
     }
+
     try (PreparedStatement observation =
         connection.prepareStatement(
             """
@@ -190,23 +211,30 @@ public class V19__claims_and_observations extends BaseJavaMigration {
             VALUES (?, ?, CAST(? AS jsonb), CAST(? AS jsonb), CAST(? AS jsonb),
                     CAST(? AS text[]), ?, int8range(?, ?, '[)'))
             """)) {
-      for (Version version : joined) {
-        Fact fact = version.fact();
-        Set<String> keys = keys(vocabulary, fact.predicate(), fact.attributes());
-        observation.setString(1, fact.id());
-        observation.setString(2, fact.claimId());
-        observation.setString(3, json(FactJson.toJson(fact.origin())));
-        observation.setString(4, json(split(fact.attributes(), keys, false)));
-        observation.setString(5, json(FactJson.toJson(fact.evidence())));
-        observation.setString(6, "{" + String.join(",", fact.lineage()) + "}");
-        observation.setDouble(7, fact.confidence());
-        observation.setLong(8, version.from());
-        if (version.to() == null) {
-          observation.setNull(9, Types.BIGINT);
-        } else {
-          observation.setLong(9, version.to());
+      int pending = 0;
+      for (List<Version> all : versions.values()) {
+        for (Version version : joined(all)) {
+          Fact fact = version.fact();
+          Set<String> keys = keys(vocabulary, fact.predicate(), fact.attributes());
+          observation.setString(1, fact.id());
+          observation.setString(2, fact.claimId());
+          observation.setString(3, json(FactJson.toJson(fact.origin())));
+          observation.setString(4, json(split(fact.attributes(), keys, false)));
+          observation.setString(5, json(FactJson.toJson(fact.evidence())));
+          observation.setString(6, "{" + String.join(",", fact.lineage()) + "}");
+          observation.setDouble(7, fact.confidence());
+          observation.setLong(8, version.from());
+          if (version.to() == null) {
+            observation.setNull(9, Types.BIGINT);
+          } else {
+            observation.setLong(9, version.to());
+          }
+          observation.addBatch();
+          if (++pending == BATCH) {
+            observation.executeBatch();
+            pending = 0;
+          }
         }
-        observation.addBatch();
       }
       observation.executeBatch();
     }
@@ -215,35 +243,82 @@ public class V19__claims_and_observations extends BaseJavaMigration {
     }
   }
 
-  private static List<Row> rows(Connection connection) throws Exception {
-    List<Row> rows = new ArrayList<>();
-    try (Statement statement = connection.createStatement();
-        ResultSet rs =
-            statement.executeQuery(
-                """
-                SELECT id, subject, predicate, object_kind, object, attributes::text,
-                       origin::text, evidence::text, confidence,
-                       lower(validity), upper(validity)
-                FROM facts ORDER BY id, lower(validity)
-                """)) {
-      while (rs.next()) {
-        long to = rs.getLong(11);
-        Long end = rs.wasNull() ? null : to;
-        rows.add(
-            new Row(
-                rs.getString(1),
-                EntityId.parse(rs.getString(2)),
-                rs.getString(3),
-                new FactObject(FactObject.Kind.fromJsonName(rs.getString(4)), rs.getString(5)),
-                (ObjectNode) FactJson.parse(rs.getString(6)),
-                FactJson.parse(rs.getString(7)),
-                FactJson.parse(rs.getString(8)),
-                rs.getDouble(9),
-                rs.getLong(10),
-                end));
+  /**
+   * The claim IDs of the facts that other facts name in their lineage attributes ({@link
+   * Lineage#ATTRIBUTES}), by their old fact ID: only those are needed to map lineage.
+   */
+  private static Map<String, String> referencedClaims(Connection connection, Vocabulary vocabulary)
+      throws Exception {
+    Set<String> referenced = new HashSet<>();
+    try (Statement statement = connection.createStatement()) {
+      statement.setFetchSize(BATCH);
+      try (ResultSet rs =
+          statement.executeQuery(
+              "SELECT attributes::text FROM facts WHERE attributes ?| array['"
+                  + String.join("','", Lineage.ATTRIBUTES)
+                  + "']")) {
+        while (rs.next()) {
+          Lineage.of(
+              (ObjectNode) FactJson.parse(rs.getString(1)),
+              id -> {
+                referenced.add(id);
+                return null;
+              });
+        }
       }
     }
-    return rows;
+    Map<String, String> claimOf = new HashMap<>();
+    List<String> ids = new ArrayList<>(referenced);
+    for (int start = 0; start < ids.size(); start += BATCH) {
+      List<String> chunk = ids.subList(start, Math.min(ids.size(), start + BATCH));
+      try (PreparedStatement select =
+          connection.prepareStatement("SELECT " + COLUMNS + " FROM facts WHERE id = ANY (?)")) {
+        select.setArray(1, connection.createArrayOf("text", chunk.toArray()));
+        try (ResultSet rs = select.executeQuery()) {
+          while (rs.next()) {
+            Row row = row(rs);
+            claimOf.put(
+                row.id(),
+                ClaimId.of(
+                    row.subject(),
+                    row.predicate(),
+                    row.object(),
+                    row.attributes(),
+                    keys(vocabulary, row.predicate(), row.attributes())));
+          }
+        }
+      }
+    }
+    return claimOf;
+  }
+
+  private static String claimId(Vocabulary vocabulary, Fact fact) {
+    return ClaimId.of(
+        fact.subject(),
+        fact.predicate(),
+        fact.object(),
+        fact.attributes(),
+        keys(vocabulary, fact.predicate(), fact.attributes()));
+  }
+
+  private static String commit(JsonNode evidence) {
+    return evidence.path("commit").asString();
+  }
+
+  private static Row row(ResultSet rs) throws Exception {
+    long to = rs.getLong(11);
+    Long end = rs.wasNull() ? null : to;
+    return new Row(
+        rs.getString(1),
+        EntityId.parse(rs.getString(2)),
+        rs.getString(3),
+        new FactObject(FactObject.Kind.fromJsonName(rs.getString(4)), rs.getString(5)),
+        (ObjectNode) FactJson.parse(rs.getString(6)),
+        FactJson.parse(rs.getString(7)),
+        FactJson.parse(rs.getString(8)),
+        rs.getDouble(9),
+        rs.getLong(10),
+        end);
   }
 
   /** Every type the app's sources define, as the app loads them. */
@@ -262,10 +337,8 @@ public class V19__claims_and_observations extends BaseJavaMigration {
   }
 
   /** The old evidence as one declared location, with the file's blob where git still has it. */
-  private static Evidence evidence(
-      JsonNode old, Map<String, Path> folders, Map<String, Optional<Map<String, String>>> trees) {
+  private static Evidence evidence(JsonNode old, Optional<Map<String, String>> tree) {
     String repo = old.path("repo").asString();
-    String commit = old.path("commit").asString();
     String path = old.hasNonNull("path") ? old.get("path").asString() : null;
     JsonNode lines = old.get("lines");
     Evidence.LineRange range =
@@ -273,14 +346,7 @@ public class V19__claims_and_observations extends BaseJavaMigration {
             ? null
             : new Evidence.LineRange(lines.get("start").asInt(), lines.get("end").asInt());
     String contentHash = old.hasNonNull("contentHash") ? old.get("contentHash").asString() : null;
-    String blob = null;
-    if (path != null) {
-      blob =
-          trees
-              .computeIfAbsent(repo + "@" + commit, k -> GitTree.blobs(folders.get(repo), commit))
-              .map(tree -> tree.get(path))
-              .orElse(null);
-    }
+    String blob = path == null ? null : tree.map(files -> files.get(path)).orElse(null);
     return new Evidence(
         List.of(
             new Evidence.Location(
@@ -294,7 +360,8 @@ public class V19__claims_and_observations extends BaseJavaMigration {
 
   /**
    * The versions of one observation, joined where they touch or overlap with one confidence; where
-   * two with different confidences touch or overlap, the earlier ends where the later starts.
+   * two with different confidences touch or overlap, the later holds for its range and the earlier
+   * for the rest of its own.
    */
   private static List<Version> joined(List<Version> all) {
     List<Version> sorted = new ArrayList<>(all);
@@ -316,6 +383,10 @@ public class V19__claims_and_observations extends BaseJavaMigration {
           joined.remove(joined.size() - 1);
         }
         joined.add(version);
+        // The earlier version's range after the later one's, if any, is kept.
+        if (version.to() != null && (last.to() == null || last.to() > version.to())) {
+          joined.add(new Version(last.fact(), version.to(), last.to()));
+        }
       }
     }
     return joined;
