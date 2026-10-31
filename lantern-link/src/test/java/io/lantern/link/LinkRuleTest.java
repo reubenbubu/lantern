@@ -98,6 +98,7 @@ class LinkRuleTest {
         .containsExactly(
             DeployableUnits.NAME,
             ValueResolution.NAME,
+            AddressResolution.NAME,
             "http-links",
             "messaging-links",
             "deployment-links",

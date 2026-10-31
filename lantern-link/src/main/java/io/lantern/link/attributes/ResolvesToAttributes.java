@@ -15,8 +15,17 @@ import tools.jackson.databind.node.ObjectNode;
  * #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the
  * views it does not hold in, and one for each profile or deployment that gives another literal; a
  * placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a
- * secret is used.
+ * secret is used. Address resolution (#589) also writes it for each address a matcher asks about,
+ * with from naming the unit that uses it: to the unit it leads to, the external system, or
+ * outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each
+ * deployment that fills the address in; and with by: name, to each unit a service name names.
  *
+ * @param address Key. Address resolution: the address asked about, as the unit's config resolved
+ *     it, or the service name asked about.
+ * @param by Key. Address resolution: name for a service name looked up among the units'
+ *     spring.application.name; absent for an address.
+ * @param candidates Descriptive. Address resolution, for outcome:ambiguous: each unit it may lead
+ *     to, with unit, fact (when one), matchedBy and factor.
  * @param deployment Key. The deployment whose environment gives this literal:
  *     &lt;repository&gt;|&lt;platform&gt;|&lt;environment&gt;[|&lt;compose
  *     file&gt;]|&lt;container&gt;; absent for the default view and a profile's.
@@ -24,46 +33,98 @@ import tools.jackson.databind.node.ObjectNode;
  *     environment gives another literal or none.
  * @param exceptProfiles Descriptive. On the default view's fact, the profiles whose config gives
  *     another literal or none.
+ * @param fact Descriptive. Address resolution: the ID of the fact the unit was found by, absent for
+ *     a default port.
+ * @param factor Descriptive. Address resolution: the confidence factor of the way the unit was
+ *     found.
  * @param facts Descriptive. The IDs of the config-value facts the expression was resolved with and,
  *     in a deployment's view, of the deployment-container fact.
+ * @param filledBy Descriptive. Address resolution: the ID of the deployment-container fact whose
+ *     environment filled the address in.
+ * @param from Key. Address resolution: the unit that uses the address, absent for a frontend.
+ * @param matched Descriptive. Address resolution: the address as it was matched, filled in where a
+ *     deployment's environment filled it.
+ * @param matchedBy Descriptive. Address resolution: how the unit was found (host, container-host,
+ *     artifact-id, published-port, port, service-name).
+ * @param order Descriptive. Address resolution: the answer's place among the address's answers, the
+ *     config's first.
  * @param profile Key. The profile whose config gives this literal; absent for the default view.
  * @param resolved Descriptive. The expression as config resolved it, when that is not the literal's
  *     own key: a URL whose address is its host, or a JDBC URL whose address is its server.
+ * @param split Descriptive. Address resolution: the config and the deployments disagree, so no one
+ *     URL stands for the address.
+ * @param written Descriptive. Address resolution: the address as written, when config changed it.
  */
 public record ResolvesToAttributes(
+    String address,
+    String by,
+    List<ObjectNode> candidates,
     String deployment,
     List<String> exceptDeployments,
     List<String> exceptProfiles,
+    String fact,
+    java.math.BigDecimal factor,
     List<String> facts,
+    String filledBy,
+    String from,
+    String matched,
+    String matchedBy,
+    Long order,
     String profile,
-    String resolved) {
+    String resolved,
+    Boolean split,
+    String written) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "RESOLVES_TO";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("deployment", "profile");
+  public static final List<String> KEY_ATTRIBUTES = List.of("address", "by", "deployment", "from", "profile");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static ResolvesToAttributes from(ObjectNode attributes) {
     return new ResolvesToAttributes(
+        AttributeValues.string(attributes, "address"),
+        AttributeValues.string(attributes, "by"),
+        AttributeValues.objects(attributes, "candidates"),
         AttributeValues.string(attributes, "deployment"),
         AttributeValues.strings(attributes, "exceptDeployments"),
         AttributeValues.strings(attributes, "exceptProfiles"),
+        AttributeValues.string(attributes, "fact"),
+        AttributeValues.number(attributes, "factor"),
         AttributeValues.strings(attributes, "facts"),
+        AttributeValues.string(attributes, "filledBy"),
+        AttributeValues.string(attributes, "from"),
+        AttributeValues.string(attributes, "matched"),
+        AttributeValues.string(attributes, "matchedBy"),
+        AttributeValues.integer(attributes, "order"),
         AttributeValues.string(attributes, "profile"),
-        AttributeValues.string(attributes, "resolved"));
+        AttributeValues.string(attributes, "resolved"),
+        AttributeValues.bool(attributes, "split"),
+        AttributeValues.string(attributes, "written"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "address", address);
+    AttributeValues.put(attributes, "by", by);
+    AttributeValues.put(attributes, "candidates", candidates);
     AttributeValues.put(attributes, "deployment", deployment);
     AttributeValues.put(attributes, "exceptDeployments", exceptDeployments);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
+    AttributeValues.put(attributes, "fact", fact);
+    AttributeValues.put(attributes, "factor", factor);
     AttributeValues.put(attributes, "facts", facts);
+    AttributeValues.put(attributes, "filledBy", filledBy);
+    AttributeValues.put(attributes, "from", from);
+    AttributeValues.put(attributes, "matched", matched);
+    AttributeValues.put(attributes, "matchedBy", matchedBy);
+    AttributeValues.put(attributes, "order", order);
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "resolved", resolved);
+    AttributeValues.put(attributes, "split", split);
+    AttributeValues.put(attributes, "written", written);
     return attributes;
   }
 }

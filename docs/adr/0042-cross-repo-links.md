@@ -265,3 +265,32 @@ runs the unit, is now done by value resolution (`EnvironmentValues`, ADR 0094, a
 `Deployments.place` call it rather than substituting placeholders themselves; what they match and
 answer is unchanged. Address resolution as a rule of its own, reading those claims, is #589.
 
+## Amendment (#589): address resolution is a rule, and matchers read its claims
+
+Where an address leads is decided by one link rule, `AddressResolution` (origin `addresses`),
+which runs after value resolution and before the matchers (knowledge-build epic, section 8,
+rule 3). It decides as #473's order does (`Addresses`), and writes each answer as a claim:
+
+- For an address a matcher asks about: `RESOLVES_TO` from the address entity (`address:<host>`
+  for a host written out, else the address keyed by the unit using it) to the unit it leads to,
+  the external system, `outcome:ambiguous` with its `candidates`, or `outcome:unknown`. Key
+  attributes: `from` (the unit using it), `profile` (the view), `address`, and `deployment` for
+  the answer of a deployment whose environment fills it in; one claim for the config's answer and
+  one per such deployment, in `order`. The claim keeps what the matchers used before: how the unit
+  was found (`matchedBy`, `factor`, `fact`), the address as matched (`matched`), the container
+  that filled it (`filledBy`) and whether the answers disagree (`split`).
+- For a service name (`by: name`): one claim to each unit whose `spring.application.name` in the
+  view it is.
+- Unknown is an answer too, as an `outcome:unknown` claim: a matcher still decides such a call by
+  its path, and needs the address as a deployment filled it.
+
+The questions are the matchers' own: address resolution enumerates each matcher's calls with the
+matcher's code (`HttpLinker.queries`), so every address a matcher asks about has its claims; one
+without them fails the run rather than leading nowhere. A matcher reads them through
+`AddressClaims`, which gives the same answers `Addresses` gave.
+
+In this slice the HTTP matcher reads them; an architecture rule keeps the matchers that do from
+calling `Addresses`. Gateway routes and frontends (#594), identity providers and mail hosts
+(#595), data stores (#596) and messaging (#597) follow. On project-0 to project-4 and project-8
+every link is unchanged (#589's PR).
+

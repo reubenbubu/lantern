@@ -481,6 +481,51 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void addressResolutionWritesWhereEachCallsAddressLeadsAsClaims() {
+    unit("a", "orders", "orders");
+    type("a", "orders", "o.Client");
+    call(
+        "a",
+        "o.Client#items()",
+        "GET http://inventory-svc/items",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/items\","
+            + "\"url\":\"http://inventory-svc/items\"}",
+        5);
+    call(
+        "a",
+        "o.Client#stock()",
+        "GET http://inventory/stock",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/stock\","
+            + "\"url\":\"http://inventory/stock\"}",
+        9);
+    unit("i", "inventory", "inventory");
+    type("i", "inventory", "i.ItemController");
+    endpoint("i", "i.ItemController", "items()", "GET", "/items");
+
+    AddressResolution rule = new AddressResolution();
+    ClaimSink sink = new ClaimSink(rule.info(), rule.writes());
+    rule.derive(
+        new ClaimQuery(rule.info(), rule.reads(), java.util.Set.of(), facts, 1),
+        sink,
+        View.DEFAULT);
+    Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
+    sink.facts().forEach(vocabulary::validate);
+
+    // A host that names no unit is unknown; one that is a unit's application name leads to it.
+    assertThat(sink.facts())
+        .extracting(
+            f -> f.subject().toString(),
+            f -> f.object().value(),
+            f -> TestAttributes.text(f, "from"),
+            f -> TestAttributes.text(f, "matchedBy"))
+        .containsExactlyInAnyOrder(
+            org.assertj.core.groups.Tuple.tuple(
+                "address:inventory-svc", "outcome:unknown", "service:g:orders", null),
+            org.assertj.core.groups.Tuple.tuple(
+                "address:inventory", "service:g:inventory", "service:g:orders", "host"));
+  }
+
+  @Test
   void aLinkSwitchedOffUnderAProfileNamesThatProfile() {
     unit("s", "shop", "shop");
     type("s", "shop", "s.Publisher");

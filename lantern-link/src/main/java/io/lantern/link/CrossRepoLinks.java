@@ -142,7 +142,8 @@ public final class CrossRepoLinks {
 
   /**
    * The links of a snapshot's facts as the protocol rules ({@link ProtocolLinks}) give them
-   * together, for tests and callers that link without the linker.
+   * together, after address resolution, whose answers they read, for tests and callers that link
+   * without the linker. Address resolution's own facts are not among those returned.
    *
    * @param facts the facts that hold in the snapshot, the deployable units' included
    * @param snapshot the snapshot number the facts hold from
@@ -150,11 +151,20 @@ public final class CrossRepoLinks {
    */
   public List<Fact> derive(List<Fact> facts, long snapshot) {
     Objects.requireNonNull(facts, "facts");
+    // Where the addresses lead first, which the matchers read (#589).
+    AddressResolution addresses = new AddressResolution();
+    ClaimSink answers = new ClaimSink(addresses.info(), addresses.writes());
+    addresses.derive(
+        new ClaimQuery(addresses.info(), addresses.reads(), Set.of(), facts, snapshot),
+        answers,
+        View.DEFAULT);
+    List<Fact> input = new ArrayList<>(facts);
+    input.addAll(answers.facts());
     List<Fact> derived = new ArrayList<>();
     for (ProtocolLinks rule : ProtocolLinks.all()) {
       ClaimSink sink = new ClaimSink(rule.info(), rule.writes());
       rule.derive(
-          new ClaimQuery(rule.info(), rule.reads(), Set.of(), facts, snapshot), sink, View.DEFAULT);
+          new ClaimQuery(rule.info(), rule.reads(), Set.of(), input, snapshot), sink, View.DEFAULT);
       derived.addAll(sink.facts());
     }
     return derived.stream()

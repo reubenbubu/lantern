@@ -122,17 +122,98 @@
   {
     "name": "RESOLVES_TO",
     "kind": "relationship",
-    "keyAttributes": ["deployment", "profile"],
-    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, the profile named, or the deployment named, whose container's environment overlays the config as Spring Boot's relaxed binding reads it (#588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used.",
+    "keyAttributes": ["address", "by", "deployment", "from", "profile"],
+    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, the profile named, or the deployment named, whose container's environment overlays the config as Spring Boot's relaxed binding reads it (#588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used. Address resolution (#589) also writes it for each address a matcher asks about, with from naming the unit that uses it: to the unit it leads to, the external system, or outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each deployment that fills the address in; and with by: name, to each unit a service name names.",
     "attributeSchema": {
       "type": "object",
       "properties": {
-        "profile": { "type": "string", "description": "The profile whose config gives this literal; absent for the default view." },
-        "facts": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the config-value facts the expression was resolved with and, in a deployment's view, of the deployment-container fact." },
-        "deployment": { "type": "string", "description": "The deployment whose environment gives this literal: <repository>|<platform>|<environment>[|<compose file>]|<container>; absent for the default view and a profile's." },
-        "exceptDeployments": { "type": "array", "items": { "type": "string" }, "description": "On the default view's fact, the deployments whose environment gives another literal or none." },
-        "exceptProfiles": { "type": "array", "items": { "type": "string" }, "description": "On the default view's fact, the profiles whose config gives another literal or none." },
-        "resolved": { "type": "string", "description": "The expression as config resolved it, when that is not the literal's own key: a URL whose address is its host, or a JDBC URL whose address is its server." }
+        "profile": {
+          "type": "string",
+          "description": "The profile whose config gives this literal; absent for the default view."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The IDs of the config-value facts the expression was resolved with and, in a deployment's view, of the deployment-container fact."
+        },
+        "deployment": {
+          "type": "string",
+          "description": "The deployment whose environment gives this literal: <repository>|<platform>|<environment>[|<compose file>]|<container>; absent for the default view and a profile's."
+        },
+        "exceptDeployments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "On the default view's fact, the deployments whose environment gives another literal or none."
+        },
+        "exceptProfiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "On the default view's fact, the profiles whose config gives another literal or none."
+        },
+        "resolved": {
+          "type": "string",
+          "description": "The expression as config resolved it, when that is not the literal's own key: a URL whose address is its host, or a JDBC URL whose address is its server."
+        },
+        "from": {
+          "type": "string",
+          "description": "Address resolution: the unit that uses the address, absent for a frontend."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address resolution: the address asked about, as the unit's config resolved it, or the service name asked about."
+        },
+        "written": {
+          "type": "string",
+          "description": "Address resolution: the address as written, when config changed it."
+        },
+        "by": {
+          "type": "string",
+          "enum": [
+            "name"
+          ],
+          "description": "Address resolution: name for a service name looked up among the units' spring.application.name; absent for an address."
+        },
+        "matched": {
+          "type": "string",
+          "description": "Address resolution: the address as it was matched, filled in where a deployment's environment filled it."
+        },
+        "matchedBy": {
+          "type": "string",
+          "description": "Address resolution: how the unit was found (host, container-host, artifact-id, published-port, port, service-name)."
+        },
+        "factor": {
+          "type": "number",
+          "description": "Address resolution: the confidence factor of the way the unit was found."
+        },
+        "fact": {
+          "type": "string",
+          "description": "Address resolution: the ID of the fact the unit was found by, absent for a default port."
+        },
+        "filledBy": {
+          "type": "string",
+          "description": "Address resolution: the ID of the deployment-container fact whose environment filled the address in."
+        },
+        "split": {
+          "type": "boolean",
+          "description": "Address resolution: the config and the deployments disagree, so no one URL stands for the address."
+        },
+        "order": {
+          "type": "integer",
+          "description": "Address resolution: the answer's place among the address's answers, the config's first."
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Address resolution, for outcome:ambiguous: each unit it may lead to, with unit, fact (when one), matchedBy and factor."
+        }
       },
       "additionalProperties": false
     }
@@ -1176,5 +1257,11 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "outcome",
+    "kind": "entity",
+    "description": "What address resolution (#589) found an address to lead to when it is no unit or external system: outcome:ambiguous (several units, its candidates listed) or outcome:unknown.",
+    "attributeSchema": { "type": "object", "properties": {}, "additionalProperties": false }
   }
 ]

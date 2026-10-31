@@ -34,7 +34,9 @@ final class Rules {
 
   /** The static rules of this version of Lantern, without the LLM resolver. */
   static List<LinkRule> standard() {
-    List<LinkRule> rules = new ArrayList<>(List.of(new DeployableUnits(), new ValueResolution()));
+    List<LinkRule> rules =
+        new ArrayList<>(
+            List.of(new DeployableUnits(), new ValueResolution(), new AddressResolution()));
     rules.addAll(ProtocolLinks.all());
     rules.add(new People());
     rules.add(new ClaimChecks());
