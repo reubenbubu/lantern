@@ -1,11 +1,16 @@
 package io.lantern.link;
 
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.extract.config.CodeConfig;
+import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.config.ConfigValue;
+import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -28,7 +33,10 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <ul>
  *   <li>a {@code request} sent by code ({@code SENT_BY}) gives the code's {@code http-call} facts,
- *       one for the default view and one for each profile whose URL differs (#557).
+ *       one for the default view and one for each profile whose URL differs (#557);
+ *   <li>a gateway route built in code ({@code gateway-route-written}) gives its {@code
+ *       gateway-route} facts, and each module's config gives the routes, Zuul routes and discovery
+ *       locator it defines, through the gateway extractor's own reading (#558).
  * </ul>
  *
  * <p>The value resolution rule of #522 replaces this step with {@code RESOLVES_TO} claims.
@@ -58,6 +66,9 @@ public final class ValueViews implements LinkStep {
     CodeValues values = CodeValues.of(facts);
     Validity validity = Validity.from(snapshot);
     Map<String, Fact> derived = new LinkedHashMap<>();
+    for (Fact route : gatewayRoutes(facts, values, snapshot)) {
+      derived.putIfAbsent(route.id(), route);
+    }
     for (Fact f : facts) {
       if (f.predicate().equals(HttpClientExtractor.SENT_BY)
           && f.subject().type().equals(HttpClientExtractor.REQUEST)
@@ -74,6 +85,128 @@ public final class ValueViews implements LinkStep {
                 .thenComparing(f -> f.object().value())
                 .thenComparing(Fact::id))
         .toList();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Gateway routes
+
+  /** The prefix marking a blob passed where the gateway's reading expects a content hash. */
+  private static final String BLOB = "blob:";
+
+  private static List<Fact> gatewayRoutes(List<Fact> facts, CodeValues values, long snapshot) {
+    java.util.Set<String> secretKeys = ConfigExtractor.jwtSecretKeys(facts);
+    List<GatewayExtractor.RouteConfig> configs = new java.util.ArrayList<>();
+    for (EntityId module : values.modules()) {
+      String repo = values.repoOf(module);
+      CodeValues.View view = values.forModule(module, repo);
+      configs.add(
+          new GatewayExtractor.RouteConfig() {
+            @Override
+            public EntityId module() {
+              return module;
+            }
+
+            @Override
+            public String repo() {
+              return repo;
+            }
+
+            @Override
+            public List<String> profiles() {
+              return view.views().subList(1, view.views().size());
+            }
+
+            @Override
+            public java.util.SortedMap<String, ConfigValue> values(String profile) {
+              java.util.SortedMap<String, ConfigValue> read = new java.util.TreeMap<>();
+              view.facts(profile).forEach((key, f) -> read.put(key, configValue(key, f)));
+              return read;
+            }
+          });
+    }
+    List<Fact> routes =
+        GatewayExtractor.routes(
+            facts,
+            (module, repo) -> resolver(values.forModule(module, repo)),
+            configs,
+            secretKeys,
+            ORIGIN,
+            snapshot);
+    return routes.stream().map(ValueViews::withBlobs).toList();
+  }
+
+  /** A config fact as the gateway's reading takes a config value. */
+  private static ConfigValue configValue(String key, Fact f) {
+    JsonNode a = f.attributes();
+    SortedSet<String> unresolved = new TreeSet<>();
+    if (a.has("unresolved")) {
+      a.get("unresolved").forEach(k -> unresolved.add(k.stringValue()));
+    }
+    String written = text(a, "written");
+    String value = f.object().value();
+    SortedSet<String> used = new TreeSet<>();
+    if (value.equals(ConfigExtractor.MASK)) {
+      // Masked for a secret: the reading masks what uses it, by the keys it was resolved from,
+      // which the facts do not keep; its own key, and the keys its text as written names, stand
+      // for them.
+      used.add(key);
+      if (written != null) {
+        used.addAll(ConfigExtractor.resolve(written, k -> null).unresolved());
+        value = written;
+      }
+    }
+    Evidence.Location at = f.evidence().declared();
+    String file = at.blob() != null ? BLOB + at.blob() : at.contentHash();
+    return new ConfigValue(
+        key,
+        value,
+        written != null ? written : value,
+        unresolved,
+        used,
+        new ConfigValue.Where(
+            at.path(), file == null ? "" : file, at.lines() == null ? 0 : at.lines().start()));
+  }
+
+  /** A fact whose evidence names a file by its blob, as the config facts it was read from did. */
+  private static Fact withBlobs(Fact f) {
+    boolean marked =
+        f.evidence().locations().stream()
+            .anyMatch(l -> l.contentHash() != null && l.contentHash().startsWith(BLOB));
+    if (!marked) {
+      return f;
+    }
+    Evidence evidence =
+        f.evidence()
+            .map(
+                l ->
+                    l.contentHash() != null && l.contentHash().startsWith(BLOB)
+                        ? l.withBlob(l.contentHash().substring(BLOB.length()))
+                        : l);
+    return Fact.create(
+        f.subject(),
+        f.predicate(),
+        f.object(),
+        f.attributes(),
+        f.origin(),
+        evidence,
+        f.confidence(),
+        f.validity());
+  }
+
+  /** A module's config as the gateway's reading resolves a route built in code. */
+  private static GatewayExtractor.Resolver resolver(CodeValues.View view) {
+    return new GatewayExtractor.Resolver() {
+      @Override
+      public List<String> views() {
+        return view.views();
+      }
+
+      @Override
+      public CodeConfig.CodeValue value(String profile, String written) {
+        CodeValues.Value v = view.value(profile, written);
+        return new CodeConfig.CodeValue(v.value(), v.written(), v.unresolved(), v.masked());
+      }
+    };
   }
 
   // ---------------------------------------------------------------------------------------------

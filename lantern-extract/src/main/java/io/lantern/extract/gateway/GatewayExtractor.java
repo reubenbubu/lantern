@@ -20,7 +20,6 @@ import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.CodeConfig.CodeValue;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
-import io.lantern.extract.config.ModuleConfig;
 import io.lantern.extract.java.Expression;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -40,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -61,9 +59,11 @@ import tools.jackson.databind.node.ObjectNode;
  * filter classes requests pass through (global, gateway and web filters, and gateway filter
  * factories), which are entry points. See {@code docs/adr/0077-spring-cloud-gateway.md}.
  *
- * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}) and config
- * through the config extractor. A URI is followed one hop from a {@code @Value} field or parameter,
- * and its placeholders resolved, as the HTTP client extractor resolves a URL.
+ * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}) and no
+ * config. A route built in code is recorded as written ({@value #ROUTE_WRITTEN}), its URI followed
+ * one hop from a {@code @Value} field or parameter, and linking resolves it per view; linking also
+ * reads the routes, Zuul routes and discovery locator config defines from the config facts, through
+ * {@link #routes} (ADR 0094, #558).
  */
 public final class GatewayExtractor implements Extractor {
 
@@ -71,13 +71,16 @@ public final class GatewayExtractor implements Extractor {
   public static final String NAME = "gateway";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "gateway-extractor";
 
   /** Attribute: a gateway route; its value is the route's id. */
   public static final String ROUTE = "gateway-route";
+
+  /** Attribute: a route built in code, as written; linking resolves it into its routes. */
+  public static final String ROUTE_WRITTEN = "gateway-route-written";
 
   /** Attribute: the subject class is a filter requests pass through. */
   public static final String FILTER = "gateway-filter";
@@ -190,43 +193,80 @@ public final class GatewayExtractor implements Extractor {
    * @return the facts, without duplicates, ordered by subject, predicate, object, attributes and ID
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
-    return extract(code, snapshot, Set.of());
-  }
-
-  /**
-   * As {@link #extract(JavaAnalysis, long)}, with config keys known to hold a secret: a value
-   * substituted from one is masked as for a key whose name says it is secret.
-   *
-   * @param secretKeys config keys known to hold a secret, such as {@link
-   *     ConfigExtractor#jwtSecretKeys}
-   */
-  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Objects.requireNonNull(secretKeys, "secretKeys");
-    Run run = new Run(code, Validity.from(snapshot), secretKeys);
+    Run run = new Run(code, Validity.from(snapshot), Set.of(), ORIGIN);
     for (JavaAnalysis.Module module : code.modules()) {
       run.codeRoutes(module);
-    }
-    Set<RepoBuild> repos = new LinkedHashSet<>();
-    code.modules().forEach(m -> repos.add(m.repo()));
-    for (RepoBuild repo : repos) {
-      for (ModuleConfig config : ConfigExtractor.read(repo)) {
-        run.configRoutes(config);
-        run.zuulRoutes(config);
-        run.locator(config);
-      }
     }
     for (JavaAnalysis.Module module : code.modules()) {
       run.filters(module);
     }
-    return run.facts.values().stream()
-        .sorted(
-            Comparator.comparing((Fact f) -> f.subject().toString())
-                .thenComparing(Fact::predicate)
-                .thenComparing(f -> f.object().value())
-                .thenComparing(f -> f.attributes().toString())
-                .thenComparing(Fact::id))
-        .toList();
+    return run.sorted();
+  }
+
+  /** What a text written in code resolves to in one module's config, in each view. */
+  public interface Resolver {
+
+    /** The views: the default view (null), then each profile. */
+    List<String> views();
+
+    /** A text as written resolved in a view, as it may be recorded (masked if a secret). */
+    CodeValue value(String view, String written);
+  }
+
+  /** One module's config as linking reads it from the config facts. */
+  public interface RouteConfig {
+
+    /** The module. */
+    EntityId module();
+
+    /** The name of the module's repository. */
+    String repo();
+
+    /** The profiles the config differs in. */
+    List<String> profiles();
+
+    /** The values with a profile active (null for the default view), resolved, by key. */
+    SortedMap<String, ConfigValue> values(String view);
+  }
+
+  /**
+   * The routes linking gives (ADR 0094, #558): each route built in code ({@value #ROUTE_WRITTEN})
+   * resolved in each view of its module's config, and the routes, Zuul routes and discovery locator
+   * each module's config defines, as this extractor recorded them before it kept values as written:
+   * {@value #ROUTE} and {@value #LOCATOR} facts, the default view's and each differing profile's.
+   *
+   * @param written the snapshot's facts; only {@value #ROUTE_WRITTEN} facts are read
+   * @param resolver the resolver of a written route's module, by {@code configModule} and {@code
+   *     configRepo}
+   * @param configs the config of each module
+   * @param secretKeys config keys known to hold a secret
+   * @param origin the origin of the facts
+   * @param snapshot the snapshot number the facts hold from
+   */
+  public static List<Fact> routes(
+      List<Fact> written,
+      java.util.function.BiFunction<EntityId, String, Resolver> resolver,
+      List<RouteConfig> configs,
+      Set<String> secretKeys,
+      Origin origin,
+      long snapshot) {
+    Run run = new Run(null, Validity.from(snapshot), secretKeys, origin);
+    for (Fact f : written) {
+      if (f.predicate().equals(ROUTE_WRITTEN)) {
+        run.writtenRoute(
+            f,
+            resolver.apply(
+                EntityId.parse(f.attributes().get("configModule").stringValue()),
+                f.attributes().get("configRepo").stringValue()));
+      }
+    }
+    for (RouteConfig config : configs) {
+      run.configRoutes(config);
+      run.zuulRoutes(config);
+      run.locator(config);
+    }
+    return run.sorted();
   }
 
   /**
@@ -302,11 +342,14 @@ public final class GatewayExtractor implements Extractor {
     /** The members of the analyzed code, by ID. */
     private final Map<EntityId, Member> members = new LinkedHashMap<>();
 
-    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys) {
+    private final Origin origin;
+
+    Run(JavaAnalysis code, Validity validity, Set<String> secretKeys, Origin origin) {
       this.configs = new CodeConfig(secretKeys);
       this.code = code;
       this.validity = validity;
-      for (JavaAnalysis.Module m : code.modules()) {
+      this.origin = origin;
+      for (JavaAnalysis.Module m : code == null ? List.<JavaAnalysis.Module>of() : code.modules()) {
         for (TypeDecl t : m.structure().types()) {
           for (Member member : t.members()) {
             members.putIfAbsent(member.id(), member);
@@ -319,7 +362,6 @@ public final class GatewayExtractor implements Extractor {
     // Routes in code
 
     void codeRoutes(JavaAnalysis.Module module) {
-      CodeConfig.View config = configs.forModule(module.repo(), module.directory());
       for (Invocation invocation : module.structure().invocations()) {
         if (!BUILDERS.contains(invocation.rootType())) {
           continue;
@@ -334,8 +376,7 @@ public final class GatewayExtractor implements Extractor {
           }
           String id;
           if (call.arguments().size() == 2) {
-            Text written = text(call.arguments().getFirst(), invocation.caller());
-            id = config.value(config.resolve(null, written.text()), written.text()).value();
+            id = text(call.arguments().getFirst(), invocation.caller()).text();
           } else {
             unnamed++;
             id = "route-" + unnamed;
@@ -344,19 +385,14 @@ public final class GatewayExtractor implements Extractor {
               lambda.start() > 0
                   ? new Location(invocation.where().file(), lambda.start(), lambda.end())
                   : invocation.where();
-          codeRoute(module, config, invocation.caller(), id, lambda.body(), where);
+          codeRoute(module, invocation.caller(), id, lambda.body(), where);
         }
       }
     }
 
-    /** The facts of one route built in code, in the default view and where a profile differs. */
+    /** The fact of one route built in code, as written. */
     private void codeRoute(
-        JavaAnalysis.Module module,
-        CodeConfig.View config,
-        EntityId caller,
-        String id,
-        Expression body,
-        Location where) {
+        JavaAnalysis.Module module, EntityId caller, String id, Expression body, Location where) {
       List<String> paths = new ArrayList<>();
       List<String> methods = new ArrayList<>();
       List<String> predicates = new ArrayList<>();
@@ -414,17 +450,43 @@ public final class GatewayExtractor implements Extractor {
       if (uri == null) {
         return;
       }
+      ObjectNode a = FactJson.newObject();
+      a.put("uri", uri);
+      Route.array(a, "paths", paths);
+      Route.array(a, "methods", methods);
+      Route.array(a, "predicates", predicates);
+      Route.array(a, "filters", filters);
+      Route.array(a, "filterTypes", filterTypes);
+      if (order != null) {
+        a.put("order", order);
+      }
+      a.put("configModule", module.id().toString());
+      a.put("configRepo", module.repo().repo().name());
+      put(caller, ROUTE_WRITTEN, id, a, evidence(module.repo(), where), module.confidence());
+    }
+
+    /** The routes of a route built in code, resolved in each view of its module's config. */
+    void writtenRoute(Fact written, Resolver config) {
+      JsonNode a = written.attributes();
+      String uri = a.get("uri").stringValue();
+      List<String> paths = strings(a, "paths");
+      List<String> methods = strings(a, "methods");
+      List<String> predicates = strings(a, "predicates");
+      List<String> filters = strings(a, "filters");
+      List<String> filterTypes = strings(a, "filterTypes");
+      String order = a.has("order") ? a.get("order").stringValue() : null;
+      String id = config.value(null, written.object().value()).value();
       Map<String, Route> views = new LinkedHashMap<>();
       for (String view : config.views()) {
-        CodeValue value = config.value(config.resolve(view, uri), uri);
+        CodeValue value = config.value(view, uri);
         // Paths, and the predicates they are in, resolve through config as the URI does.
         List<String> resolvedPaths = new ArrayList<>();
         for (String path : paths) {
-          resolvedPaths.add(config.value(config.resolve(view, path), path).value());
+          resolvedPaths.add(config.value(view, path).value());
         }
         List<String> resolvedPredicates = new ArrayList<>();
         for (String predicate : predicates) {
-          resolvedPredicates.add(config.value(config.resolve(view, predicate), predicate).value());
+          resolvedPredicates.add(config.value(view, predicate).value());
         }
         views.put(
             view == null ? "" : view,
@@ -439,7 +501,26 @@ public final class GatewayExtractor implements Extractor {
                 order,
                 null));
       }
-      record(caller, views, JAVA, where, module.repo(), module.confidence());
+      record(written.subject(), views, JAVA, written.evidence(), written.confidence());
+    }
+
+    private static List<String> strings(JsonNode a, String name) {
+      List<String> values = new ArrayList<>();
+      if (a.has(name)) {
+        a.get(name).forEach(v -> values.add(v.stringValue()));
+      }
+      return values;
+    }
+
+    List<Fact> sorted() {
+      return facts.values().stream()
+          .sorted(
+              Comparator.comparing((Fact f) -> f.subject().toString())
+                  .thenComparing(Fact::predicate)
+                  .thenComparing(f -> f.object().value())
+                  .thenComparing(f -> f.attributes().toString())
+                  .thenComparing(Fact::id))
+          .toList();
     }
 
     /** A filter applied in a route's {@code filters(spec -> ...)}. */
@@ -525,7 +606,7 @@ public final class GatewayExtractor implements Extractor {
     // -------------------------------------------------------------------------------------------
     // Routes in config
 
-    void configRoutes(ModuleConfig config) {
+    void configRoutes(RouteConfig config) {
       List<String> views = new ArrayList<>();
       views.add(null);
       views.addAll(config.profiles());
@@ -573,7 +654,7 @@ public final class GatewayExtractor implements Extractor {
         Location lines = whereOf.get(route.getKey());
         Evidence evidence =
             Evidence.of(
-                config.repo().repo().name(),
+                config.repo(),
                 file.path(),
                 lines == null ? null : new Evidence.LineRange(lines.start(), lines.end()),
                 file.contentHash());
@@ -589,7 +670,7 @@ public final class GatewayExtractor implements Extractor {
      * zuul.strip-prefix} is; both are recorded as the {@code StripPrefix} filter with as many
      * segments.
      */
-    void zuulRoutes(ModuleConfig config) {
+    void zuulRoutes(RouteConfig config) {
       List<String> views = new ArrayList<>();
       views.add(null);
       views.addAll(config.profiles());
@@ -686,7 +767,7 @@ public final class GatewayExtractor implements Extractor {
      * includeExpression}, {@code routeIdPrefix}, and predicates and filters that replace its
      * default ones. Recorded in the default view, and with {@code profile} where one differs.
      */
-    void locator(ModuleConfig config) {
+    void locator(RouteConfig config) {
       List<String> views = new ArrayList<>();
       views.add(null);
       views.addAll(config.profiles());
@@ -759,7 +840,7 @@ public final class GatewayExtractor implements Extractor {
      * The evidence of a group of config keys: the lines they span in the file of the first one that
      * has a line, or the file alone; null when there are none.
      */
-    private static Evidence configEvidence(ModuleConfig config, List<ConfigValue> keys) {
+    private static Evidence configEvidence(RouteConfig config, List<ConfigValue> keys) {
       if (keys == null || keys.isEmpty()) {
         return null;
       }
@@ -778,7 +859,7 @@ public final class GatewayExtractor implements Extractor {
         }
       }
       return Evidence.of(
-          config.repo().repo().name(),
+          config.repo(),
           file.path(),
           start <= end ? new Evidence.LineRange(start, end) : null,
           file.contentHash());
@@ -1053,7 +1134,7 @@ public final class GatewayExtractor implements Extractor {
               predicate,
               FactObject.string(object),
               attributes,
-              ORIGIN,
+              origin,
               evidence,
               confidence,
               validity);
@@ -1154,12 +1235,6 @@ public final class GatewayExtractor implements Extractor {
     return new ExtractorInfo(NAME, VERSION);
   }
 
-  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
-  @Override
-  public Set<String> requires() {
-    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
-  }
-
   @Override
   public CacheUnit unit() {
     return CacheUnit.SNAPSHOT;
@@ -1167,11 +1242,6 @@ public final class GatewayExtractor implements Extractor {
 
   @Override
   public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
-    sink.emitAll(
-        extract(
-            context.code(),
-            context.snapshot(),
-            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
-                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
+    sink.emitAll(extract(context.code(), context.snapshot()));
   }
 }

@@ -20,7 +20,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.StandardJavaFileManager;
@@ -74,85 +73,15 @@ class GatewayExtractorTest {
     assertThat(rendered).doesNotContain("UnusedFilter");
   }
 
+  /**
+   * Routes config defines, Zuul's and the discovery locator are read in linking from the config
+   * facts ({@code ValueViewsTest} in lantern-link); this extractor reads no config.
+   */
   @Test
-  void zuulRoutesAndTheDiscoveryLocator() throws IOException {
-    List<String> lines = Fixtures.render(extract(unbuilt(fixture()))).lines().toList();
-    String legacy = "module:com.example.edge:legacy gateway-route ";
-    assertThat(lines)
-        // A service ID: load balanced, behind the global prefix, both prefixes stripped.
-        .anyMatch(
-            l ->
-                l.startsWith(legacy + "accounts ")
-                    && l.contains("\"framework\":\"zuul\"")
-                    && l.contains("\"uri\":\"lb://account-service\"")
-                    && l.contains("\"paths\":[\"/api/accounts/**\"]")
-                    && l.contains("\"filters\":[\"StripPrefix=2\"]"))
-        // A URL, keeping its own prefix (strip-prefix: false) but not the global one.
-        .anyMatch(
-            l ->
-                l.startsWith(legacy + "auth ")
-                    && !l.contains("profile")
-                    && l.contains("\"uri\":\"http://auth-service:5000\"")
-                    && l.contains("\"filters\":[\"StripPrefix=1\"]"))
-        .anyMatch(
-            l ->
-                l.startsWith(legacy + "auth ")
-                    && l.contains("\"profile\":\"local\"")
-                    && l.contains("\"uri\":\"http://localhost:5000\""))
-        // The shorthand form: the route's name is its service.
-        .anyMatch(
-            l ->
-                l.startsWith(legacy + "statistics ")
-                    && l.contains("\"uri\":\"lb://statistics\"")
-                    && l.contains("\"paths\":[\"/api/stats/v1/**\"]")
-                    && l.contains("\"filters\":[\"StripPrefix=3\"]"))
-        // No path: /<name>/**.
-        .anyMatch(
-            l ->
-                l.startsWith(legacy + "notifications ")
-                    && l.contains("\"uri\":\"lb://notification-service\"")
-                    && l.contains("\"paths\":[\"/api/notifications/**\"]"))
-        // The discovery locator under the server.webflux prefix, with its settings.
-        .anyMatch(
-            l ->
-                l.startsWith(
-                        "module:com.example.edge:finder gateway-discovery-locator 'lb://'+serviceId ")
-                    && l.contains("\"lowerCaseServiceId\":true")
-                    && l.contains("\"includeExpression\":\"serviceId != 'finder'\"")
-                    && l.contains("finder/src/main/resources/application.yml#10-12 "))
-        // A profile that replaces its URL expression and filters.
-        .anyMatch(
-            l ->
-                l.startsWith(
-                        "module:com.example.edge:finder gateway-discovery-locator 'http://'+serviceId ")
-                    && l.contains("\"filters\":[\"StripPrefix=1\"]")
-                    && l.contains("\"profile\":\"custom\""))
-        // A path without a wildcard strips nothing, and the global prefix is kept.
-        .anyMatch(
-            l ->
-                l.startsWith("module:com.example.edge:classic gateway-route health ")
-                    && l.contains("\"uri\":\"lb://health-service\"")
-                    && l.contains("\"paths\":[\"/v2/health\"]")
-                    && !l.contains("StripPrefix"))
-        // url wins over serviceId; only the route's own prefix is stripped.
-        .anyMatch(
-            l ->
-                l.startsWith("module:com.example.edge:classic gateway-route reports ")
-                    && l.contains("\"uri\":\"http://reports:8080\"")
-                    && l.contains("\"filters\":[\"StripPrefix=1\"]"))
-        // The locator under the old prefix, its predicate in name and args form.
-        .anyMatch(
-            l ->
-                l.startsWith("module:com.example.edge:classic gateway-discovery-locator ")
-                    && !l.contains("profile")
-                    && l.contains("\"predicates\":[\"Path='/svc/'+serviceId+'/**'\"]"))
-        // A profile that turns it off says so.
-        .anyMatch(
-            l ->
-                l.startsWith("module:com.example.edge:classic gateway-discovery-locator ")
-                    && l.contains("{\"enabled\":false,\"profile\":\"prod\"}"))
-        // A gateway without the locator has no such fact.
-        .noneMatch(l -> l.startsWith("module:com.example.edge:edge gateway-discovery-locator"));
+  void noRouteIsReadFromConfig() throws IOException {
+    assertThat(Fixtures.render(extract(unbuilt(fixture()))).lines())
+        .noneMatch(l -> l.contains("\"definedIn\":\"config\""))
+        .noneMatch(l -> l.contains(" gateway-discovery-locator "));
   }
 
   @Test
@@ -235,35 +164,5 @@ class GatewayExtractorTest {
       assertThat(ok).as("the stand-ins compile").isTrue();
     }
     return classes;
-  }
-
-  @Test
-  void aRouteUriSubstitutedFromAKnownSecretKeyIsMasked() throws IOException {
-    Repo repo =
-        Fixtures.repo(
-            temp.resolve("jwt"),
-            "shop",
-            Map.of(
-                "pom.xml",
-                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
-                    + "<artifactId>shop</artifactId><version>1</version></project>\n",
-                "src/main/java/com/example/Shop.java",
-                "package com.example;\n\npublic class Shop {}\n",
-                "src/main/resources/application.properties",
-                "jwt.key=literal-test-value-0123456789abcdef\n"
-                    + "spring.cloud.gateway.server.webmvc.routes[0].id=tokened\n"
-                    + "spring.cloud.gateway.server.webmvc.routes[0].uri=http://edge/${jwt.key}\n"
-                    + "spring.cloud.gateway.server.webmvc.routes[0].predicates[0]=Path=/tokened/${jwt.key}/**\n"
-                    + "spring.cloud.gateway.server.webmvc.routes[0].filters[0]=AddRequestHeader=X-Token, ${jwt.key}\n"));
-    JavaAnalysis code =
-        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
-
-    // Without the code's keys the name alone does not show jwt.key is a secret.
-    assertThat(Fixtures.render(new GatewayExtractor().extract(code, SNAPSHOT)))
-        .contains("literal-test-value");
-    String masked =
-        Fixtures.render(
-            new GatewayExtractor().extract(code, SNAPSHOT, java.util.Set.of("jwt.key")));
-    assertThat(masked).doesNotContain("literal-test-value").contains("tokened");
   }
 }

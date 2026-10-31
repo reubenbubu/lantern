@@ -318,7 +318,10 @@ class ConfigExtractorTest {
             // A secret reached through a placeholder is masked too, in a secret's key or not.
             "module:g:app config-value ****** {\"key\":\"other.datasource.password\","
                 + "\"masked\":true} @app:src/main/resources/application.properties#11-11 1.0",
-            "module:g:app config-value ****** {\"key\":\"db.url\",\"masked\":true}"
+            // Masked for the secret its placeholder brings in; the text as written, without the
+            // query, holds none, so it is kept for linking (ADR 0094).
+            "module:g:app config-value ******"
+                + " {\"key\":\"db.url\",\"masked\":true,\"written\":\"jdbc:postgresql://db/shop\"}"
                 + " @app:src/main/resources/application.properties#12-12 1.0",
             "module:g:app config-value order.created {\"key\":\"shop.routing-key\"}"
                 + " @app:src/main/resources/application.properties#5-5 1.0",

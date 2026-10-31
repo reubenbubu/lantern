@@ -58,8 +58,10 @@ public final class CodeValues {
     }
   }
 
-  /** One key's value in one view, as written, and whether the config extractor masked it. */
-  private record Entry(String written, boolean masked) {}
+  /**
+   * One key's value in one view, as written, whether the config extractor masked it, and its fact.
+   */
+  private record Entry(String written, boolean masked, Fact fact) {}
 
   /** A module's own config: each view's entries by key, the default view under null. */
   private record Config(Map<String, Map<String, Entry>> views, SortedSet<String> profiles) {}
@@ -84,7 +86,7 @@ public final class CodeValues {
       // A value masked whole is a secret; one that only lost credentials in a URL is not.
       boolean masked = f.object().value().equals(ConfigExtractor.MASK);
       String written = text(f, "written");
-      Entry entry = new Entry(written != null ? written : f.object().value(), masked);
+      Entry entry = new Entry(written != null ? written : f.object().value(), masked, f);
       views
           .computeIfAbsent(f.subject(), m -> new HashMap<>())
           .computeIfAbsent(profile, p -> new HashMap<>())
@@ -133,6 +135,31 @@ public final class CodeValues {
         all.addAll(config.profiles());
       }
       return all;
+    }
+
+    /**
+     * The module's {@code config-value} facts that hold with a profile active (null for the default
+     * view), by key: the default view's overlaid with the profile's, a list the profile sets
+     * replacing the default's whole.
+     */
+    public java.util.SortedMap<String, Fact> facts(String profile) {
+      java.util.SortedMap<String, Fact> facts = new java.util.TreeMap<>();
+      if (config == null) {
+        return facts;
+      }
+      Map<String, Entry> inProfile =
+          profile == null ? Map.of() : config.views().getOrDefault(profile, Map.of());
+      config
+          .views()
+          .getOrDefault(null, Map.of())
+          .forEach(
+              (key, e) -> {
+                if (!inProfile.containsKey(key) && !replaced(inProfile, key)) {
+                  facts.put(key, e.fact());
+                }
+              });
+      inProfile.forEach((key, e) -> facts.put(key, e.fact()));
+      return facts;
     }
 
     /**
@@ -186,6 +213,21 @@ public final class CodeValues {
       }
       return new Value(r.value(), written, r.unresolved(), false);
     }
+  }
+
+  /** The modules that have config of their own, in the order of their IDs. */
+  public List<EntityId> modules() {
+    return modules.keySet().stream().sorted(LinkIndex.BY_TEXT).toList();
+  }
+
+  /** The repository of a module's own config, or null if it has none. */
+  public String repoOf(EntityId module) {
+    for (Map.Entry<String, List<EntityId>> e : modulesOfRepo.entrySet()) {
+      if (e.getValue().contains(module)) {
+        return e.getKey();
+      }
+    }
+    return null;
   }
 
   /**

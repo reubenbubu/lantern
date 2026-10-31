@@ -9,10 +9,12 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The attributes of a fact of the type {@code gateway-route}. A Spring Cloud Gateway route:
  * requests matching its predicates go, through its filters, to its URI. The value is the route's
- * id. The subject is the method that builds it with RouteLocatorBuilder, or the module whose config
- * (spring.cloud.gateway.routes, or the server.webflux, server.webmvc or mvc forms, or Netflix
- * Zuul's zuul.routes) defines it. Placeholders in the URI are resolved against the config of the
- * module; values are those of the default view unless profile is set.
+ * id. Linking records it, resolving a route built in code (gateway-route-written) or reading one
+ * config defines from the config facts, in each view (ADR 0094). The subject is the method that
+ * builds it with RouteLocatorBuilder, or the module whose config (spring.cloud.gateway.routes, or
+ * the server.webflux, server.webmvc or mvc forms, or Netflix Zuul's zuul.routes) defines it.
+ * Placeholders in the URI are resolved against the config of the module; values are those of the
+ * default view unless profile is set.
  *
  * @param definedIn Key. Where the route is defined: in code, with RouteLocatorBuilder, or in
  *     config.

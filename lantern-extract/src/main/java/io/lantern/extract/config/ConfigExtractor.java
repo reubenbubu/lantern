@@ -49,7 +49,7 @@ public final class ConfigExtractor implements Extractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "8";
+  public static final String VERSION = "9";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
@@ -415,6 +415,14 @@ public final class ConfigExtractor implements Extractor {
         || object.contains(CIPHER)) {
       object = MASK;
       attributes.put("masked", true);
+      if (!isSecret(value.key(), known)
+          && !mayHoldCredential(written)
+          && !written.contains(CIPHER)
+          && !written.equals(object)) {
+        // Masked only for the secret its placeholders bring in: the text as written holds none,
+        // and linking resolves code values from it (ADR 0094, #558).
+        attributes.put("written", written);
+      }
     } else {
       if (!object.equals(value.value()) || !written.equals(value.written())) {
         // Credentials written inside a URL were removed.

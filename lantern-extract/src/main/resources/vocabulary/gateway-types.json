@@ -3,7 +3,7 @@
     "name": "gateway-route",
     "kind": "attribute",
     "keyAttributes": ["definedIn", "filterTypes", "filters", "framework", "methods", "order", "paths", "predicates", "uri"],
-    "description": "A Spring Cloud Gateway route: requests matching its predicates go, through its filters, to its URI. The value is the route's id. The subject is the method that builds it with RouteLocatorBuilder, or the module whose config (spring.cloud.gateway.routes, or the server.webflux, server.webmvc or mvc forms, or Netflix Zuul's zuul.routes) defines it. Placeholders in the URI are resolved against the config of the module; values are those of the default view unless profile is set.",
+    "description": "A Spring Cloud Gateway route: requests matching its predicates go, through its filters, to its URI. The value is the route's id. Linking records it, resolving a route built in code (gateway-route-written) or reading one config defines from the config facts, in each view (ADR 0094). The subject is the method that builds it with RouteLocatorBuilder, or the module whose config (spring.cloud.gateway.routes, or the server.webflux, server.webmvc or mvc forms, or Netflix Zuul's zuul.routes) defines it. Placeholders in the URI are resolved against the config of the module; values are those of the default view unless profile is set.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -22,6 +22,29 @@
         "profile": { "type": "string", "description": "The profile active instead of the default one when the route was read. Absent for the default view; present only where the route differs from it." }
       },
       "required": ["definedIn"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "gateway-route-written",
+    "kind": "attribute",
+    "keyAttributes": ["configModule", "configRepo", "filterTypes", "filters", "methods", "order", "paths", "predicates", "uri"],
+    "description": "A Spring Cloud Gateway route built in code with RouteLocatorBuilder, as written: the subject is the method that builds it, the value its id as written (route-1, route-2 ... for one without). Linking resolves it in each view of the config of configModule into its gateway-route facts (ADR 0094, #558).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "uri": { "type": "string", "description": "The URI as written, with its placeholders." },
+        "paths": { "type": "array", "items": { "type": "string" }, "description": "The Path predicates' patterns, as written." },
+        "methods": { "type": "array", "items": { "type": "string" }, "description": "The Method predicates' methods, in upper case." },
+        "predicates": { "type": "array", "items": { "type": "string" }, "description": "Every predicate, as written, in the shortcut form." },
+        "filters": { "type": "array", "items": { "type": "string" }, "description": "Every filter, in the shortcut form, or a filter class's simple name." },
+        "filterTypes": { "type": "array", "items": { "type": "string" }, "description": "The binary names of the filter classes it applies." },
+        "order": { "type": "string", "description": "The order, as written." },
+        "configModule": { "type": "string", "description": "The entity ID of the module whose config resolves its values." },
+        "configRepo": { "type": "string", "description": "The repository of configModule." }
+      },
+      "required": ["uri", "configModule", "configRepo"],
       "additionalProperties": false
     },
     "objectKind": "string"
