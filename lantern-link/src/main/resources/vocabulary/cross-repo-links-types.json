@@ -128,7 +128,7 @@
       "type": "object",
       "properties": {
         "profile": { "type": "string", "description": "The profile whose config gives this literal; absent for the default view." },
-        "facts": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the config-value facts the expression was resolved with." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The IDs of the config-value facts the expression was resolved with and, in a deployment's view, of the deployment-container fact." },
         "deployment": { "type": "string", "description": "The deployment whose environment gives this literal: <repository>|<platform>|<environment>[|<compose file>]|<container>; absent for the default view and a profile's." },
         "exceptDeployments": { "type": "array", "items": { "type": "string" }, "description": "On the default view's fact, the deployments whose environment gives another literal or none." },
         "exceptProfiles": { "type": "array", "items": { "type": "string" }, "description": "On the default view's fact, the profiles whose config gives another literal or none." },

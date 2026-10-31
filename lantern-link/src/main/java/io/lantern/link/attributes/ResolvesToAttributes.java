@@ -24,7 +24,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     environment gives another literal or none.
  * @param exceptProfiles Descriptive. On the default view's fact, the profiles whose config gives
  *     another literal or none.
- * @param facts Descriptive. The IDs of the config-value facts the expression was resolved with.
+ * @param facts Descriptive. The IDs of the config-value facts the expression was resolved with and,
+ *     in a deployment's view, of the deployment-container fact.
  * @param profile Key. The profile whose config gives this literal; absent for the default view.
  * @param resolved Descriptive. The expression as config resolved it, when that is not the literal's
  *     own key: a URL whose address is its host, or a JDBC URL whose address is its server.

@@ -52,11 +52,26 @@ final class EnvironmentValues {
    * @param config the config fact of a key in the view the deployment overlays, or null
    */
   static Filled filled(Container c, String written, Function<String, Fact> config) {
+    return filled(c, written, config, key -> false);
+  }
+
+  /**
+   * As {@link #filled(Container, String, Function)}, a key that names a secret also making the
+   * value a secret's, as value resolution's other views take it ({@link CodeValues}).
+   */
+  static Filled filled(
+      Container c,
+      String written,
+      Function<String, Fact> config,
+      java.util.function.Predicate<String> secretKey) {
     boolean[] used = {false};
     boolean[] secret = {false};
     Set<Fact> facts = new LinkedHashSet<>();
     Function<String, String> lookup =
         key -> {
+          if (secretKey.test(key)) {
+            secret[0] = true;
+          }
           String value = env(c, key);
           if (value != null && !value.isBlank()) {
             used[0] = true;

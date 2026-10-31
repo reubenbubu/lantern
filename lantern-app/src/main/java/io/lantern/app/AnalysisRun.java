@@ -351,7 +351,8 @@ public final class AnalysisRun {
           new GitSourceFiles(name -> Optional.ofNullable(registered.get(name)).map(Repo::path))
               .withSecretKeys(secretKeys);
       // The summaries read the facts the extractors recorded before they kept values as written:
-      // the first link step's values resolved per view (ADR 0094), derived here as linking will.
+      // value resolution's facts per profile (ADR 0094), derived here as linking does; its views
+      // of deployments need the units, which linking derives later, and summaries do not read them.
       List<Fact> resolved = new ValueResolution().derive(extracted, snapshot.number());
       List<Fact> summarizable = new ArrayList<>(extracted);
       summarizable.addAll(resolved);

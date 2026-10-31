@@ -173,11 +173,14 @@ final class Literals {
         String base = activeProfile(c, config);
         CodeValues.Value inBase = config.value(base, written);
         EnvironmentValues.Filled filled =
-            EnvironmentValues.filled(c, written, key -> config.facts(base).get(key));
+            EnvironmentValues.filled(
+                c, written, key -> config.facts(base).get(key), config::isSecret);
         Literal literal;
         if (filled == null) {
           // The environment sets nothing the value uses: as in the profile it activates.
-          literal = resolved(inBase) ? literal(s, inBase.value(), inBase.facts(), scheme) : null;
+          SortedSet<String> used = new TreeSet<>(inBase.facts());
+          used.add(c.fact().id());
+          literal = resolved(inBase) ? literal(s, inBase.value(), used, scheme) : null;
         } else if (filled.value().contains("${") || filled.value().equals(written)) {
           literal = null;
         } else {

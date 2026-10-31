@@ -43,6 +43,8 @@ class Project8ValuesIT {
   private static final String LOCAL_COMPOSE =
       "fleetcare-deploy|compose|local|docker-compose.local.yml|";
 
+  private static List<Fact> extracted;
+
   private static List<Fact> derived;
 
   @BeforeAll
@@ -69,6 +71,7 @@ class Project8ValuesIT {
     facts.addAll(new PersistenceExtractor().extract(code, 1));
     facts.addAll(new DeploymentExtractor().extract(repos, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
+    extracted = facts;
     derived = new ValueResolution().derive(facts, 1);
   }
 
@@ -108,6 +111,20 @@ class Project8ValuesIT {
             f ->
                 assertThat(TestAttributes.texts(f, "exceptDeployments"))
                     .containsExactly(LOCAL_COMPOSE + "billing-service"));
+    // The deployment's literal comes from the profile it activates, and cites its container too.
+    Fact local =
+        resolutions("address:io.fleetcare:billing-service:${paygrid.base-url}").stream()
+            .filter(f -> TestAttributes.text(f, "deployment") != null)
+            .findFirst()
+            .get();
+    assertThat(TestAttributes.texts(local, "facts"))
+        .anyMatch(
+            id ->
+                extracted.stream()
+                    .anyMatch(
+                        f ->
+                            f.id().equals(id)
+                                && f.predicate().equals(DeploymentExtractor.DEPLOYMENT_CONTAINER)));
   }
 
   @Test
@@ -128,12 +145,83 @@ class Project8ValuesIT {
   }
 
   @Test
-  void anExpressionThatIsNotConfigsResolvesInNoView() {
-    // A URL whose start the code computes ({basePath}, #516 item 8) is no deployment's to fill.
+  void onlyExpressionsWithPlaceholdersResolve() {
     assertThat(derived)
         .filteredOn(f -> f.predicate().equals(ValueResolution.RESOLVES_TO))
         .filteredOn(f -> !f.subject().toString().contains("${"))
         .isEmpty();
+  }
+
+  @Test
+  void everyDatasourceADeploymentRunsResolvesToItsServerThere() {
+    List<String> addresses =
+        extracted.stream()
+            .filter(f -> f.predicate().equals(PersistenceExtractor.CONNECTS_TO))
+            .map(f -> f.object().value())
+            .filter(a -> a.contains("${"))
+            .distinct()
+            .toList();
+    List<String> scoped =
+        derived.stream()
+            .filter(f -> f.predicate().equals(PersistenceExtractor.CONNECTS_TO))
+            .map(f -> f.object().value())
+            .filter(a -> a.contains("${"))
+            .distinct()
+            .toList();
+    List<String> all = new ArrayList<>(addresses);
+    scoped.stream().filter(a -> !all.contains(a)).forEach(all::add);
+    assertThat(all).isNotEmpty();
+    for (String address : all) {
+      // In the compose deployment, a container of the set's own: never this machine.
+      assertThat(resolutions(address))
+          .as(address)
+          .filteredOn(f -> TestAttributes.text(f, "deployment") != null)
+          .isNotEmpty()
+          .allMatch(f -> !f.object().value().startsWith("address:localhost"));
+    }
+  }
+
+  @Test
+  void theBindingsPickedByQualifierHoldInEveryView() {
+    // #516, item 1: the direct, fanout and headers exchanges' queues, bound by @Qualifier.
+    List<String> bindings =
+        derived.stream()
+            .filter(f -> f.predicate().equals(MessagingExtractor.BINDING))
+            .filter(f -> f.subject().toString().contains("NotificationRabbitConfiguration"))
+            .map(
+                f ->
+                    f.object().value()
+                        + " "
+                        + TestAttributes.text(f, "exchange")
+                        + " "
+                        + TestAttributes.text(f, "profile"))
+            .toList();
+    assertThat(bindings)
+        .contains(
+            "notification.commands notification.commands null",
+            "notification.broadcast.all notification.broadcast null",
+            "notification.priority notification.headers null")
+        .allMatch(b -> b.endsWith(" null"));
+  }
+
+  @Test
+  void aUrlFollowedFromAUriFieldKeepsItsPlaceholdersInEveryView() {
+    // #516, item 7: PartnerStatusClient's "https://" + host, followed from its URI field; no
+    // config or deployment sets the host, so no view resolves it.
+    String address = "address:io.fleetcare:billing-service:https://${accounting.status-host}";
+    assertThat(extracted)
+        .anyMatch(
+            f ->
+                f.predicate().equals(HttpClientExtractor.ADDRESSED_TO)
+                    && f.object().value().equals(address));
+    assertThat(
+            derived.stream()
+                .filter(f -> f.predicate().equals(HttpClientExtractor.HTTP_CALL))
+                .filter(f -> f.subject().toString().contains("PartnerStatusClient#fetch"))
+                .map(f -> f.object().value()))
+        .isNotEmpty()
+        .allMatch(call -> call.startsWith("GET https://${accounting.status-host}/"));
+    assertThat(resolutions(address)).isEmpty();
   }
 
   private static List<Fact> resolutions(String entity) {

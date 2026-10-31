@@ -166,20 +166,25 @@ placeholder's default.
   read its facts.
 - For each expression-keyed destination or address and each container that runs its unit, it
   resolves the expression with the container's environment over the config of the profile the
-  container makes active (`SPRING_PROFILES_ACTIVE`, when it names one of the module's profiles),
-  else the default view. Where the environment sets nothing the expression uses, the deployment's
+  container makes active (`SPRING_PROFILES_ACTIVE`, when it names exactly one of the module's
+  profiles), else the default view. A container that activates several of them falls back to the
+  default view: overlaying them in Spring's order is left until a test set needs it. Where the environment sets nothing the expression uses, the deployment's
   literal is that profile's.
 - A deployment whose literal is not the default view's gets its own claim, with the key attribute
   `deployment`: `<repository>|<platform>|<environment>[|<compose file>]|<container>`. The default
   view's claim lists those deployments in `exceptDeployments`, descriptive like `exceptProfiles`;
   #590 merges `profile` and `deployment` into `view`, and both lists into `absentIn`.
 - A deployment's claim cites the config values used and the container's `deployment-container`
-  fact. Deployment environments never hold secrets (the deployment extractor leaves them out).
+  fact, also when the literal comes from the profile the container activates. Deployment
+  environments hold no secrets (the deployment extractor leaves them out), and a value that uses a
+  key naming a secret is not resolved in a deployment's view, as in the others.
 - Filling from an environment lives in one place, `EnvironmentValues`: address matching
   (`Addresses`, ADR 0042) and the placing of datasources (`Deployments.place`) call it instead of
   filling placeholders themselves. Until address resolution (#589) moves the matchers onto the
   claims, they call it per container as before, so every link is unchanged.
 - The rules carried from #516 hold in every view: a list a profile sets replaces the default's
-  whole (`CodeValues`), and no base URL goes before a URL whose start the code computes, which no
-  view resolves (`Project8ValuesIT`).
+  whole (`CodeValues`), and no base URL goes before a URL whose start the code computes. On
+  project-8, `Project8ValuesIT` checks #516's routes, bindings, the followed `URI` field and the
+  datasources in every view; the generated client of item 8 exists only after a build, and the
+  real run's facts show its call unchanged in every view (#588's PR).
 

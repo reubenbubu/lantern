@@ -79,8 +79,6 @@ final class Deployments {
   record Placed(
       Container unit, Container server, String address, String database, boolean guessed) {}
 
-  /** Placeholders in config as written: {@code ${key}} or {@code ${key:default}}. */
-
   /** Words a database name shares with any service's config, so they tie nothing. */
   private static final Set<String> GENERIC =
       Set.of(
