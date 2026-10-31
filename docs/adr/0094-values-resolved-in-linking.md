@@ -21,7 +21,8 @@ step against. The owner set the order #519, #521, #522 on 2026-10-31.
   - HTTP requests and addresses (#557);
   - gateway routes (#558);
   - message destinations (#559);
-  - datasources and data config (#560);
+  - datasources and data stores (#560);
+  - the data config joined with code: JPA naming, Redis and SQL settings (#567);
   - endpoints and Spring's scheduled values (#519 itself), which closes the issue.
 
   Each slice makes one kind of fact keep its values as written and moves resolving it to the
@@ -83,7 +84,11 @@ relationships to destination entities with their values as written, Spring Cloud
 and bindings are recorded as the code names them, and the step resolves and binds them through the
 messaging extractor's own code, with the module's config read from its facts. STOMP pushes become
 relationships to destinations too (ADR 0080, amendment for #559). #522 replaces the step's facts
-with `RESOLVES_TO` claims, and the readers move to the entities with #521.
+with `RESOLVES_TO` claims, and the readers move to the entities with #521. Datasources and data
+stores are the fourth (ADR 0036, amendment for #560): read in the step from the config facts
+through the persistence extractor's reading, each a `data-source` entity connected to its address
+as written. The JPA naming strategy, Redis's settings and the SQL settings, which join config with
+code or SQL files, follow in #567.
 
 Extraction coverage counts the step's facts as their extractor's (ADR 0089, amendment for #558; the messaging and STOMP facts from #559).
 

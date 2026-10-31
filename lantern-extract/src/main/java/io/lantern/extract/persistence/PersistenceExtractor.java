@@ -19,6 +19,7 @@ import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
 import io.lantern.extract.config.ModuleConfig;
+import io.lantern.extract.config.ModuleValues;
 import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
@@ -76,7 +77,7 @@ public final class PersistenceExtractor implements Extractor {
   public static final String NAME = "persistence";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "5";
+  public static final String VERSION = "6";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "persistence-extractor";
@@ -109,6 +110,15 @@ public final class PersistenceExtractor implements Extractor {
 
   /** The name of the attribute type of a non-relational store a module's config connects to. */
   public static final String DATA_STORE = "data-store";
+
+  /** Entity: a datasource or other data store a module's config connects it to (#560). */
+  public static final String DATASOURCE_ENTITY = "data-source";
+
+  /** Relationship: the subject module's config sets up the object datasource. */
+  public static final String HAS_DATASOURCE = "HAS_DATASOURCE";
+
+  /** Relationship: the subject datasource connects to the object address, as written. */
+  public static final String CONNECTS_TO = "CONNECTS_TO";
 
   private static final String RESOURCE = "/vocabulary/persistence-types.json";
 
@@ -335,20 +345,8 @@ public final class PersistenceExtractor implements Extractor {
    * @throws IllegalStateException if git fails or times out while reading config
    */
   public List<Fact> extract(JavaAnalysis code, long snapshot) {
-    return extract(code, snapshot, Set.of());
-  }
-
-  /**
-   * As {@link #extract(JavaAnalysis, long)}, masking the values of config keys known to hold a
-   * secret whatever they are called (ADR 0032, amendment for #338).
-   *
-   * @param secretKeys config keys known to hold a secret, such as {@link
-   *     ConfigExtractor#jwtSecretKeys}
-   */
-  public List<Fact> extract(JavaAnalysis code, long snapshot, Set<String> secretKeys) {
     Objects.requireNonNull(code, "code");
-    Objects.requireNonNull(secretKeys, "secretKeys");
-    Run run = new Run(code, Validity.from(snapshot), ConfigExtractor.normalizedKeys(secretKeys));
+    Run run = new Run(code, Validity.from(snapshot), Set.of());
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       run.executor = executor;
       Set<RepoBuild> repos = new LinkedHashSet<>();
@@ -362,10 +360,6 @@ public final class PersistenceExtractor implements Extractor {
         run.module(module);
       }
       for (RepoBuild repo : repos) {
-        for (ModuleConfig config : configs.get(repo)) {
-          run.datasources(config);
-          run.stores(config);
-        }
         run.mappers(repo);
       }
     }
@@ -389,6 +383,7 @@ public final class PersistenceExtractor implements Extractor {
     private final Map<String, Fact> facts = new LinkedHashMap<>();
     private ExecutorService executor;
     private final Set<String> known;
+    private Origin origin = ORIGIN;
 
     /** The physical naming strategy each module's config sets, by module. */
     private final Map<EntityId, String> namingStrategies = new HashMap<>();
@@ -790,7 +785,7 @@ public final class PersistenceExtractor implements Extractor {
      * Elasticsearch, Cassandra, Neo4j, Couchbase) its keys connect it to, in the default view and
      * where a profile differs.
      */
-    void stores(ModuleConfig config) {
+    void stores(ModuleValues config) {
       Map<String, Datasource> defaults = new TreeMap<>();
       for (Datasource d : stores(config, null)) {
         defaults.put(d.key(), d);
@@ -808,7 +803,7 @@ public final class PersistenceExtractor implements Extractor {
       }
     }
 
-    private List<Datasource> stores(ModuleConfig config, String profile) {
+    private List<Datasource> stores(ModuleValues config, String profile) {
       Map<String, ConfigValue> relaxed = new TreeMap<>();
       for (ConfigValue v : config.values(profile).values()) {
         relaxed.putIfAbsent(v.key().replace("-", "").replace("_", "").toLowerCase(Locale.ROOT), v);
@@ -922,7 +917,7 @@ public final class PersistenceExtractor implements Extractor {
      * {@code datasource} facts for a module's config: every datasource URL of the default view, and
      * those that differ with a profile active.
      */
-    void datasources(ModuleConfig config) {
+    void datasources(ModuleValues config) {
       SortedMap<String, Datasource> defaults = datasources(config, null);
       defaults.values().forEach(d -> datasource(config, d, null));
       for (String profile : config.profiles()) {
@@ -948,7 +943,7 @@ public final class PersistenceExtractor implements Extractor {
     private record Datasource(
         String key, String value, ObjectNode attributes, ConfigValue.Where where) {}
 
-    private SortedMap<String, Datasource> datasources(ModuleConfig config, String profile) {
+    private SortedMap<String, Datasource> datasources(ModuleValues config, String profile) {
       SortedMap<String, ConfigValue> values = config.values(profile);
       SortedMap<String, Datasource> found = new TreeMap<>();
       for (ConfigValue v : values.values()) {
@@ -1014,12 +1009,12 @@ public final class PersistenceExtractor implements Extractor {
       return null;
     }
 
-    private void datasource(ModuleConfig config, Datasource d, String profile) {
+    private void datasource(ModuleValues config, Datasource d, String profile) {
       datasourceFact(config, DATASOURCE, d, profile);
     }
 
     private void datasourceFact(
-        ModuleConfig config, String predicate, Datasource d, String profile) {
+        ModuleValues config, String predicate, Datasource d, String profile) {
       ObjectNode attributes = FactJson.newObject();
       attributes.put("key", d.key());
       if (profile != null) {
@@ -1036,20 +1031,179 @@ public final class PersistenceExtractor implements Extractor {
       ConfigValue.Where where = d.where();
       Evidence evidence =
           Evidence.of(
-              config.repo().repo().name(),
+              config.repo(),
               where.path(),
               where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
-              where.contentHash());
+              where.contentHash().isEmpty() ? null : where.contentHash());
       add(
           Fact.create(
               config.module(),
               predicate,
               FactObject.string(d.value()),
               attributes,
-              ORIGIN,
+              origin,
               evidence,
               1.0,
               validity));
+    }
+
+    /**
+     * The datasource entities of a module's config: one per key that is a datasource or data
+     * store's in any view, {@code datasource:<module>:<key>}, connected to the address of its URL
+     * as written, read from the values as written: {@code address:<host:port>} for a host written
+     * out, or {@code address:<module>:<server as written>} for one config resolves.
+     */
+    void entities(ModuleValues config) {
+      ModuleValues written = asWritten(config);
+      List<String> views = new ArrayList<>();
+      views.add(null);
+      views.addAll(config.profiles());
+      Set<String> seen = new HashSet<>();
+      for (String view : views) {
+        List<Datasource> found = new ArrayList<>(datasources(config, view).values());
+        found.addAll(stores(config, view));
+        Map<String, Datasource> asWritten = new HashMap<>(datasources(written, view));
+        stores(written, view).forEach(d -> asWritten.putIfAbsent(d.key(), d));
+        for (Datasource resolved : found) {
+          // The same datasource read from the values as written, for its URL and server as
+          // written; a URL whose kind only its value tells is taken whole.
+          Datasource d = asWritten.get(resolved.key());
+          ConfigValue main = config.values(view).get(resolved.key());
+          String whole = main == null ? "" : main.written().strip();
+          if (d != null
+              && resolved.attributes().has("server")
+              && (!d.attributes().has("server") || onePlaceholder(whole))) {
+            // A URL that is one placeholder (${MONGODB_URI:mongodb://localhost/shop}): its
+            // address is the text as written, the module's own, never the default's host.
+            d = null;
+          }
+          if (d == null) {
+            ConfigValue v = config.values(view).get(resolved.key());
+            String text =
+                UrlCredentials.withoutCredentials(
+                    v == null ? resolved.value() : v.written().strip());
+            ObjectNode a = FactJson.newObject();
+            resolved.attributes().properties().forEach(e -> a.set(e.getKey(), e.getValue()));
+            a.remove("server");
+            if (resolved.attributes().has("server")) {
+              a.put("server", text);
+            }
+            d =
+                new Datasource(
+                    resolved.key(),
+                    ConfigExtractor.MASK.equals(resolved.value()) ? ConfigExtractor.MASK : text,
+                    a,
+                    resolved.where());
+          }
+          EntityId datasource =
+              io.lantern.extract.EntityKeys.of(
+                  DATASOURCE_ENTITY, config.module().key() + ":" + d.key());
+          Evidence evidence = evidence(config, d.where());
+          ObjectNode has = FactJson.newObject();
+          has.put("key", d.key());
+          if (seen.add(HAS_DATASOURCE + " " + datasource + " " + has))
+            add(
+                Fact.create(
+                    config.module(),
+                    HAS_DATASOURCE,
+                    FactObject.entity(datasource),
+                    has,
+                    origin,
+                    evidence,
+                    1.0,
+                    validity));
+          JsonNode server = d.attributes().get("server");
+          if (server == null || server.stringValue().isBlank()) {
+            continue;
+          }
+          String host = server.stringValue();
+          EntityId address =
+              io.lantern.extract.EntityKeys.of(
+                  "address",
+                  host.contains("${")
+                      ? config.module().key() + ":" + host
+                      : host.toLowerCase(Locale.ROOT));
+          ObjectNode connects = FactJson.newObject();
+          if (!d.value().equals(ConfigExtractor.MASK)) {
+            connects.put("url", d.value());
+          }
+          if (seen.add(CONNECTS_TO + " " + datasource + " " + address + " " + connects))
+            add(
+                Fact.create(
+                    datasource,
+                    CONNECTS_TO,
+                    FactObject.entity(address),
+                    connects,
+                    origin,
+                    evidence,
+                    1.0,
+                    validity));
+        }
+      }
+    }
+
+    /** Whether a text is one {@code ${...}} placeholder, with or without a default. */
+    private static boolean onePlaceholder(String text) {
+      if (!text.startsWith("${") || !text.endsWith("}")) {
+        return false;
+      }
+      int depth = 0;
+      for (int i = 0; i < text.length(); i++) {
+        if (text.startsWith("${", i)) {
+          depth++;
+          i++;
+        } else if (text.charAt(i) == '}' && --depth == 0) {
+          return i == text.length() - 1;
+        }
+      }
+      return false;
+    }
+
+    private static Evidence evidence(ModuleValues config, ConfigValue.Where where) {
+      return Evidence.of(
+          config.repo(),
+          where.path(),
+          where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
+          where.contentHash().isEmpty() ? null : where.contentHash());
+    }
+
+    /** A module's config with each value as written: placeholders kept, nothing resolved. */
+    private static ModuleValues asWritten(ModuleValues config) {
+      return new ModuleValues() {
+        @Override
+        public EntityId module() {
+          return config.module();
+        }
+
+        @Override
+        public String repo() {
+          return config.repo();
+        }
+
+        @Override
+        public List<String> profiles() {
+          return config.profiles();
+        }
+
+        @Override
+        public SortedMap<String, ConfigValue> values(String view) {
+          SortedMap<String, ConfigValue> written = new TreeMap<>();
+          config
+              .values(view)
+              .forEach(
+                  (key, v) ->
+                      written.put(
+                          key,
+                          new ConfigValue(
+                              v.key(),
+                              v.written(),
+                              v.written(),
+                              new java.util.TreeSet<>(),
+                              v.used(),
+                              v.where())));
+          return written;
+        }
+      };
     }
 
     private void add(Fact fact) {
@@ -1164,15 +1318,40 @@ public final class PersistenceExtractor implements Extractor {
     }
   }
 
+  /**
+   * The datasources and data stores linking gives from each module's config (ADR 0094, #560): the
+   * {@value #DATASOURCE} and {@value #DATA_STORE} facts this extractor recorded before it stopped
+   * reading config, the default view's and each differing profile's; and for each, a {@value
+   * #DATASOURCE_ENTITY} entity its module {@value #HAS_DATASOURCE}, which {@value #CONNECTS_TO} the
+   * address of its URL as written.
+   *
+   * @param configs the config of each module
+   * @param secretKeys config keys known to hold a secret
+   * @param origin the origin of the facts
+   * @param snapshot the snapshot number the facts hold from
+   */
+  public static List<Fact> datasources(
+      List<ModuleValues> configs, Set<String> secretKeys, Origin origin, long snapshot) {
+    Run run = new Run(null, Validity.from(snapshot), ConfigExtractor.normalizedKeys(secretKeys));
+    run.origin = origin;
+    for (ModuleValues config : configs) {
+      run.datasources(config);
+      run.stores(config);
+      run.entities(config);
+    }
+    return run.facts.values().stream()
+        .sorted(
+            Comparator.comparing((Fact f) -> f.subject().toString())
+                .thenComparing(Fact::predicate)
+                .thenComparing(f -> f.object().value())
+                .thenComparing(f -> f.attributes().toString())
+                .thenComparing(Fact::id))
+        .toList();
+  }
+
   @Override
   public ExtractorInfo info() {
     return new ExtractorInfo(NAME, VERSION);
-  }
-
-  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
-  @Override
-  public Set<String> requires() {
-    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
   }
 
   @Override
@@ -1182,11 +1361,6 @@ public final class PersistenceExtractor implements Extractor {
 
   @Override
   public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
-    sink.emitAll(
-        extract(
-            context.code(),
-            context.snapshot(),
-            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
-                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
+    sink.emitAll(extract(context.code(), context.snapshot()));
   }
 }

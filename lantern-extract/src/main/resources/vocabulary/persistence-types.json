@@ -3,7 +3,7 @@
     "name": "datasource",
     "kind": "attribute",
     "keyAttributes": ["key"],
-    "description": "A datasource URL in the subject module's config, such as jdbc:postgresql://shop-db:5432/shop, without credentials (no user or password before the host, and no user, password or other secret property), by default or with the attribute profile active. Placeholders that cannot be resolved stay as ${KEY}.",
+    "description": "A datasource URL in the subject module's config, such as jdbc:postgresql://shop-db:5432/shop, without credentials (no user or password before the host, and no user, password or other secret property), by default or with the attribute profile active. Placeholders that cannot be resolved stay as ${KEY}. Linking records it from the config facts, through the persistence extractor's reading of config (ADR 0094, #560).",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -85,7 +85,7 @@
     "name": "data-store",
     "kind": "attribute",
     "keyAttributes": ["key"],
-    "description": "A non-relational store the subject module's config connects it to (MongoDB, Elasticsearch, Cassandra, Neo4j or Couchbase), by default or with the attribute profile active: its URI without credentials, or one made of the host, port and database keys (such as mongodb://localhost:27017/shop). Placeholders that cannot be resolved stay as ${KEY}.",
+    "description": "A non-relational store the subject module's config connects it to (MongoDB, Elasticsearch, Cassandra, Neo4j or Couchbase), by default or with the attribute profile active: its URI without credentials, or one made of the host, port and database keys (such as mongodb://localhost:27017/shop). Placeholders that cannot be resolved stay as ${KEY}. Linking records it from the config facts, through the persistence extractor's reading of config (ADR 0094, #560).",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -101,5 +101,38 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "data-source",
+    "kind": "entity",
+    "description": "A datasource or other data store a module's config connects it to (ADR 0094, #560): the module's key, ':' and the config key of its URL (or of its host, or database), such as com.acme:orders:spring.datasource.url. Linking records it from the config facts. (The datasource attribute type, which documents read until #521, keeps that name.)",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "HAS_DATASOURCE",
+    "kind": "relationship",
+    "keyAttributes": ["key"],
+    "description": "The subject module's config sets up the object datasource, in the default view or a profile; linking records it from the config facts, beside the module's datasource or data-store facts, which say its technology in each view (ADR 0094, #560).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "The config key of the datasource's URL, host or database." }
+      },
+      "required": ["key"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "CONNECTS_TO",
+    "kind": "relationship",
+    "keyAttributes": ["url"],
+    "description": "The subject datasource connects to the object address, its server as config writes it, in some view: address:<host:port> for a host written out, or the module's key, ':' and the server as written when config resolves it (address:com.acme:orders:${db.host}:5432). One fact for each server the views write. Linking resolves the address in each view (ADR 0094, #560).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "description": "The URL as written, without credentials, with its placeholders; absent when it is masked." }
+      },
+      "additionalProperties": false
+    }
   }
 ]

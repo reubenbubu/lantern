@@ -38,6 +38,10 @@ const VALUE_AREAS = {
   'message-binding': 'messaging',
   'message-destination': 'messaging',
   'stomp-send': 'websocket',
+  datasource: 'persistence',
+  'data-store': 'persistence',
+  HAS_DATASOURCE: 'persistence',
+  CONNECTS_TO: 'persistence',
 };
 
 export function areaOf(fact) {

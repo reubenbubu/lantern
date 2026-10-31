@@ -10,7 +10,8 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code datasource}. A datasource URL in the subject module's
  * config, such as jdbc:postgresql://shop-db:5432/shop, without credentials (no user or password
  * before the host, and no user, password or other secret property), by default or with the
- * attribute profile active. Placeholders that cannot be resolved stay as ${KEY}.
+ * attribute profile active. Placeholders that cannot be resolved stay as ${KEY}. Linking records it
+ * from the config facts, through the persistence extractor's reading of config (ADR 0094, #560).
  *
  * @param database Descriptive. The database, service or schema name the URL names, such as shop.
  * @param key Key. The config key, such as spring.datasource.url.

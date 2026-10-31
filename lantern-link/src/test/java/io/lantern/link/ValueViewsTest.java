@@ -93,6 +93,55 @@ class ValueViewsTest {
     assertThat(sorted(render(sends))).isEqualTo(sorted(golden("stomp-sends-parsed.txt")));
   }
 
+  @Test
+  void datasourcesNameTheirFilesByBlobAsStoredConfigFactsDo() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("persistence"));
+    String blob = "0123456789abcdef0123456789abcdef01234567";
+    List<Fact> facts = new ArrayList<>();
+    for (Fact f : new ConfigExtractor().extract(repos, SNAPSHOT)) {
+      // As the store keeps them: the file's blob, no content hash.
+      facts.add(
+          Fact.create(
+              f.subject(),
+              f.predicate(),
+              f.object(),
+              f.attributes(),
+              f.origin(),
+              f.evidence().map(l -> l.withBlob(blob)),
+              f.confidence(),
+              f.validity()));
+    }
+    facts.addAll(
+        new io.lantern.extract.persistence.PersistenceExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> datasources = new ValueViews().derive(facts, SNAPSHOT);
+
+    assertThat(datasources).hasSize(golden("datasources-parsed.txt").size());
+    assertThat(datasources)
+        .allMatch(f -> blob.equals(f.evidence().blob()) && f.evidence().contentHash() == null);
+  }
+
+  @Test
+  void theDatasourcesAreThoseThePersistenceExtractorRecordedBefore() throws IOException {
+    List<RepoBuild> repos = List.of(fixture("persistence"));
+    List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+    facts.addAll(
+        new io.lantern.extract.persistence.PersistenceExtractor().extract(repos, SNAPSHOT));
+
+    List<Fact> datasources = new ValueViews().derive(facts, SNAPSHOT);
+
+    // The facts of before, and the datasource entities with their addresses (#560).
+    assertThat(sorted(render(datasources))).isEqualTo(sorted(golden("datasources-parsed.txt")));
+    assertThat(String.join("\n", render(datasources)))
+        .doesNotContain("s3cret", "hunter2", "tiger", "scott", "user=sa", "shop@");
+    // The evidence names the config files by blob, as the stored config facts do.
+    assertThat(datasources)
+        .allMatch(
+            f ->
+                f.evidence().declared().contentHash() != null
+                    || f.evidence().declared().blob() != null);
+  }
+
   /** Moved from the gateway extractor's tests with #558, unchanged. */
   @Test
   void zuulRoutesAndTheDiscoveryLocator() throws IOException {

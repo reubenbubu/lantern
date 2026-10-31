@@ -214,22 +214,6 @@ public final class GatewayExtractor implements Extractor {
     CodeValue value(String view, String written);
   }
 
-  /** One module's config as linking reads it from the config facts. */
-  public interface RouteConfig {
-
-    /** The module. */
-    EntityId module();
-
-    /** The name of the module's repository. */
-    String repo();
-
-    /** The profiles the config differs in. */
-    List<String> profiles();
-
-    /** The values with a profile active (null for the default view), resolved, by key. */
-    SortedMap<String, ConfigValue> values(String view);
-  }
-
   /**
    * The routes linking gives (ADR 0094, #558): each route built in code ({@value #ROUTE_WRITTEN})
    * resolved in each view of its module's config, and the routes, Zuul routes and discovery locator
@@ -247,7 +231,7 @@ public final class GatewayExtractor implements Extractor {
   public static List<Fact> routes(
       List<Fact> written,
       java.util.function.BiFunction<EntityId, String, Resolver> resolver,
-      List<RouteConfig> configs,
+      List<io.lantern.extract.config.ModuleValues> configs,
       Set<String> secretKeys,
       Origin origin,
       long snapshot) {
@@ -261,7 +245,7 @@ public final class GatewayExtractor implements Extractor {
                 f.attributes().get("configRepo").stringValue()));
       }
     }
-    for (RouteConfig config : configs) {
+    for (io.lantern.extract.config.ModuleValues config : configs) {
       run.configRoutes(config);
       run.zuulRoutes(config);
       run.locator(config);
@@ -606,7 +590,7 @@ public final class GatewayExtractor implements Extractor {
     // -------------------------------------------------------------------------------------------
     // Routes in config
 
-    void configRoutes(RouteConfig config) {
+    void configRoutes(io.lantern.extract.config.ModuleValues config) {
       List<String> views = new ArrayList<>();
       views.add(null);
       views.addAll(config.profiles());
@@ -670,7 +654,7 @@ public final class GatewayExtractor implements Extractor {
      * zuul.strip-prefix} is; both are recorded as the {@code StripPrefix} filter with as many
      * segments.
      */
-    void zuulRoutes(RouteConfig config) {
+    void zuulRoutes(io.lantern.extract.config.ModuleValues config) {
       List<String> views = new ArrayList<>();
       views.add(null);
       views.addAll(config.profiles());
@@ -767,7 +751,7 @@ public final class GatewayExtractor implements Extractor {
      * includeExpression}, {@code routeIdPrefix}, and predicates and filters that replace its
      * default ones. Recorded in the default view, and with {@code profile} where one differs.
      */
-    void locator(RouteConfig config) {
+    void locator(io.lantern.extract.config.ModuleValues config) {
       List<String> views = new ArrayList<>();
       views.add(null);
       views.addAll(config.profiles());
@@ -840,7 +824,8 @@ public final class GatewayExtractor implements Extractor {
      * The evidence of a group of config keys: the lines they span in the file of the first one that
      * has a line, or the file alone; null when there are none.
      */
-    private static Evidence configEvidence(RouteConfig config, List<ConfigValue> keys) {
+    private static Evidence configEvidence(
+        io.lantern.extract.config.ModuleValues config, List<ConfigValue> keys) {
       if (keys == null || keys.isEmpty()) {
         return null;
       }
