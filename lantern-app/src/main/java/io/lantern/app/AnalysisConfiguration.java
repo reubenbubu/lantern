@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -69,6 +70,7 @@ class AnalysisConfiguration {
       ViewDefinitionStore views,
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
+      JdbcExtractionCache extractionCache,
       @Value("${lantern.version}") String toolVersion,
       @Value("${lantern.workspace}") Path workspace) {
     return new AnalysisRun(
@@ -87,8 +89,14 @@ class AnalysisConfiguration {
         views,
         renderer,
         c4Renderer,
+        extractionCache,
         toolVersion,
         absolute(workspace).resolve("documents"));
+  }
+
+  @Bean
+  JdbcExtractionCache extractionCache(JdbcClient jdbc) {
+    return new JdbcExtractionCache(jdbc);
   }
 
   @Bean

@@ -8,6 +8,12 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
 import java.io.IOException;
@@ -48,7 +54,7 @@ import tools.jackson.databind.node.ObjectNode;
  * run and to the data stores and brokers the units' config leaves open. Files are read from git at
  * the commit; nothing is run or rendered by a tool.
  */
-public final class DeploymentExtractor {
+public final class DeploymentExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "deployment";
@@ -1860,5 +1866,25 @@ public final class DeploymentExtractor {
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  @Override
+  public java.util.Comparator<Fact> order() {
+    return io.lantern.extract.Extractors.ORDER_BY_LOCATION;
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.REPOSITORY;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(extract(unit.repos(), context.snapshot()));
   }
 }

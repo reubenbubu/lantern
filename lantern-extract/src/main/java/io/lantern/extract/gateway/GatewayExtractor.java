@@ -9,6 +9,12 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.CodeConfig.CodeValue;
@@ -59,7 +65,7 @@ import tools.jackson.databind.node.ObjectNode;
  * through the config extractor. A URI is followed one hop from a {@code @Value} field or parameter,
  * and its placeholders resolved, as the HTTP client extractor resolves a URL.
  */
-public final class GatewayExtractor {
+public final class GatewayExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "gateway";
@@ -1175,5 +1181,31 @@ public final class GatewayExtractor {
       case Expression.Lambda l -> l.source();
       case Expression.Unknown u -> u.source();
     };
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
+  @Override
+  public Set<String> requires() {
+    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(
+        extract(
+            context.code(),
+            context.snapshot(),
+            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
+                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
   }
 }

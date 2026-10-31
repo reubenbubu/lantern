@@ -99,6 +99,7 @@ Extractors are plugins that read build outputs and source files and emit facts. 
 
 - Input: a repo build workspace (sources, generated sources, classpath, class files, build metadata) plus the files the extractor declares interest in (by glob or type).
 - Output: facts in the core envelope (see Knowledge model), each carrying the extractor's name and version.
+- One interface, `io.lantern.extract.Extractor` (ADR 0092): each extractor names the extractors whose facts it reads and the unit its facts are cached by (one file, one repository with its build, or the whole snapshot). The extractors are found through `ServiceLoader` and run in the order of their requirements, in waves of those whose requirements earlier waves met; the code model is built once, and only if an extractor that reads it misses the cache.
 - Two ways to plug in:
   - **In-process Java SPI** for core extractors (fast, shares parsed ASTs).
   - **Out-of-process protocol**: JSON over stdio, LSP-style, for extractors in other languages and for sandboxed learned scripts.
@@ -234,7 +235,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 | Artifact | Keyed by |
 | --- | --- |
 | Build outputs | Repo commit + JDK image + `settings.xml` hash |
-| Static facts | File's git blob (its content hash for a file git does not hold) + extractor name and version |
+| Static facts | The unit the extractor declares (ADR 0092): a file's blob, a repository's git tree and build fingerprint, or every repository's; plus the extractor's name, version and code digest, and the IDs of the facts it reads |
 | Linked graph | Set of observation IDs in scope + linker version; observation IDs leave the commit out, so an unchanged repository at a new commit keeps them (ADR 0091) |
 | LLM summaries | Hash of the prompt (the facts, source files and child summaries it shows, without fact IDs) + prompt version + model |
 | LLM link resolutions | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
@@ -246,7 +247,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 
 1. Diff each repo's commit against the previous snapshot to find changed files.
 2. Rebuild only repos whose commit changed, or whose stored build failed (ADR 0016).
-3. Re-run extractors only on changed files. Unchanged files reuse cached facts.
+3. Re-run each extractor only on the units whose inputs changed (ADR 0092). Unchanged units reuse cached facts, valid from the new snapshot.
 4. Re-link the graph and find which entities changed.
 5. Invalidate summaries whose prompt changed (their facts, source files or child summaries), then walk up the hierarchy (class to package to module to service to group to system), regenerating only invalidated nodes.
 6. Recompose only document sections whose inputs changed. Unchanged sections keep their exact text.

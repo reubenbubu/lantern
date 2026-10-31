@@ -8,6 +8,12 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.CodeConfig.CodeValue;
@@ -57,7 +63,7 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code @Value}s resolved through the config extractor per profile, and a value followed one hop
  * from a {@code @Value} field or parameter, or a field assigned from one, into the call using it.
  */
-public final class MessagingExtractor {
+public final class MessagingExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "messaging";
@@ -1804,5 +1810,31 @@ public final class MessagingExtractor {
               validity);
       facts.putIfAbsent(fact.id(), fact);
     }
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
+  @Override
+  public Set<String> requires() {
+    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(
+        extract(
+            context.code(),
+            context.snapshot(),
+            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
+                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
   }
 }

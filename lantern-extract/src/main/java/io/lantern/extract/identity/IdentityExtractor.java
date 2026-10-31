@@ -9,6 +9,12 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.UrlCredentials;
@@ -75,7 +81,7 @@ import tools.jackson.databind.node.ObjectNode;
  * it ({@code secret.getBytes()}, {@code Decoders.BASE64.decode(secret)}) and one hop from a field
  * given a constructor's {@code @Value} parameter. A secret written in the code is not recorded.
  */
-public final class IdentityExtractor {
+public final class IdentityExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "identity";
@@ -838,5 +844,20 @@ public final class IdentityExtractor {
       int hash = key.indexOf('#');
       return hash < 0 ? key : key.substring(0, hash);
     }
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(extract(context.code(), unit.repos(), context.snapshot()));
   }
 }

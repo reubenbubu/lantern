@@ -9,6 +9,12 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.extract.CacheUnit;
+import io.lantern.extract.ClaimSink;
+import io.lantern.extract.ExtractionContext;
+import io.lantern.extract.ExtractionUnit;
+import io.lantern.extract.Extractor;
+import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ConfigValue;
@@ -64,7 +70,7 @@ import tools.jackson.databind.node.ObjectNode;
  * extractor's type and naming; matching them to the tables migrations create, and code to the
  * datasource of the deployable that runs it, is the linker's.
  */
-public final class PersistenceExtractor {
+public final class PersistenceExtractor implements Extractor {
 
   /** The extractor's name, recorded as the origin of its facts. */
   public static final String NAME = "persistence";
@@ -1156,5 +1162,31 @@ public final class PersistenceExtractor {
     } catch (IllegalArgumentException e) {
       return null;
     }
+  }
+
+  @Override
+  public ExtractorInfo info() {
+    return new ExtractorInfo(NAME, VERSION);
+  }
+
+  /** It masks the values of config keys the identity extractor finds holding a JWT secret. */
+  @Override
+  public Set<String> requires() {
+    return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
+  }
+
+  @Override
+  public CacheUnit unit() {
+    return CacheUnit.SNAPSHOT;
+  }
+
+  @Override
+  public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+    sink.emitAll(
+        extract(
+            context.code(),
+            context.snapshot(),
+            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
+                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
   }
 }
