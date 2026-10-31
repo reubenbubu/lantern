@@ -302,3 +302,16 @@ calling `Addresses`. Gateway routes and frontends (#594), identity providers and
 (#595), data stores (#596) and messaging (#597) follow. On project-0 to project-4 and project-8
 every link is unchanged (#589's PR).
 
+## Amendment (#594): gateway routes and frontends read address resolution's claims
+
+`RouteLinker` and `FrontendLinker` now read where their addresses lead from address
+resolution's claims too, and the architecture rule covers them. Their questions cannot be listed
+before they link: a route whose whole URI is a placeholder asks where it leads, and when a
+deployment fills it with a load-balanced URI, asks which unit that name is. So address resolution
+runs these two matchers itself, as the HTTP rule does, against `Addresses` through a recorder that
+notes each question with the fact asking it (the route, or the frontend's call or proxy), and
+writes the answers as claims; the links it finds there are dropped. The frontend's address claims
+have no `from` and are keyed `address:frontend:<address>` where the host is not written out. Every
+link test checks the answers read back equal `Addresses`' for these questions too; on project-0 to
+project-4 and project-8 every link is unchanged (#594's PR).
+

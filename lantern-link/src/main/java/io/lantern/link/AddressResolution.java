@@ -41,8 +41,8 @@ import tools.jackson.databind.node.ObjectNode;
  * </ul>
  *
  * Each claim cites the fact the unit was found by and the container that filled the address in. The
- * matchers whose addresses it answers so far: HTTP calls (#589); gateway routes and frontends,
- * identity providers and mail hosts, and data stores follow (#594, #595, #596).
+ * matchers whose addresses it answers so far: HTTP calls (#589), gateway routes and frontends
+ * (#594); identity providers and mail hosts, and data stores follow (#595, #596).
  */
 public final class AddressResolution implements LinkRule {
 
@@ -110,13 +110,61 @@ public final class AddressResolution implements LinkRule {
     }
   }
 
+  /** Answers as {@link Addresses} does, recording each question asked with the fact asking it. */
+  private record Recorder(Addresses addresses, Questions questions) implements AddressAnswers {
+
+    @Override
+    public Answer resolve(Unit from, String view, String text, String written) {
+      throw new IllegalStateException("A matcher asked about " + text + " for no fact");
+    }
+
+    @Override
+    public List<Answer> answers(Unit from, String view, String text, String written) {
+      throw new IllegalStateException("A matcher asked about " + text + " for no fact");
+    }
+
+    @Override
+    public List<Target> byApplicationName(
+        String name, String view, String matchedBy, double factor) {
+      throw new IllegalStateException("A matcher looked up " + name + " for no fact");
+    }
+
+    @Override
+    public Answer resolve(Fact asking, Unit from, String view, String text, String written) {
+      questions.address(from, view, text, written, asking, List.of());
+      return addresses.resolve(from, view, text, written);
+    }
+
+    @Override
+    public List<Target> byApplicationName(
+        Fact asking, String name, String view, String matchedBy, double factor) {
+      questions.name(name, view, asking);
+      return addresses.byApplicationName(name, view, matchedBy, factor);
+    }
+  }
+
+  /** The questions the matchers ask of the facts an index holds, each with the fact asking it. */
+  static Questions questions(LinkIndex index, Addresses addresses) {
+    Questions questions = new Questions();
+    HttpLinker.queries(index, questions);
+    // Gateway routes and frontends ask as they link, a question on an earlier one's answer: run as
+    // the matchers run them, recording what they ask (#594).
+    Recorder recorder = new Recorder(addresses, questions);
+    FoundLinks scratch = new FoundLinks();
+    HttpLinker http = new HttpLinker(index, scratch, addresses);
+    RouteLinker routes = new RouteLinker(index, scratch, recorder);
+    routes.link();
+    new FrontendLinker(index, scratch, recorder, new Deployments(index), http, routes)
+        .link(ORIGIN, Validity.from(0));
+    return questions;
+  }
+
   @Override
   public void derive(ClaimQuery in, ClaimSink out, View view) {
     LinkIndex index = new LinkIndex(in.facts());
     Validity validity = Validity.from(in.snapshot());
     Addresses addresses = new Addresses(index, new Deployments(index));
-    Questions questions = new Questions();
-    HttpLinker.queries(index, questions);
+    Questions questions = questions(index, addresses);
     Map<String, Fact> facts = new LinkedHashMap<>();
     questions.addresses.forEach(
         (q, asked) -> {
