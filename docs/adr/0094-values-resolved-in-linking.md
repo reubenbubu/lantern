@@ -23,7 +23,7 @@ step against. The owner set the order #519, #521, #522 on 2026-10-31.
   - message destinations (#559);
   - datasources and data stores (#560);
   - the data config joined with code: JPA naming and Redis settings (#567);
-  - the SQL settings (#569);
+  - the SQL settings, kept in extraction by the owner's choice (#569);
   - endpoints and Spring's scheduled values (#519 itself), which closes the issue.
 
   Each slice makes one kind of fact keep its values as written and moves resolving it to the
@@ -90,7 +90,7 @@ stores are the fourth (ADR 0036, amendment for #560): read in the step from the 
 through the persistence extractor's reading, each a `data-source` entity connected to its address
 as written. The JPA naming strategy and Redis's settings, which join config with code, are the fifth
 (#567): the extractors record what the code says, and the step applies the config. The SQL
-settings, which shape how migrations are read, are #569.
+settings stay in extraction (#569, below).
 
 Extraction coverage counts the step's facts as their extractor's (ADR 0089, amendment for #558; the messaging and STOMP facts from #559).
 
@@ -100,3 +100,20 @@ Extraction coverage counts the step's facts as their extractor's (ADR 0089, amen
   change of #556; the fake-model scorecards are unchanged (#556's PR).
 - On the development sets the lookup gives what `CodeConfig` gives for every key and view pair
   but two, #561's e-mail address, which no code value uses.
+
+## Amendment (#569): the SQL extractor keeps reading config
+
+The SQL extractor is the one extractor that still reads config, by the owner's choice of
+2026-10-31. Its config does not add to facts after the fact; it decides how the migrations are
+read:
+- which vendor's copy of the scripts (from the datasource URL);
+- Flyway's placeholders, substituted into the script text, which can change table names;
+- Liquibase's contexts and parameters;
+- which plain scripts run.
+
+A schema is built by applying the migrations in order, and linking has no SQL files, so it cannot
+apply these afterwards. The extractor reads the module's config (the `prod` profile's where there
+is one, ADR 0034) as part of one reading of the migrations, cached per snapshot. Reading every
+variant as written and choosing in linking, or building the schema in linking, were the options
+set aside: both are large, and the second breaks caching per file.
+
