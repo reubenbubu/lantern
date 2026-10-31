@@ -247,9 +247,25 @@ function matchElements(report, reference, aliases) {
   const elementAliases = new Map(
     Object.entries(aliases.elements ?? {}).map(([name, id]) => [normalizeName(name), id]),
   );
+  // RabbitMQ lets a queue and an exchange share a name, and both are of kind queue: where the
+  // reference has such a pair, the word "exchange" in the technology tells them apart.
+  const exchange = (element) => /\bexchange\b/i.test(element.technology ?? '');
+  const sameName = new Map();
+  for (const [id, element] of Object.entries(reference.elements)) {
+    const key = `${element.kind}:${normalizeName(element.name)}`;
+    sameName.set(key, [...(sameName.get(key) ?? []), id]);
+  }
   const matched = new Map();
   for (const [id, element] of Object.entries(report.elements)) {
     const name = normalizeName(element.name);
+    const pair = sameName.get(`${element.kind}:${name}`) ?? [];
+    if (pair.length > 1) {
+      const ref = pair.find((r) => exchange(reference.elements[r]) === exchange(element));
+      if (ref !== undefined) {
+        matched.set(id, ref);
+        continue;
+      }
+    }
     const aliased = elementAliases.get(name);
     if (aliased !== undefined) {
       if (!reference.elements[aliased]) {
@@ -783,7 +799,8 @@ export function scoreFiles(reportPath, setDir, runPath = null) {
   const report = readReport(reportPath);
   const reference = JSON.parse(readFileSync(referencePath, 'utf8'));
   return {
-    set: basename(resolve(setDir)),
+    // A synthetic set's expected answers sit in <checkout>/expected: the set is the checkout.
+    set: basename(resolve(setDir)) === 'expected' ? basename(resolve(setDir, '..')) : basename(resolve(setDir)),
     report: reportPath,
     reportTitle: report.document.title,
     reference: referencePath,

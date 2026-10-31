@@ -13,7 +13,10 @@ Usage: scripts/score-testsets.sh [options] [<set>...]
 For each set (default: project-1 project-2 project-3 project-4), runs "analyze" on the
 set's repositories as one system named after the set (scripts/launch.sh, which starts the
 local database), then scores the system report against testsets/<set>/reference with
-lantern-web/scripts/score.mjs. A real model costs money: only with the user's go-ahead.
+lantern-web/scripts/score.mjs. A synthetic set without one there, such as project-8, is
+scored against the expected answers its setup.sh puts in <sets-dir>/<set>/expected, and all
+the git repositories of its checkout are analyzed. A real model costs money: only with the
+user's go-ahead.
 
 Writes to <workspace>/scores/<label>/: for each set <set>/_system.c4.html, run.json
 (the run's model for every role, its calls and cost) and extracted.jsonl.gz (the facts
@@ -126,11 +129,29 @@ for set in "${sets[@]}"; do
   if grep -q '^#.*HELD-OUT' "$REPO/testsets/$set/pins.txt" && ! $held_out; then
     die "$set is held out: nobody analyzes it before Phase 2's real-model acceptance (docs/design.md, Test sets); pass --held-out only then"
   fi
-  [[ -f "$REPO/testsets/$set/reference/reference.c4.json" ]] || die "$set has no reference in testsets/$set/reference"
-  if ! $score_only; then
-    [[ -d "$sets_dir/$set" ]] || die "$set is not set up in $sets_dir/$set; run testsets/$set/setup.sh"
+  if [[ -f "$REPO/testsets/$set/reference/reference.c4.json" ]]; then
+    if ! $score_only; then
+      [[ -d "$sets_dir/$set" ]] || die "$set is not set up in $sets_dir/$set; run testsets/$set/setup.sh"
+    fi
+  else
+    # A synthetic set keeps its expected answers in its source, and its setup.sh puts them beside
+    # the checkout (docs/adr/0029-synthetic-test-set-project-0.md, amendment for #285).
+    [[ -f "$sets_dir/$set/expected/reference/reference.c4.json" ]] ||
+      die "$set has no reference in testsets/$set/reference or $sets_dir/$set/expected/reference; run testsets/$set/setup.sh"
+    pinned="$(grep -v -e '^#' -e '^[[:space:]]*$' "$REPO/testsets/$set/pins.txt" | awk '{ print $3 }')"
+    [[ "$(cat "$sets_dir/$set/.lantern-pin" 2>/dev/null)" == "$pinned" ]] ||
+      die "$sets_dir/$set is not set up at the pin in testsets/$set/pins.txt; run testsets/$set/setup.sh"
   fi
 done
+
+# The folder whose reference/ the scorer reads: the set's own, or a synthetic set's expected answers.
+reference_dir() {
+  if [[ -d "$REPO/testsets/$1/reference" ]]; then
+    echo "$REPO/testsets/$1"
+  else
+    echo "$sets_dir/$1/expected"
+  fi
+}
 
 if $fake_llm && ! $score_only; then
   [[ -z "$llm_file" ]] || die "--fake-llm and --llm-properties exclude each other"
@@ -175,12 +196,20 @@ mkdir -p "$scores"
 for set in "${sets[@]}"; do
   if ! $score_only; then
     repos=()
-    while read -r name _url _commit; do
-      [[ -z "$name" || "$name" == \#* ]] && continue
-      path="$sets_dir/$set/$name"
-      [[ -d "$path/.git" ]] || die "$path is not set up; run testsets/$set/setup.sh"
-      repos+=("$name=$path")
-    done < "$REPO/testsets/$set/pins.txt"
+    if [[ -f "$sets_dir/$set/.lantern-pin" ]]; then
+      # A synthetic set: its one pinned source made every git repository of the checkout.
+      for path in "$sets_dir/$set"/*/; do
+        path="${path%/}"
+        [[ -d "$path/.git" ]] && repos+=("$(basename "$path")=$path")
+      done
+    else
+      while read -r name _url _commit; do
+        [[ -z "$name" || "$name" == \#* ]] && continue
+        path="$sets_dir/$set/$name"
+        [[ -d "$path/.git" ]] || die "$path is not set up; run testsets/$set/setup.sh"
+        repos+=("$name=$path")
+      done < "$REPO/testsets/$set/pins.txt"
+    fi
     [[ ${#repos[@]} -gt 0 ]] || die "$set: no repository to analyze"
     launch=("$REPO/scripts/launch.sh" --yes --system "$set")
     [[ -n "$llm_file" ]] && launch+=(--llm-properties "$llm_file")
@@ -198,7 +227,7 @@ for set in "${sets[@]}"; do
     cp "$documents/run.json" "$scores/$set/"
     run_args=(--run "$scores/$set/run.json")
   fi
-  "$node_bin" "$REPO/lantern-web/scripts/score.mjs" "$scores/$set/_system.c4.html" "$REPO/testsets/$set" \
+  "$node_bin" "$REPO/lantern-web/scripts/score.mjs" "$scores/$set/_system.c4.html" "$(reference_dir "$set")" \
     ${run_args[@]+"${run_args[@]}"} --out "$scores/$set" >&2
   # Extraction coverage (docs/adr/0089-extraction-coverage.md): which reference items the
   # extracted facts back, before linking.
