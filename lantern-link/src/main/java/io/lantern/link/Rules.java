@@ -30,4 +30,14 @@ final class Rules {
     }
     return Set.copyOf(predicates);
   }
+
+  /** The static rules of this version of Lantern, without the LLM resolver. */
+  static List<LinkRule> standard() {
+    return List.of(
+        new ValueViews(),
+        new DeployableUnits(),
+        new CrossRepoLinks(),
+        new People(),
+        new ClaimChecks());
+  }
 }

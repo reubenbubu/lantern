@@ -96,10 +96,7 @@ public final class Linker {
 
   /** The linker of this version of Lantern, remembering its rules' runs in {@code runs}. */
   public static Linker standard(FactRepository store, RuleRuns runs) {
-    return new Linker(
-        store,
-        List.of(new ValueViews(), new DeployableUnits(), new CrossRepoLinks(), new ClaimChecks()),
-        runs);
+    return new Linker(store, Rules.standard(), runs);
   }
 
   /**
@@ -112,15 +109,9 @@ public final class Linker {
 
   /** The linker with the LLM resolver, remembering its rules' runs in {@code runs}. */
   public static Linker standard(FactRepository store, LinkResolver resolver, RuleRuns runs) {
-    return new Linker(
-        store,
-        List.of(
-            new ValueViews(),
-            new DeployableUnits(),
-            new CrossRepoLinks(),
-            new ClaimChecks(),
-            resolver),
-        runs);
+    List<LinkRule> rules = new ArrayList<>(Rules.standard());
+    rules.add(resolver);
+    return new Linker(store, rules, runs);
   }
 
   /** The origin names of the rules' facts. */

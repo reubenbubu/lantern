@@ -66,6 +66,7 @@ class GatewayComponentsIT {
     facts.addAll(new ValueViews().derive(facts, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     facts.addAll(new CrossRepoLinks().derive(facts, 1));
+    facts.addAll(new io.lantern.link.People().derive(facts, 1));
     Document document =
         new Composer("1")
             .compose(

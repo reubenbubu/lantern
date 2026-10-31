@@ -6,6 +6,8 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.extract.attributes.EndpointAttributes;
+import io.lantern.extract.attributes.PersonEvidenceAttributes;
 import io.lantern.extract.people.PeopleExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import java.util.ArrayList;
@@ -14,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -27,8 +30,18 @@ import tools.jackson.databind.node.ObjectNode;
  * sign up or in and names no member, for the user. A person is always inferred: it is named in the
  * code's own words, cites the facts it rests on, and says which frontends have screens for it.
  * Nothing is added to what the facts show.
+ *
+ * <p>A link rule of its own (ADR 0095), reading the people extractor's evidence and the endpoints.
  */
-final class PeopleLinker {
+public final class People implements LinkRule {
+
+  /** The rule's name, recorded as the origin of its facts. */
+  public static final String NAME = "people";
+
+  /** The rule's version. */
+  public static final String VERSION = "1";
+
+  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
   /** Entity: a person who uses the system. */
   static final String PERSON = "person";
@@ -73,19 +86,52 @@ final class PeopleLinker {
   private static final Pattern WORDS =
       Pattern.compile("[_\\-\\s]+|(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])");
 
-  private final LinkIndex index;
-  private final FoundLinks out;
+  @Override
+  public RuleInfo info() {
+    return RuleInfo.of(ORIGIN);
+  }
 
-  PeopleLinker(LinkIndex index, FoundLinks out) {
-    this.index = index;
-    this.out = out;
+  @Override
+  public Set<String> reads() {
+    return Set.of(PeopleExtractor.PERSON_EVIDENCE, SpringExtractor.ENDPOINT);
+  }
+
+  @Override
+  public Set<String> writes() {
+    return Set.of(PERSON_BASIS, DataLinker.DISPLAY_NAME);
+  }
+
+  /** A person's evidence or an endpoint, with its attributes read. */
+  private record Cited(Fact fact, PersonEvidenceAttributes evidence, EndpointAttributes endpoint) {
+
+    static Cited of(ClaimQuery.Claim<PersonEvidenceAttributes> claim) {
+      return new Cited(claim.fact(), claim.attributes(), null);
+    }
+
+    static Cited ofEndpoint(ClaimQuery.Claim<EndpointAttributes> claim) {
+      return new Cited(claim.fact(), null, claim.attributes());
+    }
+
+    boolean isEndpoint() {
+      return endpoint != null;
+    }
+
+    /** The {@code path} of evidence or of an endpoint, or "". */
+    String path() {
+      return text(evidence != null ? evidence.path() : endpoint.path());
+    }
+
+    /** The evidence's {@code type}, or "" (for an endpoint). */
+    String type() {
+      return evidence == null ? "" : text(evidence.type());
+    }
   }
 
   /** What a person rests on, while people are being made. */
   private static final class Draft {
     final String name;
     String basis;
-    final List<Fact> facts = new ArrayList<>();
+    final List<Cited> facts = new ArrayList<>();
 
     Draft(String name, String basis) {
       this.name = name;
@@ -93,21 +139,39 @@ final class PeopleLinker {
     }
   }
 
-  void link(Origin origin, Validity validity) {
+  /**
+   * The people of a snapshot's facts, for tests and callers that link without the linker.
+   *
+   * @param facts facts holding the people extractor's evidence and the endpoints
+   * @param snapshot the snapshot number the people hold from
+   */
+  public List<Fact> derive(List<Fact> facts, long snapshot) {
+    ClaimSink sink = new ClaimSink(info(), writes());
+    derive(new ClaimQuery(info(), reads(), Set.of(), facts, snapshot), sink, View.DEFAULT);
+    return sink.facts();
+  }
+
+  @Override
+  public void derive(ClaimQuery in, ClaimSink out, View view) {
+    Validity validity = Validity.from(in.snapshot());
+    List<Cited> endpoints = new ArrayList<>();
+    in.all(EndpointAttributes.class).forEach(c -> endpoints.add(Cited.ofEndpoint(c)));
+    endpoints.sort(Comparator.comparing(Cited::fact, LinkIndex.BY_ID));
     // By the person's key, so two kinds of evidence for one name make one person.
     Map<String, Draft> people = new TreeMap<>();
-    List<Fact> evidence = new ArrayList<>(index.of(PeopleExtractor.PERSON_EVIDENCE));
-    evidence.sort(LinkIndex.BY_ID);
+    List<Cited> evidence = new ArrayList<>();
+    in.all(PersonEvidenceAttributes.class).forEach(c -> evidence.add(Cited.of(c)));
+    evidence.sort(Comparator.comparing(Cited::fact, LinkIndex.BY_ID));
 
-    roles(evidence, people);
+    roles(evidence, endpoints, people);
     members(evidence, people);
-    List<Fact> invitations = of(evidence, PeopleExtractor.INVITATION);
+    List<Cited> invitations = of(evidence, PeopleExtractor.INVITATION);
     if (!invitations.isEmpty()) {
       draft(people, "Invited user", INVITED).facts.addAll(invitations);
     }
-    List<Fact> routes = of(evidence, PeopleExtractor.ROUTE);
-    List<Fact> accounts = new ArrayList<>(accountEndpoints());
-    routes.stream().filter(r -> account(path(r))).forEach(accounts::add);
+    List<Cited> routes = of(evidence, PeopleExtractor.ROUTE);
+    List<Cited> accounts = new ArrayList<>(accountEndpoints(endpoints));
+    routes.stream().filter(r -> account(r.path())).forEach(accounts::add);
     Draft holder =
         people.values().stream().filter(d -> d.basis.equals(MEMBER)).findFirst().orElse(null);
     if (holder == null && !accounts.isEmpty()) {
@@ -120,33 +184,33 @@ final class PeopleLinker {
       return;
     }
     for (Map.Entry<String, Draft> person : people.entrySet()) {
-      write(person.getKey(), person.getValue(), routes, origin, validity);
+      write(person.getKey(), person.getValue(), routes, out, validity);
     }
   }
 
   /** The roles the code checks: each is a person, the most often checked first, up to a limit. */
-  private void roles(List<Fact> evidence, Map<String, Draft> people) {
-    Map<String, List<Fact>> byRole = new TreeMap<>();
-    for (Fact fact : of(evidence, PeopleExtractor.ROLE)) {
+  private static void roles(
+      List<Cited> evidence, List<Cited> endpoints, Map<String, Draft> people) {
+    Map<String, List<Cited>> byRole = new TreeMap<>();
+    for (Cited fact : of(evidence, PeopleExtractor.ROLE)) {
       // Declared roles and checks on the system's own types wait for the people rule of #437.
-      if (fact.attributes().path("source").asString("").equals("DeclareRoles")
-          || fact.attributes().path("anyReceiver").asBoolean(false)) {
+      if (text(fact.evidence().source()).equals("DeclareRoles")
+          || Boolean.TRUE.equals(fact.evidence().anyReceiver())) {
         continue;
       }
       byRole
-          .computeIfAbsent(
-              slug(words(fact.attributes().path("name").asString(""))), r -> new ArrayList<>())
+          .computeIfAbsent(slug(words(text(fact.evidence().name()))), r -> new ArrayList<>())
           .add(fact);
     }
     byRole.entrySet().stream()
-        .filter(e -> !technical(e.getValue()))
+        .filter(e -> !technical(e.getValue(), endpoints))
         .sorted(
-            Comparator.<Map.Entry<String, List<Fact>>>comparingInt(e -> -e.getValue().size())
+            Comparator.<Map.Entry<String, List<Cited>>>comparingInt(e -> -e.getValue().size())
                 .thenComparing(Map.Entry::getKey))
         .limit(MAX_ROLES)
         .forEach(
             e -> {
-              String role = e.getValue().getFirst().attributes().path("name").asString();
+              String role = text(e.getValue().getFirst().evidence().name());
               draft(people, words(role), ROLE).facts.addAll(e.getValue());
             });
   }
@@ -157,25 +221,22 @@ final class PeopleLinker {
    * services (actuator, management, internal paths). Judged by how the role is used, never by its
    * name.
    */
-  private boolean technical(List<Fact> role) {
-    List<Fact> realm =
-        role.stream()
-            .filter(f -> f.attributes().path("source").asString("").equals(KEYCLOAK))
-            .toList();
+  private static boolean technical(List<Cited> role, List<Cited> endpoints) {
+    List<Cited> realm =
+        role.stream().filter(f -> text(f.evidence().source()).equals(KEYCLOAK)).toList();
     if (!realm.isEmpty()) {
-      return realm.stream()
-          .allMatch(f -> f.attributes().path("serviceAccountOnly").asBoolean(false));
+      return realm.stream().allMatch(f -> Boolean.TRUE.equals(f.evidence().serviceAccountOnly()));
     }
-    return role.stream().allMatch(this::guardsOnlyTechnicalEndpoints);
+    return role.stream().allMatch(check -> guardsOnlyTechnicalEndpoints(check, endpoints));
   }
 
-  private boolean guardsOnlyTechnicalEndpoints(Fact check) {
+  private static boolean guardsOnlyTechnicalEndpoints(Cited check, List<Cited> endpoints) {
     List<String> paths = new ArrayList<>();
-    for (Fact endpoint : index.of(SpringExtractor.ENDPOINT)) {
-      String controller = endpoint.attributes().path("controller").asString("");
-      if (endpoint.subject().equals(check.subject())
-          || ("type:" + controller).equals(check.subject().toString())) {
-        paths.add(endpoint.attributes().path("path").asString(""));
+    for (Cited endpoint : endpoints) {
+      String controller = text(endpoint.endpoint().controller());
+      if (endpoint.fact().subject().equals(check.fact().subject())
+          || ("type:" + controller).equals(check.fact().subject().toString())) {
+        paths.add(endpoint.path());
       }
     }
     return !paths.isEmpty()
@@ -187,12 +248,10 @@ final class PeopleLinker {
   }
 
   /** The members of each scope the code names: Organization member, Team member. */
-  private void members(List<Fact> evidence, Map<String, Draft> people) {
-    Map<String, List<Fact>> byScope = new TreeMap<>();
-    for (Fact fact : of(evidence, PeopleExtractor.MEMBERSHIP)) {
-      byScope
-          .computeIfAbsent(fact.attributes().path("scope").asString(""), s -> new ArrayList<>())
-          .add(fact);
+  private static void members(List<Cited> evidence, Map<String, Draft> people) {
+    Map<String, List<Cited>> byScope = new TreeMap<>();
+    for (Cited fact : of(evidence, PeopleExtractor.MEMBERSHIP)) {
+      byScope.computeIfAbsent(text(fact.evidence().scope()), s -> new ArrayList<>()).add(fact);
     }
     byScope.forEach(
         (scope, facts) ->
@@ -210,15 +269,15 @@ final class PeopleLinker {
     return draft;
   }
 
-  private static List<Fact> of(List<Fact> evidence, String kind) {
-    return evidence.stream().filter(f -> f.object().value().equals(kind)).toList();
+  private static List<Cited> of(List<Cited> evidence, String kind) {
+    return evidence.stream().filter(f -> f.fact().object().value().equals(kind)).toList();
   }
 
   /** The endpoints where people sign up or in. */
-  private List<Fact> accountEndpoints() {
-    List<Fact> result = new ArrayList<>();
-    for (Fact fact : index.of(SpringExtractor.ENDPOINT)) {
-      String path = fact.attributes().path("path").asString("");
+  private static List<Cited> accountEndpoints(List<Cited> endpoints) {
+    List<Cited> result = new ArrayList<>();
+    for (Cited fact : endpoints) {
+      String path = fact.path();
       String[] segments = PLACEHOLDER.matcher(path).replaceAll("").split("/");
       String last = segments.length == 0 ? "" : segments[segments.length - 1];
       if (SIGN_UP.contains(last.toLowerCase(Locale.ROOT))
@@ -240,18 +299,18 @@ final class PeopleLinker {
     return false;
   }
 
-  private static String path(Fact route) {
-    return route.attributes().path("path").asString("");
+  private static String text(String value) {
+    return Objects.requireNonNullElse(value, "");
   }
 
   /** Writes a person: its name and the basis with its description, citations and frontends. */
-  private void write(
-      String slug, Draft draft, List<Fact> routes, Origin origin, Validity validity) {
+  private static void write(
+      String slug, Draft draft, List<Cited> routes, ClaimSink out, Validity validity) {
     EntityId person = new EntityId(PERSON, slug);
     // The screens of frontends that are for this person.
-    List<Fact> mine = new ArrayList<>();
-    for (Fact route : routes) {
-      String path = path(route);
+    List<Cited> mine = new ArrayList<>();
+    for (Cited route : routes) {
+      String path = route.path();
       boolean theirs =
           switch (draft.basis) {
             case INVITED -> path.toLowerCase(Locale.ROOT).contains("invit");
@@ -266,44 +325,41 @@ final class PeopleLinker {
     }
     // What it cites is all that it names: the evidence first (the entity before its controller),
     // then the sign-in endpoints, then the screens.
-    List<Fact> evidence = new ArrayList<>(distinct(draft.facts));
-    evidence.removeIf(f -> f.predicate().equals(SpringExtractor.ENDPOINT));
+    List<Cited> evidence = new ArrayList<>(distinct(draft.facts));
+    evidence.removeIf(Cited::isEndpoint);
     evidence.sort(
-        Comparator.comparingInt(
-                (Fact f) -> simple(f.attributes().path("type").asString("")).length())
-            .thenComparing(LinkIndex.BY_ID));
-    List<Fact> endpoints =
-        distinct(draft.facts).stream()
-            .filter(f -> f.predicate().equals(SpringExtractor.ENDPOINT))
-            .toList();
-    List<Fact> facts = new ArrayList<>(evidence);
+        Comparator.comparingInt((Cited f) -> simple(f.type()).length())
+            .thenComparing(Cited::fact, LinkIndex.BY_ID));
+    List<Cited> endpoints = distinct(draft.facts).stream().filter(Cited::isEndpoint).toList();
+    List<Cited> facts = new ArrayList<>(evidence);
     facts.addAll(endpoints);
     facts.addAll(distinct(mine));
     facts = new ArrayList<>(facts.stream().limit(MAX_CITED).toList());
     Map<String, List<String>> screens = new TreeMap<>();
-    for (Fact fact : facts) {
-      if (fact.object().value().equals(PeopleExtractor.ROUTE)
-          && fact.predicate().equals(PeopleExtractor.PERSON_EVIDENCE)) {
-        screens.computeIfAbsent(fact.evidence().repo(), r -> new ArrayList<>()).add(path(fact));
+    for (Cited fact : facts) {
+      if (fact.fact().object().value().equals(PeopleExtractor.ROUTE) && !fact.isEndpoint()) {
+        screens
+            .computeIfAbsent(fact.fact().evidence().repo(), r -> new ArrayList<>())
+            .add(fact.path());
       }
     }
     ObjectNode attributes = FactJson.newObject();
     attributes.put("basis", draft.basis);
     attributes.put("description", description(draft, facts, screens));
     ArrayNode cited = attributes.putArray("cites");
-    facts.forEach(f -> cited.add(f.id()));
+    facts.forEach(f -> cited.add(f.fact().id()));
     ArrayNode repos = attributes.putArray("repos");
-    new TreeSet<>(facts.stream().map(f -> f.evidence().repo()).toList()).forEach(repos::add);
+    new TreeSet<>(facts.stream().map(f -> f.fact().evidence().repo()).toList()).forEach(repos::add);
     ArrayNode frontends = attributes.putArray("frontends");
     screens.keySet().forEach(frontends::add);
-    Fact first = facts.getFirst();
+    Fact first = facts.getFirst().fact();
     out.add(
         Fact.create(
             person,
             PERSON_BASIS,
             FactObject.string(draft.basis),
             attributes,
-            origin,
+            ORIGIN,
             first.evidence(),
             CONFIDENCE,
             validity));
@@ -313,49 +369,51 @@ final class PeopleLinker {
             DataLinker.DISPLAY_NAME,
             FactObject.string(draft.name),
             FactJson.newObject(),
-            origin,
+            ORIGIN,
             first.evidence(),
             CONFIDENCE,
             validity));
   }
 
-  private static List<Fact> distinct(List<Fact> facts) {
-    Map<String, Fact> byId = new LinkedHashMap<>();
-    facts.stream().sorted(LinkIndex.BY_ID).forEach(f -> byId.putIfAbsent(f.id(), f));
+  private static List<Cited> distinct(List<Cited> facts) {
+    Map<String, Cited> byId = new LinkedHashMap<>();
+    facts.stream()
+        .sorted(Comparator.comparing(Cited::fact, LinkIndex.BY_ID))
+        .forEach(f -> byId.putIfAbsent(f.fact().id(), f));
     return new ArrayList<>(byId.values());
   }
 
   /** One sentence in the code's words, saying only what the facts show. */
   private static String description(
-      Draft draft, List<Fact> facts, Map<String, List<String>> screens) {
+      Draft draft, List<Cited> facts, Map<String, List<String>> screens) {
     StringBuilder text = new StringBuilder();
     switch (draft.basis) {
       case ROLE -> {
-        Fact fact = firstOf(facts, PeopleExtractor.ROLE);
+        Cited fact = firstOf(facts, PeopleExtractor.ROLE);
         text.append("The code checks the role ")
-            .append(fact.attributes().path("name").asString())
+            .append(text(fact.evidence().name()))
             .append(" (")
             .append(how(fact))
             .append(").");
       }
       case MEMBER -> {
-        Fact fact = firstOf(facts, PeopleExtractor.MEMBERSHIP);
-        String scope = fact.attributes().path("scope").asString("");
+        Cited fact = firstOf(facts, PeopleExtractor.MEMBERSHIP);
+        String scope = text(fact.evidence().scope());
         text.append("The code has members")
             .append(
                 scope.isEmpty()
                     ? ""
                     : " of " + article(scope) + " " + scope.toLowerCase(Locale.ROOT))
             .append(": it checks membership in ")
-            .append(simple(fact.attributes().path("type").asString()))
+            .append(simple(fact.type()))
             .append(" (")
             .append(where(fact))
             .append(").");
       }
       case INVITED -> {
-        Fact fact = firstOf(facts, PeopleExtractor.INVITATION);
+        Cited fact = firstOf(facts, PeopleExtractor.INVITATION);
         text.append("The code has invitations that people receive: ")
-            .append(simple(fact.attributes().path("type").asString()))
+            .append(simple(fact.type()))
             .append(" (")
             .append(where(fact))
             .append(").");
@@ -363,11 +421,7 @@ final class PeopleLinker {
       default -> text.append("The code lets people sign up or in.");
     }
     List<String> accounts =
-        facts.stream()
-            .filter(f -> f.predicate().equals(SpringExtractor.ENDPOINT))
-            .map(PeopleLinker::endpoint)
-            .distinct()
-            .toList();
+        facts.stream().filter(Cited::isEndpoint).map(People::endpoint).distinct().toList();
     if (!accounts.isEmpty() && !draft.basis.equals(INVITED)) {
       text.append(" It signs up and in at ").append(String.join(", ", accounts)).append(".");
     }
@@ -386,27 +440,23 @@ final class PeopleLinker {
   }
 
   /** The fact of a kind whose type has the shortest name (the entity, not its controller). */
-  private static Fact firstOf(List<Fact> facts, String kind) {
+  private static Cited firstOf(List<Cited> facts, String kind) {
     return facts.stream()
-        .filter(
-            f ->
-                f.predicate().equals(PeopleExtractor.PERSON_EVIDENCE)
-                    && f.object().value().equals(kind))
+        .filter(f -> !f.isEndpoint() && f.fact().object().value().equals(kind))
         .min(
-            Comparator.comparingInt(
-                    (Fact f) -> simple(f.attributes().path("type").asString("")).length())
-                .thenComparing(LinkIndex.BY_ID))
+            Comparator.comparingInt((Cited f) -> simple(f.type()).length())
+                .thenComparing(Cited::fact, LinkIndex.BY_ID))
         .orElse(facts.getFirst());
   }
 
-  private static String endpoint(Fact fact) {
-    String method = fact.attributes().path("httpMethod").asString("");
-    return (method.isEmpty() ? "" : method + " ") + fact.attributes().path("path").asString();
+  private static String endpoint(Cited fact) {
+    String method = text(fact.endpoint().httpMethod());
+    return (method.isEmpty() ? "" : method + " ") + fact.path();
   }
 
   /** How a role is named: the annotation or call, and where. */
-  private static String how(Fact role) {
-    String source = role.attributes().path("source").asString("");
+  private static String how(Cited role) {
+    String source = text(role.evidence().source());
     if (source.equals("keycloak-realm")) {
       return "a role of the Keycloak realm, " + where(role);
     }
@@ -415,8 +465,8 @@ final class PeopleLinker {
         : "a " + source + " check in " + where(role);
   }
 
-  private static String where(Fact fact) {
-    String path = fact.evidence().path();
+  private static String where(Cited fact) {
+    String path = fact.fact().evidence().path();
     return path.substring(path.lastIndexOf('/') + 1);
   }
 
