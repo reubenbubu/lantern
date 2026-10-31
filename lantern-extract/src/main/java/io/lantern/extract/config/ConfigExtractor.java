@@ -418,9 +418,11 @@ public final class ConfigExtractor implements Extractor {
       if (!isSecret(value.key(), known)
           && !mayHoldCredential(written)
           && !written.contains(CIPHER)
-          && !written.equals(object)) {
+          && !written.equals(object)
+          && Placeholders.resolve(written, k -> null).value().equals(written)) {
         // Masked only for the secret its placeholders bring in: the text as written holds none,
-        // and linking resolves code values from it (ADR 0094, #558).
+        // not even in a placeholder's default, and linking resolves code values from it (ADR
+        // 0094, #558).
         attributes.put("written", written);
       }
     } else {

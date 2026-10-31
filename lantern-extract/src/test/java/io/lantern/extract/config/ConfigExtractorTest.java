@@ -276,6 +276,29 @@ class ConfigExtractorTest {
   }
 
   @Test
+  void aMaskedValueKeepsItsTextAsWrittenOnlyWhenNoPlaceholderDefaultIsInIt() throws IOException {
+    Repo repo =
+        repo(
+            Map.of(
+                RESOURCES + "application.properties",
+                """
+                api.token=t0k3n-value
+                app.plain=http://h/${api.token}
+                app.defaulted=http://h/${api.token:abc123}
+                """));
+
+    List<String> facts = extract(repo);
+    // The default of a placeholder whose key is secret may be a secret: not kept (#558).
+    assertThat(facts)
+        .anyMatch(
+            l ->
+                l.contains(
+                    "\"key\":\"app.plain\",\"masked\":true,\"written\":\"http://h/${api.token}\""))
+        .anyMatch(l -> l.contains("{\"key\":\"app.defaulted\",\"masked\":true}"))
+        .noneMatch(l -> l.contains("abc123") || l.contains("t0k3n-value"));
+  }
+
+  @Test
   void secretsWrittenInTheFileAreMasked() throws IOException {
     Repo repo =
         repo(

@@ -173,6 +173,35 @@ class ValueViewsTest {
   }
 
   @Test
+  void aConfigRouteUsingASecretSeveralValuesDeepIsMaskedAsBefore() throws IOException {
+    RepoBuild repo =
+        repo(
+            "gateway-deep",
+            java.util.Map.of(
+                "pom.xml",
+                "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+                    + "<artifactId>edge</artifactId><version>1</version></project>\n",
+                "src/main/resources/application.properties",
+                "svc.token=deep-s3cret-value\n"
+                    + "backend.url=http://h/${svc.token}\n"
+                    + "spring.cloud.gateway.routes[0].id=deep\n"
+                    + "spring.cloud.gateway.routes[0].uri=${backend.url}\n"
+                    + "spring.cloud.gateway.routes[0].predicates[0]=Path=/deep/**\n"));
+
+    List<String> routes =
+        render(
+            new ValueViews()
+                .derive(new ConfigExtractor().extract(List.of(repo), SNAPSHOT), SNAPSHOT));
+
+    assertThat(routes)
+        .singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+        .contains(" gateway-route deep ")
+        .contains("\"masked\":true")
+        .contains("\"written\":\"${backend.url}\"")
+        .doesNotContain("deep-s3cret-value");
+  }
+
+  @Test
   void aConfigRouteUsingAKnownSecretKeyIsMasked() throws IOException {
     RepoBuild repo =
         repo(

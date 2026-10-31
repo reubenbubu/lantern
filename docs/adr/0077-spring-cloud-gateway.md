@@ -196,9 +196,14 @@ The knowledge-build epic keeps values as written in extraction and resolves them
   each module's config, which it reads from the `config-value` facts per view (the profile's facts
   over the default's, a list the profile sets replacing the default's).
   - The evidence keeps the config facts' files, by blob.
-  - A config value masked for a secret stands for its secret keys, so what uses it is masked as
-    before. For this, the config extractor (version 9) keeps the text as written of a value it
-    masks only for the secret its placeholders bring in, when that text holds none.
+  - A config value the config extractor masked whole counts as a secret, however many values deep
+    its secret was, so a route using it is masked, recorded as written. The config extractor
+    (version 9) keeps that text as written when it holds no secret (ADR 0032, amendment for #558).
+  - Where the text as written lost a secret query option (`?access_token=${api.token}`), the masked
+    route's `written` lacks it too. A cipher or a URL credential the config extractor masked whole
+    now gives `uri: ******` where the extractor recorded the raw value. A value with only its URL
+    credentials removed reaches the route without them. Routes are now read for every module with
+    config facts, not only for repositories with Java code.
 - `ValueViewsTest` checks that the derived routes and locators on the extractor's `gateway` fixture
   equal the 21 `gateway-route` and `gateway-discovery-locator` lines of the extractor's golden from
   before. The Zuul and locator cases and the masking test moved there unchanged.

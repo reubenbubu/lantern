@@ -90,6 +90,9 @@ public final class ValueViews implements LinkStep {
   // ---------------------------------------------------------------------------------------------
   // Gateway routes
 
+  /** A key that names a secret, standing for the secret keys a masked config value used. */
+  private static final String MASKED = "lantern.masked.secret";
+
   private static List<Fact> gatewayRoutes(List<Fact> facts, CodeValues values, long snapshot) {
     java.util.Set<String> secretKeys = ConfigExtractor.jwtSecretKeys(facts);
     Map<String, String> blobs = new java.util.HashMap<>();
@@ -153,12 +156,11 @@ public final class ValueViews implements LinkStep {
     String value = f.object().value();
     SortedSet<String> used = new TreeSet<>();
     if (value.equals(ConfigExtractor.MASK)) {
-      // Masked for a secret: the reading masks what uses it, by the keys it was resolved from,
-      // which the facts do not keep; its own key, and the keys its text as written names, stand
-      // for them.
-      used.add(key);
+      // Masked whole for a secret: the reading masks what uses it by the keys it was resolved
+      // from, which the facts do not keep, so a key that names a secret stands for them, however
+      // many values deep the secret was.
+      used.add(MASKED);
       if (written != null) {
-        used.addAll(ConfigExtractor.resolve(written, k -> null).unresolved());
         value = written;
       }
     }
