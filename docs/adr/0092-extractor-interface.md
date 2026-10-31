@@ -46,14 +46,13 @@ extractor declares.
 - **Units.** An extractor declares one of three units:
   - **file**: one file of one repository, from the files it lists (`files(context, repo)`). The
     docs extractor, whose facts come from one README, ADR or document each.
-  - **repository**: one repository with its build: deployment, frontend, SQL and test. Each reads
-    only its own repository.
-  - **snapshot**: every repository of the snapshot: Maven, Java, identity, config, Spring,
-    persistence, HTTP client, messaging, WebSocket, mail, Redis, people and gateway. They read the
-    code model or other repositories.
+  - **repository**: one repository with its build: deployment, frontend, SQL and test, which read
+    only their own repository, and Maven and config (amendment for #547, below).
+  - **snapshot**: every repository of the snapshot: Java, identity, Spring, persistence, HTTP
+    client, messaging, WebSocket, mail, Redis, people and gateway. They read the code model, which
+    stays a shared input across repositories (the epic's section 7).
 
-  Extractors move to smaller units as their cross-file inputs go. #519 keeps values as written,
-  and the cross-repository decisions move to the linker (#547).
+  Extractors move to smaller units as their cross-file inputs go. #519 keeps values as written.
 - **The cache key** is the SHA-256 of the canonical JSON of:
   - the extractor's name and version, and a digest of the code extraction runs: the JDK's version
     and every class path entry (a class folder by content, a jar by path, size and modification
@@ -63,7 +62,8 @@ extractor declares.
     extractor applies to):
     - **file**: the repository's name, the path and the file's blob.
     - **repository**: the repository's name, its git tree SHA at the commit, and its build's
-      fingerprint.
+      fingerprint; plus what it declares it reads of the other repositories (amendment
+      for #547).
     - **snapshot**: every repository's name, tree SHA and build fingerprint.
   - the IDs of the required extractors' facts.
 
@@ -91,3 +91,32 @@ extractor declares.
   repository's deployment files, only that repository's deployment, frontend, SQL and test units
   are extracted again, along with every snapshot-unit extractor. The test is `ExtractorsTest`.
 - The fake-model scorecards on project-1 to project-4 and project-8 are unchanged (#279's PR).
+
+## Amendment for #547: repository units that read other repositories
+
+#547 set out to move the extractors' cross-repository decisions to the linker, so that Maven,
+config, WebSocket and Java could be cached per repository. Reading the code showed two things the
+plan missed:
+- Maven reads parent POMs in other repositories for a repository whose build fails (properties,
+  managed versions, plugins, and through them which modules are deployable). Moving that to
+  linking needs new fact types.
+- Java and WebSocket read the code model, shared across repositories, so no move makes them
+  repository units.
+
+The owner chose the narrower step on #547:
+- **Maven and config are repository units** whose key also covers what they read of the other
+  repositories, declared by `Extractor.readsElsewhere(path)` and `readsOtherBuilds()`. The key
+  adds, for each other repository, the blobs of the files it reads (every XML file for Maven,
+  since a module's POM need not be named `pom.xml`; those and Spring `application` and
+  `bootstrap` files for config), and for Maven the paths, not the contents, of the `.java` files
+  under `src/main/java`, whose count decides which library a service packages
+  (`readsPathElsewhere`), and the build fingerprint, whose effective POM gives other modules'
+  coordinates.
+- **Each unit gives its own repository's facts.** The extractor computes the snapshot's facts once
+  per run (`ExtractionContext.memo`) and each unit keeps those whose evidence is in its
+  repository; the facts and documents are those of before.
+- **Effect.** Editing code in one repository re-extracts only that repository's Maven and config
+  units. Adding or removing a source file re-extracts every repository's Maven units; a change to
+  a POM or Spring config file re-extracts every repository's units that read it.
+- **Java and WebSocket stay snapshot units.** Moving the joins into linking, as the epic intends,
+  comes with value resolution (#283).

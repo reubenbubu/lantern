@@ -1388,13 +1388,40 @@ public final class MavenExtractor implements Extractor {
     return new ExtractorInfo(NAME, VERSION);
   }
 
+  /**
+   * Its facts are each repository's, but the other repositories' POMs decide which dependencies are
+   * their modules and what an unbuilt module inherits from a parent there, their builds give their
+   * modules' coordinates, and the number of their modules' sources decides which library a service
+   * packages (ADR 0092, amendment for #547).
+   */
   @Override
   public CacheUnit unit() {
-    return CacheUnit.SNAPSHOT;
+    return CacheUnit.REPOSITORY;
+  }
+
+  @Override
+  public boolean readsElsewhere(String path) {
+    // Any XML file: a module's POM need not be named pom.xml ({@code <module>x/foo.xml</module>}).
+    return path.endsWith(".xml");
+  }
+
+  @Override
+  public boolean readsPathElsewhere(String path) {
+    return path.endsWith(".java") && path.contains("src/main/java/");
+  }
+
+  /** The other repositories' effective POMs decide their modules' coordinates. */
+  @Override
+  public boolean readsOtherBuilds() {
+    return true;
   }
 
   @Override
   public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
-    sink.emitAll(extract(unit.repos(), context.snapshot()));
+    // The snapshot's facts are extracted once per run; each unit takes its own repository's.
+    List<Fact> all =
+        context.memo(NAME + "@" + VERSION, () -> extract(context.repos(), context.snapshot()));
+    String repo = unit.repo().repo().name();
+    sink.emitAll(all.stream().filter(fact -> fact.evidence().repo().equals(repo)).toList());
   }
 }

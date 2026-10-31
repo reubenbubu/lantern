@@ -18,6 +18,7 @@ public final class ExtractionContext {
   private final List<RepoBuild> repos;
   private final Supplier<JavaAnalysis> code;
   private final Map<String, List<Fact>> required;
+  private final Map<String, Object> memo;
 
   /**
    * @param snapshot the snapshot number the facts hold from
@@ -34,6 +35,15 @@ public final class ExtractionContext {
     this.repos = List.copyOf(Objects.requireNonNull(repos, "repos"));
     this.code = Objects.requireNonNull(code, "code");
     this.required = Map.copyOf(Objects.requireNonNull(required, "required"));
+    this.memo = new java.util.concurrent.ConcurrentHashMap<>();
+  }
+
+  private ExtractionContext(ExtractionContext base, Map<String, List<Fact>> required) {
+    this.snapshot = base.snapshot;
+    this.repos = base.repos;
+    this.code = base.code;
+    this.required = Map.copyOf(required);
+    this.memo = base.memo;
   }
 
   /** A context of the repositories with no required facts, its code model built when used. */
@@ -96,8 +106,27 @@ public final class ExtractionContext {
     return facts;
   }
 
-  /** This context with the facts of the given required extractors. */
+  /** This context with the facts of the given required extractors; it shares {@link #memo}. */
   ExtractionContext requiring(Map<String, List<Fact>> facts) {
-    return new ExtractionContext(snapshot, repos, code, facts);
+    return new ExtractionContext(this, facts);
+  }
+
+  /**
+   * A value computed once per run, shared by every unit and extractor of it: an extractor whose
+   * repository units read the whole snapshot computes the snapshot's facts once and gives each unit
+   * its own repository's.
+   */
+  @SuppressWarnings("unchecked")
+  public <T> T memo(String key, java.util.function.Supplier<T> value) {
+    // Every context of a run shares the map, so the map is the lock: a key is computed once even
+    // when extractors of one wave ask for it at the same time.
+    synchronized (memo) {
+      Object found = memo.get(key);
+      if (found == null) {
+        found = value.get();
+        memo.put(key, found);
+      }
+      return (T) found;
+    }
   }
 }

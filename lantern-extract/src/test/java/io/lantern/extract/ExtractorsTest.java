@@ -162,6 +162,95 @@ class ExtractorsTest {
     assertThat(changed.facts("docs")).isNotEqualTo(again.facts("docs"));
   }
 
+  @Test
+  void mavenAndConfigReExtractOnlyTheChangedRepositoryUnlessItsPomOrConfigChanged()
+      throws IOException {
+    Path shopDir = temp.resolve("shop");
+    String pom =
+        "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+            + "<artifactId>%s</artifactId><version>1.0</version>%s</project>";
+    Repo shop =
+        Fixtures.repo(
+            shopDir,
+            "shop",
+            Map.of(
+                "pom.xml",
+                pom.formatted(
+                    "shop",
+                    "<dependencies><dependency><groupId>com.example</groupId>"
+                        + "<artifactId>lib</artifactId><version>1.0</version></dependency>"
+                        + "</dependencies>"),
+                "src/main/resources/application.yml",
+                "spring:\n  application:\n    name: shop\n",
+                "src/main/java/com/example/Shop.java",
+                "package com.example;\nclass Shop {}\n"));
+    Path libDir = temp.resolve("lib");
+    Repo lib =
+        Fixtures.repo(
+            libDir,
+            "lib",
+            Map.of(
+                "pom.xml",
+                pom.formatted("lib", ""),
+                "src/main/java/com/example/Lib.java",
+                "package com.example;\nclass Lib {}\n"));
+    List<Extractor> moved =
+        Extractors.load().stream()
+            .filter(e -> List.of("maven", "config", "identity").contains(e.info().name()))
+            .toList();
+    assertThat(moved)
+        .filteredOn(e -> !e.info().name().equals("identity"))
+        .allSatisfy(e -> assertThat(e.unit()).isEqualTo(CacheUnit.REPOSITORY));
+    Extractors extractors = new Extractors(moved, ExtractionCache.inMemory());
+
+    Extractors.Result first = extractors.run(1, List.of(build(shop), build(lib)));
+    Files.writeString(
+        libDir.resolve("src/main/java/com/example/Lib.java"),
+        "package com.example;\nclass Lib { int x; }\n");
+    commit(libDir, "code", false);
+    Extractors.Result code = extractors.run(2, List.of(build(shop), build(lib)));
+    Files.writeString(
+        libDir.resolve("src/main/java/com/example/Extra.java"),
+        "package com.example;\nclass Extra {}\n");
+    commit(libDir, "new file", false);
+    Extractors.Result added = extractors.run(3, List.of(build(shop), build(lib)));
+    Files.createDirectories(libDir.resolve("src/main/resources"));
+    Files.writeString(
+        libDir.resolve("src/main/resources/application.yml"),
+        "spring:\n  application:\n    name: lib\n");
+    commit(libDir, "config", false);
+    Extractors.Result config = extractors.run(4, List.of(build(shop), build(lib)));
+    Files.writeString(
+        libDir.resolve("pom.xml"), pom.formatted("lib", "<packaging>pom</packaging>"));
+    commit(libDir, "pom", false);
+    Extractors.Result pomChanged = extractors.run(5, List.of(build(shop), build(lib)));
+
+    // Identity, which config requires, is a snapshot unit: extracted on every change.
+    assertThat(first.extracted()).isEqualTo(1 + 4);
+    // The dependency on lib is to lib's module, decided with lib's POM.
+    assertThat(first.facts("maven"))
+        .anySatisfy(
+            f -> {
+              assertThat(f.predicate()).isEqualTo("BUILD_DEPENDS_ON");
+              assertThat(f.object().value().toString()).isEqualTo("module:com.example:lib");
+            });
+    // A code change in lib re-extracts only lib's units.
+    assertThat(code.extracted()).isEqualTo(1 + 2);
+    assertThat(code.cached()).isEqualTo(2);
+    // A new source file in lib re-extracts lib's units and shop's Maven unit, since Maven compares
+    // modules' source counts across repositories; shop's config unit is read from the cache.
+    assertThat(added.extracted()).isEqualTo(1 + 3);
+    assertThat(added.cached()).isEqualTo(1);
+    // A change to lib's Spring config re-extracts lib's units and shop's config unit, which reads
+    // other repositories' config; shop's Maven unit is read from the cache.
+    assertThat(config.extracted()).isEqualTo(1 + 3);
+    assertThat(config.cached()).isEqualTo(1);
+    // A change to lib's POM, which shop's units read, re-extracts both repositories' Maven units;
+    // Config reads POMs too.
+    assertThat(pomChanged.extracted()).isEqualTo(1 + 4);
+    assertThat(pomChanged.facts()).isNotEmpty();
+  }
+
   private static RepoBuild build(Repo repo) {
     return new RepoBuild(repo, Fixtures.head(repo), null);
   }

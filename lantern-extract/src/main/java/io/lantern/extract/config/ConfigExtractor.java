@@ -463,18 +463,34 @@ public final class ConfigExtractor implements Extractor {
     return Set.of(io.lantern.extract.identity.IdentityExtractor.NAME);
   }
 
+  /**
+   * Its facts are each repository's, but whether any repository sets up a config server, and the
+   * application names a config repository serves, come from the other repositories' Spring config
+   * files and the modules their POMs declare (ADR 0092, amendment for #547).
+   */
   @Override
   public CacheUnit unit() {
-    return CacheUnit.SNAPSHOT;
+    return CacheUnit.REPOSITORY;
+  }
+
+  @Override
+  public boolean readsElsewhere(String path) {
+    return path.endsWith(".xml") || ConfigReader.isConfigFile(path);
   }
 
   @Override
   public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
-    sink.emitAll(
-        extract(
-            unit.repos(),
-            context.snapshot(),
-            io.lantern.extract.config.ConfigExtractor.jwtSecretKeys(
-                context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
+    // The snapshot's facts are extracted once per run; each unit takes its own repository's.
+    List<Fact> all =
+        context.memo(
+            NAME + "@" + VERSION,
+            () ->
+                extract(
+                    context.repos(),
+                    context.snapshot(),
+                    jwtSecretKeys(
+                        context.facts(io.lantern.extract.identity.IdentityExtractor.NAME))));
+    String repo = unit.repo().repo().name();
+    sink.emitAll(all.stream().filter(fact -> fact.evidence().repo().equals(repo)).toList());
   }
 }
