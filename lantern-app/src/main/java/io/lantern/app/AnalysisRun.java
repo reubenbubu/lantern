@@ -447,6 +447,10 @@ public final class AnalysisRun {
       List<Fact> written = new ArrayList<>(found);
       written.addAll(resolved);
       LOG.info("Wrote {}", ExtractedFacts.write(out, written));
+      // Every fact the linker derived for the snapshot, not only those about the repositories
+      // analyzed in this run, so a link to a repository carried forward is there too.
+      LOG.info(
+          "Wrote {}", ExtractedFacts.write(out, ExtractedFacts.LINKED_FILE, stored.linkerFacts()));
       return new Result(
           system,
           systemTitle,
@@ -775,15 +779,21 @@ public final class AnalysisRun {
           linked.facts().stream()
               .filter(f -> repos.contains(f.evidence().repo()))
               .forEach(stored::add);
-          return new Stored(stored, added + linked.added(), resolver.asked(), resolver.reused());
+          return new Stored(
+              stored,
+              linked.facts(),
+              added + linked.added(),
+              resolver.asked(),
+              resolver.reused());
         });
   }
 
   /**
-   * Facts as stored, how many of them were new, and how many open links the LLM was asked about and
-   * how many of its answers were reused.
+   * Facts as stored, every fact the linker derived for the snapshot, how many facts were new, and
+   * how many open links the LLM was asked about and how many of its answers were reused.
    */
-  private record Stored(List<Fact> facts, int added, int linksAsked, int linksReused) {}
+  private record Stored(
+      List<Fact> facts, List<Fact> linkerFacts, int added, int linksAsked, int linksReused) {}
 
   /**
    * The repository's three views, the Architecture Explorer document {@code <repo>}, the Executive
